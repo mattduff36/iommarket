@@ -1,0 +1,90 @@
+---
+description: Git workflow and commit conventions
+globs: ""
+---
+
+# Git Workflow
+
+## Commit Message Format
+
+```
+<type>: <description>
+
+<optional body>
+```
+
+**Types:** feat, fix, refactor, docs, test, chore, perf, ci
+
+**Examples:**
+- `feat: add user authentication`
+- `fix: resolve race condition in market search`
+- `refactor: extract validation logic to utils`
+- `docs: update API documentation`
+- `test: add unit tests for trading module`
+
+## Commit Best Practices
+
+- Keep commits small and focused
+- Write descriptive messages (why, not what)
+- Don't commit secrets or debug code
+- Run tests before committing
+- Review your diff before committing
+
+## Branch Strategy
+
+- `main` - Production-ready code
+- `develop` - Integration branch (optional)
+- `feature/*` - New features
+- `fix/*` - Bug fixes
+- `refactor/*` - Code improvements
+
+## Pull Request Workflow
+
+When creating PRs:
+
+1. Analyze full commit history (not just latest commit)
+2. Use `git diff main...HEAD` to see all changes
+3. Draft comprehensive PR summary
+4. Include test plan with TODOs
+5. Push with `-u` flag if new branch
+
+## PR Template
+
+```markdown
+## Summary
+<1-3 bullet points describing the change>
+
+## Changes
+- List specific changes made
+- Include file paths for significant changes
+
+## Test Plan
+- [ ] Unit tests added/updated
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+
+## Screenshots (if UI change)
+<attach before/after screenshots>
+```
+
+## Feature Implementation Workflow
+
+1. **Plan First**
+   - Understand requirements fully
+   - Identify dependencies and risks
+   - Break down into phases
+
+2. **TDD Approach**
+   - Write tests first (RED)
+   - Implement to pass tests (GREEN)
+   - Refactor (IMPROVE)
+
+3. **Code Review**
+   - Self-review your diff
+   - Address linting issues
+   - Remove debug code
+
+4. **Commit & Push**
+   - Detailed commit messages
+   - Follow conventional commits format
+   - Push and create PR

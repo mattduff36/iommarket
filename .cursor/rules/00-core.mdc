@@ -1,0 +1,51 @@
+---
+description: Core non-negotiables that apply to all code changes
+alwaysApply: true
+---
+
+# Core Development Principles
+
+These rules apply to ALL code you write or modify.
+
+## Non-Negotiables
+
+1. **No Secrets in Code**
+   - Never hardcode API keys, passwords, tokens, or credentials
+   - Use environment variables: `process.env.API_KEY`
+   - If you find exposed secrets, flag them immediately
+
+2. **Small, Focused Files**
+   - Target 200-400 lines per file
+   - Maximum 800 lines (split if larger)
+   - One component/module per file
+   - Organize by feature/domain, not by type
+
+3. **Validate All Inputs**
+   - Never trust user input
+   - Use validation libraries (zod, yup, joi)
+   - Sanitize before database/API operations
+
+4. **Handle Errors Properly**
+   - Wrap risky operations in try/catch
+   - Provide meaningful error messages
+   - Don't swallow errors silently
+   - Log errors with context
+
+5. **No Debug Code in Commits**
+   - Remove `console.log` statements before committing
+   - Remove commented-out code
+   - Remove TODO/FIXME without tickets
+
+6. **Prefer Tests**
+   - Write tests for new features
+   - Write tests before fixing bugs (reproduce first)
+   - Aim for 80%+ coverage on critical code
+
+## Before Completing Any Task
+
+- [ ] No hardcoded secrets
+- [ ] Files under 800 lines
+- [ ] Inputs validated
+- [ ] Errors handled
+- [ ] No console.log statements
+- [ ] Tests added/updated

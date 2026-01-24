@@ -1,0 +1,86 @@
+---
+description: Performance and context management guidelines
+globs: ""
+---
+
+# Performance & Context Management
+
+## Model Selection Strategy
+
+Choose the right model for the task:
+
+**Faster/Cheaper Model** (for routine work):
+- Simple code generation
+- Straightforward edits
+- Single-file changes
+- Documentation updates
+- Simple bug fixes
+
+**More Capable Model** (for complex work):
+- Architectural decisions
+- Multi-file refactoring
+- Complex debugging
+- System design
+- Security-critical code
+
+## Context Window Management
+
+Be mindful of context limits:
+
+**High Context Sensitivity Tasks:**
+- Large-scale refactoring
+- Feature implementation spanning multiple files
+- Debugging complex interactions
+- Multi-step workflows
+
+**Lower Context Sensitivity Tasks:**
+- Single-file edits
+- Independent utility creation
+- Documentation updates
+- Simple bug fixes
+
+## Tips for Effective AI Assistance
+
+1. **Be Specific**
+   - Provide clear requirements
+   - Include relevant file paths
+   - Share error messages fully
+
+2. **Work Incrementally**
+   - Break large tasks into smaller steps
+   - Verify each step before continuing
+   - Commit frequently
+
+3. **Provide Context**
+   - Reference relevant files with @mentions
+   - Explain the "why" not just the "what"
+   - Share constraints and requirements
+
+4. **Use Structured Prompts**
+   - Reference command templates when available
+   - Use checklists for complex tasks
+   - Ask for plans before implementation
+
+## Build Troubleshooting
+
+If build fails:
+
+1. Read the full error message
+2. Identify the specific file and line
+3. Check for common issues:
+   - Missing imports
+   - Type mismatches
+   - Syntax errors
+4. Fix incrementally
+5. Verify after each fix
+
+## Performance Checklist
+
+Before deploying:
+
+- [ ] No N+1 queries
+- [ ] Proper caching implemented
+- [ ] Images optimized
+- [ ] Bundle size reasonable
+- [ ] Lazy loading where appropriate
+- [ ] Database indexes on frequent queries

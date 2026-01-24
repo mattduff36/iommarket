@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Note: .cursor/mcp.json contains placeholder values
+# If you add real secrets, consider adding it to .gitignore:
+# .cursor/mcp.json

@@ -1,0 +1,87 @@
+---
+description: Testing requirements and TDD workflow
+globs: "**/*.{test,spec}.{ts,tsx,js,jsx}"
+---
+
+# Testing Requirements
+
+## Target Coverage: 80%+
+
+Test Types (ALL required for production code):
+
+1. **Unit Tests** - Individual functions, utilities, components
+2. **Integration Tests** - API endpoints, database operations
+3. **E2E Tests** - Critical user flows (Playwright/Cypress)
+
+## Test-Driven Development (TDD)
+
+Recommended workflow for new features:
+
+1. **RED** - Write test first (it should FAIL)
+2. **GREEN** - Write minimal implementation (make it PASS)
+3. **REFACTOR** - Improve code while keeping tests green
+4. Verify coverage (80%+)
+
+## TDD Cycle
+
+```
+RED → GREEN → REFACTOR → REPEAT
+
+RED:      Write a failing test
+GREEN:    Write minimal code to pass
+REFACTOR: Improve code, keep tests passing
+REPEAT:   Next feature/scenario
+```
+
+## Test Quality Checklist
+
+Before marking tests complete:
+
+- [ ] All public functions have unit tests
+- [ ] All API endpoints have integration tests
+- [ ] Critical user flows have E2E tests
+- [ ] Edge cases covered (null, empty, invalid)
+- [ ] Error paths tested (not just happy path)
+- [ ] Mocks used for external dependencies
+- [ ] Tests are independent (no shared state)
+- [ ] Test names describe what's being tested
+- [ ] Assertions are specific and meaningful
+
+## Edge Cases to Always Test
+
+1. **Null/Undefined**: What if input is null?
+2. **Empty**: What if array/string is empty?
+3. **Invalid Types**: What if wrong type passed?
+4. **Boundaries**: Min/max values
+5. **Errors**: Network failures, database errors
+6. **Special Characters**: Unicode, emojis, SQL chars
+
+## Test Best Practices
+
+**DO:**
+- Write the test FIRST, before any implementation
+- Run tests and verify they FAIL before implementing
+- Write minimal code to make tests pass
+- Test user-visible behavior, not implementation details
+
+**DON'T:**
+- Write implementation before tests
+- Skip running tests after each change
+- Test implementation details
+- Let tests depend on each other
+
+## Commands
+
+```bash
+# Run tests
+npm test
+
+# Run with coverage
+npm test -- --coverage
+
+# Watch mode during development
+npm test -- --watch
+
+# Run specific test file
+npm test path/to/file.test.ts
+```

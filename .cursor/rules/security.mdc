@@ -1,0 +1,81 @@
+---
+description: Security guidelines and mandatory checks
+globs: "**/*.{ts,tsx,js,jsx,py,go,rs}"
+---
+
+# Security Guidelines
+
+## Mandatory Security Checks
+
+Before ANY commit:
+
+- [ ] No hardcoded secrets (API keys, passwords, tokens)
+- [ ] All user inputs validated
+- [ ] SQL injection prevention (parameterized queries)
+- [ ] XSS prevention (sanitized HTML)
+- [ ] CSRF protection enabled
+- [ ] Authentication/authorization verified
+- [ ] Rate limiting on all endpoints
+- [ ] Error messages don't leak sensitive data
+
+## Secret Management
+
+```typescript
+// NEVER: Hardcoded secrets
+const apiKey = "sk-proj-xxxxx"
+
+// ALWAYS: Environment variables
+const apiKey = process.env.OPENAI_API_KEY
+
+if (!apiKey) {
+  throw new Error('OPENAI_API_KEY not configured')
+}
+```
+
+## Input Validation
+
+```typescript
+// Validate ALL user input
+import { z } from 'zod'
+
+const userSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+})
+
+// Parse and validate
+const user = userSchema.parse(req.body)
+```
+
+## SQL Injection Prevention
+
+```typescript
+// NEVER: String concatenation
+const query = `SELECT * FROM users WHERE id = '${userId}'`
+
+// ALWAYS: Parameterized queries
+const query = 'SELECT * FROM users WHERE id = $1'
+const result = await db.query(query, [userId])
+```
+
+## XSS Prevention
+
+```typescript
+// NEVER: Direct HTML injection
+element.innerHTML = userInput
+
+// ALWAYS: Sanitize or use safe methods
+element.textContent = userInput
+// Or use DOMPurify for HTML
+element.innerHTML = DOMPurify.sanitize(userInput)
+```
+
+## Security Response Protocol
+
+If security issue found:
+
+1. **STOP** immediately
+2. Document the vulnerability
+3. Fix CRITICAL issues before continuing
+4. Rotate any exposed secrets
+5. Review entire codebase for similar issues
