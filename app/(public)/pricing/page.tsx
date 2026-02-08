@@ -9,7 +9,7 @@ import { Check } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Simple pricing for sellers and dealers on IOM Market.",
+  description: "Simple pricing for sellers and dealers on itrader.im.",
 };
 
 const SELLER_FEATURES = [

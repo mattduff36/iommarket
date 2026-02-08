@@ -27,7 +27,7 @@ export function SiteFooter() {
                 height={17}
                 className="rounded-[3px] opacity-90"
               />
-              IOM Market
+              itrader.im
             </Link>
             <p className="mt-2 max-w-xs text-sm text-slate-400">
               The Isle of Man&apos;s trusted marketplace for vehicles, marine,
@@ -52,7 +52,7 @@ export function SiteFooter() {
         {/* Divider + copyright */}
         <div className="mt-10 border-t border-slate-700 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <p className="text-xs text-slate-500">
-            &copy; {new Date().getFullYear()} IOM Market. All rights reserved.
+            &copy; {new Date().getFullYear()} itrader.im. All rights reserved.
           </p>
           <p className="text-xs text-slate-500">
             Created with care on the Isle of Man

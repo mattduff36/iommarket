@@ -1,4 +1,4 @@
-# IOM Market — Isle of Man Hyper-Local Marketplace
+# itrader.im — Isle of Man Hyper-Local Marketplace
 
 A trusted, hyper-local marketplace for the Isle of Man. Buy and sell vehicles, marine, hi-fi, instruments, photography gear, and more from trusted local sellers.
 

@@ -8,7 +8,7 @@ import { CreateListingForm } from "./create-listing-form";
 
 export const metadata: Metadata = {
   title: "Sell",
-  description: "Create a listing on IOM Market.",
+  description: "Create a listing on itrader.im.",
 };
 
 export default async function SellPage() {

@@ -20,7 +20,7 @@ import { Plus, ExternalLink } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
-  description: "Manage your dealer listings on IOM Market.",
+  description: "Manage your dealer listings on itrader.im.",
 };
 
 const STATUS_VARIANT: Record<

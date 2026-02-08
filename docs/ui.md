@@ -2,7 +2,7 @@
 
 ## Overview
 
-The IOM Market UI library is a local component system built on:
+The itrader.im UI library is a local component system built on:
 
 - **Tailwind CSS v4** (CSS-based theme configuration)
 - **Radix UI** primitives for accessible, unstyled components

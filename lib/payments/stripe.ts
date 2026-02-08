@@ -45,7 +45,7 @@ export async function createListingCheckout(params: {
             currency: "gbp",
             product_data: {
               name: `Listing: ${params.listingTitle}`,
-              description: "30-day marketplace listing on IOM Market",
+              description: "30-day marketplace listing on itrader.im",
             },
             unit_amount: params.amountInPence,
           },
@@ -119,7 +119,7 @@ export async function createFeaturedUpgradeCheckout(params: {
           currency: "gbp",
           product_data: {
             name: `Featured Upgrade: ${params.listingTitle}`,
-            description: "Promote your listing to featured status on IOM Market",
+            description: "Promote your listing to featured status on itrader.im",
           },
           unit_amount: FEATURED_FEE_PENCE,
         },
