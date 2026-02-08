@@ -9,6 +9,8 @@ node_modules/
 # IDE
 .vscode/
 .idea/
+*.code-workspace
+private/
 
 # OS
 .DS_Store
