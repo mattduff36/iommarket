@@ -18,11 +18,10 @@ const dmSerifDisplay = DM_Serif_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "itrader.im - Isle of Man Marketplace",
+    default: "Isle of Man Marketplace",
     template: "%s | itrader.im",
   },
-  description:
-    "The trusted hyper-local marketplace for the Isle of Man. Buy and sell vehicles, marine, hi-fi, instruments, and more.",
+  description: "Isle of Man Marketplace.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   ),
