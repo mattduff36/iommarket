@@ -77,6 +77,7 @@
 
   /* ---- Typography ---- */
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
 
   --text-xs: var(--fs-xs);
   --text-xs--line-height: var(--lh-normal);
@@ -98,26 +99,83 @@
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
   --radius-full: var(--radius-full);
 
   /* ---- Shadows ---- */
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
+  --shadow-lift: var(--shadow-lift);
   --shadow-outline: var(--shadow-outline);
 }
 
 /* ---- Base styles ---- */
 body {
   font-family: var(--font-sans);
-  background-color: var(--sem-bg-canvas);
   color: var(--sem-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Warm subtle gradient background instead of flat white */
+  background:
+    linear-gradient(
+      180deg,
+      #f9fafb 0%,
+      #f5f3ef 40%,
+      #f7f5f2 70%,
+      #f9fafb 100%
+    );
+  background-attachment: fixed;
+}
+
+/* Subtle grain texture overlay on the page */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.3;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ---- Heading font ---- */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}
+
+/* Reset to sans for UI elements that use heading tags */
+.font-sans h1, .font-sans h2, .font-sans h3,
+.font-sans h4, .font-sans h5, .font-sans h6 {
+  font-family: var(--font-sans);
 }
 
 /* Focus ring utility */
 .focus-ring {
   outline: none;
   box-shadow: var(--shadow-outline);
+}
+
+/* Section heading with accent underline (ToyStore style) */
+.section-heading-accent {
+  position: relative;
+  padding-bottom: 12px;
+}
+.section-heading-accent::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--sem-action-primary-bg);
 }

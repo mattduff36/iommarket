@@ -52,11 +52,11 @@ export default async function DealerProfilePage({ params }: Props) {
   const isSubscribed = dealer.subscriptions.length > 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       {/* Dealer header */}
-      <div className="flex flex-col sm:flex-row items-start gap-6 mb-8 pb-8 border-b border-border">
+      <div className="flex flex-col sm:flex-row items-start gap-6 mb-12 pb-10 border-b border-slate-200">
         {dealer.logoUrl ? (
-          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-surface-subtle">
+          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
             <Image
               src={dealer.logoUrl}
               alt={dealer.name}
@@ -65,30 +65,30 @@ export default async function DealerProfilePage({ params }: Props) {
             />
           </div>
         ) : (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-royal-50 text-2xl font-bold text-royal-600">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-royal-50 text-3xl font-bold text-royal-600">
             {dealer.name.charAt(0)}
           </div>
         )}
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-text-primary">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
               {dealer.name}
             </h1>
             {isSubscribed && <Badge variant="success">Verified Dealer</Badge>}
           </div>
 
           {dealer.bio && (
-            <p className="mt-2 text-sm text-text-secondary">{dealer.bio}</p>
+            <p className="mt-3 text-slate-500 leading-relaxed">{dealer.bio}</p>
           )}
 
-          <div className="mt-3 flex flex-wrap gap-4 text-sm text-text-secondary">
+          <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-500">
             {dealer.website && (
               <a
                 href={dealer.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 hover:text-text-brand"
+                className="inline-flex items-center gap-1.5 hover:text-royal-700 transition-colors"
               >
                 <Globe className="h-4 w-4" /> Website
               </a>
@@ -96,12 +96,12 @@ export default async function DealerProfilePage({ params }: Props) {
             {dealer.phone && (
               <a
                 href={`tel:${dealer.phone}`}
-                className="inline-flex items-center gap-1 hover:text-text-brand"
+                className="inline-flex items-center gap-1.5 hover:text-royal-700 transition-colors"
               >
                 <Phone className="h-4 w-4" /> {dealer.phone}
               </a>
             )}
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-center gap-1.5">
               <Calendar className="h-4 w-4" /> Member since{" "}
               {dealer.createdAt.toLocaleDateString("en-GB", {
                 month: "long",
@@ -113,13 +113,12 @@ export default async function DealerProfilePage({ params }: Props) {
       </div>
 
       {/* Listings */}
-      <h2 className="text-xl font-bold text-text-primary mb-6">
-        {dealer.listings.length} Active Listing
-        {dealer.listings.length !== 1 ? "s" : ""}
+      <h2 className="section-heading-accent text-xl font-bold text-slate-900 mb-8">
+        {dealer.listings.length} Active Listing{dealer.listings.length !== 1 ? "s" : ""}
       </h2>
 
       {dealer.listings.length > 0 ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {dealer.listings.map((listing) => (
             <ListingCard
               key={listing.id}
@@ -135,7 +134,7 @@ export default async function DealerProfilePage({ params }: Props) {
           ))}
         </div>
       ) : (
-        <p className="text-center py-16 text-text-secondary">
+        <p className="text-center py-16 text-slate-500">
           No active listings from this dealer.
         </p>
       )}

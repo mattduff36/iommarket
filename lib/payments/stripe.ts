@@ -97,6 +97,47 @@ export async function createDealerSubscriptionCheckout(params: {
 }
 
 /**
+ * Create a checkout session for a featured listing upgrade.
+ */
+export async function createFeaturedUpgradeCheckout(params: {
+  listingId: string;
+  listingTitle: string;
+  successUrl: string;
+  cancelUrl: string;
+  customerEmail?: string;
+}) {
+  const stripe = getStripe();
+  const FEATURED_FEE_PENCE = 499; // £4.99
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    customer_email: params.customerEmail,
+    line_items: [
+      {
+        price_data: {
+          currency: "gbp",
+          product_data: {
+            name: `Featured Upgrade: ${params.listingTitle}`,
+            description: "Promote your listing to featured status on IOM Market",
+          },
+          unit_amount: FEATURED_FEE_PENCE,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      listingId: params.listingId,
+      type: "featured_upgrade",
+    },
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+  });
+
+  return session;
+}
+
+/**
  * Construct and verify a Stripe webhook event.
  */
 export function constructWebhookEvent(

@@ -29,7 +29,7 @@ export async function moderateListing(input: ModerateListingInput) {
   const { listingId, action, adminNotes } = parsed.data;
 
   const statusMap = {
-    APPROVE: "APPROVED" as const,
+    APPROVE: "LIVE" as const,
     REJECT: "TAKEN_DOWN" as const,
     TAKE_DOWN: "TAKEN_DOWN" as const,
   };

@@ -25,7 +25,7 @@ Design tokens are sourced from `private/design-system.json` and compiled into CS
 ├── components/
 │   ├── ui/                        ← primitives (@/components/ui/*)
 │   └── marketplace/               ← domain components (@/components/marketplace/*)
-└── app/styleguide/page.tsx        ← live component showcase
+└── app/uidemo/page.tsx             ← live component showcase
 ```
 
 ---
@@ -220,7 +220,7 @@ function formatPrice(price: number, currency = "£"): string {
 
 ## Styleguide
 
-View all components at: [/styleguide](/styleguide)
+View all components at: [/uidemo](/uidemo)
 
 ---
 

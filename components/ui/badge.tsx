@@ -12,6 +12,7 @@ const badgeVariants = cva(
         warning: "bg-status-warning-bg text-status-warning-text",
         info: "bg-status-info-bg text-status-info-text",
         neutral: "bg-slate-100 text-slate-700",
+        price: "bg-primary text-white px-3 py-1 text-sm font-bold",
       },
     },
     defaultVariants: {

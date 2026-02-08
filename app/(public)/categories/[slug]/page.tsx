@@ -8,16 +8,20 @@ import { CategoryFilters } from "./category-filters";
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string; minPrice?: string; maxPrice?: string }>;
+  searchParams: Promise<{ page?: string; minPrice?: string; maxPrice?: string; region?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const category = await db.category.findUnique({ where: { slug } });
   if (!category) return {};
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return {
     title: category.name,
     description: `Browse ${category.name} listings on IOM Market.`,
+    alternates: {
+      canonical: `${appUrl}/categories/${slug}`,
+    },
   };
 }
 
@@ -37,11 +41,12 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const where = {
     categoryId: category.id,
     status: "LIVE" as const,
+    ...(sp.region ? { region: { slug: sp.region } } : {}),
     ...(sp.minPrice ? { price: { gte: parseInt(sp.minPrice, 10) * 100 } } : {}),
     ...(sp.maxPrice ? { price: { lte: parseInt(sp.maxPrice, 10) * 100 } } : {}),
   };
 
-  const [listings, total] = await Promise.all([
+  const [listings, total, regions] = await Promise.all([
     db.listing.findMany({
       where,
       orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
@@ -53,31 +58,34 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       },
     }),
     db.listing.count({ where }),
+    db.region.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-text-primary">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mb-10">
+        <h1 className="section-heading-accent text-3xl font-bold text-slate-900">
           {category.name}
         </h1>
-        <p className="mt-1 text-sm text-text-secondary">
+        <p className="mt-4 text-sm text-slate-500">
           {total} listing{total !== 1 ? "s" : ""} found
         </p>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex gap-8">
         <CategoryFilters
           categorySlug={slug}
+          regionSlug={sp.region}
+          regions={regions.map((r) => ({ label: r.name, value: r.slug }))}
           minPrice={sp.minPrice}
           maxPrice={sp.maxPrice}
         />
 
         <div className="flex-1">
           {listings.length > 0 ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
               {listings.map((listing) => (
                 <ListingCard
                   key={listing.id}
@@ -92,22 +100,37 @@ export default async function CategoryPage({ params, searchParams }: Props) {
               ))}
             </div>
           ) : (
-            <p className="text-center py-16 text-text-secondary">
+            <p className="text-center py-16 text-slate-500">
               No listings found in this category.
             </p>
           )}
 
+          {/* JSON-LD */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "CollectionPage",
+                name: `${category.name} - IOM Market`,
+                description: `Browse ${category.name} listings on IOM Market.`,
+                url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/categories/${slug}`,
+                numberOfItems: total,
+              }),
+            }}
+          />
+
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-8 flex justify-center gap-2">
+            <div className="mt-10 flex justify-center gap-2">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <a
                   key={p}
                   href={`/categories/${slug}?page=${p}${sp.minPrice ? `&minPrice=${sp.minPrice}` : ""}${sp.maxPrice ? `&maxPrice=${sp.maxPrice}` : ""}`}
-                  className={`inline-flex h-9 w-9 items-center justify-center rounded-md text-sm font-medium transition-colors ${
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${
                     p === page
-                      ? "bg-primary text-primary-text"
-                      : "border border-border hover:bg-slate-50"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-slate-500 hover:bg-slate-100"
                   }`}
                 >
                   {p}

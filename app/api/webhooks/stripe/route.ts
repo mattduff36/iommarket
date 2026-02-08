@@ -56,22 +56,63 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     const listingId = session.metadata?.listingId;
     if (!listingId || !session.payment_intent) return;
 
+    const stripePaymentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent.id;
+
+    // Idempotency: skip if payment already recorded
+    const existingPayment = await db.payment.findUnique({
+      where: { stripePaymentId },
+    });
+    if (existingPayment) return;
+
     await db.payment.create({
       data: {
         listingId,
-        stripePaymentId:
-          typeof session.payment_intent === "string"
-            ? session.payment_intent
-            : session.payment_intent.id,
+        stripePaymentId,
         amount: session.amount_total ?? 0,
         currency: session.currency ?? "gbp",
         status: "SUCCEEDED",
+        idempotencyKey: `checkout-${session.id}`,
       },
     });
 
     await db.listing.update({
       where: { id: listingId },
       data: { status: "PENDING" },
+    });
+  }
+
+  if (type === "featured_upgrade") {
+    const listingId = session.metadata?.listingId;
+    if (!listingId || !session.payment_intent) return;
+
+    const stripePaymentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent.id;
+
+    // Idempotency: skip if payment already recorded
+    const existingFeatured = await db.payment.findUnique({
+      where: { stripePaymentId },
+    });
+    if (existingFeatured) return;
+
+    await db.payment.create({
+      data: {
+        listingId,
+        stripePaymentId,
+        amount: session.amount_total ?? 0,
+        currency: session.currency ?? "gbp",
+        status: "SUCCEEDED",
+        idempotencyKey: `featured-${session.id}`,
+      },
+    });
+
+    await db.listing.update({
+      where: { id: listingId },
+      data: { featured: true },
     });
   }
 
@@ -84,6 +125,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         ? session.subscription
         : session.subscription.id;
 
+    // Upsert by Stripe subscription ID for idempotency
     await db.subscription.upsert({
       where: { stripeSubscriptionId: subscriptionId },
       update: { status: "ACTIVE" },
@@ -112,6 +154,12 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const periodEnd = (subscription as unknown as Record<string, unknown>)
     .current_period_end as number | undefined;
 
+  // Idempotency: upsert handles missing records gracefully
+  const existing = await db.subscription.findUnique({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+  if (!existing) return; // Subscription not in our DB — skip
+
   await db.subscription.update({
     where: { stripeSubscriptionId: subscription.id },
     data: {
@@ -122,6 +170,11 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const existing = await db.subscription.findUnique({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+  if (!existing) return;
+
   await db.subscription.update({
     where: { stripeSubscriptionId: subscription.id },
     data: { status: "CANCELLED" },

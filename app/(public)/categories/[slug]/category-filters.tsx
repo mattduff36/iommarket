@@ -3,13 +3,26 @@
 import { useRouter } from "next/navigation";
 import { FilterPanel } from "@/components/marketplace/filter-panel";
 
+interface RegionOption {
+  label: string;
+  value: string;
+}
+
 interface Props {
   categorySlug: string;
+  regionSlug?: string;
+  regions?: RegionOption[];
   minPrice?: string;
   maxPrice?: string;
 }
 
-export function CategoryFilters({ categorySlug, minPrice, maxPrice }: Props) {
+export function CategoryFilters({
+  categorySlug,
+  regionSlug,
+  regions = [],
+  minPrice,
+  maxPrice,
+}: Props) {
   const router = useRouter();
 
   const priceRange: [number, number] = [
@@ -17,11 +30,27 @@ export function CategoryFilters({ categorySlug, minPrice, maxPrice }: Props) {
     maxPrice ? parseInt(maxPrice, 10) : 100000,
   ];
 
-  function handlePriceChange(range: [number, number]) {
+  function buildUrl(overrides: Record<string, string | undefined>) {
     const params = new URLSearchParams();
-    if (range[0] > 0) params.set("minPrice", String(range[0]));
-    if (range[1] < 100000) params.set("maxPrice", String(range[1]));
-    router.push(`/categories/${categorySlug}?${params.toString()}`);
+    const merged = {
+      region: regionSlug,
+      minPrice,
+      maxPrice,
+      ...overrides,
+    };
+    Object.entries(merged).forEach(([k, v]) => {
+      if (v) params.set(k, v);
+    });
+    return `/categories/${categorySlug}?${params.toString()}`;
+  }
+
+  function handlePriceChange(range: [number, number]) {
+    router.push(
+      buildUrl({
+        minPrice: range[0] > 0 ? String(range[0]) : undefined,
+        maxPrice: range[1] < 100000 ? String(range[1]) : undefined,
+      })
+    );
   }
 
   function handleReset() {
@@ -37,6 +66,37 @@ export function CategoryFilters({ categorySlug, minPrice, maxPrice }: Props) {
         onPriceChange={handlePriceChange}
         onReset={handleReset}
       />
+      {/* Region filter */}
+      {regions.length > 0 && (
+        <div className="border-t border-border pt-4 mt-4">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">
+            Region
+          </h3>
+          <div className="flex flex-col gap-1">
+            {regions.map((region) => (
+              <button
+                key={region.value}
+                type="button"
+                onClick={() =>
+                  router.push(
+                    buildUrl({
+                      region:
+                        regionSlug === region.value ? undefined : region.value,
+                    })
+                  )
+                }
+                className={`text-left text-sm px-2 py-1 rounded transition-colors ${
+                  regionSlug === region.value
+                    ? "bg-royal-50 text-text-brand font-medium"
+                    : "text-text-secondary hover:text-text-primary hover:bg-slate-50"
+                }`}
+              >
+                {region.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

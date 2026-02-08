@@ -1,6 +1,20 @@
 import type { Metadata } from "next";
+import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import { ClerkProviderWrapper } from "@/components/providers/clerk-provider";
 import "./globals.css";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const dmSerifDisplay = DM_Serif_Display({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -26,7 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProviderWrapper>
-      <html lang="en">
+      <html lang="en" className={`${dmSans.variable} ${dmSerifDisplay.variable}`}>
         <body className="min-h-screen antialiased bg-canvas text-text-primary">
           {children}
         </body>

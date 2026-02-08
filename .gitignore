@@ -28,3 +28,5 @@ test-results/
 .cursor/mcp.json
 
 /lib/generated/prisma
+
+.vercel

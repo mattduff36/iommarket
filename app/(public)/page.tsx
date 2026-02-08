@@ -1,149 +1,202 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import Image from "next/image";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Button } from "@/components/ui/button";
-import { SearchBar } from "@/components/marketplace/search-bar";
-import { ArrowRight, Tag, Car, Anchor, Music, Camera, Speaker } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  vehicles: <Car className="h-6 w-6" />,
-  marine: <Anchor className="h-6 w-6" />,
-  instruments: <Music className="h-6 w-6" />,
-  photography: <Camera className="h-6 w-6" />,
-  "hifi-home-av": <Speaker className="h-6 w-6" />,
+/* ------------------------------------------------------------------ */
+/*  Colour palette for category banners                                */
+/* ------------------------------------------------------------------ */
+const BANNER_COLORS: Record<string, { bg: string; text: string }> = {
+  vehicles:       { bg: "bg-royal-700",  text: "text-white" },
+  marine:         { bg: "bg-sky-600",    text: "text-white" },
+  "hifi-home-av": { bg: "bg-amber-500",  text: "text-white" },
+  instruments:    { bg: "bg-emerald-600", text: "text-white" },
+  photography:    { bg: "bg-rose-500",   text: "text-white" },
 };
 
+function bannerColor(slug: string) {
+  return BANNER_COLORS[slug] ?? { bg: "bg-slate-700", text: "text-white" };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                               */
+/* ------------------------------------------------------------------ */
 export default async function HomePage() {
-  const [featuredListings, categories] = await Promise.all([
-    db.listing.findMany({
-      where: { status: "LIVE" },
-      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
-      take: 8,
-      include: {
-        images: { take: 1, orderBy: { order: "asc" } },
-        category: true,
-        region: true,
-      },
+  /* Fetch categories + latest listings per top-2 categories */
+  const categories = await db.category.findMany({
+    where: { active: true, parentId: null },
+    orderBy: { sortOrder: "asc" },
+    include: {
+      _count: { select: { listings: { where: { status: "LIVE" } } } },
+    },
+  });
+
+  /* Get the two largest categories for featured rows */
+  const topCategories = [...categories]
+    .sort((a, b) => b._count.listings - a._count.listings)
+    .slice(0, 2);
+
+  /* Fetch 4 listings per top category */
+  const categoryListings = await Promise.all(
+    topCategories.map(async (cat) => {
+      const listings = await db.listing.findMany({
+        where: { categoryId: cat.id, status: "LIVE" },
+        orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+        take: 4,
+        include: {
+          images: { take: 1, orderBy: { order: "asc" } },
+          category: true,
+          region: true,
+        },
+      });
+      return { category: cat, listings };
     }),
-    db.category.findMany({
-      where: { active: true, parentId: null },
-      orderBy: { sortOrder: "asc" },
-      include: { _count: { select: { listings: { where: { status: "LIVE" } } } } },
-    }),
-  ]);
+  );
 
   return (
     <>
-      {/* Hero */}
-      <section className="bg-royal-700 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8 text-center">
-          <h1 className="text-3xl font-bold sm:text-4xl">
-            The Isle of Man&apos;s Trusted Marketplace
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base text-royal-100">
-            Buy and sell vehicles, marine, hi-fi, instruments, and more from
-            trusted local sellers.
+      {/* ============ HERO ============ */}
+      <section className="relative overflow-hidden bg-slate-900">
+        {/* Background image */}
+        <Image
+          src="/images/hero-calf-of-man.png"
+          alt="The Calf of Man – Isle of Man coastline"
+          fill
+          priority
+          className="object-cover opacity-50"
+          sizes="100vw"
+        />
+        <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8 text-center">
+          <div className="mx-auto mb-5 flex items-center justify-center">
+            <Image
+              src="/images/iom-flag.png"
+              alt="Isle of Man flag"
+              width={48}
+              height={30}
+              className="rounded shadow-md"
+            />
+          </div>
+          <p className="text-sm font-semibold uppercase tracking-widest text-royal-300">
+            Isle of Man Marketplace
           </p>
-          <div className="mx-auto mt-8 max-w-lg">
-            <HomeSearchBar />
+          <h1 className="mt-4 text-4xl font-bold text-white sm:text-5xl lg:text-6xl leading-tight">
+            Buy &amp; Sell Locally
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-lg text-slate-300">
+            Vehicles, marine, hi-fi, instruments, photography and more &mdash;
+            from trusted Isle of Man sellers.
+          </p>
+
+          {/* Search */}
+          <form action="/search" method="GET" className="mx-auto mt-10 max-w-lg">
+            <div className="relative">
+              <input
+                type="search"
+                name="q"
+                placeholder="Search listings..."
+                className="h-14 w-full rounded-full bg-white pl-6 pr-32 text-base text-slate-900 placeholder:text-slate-400 shadow-lg focus:outline-none focus:ring-2 focus:ring-royal-500"
+              />
+              <button
+                type="submit"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 rounded-full bg-primary px-6 text-sm font-semibold text-white hover:bg-primary-hover transition-colors"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-8">
+            <Button asChild size="lg" variant="secondary">
+              <Link href="/categories">Browse Categories</Link>
+            </Button>
           </div>
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-text-primary">
-            Browse Categories
-          </h2>
-          <Link
-            href="/categories"
-            className="text-sm font-medium text-text-brand hover:underline inline-flex items-center gap-1"
-          >
-            View all <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-          {categories.map((cat) => (
-            <Link
-              key={cat.id}
-              href={`/categories/${cat.slug}`}
-              className="flex flex-col items-center gap-3 rounded-lg border border-border bg-surface p-6 text-center transition-shadow hover:shadow-md"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-royal-50 text-royal-600">
-                {CATEGORY_ICONS[cat.slug] ?? <Tag className="h-6 w-6" />}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-text-primary">
+      {/* ============ CATEGORY BANNERS ============ */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="grid gap-6 sm:grid-cols-2">
+          {categories.slice(0, 4).map((cat) => {
+            const colors = bannerColor(cat.slug);
+            return (
+              <Link
+                key={cat.id}
+                href={`/categories/${cat.slug}`}
+                className={`relative flex flex-col justify-center overflow-hidden rounded-2xl ${colors.bg} p-8 sm:p-10 transition-transform duration-200 hover:scale-[1.02] hover:shadow-lg`}
+              >
+                <h3 className={`text-2xl font-bold ${colors.text}`}>
                   {cat.name}
-                </p>
-                <p className="text-xs text-text-secondary">
+                </h3>
+                <p className={`mt-1 text-sm ${colors.text} opacity-80`}>
                   {cat._count.listings} listing{cat._count.listings !== 1 ? "s" : ""}
                 </p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* Featured Listings */}
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-text-primary">
-            Latest Listings
-          </h2>
-          <Link
-            href="/search"
-            className="text-sm font-medium text-text-brand hover:underline inline-flex items-center gap-1"
-          >
-            View all <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        {featuredListings.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
-            {featuredListings.map((listing) => (
-              <ListingCard
-                key={listing.id}
-                title={listing.title}
-                price={listing.price / 100}
-                imageSrc={listing.images[0]?.url}
-                location={listing.region.name}
-                meta={listing.category.name}
-                featured={listing.featured}
-                badge={listing.featured ? "Featured" : undefined}
-                href={`/listings/${listing.id}`}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <p className="text-text-secondary">
-              No listings yet. Be the first to{" "}
-              <Link href="/sell" className="text-text-brand hover:underline">
-                post one
+                <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-white/90 px-5 py-2 text-sm font-semibold text-slate-900 w-fit transition-colors hover:bg-white">
+                  Shop Now
+                </span>
               </Link>
-              !
-            </p>
-          </div>
-        )}
+            );
+          })}
+        </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-surface-subtle">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl font-bold text-text-primary">
-            Ready to Sell?
-          </h2>
-          <p className="mt-2 text-text-secondary">
-            List your item from just £4.99 or subscribe as a dealer for
-            unlimited listings.
+      {/* ============ PER-CATEGORY LISTING ROWS ============ */}
+      {categoryListings.map(({ category, listings }) =>
+        listings.length > 0 ? (
+          <section
+            key={category.id}
+            className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
+          >
+            {/* Section header with accent underline */}
+            <div className="flex items-end justify-between mb-8">
+              <h2 className="section-heading-accent text-2xl font-bold text-slate-900">
+                {category.name}
+              </h2>
+              <Link
+                href={`/categories/${category.slug}`}
+                className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-royal-700 transition-colors"
+              >
+                See All <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {listings.map((listing) => (
+                <ListingCard
+                  key={listing.id}
+                  title={listing.title}
+                  price={listing.price / 100}
+                  imageSrc={listing.images[0]?.url}
+                  location={listing.region.name}
+                  featured={listing.featured}
+                  badge={listing.featured ? "Featured" : undefined}
+                  href={`/listings/${listing.id}`}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null,
+      )}
+
+      {/* ============ CTA ============ */}
+      <section className="bg-white">
+        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8 text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-royal-600">
+            For Sellers
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-4">
+          <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">
+            Ready to Sell on the Isle of Man?
+          </h2>
+          <p className="mt-4 text-lg text-slate-500 leading-relaxed">
+            List your item from just &pound;4.99 or subscribe as a dealer for
+            unlimited listings. Simple, transparent pricing with no hidden fees.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Button asChild size="lg">
-              <Link href="/sell">Create Listing</Link>
+              <Link href="/sell">Create a Listing</Link>
             </Button>
             <Button asChild variant="secondary" size="lg">
               <Link href="/pricing">View Pricing</Link>
@@ -152,21 +205,5 @@ export default async function HomePage() {
         </div>
       </section>
     </>
-  );
-}
-
-function HomeSearchBar() {
-  "use client";
-  return (
-    <form action="/search" method="GET">
-      <div className="relative">
-        <input
-          type="search"
-          name="q"
-          placeholder="Search vehicles, marine, hi-fi..."
-          className="flex h-12 w-full rounded-lg bg-white/10 border border-white/20 pl-4 pr-4 text-base text-white placeholder:text-white/60 focus:outline-none focus:bg-white/20 focus:border-white/40"
-        />
-      </div>
-    </form>
   );
 }

@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Calendar, Tag, AlertTriangle } from "lucide-react";
+import { MapPin, Calendar, Tag, AlertTriangle, ChevronRight } from "lucide-react";
 import { ContactSellerForm } from "./contact-form";
 import { ReportButton } from "./report-button";
 
@@ -23,9 +23,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     select: { title: true, description: true, price: true },
   });
   if (!listing) return {};
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return {
     title: listing.title,
     description: listing.description.slice(0, 160),
+    alternates: {
+      canonical: `${appUrl}/listings/${id}`,
+    },
   };
 }
 
@@ -60,44 +64,44 @@ export default async function ListingDetailPage({ params }: Props) {
     : `£${price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       {/* Breadcrumb */}
-      <nav className="mb-6 text-sm text-text-secondary" aria-label="Breadcrumb">
+      <nav className="mb-8 text-sm text-slate-400" aria-label="Breadcrumb">
         <ol className="flex items-center gap-1">
           <li>
-            <Link href="/" className="hover:text-text-primary">Home</Link>
+            <Link href="/" className="hover:text-slate-900 transition-colors">Home</Link>
           </li>
-          <li>/</li>
+          <li><ChevronRight className="h-3 w-3" /></li>
           <li>
             <Link
               href={`/categories/${listing.category.slug}`}
-              className="hover:text-text-primary"
+              className="hover:text-slate-900 transition-colors"
             >
               {listing.category.name}
             </Link>
           </li>
-          <li>/</li>
-          <li className="text-text-primary truncate max-w-[200px]">
+          <li><ChevronRight className="h-3 w-3" /></li>
+          <li className="text-slate-700 truncate max-w-[200px] font-medium">
             {listing.title}
           </li>
         </ol>
       </nav>
 
       {isExpired && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg bg-status-warning-bg px-4 py-3 text-sm text-status-warning-text">
+        <div className="mb-8 flex items-center gap-2 rounded-xl bg-amber-50 px-5 py-4 text-sm text-amber-800 border border-amber-200">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           This listing has expired and is no longer active.
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-3">
+      <div className="grid gap-10 lg:grid-cols-3">
         {/* Left: images + details */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-8">
           {/* Image gallery */}
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             {listing.images.length > 0 ? (
               <>
-                <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-surface-subtle">
+                <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-slate-100">
                   <Image
                     src={listing.images[0].url}
                     alt={listing.title}
@@ -108,11 +112,11 @@ export default async function ListingDetailPage({ params }: Props) {
                   />
                 </div>
                 {listing.images.length > 1 && (
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-3">
                     {listing.images.slice(1, 5).map((img) => (
                       <div
                         key={img.id}
-                        className="relative aspect-square overflow-hidden rounded-md bg-surface-subtle"
+                        className="relative aspect-square overflow-hidden rounded-xl bg-slate-100"
                       >
                         <Image
                           src={img.url}
@@ -127,22 +131,24 @@ export default async function ListingDetailPage({ params }: Props) {
                 )}
               </>
             ) : (
-              <div className="flex aspect-[16/10] items-center justify-center rounded-lg bg-surface-subtle text-text-tertiary">
+              <div className="flex aspect-[16/10] items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                 No images available
               </div>
             )}
           </div>
 
-          {/* Description */}
+          {/* Title + price + details */}
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
               {listing.title}
             </h1>
-            <p className="mt-1 text-3xl font-bold text-text-primary">
-              {formattedPrice}
-            </p>
+            <div className="mt-3">
+              <Badge variant="price" className="text-lg px-4 py-1.5">
+                {formattedPrice}
+              </Badge>
+            </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-2">
               <Badge variant="info">
                 <Tag className="mr-1 h-3 w-3" />
                 {listing.category.name}
@@ -157,23 +163,23 @@ export default async function ListingDetailPage({ params }: Props) {
               </Badge>
             </div>
 
-            <div className="mt-6 text-sm text-text-primary whitespace-pre-line leading-relaxed">
+            <div className="mt-8 text-sm text-slate-700 whitespace-pre-line leading-relaxed">
               {listing.description}
             </div>
 
             {/* Attributes */}
             {listing.attributeValues.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-lg font-semibold text-text-primary mb-3">
+              <div className="mt-8">
+                <h2 className="section-heading-accent text-lg font-bold text-slate-900 mb-5">
                   Specifications
                 </h2>
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
                   {listing.attributeValues.map((av) => (
                     <div key={av.id} className="flex flex-col">
-                      <dt className="font-medium text-text-secondary">
+                      <dt className="font-medium text-slate-500">
                         {av.attributeDefinition.name}
                       </dt>
-                      <dd className="text-text-primary">{av.value}</dd>
+                      <dd className="text-slate-900">{av.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -191,19 +197,18 @@ export default async function ListingDetailPage({ params }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm font-medium text-text-primary">
+              <p className="text-sm font-semibold text-slate-900">
                 {listing.dealer?.name ?? listing.user.name ?? "Anonymous"}
               </p>
               {listing.dealer && (
-                <Link
-                  href={`/dealers/${listing.dealer.slug}`}
-                  className="text-sm text-text-brand hover:underline"
-                >
-                  View dealer profile
-                </Link>
+                <Button asChild variant="link" size="sm" className="p-0 h-auto">
+                  <Link href={`/dealers/${listing.dealer.slug}`}>
+                    View dealer profile
+                  </Link>
+                </Button>
               )}
               {listing.dealer?.phone && (
-                <p className="text-sm text-text-secondary">
+                <p className="text-sm text-slate-500">
                   {listing.dealer.phone}
                 </p>
               )}

@@ -7,7 +7,9 @@ import { SearchBar } from "@/components/marketplace/search-bar";
 interface Props {
   query: string;
   categorySlug?: string;
+  regionSlug?: string;
   categories: FilterOption[];
+  regions: FilterOption[];
   minPrice?: string;
   maxPrice?: string;
 }
@@ -15,7 +17,9 @@ interface Props {
 export function SearchFilters({
   query,
   categorySlug,
+  regionSlug,
   categories,
+  regions,
   minPrice,
   maxPrice,
 }: Props) {
@@ -26,6 +30,7 @@ export function SearchFilters({
     const merged = {
       q: query || undefined,
       category: categorySlug,
+      region: regionSlug,
       minPrice,
       maxPrice,
       ...overrides,
@@ -66,6 +71,39 @@ export function SearchFilters({
         }
         onReset={() => router.push("/search")}
       />
+      {/* Region filter */}
+      {regions.length > 0 && (
+        <div className="border-t border-border pt-4">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">
+            Region
+          </h3>
+          <div className="flex flex-col gap-1">
+            {regions.map((region) => (
+              <button
+                key={region.value}
+                type="button"
+                onClick={() =>
+                  router.push(
+                    buildUrl({
+                      region:
+                        regionSlug === region.value
+                          ? undefined
+                          : region.value,
+                    })
+                  )
+                }
+                className={`text-left text-sm px-2 py-1 rounded transition-colors ${
+                  regionSlug === region.value
+                    ? "bg-royal-50 text-text-brand font-medium"
+                    : "text-text-secondary hover:text-text-primary hover:bg-slate-50"
+                }`}
+              >
+                {region.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

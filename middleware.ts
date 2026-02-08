@@ -27,7 +27,7 @@ export default async function middleware(request: NextRequest) {
     "/search(.*)",
     "/pricing(.*)",
     "/dealers(.*)",
-    "/styleguide(.*)",
+    "/uidemo(.*)",
     "/api/webhooks(.*)",
   ]);
 

@@ -18,6 +18,14 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "hifi-home-av": <Speaker className="h-8 w-8" />,
 };
 
+const CATEGORY_COLORS: Record<string, string> = {
+  vehicles: "from-royal-700 to-royal-800",
+  marine: "from-sky-500 to-sky-700",
+  "hifi-home-av": "from-amber-400 to-amber-600",
+  instruments: "from-emerald-500 to-emerald-700",
+  photography: "from-rose-400 to-rose-600",
+};
+
 export default async function CategoriesPage() {
   const categories = await db.category.findMany({
     where: { active: true, parentId: null },
@@ -32,41 +40,53 @@ export default async function CategoriesPage() {
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold text-text-primary mb-8">
-        Categories
-      </h1>
+    <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mb-12">
+        <h1 className="section-heading-accent text-3xl font-bold text-slate-900">
+          Categories
+        </h1>
+        <p className="mt-4 text-slate-500">
+          Browse all categories on IOM Market.
+        </p>
+      </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {categories.map((cat) => (
-          <Link
-            key={cat.id}
-            href={`/categories/${cat.slug}`}
-            className="flex items-start gap-4 rounded-lg border border-border bg-surface p-6 transition-shadow hover:shadow-md"
-          >
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-royal-50 text-royal-600">
-              {CATEGORY_ICONS[cat.slug] ?? <Tag className="h-8 w-8" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold text-text-primary">
-                {cat.name}
-              </h2>
-              <p className="mt-1 text-sm text-text-secondary">
-                {cat._count.listings} listing
-                {cat._count.listings !== 1 ? "s" : ""}
-              </p>
-              {cat.children.length > 0 && (
-                <p className="mt-2 text-xs text-text-tertiary">
-                  {cat.children.map((c) => c.name).join(", ")}
+        {categories.map((cat) => {
+          const gradient = CATEGORY_COLORS[cat.slug] ?? "from-slate-600 to-slate-800";
+          return (
+            <Link
+              key={cat.id}
+              href={`/categories/${cat.slug}`}
+              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]"
+              style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+              <div className="relative z-10">
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20 text-white mb-4">
+                  {CATEGORY_ICONS[cat.slug] ?? <Tag className="h-8 w-8" />}
+                </div>
+                <h2 className="text-xl font-bold">
+                  {cat.name}
+                </h2>
+                <p className="mt-1 text-sm text-white/80">
+                  {cat._count.listings} listing{cat._count.listings !== 1 ? "s" : ""}
                 </p>
-              )}
-            </div>
-          </Link>
-        ))}
+                {cat.children.length > 0 && (
+                  <p className="mt-3 text-xs text-white/60">
+                    {cat.children.map((c) => c.name).join(", ")}
+                  </p>
+                )}
+                <span className="mt-5 inline-flex items-center gap-1 rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold text-slate-900">
+                  Browse
+                </span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
       {categories.length === 0 && (
-        <p className="text-center text-text-secondary py-16">
+        <p className="text-center text-slate-500 py-16">
           No categories available yet. Check back soon.
         </p>
       )}

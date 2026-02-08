@@ -107,7 +107,7 @@ function Row({
 /*  Page                                                              */
 /* ================================================================== */
 
-export default function StyleguidePage() {
+export default function UIDemoPage() {
   const [page, setPage] = React.useState(3);
   const [sliderVal, setSliderVal] = React.useState([2500, 7500]);
   const [searchVal, setSearchVal] = React.useState("");
@@ -120,7 +120,7 @@ export default function StyleguidePage() {
       {/* Header */}
       <header className="sticky top-0 z-[1100] flex h-16 items-center border-b border-border bg-surface px-6">
         <h1 className="text-lg font-bold text-text-primary">
-          IOM Market – Styleguide
+          IOM Market – UI Demo
         </h1>
       </header>
 

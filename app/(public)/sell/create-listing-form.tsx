@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createListing } from "@/actions/listings";
+import { createListing, saveListingImages } from "@/actions/listings";
 import { payForListing } from "@/actions/payments";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 
 interface AttributeDef {
   id: string;
@@ -39,6 +40,7 @@ export function CreateListingForm({ categories, regions }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
@@ -78,6 +80,11 @@ export function CreateListingForm({ categories, regions }: Props) {
       }
 
       if (result.data) {
+        // Save uploaded images
+        if (uploadedImages.length > 0) {
+          await saveListingImages(result.data.id, uploadedImages);
+        }
+
         const payResult = await payForListing(result.data.id);
         if (payResult.data?.checkoutUrl) {
           window.location.href = payResult.data.checkoutUrl;
@@ -179,6 +186,13 @@ export function CreateListingForm({ categories, regions }: Props) {
               ))}
             </select>
           </div>
+
+          {/* Image upload */}
+          <ImageUpload
+            images={uploadedImages}
+            onImagesChange={setUploadedImages}
+            maxImages={10}
+          />
 
           {/* Dynamic category attributes */}
           {selectedCategory && selectedCategory.attributes.length > 0 && (
