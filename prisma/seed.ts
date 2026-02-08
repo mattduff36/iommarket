@@ -28,12 +28,12 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 /**
- * Comprehensive seed for IOM Market demo.
+ * Comprehensive seed for itrader.im demo.
  * Creates regions, categories, attributes, users, dealers, and ~25 LIVE listings
  * with placeholder images so the site looks populated for client demos.
  */
 async function main() {
-  console.log("Seeding IOM Market database...\n");
+  console.log("Seeding itrader.im database...\n");
 
   // ---------------------------------------------------------------------------
   // Regions (Isle of Man towns)
@@ -182,7 +182,7 @@ async function main() {
     { clerkId: "demo_dealer_003", email: "sales@soundisland.im", name: "Sound Island Audio", role: "DEALER" as const },
     { clerkId: "demo_user_005", email: "david.shimmin@example.im", name: "David Shimmin", role: "SELLER" as const },
     { clerkId: "demo_user_006", email: "fiona.clague@example.im", name: "Fiona Clague", role: "SELLER" as const },
-    { clerkId: "demo_admin_001", email: "admin@iommarket.im", name: "IOM Market Admin", role: "ADMIN" as const },
+    { clerkId: "demo_admin_001", email: "admin@itrader.im", name: "itrader.im Admin", role: "ADMIN" as const },
   ];
 
   const users: Record<string, { id: string }> = {};
@@ -801,7 +801,7 @@ async function main() {
 
   console.log("  Created 26 listings (25 LIVE, 1 PENDING)");
   console.log("\nSeed completed successfully!");
-  console.log("Admin login: admin@iommarket.im (demo_admin_001)");
+  console.log("Admin login: admin@itrader.im (demo_admin_001)");
 }
 
 main()

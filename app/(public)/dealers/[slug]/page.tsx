@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!dealer) return {};
   return {
     title: dealer.name,
-    description: dealer.bio?.slice(0, 160) ?? `View ${dealer.name}'s listings on IOM Market.`,
+    description: dealer.bio?.slice(0, 160) ?? `View ${dealer.name}'s listings on itrader.im.`,
   };
 }
 

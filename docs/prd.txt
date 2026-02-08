@@ -1,4 +1,4 @@
-# Isle of Man Marketplace (IOM Market) — PRD + Implementation Plan
+# Isle of Man Marketplace (itrader.im) — PRD + Implementation Plan
 
 This document is the **source of truth PRD** and a **build-ready implementation plan** for an Isle of Man hyper-local marketplace MVP. It is written to be actionable by another engineer/model to implement directly.
 

@@ -18,8 +18,8 @@ const dmSerifDisplay = DM_Serif_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "IOM Market - Isle of Man Marketplace",
-    template: "%s | IOM Market",
+    default: "itrader.im - Isle of Man Marketplace",
+    template: "%s | itrader.im",
   },
   description:
     "The trusted hyper-local marketplace for the Isle of Man. Buy and sell vehicles, marine, hi-fi, instruments, and more.",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_GB",
-    siteName: "IOM Market",
+    siteName: "itrader.im",
   },
 };
 

@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return {
     title: category.name,
-    description: `Browse ${category.name} listings on IOM Market.`,
+    description: `Browse ${category.name} listings on itrader.im.`,
     alternates: {
       canonical: `${appUrl}/categories/${slug}`,
     },
@@ -112,8 +112,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
               __html: JSON.stringify({
                 "@context": "https://schema.org",
                 "@type": "CollectionPage",
-                name: `${category.name} - IOM Market`,
-                description: `Browse ${category.name} listings on IOM Market.`,
+                name: `${category.name} - itrader.im`,
+                description: `Browse ${category.name} listings on itrader.im.`,
                 url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/categories/${slug}`,
                 numberOfItems: total,
               }),

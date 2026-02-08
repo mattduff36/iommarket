@@ -62,9 +62,9 @@ export function SiteHeader() {
               <Phone className="h-3 w-3" />
               Isle of Man Marketplace
             </span>
-            <a href="mailto:hello@iommarket.im" className="inline-flex items-center gap-1.5 hover:text-royal-100 transition-colors">
+            <a href="mailto:hello@itrader.im" className="inline-flex items-center gap-1.5 hover:text-royal-100 transition-colors">
               <Mail className="h-3 w-3" />
-              <span className="hidden sm:inline">hello@iommarket.im</span>
+              <span className="hidden sm:inline">hello@itrader.im</span>
             </a>
           </div>
           <div className="flex items-center gap-3 text-slate-300">
@@ -89,7 +89,7 @@ export function SiteHeader() {
               height={20}
               className="rounded-[3px] shadow-sm"
             />
-            IOM Market
+            itrader.im
           </Link>
 
           {/* Desktop nav */}

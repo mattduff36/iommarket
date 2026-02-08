@@ -20,7 +20,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const sp = await searchParams;
   return {
     title: sp.q ? `Search: ${sp.q}` : "Search",
-    description: "Search listings on IOM Market.",
+    description: "Search listings on itrader.im.",
   };
 }
 

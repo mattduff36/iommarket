@@ -7,7 +7,7 @@ import { Tag, Car, Anchor, Music, Camera, Speaker } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Categories",
-  description: "Browse marketplace categories on IOM Market.",
+  description: "Browse marketplace categories on itrader.im.",
 };
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -46,7 +46,7 @@ export default async function CategoriesPage() {
           Categories
         </h1>
         <p className="mt-4 text-slate-500">
-          Browse all categories on IOM Market.
+          Browse all categories on itrader.im.
         </p>
       </div>
 

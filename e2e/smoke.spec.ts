@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
-// Smoke tests for IOM Market MVP
+// Smoke tests for itrader.im MVP
 // Run: npx playwright test
 // ---------------------------------------------------------------------------
 

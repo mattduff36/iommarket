@@ -120,7 +120,7 @@ export default function UIDemoPage() {
       {/* Header */}
       <header className="sticky top-0 z-[1100] flex h-16 items-center border-b border-border bg-surface px-6">
         <h1 className="text-lg font-bold text-text-primary">
-          IOM Market – UI Demo
+          itrader.im – UI Demo
         </h1>
       </header>
 
