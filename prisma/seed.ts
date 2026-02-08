@@ -3,8 +3,12 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
+const raw =
+  process.env.POSTGRES_URL_NON_POOLING ??
+  process.env.DATABASE_URL ??
+  "";
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: raw.trim(),
   ssl: { rejectUnauthorized: false },
 });
 const adapter = new PrismaPg(pool);

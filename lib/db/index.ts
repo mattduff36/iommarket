@@ -7,10 +7,19 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
+  // Prefer the Supabase-integration non-pooling URL, fall back to DATABASE_URL
+  const raw =
+    process.env.POSTGRES_URL_NON_POOLING ??
+    process.env.DATABASE_URL;
+
+  if (!raw) {
+    throw new Error(
+      "Neither POSTGRES_URL_NON_POOLING nor DATABASE_URL is set"
+    );
   }
+
+  // Sanitise: trim whitespace / stray newlines that break pg connection strings
+  const connectionString = raw.trim();
 
   const pool = new pg.Pool({
     connectionString,
