@@ -6,6 +6,24 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+function sanitiseConnectionString(raw: string): string {
+  // Trim whitespace / stray newlines that break pg connection strings
+  let url = raw.trim();
+
+  // Strip sslmode param – newer pg (v8.x+) treats sslmode=require as
+  // verify-full which overrides our explicit ssl config and fails against
+  // Supabase's certificate chain.  We handle SSL via the Pool options instead.
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete("sslmode");
+    url = parsed.toString();
+  } catch {
+    // Not a valid URL (unlikely), fall through with original
+  }
+
+  return url;
+}
+
 function createPrismaClient(): PrismaClient {
   // Prefer the Supabase-integration non-pooling URL, fall back to DATABASE_URL
   const raw =
@@ -18,8 +36,7 @@ function createPrismaClient(): PrismaClient {
     );
   }
 
-  // Sanitise: trim whitespace / stray newlines that break pg connection strings
-  const connectionString = raw.trim();
+  const connectionString = sanitiseConnectionString(raw);
 
   const pool = new pg.Pool({
     connectionString,

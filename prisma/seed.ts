@@ -7,8 +7,21 @@ const raw =
   process.env.POSTGRES_URL_NON_POOLING ??
   process.env.DATABASE_URL ??
   "";
+
+// Strip sslmode param – pg v8+ treats sslmode=require as verify-full
+// which clashes with our explicit ssl config below.
+function cleanUrl(s: string): string {
+  try {
+    const u = new URL(s.trim());
+    u.searchParams.delete("sslmode");
+    return u.toString();
+  } catch {
+    return s.trim();
+  }
+}
+
 const pool = new pg.Pool({
-  connectionString: raw.trim(),
+  connectionString: cleanUrl(raw),
   ssl: { rejectUnauthorized: false },
 });
 const adapter = new PrismaPg(pool);
