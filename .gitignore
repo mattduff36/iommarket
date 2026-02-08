@@ -24,6 +24,7 @@ coverage/
 playwright-report/
 test-results/
 
-# Note: .cursor/mcp.json contains placeholder values
-# If you add real secrets, consider adding it to .gitignore:
-# .cursor/mcp.json
+# MCP config contains secrets - do not commit
+.cursor/mcp.json
+
+/lib/generated/prisma

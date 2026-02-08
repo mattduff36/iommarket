@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth & Users
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  BUYER
+  SELLER
+  DEALER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  role      UserRole @default(BUYER)
+  regionId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  region        Region?        @relation(fields: [regionId], references: [id])
+  listings      Listing[]
+  dealerProfile DealerProfile?
+  reports       Report[]
+
+  @@index([clerkId])
+  @@index([email])
+}
+
+model DealerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  name      String
+  slug      String   @unique
+  bio       String?
+  website   String?
+  phone     String?
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listings      Listing[]
+  subscriptions Subscription[]
+
+  @@index([slug])
+}
+
+// ---------------------------------------------------------------------------
+// Geography
+// ---------------------------------------------------------------------------
+
+model Region {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users    User[]
+  listings Listing[]
+
+  @@index([slug])
+}
+
+// ---------------------------------------------------------------------------
+// Categories & Attributes (EAV)
+// ---------------------------------------------------------------------------
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  parentId  String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+
+  attributeDefinitions AttributeDefinition[]
+  listings             Listing[]
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+model AttributeDefinition {
+  id         String  @id @default(cuid())
+  categoryId String
+  name       String
+  slug       String
+  dataType   String  // text, number, select, boolean
+  required   Boolean @default(false)
+  options    String? // JSON-encoded options for select type
+  sortOrder  Int     @default(0)
+
+  category Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  values   ListingAttributeValue[]
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+}
+
+// ---------------------------------------------------------------------------
+// Listings
+// ---------------------------------------------------------------------------
+
+enum ListingStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  LIVE
+  EXPIRED
+  TAKEN_DOWN
+}
+
+model Listing {
+  id          String        @id @default(cuid())
+  userId      String
+  dealerId    String?
+  categoryId  String
+  regionId    String
+  title       String
+  description String
+  price       Int           // stored in pence
+  status      ListingStatus @default(DRAFT)
+  featured    Boolean       @default(false)
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id])
+  dealer   DealerProfile? @relation(fields: [dealerId], references: [id])
+  category Category       @relation(fields: [categoryId], references: [id])
+  region   Region         @relation(fields: [regionId], references: [id])
+
+  images          ListingImage[]
+  attributeValues ListingAttributeValue[]
+  payments        Payment[]
+  reports         Report[]
+
+  @@index([categoryId, regionId, status])
+  @@index([status])
+  @@index([price])
+  @@index([userId])
+  @@index([dealerId])
+  @@index([createdAt])
+}
+
+model ListingImage {
+  id        String @id @default(cuid())
+  listingId String
+  url       String
+  publicId  String // Cloudinary public ID
+  order     Int    @default(0)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+model ListingAttributeValue {
+  id                    String @id @default(cuid())
+  listingId             String
+  attributeDefinitionId String
+  value                 String
+
+  listing             Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, attributeDefinitionId])
+  @@index([attributeDefinitionId, value])
+}
+
+// ---------------------------------------------------------------------------
+// Payments & Subscriptions
+// ---------------------------------------------------------------------------
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  listingId       String
+  stripePaymentId String        @unique
+  amount          Int           // in pence
+  currency        String        @default("gbp")
+  status          PaymentStatus @default(PENDING)
+  idempotencyKey  String?       @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id])
+
+  @@index([listingId])
+  @@index([stripePaymentId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  INCOMPLETE
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  dealerId             String
+  stripeSubscriptionId String             @unique
+  stripePriceId        String
+  status               SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  dealer DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@index([dealerId])
+  @@index([stripeSubscriptionId])
+}
+
+// ---------------------------------------------------------------------------
+// Moderation
+// ---------------------------------------------------------------------------
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+model Report {
+  id            String       @id @default(cuid())
+  listingId     String
+  reporterId    String?
+  reporterEmail String
+  reason        String
+  status        ReportStatus @default(OPEN)
+  adminNotes    String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  listing  Listing @relation(fields: [listingId], references: [id])
+  reporter User?   @relation(fields: [reporterId], references: [id])
+
+  @@index([listingId])
+  @@index([status])
+}

@@ -1,136 +1,136 @@
-# CursorPlaybook
+# IOM Market
 
-A Cursor-native playbook for AI-assisted development. Includes rules, command templates, and MCP configurations to supercharge your Cursor workflow.
+A hyper-local marketplace for the Isle of Man. Buy and sell vehicles, marine, hi-fi, instruments, photography, and more from trusted local sellers.
 
-## What's Inside
+## Tech Stack
 
-```
-CursorPlaybook/
-├── .cursor/
-│   ├── rules/              # Cursor project rules (.mdc format)
-│   │   ├── 00-core.mdc         # Always-on core principles
-│   │   ├── coding-style.mdc    # Code quality standards
-│   │   ├── security.mdc        # Security checklist
-│   │   ├── testing.mdc         # TDD and testing requirements
-│   │   ├── git-workflow.mdc    # Git conventions
-│   │   └── performance-context.mdc  # Context management
-│   │
-│   ├── commands/           # Reusable prompt templates
-│   │   ├── plan.md             # Implementation planning
-│   │   ├── code-review.md      # Code review checklist
-│   │   ├── build-fix.md        # Build error resolution
-│   │   ├── tdd.md              # Test-driven development
-│   │   ├── refactor-clean.md   # Dead code cleanup
-│   │   └── e2e.md              # E2E test generation
-│   │
-│   └── mcp.json            # MCP server configurations
-│
-├── docs/
-│   └── mcp-setup.md        # MCP setup instructions
-│
-├── AGENTS.md               # How to use this playbook
-└── README.md               # This file
-```
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript (strict)
+- **Styling**: Tailwind CSS v4 + custom design tokens
+- **UI**: Local component library (shadcn/ui conventions, Radix UI primitives, CVA variants)
+- **Database**: PostgreSQL + Prisma ORM
+- **Auth**: Clerk
+- **Payments**: Stripe (one-off listings + dealer subscriptions)
+- **Images**: Cloudinary (via next-cloudinary)
+- **Hosting**: Vercel
 
-## Quick Start
+## Getting Started
 
-### 1. Clone or Copy
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL database (Supabase, Neon, or local)
+- Stripe account (test mode)
+- Clerk account
+- Cloudinary account
+
+### Setup
 
 ```bash
-# Clone this repo
-git clone https://github.com/mattduff36/CursorPlaybook.git
+# Install dependencies
+npm install
 
-# Or copy .cursor/ folder to your project
-cp -r CursorPlaybook/.cursor your-project/.cursor
+# Copy env vars
+cp .env.example .env
+# Fill in your values in .env
+
+# Generate Prisma client
+npm run db:generate
+
+# Push schema to database
+npm run db:push
+
+# Seed categories and regions
+npm run db:seed
+
+# Start dev server
+npm run dev
 ```
 
-### 2. Configure MCP (Optional)
+### Environment Variables
 
-Edit `.cursor/mcp.json` and replace placeholder values:
-- `YOUR_GITHUB_PAT_HERE` - Your GitHub Personal Access Token
-- See [docs/mcp-setup.md](docs/mcp-setup.md) for full setup instructions
+See `.env.example` for the full list. Key variables:
 
-### 3. Open in Cursor
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `CLERK_SECRET_KEY` | Clerk secret key |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
+| `STRIPE_SECRET_KEY` | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 
-Open your project in Cursor. Rules will automatically apply based on their configuration.
+### Stripe Webhook Setup
 
-## Using the Playbook
-
-### Rules (Automatic)
-
-Rules in `.cursor/rules/` are applied automatically:
-
-- **`00-core.mdc`** - Always active (core principles)
-- **`coding-style.mdc`** - Applies to code files (ts, tsx, js, jsx, py, go, rs)
-- **`security.mdc`** - Applies to code files
-- **`testing.mdc`** - Applies to test files
-- **`git-workflow.mdc`** - Available for reference
-- **`performance-context.mdc`** - Available for reference
-
-### Commands (Manual)
-
-Reference command templates in your chat:
-
-```
-@.cursor/commands/plan.md
-
-I need to implement user authentication
+```bash
+# Install Stripe CLI
+# Then forward webhooks to local server:
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
 ```
 
-Available commands:
-- `plan.md` - Create implementation plans before coding
-- `code-review.md` - Review code for quality and security
-- `build-fix.md` - Fix build/TypeScript errors incrementally
-- `tdd.md` - Implement features with test-driven development
-- `refactor-clean.md` - Find and remove dead code
-- `e2e.md` - Generate Playwright E2E tests
+Events handled: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`.
 
-### MCP Servers
+## Project Structure
 
-MCP servers extend Cursor with external tools. Enable/disable in `.cursor/mcp.json`:
-
-- **github** - GitHub operations (PRs, issues, repos)
-- **context7** - Live documentation lookup
-- **memory** - Persistent memory across sessions
-- **filesystem** - Extended file operations
-- **vercel** - Vercel deployments
-- **supabase** - Database operations
-
-## Customization
-
-### Adding Your Own Rules
-
-Create new `.mdc` files in `.cursor/rules/`:
-
-```markdown
----
-description: My custom rule
-globs: "**/*.ts"  # or alwaysApply: true
----
-
-# My Rule
-
-Your instructions here...
+```
+app/
+  (public)/          # Public-facing pages (home, categories, listings, sell, pricing)
+  (admin)/           # Admin dashboard (protected, requires ADMIN role)
+  api/webhooks/      # Stripe webhook handler
+actions/             # Server actions (listings, payments, admin)
+components/
+  ui/                # UI primitives (Button, Input, Card, etc.)
+  marketplace/       # Domain components (ListingCard, SearchBar, FilterPanel)
+  layout/            # Layout components (SiteHeader, SiteFooter)
+lib/
+  db/                # Prisma client singleton
+  auth/              # Clerk auth helpers
+  payments/          # Stripe client + helpers
+  upload/            # Cloudinary upload helpers
+  validations/       # Zod schemas
+  rate-limit.ts      # In-memory rate limiter
+prisma/
+  schema.prisma      # Database schema
+  seed.ts            # Seed data
+styles/
+  tokens.css         # Generated CSS custom properties
+private/
+  design-system.json # Design token source of truth
 ```
 
-### Adding Command Templates
+## UI Library
 
-Create new `.md` files in `.cursor/commands/`:
+See [docs/ui.md](docs/ui.md) for full documentation on the component library, design tokens, and usage patterns.
 
-```markdown
-# My Command
+- Tokens are generated from `private/design-system.json`
+- Run `npm run tokens:generate` to regenerate CSS variables
+- View all components at `/styleguide`
 
-## How to Use
-...
+## Scripts
 
-## Expected Output
-...
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run db:generate` | Generate Prisma client |
+| `npm run db:push` | Push schema to database |
+| `npm run db:migrate` | Run database migrations |
+| `npm run db:seed` | Seed categories and regions |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run tokens:generate` | Regenerate CSS tokens from design system |
+| `npm test` | Run tests (watch mode) |
+| `npm run test:run` | Run tests once |
+
+## Testing
+
+```bash
+npm test
 ```
 
-## Credits
+Tests cover validation schemas, rate limiting, and core business logic. Located in `__tests__/`.
 
-Ported from [everything-claude-code](https://github.com/affaan-m/everything-claude-code) by [@affaanmustafa](https://x.com/affaanmustafa), adapted for Cursor.
+## Deployment
 
-## License
+Deploy to Vercel. The build command runs `prisma generate` automatically before `next build`.
 
-MIT - Use freely, modify as needed.
+Set all environment variables in Vercel project settings. Configure the Stripe webhook endpoint to point to `https://your-domain.com/api/webhooks/stripe`.

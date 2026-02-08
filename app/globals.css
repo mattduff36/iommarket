@@ -1,0 +1,123 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+/*
+ * Tailwind v4 theme configuration
+ * Maps design-system.json tokens to Tailwind utilities.
+ * Use: bg-canvas, text-primary, border-default, rounded-md, shadow-sm, etc.
+ */
+@theme inline {
+  /* ---- Palette colours ---- */
+  --color-slate-50: var(--color-slate-50);
+  --color-slate-100: var(--color-slate-100);
+  --color-slate-200: var(--color-slate-200);
+  --color-slate-300: var(--color-slate-300);
+  --color-slate-400: var(--color-slate-400);
+  --color-slate-500: var(--color-slate-500);
+  --color-slate-600: var(--color-slate-600);
+  --color-slate-700: var(--color-slate-700);
+  --color-slate-800: var(--color-slate-800);
+  --color-slate-900: var(--color-slate-900);
+
+  --color-royal-50: var(--color-royalBlue-50);
+  --color-royal-100: var(--color-royalBlue-100);
+  --color-royal-500: var(--color-royalBlue-500);
+  --color-royal-600: var(--color-royalBlue-600);
+  --color-royal-700: var(--color-royalBlue-700);
+  --color-royal-800: var(--color-royalBlue-800);
+
+  --color-emerald-50: var(--color-emerald-50);
+  --color-emerald-100: var(--color-emerald-100);
+  --color-emerald-500: var(--color-emerald-500);
+  --color-emerald-700: var(--color-emerald-700);
+
+  --color-red-50: var(--color-red-50);
+  --color-red-100: var(--color-red-100);
+  --color-red-500: var(--color-red-500);
+  --color-red-600: var(--color-red-600);
+  --color-red-700: var(--color-red-700);
+
+  --color-amber-100: var(--color-amber-100);
+  --color-amber-700: var(--color-amber-700);
+
+  /* ---- Semantic colours ---- */
+  --color-canvas: var(--sem-bg-canvas);
+  --color-surface: var(--sem-bg-surface);
+  --color-surface-subtle: var(--sem-bg-surfaceSubtle);
+
+  --color-primary: var(--sem-action-primary-bg);
+  --color-primary-hover: var(--sem-action-primary-bgHover);
+  --color-primary-text: var(--sem-action-primary-text);
+
+  --color-destructive: var(--sem-action-destructive-bg);
+  --color-destructive-hover: var(--sem-action-destructive-bgHover);
+  --color-destructive-text: var(--sem-action-destructive-text);
+
+  --color-text-primary: var(--sem-text-primary);
+  --color-text-secondary: var(--sem-text-secondary);
+  --color-text-tertiary: var(--sem-text-tertiary);
+  --color-text-inverse: var(--sem-text-inverse);
+  --color-text-brand: var(--sem-text-brand);
+  --color-text-error: var(--sem-text-error);
+  --color-text-success: var(--sem-text-success);
+
+  --color-border: var(--sem-border-default);
+  --color-border-hover: var(--sem-border-hover);
+  --color-border-focus: var(--sem-border-focus);
+  --color-border-error: var(--sem-border-error);
+
+  --color-status-success-bg: var(--sem-status-success-bg);
+  --color-status-success-text: var(--sem-status-success-text);
+  --color-status-error-bg: var(--sem-status-error-bg);
+  --color-status-error-text: var(--sem-status-error-text);
+  --color-status-warning-bg: var(--sem-status-warning-bg);
+  --color-status-warning-text: var(--sem-status-warning-text);
+  --color-status-info-bg: var(--sem-status-info-bg);
+  --color-status-info-text: var(--sem-status-info-text);
+
+  /* ---- Typography ---- */
+  --font-sans: var(--font-sans);
+
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: var(--lh-normal);
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: var(--lh-normal);
+  --text-base: var(--fs-base);
+  --text-base--line-height: var(--lh-normal);
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: var(--lh-tight);
+  --text-xl: var(--fs-xl);
+  --text-xl--line-height: var(--lh-tight);
+  --text-2xl: var(--fs-2xl);
+  --text-2xl--line-height: var(--lh-tight);
+  --text-3xl: var(--fs-3xl);
+  --text-3xl--line-height: var(--lh-tight);
+
+  /* ---- Radius ---- */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  /* ---- Shadows ---- */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-outline: var(--shadow-outline);
+}
+
+/* ---- Base styles ---- */
+body {
+  font-family: var(--font-sans);
+  background-color: var(--sem-bg-canvas);
+  color: var(--sem-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus ring utility */
+.focus-ring {
+  outline: none;
+  box-shadow: var(--shadow-outline);
+}
