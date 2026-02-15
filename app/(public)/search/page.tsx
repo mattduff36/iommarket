@@ -12,6 +12,12 @@ interface Props {
     region?: string;
     minPrice?: string;
     maxPrice?: string;
+    make?: string;
+    model?: string;
+    minMileage?: string;
+    maxMileage?: string;
+    minYear?: string;
+    maxYear?: string;
     page?: string;
   }>;
 }
@@ -20,7 +26,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const sp = await searchParams;
   return {
     title: sp.q ? `Search: ${sp.q}` : "Search",
-    description: "Search listings on itrader.im.",
+    description: "Search vehicles on itrader.im. Cars, vans, motorbikes across the Isle of Man.",
   };
 }
 
@@ -30,8 +36,45 @@ export default async function SearchPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
 
+  const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
+  const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
+  const minMileage = sp.minMileage ? parseInt(sp.minMileage, 10) : undefined;
+  const maxMileage = sp.maxMileage ? parseInt(sp.maxMileage, 10) : undefined;
+  const minYear = sp.minYear ? parseInt(sp.minYear, 10) : undefined;
+  const maxYear = sp.maxYear ? parseInt(sp.maxYear, 10) : undefined;
+
+  const hasMileageFilter = minMileage !== undefined || maxMileage !== undefined;
+  const hasYearFilter = minYear !== undefined || maxYear !== undefined;
+
+  let listingIdsFromAttributes: string[] | null = null;
+  if (hasMileageFilter || hasYearFilter) {
+    const { Prisma } = await import("@prisma/client");
+    const result = await db.$queryRaw<{ id: string }[]>`
+      SELECT l.id FROM listings l
+      WHERE l.status = 'LIVE'
+      AND (${hasMileageFilter ? Prisma.sql`EXISTS (
+        SELECT 1 FROM listing_attribute_values lav
+        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
+        WHERE lav.listing_id = l.id AND ad.slug = 'mileage'
+        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${minMileage ?? 0}
+        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${maxMileage ?? 999999}
+      )` : Prisma.sql`TRUE`})
+      AND (${hasYearFilter ? Prisma.sql`EXISTS (
+        SELECT 1 FROM listing_attribute_values lav
+        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
+        WHERE lav.listing_id = l.id AND ad.slug = 'year'
+        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${minYear ?? 0}
+        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${maxYear ?? 9999}
+      )` : Prisma.sql`TRUE`})
+    `;
+    listingIdsFromAttributes = result.map((r) => r.id);
+  }
+
   const where = {
     status: "LIVE" as const,
+    ...(listingIdsFromAttributes !== null
+      ? { id: { in: listingIdsFromAttributes } }
+      : {}),
     ...(query
       ? {
           OR: [
@@ -42,11 +85,37 @@ export default async function SearchPage({ searchParams }: Props) {
       : {}),
     ...(sp.category ? { category: { slug: sp.category } } : {}),
     ...(sp.region ? { region: { slug: sp.region } } : {}),
-    ...(sp.minPrice ? { price: { gte: parseInt(sp.minPrice, 10) * 100 } } : {}),
-    ...(sp.maxPrice ? { price: { lte: parseInt(sp.maxPrice, 10) * 100 } } : {}),
+    ...(minPricePence !== undefined || maxPricePence !== undefined
+      ? {
+          price: {
+            ...(minPricePence !== undefined ? { gte: minPricePence } : {}),
+            ...(maxPricePence !== undefined ? { lte: maxPricePence } : {}),
+          },
+        }
+      : {}),
+    ...(sp.make
+      ? {
+          attributeValues: {
+            some: {
+              attributeDefinition: { slug: "make" },
+              value: { equals: sp.make, mode: "insensitive" as const },
+            },
+          },
+        }
+      : {}),
+    ...(sp.model
+      ? {
+          attributeValues: {
+            some: {
+              attributeDefinition: { slug: "model" },
+              value: { equals: sp.model, mode: "insensitive" as const },
+            },
+          },
+        }
+      : {}),
   };
 
-  const [listings, total, categories, regions] = await Promise.all([
+  const [listings, total, categories, regions, makeDefs, modelDefs] = await Promise.all([
     db.listing.findMany({
       where,
       orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
@@ -70,7 +139,36 @@ export default async function SearchPage({ searchParams }: Props) {
       where: { active: true },
       orderBy: { name: "asc" },
     }),
+    db.attributeDefinition.findMany({
+      where: { slug: "make" },
+      select: { id: true },
+    }),
+    db.attributeDefinition.findMany({
+      where: { slug: "model" },
+      select: { id: true },
+    }),
   ]);
+
+  const makeIds = makeDefs.map((d) => d.id);
+  const modelIds = modelDefs.map((d) => d.id);
+  const [makeValues, modelValues] = await Promise.all([
+    makeIds.length > 0
+      ? db.listingAttributeValue.findMany({
+          where: { attributeDefinitionId: { in: makeIds } },
+          select: { value: true },
+          distinct: ["value"],
+        })
+      : Promise.resolve([]),
+    modelIds.length > 0
+      ? db.listingAttributeValue.findMany({
+          where: { attributeDefinitionId: { in: modelIds } },
+          select: { value: true },
+          distinct: ["value"],
+        })
+      : Promise.resolve([]),
+  ]);
+  const makes = [...new Set(makeValues.map((r) => r.value))].sort();
+  const models = [...new Set(modelValues.map((r) => r.value))].sort();
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -101,6 +199,14 @@ export default async function SearchPage({ searchParams }: Props) {
           }))}
           minPrice={sp.minPrice}
           maxPrice={sp.maxPrice}
+          make={sp.make}
+          model={sp.model}
+          minMileage={sp.minMileage}
+          maxMileage={sp.maxMileage}
+          minYear={sp.minYear}
+          maxYear={sp.maxYear}
+          makes={makes}
+          models={models}
         />
 
         <div className="flex-1">
@@ -134,6 +240,12 @@ export default async function SearchPage({ searchParams }: Props) {
                 if (sp.category) params.set("category", sp.category);
                 if (sp.minPrice) params.set("minPrice", sp.minPrice);
                 if (sp.maxPrice) params.set("maxPrice", sp.maxPrice);
+                if (sp.make) params.set("make", sp.make);
+                if (sp.model) params.set("model", sp.model);
+                if (sp.minMileage) params.set("minMileage", sp.minMileage);
+                if (sp.maxMileage) params.set("maxMileage", sp.maxMileage);
+                if (sp.minYear) params.set("minYear", sp.minYear);
+                if (sp.maxYear) params.set("maxYear", sp.maxYear);
                 params.set("page", String(p));
                 return (
                   <a

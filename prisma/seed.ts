@@ -28,12 +28,27 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 /**
- * Comprehensive seed for itrader.im demo.
- * Creates regions, categories, attributes, users, dealers, and ~25 LIVE listings
- * with placeholder images so the site looks populated for client demos.
+ * Vehicle-only seed for itrader.im.
+ * Clears existing placeholder data, then creates regions, vehicle categories (Car, Van, Motorbike),
+ * attribute definitions, users, dealers, and vehicle-only LIVE listings.
  */
 async function main() {
-  console.log("Seeding itrader.im database...\n");
+  console.log("Seeding itrader.im database (vehicle-only)...\n");
+
+  // ---------------------------------------------------------------------------
+  // Clear existing placeholder data (listings and related)
+  // ---------------------------------------------------------------------------
+  await prisma.payment.deleteMany({});
+  await prisma.listingImage.deleteMany({});
+  await prisma.listingAttributeValue.deleteMany({});
+  await prisma.report.deleteMany({});
+  await prisma.listing.deleteMany({});
+  await prisma.subscription.deleteMany({});
+  await prisma.dealerProfile.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.attributeDefinition.deleteMany({});
+  await prisma.category.deleteMany({});
+  console.log("  Cleared existing listings, attribute definitions, categories, users, and dealers");
 
   // ---------------------------------------------------------------------------
   // Regions (Isle of Man towns)
@@ -63,42 +78,22 @@ async function main() {
   console.log(`  Created ${regionData.length} regions`);
 
   // ---------------------------------------------------------------------------
-  // Categories
+  // Vehicle-only categories: Car, Van, Motorbike
   // ---------------------------------------------------------------------------
-  const vehicles = await prisma.category.upsert({
-    where: { slug: "vehicles" },
-    update: {},
-    create: { name: "Vehicles", slug: "vehicles", sortOrder: 1 },
+  const car = await prisma.category.create({
+    data: { name: "Car", slug: "car", sortOrder: 1 },
   });
-
-  const marine = await prisma.category.upsert({
-    where: { slug: "marine" },
-    update: {},
-    create: { name: "Marine", slug: "marine", sortOrder: 2 },
+  const van = await prisma.category.create({
+    data: { name: "Van", slug: "van", sortOrder: 2 },
   });
-
-  const hifi = await prisma.category.upsert({
-    where: { slug: "hifi-home-av" },
-    update: {},
-    create: { name: "HiFi / Home AV", slug: "hifi-home-av", sortOrder: 3 },
+  const motorbike = await prisma.category.create({
+    data: { name: "Motorbike", slug: "motorbike", sortOrder: 3 },
   });
-
-  const instruments = await prisma.category.upsert({
-    where: { slug: "instruments" },
-    update: {},
-    create: { name: "Instruments", slug: "instruments", sortOrder: 4 },
-  });
-
-  const photography = await prisma.category.upsert({
-    where: { slug: "photography" },
-    update: {},
-    create: { name: "Photography", slug: "photography", sortOrder: 5 },
-  });
-
-  console.log("  Created 5 categories");
+  console.log("  Created 3 vehicle categories (Car, Van, Motorbike)");
 
   // ---------------------------------------------------------------------------
-  // Vehicle attribute definitions
+  // Attribute definitions (make, model, year, mileage, fuel-type, transmission)
+  // Shared across Car, Van, Motorbike for consistent search/filtering.
   // ---------------------------------------------------------------------------
   const vehicleAttrDefs = [
     { name: "Make", slug: "make", dataType: "text", required: true, sortOrder: 1 },
@@ -123,13 +118,11 @@ async function main() {
     },
   ];
 
-  const vehicleAttrs: Record<string, { id: string }> = {};
+  const carAttrs: Record<string, { id: string }> = {};
   for (const attr of vehicleAttrDefs) {
-    const created = await prisma.attributeDefinition.upsert({
-      where: { categoryId_slug: { categoryId: vehicles.id, slug: attr.slug } },
-      update: {},
-      create: {
-        categoryId: vehicles.id,
+    const created = await prisma.attributeDefinition.create({
+      data: {
+        categoryId: car.id,
         name: attr.name,
         slug: attr.slug,
         dataType: attr.dataType,
@@ -138,25 +131,14 @@ async function main() {
         options: (attr as { options?: string }).options ?? null,
       },
     });
-    vehicleAttrs[attr.slug] = created;
+    carAttrs[attr.slug] = created;
   }
-  console.log("  Created 6 vehicle attributes");
 
-  // Marine attributes
-  const marineAttrDefs = [
-    { name: "Boat Type", slug: "boat-type", dataType: "select", required: true, sortOrder: 1, options: JSON.stringify(["Sailboat", "Motorboat", "RIB", "Kayak/Canoe", "Jet Ski", "Fishing Boat"]) },
-    { name: "Length (ft)", slug: "length-ft", dataType: "number", required: false, sortOrder: 2 },
-    { name: "Year", slug: "year", dataType: "number", required: false, sortOrder: 3 },
-    { name: "Engine", slug: "engine", dataType: "text", required: false, sortOrder: 4 },
-  ];
-
-  const marineAttrs: Record<string, { id: string }> = {};
-  for (const attr of marineAttrDefs) {
-    const created = await prisma.attributeDefinition.upsert({
-      where: { categoryId_slug: { categoryId: marine.id, slug: attr.slug } },
-      update: {},
-      create: {
-        categoryId: marine.id,
+  const vanAttrs: Record<string, { id: string }> = {};
+  for (const attr of vehicleAttrDefs) {
+    const created = await prisma.attributeDefinition.create({
+      data: {
+        categoryId: van.id,
         name: attr.name,
         slug: attr.slug,
         dataType: attr.dataType,
@@ -165,41 +147,65 @@ async function main() {
         options: (attr as { options?: string }).options ?? null,
       },
     });
-    marineAttrs[attr.slug] = created;
+    vanAttrs[attr.slug] = created;
   }
-  console.log("  Created 4 marine attributes");
+
+  const motorbikeAttrs: Record<string, { id: string }> = {};
+  for (const attr of vehicleAttrDefs) {
+    const created = await prisma.attributeDefinition.create({
+      data: {
+        categoryId: motorbike.id,
+        name: attr.name,
+        slug: attr.slug,
+        dataType: attr.dataType,
+        required: attr.required,
+        sortOrder: attr.sortOrder,
+        options: (attr as { options?: string }).options ?? null,
+      },
+    });
+    motorbikeAttrs[attr.slug] = created;
+  }
+  console.log("  Created 6 attribute definitions per vehicle category");
 
   // ---------------------------------------------------------------------------
-  // Demo users
+  // Demo users (authUserId = placeholder UUIDs; not real Supabase Auth users)
   // ---------------------------------------------------------------------------
   const demoUsers = [
-    { clerkId: "demo_user_001", email: "john.quayle@example.im", name: "John Quayle", role: "SELLER" as const },
-    { clerkId: "demo_user_002", email: "sarah.craine@example.im", name: "Sarah Craine", role: "SELLER" as const },
-    { clerkId: "demo_user_003", email: "mark.kelly@example.im", name: "Mark Kelly", role: "SELLER" as const },
-    { clerkId: "demo_user_004", email: "emma.corlett@example.im", name: "Emma Corlett", role: "SELLER" as const },
-    { clerkId: "demo_dealer_001", email: "info@manxmotors.im", name: "Manx Motors Ltd", role: "DEALER" as const },
-    { clerkId: "demo_dealer_002", email: "info@islandmarine.im", name: "Island Marine Services", role: "DEALER" as const },
-    { clerkId: "demo_dealer_003", email: "sales@soundisland.im", name: "Sound Island Audio", role: "DEALER" as const },
-    { clerkId: "demo_user_005", email: "david.shimmin@example.im", name: "David Shimmin", role: "SELLER" as const },
-    { clerkId: "demo_user_006", email: "fiona.clague@example.im", name: "Fiona Clague", role: "SELLER" as const },
-    { clerkId: "demo_admin_001", email: "admin@itrader.im", name: "itrader.im Admin", role: "ADMIN" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000001", email: "john.quayle@example.im", name: "John Quayle", role: "USER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000002", email: "sarah.craine@example.im", name: "Sarah Craine", role: "USER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000003", email: "mark.kelly@example.im", name: "Mark Kelly", role: "USER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000004", email: "emma.corlett@example.im", name: "Emma Corlett", role: "USER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000005", email: "info@manxmotors.im", name: "Manx Motors Ltd", role: "DEALER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000006", email: "info@islandmarine.im", name: "Island Marine Services", role: "DEALER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000007", email: "sales@soundisland.im", name: "Sound Island Audio", role: "DEALER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000008", email: "david.shimmin@example.im", name: "David Shimmin", role: "USER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000009", email: "fiona.clague@example.im", name: "Fiona Clague", role: "USER" as const },
+    { authUserId: "00000000-0000-0000-0000-00000000000a", email: "admin@itrader.im", name: "itrader.im Admin", role: "ADMIN" as const },
   ];
 
   const users: Record<string, { id: string }> = {};
   for (const u of demoUsers) {
     const user = await prisma.user.upsert({
-      where: { clerkId: u.clerkId },
+      where: { authUserId: u.authUserId },
       update: {},
       create: {
-        clerkId: u.clerkId,
+        authUserId: u.authUserId,
         email: u.email,
         name: u.name,
         role: u.role,
         regionId: regions["douglas"].id,
       },
     });
-    users[u.clerkId] = user;
+    users[u.authUserId] = user;
   }
+  const dealer001 = "00000000-0000-0000-0000-000000000005";
+  const dealer002 = "00000000-0000-0000-0000-000000000006";
+  const dealer003 = "00000000-0000-0000-0000-000000000007";
+  const user001 = "00000000-0000-0000-0000-000000000001";
+  const user002 = "00000000-0000-0000-0000-000000000002";
+  const user003 = "00000000-0000-0000-0000-000000000003";
+  const user004 = "00000000-0000-0000-0000-000000000004";
+  const user005 = "00000000-0000-0000-0000-000000000008";
   console.log(`  Created ${demoUsers.length} users`);
 
   // ---------------------------------------------------------------------------
@@ -209,7 +215,7 @@ async function main() {
     where: { slug: "manx-motors" },
     update: {},
     create: {
-      userId: users["demo_dealer_001"].id,
+      userId: users[dealer001].id,
       name: "Manx Motors Ltd",
       slug: "manx-motors",
       bio: "The Isle of Man's premier used car dealership. We've been serving the island for over 15 years with quality pre-owned vehicles, full service history checks, and honest pricing. Visit our showroom on Peel Road, Douglas.",
@@ -222,7 +228,7 @@ async function main() {
     where: { slug: "island-marine" },
     update: {},
     create: {
-      userId: users["demo_dealer_002"].id,
+      userId: users[dealer002].id,
       name: "Island Marine Services",
       slug: "island-marine",
       bio: "Specialists in marine sales and servicing on the Isle of Man. From dinghies to motor cruisers, we handle sales, maintenance, and winter storage at our Peel marina facility.",
@@ -235,7 +241,7 @@ async function main() {
     where: { slug: "sound-island" },
     update: {},
     create: {
-      userId: users["demo_dealer_003"].id,
+      userId: users[dealer003].id,
       name: "Sound Island Audio",
       slug: "sound-island",
       bio: "Hi-fi enthusiasts serving the Isle of Man. We stock premium audio equipment from brands like Naim, Rega, KEF, and more. Demo room available by appointment in Onchan.",
@@ -262,39 +268,27 @@ async function main() {
   console.log("  Created 3 dealer subscriptions");
 
   // ---------------------------------------------------------------------------
-  // Placeholder images (Unsplash – high quality, no API key required for hotlinks)
+  // Placeholder images (Unsplash – vehicles only)
   // ---------------------------------------------------------------------------
   const IMG = {
-    // Vehicles
+    // Cars
     bmw3: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&h=600&fit=crop",
     audi: "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&h=600&fit=crop",
-    vw:   "https://images.unsplash.com/photo-1583267746897-2cf415887172?w=800&h=600&fit=crop",
+    vw: "https://images.unsplash.com/photo-1583267746897-2cf415887172?w=800&h=600&fit=crop",
     mini: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&h=600&fit=crop",
     landrover: "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?w=800&h=600&fit=crop",
     tesla: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&h=600&fit=crop",
     ford: "https://images.unsplash.com/photo-1551830820-330a71b99659?w=800&h=600&fit=crop",
     merc: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&h=600&fit=crop",
     porsche: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&h=600&fit=crop",
-    // Marine
-    sailboat: "https://images.unsplash.com/photo-1540946485063-a40da27545f8?w=800&h=600&fit=crop",
-    motorboat: "https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800&h=600&fit=crop",
-    rib: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=600&fit=crop",
-    jetski: "https://images.unsplash.com/photo-1626447857058-2ba6a8868cb5?w=800&h=600&fit=crop",
-    // HiFi
-    turntable: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&h=600&fit=crop",
-    speakers: "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800&h=600&fit=crop",
-    amp: "https://images.unsplash.com/photo-1558089687-f282ffcbc126?w=800&h=600&fit=crop",
-    headphones: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=600&fit=crop",
-    // Instruments
-    guitar: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&h=600&fit=crop",
-    piano: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=800&h=600&fit=crop",
-    drums: "https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=800&h=600&fit=crop",
-    violin: "https://images.unsplash.com/photo-1612225330812-01a9c73fcbdc?w=800&h=600&fit=crop",
-    // Photography
-    camera1: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&h=600&fit=crop",
-    camera2: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop",
-    lens: "https://images.unsplash.com/photo-1617005082133-548c4dd27f35?w=800&h=600&fit=crop",
-    drone: "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=800&h=600&fit=crop",
+    // Vans
+    van1: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&h=600&fit=crop",
+    van2: "https://images.unsplash.com/photo-1625047509168-a7026f36de04?w=800&h=600&fit=crop",
+    van3: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&h=600&fit=crop",
+    // Motorbikes
+    bike1: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&h=600&fit=crop",
+    bike2: "https://images.unsplash.com/photo-1609630875171-b1321377ee65?w=800&h=600&fit=crop",
+    bike3: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&h=600&fit=crop",
   };
 
   // ---------------------------------------------------------------------------
@@ -366,12 +360,12 @@ async function main() {
     return listing;
   }
 
-  // --- VEHICLES (10 listings) ---
+  // --- CARS (10 listings) ---
 
   await createListing({
-    userId: users["demo_dealer_001"].id,
+    userId: users[dealer001].id,
     dealerId: manxMotors.id,
-    categoryId: vehicles.id,
+    categoryId: car.id,
     regionSlug: "douglas",
     title: "2021 BMW 320d M Sport – Immaculate Condition",
     description: "One owner from new, full BMW service history. This stunning 320d M Sport comes in Mineral Grey with black Dakota leather interior. Features include M Sport suspension, professional navigation, Harman Kardon sound system, and rear parking camera. MOT until March 2027. Excellent condition throughout – must be seen.",
@@ -379,20 +373,20 @@ async function main() {
     featured: true,
     imageUrl: IMG.bmw3,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "BMW" },
-      { attrId: vehicleAttrs["model"].id, value: "320d M Sport" },
-      { attrId: vehicleAttrs["year"].id, value: "2021" },
-      { attrId: vehicleAttrs["mileage"].id, value: "34200" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Automatic" },
+      { attrId: carAttrs["make"].id, value: "BMW" },
+      { attrId: carAttrs["model"].id, value: "320d M Sport" },
+      { attrId: carAttrs["year"].id, value: "2021" },
+      { attrId: carAttrs["mileage"].id, value: "34200" },
+      { attrId: carAttrs["fuel-type"].id, value: "Diesel" },
+      { attrId: carAttrs["transmission"].id, value: "Automatic" },
     ],
     daysAgo: 2,
   });
 
   await createListing({
-    userId: users["demo_dealer_001"].id,
+    userId: users[dealer001].id,
     dealerId: manxMotors.id,
-    categoryId: vehicles.id,
+    categoryId: car.id,
     regionSlug: "douglas",
     title: "2020 Audi A4 35 TFSI S Line – Low Miles",
     description: "Beautiful Audi A4 S Line in Navarra Blue. Features virtual cockpit, LED headlights, 3-zone climate control, and Audi smartphone interface. Only 28,000 miles. Two keys, full Audi service history. Finance available.",
@@ -400,39 +394,39 @@ async function main() {
     featured: true,
     imageUrl: IMG.audi,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Audi" },
-      { attrId: vehicleAttrs["model"].id, value: "A4 35 TFSI S Line" },
-      { attrId: vehicleAttrs["year"].id, value: "2020" },
-      { attrId: vehicleAttrs["mileage"].id, value: "28100" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Automatic" },
+      { attrId: carAttrs["make"].id, value: "Audi" },
+      { attrId: carAttrs["model"].id, value: "A4 35 TFSI S Line" },
+      { attrId: carAttrs["year"].id, value: "2020" },
+      { attrId: carAttrs["mileage"].id, value: "28100" },
+      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: carAttrs["transmission"].id, value: "Automatic" },
     ],
     daysAgo: 3,
   });
 
   await createListing({
-    userId: users["demo_user_001"].id,
-    categoryId: vehicles.id,
+    userId: users[user001].id,
+    categoryId: car.id,
     regionSlug: "ramsey",
     title: "2018 VW Golf 1.5 TSI Match – Great Runner",
     description: "Reliable family hatchback in very good condition. Glacier White, cloth seats, touchscreen infotainment with Apple CarPlay. 4 new tyres fitted recently. Selling as upgrading to something larger. Any inspection welcome.",
     price: 12750,
     imageUrl: IMG.vw,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Volkswagen" },
-      { attrId: vehicleAttrs["model"].id, value: "Golf 1.5 TSI Match" },
-      { attrId: vehicleAttrs["year"].id, value: "2018" },
-      { attrId: vehicleAttrs["mileage"].id, value: "52300" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Manual" },
+      { attrId: carAttrs["make"].id, value: "Volkswagen" },
+      { attrId: carAttrs["model"].id, value: "Golf 1.5 TSI Match" },
+      { attrId: carAttrs["year"].id, value: "2018" },
+      { attrId: carAttrs["mileage"].id, value: "52300" },
+      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: carAttrs["transmission"].id, value: "Manual" },
     ],
     daysAgo: 5,
   });
 
   await createListing({
-    userId: users["demo_dealer_001"].id,
+    userId: users[dealer001].id,
     dealerId: manxMotors.id,
-    categoryId: vehicles.id,
+    categoryId: car.id,
     regionSlug: "douglas",
     title: "2022 Tesla Model 3 Long Range – Island Perfect",
     description: "Stunning Pearl White Tesla Model 3 Long Range AWD. Over 300 miles range, autopilot, premium interior with heated seats front and rear. Perfect for island driving – charge at home overnight. Low road tax. Full Tesla warranty remaining.",
@@ -440,97 +434,97 @@ async function main() {
     featured: true,
     imageUrl: IMG.tesla,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Tesla" },
-      { attrId: vehicleAttrs["model"].id, value: "Model 3 Long Range" },
-      { attrId: vehicleAttrs["year"].id, value: "2022" },
-      { attrId: vehicleAttrs["mileage"].id, value: "18500" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Electric" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Automatic" },
+      { attrId: carAttrs["make"].id, value: "Tesla" },
+      { attrId: carAttrs["model"].id, value: "Model 3 Long Range" },
+      { attrId: carAttrs["year"].id, value: "2022" },
+      { attrId: carAttrs["mileage"].id, value: "18500" },
+      { attrId: carAttrs["fuel-type"].id, value: "Electric" },
+      { attrId: carAttrs["transmission"].id, value: "Automatic" },
     ],
     daysAgo: 1,
   });
 
   await createListing({
-    userId: users["demo_user_002"].id,
-    categoryId: vehicles.id,
+    userId: users[user002].id,
+    categoryId: car.id,
     regionSlug: "peel",
     title: "2017 MINI Cooper S 3-Door – Fun Island Car",
     description: "Chili Red MINI Cooper S with John Cooper Works bodykit. Heated seats, satellite navigation, Harman Kardon speakers. Fast and fun but also economical. Genuine reason for sale – emigrating. Priced to sell quickly.",
     price: 11500,
     imageUrl: IMG.mini,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "MINI" },
-      { attrId: vehicleAttrs["model"].id, value: "Cooper S" },
-      { attrId: vehicleAttrs["year"].id, value: "2017" },
-      { attrId: vehicleAttrs["mileage"].id, value: "45600" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Manual" },
+      { attrId: carAttrs["make"].id, value: "MINI" },
+      { attrId: carAttrs["model"].id, value: "Cooper S" },
+      { attrId: carAttrs["year"].id, value: "2017" },
+      { attrId: carAttrs["mileage"].id, value: "45600" },
+      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: carAttrs["transmission"].id, value: "Manual" },
     ],
     daysAgo: 7,
   });
 
   await createListing({
-    userId: users["demo_dealer_001"].id,
+    userId: users[dealer001].id,
     dealerId: manxMotors.id,
-    categoryId: vehicles.id,
+    categoryId: car.id,
     regionSlug: "douglas",
     title: "2019 Land Rover Discovery Sport HSE – 7 Seater",
     description: "Versatile 7-seat SUV in Corris Grey. HSE spec includes leather, panoramic roof, touchscreen pro nav, 360-degree parking aid. Ideal for island families. Full Land Rover service history, cam belt done at 60k.",
     price: 28750,
     imageUrl: IMG.landrover,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Land Rover" },
-      { attrId: vehicleAttrs["model"].id, value: "Discovery Sport HSE" },
-      { attrId: vehicleAttrs["year"].id, value: "2019" },
-      { attrId: vehicleAttrs["mileage"].id, value: "61200" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Automatic" },
+      { attrId: carAttrs["make"].id, value: "Land Rover" },
+      { attrId: carAttrs["model"].id, value: "Discovery Sport HSE" },
+      { attrId: carAttrs["year"].id, value: "2019" },
+      { attrId: carAttrs["mileage"].id, value: "61200" },
+      { attrId: carAttrs["fuel-type"].id, value: "Diesel" },
+      { attrId: carAttrs["transmission"].id, value: "Automatic" },
     ],
     daysAgo: 4,
   });
 
   await createListing({
-    userId: users["demo_user_003"].id,
-    categoryId: vehicles.id,
+    userId: users[user003].id,
+    categoryId: car.id,
     regionSlug: "castletown",
     title: "2015 Ford Fiesta 1.0 EcoBoost Zetec – First Car Special",
     description: "Perfect first car or runabout. Well maintained, MOT until October. Metallic blue, Bluetooth, air con, electric windows. Cheap to run and insure. Slight dent on rear quarter – reflected in price.",
     price: 5995,
     imageUrl: IMG.ford,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Ford" },
-      { attrId: vehicleAttrs["model"].id, value: "Fiesta 1.0 EcoBoost Zetec" },
-      { attrId: vehicleAttrs["year"].id, value: "2015" },
-      { attrId: vehicleAttrs["mileage"].id, value: "78400" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Manual" },
+      { attrId: carAttrs["make"].id, value: "Ford" },
+      { attrId: carAttrs["model"].id, value: "Fiesta 1.0 EcoBoost Zetec" },
+      { attrId: carAttrs["year"].id, value: "2015" },
+      { attrId: carAttrs["mileage"].id, value: "78400" },
+      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: carAttrs["transmission"].id, value: "Manual" },
     ],
     daysAgo: 10,
   });
 
   await createListing({
-    userId: users["demo_dealer_001"].id,
+    userId: users[dealer001].id,
     dealerId: manxMotors.id,
-    categoryId: vehicles.id,
+    categoryId: car.id,
     regionSlug: "douglas",
     title: "2023 Mercedes-Benz A-Class A200 AMG Line – Nearly New",
     description: "Delivery miles only on this stunning Cosmos Black A-Class. AMG Line styling, MBUX infotainment with touchscreen, LED high performance headlights, ambient lighting, reversing camera. Manufacturer warranty until 2026.",
     price: 29995,
     imageUrl: IMG.merc,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Mercedes-Benz" },
-      { attrId: vehicleAttrs["model"].id, value: "A200 AMG Line" },
-      { attrId: vehicleAttrs["year"].id, value: "2023" },
-      { attrId: vehicleAttrs["mileage"].id, value: "3200" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Automatic" },
+      { attrId: carAttrs["make"].id, value: "Mercedes-Benz" },
+      { attrId: carAttrs["model"].id, value: "A200 AMG Line" },
+      { attrId: carAttrs["year"].id, value: "2023" },
+      { attrId: carAttrs["mileage"].id, value: "3200" },
+      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: carAttrs["transmission"].id, value: "Automatic" },
     ],
     daysAgo: 1,
   });
 
   await createListing({
-    userId: users["demo_user_005"].id,
-    categoryId: vehicles.id,
+    userId: users[user005].id,
+    categoryId: car.id,
     regionSlug: "onchan",
     title: "2016 Porsche Cayman 718 – Weekend Toy",
     description: "Guards Red 718 Cayman with extended leather in Black. Sport Chrono package, PASM sport suspension, BOSE surround sound. Garaged, only used on dry days. HPI clear. A true driver's car for someone who appreciates the finer things.",
@@ -538,247 +532,142 @@ async function main() {
     featured: true,
     imageUrl: IMG.porsche,
     attributes: [
-      { attrId: vehicleAttrs["make"].id, value: "Porsche" },
-      { attrId: vehicleAttrs["model"].id, value: "718 Cayman" },
-      { attrId: vehicleAttrs["year"].id, value: "2016" },
-      { attrId: vehicleAttrs["mileage"].id, value: "22100" },
-      { attrId: vehicleAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: vehicleAttrs["transmission"].id, value: "Manual" },
+      { attrId: carAttrs["make"].id, value: "Porsche" },
+      { attrId: carAttrs["model"].id, value: "718 Cayman" },
+      { attrId: carAttrs["year"].id, value: "2016" },
+      { attrId: carAttrs["mileage"].id, value: "22100" },
+      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: carAttrs["transmission"].id, value: "Manual" },
     ],
     daysAgo: 3,
   });
 
-  // --- MARINE (4 listings) ---
+  // --- VANS (3 listings) ---
 
   await createListing({
-    userId: users["demo_dealer_002"].id,
-    dealerId: islandMarine.id,
-    categoryId: marine.id,
-    regionSlug: "peel",
-    title: "Bayliner 285 Cruiser – Ready for Season",
-    description: "Well-maintained Bayliner 285 with Mercruiser 5.0L V8. Sleeps 4 in comfortable cabin with galley and marine heads. Full bimini and cockpit covers. Lying Peel harbour, can be viewed afloat. New anodes and antifoul for 2026 season.",
-    price: 32000,
+    userId: users[dealer001].id,
+    dealerId: manxMotors.id,
+    categoryId: van.id,
+    regionSlug: "douglas",
+    title: "2020 Ford Transit Custom 2.0 TDCi 290 L2 – Low Miles",
+    description: "Ideal for trades or delivery. 290 L2 in Frozen White, 125,000 miles with full service history. Ply-lined, bulkhead, side loading door. MOT until next year. Ready for work.",
+    price: 18500,
     featured: true,
-    imageUrl: IMG.motorboat,
+    imageUrl: IMG.van1,
     attributes: [
-      { attrId: marineAttrs["boat-type"].id, value: "Motorboat" },
-      { attrId: marineAttrs["length-ft"].id, value: "28" },
-      { attrId: marineAttrs["year"].id, value: "2015" },
-      { attrId: marineAttrs["engine"].id, value: "Mercruiser 5.0L V8" },
+      { attrId: vanAttrs["make"].id, value: "Ford" },
+      { attrId: vanAttrs["model"].id, value: "Transit Custom 290 L2" },
+      { attrId: vanAttrs["year"].id, value: "2020" },
+      { attrId: vanAttrs["mileage"].id, value: "125000" },
+      { attrId: vanAttrs["fuel-type"].id, value: "Diesel" },
+      { attrId: vanAttrs["transmission"].id, value: "Manual" },
     ],
     daysAgo: 4,
   });
 
   await createListing({
-    userId: users["demo_dealer_002"].id,
-    dealerId: islandMarine.id,
-    categoryId: marine.id,
-    regionSlug: "peel",
-    title: "Humber Destroyer 6.0m RIB – Fast Tender",
-    description: "2019 Humber Destroyer RIB with Mercury 115HP 4-stroke outboard. A-frame, GPS, fish finder, console with windscreen. Extremely capable boat, perfect for fishing or fast transfer around the island. On galvanised trailer.",
-    price: 18500,
-    imageUrl: IMG.rib,
-    attributes: [
-      { attrId: marineAttrs["boat-type"].id, value: "RIB" },
-      { attrId: marineAttrs["length-ft"].id, value: "20" },
-      { attrId: marineAttrs["year"].id, value: "2019" },
-      { attrId: marineAttrs["engine"].id, value: "Mercury 115HP 4-stroke" },
-    ],
-    daysAgo: 8,
-  });
-
-  await createListing({
-    userId: users["demo_user_004"].id,
-    categoryId: marine.id,
-    regionSlug: "port-erin",
-    title: "Contessa 32 Sailing Yacht – Classic Cruiser",
-    description: "Much-loved Contessa 32, extensively refitted 2022. New standing rigging, roller furling genoa, Yanmar 2GM20F diesel (low hours). Perfect for exploring the Irish Sea from the Isle of Man. Moored Port Erin, available for sea trial.",
-    price: 22500,
-    imageUrl: IMG.sailboat,
-    attributes: [
-      { attrId: marineAttrs["boat-type"].id, value: "Sailboat" },
-      { attrId: marineAttrs["length-ft"].id, value: "32" },
-      { attrId: marineAttrs["year"].id, value: "1978" },
-      { attrId: marineAttrs["engine"].id, value: "Yanmar 2GM20F" },
-    ],
-    daysAgo: 12,
-  });
-
-  await createListing({
-    userId: users["demo_user_001"].id,
-    categoryId: marine.id,
+    userId: users[user001].id,
+    categoryId: van.id,
     regionSlug: "ramsey",
-    title: "Yamaha WaveRunner EX – Low Hours",
-    description: "2021 Yamaha WaveRunner EX with only 42 hours. Incredibly fun on calm days around the island. Includes double trailer, cover, and life jackets. Stored indoors over winter. Reluctant sale – new baby means no time!",
-    price: 6500,
-    imageUrl: IMG.jetski,
+    title: "2018 Mercedes-Benz Vito Tourer 111 – 8 Seater",
+    description: "Spacious people carrier or family van. 111 CDI in obsidian black, leather trim, dual sliding doors. Full service history. Selling due to downsizing.",
+    price: 21995,
+    imageUrl: IMG.van2,
     attributes: [
-      { attrId: marineAttrs["boat-type"].id, value: "Jet Ski" },
-      { attrId: marineAttrs["year"].id, value: "2021" },
-      { attrId: marineAttrs["engine"].id, value: "Yamaha TR-1 3-cyl" },
+      { attrId: vanAttrs["make"].id, value: "Mercedes-Benz" },
+      { attrId: vanAttrs["model"].id, value: "Vito Tourer 111" },
+      { attrId: vanAttrs["year"].id, value: "2018" },
+      { attrId: vanAttrs["mileage"].id, value: "89000" },
+      { attrId: vanAttrs["fuel-type"].id, value: "Diesel" },
+      { attrId: vanAttrs["transmission"].id, value: "Manual" },
     ],
     daysAgo: 6,
   });
 
-  // --- HI-FI / HOME AV (4 listings) ---
+  await createListing({
+    userId: users[user003].id,
+    categoryId: van.id,
+    regionSlug: "peel",
+    title: "2016 Volkswagen Caddy Maxi 2.0 TDI – Tidy Runner",
+    description: "Compact van, great for island deliveries. Maxi load length, tailgate, tow bar prep. Well maintained, no rust. Genuine reason for sale.",
+    price: 11500,
+    imageUrl: IMG.van3,
+    attributes: [
+      { attrId: vanAttrs["make"].id, value: "Volkswagen" },
+      { attrId: vanAttrs["model"].id, value: "Caddy Maxi" },
+      { attrId: vanAttrs["year"].id, value: "2016" },
+      { attrId: vanAttrs["mileage"].id, value: "142000" },
+      { attrId: vanAttrs["fuel-type"].id, value: "Diesel" },
+      { attrId: vanAttrs["transmission"].id, value: "Manual" },
+    ],
+    daysAgo: 9,
+  });
+
+  // --- MOTORBIKES (3 listings) ---
 
   await createListing({
-    userId: users["demo_dealer_003"].id,
-    dealerId: soundIsland.id,
-    categoryId: hifi.id,
-    regionSlug: "onchan",
-    title: "Naim Supernait 3 Integrated Amplifier – Ex-Demo",
-    description: "Ex-demonstration Naim Supernait 3 in perfect condition with full manufacturer warranty. This is Naim's flagship integrated amp – 80W per channel of pure musical bliss. Includes original packaging and Naim power lead. RRP £3,499 – save over £700.",
-    price: 2795,
+    userId: users[user002].id,
+    categoryId: motorbike.id,
+    regionSlug: "douglas",
+    title: "2021 Triumph Street Triple RS – Immaculate",
+    description: "765cc triple, quickshifter, Öhlins suspension. Only 4,200 miles. Full Triumph service history. Perfect for TT roads. Two keys, paddock stand included.",
+    price: 7995,
     featured: true,
-    imageUrl: IMG.amp,
-    attributes: [],
+    imageUrl: IMG.bike1,
+    attributes: [
+      { attrId: motorbikeAttrs["make"].id, value: "Triumph" },
+      { attrId: motorbikeAttrs["model"].id, value: "Street Triple RS" },
+      { attrId: motorbikeAttrs["year"].id, value: "2021" },
+      { attrId: motorbikeAttrs["mileage"].id, value: "4200" },
+      { attrId: motorbikeAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: motorbikeAttrs["transmission"].id, value: "Manual" },
+    ],
     daysAgo: 2,
   });
 
   await createListing({
-    userId: users["demo_dealer_003"].id,
-    dealerId: soundIsland.id,
-    categoryId: hifi.id,
+    userId: users[user005].id,
+    categoryId: motorbike.id,
     regionSlug: "onchan",
-    title: "KEF LS50 Meta Bookshelf Speakers – Mineral White",
-    description: "Award-winning KEF LS50 Meta speakers in Mineral White. These have been used in our demo room for 6 months and are in mint condition. The LS50 Meta is widely regarded as the best bookshelf speaker under £1,500. Includes original boxes.",
-    price: 795,
-    imageUrl: IMG.speakers,
-    attributes: [],
+    title: "2019 Honda CB650R – Neo Sports Café",
+    description: "Stunning CB650R in Grand Prix Red. 649cc inline-four, slipper clutch, LED lights. Low miles, one owner. HPI clear. Ideal for commuting and weekend blasts.",
+    price: 5495,
+    imageUrl: IMG.bike2,
+    attributes: [
+      { attrId: motorbikeAttrs["make"].id, value: "Honda" },
+      { attrId: motorbikeAttrs["model"].id, value: "CB650R" },
+      { attrId: motorbikeAttrs["year"].id, value: "2019" },
+      { attrId: motorbikeAttrs["mileage"].id, value: "11200" },
+      { attrId: motorbikeAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: motorbikeAttrs["transmission"].id, value: "Manual" },
+    ],
     daysAgo: 5,
   });
 
   await createListing({
-    userId: users["demo_user_006"].id,
-    categoryId: hifi.id,
-    regionSlug: "douglas",
-    title: "Rega Planar 3 Turntable with Elys 2 – Boxed",
-    description: "2023 Rega Planar 3 in gloss white with factory-fitted Elys 2 cartridge. Used for approximately 200 hours. Exceptional vinyl playback – upgrading to a Planar 8 so this beauty needs a new home. Smoke-free, pet-free house.",
-    price: 499,
-    imageUrl: IMG.turntable,
-    attributes: [],
-    daysAgo: 9,
-  });
-
-  await createListing({
-    userId: users["demo_user_003"].id,
-    categoryId: hifi.id,
-    regionSlug: "laxey",
-    title: "Sennheiser HD 800 S Reference Headphones",
-    description: "The legendary Sennheiser HD 800 S open-back headphones. Purchased 2022, very lightly used – I'm more of a speaker person. Includes balanced 4.4mm cable and original 6.35mm cable. Superb condition with case.",
-    price: 895,
-    imageUrl: IMG.headphones,
-    attributes: [],
-    daysAgo: 14,
-  });
-
-  // --- INSTRUMENTS (4 listings) ---
-
-  await createListing({
-    userId: users["demo_user_002"].id,
-    categoryId: instruments.id,
-    regionSlug: "douglas",
-    title: "Fender American Professional II Stratocaster – Sunburst",
-    description: "2022 Fender American Professional II Strat in 3-Colour Sunburst with rosewood fingerboard. V-Mod II single-coil pickups, push-push tone control for neck pickup. Includes Fender Elite moulded case. No dings, played at home only.",
-    price: 1250,
-    imageUrl: IMG.guitar,
-    attributes: [],
-    daysAgo: 3,
-  });
-
-  await createListing({
-    userId: users["demo_user_004"].id,
-    categoryId: instruments.id,
-    regionSlug: "port-st-mary",
-    title: "Yamaha U1 Upright Piano – Reconditioned",
-    description: "Fully reconditioned Yamaha U1 in polished ebony. New hammers, re-strung, case re-polished. The U1 is the world's most popular upright piano and this one plays beautifully. Buyer collects – ground floor access. Tuned to concert pitch.",
-    price: 3200,
-    imageUrl: IMG.piano,
-    attributes: [],
+    userId: users[user004].id,
+    categoryId: motorbike.id,
+    regionSlug: "port-erin",
+    title: "2020 Yamaha MT-07 – A2 Compliant",
+    description: "Popular MT-07 in Ice Fluo. 689cc twin, great for A2 licence holders. Full exhaust, tail tidy. Service history. Reluctant sale – moving abroad.",
+    price: 5750,
+    imageUrl: IMG.bike3,
+    attributes: [
+      { attrId: motorbikeAttrs["make"].id, value: "Yamaha" },
+      { attrId: motorbikeAttrs["model"].id, value: "MT-07" },
+      { attrId: motorbikeAttrs["year"].id, value: "2020" },
+      { attrId: motorbikeAttrs["mileage"].id, value: "9800" },
+      { attrId: motorbikeAttrs["fuel-type"].id, value: "Petrol" },
+      { attrId: motorbikeAttrs["transmission"].id, value: "Manual" },
+    ],
     daysAgo: 7,
-  });
-
-  await createListing({
-    userId: users["demo_user_005"].id,
-    categoryId: instruments.id,
-    regionSlug: "onchan",
-    title: "Roland TD-17KVX V-Drums Electronic Kit",
-    description: "Complete Roland electronic drum kit with mesh heads. Perfect for practising without annoying the neighbours. Includes throne, kick pedal, hi-hat stand, headphones. All pads in great condition. Ideal for island living where noise is a concern!",
-    price: 895,
-    imageUrl: IMG.drums,
-    attributes: [],
-    daysAgo: 11,
-  });
-
-  await createListing({
-    userId: users["demo_user_006"].id,
-    categoryId: instruments.id,
-    regionSlug: "ballasalla",
-    title: "Stentor Conservatoire Violin 4/4 – Student Upgrade",
-    description: "Excellent intermediate violin outfit. Solid tonewoods, ebony fittings, octagonal carbon fibre bow. Includes quality oblong case with shoulder rest. My daughter has progressed to a full professional instrument. Great for a serious student.",
-    price: 350,
-    imageUrl: IMG.violin,
-    attributes: [],
-    daysAgo: 16,
-  });
-
-  // --- PHOTOGRAPHY (4 listings) ---
-
-  await createListing({
-    userId: users["demo_user_001"].id,
-    categoryId: photography.id,
-    regionSlug: "douglas",
-    title: "Sony A7 IV Mirrorless Camera Body – Mint",
-    description: "Sony A7 IV body only, purchased January 2024. Shutter count under 5,000. 33MP full-frame sensor, incredible autofocus, 4K 60p video. Includes 2 batteries, original charger, strap, and box. Selling to fund a different system.",
-    price: 1650,
-    featured: true,
-    imageUrl: IMG.camera1,
-    attributes: [],
-    daysAgo: 4,
-  });
-
-  await createListing({
-    userId: users["demo_user_003"].id,
-    categoryId: photography.id,
-    regionSlug: "laxey",
-    title: "Canon EF 70-200mm f/2.8L IS III USM Lens",
-    description: "The legendary Canon 70-200 f/2.8L III. Professional workhorse lens with image stabilisation. Perfect for wildlife, portraits, and TT racing photography. Some minor dust externally but optically perfect. Hood and caps included.",
-    price: 1295,
-    imageUrl: IMG.lens,
-    attributes: [],
-    daysAgo: 6,
-  });
-
-  await createListing({
-    userId: users["demo_user_005"].id,
-    categoryId: photography.id,
-    regionSlug: "kirk-michael",
-    title: "DJI Mini 4 Pro Fly More Combo – All Accessories",
-    description: "DJI Mini 4 Pro with Fly More kit (3 batteries, charging hub, shoulder bag). Under 250g so no licence required. 4K HDR video, obstacle avoidance, 34-min flight time. Perfect for aerial photography around the island's stunning coastline.",
-    price: 699,
-    imageUrl: IMG.drone,
-    attributes: [],
-    daysAgo: 8,
-  });
-
-  await createListing({
-    userId: users["demo_user_002"].id,
-    categoryId: photography.id,
-    regionSlug: "peel",
-    title: "Fujifilm X-T5 + 18-55mm Kit – Retro Beauty",
-    description: "Gorgeous Fujifilm X-T5 in silver with the XF 18-55mm f/2.8-4 kit lens. 40MP APS-C sensor with stunning Fujifilm colour science. Film simulations are incredible straight out of camera. Less than 2,000 shutter actuations.",
-    price: 1395,
-    imageUrl: IMG.camera2,
-    attributes: [],
-    daysAgo: 5,
   });
 
   // --- One PENDING listing for admin demo ---
   const pendingListing = await prisma.listing.create({
     data: {
-      userId: users["demo_user_004"].id,
-      categoryId: vehicles.id,
+      userId: users[user004].id,
+      categoryId: car.id,
       regionId: regions["castletown"].id,
       title: "2020 Kia Sportage 1.6 GDi 2 – Family SUV",
       description: "Well-specced Kia Sportage in good condition. Needs admin approval before going live.",
@@ -799,7 +688,7 @@ async function main() {
     },
   });
 
-  console.log("  Created 26 listings (25 LIVE, 1 PENDING)");
+  console.log("  Created 17 listings (16 LIVE vehicles, 1 PENDING)");
   console.log("\nSeed completed successfully!");
   console.log("Admin login: admin@itrader.im (demo_admin_001)");
 }

@@ -1,36 +1,51 @@
 import { db } from "@/lib/db";
-import { isClerkConfigured } from "@/lib/auth/clerk-config";
+import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { UserRole } from "@prisma/client";
 
 /**
- * Get the current authenticated user from DB, syncing from Clerk if needed.
- * Returns null if not authenticated or Clerk is not configured.
+ * Get the current authenticated user from DB, syncing from Supabase Auth if needed.
+ * Returns null if not authenticated or Supabase Auth is not configured.
  */
 export async function getCurrentUser() {
-  if (!isClerkConfigured()) {
+  if (!isSupabaseAuthConfigured()) {
     return null;
   }
 
-  const { auth } = await import("@clerk/nextjs/server");
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return null;
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) return null;
 
-  const user = await db.user.findUnique({
-    where: { clerkId },
+  let user = await db.user.findUnique({
+    where: { authUserId: authUser.id },
     include: { dealerProfile: true },
   });
 
-  return user;
+  if (!user) {
+    const synced = await syncUser(
+      authUser.id,
+      authUser.email ?? "",
+      authUser.user_metadata?.full_name as string | undefined
+    );
+    return db.user.findUnique({
+      where: { id: synced.id },
+      include: { dealerProfile: true },
+    });
+  }
+
+  return user ?? null;
 }
 
 /**
- * Sync a Clerk user to the local database (called on sign-up or first visit).
+ * Sync a Supabase Auth user to the local database (called on first visit after sign-in).
  */
-export async function syncUser(clerkId: string, email: string, name?: string) {
+export async function syncUser(authUserId: string, email: string, name?: string) {
   return db.user.upsert({
-    where: { clerkId },
+    where: { authUserId },
     update: { email, name },
-    create: { clerkId, email, name, role: "BUYER" },
+    create: { authUserId, email, name, role: "USER" },
   });
 }
 

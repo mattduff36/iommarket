@@ -3,27 +3,23 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { Tag, Car, Anchor, Music, Camera, Speaker } from "lucide-react";
+import { Tag, Car } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Categories",
-  description: "Browse marketplace categories on itrader.im.",
+  description: "Browse vehicle categories on itrader.im. Cars, vans, motorbikes.",
 };
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  vehicles: <Car className="h-8 w-8" />,
-  marine: <Anchor className="h-8 w-8" />,
-  instruments: <Music className="h-8 w-8" />,
-  photography: <Camera className="h-8 w-8" />,
-  "hifi-home-av": <Speaker className="h-8 w-8" />,
+  car: <Car className="h-8 w-8" />,
+  van: <Car className="h-8 w-8" />,
+  motorbike: <Car className="h-8 w-8" />,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  vehicles: "from-royal-700 to-royal-800",
-  marine: "from-sky-500 to-sky-700",
-  "hifi-home-av": "from-amber-400 to-amber-600",
-  instruments: "from-emerald-500 to-emerald-700",
-  photography: "from-rose-400 to-rose-600",
+  car: "from-royal-700 to-royal-800",
+  van: "from-sky-500 to-sky-700",
+  motorbike: "from-amber-500 to-amber-700",
 };
 
 export default async function CategoriesPage() {
@@ -46,7 +42,7 @@ export default async function CategoriesPage() {
           Categories
         </h1>
         <p className="mt-4 text-slate-500">
-          Browse all categories on itrader.im.
+          Browse vehicle categories. Cars, vans, motorbikes.
         </p>
       </div>
 

@@ -30,8 +30,8 @@ export function SiteFooter() {
               itrader.im
             </Link>
             <p className="mt-2 max-w-xs text-sm text-slate-400">
-              The Isle of Man&apos;s trusted marketplace for vehicles, marine,
-              hi-fi, instruments, and more.
+              The Isle of Man&apos;s trusted marketplace for cars, vans,
+              motorbikes and more.
             </p>
           </div>
 

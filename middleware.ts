@@ -1,10 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+
+function isPublicPath(pathname: string): boolean {
+  if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/dev/auth") return true;
+  if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo")) return true;
+  return false;
+}
 
 /**
  * Middleware that:
  * 1. Gates the entire site behind a dev password (cookie-based session).
  *    Public visitors only see the holding page at "/".
- * 2. Uses Clerk auth for authenticated dev users (when configured).
+ * 2. Uses Supabase Auth for authenticated dev users (when configured).
  */
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -39,58 +46,56 @@ export default async function middleware(request: NextRequest) {
   const devAuth = request.cookies.get("dev-auth")?.value === "true";
 
   if (!devAuth) {
-    // Unauthenticated visitors: show holding page at "/" only
     if (pathname === "/") {
       return NextResponse.rewrite(new URL("/holding", request.url));
     }
-    // All other paths → redirect to holding page
     return NextResponse.redirect(new URL("/", request.url));
   }
 
   /* ------------------------------------------------------------------ */
-  /*  5. Authenticated dev user → apply Clerk middleware if configured    */
+  /*  5. Authenticated dev user → Supabase session refresh + route guard  */
   /* ------------------------------------------------------------------ */
-  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const hasValidKey = key && /^pk_(test|live)_[A-Za-z0-9]{20,}/.test(key);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!hasValidKey) {
-    // No Clerk configured — pass through without auth checks
+  if (!url || !anonKey) {
     return NextResponse.next();
   }
 
-  // Dynamically import Clerk middleware only when configured
-  const { clerkMiddleware, createRouteMatcher } = await import(
-    "@clerk/nextjs/server"
-  );
-
-  const isPublicRoute = createRouteMatcher([
-    "/",
-    "/sign-in(.*)",
-    "/sign-up(.*)",
-    "/categories(.*)",
-    "/listings(.*)",
-    "/search(.*)",
-    "/pricing(.*)",
-    "/dealers(.*)",
-    "/uidemo(.*)",
-    "/api/webhooks(.*)",
-    "/dev/auth",
-  ]);
-
-  const handler = clerkMiddleware(async (auth, req) => {
-    if (!isPublicRoute(req)) {
-      await auth.protect();
-    }
+  let response = NextResponse.next({
+    request: { headers: request.headers },
   });
 
-  return handler(request, {} as never);
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          request.cookies.set(name, value);
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user && !isPublicPath(pathname)) {
+    const signInUrl = new URL("/sign-in", request.url);
+    signInUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  return response;
 }
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };

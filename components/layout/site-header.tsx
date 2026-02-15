@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Mail, Phone } from "lucide-react";
 import { useState } from "react";
-import { isClerkConfigured } from "@/lib/auth/clerk-config";
+import { HeaderAuthButtons } from "@/components/auth/header-auth-buttons";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
@@ -15,38 +15,6 @@ const NAV_ITEMS = [
   { label: "Sell", href: "/sell" },
   { label: "Pricing", href: "/pricing" },
 ];
-
-function AuthButtons() {
-  if (!isClerkConfigured()) {
-    return (
-      <Button asChild variant="secondary" size="sm">
-        <Link href="/sign-in">Sign In</Link>
-      </Button>
-    );
-  }
-
-  // Dynamic import to avoid loading Clerk when not configured
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { SignedIn, SignedOut, UserButton, SignInButton } = require("@clerk/nextjs");
-
-  return (
-    <>
-      <SignedIn>
-        <UserButton
-          afterSignOutUrl="/"
-          appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-        />
-      </SignedIn>
-      <SignedOut>
-        <SignInButton mode="modal">
-          <Button variant="secondary" size="sm">
-            Sign In
-          </Button>
-        </SignInButton>
-      </SignedOut>
-    </>
-  );
-}
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -60,7 +28,7 @@ export function SiteHeader() {
           <div className="flex items-center gap-4">
             <span className="hidden sm:inline-flex items-center gap-1.5">
               <Phone className="h-3 w-3" />
-              Isle of Man Marketplace
+              Isle of Man Vehicle Sales
             </span>
             <a href="mailto:hello@itrader.im" className="inline-flex items-center gap-1.5 hover:text-royal-100 transition-colors">
               <Mail className="h-3 w-3" />
@@ -68,7 +36,7 @@ export function SiteHeader() {
             </a>
           </div>
           <div className="flex items-center gap-3 text-slate-300">
-            <span className="text-xs">The Isle of Man&apos;s Trusted Marketplace</span>
+            <span className="text-xs">The Isle of Man&apos;s Trusted Vehicle Marketplace</span>
           </div>
         </div>
       </div>
@@ -112,7 +80,7 @@ export function SiteHeader() {
 
           {/* Right side: auth + mobile toggle */}
           <div className="flex items-center gap-3">
-            <AuthButtons />
+            <HeaderAuthButtons />
             <button
               type="button"
               className="md:hidden p-2 text-slate-500 hover:text-slate-900"
