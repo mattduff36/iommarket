@@ -96,7 +96,7 @@ export default async function HomePage() {
   return (
     <>
       {/* ============ HERO ============ */}
-      <section className="relative min-h-[calc(100dvh-108px)] overflow-hidden bg-slate-900">
+      <section className="relative min-h-[calc(100dvh-108px)] md:min-h-0 overflow-hidden bg-slate-900">
         {/* Background image */}
         <Image
           src="/images/hero-calf-of-man.png"
