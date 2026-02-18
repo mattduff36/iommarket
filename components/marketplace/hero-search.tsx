@@ -135,7 +135,7 @@ export function HeroSearch({ makes, modelsByMake, initial = {} }: HeroSearchProp
         onSubmit={handleSubmit}
         className="mx-auto mt-10 max-w-4xl rounded-2xl bg-white/95 p-4 shadow-xl backdrop-blur sm:p-5"
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="grid grid-cols-2 gap-4 items-end sm:flex sm:flex-row sm:flex-wrap">
           <div className="min-w-[120px] flex-1 sm:max-w-[140px]">
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
               Make
@@ -244,7 +244,7 @@ export function HeroSearch({ makes, modelsByMake, initial = {} }: HeroSearchProp
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end justify-center sm:justify-start">
             <Button type="submit" size="lg" className="h-11 rounded-lg px-6">
               Search
             </Button>
