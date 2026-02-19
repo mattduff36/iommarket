@@ -14,13 +14,17 @@ import { ArrowRight } from "lucide-react";
 /* ------------------------------------------------------------------ */
 export default async function HomePage() {
   /* Fetch categories + latest listings per top-2 categories */
-  const [categories, makeDefs, modelDefs] = await Promise.all([
+  const [categories, regions, makeDefs, modelDefs] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
       include: {
         _count: { select: { listings: { where: { status: "LIVE" } } } },
       },
+    }),
+    db.region.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
     }),
     db.attributeDefinition.findMany({
       where: { slug: "make" },
@@ -126,7 +130,19 @@ export default async function HomePage() {
             Cars, vans, motorbikes and more &mdash; from trusted Isle of Man sellers.
           </p>
 
-          <HeroSearch makes={makes} modelsByMake={modelsByMake} />
+          <HeroSearch
+            makes={makes}
+            modelsByMake={modelsByMake}
+            categories={categories.map((c) => ({
+              label: c.name,
+              value: c.slug,
+              count: c._count.listings,
+            }))}
+            regions={regions.map((r) => ({
+              label: r.name,
+              value: r.slug,
+            }))}
+          />
         </div>
       </section>
 

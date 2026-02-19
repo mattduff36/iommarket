@@ -1,7 +1,34 @@
 /**
- * Shared price range and age options for hero search and more-options modal.
+ * Shared price range, age options, and advanced filter constants.
  * URL/search still use minPrice, maxPrice, minYear, maxYear.
  */
+
+export const BODY_TYPE_OPTIONS = [
+  "Hatchback", "Saloon", "SUV", "Estate", "Coupe",
+  "Convertible", "MPV", "Pickup",
+] as const;
+
+export const COLOUR_OPTIONS = [
+  "Black", "White", "Silver", "Grey", "Blue", "Red",
+  "Green", "Yellow", "Orange", "Brown", "Gold", "Bronze", "Other",
+] as const;
+
+export const FUEL_TYPE_OPTIONS = [
+  "Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid",
+] as const;
+
+export const TRANSMISSION_OPTIONS = ["Manual", "Automatic"] as const;
+
+export const DRIVE_TYPE_OPTIONS = ["FWD", "RWD", "4WD", "AWD"] as const;
+
+export const SELLER_TYPE_OPTIONS = [
+  { label: "Any", value: "" },
+  { label: "Private", value: "private" },
+  { label: "Dealer", value: "dealer" },
+] as const;
+
+export const DOORS_OPTIONS = [2, 3, 4, 5] as const;
+export const SEATS_OPTIONS = [2, 4, 5, 6, 7, 8, 9] as const;
 
 export const PRICE_RANGE_OPTIONS = [
   { label: "Any", value: "" },
@@ -61,4 +88,26 @@ export function yearRangeToAge(minYear: string, maxYear: string): string {
   if (Number.isNaN(min)) return "";
   const age = currentYear - min;
   return age >= 1 && age <= 15 ? String(age) : "";
+}
+
+export function ageRangeToYearRange(
+  ageRange: [number, number],
+): { minYear: string; maxYear: string } {
+  const currentYear = new Date().getFullYear();
+  return {
+    minYear: String(currentYear - ageRange[1]),
+    maxYear: String(currentYear - ageRange[0]),
+  };
+}
+
+export function yearRangeToAgeRange(
+  minYear: string | undefined,
+  maxYear: string | undefined,
+): [number, number] {
+  const currentYear = new Date().getFullYear();
+  const minY = minYear ? parseInt(minYear, 10) : currentYear - 15;
+  const maxY = maxYear ? parseInt(maxYear, 10) : currentYear;
+  const minAge = currentYear - (Number.isNaN(maxY) ? currentYear : maxY);
+  const maxAge = currentYear - (Number.isNaN(minY) ? currentYear - 15 : minY);
+  return [Math.max(0, minAge), Math.min(15, maxAge)];
 }

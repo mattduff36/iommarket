@@ -81,15 +81,17 @@ export function SiteHeader() {
           {/* Right side: auth + mobile toggle */}
           <div className="flex items-center gap-3">
             <HeaderAuthButtons />
-            <button
+            <Button
               type="button"
-              className="md:hidden p-2 text-slate-500 hover:text-slate-900"
+              variant="ghost"
+              size="icon"
+              className="md:hidden text-slate-500 hover:text-slate-900"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
               aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+            </Button>
           </div>
         </div>
 

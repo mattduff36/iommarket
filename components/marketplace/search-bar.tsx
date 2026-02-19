@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 export interface SearchBarProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> {
@@ -50,14 +51,16 @@ const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
           {...props}
         />
         {value && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={handleClear}
-            className="absolute right-3 text-text-tertiary hover:text-text-secondary focus:outline-none"
+            className="absolute right-1 h-8 w-8 text-text-tertiary hover:text-text-secondary"
             aria-label="Clear search"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         )}
       </div>
     );

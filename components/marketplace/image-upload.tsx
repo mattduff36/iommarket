@@ -83,14 +83,16 @@ export function ImageUpload({
                 className="object-cover"
                 sizes="(max-width: 768px) 33vw, 160px"
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => handleRemove(i)}
-                className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white hover:bg-black/80"
                 aria-label={`Remove image ${i + 1}`}
               >
                 <X className="h-3 w-3" />
-              </button>
+              </Button>
               {i === 0 && (
                 <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   Main

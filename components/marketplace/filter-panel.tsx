@@ -29,15 +29,17 @@ function FilterSection({ title, defaultOpen = true, children }: FilterSectionPro
 
   return (
     <div className="border-b border-border py-4 first:pt-0 last:border-0">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between text-sm font-semibold text-text-primary"
+        className="w-full justify-between text-sm font-semibold text-text-primary"
         aria-expanded={open}
       >
         {title}
         {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
+      </Button>
       {open && <div className="mt-3 flex flex-col gap-2">{children}</div>}
     </div>
   );

@@ -4,27 +4,34 @@ import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { cn } from "@/lib/cn";
 
+interface SliderProps
+  extends React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> {
+  thumbLabels?: string[];
+}
+
 const Slider = React.forwardRef<
   React.ComponentRef<typeof SliderPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, ...props }, ref) => (
+  SliderProps
+>(({ className, thumbLabels, ...props }, ref) => (
   <SliderPrimitive.Root
     ref={ref}
     className={cn(
-      "relative flex w-full touch-none select-none items-center",
+      "relative flex w-full touch-none select-none items-center py-2",
       className,
     )}
     {...props}
   >
-    <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-slate-200">
-      <SliderPrimitive.Range className="absolute h-full bg-royal-600" />
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-slate-200">
+      <SliderPrimitive.Range className="absolute h-full rounded-full bg-royal-600 transition-[width,left] duration-150 ease-out" />
     </SliderPrimitive.Track>
     {(props.value ?? props.defaultValue ?? [0]).map((_, i) => (
       <SliderPrimitive.Thumb
         key={i}
+        aria-label={thumbLabels?.[i]}
         className={cn(
-          "block h-4 w-4 rounded-full border-2 border-royal-600 bg-white shadow-sm",
-          "transition-colors focus-visible:outline-none focus-visible:shadow-outline",
+          "block h-6 w-6 rounded-full bg-royal-600 shadow-md",
+          "transition-transform duration-150 ease-out hover:scale-110 active:scale-105",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-royal-400 focus-visible:ring-offset-2",
           "disabled:pointer-events-none disabled:opacity-50",
         )}
       />

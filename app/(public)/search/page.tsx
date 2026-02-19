@@ -3,23 +3,12 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { SearchFilters } from "./search-filters";
+import { SearchControls } from "@/components/marketplace/search/search-controls";
+import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
+import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
 
 interface Props {
-  searchParams: Promise<{
-    q?: string;
-    category?: string;
-    region?: string;
-    minPrice?: string;
-    maxPrice?: string;
-    make?: string;
-    model?: string;
-    minMileage?: string;
-    maxMileage?: string;
-    minYear?: string;
-    maxYear?: string;
-    page?: string;
-  }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
@@ -30,6 +19,18 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   };
 }
 
+function safeInt(v: string | undefined): number | undefined {
+  if (!v) return undefined;
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? undefined : n;
+}
+
+interface NumericRangeFilter {
+  slug: string;
+  min?: number;
+  max?: number;
+}
+
 export default async function SearchPage({ searchParams }: Props) {
   const sp = await searchParams;
   const query = sp.q?.trim() ?? "";
@@ -38,39 +39,90 @@ export default async function SearchPage({ searchParams }: Props) {
 
   const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
   const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
-  const minMileage = sp.minMileage ? parseInt(sp.minMileage, 10) : undefined;
-  const maxMileage = sp.maxMileage ? parseInt(sp.maxMileage, 10) : undefined;
-  const minYear = sp.minYear ? parseInt(sp.minYear, 10) : undefined;
-  const maxYear = sp.maxYear ? parseInt(sp.maxYear, 10) : undefined;
 
-  const hasMileageFilter = minMileage !== undefined || maxMileage !== undefined;
-  const hasYearFilter = minYear !== undefined || maxYear !== undefined;
+  const numericRangeFilters: NumericRangeFilter[] = [
+    { slug: "mileage", min: safeInt(sp.minMileage), max: safeInt(sp.maxMileage) },
+    { slug: "year", min: safeInt(sp.minYear), max: safeInt(sp.maxYear) },
+    { slug: "engine-size", min: safeInt(sp.minEngineSize), max: safeInt(sp.maxEngineSize) },
+    { slug: "engine-power", min: safeInt(sp.minEnginePower), max: safeInt(sp.maxEnginePower) },
+    { slug: "battery-range", min: safeInt(sp.minBatteryRange), max: safeInt(sp.maxBatteryRange) },
+    { slug: "charging-time", min: safeInt(sp.minChargingTime), max: safeInt(sp.maxChargingTime) },
+    { slug: "acceleration", min: safeInt(sp.minAcceleration), max: safeInt(sp.maxAcceleration) },
+    { slug: "fuel-consumption", min: safeInt(sp.minFuelConsumption), max: safeInt(sp.maxFuelConsumption) },
+    { slug: "co2-emissions", min: safeInt(sp.minCo2), max: safeInt(sp.maxCo2) },
+    { slug: "tax-per-year", min: safeInt(sp.minTax), max: safeInt(sp.maxTax) },
+    { slug: "insurance-group", min: safeInt(sp.minInsuranceGroup), max: safeInt(sp.maxInsuranceGroup) },
+    { slug: "boot-space", min: safeInt(sp.minBootSpace), max: safeInt(sp.maxBootSpace) },
+    { slug: "doors", min: safeInt(sp.doors), max: safeInt(sp.doors) },
+    { slug: "seats", min: safeInt(sp.seats), max: safeInt(sp.seats) },
+  ].filter((f) => f.min !== undefined || f.max !== undefined);
 
   let listingIdsFromAttributes: string[] | null = null;
-  if (hasMileageFilter || hasYearFilter) {
+  if (numericRangeFilters.length > 0) {
     const { Prisma } = await import("@prisma/client");
+    const conditions = numericRangeFilters.map((f) =>
+      Prisma.sql`EXISTS (
+        SELECT 1 FROM listing_attribute_values lav
+        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
+        WHERE lav.listing_id = l.id AND ad.slug = ${f.slug}
+        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${f.min ?? 0}
+        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${f.max ?? 999999999}
+      )`
+    );
+
+    let combined = conditions[0];
+    for (let i = 1; i < conditions.length; i++) {
+      combined = Prisma.sql`${combined} AND ${conditions[i]}`;
+    }
+
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
       WHERE l.status = 'LIVE'
-      AND (${hasMileageFilter ? Prisma.sql`EXISTS (
-        SELECT 1 FROM listing_attribute_values lav
-        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
-        WHERE lav.listing_id = l.id AND ad.slug = 'mileage'
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${minMileage ?? 0}
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${maxMileage ?? 999999}
-      )` : Prisma.sql`TRUE`})
-      AND (${hasYearFilter ? Prisma.sql`EXISTS (
-        SELECT 1 FROM listing_attribute_values lav
-        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
-        WHERE lav.listing_id = l.id AND ad.slug = 'year'
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${minYear ?? 0}
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${maxYear ?? 9999}
-      )` : Prisma.sql`TRUE`})
+      AND ${combined}
     `;
     listingIdsFromAttributes = result.map((r) => r.id);
   }
 
-  const where = {
+  const exactAttrFilters: Array<{ slug: string; value: string }> = [];
+  if (sp.fuelType) exactAttrFilters.push({ slug: "fuel-type", value: sp.fuelType });
+  if (sp.transmission) exactAttrFilters.push({ slug: "transmission", value: sp.transmission });
+  if (sp.bodyType) exactAttrFilters.push({ slug: "body-type", value: sp.bodyType });
+  if (sp.colour) exactAttrFilters.push({ slug: "colour", value: sp.colour });
+  if (sp.driveType) exactAttrFilters.push({ slug: "drive-type", value: sp.driveType });
+
+  const attrAndClauses = [
+    ...(sp.make
+      ? [{
+          attributeValues: {
+            some: {
+              attributeDefinition: { slug: "make" },
+              value: { equals: sp.make, mode: "insensitive" as const },
+            },
+          },
+        }]
+      : []),
+    ...(sp.model
+      ? [{
+          attributeValues: {
+            some: {
+              attributeDefinition: { slug: "model" },
+              value: { equals: sp.model, mode: "insensitive" as const },
+            },
+          },
+        }]
+      : []),
+    ...exactAttrFilters.map((f) => ({
+      attributeValues: {
+        some: {
+          attributeDefinition: { slug: f.slug },
+          value: { equals: f.value, mode: "insensitive" as const },
+        },
+      },
+    })),
+  ];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {
     status: "LIVE" as const,
     ...(listingIdsFromAttributes !== null
       ? { id: { in: listingIdsFromAttributes } }
@@ -93,26 +145,9 @@ export default async function SearchPage({ searchParams }: Props) {
           },
         }
       : {}),
-    ...(sp.make
-      ? {
-          attributeValues: {
-            some: {
-              attributeDefinition: { slug: "make" },
-              value: { equals: sp.make, mode: "insensitive" as const },
-            },
-          },
-        }
-      : {}),
-    ...(sp.model
-      ? {
-          attributeValues: {
-            some: {
-              attributeDefinition: { slug: "model" },
-              value: { equals: sp.model, mode: "insensitive" as const },
-            },
-          },
-        }
-      : {}),
+    ...(sp.sellerType === "private" ? { dealerId: null } : {}),
+    ...(sp.sellerType === "dealer" ? { dealerId: { not: null } } : {}),
+    ...(attrAndClauses.length > 0 ? { AND: attrAndClauses } : {}),
   };
 
   const [listings, total, categories, regions, makeDefs, modelDefs] = await Promise.all([
@@ -151,26 +186,64 @@ export default async function SearchPage({ searchParams }: Props) {
 
   const makeIds = makeDefs.map((d) => d.id);
   const modelIds = modelDefs.map((d) => d.id);
-  const [makeValues, modelValues] = await Promise.all([
+  const [makeRows, modelRows] = await Promise.all([
     makeIds.length > 0
       ? db.listingAttributeValue.findMany({
-          where: { attributeDefinitionId: { in: makeIds } },
-          select: { value: true },
-          distinct: ["value"],
+          where: {
+            attributeDefinitionId: { in: makeIds },
+            listing: { status: "LIVE" },
+          },
+          select: { listingId: true, value: true },
         })
       : Promise.resolve([]),
     modelIds.length > 0
       ? db.listingAttributeValue.findMany({
-          where: { attributeDefinitionId: { in: modelIds } },
-          select: { value: true },
-          distinct: ["value"],
+          where: {
+            attributeDefinitionId: { in: modelIds },
+            listing: { status: "LIVE" },
+          },
+          select: { listingId: true, value: true },
         })
       : Promise.resolve([]),
   ]);
-  const makes = [...new Set(makeValues.map((r) => r.value))].sort();
-  const models = [...new Set(modelValues.map((r) => r.value))].sort();
+
+  const modelByListingId = new Map(modelRows.map((r) => [r.listingId, r.value]));
+  const modelsByMake: Record<string, string[]> = {};
+  for (const row of makeRows) {
+    const mdl = modelByListingId.get(row.listingId);
+    if (mdl) {
+      if (!modelsByMake[row.value]) modelsByMake[row.value] = [];
+      if (!modelsByMake[row.value].includes(mdl)) modelsByMake[row.value].push(mdl);
+    }
+  }
+  Object.keys(modelsByMake).forEach((m) => modelsByMake[m].sort());
+
+  const dbMakes = [...new Set(makeRows.map((r) => r.value))];
+  const makes = getMakesWithDb(dbMakes);
 
   const totalPages = Math.ceil(total / pageSize);
+
+  const currentParams: SearchParams = {
+    q: sp.q, category: sp.category, region: sp.region,
+    make: sp.make, model: sp.model,
+    minPrice: sp.minPrice, maxPrice: sp.maxPrice,
+    minMileage: sp.minMileage, maxMileage: sp.maxMileage,
+    minYear: sp.minYear, maxYear: sp.maxYear,
+    bodyType: sp.bodyType, colour: sp.colour,
+    doors: sp.doors, seats: sp.seats,
+    fuelType: sp.fuelType, transmission: sp.transmission,
+    driveType: sp.driveType, sellerType: sp.sellerType,
+    minEngineSize: sp.minEngineSize, maxEngineSize: sp.maxEngineSize,
+    minEnginePower: sp.minEnginePower, maxEnginePower: sp.maxEnginePower,
+    minBatteryRange: sp.minBatteryRange, maxBatteryRange: sp.maxBatteryRange,
+    minChargingTime: sp.minChargingTime, maxChargingTime: sp.maxChargingTime,
+    minAcceleration: sp.minAcceleration, maxAcceleration: sp.maxAcceleration,
+    minFuelConsumption: sp.minFuelConsumption, maxFuelConsumption: sp.maxFuelConsumption,
+    minCo2: sp.minCo2, maxCo2: sp.maxCo2,
+    minTax: sp.minTax, maxTax: sp.maxTax,
+    minInsuranceGroup: sp.minInsuranceGroup, maxInsuranceGroup: sp.maxInsuranceGroup,
+    minBootSpace: sp.minBootSpace, maxBootSpace: sp.maxBootSpace,
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -183,88 +256,63 @@ export default async function SearchPage({ searchParams }: Props) {
         </p>
       </div>
 
-      <div className="flex gap-8">
-        <SearchFilters
-          query={query}
-          categorySlug={sp.category}
-          regionSlug={sp.region}
-          categories={categories.map((c) => ({
-            label: c.name,
-            value: c.slug,
-            count: c._count.listings,
-          }))}
-          regions={regions.map((r) => ({
-            label: r.name,
-            value: r.slug,
-          }))}
-          minPrice={sp.minPrice}
-          maxPrice={sp.maxPrice}
-          make={sp.make}
-          model={sp.model}
-          minMileage={sp.minMileage}
-          maxMileage={sp.maxMileage}
-          minYear={sp.minYear}
-          maxYear={sp.maxYear}
-          makes={makes}
-          models={models}
-        />
+      <SearchControls
+        makes={makes}
+        modelsByMake={modelsByMake}
+        categories={categories.map((c) => ({
+          label: c.name,
+          value: c.slug,
+          count: c._count.listings,
+        }))}
+        regions={regions.map((r) => ({
+          label: r.name,
+          value: r.slug,
+        }))}
+        initial={currentParams}
+        mode="instant"
+        showAdvancedInline
+        className="mb-8"
+      />
 
-        <div className="flex-1">
-          {listings.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  title={listing.title}
-                  price={listing.price / 100}
-                  imageSrc={listing.images[0]?.url}
-                  location={listing.region.name}
-                  meta={listing.category.name}
-                  featured={listing.featured}
-                  badge={listing.featured ? "Featured" : undefined}
-                  href={`/listings/${listing.id}`}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-center py-16 text-slate-500">
-              No listings found. Try adjusting your search.
-            </p>
-          )}
-
-          {totalPages > 1 && (
-            <div className="mt-10 flex justify-center gap-2">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
-                const params = new URLSearchParams();
-                if (query) params.set("q", query);
-                if (sp.category) params.set("category", sp.category);
-                if (sp.minPrice) params.set("minPrice", sp.minPrice);
-                if (sp.maxPrice) params.set("maxPrice", sp.maxPrice);
-                if (sp.make) params.set("make", sp.make);
-                if (sp.model) params.set("model", sp.model);
-                if (sp.minMileage) params.set("minMileage", sp.minMileage);
-                if (sp.maxMileage) params.set("maxMileage", sp.maxMileage);
-                if (sp.minYear) params.set("minYear", sp.minYear);
-                if (sp.maxYear) params.set("maxYear", sp.maxYear);
-                params.set("page", String(p));
-                return (
-                  <a
-                    key={p}
-                    href={`/search?${params.toString()}`}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${
-                      p === page
-                        ? "bg-primary text-white shadow-sm"
-                        : "text-slate-500 hover:bg-slate-100"
-                    }`}
-                  >
-                    {p}
-                  </a>
-                );
-              })}
-            </div>
-          )}
+      {listings.length > 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {listings.map((listing) => (
+            <ListingCard
+              key={listing.id}
+              title={listing.title}
+              price={listing.price / 100}
+              imageSrc={listing.images[0]?.url}
+              location={listing.region.name}
+              meta={listing.category.name}
+              featured={listing.featured}
+              badge={listing.featured ? "Featured" : undefined}
+              href={`/listings/${listing.id}`}
+            />
+          ))}
         </div>
-      </div>
+      ) : (
+        <p className="text-center py-16 text-slate-500">
+          No listings found. Try adjusting your search.
+        </p>
+      )}
+
+      {totalPages > 1 && (
+        <div className="mt-10 flex justify-center gap-2">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <a
+              key={p}
+              href={buildSearchUrl(currentParams, { page: String(p) })}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${
+                p === page
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              {p}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

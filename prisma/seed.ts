@@ -106,7 +106,7 @@ async function main() {
       dataType: "select",
       required: false,
       sortOrder: 5,
-      options: JSON.stringify(["Petrol", "Diesel", "Electric", "Hybrid"]),
+      options: JSON.stringify(["Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"]),
     },
     {
       name: "Transmission",
@@ -116,7 +116,47 @@ async function main() {
       sortOrder: 6,
       options: JSON.stringify(["Manual", "Automatic"]),
     },
+    {
+      name: "Body Type",
+      slug: "body-type",
+      dataType: "select",
+      required: false,
+      sortOrder: 7,
+      options: JSON.stringify(["Hatchback", "Saloon", "SUV", "Estate", "Coupe", "Convertible", "MPV", "Pickup"]),
+    },
+    {
+      name: "Colour",
+      slug: "colour",
+      dataType: "select",
+      required: false,
+      sortOrder: 8,
+      options: JSON.stringify(["Black", "White", "Silver", "Grey", "Blue", "Red", "Green", "Yellow", "Orange", "Brown", "Gold", "Bronze", "Other"]),
+    },
+    { name: "Doors", slug: "doors", dataType: "number", required: false, sortOrder: 9 },
+    { name: "Seats", slug: "seats", dataType: "number", required: false, sortOrder: 10 },
+    { name: "Engine Size", slug: "engine-size", dataType: "number", required: false, sortOrder: 11 },
+    { name: "Engine Power", slug: "engine-power", dataType: "number", required: false, sortOrder: 12 },
+    { name: "Battery Range", slug: "battery-range", dataType: "number", required: false, sortOrder: 13 },
+    { name: "Charging Time", slug: "charging-time", dataType: "number", required: false, sortOrder: 14 },
+    { name: "Acceleration", slug: "acceleration", dataType: "number", required: false, sortOrder: 15 },
+    { name: "Fuel Consumption", slug: "fuel-consumption", dataType: "number", required: false, sortOrder: 16 },
+    { name: "CO2 Emissions", slug: "co2-emissions", dataType: "number", required: false, sortOrder: 17 },
+    { name: "Tax Per Year", slug: "tax-per-year", dataType: "number", required: false, sortOrder: 18 },
+    { name: "Insurance Group", slug: "insurance-group", dataType: "number", required: false, sortOrder: 19 },
+    {
+      name: "Drive Type",
+      slug: "drive-type",
+      dataType: "select",
+      required: false,
+      sortOrder: 20,
+      options: JSON.stringify(["FWD", "RWD", "4WD", "AWD"]),
+    },
+    { name: "Boot Space", slug: "boot-space", dataType: "number", required: false, sortOrder: 21 },
   ];
+
+  const motorbikeAttrDefs = vehicleAttrDefs.filter(
+    (a) => !["body-type", "doors", "boot-space"].includes(a.slug),
+  );
 
   const carAttrs: Record<string, { id: string }> = {};
   for (const attr of vehicleAttrDefs) {
@@ -151,7 +191,7 @@ async function main() {
   }
 
   const motorbikeAttrs: Record<string, { id: string }> = {};
-  for (const attr of vehicleAttrDefs) {
+  for (const attr of motorbikeAttrDefs) {
     const created = await prisma.attributeDefinition.create({
       data: {
         categoryId: motorbike.id,
@@ -165,7 +205,7 @@ async function main() {
     });
     motorbikeAttrs[attr.slug] = created;
   }
-  console.log("  Created 6 attribute definitions per vehicle category");
+  console.log(`  Created ${vehicleAttrDefs.length} attribute definitions for Car/Van, ${motorbikeAttrDefs.length} for Motorbike`);
 
   // ---------------------------------------------------------------------------
   // Demo users (authUserId = placeholder UUIDs; not real Supabase Auth users)

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 const alertVariants = cva(
@@ -44,14 +45,16 @@ function Alert({ className, status, children, onClose, ...props }: AlertProps) {
       <Icon className="h-5 w-5 shrink-0 mt-0.5" />
       <div className="flex-1">{children}</div>
       {onClose && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={onClose}
-          className="shrink-0 rounded-sm hover:opacity-70 focus:outline-none focus:shadow-outline"
+          className="shrink-0 h-8 w-8 hover:opacity-70"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
-        </button>
+        </Button>
       )}
     </div>
   );
