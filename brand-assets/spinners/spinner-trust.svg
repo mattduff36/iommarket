@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+  <filter id="spinGlow" x="-50%" y="-50%" width="200%" height="200%">
+    <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#157BCA" flood-opacity="0.4"/>
+  </filter>
+</defs>
+<style>
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .spinner { animation: spin 1s linear infinite; transform-origin: 32.0px 32.0px; }
+</style>
+<circle cx="32.0" cy="32.0" r="24" fill="none" stroke="#157BCA" stroke-width="4" 
+        stroke-dasharray="90.5 60.3" 
+        stroke-linecap="round" class="spinner" filter="url(#spinGlow)" opacity="0.9"/>
+<circle cx="32.0" cy="32.0" r="18" fill="none" stroke="#3CAAFF" stroke-width="2" 
+        stroke-dasharray="33.9 79.2" 
+        stroke-linecap="round" class="spinner" opacity="0.5"
+        style="animation-direction: reverse; animation-duration: 1.4s;"/>
+</svg>

@@ -1,0 +1,26 @@
+{
+  "name": "iTrader.im",
+  "short_name": "iTrader",
+  "description": "BUY \u2022 SELL \u2022 UPGRADE - Isle of Man Marketplace",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050405",
+  "theme_color": "#E22229",
+  "icons": [
+    {
+      "src": "/favicon/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}

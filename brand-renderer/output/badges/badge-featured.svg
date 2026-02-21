@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="80" viewBox="0 0 260 80">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0A0D"/>
+      <stop offset="1" stop-color="#050405"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="256" height="76" rx="18" fill="url(#bg)" stroke="#E22229" stroke-opacity="0.55" stroke-width="3"/>
+  <path d="M80 22l7 16 18 2-14 12 4 18-15-9-15 9 4-18-14-12 18-2z" fill="none" stroke="#E22229" stroke-width="4" stroke-linejoin="round"/>
+  <text x="130" y="52" font-family="Montserrat, Arial" font-size="28" fill="#EFF0F3" text-anchor="middle">Featured</text>
+</svg>

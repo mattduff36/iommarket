@@ -49,7 +49,7 @@ export function SignUpForm() {
         <p className="text-text-primary">
           Check your email to confirm your account. Then you can sign in.
         </p>
-        <Button asChild variant="secondary" className="w-full">
+        <Button asChild variant="ghost" className="w-full">
           <Link href="/sign-in">Go to sign in</Link>
         </Button>
       </div>
@@ -82,7 +82,7 @@ export function SignUpForm() {
         onChange={(e) => setName(e.target.value)}
       />
       {error && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-text-energy" role="alert">
           {error}
         </p>
       )}
@@ -92,7 +92,7 @@ export function SignUpForm() {
         </Button>
         <p className="text-center text-sm text-text-secondary">
           Already have an account?{" "}
-          <Link href="/sign-in" className="text-text-brand hover:underline">
+          <Link href="/sign-in" className="text-text-trust hover:underline">
             Sign in
           </Link>
         </p>

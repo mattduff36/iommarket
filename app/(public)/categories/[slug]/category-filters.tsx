@@ -87,8 +87,8 @@ export function CategoryFilters({
                 }
                 className={`text-left text-sm px-2 py-1 rounded transition-colors ${
                   regionSlug === region.value
-                    ? "bg-royal-50 text-text-brand font-medium"
-                    : "text-text-secondary hover:text-text-primary hover:bg-slate-50"
+                    ? "bg-neon-blue-500/10 text-text-trust font-medium"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-elevated"
                 }`}
               >
                 {region.label}

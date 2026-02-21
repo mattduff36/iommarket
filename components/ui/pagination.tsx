@@ -36,7 +36,7 @@ function Pagination({ currentPage, totalPages, onPageChange, className }: Pagina
       className={cn("flex items-center gap-1", className)}
     >
       <PaginationButton
-        variant="secondary"
+        variant="ghost"
         size="icon"
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
@@ -53,7 +53,7 @@ function Pagination({ currentPage, totalPages, onPageChange, className }: Pagina
         ) : (
           <PaginationButton
             key={page}
-            variant={page === currentPage ? "primary" : "secondary"}
+            variant={page === currentPage ? "energy" : "ghost"}
             size="icon"
             onClick={() => onPageChange(page)}
             aria-label={`Page ${page}`}
@@ -65,7 +65,7 @@ function Pagination({ currentPage, totalPages, onPageChange, className }: Pagina
       )}
 
       <PaginationButton
-        variant="secondary"
+        variant="ghost"
         size="icon"
         onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         disabled={currentPage === totalPages}

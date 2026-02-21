@@ -1,8 +1,126 @@
-/* AUTO-GENERATED – do not edit by hand. */
+/* AUTO-GENERATED from design-system-2.json – do not edit by hand. */
 /* Run: npx tsx scripts/generate-ui-from-json.ts */
 
-:root {
-  /* Palette colours */
+:root, [data-theme="dark"] {
+  /* Palette */
+  --color-graphite-600: #2C2C2E;
+  --color-graphite-700: #1C1C1E;
+  --color-graphite-800: #121214;
+  --color-graphite-900: #0A0A0B;
+  --color-graphite-950: #050505;
+  --color-neonRed-400: #FF4D4D;
+  --color-neonRed-500: #FF1F1F;
+  --color-neonRed-600: #D90000;
+  --color-neonRed-glow: rgba(255, 31, 31, 0.5);
+  --color-neonBlue-400: #33A3FF;
+  --color-neonBlue-500: #0085FF;
+  --color-neonBlue-600: #0056A3;
+  --color-neonBlue-glow: rgba(0, 133, 255, 0.5);
+  --color-premiumGold-400: #F2D086;
+  --color-premiumGold-500: #C5A059;
+  --color-premiumGold-600: #8E6F36;
+  --color-premiumGold-glow: rgba(197, 160, 89, 0.4);
+  --color-metallic-100: #FFFFFF;
+  --color-metallic-200: #EBEBF5;
+  --color-metallic-300: #C7C7CC;
+  --color-metallic-400: #8E8E93;
+  --color-metallic-500: #636366;
+  --color-white: #FFFFFF;
+  --color-black: #000000;
+
+  /* Semantic backgrounds */
+  --sem-bg-canvas: #050505;
+  --sem-bg-surface: #0A0A0B;
+  --sem-bg-surfaceElevated: #121214;
+  --sem-bg-glass: rgba(20, 20, 22, 0.7);
+
+  /* Semantic text */
+  --sem-text-primary: #FFFFFF;
+  --sem-text-secondary: #8E8E93;
+  --sem-text-energy: #FF1F1F;
+  --sem-text-trust: #0085FF;
+  --sem-text-premium: #C5A059;
+
+  /* Semantic borders */
+  --sem-border-default: #1C1C1E;
+  --sem-border-active: #8E8E93;
+  --sem-border-energy: #D90000;
+  --sem-border-trust: #0056A3;
+
+  /* Effects – glows */
+  --glow-red: 0 0 15px 2px rgba(255, 31, 31, 0.5);
+  --glow-blue: 0 0 15px 2px rgba(0, 133, 255, 0.5);
+  --glow-gold: 0 0 15px 2px rgba(197, 160, 89, 0.4);
+  --glow-softWhite: 0 0 10px 0 rgba(255, 255, 255, 0.2);
+
+  /* Effects – neon borders */
+  --neon-border-energy: 1px solid #FF1F1F;
+  --neon-border-trust: 1px solid #0085FF;
+
+  /* Effects – glass surface */
+  --glass-bg: rgba(20, 20, 22, 0.7);
+  --glass-backdrop: blur(12px);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+
+  /* Effects – metallic surface */
+  --metal-bg: linear-gradient(135deg, #3A3A3C 0%, #1C1C1E 100%);
+  --metal-border: 1px solid #48484A;
+
+  /* Effects – misc */
+  --motion-blur: blur(4px);
+  --gradient-streak: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+
+  /* Typography */
+  --font-heading: 'Orbitron', 'Inter', sans-serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
+  --ls-tight: -0.02em;
+  --ls-normal: 0;
+  --ls-wide: 0.05em;
+  --ls-motorsport: 0.15em;
+
+  /* Radius */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-low: 0 2px 4px rgba(0,0,0,0.5);
+  --shadow-high: 0 10px 30px rgba(0,0,0,0.8);
+  --shadow-neonRed: 0 0 15px 2px rgba(255, 31, 31, 0.5);
+  --shadow-neonBlue: 0 0 15px 2px rgba(0, 133, 255, 0.5);
+
+  /* Spacing (4pt grid) */
+  --sp-0: 0px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* Z-index */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-overlay: 1300;
+  --z-modal: 1400;
+  --z-tooltip: 1500;
+
+  /* Motion */
+  --motion-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-premium: 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-hover-lift: translateY(-2px);
+  --motion-glow-pulse: pulse 2s infinite alternate;
+  --motion-slide-streak: translateX(100%);
+}
+
+[data-theme="light"] {
+  /* Light palette (from v1 design-system.json) */
   --color-slate-50: #F8F9FB;
   --color-slate-100: #F3F4F6;
   --color-slate-200: #E5E7EB;
@@ -33,7 +151,7 @@
   --color-white: #FFFFFF;
   --color-transparent: transparent;
 
-  /* Semantic colours */
+  /* Light semantic backgrounds */
   --sem-bg-canvas: #F8F9FB;
   --sem-bg-surface: #FFFFFF;
   --sem-bg-surfaceSubtle: #F3F4F6;
@@ -70,57 +188,23 @@
   --sem-status-info-bg: #EFF6FF;
   --sem-status-info-text: #1D4ED8;
 
-  /* Typography */
-  --font-sans: var(--font-sans, "DM Sans"), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: var(--font-display, "DM Serif Display"), Georgia, "Times New Roman", serif;
-  --fs-xs: 12px;
-  --fs-sm: 14px;
-  --fs-base: 16px;
-  --fs-lg: 18px;
-  --fs-xl: 20px;
-  --fs-2xl: 24px;
-  --fs-3xl: 30px;
-  --lh-tight: 1.25;
-  --lh-normal: 1.5;
-  --lh-relaxed: 1.75;
-  --fw-regular: 400;
-  --fw-medium: 500;
-  --fw-semibold: 600;
-  --fw-bold: 700;
+  /* Light-specific overrides */
+  --glow-red: 0 0 12px 2px rgba(220, 38, 38, 0.3);
+  --glow-blue: 0 0 12px 2px rgba(59, 130, 246, 0.3);
+  --glow-gold: 0 0 12px 2px rgba(180, 83, 9, 0.25);
+  --glow-softWhite: 0 0 8px 0 rgba(0, 0, 0, 0.08);
 
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
-  --radius-full: 9999px;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-backdrop: blur(12px);
+  --glass-border: 1px solid rgba(0, 0, 0, 0.08);
+  --metal-bg: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+  --metal-border: 1px solid #D1D5DB;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lift: 0 8px 20px -4px rgba(0, 0, 0, 0.12);
-  --shadow-outline: 0 0 0 3px rgba(59, 130, 246, 0.5);
-
-  /* Spacing (4pt grid) */
-  --sp-0: 0px;
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
-  --sp-12: 48px;
-  --sp-16: 64px;
-
-  /* Z-index */
-  --z-dropdown: 1000;
-  --z-sticky: 1100;
-  --z-fixed: 1200;
-  --z-modalBackdrop: 1300;
-  --z-modal: 1400;
-  --z-tooltip: 1500;
+  --shadow-low: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-high: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-neonRed: 0 0 12px 2px rgba(220, 38, 38, 0.25);
+  --shadow-neonBlue: 0 0 12px 2px rgba(59, 130, 246, 0.25);
+  /* Light typography */
+  --font-heading: 'Orbitron', 'Inter', sans-serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
 }

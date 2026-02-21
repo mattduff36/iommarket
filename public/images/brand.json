@@ -1,0 +1,1794 @@
+{
+"meta": {
+"brandName": "iTrader.im",
+"tagline": "BUY • SELL • UPGRADE",
+"brandPersonality": [
+"fast",
+"secure",
+"premium",
+"technical",
+"confident",
+"modern",
+"performance-driven"
+],
+"visualTone": "dark, high-contrast, neon-accented, metallic-chrome with motion energy",
+"styleKeywords": [
+"graphite",
+"neon",
+"chrome",
+"motion-streaks",
+"glow",
+"vortex-swoosh",
+"italic-wordmark",
+"premium-gold-accent",
+"tech-luxury"
+],
+"primaryUseCases": [
+"marketplace",
+"vehicles",
+"luxury",
+"tech"
+]
+},
+"logoSystem": {
+"structure": {
+"primaryLockup": "horizontal",
+"components": [
+{
+"name": "vortexIcon",
+"type": "symbol",
+"position": {
+"x": 0.0,
+"y": 0.5
+},
+"anchor": "leftCenter"
+},
+{
+"name": "wordmark",
+"type": "text",
+"text": "iTrader.im",
+"position": {
+"x": 0.31,
+"y": 0.5
+},
+"anchor": "leftCenter"
+},
+{
+"name": "tagline",
+"type": "text",
+"text": "BUY • SELL • UPGRADE",
+"position": {
+"x": 0.5,
+"y": 0.83
+},
+"anchor": "center"
+}
+],
+"taglineSeparators": "bulletDots",
+"baselineAlignment": "iconOpticalCenterAlignedToWordmarkXHeight"
+},
+"proportions": {
+"iconToTotalWidth": 0.28,
+"wordmarkToTotalWidth": 0.68,
+"gapIconToWordmark": 0.04,
+"taglineWidthToWordmarkWidth": 0.62,
+"taglineHeightToWordmarkCapHeight": 0.22,
+"taglineBaselineOffsetFromWordmarkBaseline": 0.42,
+"italicAngleDeg": -12.0,
+"wordmarkStrokeWidthRatio": 0.0,
+"minClearSpaceRatio": {
+"basedOn": "iconOuterDiameter",
+"allSides": 0.25
+}
+},
+"gradients": {
+"wordmarkFill": "chromeTextGradient",
+"dotImAccentFill": "neonRedGradient",
+"taglineFill": "softWhiteGradient"
+},
+"highlightEffects": {
+"chromeSpecular": {
+"enabled": true,
+"overlayMode": "screen",
+"opacity": 0.35,
+"mask": "topEdgeToMidFade",
+"directionDeg": -20,
+"blurPx": 6,
+"noiseAmount": 0.06
+},
+"redUnderlineStreak": {
+"enabled": true,
+"shape": "taperedMotionStreak",
+"start": {
+"x": 0.34,
+"y": 0.64
+},
+"end": {
+"x": 0.92,
+"y": 0.64
+},
+"thicknessRatioToWordmarkCapHeight": 0.07,
+"blurPx": 18,
+"glowPreset": "redOuter",
+"gradient": "redStreakGradient",
+"opacity": 0.9
+},
+"ambientGlow": {
+"enabled": true,
+"presets": [
+"redOuter",
+"blueOuter",
+"softWhiteOuter"
+],
+"overallOpacity": 0.6
+}
+},
+"variants": {
+"darkMode": {
+"background": "graphiteVignette",
+"wordmarkColorMode": "chrome",
+"imAccentColor": "neonRed",
+"taglineColor": "softWhite",
+"iconVariant": "core"
+},
+"lightMode": {
+"background": "#FFFFFF",
+"wordmarkColorMode": "darkFlat",
+"wordmarkColor": "#101114",
+"imAccentColor": "#C7001A",
+"taglineColor": "#2B2C31",
+"iconVariant": "coreNoGlow",
+"dropShadow": {
+"enabled": true,
+"color": "#000000",
+"opacity": 0.15,
+"blurPx": 12,
+"offset": {
+"x": 0,
+"y": 6
+}
+}
+},
+"compact": {
+"includesTagline": false,
+"targetUse": "headerNav",
+"iconToTotalWidth": 0.34,
+"gapIconToWordmark": 0.035
+},
+"wordmarkOnly": {
+"includesIcon": false,
+"includesTagline": false
+}
+}
+},
+"iconSystem": {
+"geometry": {
+"baseCanvas": "square",
+"constructionNotes": "three-layer elliptical vortex with two colored energy arcs (red and blue) wrapping a chrome core; arcs show motion blur tails and specular highlights.",
+"ellipseOuter": {
+"rxRatio": 0.46,
+"ryRatio": 0.34,
+"rotationDeg": -18
+},
+"arcThickness": {
+"outerRatioToOuterRy": 0.22,
+"innerRatioToOuterRy": 0.12
+},
+"tailTaper": {
+"startThicknessRatio": 1.0,
+"endThicknessRatio": 0.18,
+"taperExponent": 1.8
+},
+"layerOrder": [
+"shadow",
+"blueArcBack",
+"chromeCore",
+"redArcFront",
+"specularHighlights",
+"outerGlow",
+"particleSpecks"
+],
+"coreCutout": {
+"enabled": true,
+"shape": "innerEllipse",
+"rxRatio": 0.26,
+"ryRatio": 0.18,
+"rotationDeg": -18
+},
+"specular": {
+"topHighlight": {
+"positionPolar": {
+"angleDeg": -40,
+"radiusRatio": 0.62
+},
+"sizeRatio": 0.18,
+"blurPx": 8,
+"opacity": 0.55
+},
+"innerRimHighlight": {
+"enabled": true,
+"offsetRatio": 0.06,
+"opacity": 0.35,
+"blurPx": 5
+}
+},
+"shadow": {
+"enabled": true,
+"type": "drop",
+"color": "#000000",
+"opacity": 0.55,
+"blurPx": 28,
+"offset": {
+"x": 0,
+"y": 14
+}
+}
+},
+"variants": {
+"core": {
+"primaryColor": "neonRed",
+"secondaryColor": "electricBlue",
+"neutralColor": "silver",
+"gradients": {
+"redArc": "redArcGradient",
+"blueArc": "blueArcGradient",
+"chromeCore": "chromeRingGradient"
+},
+"glow": {
+"outer": {
+"red": {
+"color": "#FF2436",
+"blurPx": 46,
+"spreadPx": 6,
+"opacity": 0.55
+},
+"blue": {
+"color": "#3CAAFF",
+"blurPx": 44,
+"spreadPx": 6,
+"opacity": 0.5
+},
+"white": {
+"color": "#FFFFFF",
+"blurPx": 22,
+"spreadPx": 0,
+"opacity": 0.25
+}
+}
+},
+"innerHighlightOverlayPct": 0.32,
+"particleSpecks": {
+"enabled": true,
+"countPer1024px": 18,
+"sizePx": [
+1,
+3
+],
+"opacity": [
+0.15,
+0.45
+]
+}
+},
+"energy": {
+"primaryColor": "neonRed",
+"secondaryColor": "deepRed",
+"neutralColor": "silver",
+"gradients": {
+"redArc": "redArcGradientStrong",
+"chromeCore": "chromeRingGradient"
+},
+"glow": {
+"outer": {
+"red": {
+"color": "#FF2436",
+"blurPx": 50,
+"spreadPx": 8,
+"opacity": 0.62
+}
+}
+},
+"innerHighlightOverlayPct": 0.28
+},
+"trust": {
+"primaryColor": "electricBlue",
+"secondaryColor": "deepBlue",
+"neutralColor": "silver",
+"gradients": {
+"blueArc": "blueArcGradientStrong",
+"chromeCore": "chromeRingGradient"
+},
+"glow": {
+"outer": {
+"blue": {
+"color": "#3CAAFF",
+"blurPx": 48,
+"spreadPx": 8,
+"opacity": 0.6
+}
+}
+},
+"innerHighlightOverlayPct": 0.28
+},
+"premium": {
+"primaryColor": "premiumGold",
+"secondaryColor": "#7A4A22",
+"neutralColor": "silver",
+"gradients": {
+"goldArc": "goldArcGradient",
+"chromeCore": "chromeRingGradientWarm"
+},
+"glow": {
+"outer": {
+"gold": {
+"color": "#FFD089",
+"blurPx": 46,
+"spreadPx": 8,
+"opacity": 0.55
+}
+}
+},
+"innerHighlightOverlayPct": 0.3
+},
+"monochromeWhite": {
+"primaryColor": "#FFFFFF",
+"secondaryColor": "#CFCFD4",
+"neutralColor": "#FFFFFF",
+"gradients": {
+"mono": "monoWhiteGradient"
+},
+"glow": {
+"outer": {
+"white": {
+"color": "#FFFFFF",
+"blurPx": 30,
+"spreadPx": 2,
+"opacity": 0.3
+}
+}
+},
+"innerHighlightOverlayPct": 0.22
+},
+"monochromeDark": {
+"primaryColor": "#121318",
+"secondaryColor": "#2B2E36",
+"neutralColor": "#1A1C22",
+"gradients": {
+"mono": "monoDarkGradient"
+},
+"glow": {
+"outer": {
+"black": {
+"color": "#000000",
+"blurPx": 24,
+"spreadPx": 0,
+"opacity": 0.25
+}
+}
+},
+"innerHighlightOverlayPct": 0.18
+}
+}
+},
+"typographySystem": {
+"wordmark": {
+"family": "customItalicSans (approx: Eurostile Extended Italic / Bank Gothic Italic style)",
+"style": "bold italic",
+"tracking": -10,
+"case": "mixed",
+"slantDeg": -12.0,
+"special": {
+"dotIm": {
+"style": "italic",
+"colorToken": "neonRed",
+"tracking": -8
+}
+}
+},
+"supporting": {
+"tagline": {
+"family": "geometricSans (approx: Montserrat / Gotham)",
+"style": "medium",
+"case": "uppercase",
+"tracking": 240,
+"separatorGlyph": "•",
+"sizeRatioToWordmark": 0.22
+},
+"sectionHeadings": {
+"family": "geometricSans (approx: Montserrat / Gotham)",
+"style": "semiBold",
+"case": "uppercase",
+"tracking": 220,
+"sizeRatioToWordmark": 0.18
+},
+"labelsSmall": {
+"family": "geometricSans (approx: Montserrat / Gotham)",
+"style": "medium",
+"case": "uppercase",
+"tracking": 160,
+"sizeRatioToWordmark": 0.14
+}
+},
+"rendering": {
+"antiAliasing": "subpixel",
+"textGlow": {
+"enabled": true,
+"preset": "softWhiteOuter",
+"opacity": 0.18,
+"blurPx": 10
+}
+}
+},
+"colorSystem": {
+"graphiteBackground": {
+"hex": "#050405",
+"hsl": {
+"h": 300.0,
+"s": 11.1,
+"l": 1.8
+},
+"usage": [
+"primary canvas",
+"dark UI backgrounds",
+"hero backdrops"
+],
+"contrastPairs": [
+"pureWhite",
+"silverHighlight",
+"neonRed",
+"electricBlue",
+"premiumGold"
+]
+},
+"carbonDark": {
+"hex": "#0F0D10",
+"hsl": {
+"h": 280.0,
+"s": 10.3,
+"l": 5.7
+},
+"usage": [
+"cards",
+"panels",
+"deep shadows"
+],
+"contrastPairs": [
+"pureWhite",
+"silverHighlight"
+]
+},
+"slateSurface": {
+"hex": "#23252C",
+"hsl": {
+"h": 226.7,
+"s": 11.4,
+"l": 15.5
+},
+"usage": [
+"dividers",
+"secondary surfaces",
+"icon dark mode fills"
+],
+"contrastPairs": [
+"pureWhite",
+"silverHighlight",
+"electricBlue"
+]
+},
+"neonRed": {
+"hex": "#E22229",
+"hsl": {
+"h": 357.7,
+"s": 76.7,
+"l": 50.9
+},
+"usage": [
+"energy accent",
+"streaks",
+"'.im' accent",
+"CTA highlights"
+],
+"contrastPairs": [
+"graphiteBackground",
+"carbonDark",
+"pureWhite"
+]
+},
+"deepRed": {
+"hex": "#821515",
+"hsl": {
+"h": 359.7,
+"s": 72.3,
+"l": 29.5
+},
+"usage": [
+"red shadows",
+"inner gradients",
+"dark mode red depth"
+],
+"contrastPairs": [
+"pureWhite",
+"silverHighlight"
+]
+},
+"electricBlue": {
+"hex": "#157BCA",
+"hsl": {
+"h": 206.2,
+"s": 81.0,
+"l": 43.7
+},
+"usage": [
+"trust accent",
+"blue streaks",
+"secondary energy"
+],
+"contrastPairs": [
+"graphiteBackground",
+"pureWhite"
+]
+},
+"deepBlue": {
+"hex": "#0B549A",
+"hsl": {
+"h": 209.3,
+"s": 86.9,
+"l": 32.2
+},
+"usage": [
+"blue shadows",
+"inner gradients"
+],
+"contrastPairs": [
+"pureWhite",
+"silverHighlight"
+]
+},
+"silverMetallic": {
+"hex": "#B7ACAA",
+"hsl": {
+"h": 10.3,
+"s": 8.5,
+"l": 69.2
+},
+"usage": [
+"chrome base",
+"metal rings",
+"secondary text in dark mode"
+],
+"contrastPairs": [
+"graphiteBackground",
+"carbonDark"
+]
+},
+"silverHighlight": {
+"hex": "#EFF0F3",
+"hsl": {
+"h": 223.9,
+"s": 14.7,
+"l": 94.5
+},
+"usage": [
+"specular highlights",
+"chrome peak",
+"thin strokes"
+],
+"contrastPairs": [
+"graphiteBackground",
+"carbonDark"
+]
+},
+"premiumGold": {
+"hex": "#C48551",
+"hsl": {
+"h": 27.4,
+"s": 49.1,
+"l": 54.3
+},
+"usage": [
+"premium tier",
+"luxury highlights",
+"gold icon variant"
+],
+"contrastPairs": [
+"graphiteBackground",
+"carbonDark",
+"pureWhite"
+]
+},
+"pureWhite": {
+"hex": "#FAFAFC",
+"hsl": {
+"h": 240.0,
+"s": 25.0,
+"l": 98.4
+},
+"usage": [
+"primary text on dark",
+"tagline",
+"highlights"
+],
+"contrastPairs": [
+"graphiteBackground",
+"carbonDark",
+"slateSurface"
+]
+},
+"accentStreakRed": {
+"hex": "#FF2436",
+"hsl": {
+"h": 355.1,
+"s": 100.0,
+"l": 57.1
+},
+"usage": [
+"peak streak glow",
+"flare points"
+],
+"contrastPairs": [
+"graphiteBackground"
+]
+},
+"accentStreakBlue": {
+"hex": "#3CAAFF",
+"hsl": {
+"h": 206.2,
+"s": 100.0,
+"l": 61.8
+},
+"usage": [
+"peak blue streak glow",
+"flare points"
+],
+"contrastPairs": [
+"graphiteBackground"
+]
+}
+},
+"gradientSystem": {
+"gradients": [
+{
+"name": "graphiteVignette",
+"type": "radial",
+"angle": 0,
+"stops": [
+{
+"color": "#050405",
+"position": 0
+},
+{
+"color": "#0B0A0D",
+"position": 55
+},
+{
+"color": "#000000",
+"position": 100
+}
+]
+},
+{
+"name": "heroOverlayGradient",
+"type": "linear",
+"angle": 90,
+"stops": [
+{
+"color": "#000000",
+"position": 0
+},
+{
+"color": "#050405",
+"position": 35
+},
+{
+"color": "#050405",
+"position": 65
+},
+{
+"color": "#000000",
+"position": 100
+}
+]
+},
+{
+"name": "redStreakGradient",
+"type": "linear",
+"angle": 0,
+"stops": [
+{
+"color": "#821515",
+"position": 0
+},
+{
+"color": "#E22229",
+"position": 38
+},
+{
+"color": "#FF2436",
+"position": 55
+},
+{
+"color": "#E22229",
+"position": 72
+},
+{
+"color": "#3B0A0A",
+"position": 100
+}
+]
+},
+{
+"name": "blueStreakGradient",
+"type": "linear",
+"angle": 0,
+"stops": [
+{
+"color": "#0B549A",
+"position": 0
+},
+{
+"color": "#157BCA",
+"position": 38
+},
+{
+"color": "#3CAAFF",
+"position": 56
+},
+{
+"color": "#157BCA",
+"position": 74
+},
+{
+"color": "#04223F",
+"position": 100
+}
+]
+},
+{
+"name": "chromeTextGradient",
+"type": "linear",
+"angle": 90,
+"stops": [
+{
+"color": "#6B6F7A",
+"position": 0
+},
+{
+"color": "#EFF0F3",
+"position": 18
+},
+{
+"color": "#B7ACAA",
+"position": 46
+},
+{
+"color": "#FAFAFC",
+"position": 62
+},
+{
+"color": "#777B86",
+"position": 100
+}
+]
+},
+{
+"name": "softWhiteGradient",
+"type": "linear",
+"angle": 90,
+"stops": [
+{
+"color": "#CFCFD4",
+"position": 0
+},
+{
+"color": "#FAFAFC",
+"position": 40
+},
+{
+"color": "#D7D8DE",
+"position": 100
+}
+]
+},
+{
+"name": "chromeRingGradient",
+"type": "linear",
+"angle": 115,
+"stops": [
+{
+"color": "#2B2E36",
+"position": 0
+},
+{
+"color": "#B7ACAA",
+"position": 35
+},
+{
+"color": "#EFF0F3",
+"position": 55
+},
+{
+"color": "#6B6F7A",
+"position": 78
+},
+{
+"color": "#1A1C22",
+"position": 100
+}
+]
+},
+{
+"name": "chromeRingGradientWarm",
+"type": "linear",
+"angle": 115,
+"stops": [
+{
+"color": "#2B2E36",
+"position": 0
+},
+{
+"color": "#B7ACAA",
+"position": 32
+},
+{
+"color": "#FFF1DE",
+"position": 55
+},
+{
+"color": "#7B6E66",
+"position": 78
+},
+{
+"color": "#1A1C22",
+"position": 100
+}
+]
+},
+{
+"name": "redArcGradient",
+"type": "linear",
+"angle": 20,
+"stops": [
+{
+"color": "#3B0A0A",
+"position": 0
+},
+{
+"color": "#821515",
+"position": 18
+},
+{
+"color": "#E22229",
+"position": 45
+},
+{
+"color": "#FF2436",
+"position": 60
+},
+{
+"color": "#E22229",
+"position": 78
+}
+]
+},
+{
+"name": "redArcGradientStrong",
+"type": "linear",
+"angle": 20,
+"stops": [
+{
+"color": "#2A0606",
+"position": 0
+},
+{
+"color": "#821515",
+"position": 20
+},
+{
+"color": "#FF2436",
+"position": 58
+},
+{
+"color": "#E22229",
+"position": 80
+},
+{
+"color": "#4A0A0A",
+"position": 100
+}
+]
+},
+{
+"name": "blueArcGradient",
+"type": "linear",
+"angle": -10,
+"stops": [
+{
+"color": "#04223F",
+"position": 0
+},
+{
+"color": "#0B549A",
+"position": 18
+},
+{
+"color": "#157BCA",
+"position": 45
+},
+{
+"color": "#3CAAFF",
+"position": 62
+},
+{
+"color": "#157BCA",
+"position": 80
+}
+]
+},
+{
+"name": "blueArcGradientStrong",
+"type": "linear",
+"angle": -10,
+"stops": [
+{
+"color": "#021626",
+"position": 0
+},
+{
+"color": "#0B549A",
+"position": 22
+},
+{
+"color": "#3CAAFF",
+"position": 60
+},
+{
+"color": "#157BCA",
+"position": 82
+},
+{
+"color": "#04223F",
+"position": 100
+}
+]
+},
+{
+"name": "goldArcGradient",
+"type": "linear",
+"angle": 25,
+"stops": [
+{
+"color": "#3A2411",
+"position": 0
+},
+{
+"color": "#7A4A22",
+"position": 18
+},
+{
+"color": "#C48551",
+"position": 46
+},
+{
+"color": "#FFD089",
+"position": 62
+},
+{
+"color": "#C48551",
+"position": 82
+},
+{
+"color": "#4A2E15",
+"position": 100
+}
+]
+},
+{
+"name": "monoWhiteGradient",
+"type": "linear",
+"angle": 90,
+"stops": [
+{
+"color": "#BFC1C9",
+"position": 0
+},
+{
+"color": "#FAFAFC",
+"position": 55
+},
+{
+"color": "#D7D8DE",
+"position": 100
+}
+]
+},
+{
+"name": "monoDarkGradient",
+"type": "linear",
+"angle": 90,
+"stops": [
+{
+"color": "#0B0C10",
+"position": 0
+},
+{
+"color": "#23252C",
+"position": 55
+},
+{
+"color": "#121318",
+"position": 100
+}
+]
+},
+{
+"name": "appIconBackground",
+"type": "linear",
+"angle": 135,
+"stops": [
+{
+"color": "#0B0A0D",
+"position": 0
+},
+{
+"color": "#121318",
+"position": 45
+},
+{
+"color": "#050405",
+"position": 100
+}
+]
+}
+]
+},
+"glowSystem": {
+"intensityScale": {
+"min": 1,
+"max": 5,
+"meaning": "1=subtle UI glow, 3=brand accent glow, 5=hero neon flare"
+},
+"red": {
+"color": "#FF2436",
+"blurPx": 46,
+"spreadPx": 6,
+"opacity": 0.55,
+"intensity": 4
+},
+"blue": {
+"color": "#3CAAFF",
+"blurPx": 44,
+"spreadPx": 6,
+"opacity": 0.5,
+"intensity": 4
+},
+"gold": {
+"color": "#FFD089",
+"blurPx": 46,
+"spreadPx": 8,
+"opacity": 0.55,
+"intensity": 4
+},
+"softWhite": {
+"color": "#FFFFFF",
+"blurPx": 22,
+"spreadPx": 0,
+"opacity": 0.25,
+"intensity": 2
+},
+"innerGlowDefaults": {
+"blurPx": 10,
+"spreadPx": 0,
+"opacity": 0.22,
+"intensity": 2
+},
+"outerGlowDefaults": {
+"blurPx": 36,
+"spreadPx": 4,
+"opacity": 0.45,
+"intensity": 3
+}
+},
+"surfaceSystem": {
+"canvas": {
+"baseColor": "graphiteBackground",
+"vignetteGradient": "graphiteVignette",
+"noiseOverlay": {
+"enabled": true,
+"type": "filmGrain",
+"strength": 0.08,
+"scale": 1.0
+},
+"microTexture": {
+"enabled": true,
+"type": "carbonDust",
+"strength": 0.06
+}
+},
+"card": {
+"baseColor": "carbonDark",
+"border": {
+"enabled": true,
+"color": "#2B2E36",
+"opacity": 0.85,
+"widthPxAt1024": 2
+},
+"innerShadow": {
+"enabled": true,
+"color": "#000000",
+"opacity": 0.35,
+"blurPx": 18,
+"offset": {
+"x": 0,
+"y": 10
+}
+},
+"outerShadow": {
+"enabled": true,
+"color": "#000000",
+"opacity": 0.55,
+"blurPx": 28,
+"offset": {
+"x": 0,
+"y": 16
+}
+},
+"cornerRadiusRatio": 0.06
+},
+"glass": {
+"enabled": true,
+"backdropBlurPx": 18,
+"tint": {
+"color": "#121318",
+"opacity": 0.45
+},
+"highlight": {
+"enabled": true,
+"gradient": "softWhiteGradient",
+"opacity": 0.12,
+"angle": -35
+},
+"edgeGlow": {
+"enabled": true,
+"preset": "softWhite",
+"opacity": 0.18
+}
+},
+"premium": {
+"trim": {
+"enabled": true,
+"gradient": "goldArcGradient",
+"widthRatio": 0.035,
+"opacity": 0.95
+},
+"specular": {
+"enabled": true,
+"opacity": 0.25,
+"blurPx": 10,
+"directionDeg": -25
+}
+},
+"borderStyles": {
+"thinDivider": {
+"color": "#23252C",
+"opacity": 0.9,
+"widthPxAt1024": 1
+},
+"neonDividerRed": {
+"color": "#E22229",
+"opacity": 0.65,
+"glowPreset": "red",
+"widthPxAt1024": 1
+},
+"neonDividerBlue": {
+"color": "#157BCA",
+"opacity": 0.65,
+"glowPreset": "blue",
+"widthPxAt1024": 1
+}
+}
+},
+"categoryExpressions": {
+"vehicles": {
+"primaryAccent": "neonRed",
+"secondaryGlow": "accentStreakBlue",
+"overlayGradient": {
+"type": "linear",
+"angle": 0,
+"stops": [
+{
+"color": "#000000",
+"position": 0,
+"opacity": 0.55
+},
+{
+"color": "#000000",
+"position": 60,
+"opacity": 0.15
+},
+{
+"color": "#000000",
+"position": 100,
+"opacity": 0.55
+}
+]
+},
+"motionStreak": {
+"directionDeg": -10,
+"preset": "redToBlueSplit",
+"thicknessRatio": 0.11
+},
+"imageTone": "cool-neutral with high contrast; red highlights; subtle blue underglow",
+"logoPlacementRatio": {
+"x": 0.09,
+"y": 0.22,
+"w": 0.72,
+"h": 0.22
+},
+"safeTextAreaPct": 0.78,
+"logoGlow": {
+"enabled": true,
+"presets": [
+"red",
+"blue"
+],
+"opacity": 0.55
+}
+},
+"hifiAv": {
+"primaryAccent": "electricBlue",
+"secondaryGlow": "accentStreakRed",
+"overlayGradient": {
+"type": "linear",
+"angle": 0,
+"stops": [
+{
+"color": "#000000",
+"position": 0,
+"opacity": 0.5
+},
+{
+"color": "#000000",
+"position": 55,
+"opacity": 0.12
+},
+{
+"color": "#000000",
+"position": 100,
+"opacity": 0.55
+}
+]
+},
+"motionStreak": {
+"directionDeg": 0,
+"preset": "blueWave",
+"thicknessRatio": 0.1
+},
+"imageTone": "cool-blue tech; waveform highlights; deep blacks",
+"logoPlacementRatio": {
+"x": 0.09,
+"y": 0.18,
+"w": 0.72,
+"h": 0.22
+},
+"safeTextAreaPct": 0.8,
+"logoGlow": {
+"enabled": true,
+"presets": [
+"blue"
+],
+"opacity": 0.6
+}
+},
+"watches": {
+"primaryAccent": "premiumGold",
+"secondaryGlow": "softWhite",
+"overlayGradient": {
+"type": "linear",
+"angle": 0,
+"stops": [
+{
+"color": "#000000",
+"position": 0,
+"opacity": 0.55
+},
+{
+"color": "#000000",
+"position": 65,
+"opacity": 0.1
+},
+{
+"color": "#000000",
+"position": 100,
+"opacity": 0.62
+}
+]
+},
+"motionStreak": {
+"directionDeg": 12,
+"preset": "goldSweep",
+"thicknessRatio": 0.09
+},
+"imageTone": "warm-luxury; gold rim-light; glossy reflections",
+"logoPlacementRatio": {
+"x": 0.09,
+"y": 0.2,
+"w": 0.72,
+"h": 0.22
+},
+"safeTextAreaPct": 0.78,
+"logoGlow": {
+"enabled": true,
+"presets": [
+"gold"
+],
+"opacity": 0.52
+}
+},
+"luxury": {
+"primaryAccent": "premiumGold",
+"secondaryGlow": "electricBlue",
+"overlayGradient": {
+"type": "linear",
+"angle": 0,
+"stops": [
+{
+"color": "#000000",
+"position": 0,
+"opacity": 0.6
+},
+{
+"color": "#000000",
+"position": 55,
+"opacity": 0.15
+},
+{
+"color": "#000000",
+"position": 100,
+"opacity": 0.65
+}
+]
+},
+"motionStreak": {
+"directionDeg": -6,
+"preset": "goldToBlueSubtle",
+"thicknessRatio": 0.1
+},
+"imageTone": "neutral-warm; gemstone sparkle; premium contrast",
+"logoPlacementRatio": {
+"x": 0.09,
+"y": 0.22,
+"w": 0.72,
+"h": 0.22
+},
+"safeTextAreaPct": 0.76,
+"logoGlow": {
+"enabled": true,
+"presets": [
+"gold",
+"blue"
+],
+"opacity": 0.45
+}
+}
+},
+"motionGraphics": {
+"horizontalStreak": {
+"baseShape": "taperedRibbon",
+"directionDeg": 0,
+"thicknessRatioToCanvasHeight": 0.06,
+"edgeFeatherPxAt1024": 28,
+"coreSharpness": 0.65,
+"gradient": "redStreakGradient",
+"secondaryOverlay": {
+"enabled": true,
+"gradient": "blueStreakGradient",
+"opacity": 0.35,
+"offsetRatio": {
+"x": 0.0,
+"y": 0.08
+}
+},
+"opacityFade": {
+"start": 0.0,
+"mid": 0.95,
+"end": 0.0
+},
+"motionBlur": {
+"enabled": true,
+"lengthRatioToCanvasWidth": 0.14,
+"angleDeg": 0
+}
+},
+"verticalStreak": {
+"baseShape": "taperedRibbon",
+"directionDeg": 90,
+"thicknessRatioToCanvasWidth": 0.045,
+"edgeFeatherPxAt1024": 26,
+"gradient": "blueStreakGradient",
+"secondaryOverlay": {
+"enabled": true,
+"gradient": "redStreakGradient",
+"opacity": 0.25,
+"offsetRatio": {
+"x": 0.08,
+"y": 0.0
+}
+},
+"opacityFade": {
+"start": 0.0,
+"mid": 0.85,
+"end": 0.0
+},
+"motionBlur": {
+"enabled": true,
+"lengthRatioToCanvasHeight": 0.16,
+"angleDeg": 90
+}
+},
+"suggestedAnimation": {
+"streakSweep": {
+"durationMs": 900,
+"delayMs": 80,
+"loop": true,
+"easing": "cubic-bezier(0.22, 1, 0.36, 1)",
+"keyframes": [
+{
+"t": 0.0,
+"translateRatio": {
+"x": -0.35,
+"y": 0.0
+},
+"opacity": 0.0,
+"blurMultiplier": 1.2
+},
+{
+"t": 0.15,
+"translateRatio": {
+"x": -0.05,
+"y": 0.0
+},
+"opacity": 0.85,
+"blurMultiplier": 1.0
+},
+{
+"t": 0.55,
+"translateRatio": {
+"x": 0.35,
+"y": 0.0
+},
+"opacity": 0.85,
+"blurMultiplier": 0.95
+},
+{
+"t": 1.0,
+"translateRatio": {
+"x": 0.85,
+"y": 0.0
+},
+"opacity": 0.0,
+"blurMultiplier": 1.25
+}
+]
+},
+"iconPulse": {
+"durationMs": 1400,
+"loop": true,
+"easing": "ease-in-out",
+"scaleKeyframes": [
+{
+"t": 0.0,
+"scale": 1.0
+},
+{
+"t": 0.5,
+"scale": 1.03
+},
+{
+"t": 1.0,
+"scale": 1.0
+}
+],
+"glowOpacityKeyframes": [
+{
+"t": 0.0,
+"opacity": 0.45
+},
+{
+"t": 0.5,
+"opacity": 0.62
+},
+{
+"t": 1.0,
+"opacity": 0.45
+}
+]
+}
+}
+},
+"badgeSystem": {
+"verifiedDealer": {
+"baseShape": "roundedPill",
+"cornerRadiusRatio": 0.5,
+"fill": {
+"color": "#121318",
+"opacity": 0.9
+},
+"border": {
+"gradient": "chromeTextGradient",
+"widthRatio": 0.06,
+"opacity": 0.85
+},
+"icon": {
+"type": "checkmarkShield",
+"placement": {
+"x": 0.14,
+"y": 0.5
+},
+"scaleRatioToBadgeHeight": 0.56
+},
+"text": {
+"style": "labelsSmall",
+"placement": {
+"x": 0.58,
+"y": 0.52
+},
+"color": "#FAFAFC"
+},
+"glow": {
+"preset": "blue",
+"opacity": 0.35,
+"blurPx": 22
+}
+},
+"featured": {
+"baseShape": "roundedPill",
+"cornerRadiusRatio": 0.5,
+"fill": {
+"gradient": "blueStreakGradient",
+"opacity": 0.9
+},
+"border": {
+"color": "#3CAAFF",
+"widthRatio": 0.06,
+"opacity": 0.75
+},
+"icon": {
+"type": "star",
+"placement": {
+"x": 0.14,
+"y": 0.5
+},
+"scaleRatioToBadgeHeight": 0.56
+},
+"text": {
+"style": "labelsSmall",
+"placement": {
+"x": 0.58,
+"y": 0.52
+},
+"color": "#FAFAFC"
+},
+"glow": {
+"preset": "blue",
+"opacity": 0.42,
+"blurPx": 24
+}
+},
+"premium": {
+"baseShape": "roundedPill",
+"cornerRadiusRatio": 0.5,
+"fill": {
+"gradient": "goldArcGradient",
+"opacity": 0.92
+},
+"border": {
+"color": "#FFD089",
+"widthRatio": 0.06,
+"opacity": 0.8
+},
+"icon": {
+"type": "crown",
+"placement": {
+"x": 0.14,
+"y": 0.5
+},
+"scaleRatioToBadgeHeight": 0.56
+},
+"text": {
+"style": "labelsSmall",
+"placement": {
+"x": 0.58,
+"y": 0.52
+},
+"color": "#0B0A0D"
+},
+"glow": {
+"preset": "gold",
+"opacity": 0.4,
+"blurPx": 24
+}
+}
+},
+"appIconSystem": {
+"container": {
+"shape": "roundedSquare",
+"cornerRadiusPct": 22,
+"background": {
+"gradient": "appIconBackground",
+"noiseStrength": 0.06,
+"vignetteStrength": 0.35
+},
+"border": {
+"enabled": true,
+"color": "#2B2E36",
+"opacity": 0.9,
+"widthPct": 1.2
+},
+"shadow": {
+"enabled": true,
+"color": "#000000",
+"opacity": 0.55,
+"blurPct": 8.5,
+"offsetPct": {
+"x": 0,
+"y": 4.2
+}
+}
+},
+"iconPlacement": {
+"iconScalePct": 72,
+"centerOffsetPct": {
+"x": 0,
+"y": -2
+}
+},
+"effects": {
+"edgeGlow": {
+"enabled": true,
+"preset": "softWhite",
+"opacity": 0.22,
+"blurPct": 6.0
+},
+"dualNeonGlow": {
+"enabled": true,
+"redOpacity": 0.28,
+"blueOpacity": 0.26,
+"blurPct": 10.0,
+"splitAngleDeg": -20
+},
+"glassHighlight": {
+"enabled": true,
+"type": "linear",
+"angle": -35,
+"opacity": 0.18,
+"coveragePct": 55,
+"blurPct": 2.5
+}
+},
+"variants": {
+"vortexOnly": {
+"uses": "iconSystem.variants.core",
+"background": "appIconBackground"
+},
+"monogramIT": {
+"text": "iT",
+"font": "wordmarkFamilyDerived",
+"slantDeg": -12,
+"fillGradient": "chromeTextGradient",
+"accentStroke": {
+"color": "#E22229",
+"widthPct": 3.2,
+"position": "bottomRight"
+}
+}
+}
+},
+"layoutProportions": {
+"global": {
+"baseDesignWidth": 2048,
+"baseDesignHeight": 1365,
+"grid": {
+"columns": 12,
+"gutterRatio": 0.018,
+"outerMarginRatio": 0.04
+}
+},
+"logo": {
+"iconToWordmarkRatio": 0.41,
+"taglineToWordmarkHeightRatio": 0.22,
+"paddingAroundLogoRatio": {
+"x": 0.06,
+"y": 0.08
+},
+"glowRadiusRelativeToIconDiameter": 0.22,
+"strokeThicknessRelativeToIconDiameter": 0.04
+},
+"cards": {
+"cornerRadiusRelativeToShortSide": 0.06,
+"internalPaddingRatio": 0.06,
+"headerSpacingUnit": 0.035,
+"rowGapUnit": 0.028
+},
+"effects": {
+"specularBandHeightRatioToElement": 0.18,
+"noiseStrengthDefault": 0.08,
+"vignetteStrengthDefault": 0.35
+}
+},
+"reconstructionRules": {
+"deterministicSteps": [
+{
+"step": 1,
+"instruction": "Set canvas to graphite vignette (gradientSystem.gradients[name=graphiteVignette]) and apply film-grain noise overlay (surfaceSystem.canvas.noiseOverlay) at specified strength."
+},
+{
+"step": 2,
+"instruction": "For any asset, create base shapes at 1024px master size first; scale outputs from this master using linear scaling for all px-based effects (blur, spread, offsets)."
+},
+{
+"step": 3,
+"instruction": "Construct vortex icon using iconSystem.geometry. Draw shadow first, then blueArcBack, then chromeCore ring, then redArcFront. Apply tail taper and motion blur along arc tangents."
+},
+{
+"step": 4,
+"instruction": "Apply chrome gradients to core ring and wordmark using chromeRingGradient / chromeTextGradient. Add specular highlight overlays as screen-blended masks with directional fade (logoSystem.highlightEffects.chromeSpecular and iconSystem.geometry.specular)."
+},
+{
+"step": 5,
+"instruction": "Add inner rim highlight by offsetting the core ellipse inward and stroking with silverHighlight at low opacity; blur per iconSystem.geometry.specular.innerRimHighlight."
+},
+{
+"step": 6,
+"instruction": "Apply outer neon glows AFTER base color fills: render glow layers behind icon with gaussian blur and optional spread, using glowSystem presets. For core variant, render red and blue glows separately with slight positional offsets (blue down-left, red up-right) to match split-energy look."
+},
+{
+"step": 7,
+"instruction": "Render particle specks last: random but seeded (seed=brandName hash) within a bounding box 1.2x icon size; constrain to near arc tails; vary size and opacity within iconSystem.variants.*.particleSpecks ranges."
+},
+{
+"step": 8,
+"instruction": "Build wordmark text path: italic slant -12 degrees, bold weight, slight negative tracking. Fill with chromeTextGradient. Apply soft white outer glow at low opacity for legibility on graphite."
+},
+{
+"step": 9,
+"instruction": "Render '.im' as separate text span filled with redArcGradientStrong. Add subtle red glow (glowSystem.red with opacity scaled to 0.35)."
+},
+{
+"step": 10,
+"instruction": "Position icon and wordmark using logoSystem.proportions. Maintain baseline alignment to the wordmark x-height; keep gapIconToWordmark ratio constant across sizes."
+},
+{
+"step": 11,
+"instruction": "Create underline streak as tapered ribbon under wordmark baseline using logoSystem.highlightEffects.redUnderlineStreak. Apply redStreakGradient, then gaussian blur and glow preset redOuter."
+},
+{
+"step": 12,
+"instruction": "Tagline: uppercase geometric sans, tracking 240, fill with softWhiteGradient, opacity 0.9. Add very subtle outer glow (softWhite, opacity 0.12)."
+},
+{
+"step": 13,
+"instruction": "For light-mode logos: remove outer glows; switch wordmark fill to flat #101114; keep '.im' red but reduce saturation slightly; add soft drop shadow for separation."
+},
+{
+"step": 14,
+"instruction": "For app icons: create rounded-square container with 22% radius, apply appIconBackground gradient, add inner glass highlight overlay at -35 degrees, then place vortex icon scaled to 72% with slight upward offset."
+},
+{
+"step": 15,
+"instruction": "For category expressions: use dark overlay gradient on top of photography, then add motion streak corresponding to category preset (categoryExpressions.*.motionStreak). Place logo at logoPlacementRatio and ensure safe text area is respected."
+},
+{
+"step": 16,
+"instruction": "For OG images and banners: use heroOverlayGradient on edges to preserve legibility; keep central area clearer. Maintain consistent glow intensity scale: 3 for UI, 4 for hero, 5 only for promo splashes."
+},
+{
+"step": 17,
+"instruction": "For loading animations: animate motionGraphics.suggestedAnimation.streakSweep on a horizontal streak layer behind the icon while simultaneously applying iconPulse scale+glow keyframes."
+},
+{
+"step": 18,
+"instruction": "Z-index summary: (1) canvas/vignette, (2) photography or base panel, (3) overlay gradients, (4) motion streaks, (5) core shapes/text, (6) chrome specular overlays, (7) inner glows, (8) outer glows, (9) particles/sparks, (10) final noise and vignette fine-tune."
+}
+]
+}
+}

@@ -1,0 +1,10 @@
+iTrader.im Brand Usage Guidelines
+========================================
+
+1. Always use official logo files from this package.
+2. Maintain minimum clear space around the logo.
+3. Do not alter colors, proportions, or effects.
+4. Use dark variants on dark backgrounds, light variants on light backgrounds.
+5. The vortex icon may be used standalone at sizes >= 32px.
+6. Primary brand colors: Red #E22229, Blue #157BCA, Gold #C48551
+7. For questions, contact the brand team.

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+<defs>
+<filter id="placeholderGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="6.0" flood-color="#B7ACAA" flood-opacity="0.15"/>
+</filter>
+</defs>
+<rect width="400" height="300" fill="#0F0D10" rx="8"/>
+<rect x="1" y="1" width="398" height="298" rx="7" fill="none" stroke="#23252C" stroke-width="1" opacity="0.5"/>
+<circle cx="200.0" cy="114.0" r="36" fill="none" stroke="#23252C" stroke-width="2" opacity="0.5"/>
+<text x="200.0" y="114.0" text-anchor="middle" dominant-baseline="central" font-family="'Montserrat', sans-serif" font-size="28" fill="#B7ACAA" opacity="0.35">?</text>
+<text x="200.0" y="186.0" text-anchor="middle" font-family="'Montserrat', sans-serif" font-size="14" fill="#B7ACAA" opacity="0.5" letter-spacing="1.5">NO LISTINGS FOUND</text>
+</svg>

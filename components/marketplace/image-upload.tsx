@@ -74,7 +74,7 @@ export function ImageUpload({
           {images.map((img, i) => (
             <div
               key={img.publicId}
-              className="relative aspect-square overflow-hidden rounded-md border border-border bg-surface-subtle"
+              className="relative aspect-square overflow-hidden rounded-md border border-border bg-surface-elevated"
             >
               <Image
                 src={img.url}
@@ -123,7 +123,7 @@ export function ImageUpload({
           {({ open }) => (
             <Button
               type="button"
-              variant="secondary"
+              variant="ghost"
               onClick={() => open()}
               className="w-full"
             >

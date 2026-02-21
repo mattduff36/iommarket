@@ -205,15 +205,15 @@ export function SearchControls({
     }
   }
 
-  const selectClass = "h-11 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm font-medium";
+  const selectClass = "h-11 rounded-sm border border-border bg-surface-elevated text-text-primary text-sm font-medium";
 
   return (
     <div className={cn("space-y-4", className)}>
       {/* ---- PRIMARY ROW ---- */}
       <form onSubmit={handleSubmit}>
-        <div className="inline-flex flex-wrap items-end gap-3">
-          <div className="w-[240px]">
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="w-full sm:w-[200px]">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-secondary">
               Make
             </label>
             <Select value={make || "any"} onValueChange={handleMakeChange}>
@@ -229,8 +229,8 @@ export function SearchControls({
             </Select>
           </div>
 
-          <div className="w-[240px]">
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="w-full sm:w-[200px]">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-secondary">
               Model
             </label>
             <Select
@@ -250,7 +250,7 @@ export function SearchControls({
             </Select>
           </div>
 
-          <Button type="submit" className="h-11 rounded-lg px-6 text-sm font-semibold">
+          <Button type="submit" className="h-11 w-full sm:w-auto rounded-lg px-6 text-sm font-semibold">
             <Search className="h-4 w-4" />
             Search
           </Button>
@@ -258,13 +258,13 @@ export function SearchControls({
       </form>
 
       {/* ---- MORE OPTIONS TOGGLE ---- */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={() => setMoreOptionsOpen((o) => !o)}
-          className="text-slate-500 hover:text-slate-800"
+          className="text-metallic-400 hover:text-text-primary"
           aria-expanded={moreOptionsOpen}
         >
           More Options
@@ -279,7 +279,7 @@ export function SearchControls({
             variant="ghost"
             size="sm"
             onClick={() => setModalOpen(true)}
-            className="text-slate-500 hover:text-slate-800"
+            className="text-metallic-400 hover:text-text-primary"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
             Advanced Search
@@ -289,7 +289,7 @@ export function SearchControls({
 
       {/* ---- MORE OPTIONS PANEL ---- */}
       {moreOptionsOpen && (
-        <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="space-y-5 rounded-lg border border-border bg-surface p-4 sm:p-5">
           <RangeSlider
             label="Price Range"
             min={0}

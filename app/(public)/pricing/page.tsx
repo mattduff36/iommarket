@@ -34,13 +34,13 @@ export default function PricingPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="text-center mb-16">
-        <p className="text-sm font-semibold uppercase tracking-widest text-royal-600">
+        <p className="text-sm font-semibold uppercase tracking-widest text-neon-blue-500">
           Pricing
         </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">
+        <h1 className="mt-3 text-3xl font-bold text-text-primary font-heading sm:text-4xl">
           Simple, Transparent Pricing
         </h1>
-        <p className="mt-4 text-lg text-slate-500 max-w-xl mx-auto">
+        <p className="mt-4 text-lg text-text-secondary max-w-xl mx-auto">
           No hidden fees. Just straightforward pricing for Isle of Man sellers.
         </p>
       </div>
@@ -54,31 +54,31 @@ export default function PricingPage() {
               Perfect for selling individual items
             </CardDescription>
             <div className="mt-6">
-              <span className="text-4xl font-bold text-slate-900">
+              <span className="text-4xl font-bold text-text-primary">
                 £4.99
               </span>
-              <span className="text-slate-500 text-sm"> / listing</span>
+              <span className="text-text-secondary text-sm"> / listing</span>
             </div>
           </CardHeader>
           <CardContent>
             <ul className="space-y-4">
               {SELLER_FEATURES.map((feature) => (
                 <li key={feature} className="flex items-start gap-3 text-sm">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                    <Check className="h-3 w-3 text-emerald-600" />
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10">
+                    <Check className="h-3 w-3 text-neon-blue-500" />
                   </div>
-                  <span className="text-slate-700">{feature}</span>
+                  <span className="text-text-secondary">{feature}</span>
                 </li>
               ))}
             </ul>
-            <Button asChild className="w-full mt-8">
+            <Button asChild variant="trust" className="w-full mt-8">
               <Link href="/sell">List an Item</Link>
             </Button>
           </CardContent>
         </Card>
 
         {/* Dealer */}
-        <Card className="relative p-2 ring-2 ring-royal-500 shadow-lg">
+        <Card className="relative p-2 ring-2 ring-neon-blue-500 shadow-high">
           <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
             <Badge variant="info" className="px-4 py-1 text-xs font-bold">Most Popular</Badge>
           </div>
@@ -88,24 +88,24 @@ export default function PricingPage() {
               For businesses with multiple items to sell
             </CardDescription>
             <div className="mt-6">
-              <span className="text-4xl font-bold text-slate-900">
+              <span className="text-4xl font-bold text-text-primary">
                 £29.99
               </span>
-              <span className="text-slate-500 text-sm"> / month</span>
+              <span className="text-text-secondary text-sm"> / month</span>
             </div>
           </CardHeader>
           <CardContent>
             <ul className="space-y-4">
               {DEALER_FEATURES.map((feature) => (
                 <li key={feature} className="flex items-start gap-3 text-sm">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                    <Check className="h-3 w-3 text-emerald-600" />
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10">
+                    <Check className="h-3 w-3 text-neon-blue-500" />
                   </div>
-                  <span className="text-slate-700">{feature}</span>
+                  <span className="text-text-secondary">{feature}</span>
                 </li>
               ))}
             </ul>
-            <Button asChild className="w-full mt-8">
+            <Button asChild variant="energy" className="w-full mt-8">
               <Link href="/sell">Get Started</Link>
             </Button>
           </CardContent>

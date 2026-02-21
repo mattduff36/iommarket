@@ -16,8 +16,8 @@ export function HeroSearch({ makes, modelsByMake, categories, regions }: HeroSea
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   return (
-    <div className="mx-auto mt-10 flex flex-col items-center gap-4">
-      <div className="inline-block rounded-2xl border border-white/20 bg-white/95 p-5 shadow-2xl backdrop-blur-md sm:p-6">
+    <div className="mx-auto mt-8 sm:mt-10 flex flex-col items-center gap-4 w-full max-w-3xl px-2 sm:px-0">
+      <div className="w-full sm:w-auto rounded-2xl glass-surface p-4 sm:p-6 shadow-high">
         <SearchControls
           makes={makes}
           modelsByMake={modelsByMake}
@@ -31,10 +31,10 @@ export function HeroSearch({ makes, modelsByMake, categories, regions }: HeroSea
 
       <Button
         type="button"
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onClick={() => setAdvancedOpen(true)}
-        className="rounded-full border border-white/25 bg-white/90 text-slate-600 shadow backdrop-blur-sm hover:bg-white hover:text-slate-900"
+        className="rounded-full glass-surface text-metallic-400 hover:text-text-primary"
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
         Advanced Search

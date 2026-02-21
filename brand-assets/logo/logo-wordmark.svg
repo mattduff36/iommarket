@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200">
+<defs>
+<linearGradient id="chromeText" x1="50.0%" y1="0.0%" x2="50.0%" y2="100.0%">
+<stop offset="0%" stop-color="#6B6F7A" stop-opacity="1"/>
+<stop offset="18%" stop-color="#EFF0F3" stop-opacity="1"/>
+<stop offset="46%" stop-color="#B7ACAA" stop-opacity="1"/>
+<stop offset="62%" stop-color="#FAFAFC" stop-opacity="1"/>
+<stop offset="100%" stop-color="#777B86" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="redAccent" x1="3.0%" y1="32.9%" x2="97.0%" y2="67.1%">
+<stop offset="0%" stop-color="#2A0606" stop-opacity="1"/>
+<stop offset="20%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="58%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="80%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#4A0A0A" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="whiteGrad" x1="50.0%" y1="0.0%" x2="50.0%" y2="100.0%">
+<stop offset="0%" stop-color="#CFCFD4" stop-opacity="1"/>
+<stop offset="40%" stop-color="#FAFAFC" stop-opacity="1"/>
+<stop offset="100%" stop-color="#D7D8DE" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="redStreak" x1="0.0%" y1="50.0%" x2="100.0%" y2="50.0%">
+<stop offset="0%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="38%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="55%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="72%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#3B0A0A" stop-opacity="1"/>
+</linearGradient>
+<filter id="textGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="5.0" flood-color="#FFFFFF" flood-opacity="0.18"/>
+</filter>
+<filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="9.0" flood-color="#FF2436" flood-opacity="0.55"/>
+</filter>
+<filter id="taglineGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="3.0" flood-color="#FFFFFF" flood-opacity="0.12"/>
+</filter>
+<radialGradient id="bgVignette" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#050405" stop-opacity="1"/>
+<stop offset="55%" stop-color="#0B0A0D" stop-opacity="1"/>
+<stop offset="100%" stop-color="#000000" stop-opacity="1"/>
+</radialGradient>
+</defs>
+<rect width="800" height="200" fill="url(#bgVignette)"/><g transform="translate(40.0, 104.0) skewX(-12.0)" filter="url(#textGlow)">
+  <text font-family="'Montserrat', 'Eurostile', 'Bank Gothic', Arial, sans-serif" 
+        font-weight="bold" font-size="76.0" 
+        letter-spacing="-1" fill="url(#chromeText)" dominant-baseline="central">
+    <tspan>iTrader</tspan><tspan fill="url(#redAccent)">.im</tspan>
+  </text>
+</g><rect x="272.0" y="128.0" width="464.0" height="5.3" rx="2.7" fill="url(#redStreak)" opacity="0.9" filter="url(#redGlow)"/>
+</svg>

@@ -26,7 +26,7 @@ export function ModerationActions({ listingId, currentStatus }: Props) {
       {(currentStatus === "PENDING" || currentStatus === "DRAFT") && (
         <Button
           size="sm"
-          variant="primary"
+          variant="trust"
           onClick={() => handleAction("APPROVE")}
           loading={isPending}
         >
@@ -36,7 +36,7 @@ export function ModerationActions({ listingId, currentStatus }: Props) {
       {currentStatus === "PENDING" && (
         <Button
           size="sm"
-          variant="destructive"
+          variant="energy"
           onClick={() => handleAction("REJECT")}
           loading={isPending}
         >
@@ -46,7 +46,7 @@ export function ModerationActions({ listingId, currentStatus }: Props) {
       {(currentStatus === "LIVE" || currentStatus === "APPROVED") && (
         <Button
           size="sm"
-          variant="destructive"
+          variant="energy"
           onClick={() => handleAction("TAKE_DOWN")}
           loading={isPending}
         >

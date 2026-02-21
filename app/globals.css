@@ -3,168 +3,203 @@
 
 /*
  * Tailwind v4 theme configuration
- * Maps design-system.json tokens to Tailwind utilities.
- * Use: bg-canvas, text-primary, border-default, rounded-md, shadow-sm, etc.
+ * Maps design-system-2.json (v2) tokens to Tailwind utilities.
+ * Use: bg-canvas, text-primary, border-default, shadow-glow-red, etc.
  */
 @theme inline {
-  /* ---- Palette colours ---- */
-  --color-slate-50: var(--color-slate-50);
-  --color-slate-100: var(--color-slate-100);
-  --color-slate-200: var(--color-slate-200);
-  --color-slate-300: var(--color-slate-300);
-  --color-slate-400: var(--color-slate-400);
-  --color-slate-500: var(--color-slate-500);
-  --color-slate-600: var(--color-slate-600);
-  --color-slate-700: var(--color-slate-700);
-  --color-slate-800: var(--color-slate-800);
-  --color-slate-900: var(--color-slate-900);
+  /* ---- Palette (v2 graphite, neonRed, neonBlue, premiumGold, metallic) ---- */
+  --color-graphite-600: var(--color-graphite-600);
+  --color-graphite-700: var(--color-graphite-700);
+  --color-graphite-800: var(--color-graphite-800);
+  --color-graphite-900: var(--color-graphite-900);
+  --color-graphite-950: var(--color-graphite-950);
 
-  --color-royal-50: var(--color-royalBlue-50);
-  --color-royal-100: var(--color-royalBlue-100);
-  --color-royal-500: var(--color-royalBlue-500);
-  --color-royal-600: var(--color-royalBlue-600);
-  --color-royal-700: var(--color-royalBlue-700);
-  --color-royal-800: var(--color-royalBlue-800);
+  --color-neon-red-400: var(--color-neonRed-400);
+  --color-neon-red-500: var(--color-neonRed-500);
+  --color-neon-red-600: var(--color-neonRed-600);
+  --color-neon-red-glow: var(--color-neonRed-glow);
 
-  --color-emerald-50: var(--color-emerald-50);
-  --color-emerald-100: var(--color-emerald-100);
-  --color-emerald-500: var(--color-emerald-500);
-  --color-emerald-700: var(--color-emerald-700);
+  --color-neon-blue-400: var(--color-neonBlue-400);
+  --color-neon-blue-500: var(--color-neonBlue-500);
+  --color-neon-blue-600: var(--color-neonBlue-600);
+  --color-neon-blue-glow: var(--color-neonBlue-glow);
 
-  --color-red-50: var(--color-red-50);
-  --color-red-100: var(--color-red-100);
-  --color-red-500: var(--color-red-500);
-  --color-red-600: var(--color-red-600);
-  --color-red-700: var(--color-red-700);
+  --color-premium-gold-400: var(--color-premiumGold-400);
+  --color-premium-gold-500: var(--color-premiumGold-500);
+  --color-premium-gold-600: var(--color-premiumGold-600);
+  --color-premium-gold-glow: var(--color-premiumGold-glow);
 
-  --color-amber-100: var(--color-amber-100);
-  --color-amber-700: var(--color-amber-700);
+  --color-metallic-100: var(--color-metallic-100);
+  --color-metallic-200: var(--color-metallic-200);
+  --color-metallic-300: var(--color-metallic-300);
+  --color-metallic-400: var(--color-metallic-400);
+  --color-metallic-500: var(--color-metallic-500);
 
-  /* ---- Semantic colours ---- */
+  /* ---- Status / compat colors ---- */
+  --color-emerald-500: #10B981;
+
+  /* ---- Semantic backgrounds ---- */
   --color-canvas: var(--sem-bg-canvas);
   --color-surface: var(--sem-bg-surface);
-  --color-surface-subtle: var(--sem-bg-surfaceSubtle);
+  --color-surface-elevated: var(--sem-bg-surfaceElevated);
+  --color-surface-subtle: var(--sem-bg-surfaceElevated);
+  --color-glass: var(--sem-bg-glass);
 
-  --color-primary: var(--sem-action-primary-bg);
-  --color-primary-hover: var(--sem-action-primary-bgHover);
-  --color-primary-text: var(--sem-action-primary-text);
-
-  --color-destructive: var(--sem-action-destructive-bg);
-  --color-destructive-hover: var(--sem-action-destructive-bgHover);
-  --color-destructive-text: var(--sem-action-destructive-text);
-
+  /* ---- Semantic text ---- */
   --color-text-primary: var(--sem-text-primary);
   --color-text-secondary: var(--sem-text-secondary);
-  --color-text-tertiary: var(--sem-text-tertiary);
-  --color-text-inverse: var(--sem-text-inverse);
-  --color-text-brand: var(--sem-text-brand);
-  --color-text-error: var(--sem-text-error);
-  --color-text-success: var(--sem-text-success);
+  --color-text-tertiary: var(--color-metallic-500);
+  --color-text-energy: var(--sem-text-energy);
+  --color-text-trust: var(--sem-text-trust);
+  --color-text-premium: var(--sem-text-premium);
+  --color-text-brand: var(--sem-text-trust);
+  --color-text-error: var(--sem-text-energy);
+  --color-text-inverse: var(--color-black);
+  --color-text-success: var(--color-emerald-500, #10B981);
 
+  /* ---- Semantic borders ---- */
   --color-border: var(--sem-border-default);
-  --color-border-hover: var(--sem-border-hover);
-  --color-border-focus: var(--sem-border-focus);
-  --color-border-error: var(--sem-border-error);
-
-  --color-status-success-bg: var(--sem-status-success-bg);
-  --color-status-success-text: var(--sem-status-success-text);
-  --color-status-error-bg: var(--sem-status-error-bg);
-  --color-status-error-text: var(--sem-status-error-text);
-  --color-status-warning-bg: var(--sem-status-warning-bg);
-  --color-status-warning-text: var(--sem-status-warning-text);
-  --color-status-info-bg: var(--sem-status-info-bg);
-  --color-status-info-text: var(--sem-status-info-text);
+  --color-border-active: var(--sem-border-active);
+  --color-border-energy: var(--sem-border-energy);
+  --color-border-trust: var(--sem-border-trust);
+  --color-border-hover: var(--sem-border-active);
+  --color-border-focus: var(--color-neonBlue-500);
+  --color-border-error: var(--color-neonRed-500);
 
   /* ---- Typography ---- */
-  --font-sans: var(--font-sans);
-  --font-display: var(--font-display);
-
-  --text-xs: var(--fs-xs);
-  --text-xs--line-height: var(--lh-normal);
-  --text-sm: var(--fs-sm);
-  --text-sm--line-height: var(--lh-normal);
-  --text-base: var(--fs-base);
-  --text-base--line-height: var(--lh-normal);
-  --text-lg: var(--fs-lg);
-  --text-lg--line-height: var(--lh-tight);
-  --text-xl: var(--fs-xl);
-  --text-xl--line-height: var(--lh-tight);
-  --text-2xl: var(--fs-2xl);
-  --text-2xl--line-height: var(--lh-tight);
-  --text-3xl: var(--fs-3xl);
-  --text-3xl--line-height: var(--lh-tight);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
 
   /* ---- Radius ---- */
+  --radius-none: var(--radius-none);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
-  --radius-2xl: var(--radius-2xl);
   --radius-full: var(--radius-full);
 
-  /* ---- Shadows ---- */
-  --shadow-sm: var(--shadow-sm);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-  --shadow-lift: var(--shadow-lift);
-  --shadow-outline: var(--shadow-outline);
+  /* ---- Shadows (includes glow variants) ---- */
+  --shadow-low: var(--shadow-low);
+  --shadow-high: var(--shadow-high);
+  --shadow-neon-red: var(--shadow-neonRed);
+  --shadow-neon-blue: var(--shadow-neonBlue);
+  --shadow-glow-red: var(--glow-red);
+  --shadow-glow-blue: var(--glow-blue);
+  --shadow-glow-gold: var(--glow-gold);
+  --shadow-glow-soft: var(--glow-softWhite);
+  --shadow-outline: var(--glow-blue);
+
+  /* ---- Spacing (4pt grid) ---- */
+  --spacing-0: var(--sp-0);
+  --spacing-1: var(--sp-1);
+  --spacing-2: var(--sp-2);
+  --spacing-3: var(--sp-3);
+  --spacing-4: var(--sp-4);
+  --spacing-5: var(--sp-5);
+  --spacing-6: var(--sp-6);
+  --spacing-8: var(--sp-8);
+  --spacing-10: var(--sp-10);
+  --spacing-12: var(--sp-12);
+
+  /* ---- Z-index ---- */
+  --z-index-base: var(--z-base);
+  --z-index-dropdown: var(--z-dropdown);
+  --z-index-overlay: var(--z-overlay);
+  --z-index-modal: var(--z-modal);
+  --z-index-tooltip: var(--z-tooltip);
+
+  /* ---- Transition / Animation ---- */
+  --transition-timing-fast: var(--motion-fast);
+  --transition-timing-premium: var(--motion-premium);
 }
 
 /* ---- Base styles ---- */
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   color: var(--sem-text-primary);
+  background-color: var(--sem-bg-canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  /* Warm subtle gradient background instead of flat white */
-  background:
-    linear-gradient(
-      180deg,
-      #f9fafb 0%,
-      #f5f3ef 40%,
-      #f7f5f2 70%,
-      #f9fafb 100%
-    );
-  background-attachment: fixed;
 }
 
-/* Subtle grain texture overlay on the page */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.3;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
-}
-
-/* Smooth scroll */
 html {
   scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
 }
 
 /* ---- Heading font ---- */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-display);
+  font-family: var(--font-heading);
 }
 
-/* Reset to sans for UI elements that use heading tags */
-.font-sans h1, .font-sans h2, .font-sans h3,
-.font-sans h4, .font-sans h5, .font-sans h6 {
-  font-family: var(--font-sans);
+.font-body h1, .font-body h2, .font-body h3,
+.font-body h4, .font-body h5, .font-body h6 {
+  font-family: var(--font-body);
 }
 
-/* Focus ring utility */
+/* ---- Selection colour ---- */
+::selection {
+  background-color: var(--color-neonBlue-500);
+  color: var(--color-white);
+}
+
+/* ---- Focus ring ---- */
+:focus-visible {
+  outline: 2px solid var(--color-neonBlue-500);
+  outline-offset: 2px;
+}
+
 .focus-ring {
   outline: none;
-  box-shadow: var(--shadow-outline);
+  box-shadow: var(--glow-blue);
 }
 
-/* Section heading with accent underline (ToyStore style) */
+/* ---- Scrollbar (webkit) ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--sem-bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-graphite-600);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-metallic-500);
+}
+
+/* ---- Glass surface helper ---- */
+.glass-surface {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: var(--glass-border);
+}
+
+/* ---- Metal surface helper ---- */
+.metal-surface {
+  background: var(--metal-bg);
+  border: var(--metal-border);
+}
+
+/* ---- Glow helpers (interaction-driven, not static) ---- */
+.glow-energy {
+  box-shadow: var(--glow-red);
+}
+.glow-trust {
+  box-shadow: var(--glow-blue);
+}
+.glow-premium {
+  box-shadow: var(--glow-gold);
+}
+
+/* ---- Section heading accent ---- */
 .section-heading-accent {
   position: relative;
   padding-bottom: 12px;
@@ -177,5 +212,18 @@ h1, h2, h3, h4, h5, h6 {
   width: 64px;
   height: 4px;
   border-radius: 2px;
-  background-color: var(--sem-action-primary-bg);
+  background-color: var(--color-neonRed-500);
+}
+
+/* ---- Gradient streak decoration ---- */
+.gradient-streak {
+  height: 1px;
+  background: var(--gradient-streak);
+  opacity: 0.3;
+}
+
+/* ---- Motion pulse keyframe ---- */
+@keyframes pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
 }

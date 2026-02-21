@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 140" width="400" height="140">
+<defs>
+<linearGradient id="chromeText" x1="50.0%" y1="0.0%" x2="50.0%" y2="100.0%">
+<stop offset="0%" stop-color="#6B6F7A" stop-opacity="1"/>
+<stop offset="18%" stop-color="#EFF0F3" stop-opacity="1"/>
+<stop offset="46%" stop-color="#B7ACAA" stop-opacity="1"/>
+<stop offset="62%" stop-color="#FAFAFC" stop-opacity="1"/>
+<stop offset="100%" stop-color="#777B86" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="redAccent" x1="3.0%" y1="32.9%" x2="97.0%" y2="67.1%">
+<stop offset="0%" stop-color="#2A0606" stop-opacity="1"/>
+<stop offset="20%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="58%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="80%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#4A0A0A" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="whiteGrad" x1="50.0%" y1="0.0%" x2="50.0%" y2="100.0%">
+<stop offset="0%" stop-color="#CFCFD4" stop-opacity="1"/>
+<stop offset="40%" stop-color="#FAFAFC" stop-opacity="1"/>
+<stop offset="100%" stop-color="#D7D8DE" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="redStreak" x1="0.0%" y1="50.0%" x2="100.0%" y2="50.0%">
+<stop offset="0%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="38%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="55%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="72%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#3B0A0A" stop-opacity="1"/>
+</linearGradient>
+<filter id="textGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="5.0" flood-color="#FFFFFF" flood-opacity="0.18"/>
+</filter>
+<filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="9.0" flood-color="#FF2436" flood-opacity="0.55"/>
+</filter>
+<filter id="taglineGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="3.0" flood-color="#FFFFFF" flood-opacity="0.12"/>
+</filter>
+<radialGradient id="bgVignette" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#050405" stop-opacity="1"/>
+<stop offset="55%" stop-color="#0B0A0D" stop-opacity="1"/>
+<stop offset="100%" stop-color="#000000" stop-opacity="1"/>
+</radialGradient>
+
+<linearGradient id="redArc" x1="3.0%" y1="32.9%" x2="97.0%" y2="67.1%">
+<stop offset="0%" stop-color="#3B0A0A" stop-opacity="1"/>
+<stop offset="18%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="45%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="60%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="78%" stop-color="#E22229" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="blueArc" x1="0.8%" y1="58.7%" x2="99.2%" y2="41.3%">
+<stop offset="0%" stop-color="#04223F" stop-opacity="1"/>
+<stop offset="18%" stop-color="#0B549A" stop-opacity="1"/>
+<stop offset="45%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="62%" stop-color="#3CAAFF" stop-opacity="1"/>
+<stop offset="80%" stop-color="#157BCA" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="chromeCore" x1="71.1%" y1="4.7%" x2="28.9%" y2="95.3%">
+<stop offset="0%" stop-color="#2B2E36" stop-opacity="1"/>
+<stop offset="35%" stop-color="#B7ACAA" stop-opacity="1"/>
+<stop offset="55%" stop-color="#EFF0F3" stop-opacity="1"/>
+<stop offset="78%" stop-color="#6B6F7A" stop-opacity="1"/>
+<stop offset="100%" stop-color="#1A1C22" stop-opacity="1"/>
+</linearGradient>
+<filter id="glow_red" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="2.0439453125" flood-color="#FF2436" flood-opacity="0.55"/>
+</filter>
+<filter id="glow_blue" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="1.955078125" flood-color="#3CAAFF" flood-opacity="0.5"/>
+</filter>
+<filter id="glow_white" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="0.9775390625" flood-color="#FFFFFF" flood-opacity="0.25"/>
+</filter>
+<filter id="iconShadow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0.0" dy="1.244140625" stdDeviation="1.244140625" flood-color="#000000" flood-opacity="0.55"/>
+</filter>
+<filter id="specBlur" x="-50%" y="-50%" width="200%" height="200%">
+  <feGaussianBlur stdDeviation="0.35546875"/>
+</filter>
+
+</defs>
+<rect width="400" height="140" fill="url(#bgVignette)"/><g transform="translate(128.0, 72.8) skewX(-12.0)" filter="url(#textGlow)">
+  <text font-family="'Montserrat', 'Eurostile', 'Bank Gothic', Arial, sans-serif" 
+        font-weight="bold" font-size="53.2" 
+        letter-spacing="-1" fill="url(#chromeText)" dominant-baseline="central">
+    <tspan>iTrader</tspan><tspan fill="url(#redAccent)">.im</tspan>
+  </text>
+</g><rect x="136.0" y="89.6" width="232.0" height="3.7" rx="1.9" fill="url(#redStreak)" opacity="0.9" filter="url(#redGlow)"/><g transform="translate(8.0, 17.5)">
+<ellipse cx="45.5" cy="45.5" rx="46.04600000000001" ry="34.034000000000006" transform="rotate(-18 45.5 45.5)" fill="#FF2436" opacity="0.33" filter="url(#glow_red)"/><ellipse cx="45.5" cy="45.5" rx="46.04600000000001" ry="34.034000000000006" transform="rotate(-18 45.5 45.5)" fill="#3CAAFF" opacity="0.3" filter="url(#glow_blue)"/><ellipse cx="45.5" cy="45.5" rx="46.04600000000001" ry="34.034000000000006" transform="rotate(-18 45.5 45.5)" fill="#FFFFFF" opacity="0.15" filter="url(#glow_white)"/><ellipse cx="45.5" cy="45.5" rx="41.86" ry="30.94" transform="rotate(-18 45.5 45.5)" fill="#050405" opacity="0.6" filter="url(#iconShadow)"/><path d="M 17.71 68.59 L 16.49 67.72 L 15.34 66.80 L 14.27 65.83 L 13.29 64.82 L 12.38 63.77 L 11.55 62.67 L 10.80 61.54 L 10.13 60.38 L 9.55 59.18 L 9.05 57.95 L 8.63 56.69 L 8.30 55.40 L 8.06 54.09 L 7.90 52.75 L 7.82 51.39 L 7.84 50.01 L 7.95 48.60 L 8.14 47.19 L 8.43 45.76 L 8.80 44.32 L 9.27 42.88 L 9.83 41.44 L 10.48 39.99 L 11.23 38.56 L 12.05 37.13 L 12.97 35.72 L 13.98 34.33 L 15.06 32.96 L 16.23 31.62 L 17.48 30.31 L 18.80 29.04 L 20.19 27.81 L 21.65 26.61 L 23.18 25.47 L 24.77 24.37 L 26.41 23.32 L 28.11 22.34 L 29.85 21.41 L 31.64 20.54 L 33.47 19.73 L 35.33 18.99 L 37.22 18.32 L 39.13 17.72 L 41.07 17.19 L 43.01 16.73 L 44.97 16.34 L 46.93 16.03 L 48.89 15.80 L 50.84 15.64 L 52.78 15.56 L 54.71 15.56 L 56.61 15.63 L 58.49 15.78 L 60.33 16.00 L 62.14 16.30 L 63.91 16.68 L 65.64 17.12 L 67.31 17.64 L 68.94 18.23 L 70.50 18.89 L 72.01 19.61 L 73.45 20.41 L 74.83 21.26 L 76.13 22.17 L 77.37 23.15 L 78.52 24.18 L 79.60 25.27 L 80.60 26.41 L 81.51 27.60 L 82.34 28.84 L 83.09 30.12 L 83.74 31.45 L 84.31 32.82 L 84.78 34.23 L 85.15 35.68 L 85.43 37.15 L 85.62 38.66 L 85.70 40.19 L 85.69 41.75 L 85.57 43.32 L 86.79 43.50 L 87.03 41.86 L 87.18 40.22 L 87.21 38.58 L 87.14 36.96 L 86.96 35.35 L 86.67 33.75 L 86.28 32.18 L 85.77 30.63 L 85.16 29.12 L 84.44 27.64 L 83.62 26.20 L 82.70 24.81 L 81.68 23.47 L 80.56 22.18 L 79.35 20.94 L 78.05 19.77 L 76.66 18.67 L 75.19 17.63 L 73.65 16.66 L 72.03 15.76 L 70.33 14.94 L 68.58 14.19 L 66.76 13.52 L 64.89 12.93 L 62.97 12.43 L 61.01 12.00 L 59.00 11.66 L 56.96 11.41 L 54.88 11.24 L 52.78 11.15 L 50.66 11.15 L 48.53 11.23 L 46.39 11.40 L 44.24 11.66 L 42.09 11.99 L 39.95 12.41 L 37.82 12.91 L 35.70 13.50 L 33.61 14.16 L 31.54 14.90 L 29.51 15.71 L 27.51 16.60 L 25.55 17.56 L 23.64 18.60 L 21.78 19.70 L 19.97 20.86 L 18.23 22.09 L 16.55 23.38 L 14.93 24.72 L 13.39 26.13 L 11.92 27.58 L 10.54 29.08 L 9.23 30.63 L 8.02 32.22 L 6.89 33.85 L 5.86 35.51 L 4.93 37.21 L 4.10 38.93 L 3.36 40.68 L 2.74 42.45 L 2.22 44.24 L 1.82 46.03 L 1.53 47.84 L 1.35 49.64 L 1.29 51.44 L 1.35 53.24 L 1.53 55.01 L 1.82 56.77 L 2.23 58.50 L 2.76 60.20 L 3.41 61.86 L 4.17 63.47 L 5.04 65.04 L 6.01 66.55 L 7.09 68.00 L 8.27 69.39 L 9.55 70.71 L 10.91 71.96 L 12.37 73.14 L 13.90 74.24 Z" fill="url(#blueArc)" opacity="0.9"/><ellipse cx="45.5" cy="45.5" rx="32.76" ry="23.66" transform="rotate(-18 45.5 45.5)" fill="none" stroke="url(#chromeCore)" stroke-width="18.2" opacity="0.95"/><path d="M 73.29 22.41 L 74.51 23.28 L 75.66 24.20 L 76.73 25.17 L 77.71 26.18 L 78.62 27.23 L 79.45 28.33 L 80.20 29.46 L 80.87 30.62 L 81.45 31.82 L 81.95 33.05 L 82.37 34.31 L 82.70 35.60 L 82.94 36.91 L 83.10 38.25 L 83.18 39.61 L 83.16 40.99 L 83.05 42.40 L 82.86 43.81 L 82.57 45.24 L 82.20 46.68 L 81.73 48.12 L 81.17 49.56 L 80.52 51.01 L 79.77 52.44 L 78.95 53.87 L 78.03 55.28 L 77.02 56.67 L 75.94 58.04 L 74.77 59.38 L 73.52 60.69 L 72.20 61.96 L 70.81 63.19 L 69.35 64.39 L 67.82 65.53 L 66.23 66.63 L 64.59 67.68 L 62.89 68.66 L 61.15 69.59 L 59.36 70.46 L 57.53 71.27 L 55.67 72.01 L 53.78 72.68 L 51.87 73.28 L 49.93 73.81 L 47.99 74.27 L 46.03 74.66 L 44.07 74.97 L 42.11 75.20 L 40.16 75.36 L 38.22 75.44 L 36.29 75.44 L 34.39 75.37 L 32.51 75.22 L 30.67 75.00 L 28.86 74.70 L 27.09 74.32 L 25.36 73.88 L 23.69 73.36 L 22.06 72.77 L 20.50 72.11 L 18.99 71.39 L 17.55 70.59 L 16.17 69.74 L 14.87 68.83 L 13.63 67.85 L 12.48 66.82 L 11.40 65.73 L 10.40 64.59 L 9.49 63.40 L 8.66 62.16 L 7.91 60.88 L 7.26 59.55 L 6.69 58.18 L 6.22 56.77 L 5.85 55.32 L 5.57 53.85 L 5.38 52.34 L 5.30 50.81 L 5.31 49.25 L 5.43 47.68 L 4.21 47.50 L 3.97 49.14 L 3.82 50.78 L 3.79 52.42 L 3.86 54.04 L 4.04 55.65 L 4.33 57.25 L 4.72 58.82 L 5.23 60.37 L 5.84 61.88 L 6.56 63.36 L 7.38 64.80 L 8.30 66.19 L 9.32 67.53 L 10.44 68.82 L 11.65 70.06 L 12.95 71.23 L 14.34 72.33 L 15.81 73.37 L 17.35 74.34 L 18.97 75.24 L 20.67 76.06 L 22.42 76.81 L 24.24 77.48 L 26.11 78.07 L 28.03 78.57 L 29.99 79.00 L 32.00 79.34 L 34.04 79.59 L 36.12 79.76 L 38.22 79.85 L 40.34 79.85 L 42.47 79.77 L 44.61 79.60 L 46.76 79.34 L 48.91 79.01 L 51.05 78.59 L 53.18 78.09 L 55.30 77.50 L 57.39 76.84 L 59.46 76.10 L 61.49 75.29 L 63.49 74.40 L 65.45 73.44 L 67.36 72.40 L 69.22 71.30 L 71.03 70.14 L 72.77 68.91 L 74.45 67.62 L 76.07 66.28 L 77.61 64.87 L 79.08 63.42 L 80.46 61.92 L 81.77 60.37 L 82.98 58.78 L 84.11 57.15 L 85.14 55.49 L 86.07 53.79 L 86.90 52.07 L 87.64 50.32 L 88.26 48.55 L 88.78 46.76 L 89.18 44.97 L 89.47 43.16 L 89.65 41.36 L 89.71 39.56 L 89.65 37.76 L 89.47 35.99 L 89.18 34.23 L 88.77 32.50 L 88.24 30.80 L 87.59 29.14 L 86.83 27.53 L 85.96 25.96 L 84.99 24.45 L 83.91 23.00 L 82.73 21.61 L 81.45 20.29 L 80.09 19.04 L 78.63 17.86 L 77.10 16.76 Z" fill="url(#redArc)" opacity="0.92"/><circle cx="67.1" cy="27.4" r="8.2" fill="white" opacity="0.55" filter="url(#specBlur)"/><ellipse cx="45.5" cy="40.04" rx="22.477" ry="15.560999999999998" transform="rotate(-18 45.5 40.04)" fill="none" stroke="#EFF0F3" stroke-width="1.5" opacity="0.35" filter="url(#specBlur)"/><circle cx="52.5" cy="79.1" r="0.1" fill="white" opacity="0.15179998562001187"/>
+</g>
+</svg>

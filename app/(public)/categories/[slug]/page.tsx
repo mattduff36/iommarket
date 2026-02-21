@@ -64,17 +64,17 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mb-10">
-        <h1 className="section-heading-accent text-3xl font-bold text-slate-900">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+      <div className="mb-6 sm:mb-10">
+        <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           {category.name}
         </h1>
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-3 sm:mt-4 text-sm text-text-secondary">
           {total} listing{total !== 1 ? "s" : ""} found
         </p>
       </div>
 
-      <div className="flex gap-8">
+      <div className="flex gap-6 lg:gap-8">
         <CategoryFilters
           categorySlug={slug}
           regionSlug={sp.region}
@@ -83,9 +83,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           maxPrice={sp.maxPrice}
         />
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {listings.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
               {listings.map((listing) => (
                 <ListingCard
                   key={listing.id}
@@ -100,7 +100,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
               ))}
             </div>
           ) : (
-            <p className="text-center py-16 text-slate-500">
+            <p className="text-center py-16 text-text-secondary">
               No listings found in this category.
             </p>
           )}
@@ -129,8 +129,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
                   href={`/categories/${slug}?page=${p}${sp.minPrice ? `&minPrice=${sp.minPrice}` : ""}${sp.maxPrice ? `&maxPrice=${sp.maxPrice}` : ""}`}
                   className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${
                     p === page
-                      ? "bg-primary text-white shadow-sm"
-                      : "text-slate-500 hover:bg-slate-100"
+                      ? "bg-neon-red-500 text-white shadow-glow-red"
+                      : "text-text-secondary hover:bg-surface-elevated"
                   }`}
                 >
                   {p}

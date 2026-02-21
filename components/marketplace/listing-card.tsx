@@ -44,51 +44,55 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
   ) => {
     const titleId = React.useId();
 
-    const card = (
+    return (
       <article
         ref={ref}
         role="article"
         aria-labelledby={titleId}
         className={cn(
-          "group relative flex flex-col overflow-hidden rounded-xl border border-slate-100 bg-white",
-          "transition-all duration-200 hover:shadow-lift hover:-translate-y-1",
-          featured && "ring-2 ring-royal-500",
+          "group relative flex flex-col overflow-hidden rounded-lg",
+          "border border-border bg-surface",
+          "transition-all duration-fast ease-fast",
+          "hover:border-metallic-400 hover:-translate-y-0.5 hover:shadow-high",
+          featured && "ring-2 ring-neon-blue-500",
           className,
         )}
         {...props}
       >
-        {/* Image */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-50">
+        {/* Image container with overlay gradient */}
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-graphite-800">
           {imageSrc ? (
             <Image
               src={imageSrc}
               alt={imageAlt ?? title}
               fill
-              className="object-cover"
+              className="object-cover transition-transform duration-fast group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-slate-300">
+            <div className="flex h-full w-full items-center justify-center text-metallic-500">
               <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
           )}
+          {/* Bottom gradient overlay */}
+          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
           {badge && (
             <div className="absolute top-3 left-3">
-              <Badge variant="success">{badge}</Badge>
+              <Badge variant="energy">{badge}</Badge>
             </div>
           )}
         </div>
 
-        {/* Content — centered like ToyStore */}
-        <div className="flex flex-1 flex-col items-center gap-2 px-4 py-5">
+        {/* Content */}
+        <div className="flex flex-1 flex-col items-center gap-1.5 sm:gap-2 px-2.5 py-3 sm:px-4 sm:py-5">
           <h3
             id={titleId}
-            className="text-base font-semibold text-slate-900 text-center line-clamp-2 leading-snug"
+            className="text-sm sm:text-base font-semibold text-text-primary text-center line-clamp-2 leading-snug"
           >
             {href ? (
-              <a href={href} className="hover:text-royal-700 focus:outline-none">
+              <a href={href} className="hover:text-text-trust focus:outline-none">
                 <span className="absolute inset-0" aria-hidden="true" />
                 {title}
               </a>
@@ -97,20 +101,18 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
             )}
           </h3>
 
-          <Badge variant="price">
+          <span className="text-base sm:text-lg font-extrabold text-text-energy">
             {formatPrice(price, currency)}
-          </Badge>
+          </span>
 
           {(location || meta) && (
-            <p className="text-xs text-slate-400 text-center mt-1">
+            <p className="text-xs text-text-secondary text-center mt-1">
               {[location, meta].filter(Boolean).join(" · ")}
             </p>
           )}
         </div>
       </article>
     );
-
-    return card;
   },
 );
 ListingCard.displayName = "ListingCard";

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+<defs>
+<filter id="placeholderGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="6.0" flood-color="#B7ACAA" flood-opacity="0.15"/>
+</filter>
+</defs>
+<rect width="200" height="200" fill="#0F0D10" rx="8"/>
+<rect x="1" y="1" width="198" height="198" rx="7" fill="none" stroke="#23252C" stroke-width="1" opacity="0.5"/>
+<circle cx="100.0" cy="76.0" r="30.0" fill="#23252C" opacity="0.6"/>
+<ellipse cx="100.0" cy="144.0" rx="44.0" ry="30.0" fill="#23252C" opacity="0.5"/>
+</svg>

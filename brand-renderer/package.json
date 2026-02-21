@@ -1,0 +1,13 @@
+{
+  "name": "itrader-brand-renderer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node ./src/render.mjs"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.94",
+    "archiver": "^7.0.1",
+    "sharp": "^0.34.1"
+  }
+}

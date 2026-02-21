@@ -32,11 +32,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={hasError || undefined}
           aria-describedby={helperText || error ? helperId : undefined}
           className={cn(
-            "flex h-10 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary",
-            "placeholder:text-text-tertiary",
-            "focus:outline-none focus:border-border-focus focus:shadow-outline",
+            "flex h-10 w-full rounded-sm border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary",
+            "placeholder:text-text-secondary",
+            "transition-all duration-fast ease-fast",
+            "focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            hasError && "border-border-error bg-red-50 focus:border-border-error",
+            hasError && "border-neon-red-500 focus:border-neon-red-500 focus:shadow-glow-red",
             className,
           )}
           {...props}
@@ -46,7 +47,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             id={helperId}
             className={cn(
               "text-xs",
-              hasError ? "text-text-error" : "text-text-secondary",
+              hasError ? "text-text-energy" : "text-text-secondary",
             )}
           >
             {error || helperText}

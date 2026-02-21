@@ -47,7 +47,7 @@ export function HeaderAuthButtons() {
 
   if (loading) {
     return (
-      <Button variant="secondary" size="sm" disabled>
+      <Button variant="ghost" size="sm" disabled>
         …
       </Button>
     );
@@ -55,7 +55,7 @@ export function HeaderAuthButtons() {
 
   if (!user) {
     return (
-      <Button asChild variant="secondary" size="sm">
+      <Button asChild variant="trust" size="sm">
         <Link href="/sign-in">Sign In</Link>
       </Button>
     );
@@ -64,7 +64,7 @@ export function HeaderAuthButtons() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" size="sm" className="gap-1">
+        <Button variant="ghost" size="sm" className="gap-1">
           <span className="max-w-[120px] truncate sm:max-w-[180px]">
             {user.email ?? "Account"}
           </span>

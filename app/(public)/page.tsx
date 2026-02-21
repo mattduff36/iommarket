@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
+import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { HeroSearch } from "@/components/marketplace/hero-search";
@@ -100,33 +101,22 @@ export default async function HomePage() {
   return (
     <>
       {/* ============ HERO ============ */}
-      <section className="relative min-h-[calc(100dvh-108px)] md:min-h-0 overflow-hidden bg-slate-900">
-        {/* Background image */}
-        <Image
-          src="/images/hero-calf-of-man.png"
-          alt="The Calf of Man – Isle of Man coastline"
-          fill
-          priority
-          className="object-cover opacity-50"
-          sizes="100vw"
-        />
-        <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8 text-center">
-          <div className="mx-auto mb-5 flex items-center justify-center">
+      <section
+        className="relative min-h-[calc(100dvh-64px)] sm:min-h-[calc(100dvh-116px)] md:min-h-0 overflow-hidden"
+        style={{ background: HERO_GRADIENT }}
+      >
+        <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24 lg:py-32 lg:px-8 text-center">
+          <div className="mx-auto mb-8 flex items-center justify-center">
             <Image
-              src="/images/iom-flag.png"
-              alt="Isle of Man flag"
-              width={48}
-              height={30}
-              className="rounded shadow-md"
+              src="/images/logo-itrader.png"
+              alt="iTrader.im – Buy · Sell · Upgrade"
+              width={480}
+              height={160}
+              priority
+              className="w-auto max-w-[320px] sm:max-w-[420px] lg:max-w-[500px] drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
             />
           </div>
-          <p className="text-sm font-semibold uppercase tracking-widest text-royal-300">
-            Isle of Man Vehicle Sales
-          </p>
-          <h1 className="mt-4 text-4xl font-bold text-white sm:text-5xl lg:text-6xl leading-tight">
-            Buy &amp; Sell Vehicles
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg text-slate-300">
+          <p className="mx-auto mt-3 sm:mt-5 max-w-xl text-base sm:text-lg text-metallic-400">
             Cars, vans, motorbikes and more &mdash; from trusted Isle of Man sellers.
           </p>
 
@@ -151,22 +141,22 @@ export default async function HomePage() {
         listings.length > 0 ? (
           <section
             key={category.id}
-            className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
+            className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8"
           >
             {/* Section header with accent underline */}
-            <div className="flex items-end justify-between mb-8">
-              <h2 className="section-heading-accent text-2xl font-bold text-slate-900">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mb-6 sm:mb-8">
+              <h2 className="section-heading-accent text-xl sm:text-2xl font-bold text-text-primary font-heading">
                 {category.name}
               </h2>
               <Link
                 href={`/categories/${category.slug}`}
-                className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-royal-700 transition-colors"
+                className="inline-flex items-center gap-1 text-sm font-medium text-metallic-400 hover:text-neon-blue-400 transition-colors"
               >
                 See All <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
               {listings.map((listing) => (
                 <ListingCard
                   key={listing.id}
@@ -185,23 +175,23 @@ export default async function HomePage() {
       )}
 
       {/* ============ CTA ============ */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-royal-600">
+      <section className="bg-surface">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:py-20 sm:px-6 lg:px-8 text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-neon-red-500">
             For Sellers
           </p>
-          <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">
+          <h2 className="mt-3 text-3xl font-bold text-text-primary font-heading sm:text-4xl">
             Ready to Sell Your Vehicle?
           </h2>
-          <p className="mt-4 text-lg text-slate-500 leading-relaxed">
+          <p className="mt-4 text-lg text-text-secondary leading-relaxed">
             List your vehicle from just &pound;4.99 or subscribe as a dealer for
             unlimited listings. Simple, transparent pricing with no hidden fees.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button asChild size="lg">
+            <Button asChild variant="energy" size="lg">
               <Link href="/sell">Create a Listing</Link>
             </Button>
-            <Button asChild variant="secondary" size="lg">
+            <Button asChild variant="trust" size="lg">
               <Link href="/pricing">View Pricing</Link>
             </Button>
           </div>

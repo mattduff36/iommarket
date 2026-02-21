@@ -1,30 +1,34 @@
 import type { Metadata } from "next";
-import { DM_Sans, DM_Serif_Display } from "next/font/google";
+import { Inter, Orbitron } from "next/font/google";
 import { ThemeProvider } from "@once-ui-system/core";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-body",
   display: "swap",
 });
 
-const dmSerifDisplay = DM_Serif_Display({
-  weight: "400",
+const orbitron = Orbitron({
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-heading",
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "Isle of Man Vehicle Sales",
+    default: "iTrader.im – Isle of Man Vehicle Sales",
     template: "%s | itrader.im",
   },
   description: "Buy and sell cars, vans and motorbikes on the Isle of Man.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   ),
+  icons: {
+    icon: "/images/icon-itrader.png",
+    apple: "/images/icon-itrader.png",
+    shortcut: "/images/icon-itrader.png",
+  },
   openGraph: {
     type: "website",
     locale: "en_GB",
@@ -38,9 +42,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${dmSerifDisplay.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${orbitron.variable}`}
+      data-theme="dark"
+      suppressHydrationWarning
+    >
       <body className="min-h-screen antialiased bg-canvas text-text-primary">
-        <ThemeProvider theme="system" brand="blue" accent="indigo">
+        <ThemeProvider theme="dark" brand="blue" accent="indigo">
           {children}
         </ThemeProvider>
       </body>

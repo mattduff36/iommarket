@@ -13,23 +13,22 @@ const FOOTER_NAV = [
 
 export function SiteFooter() {
   return (
-    <footer className="bg-slate-800">
+    <footer className="bg-graphite-950">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         {/* Top row */}
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           {/* Brand */}
           <div>
-            <Link href="/" className="inline-flex items-center gap-2.5 text-xl font-bold text-white" style={{ fontFamily: "var(--font-display)" }}>
+            <Link href="/" className="inline-flex items-center">
               <Image
-                src="/images/iom-flag.png"
-                alt="Isle of Man flag"
-                width={28}
-                height={17}
-                className="rounded-[3px] opacity-90"
+                src="/images/logo-itrader.png"
+                alt="iTrader.im – Buy · Sell · Upgrade"
+                width={180}
+                height={60}
+                className="h-10 w-auto opacity-90 hover:opacity-100 transition-opacity"
               />
-              itrader.im
             </Link>
-            <p className="mt-2 max-w-xs text-sm text-slate-400">
+            <p className="mt-2 max-w-xs text-sm text-metallic-400">
               The Isle of Man&apos;s trusted marketplace for cars, vans,
               motorbikes and more.
             </p>
@@ -41,7 +40,7 @@ export function SiteFooter() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="text-slate-300 hover:text-white transition-colors"
+                className="text-metallic-400 hover:text-text-primary transition-colors"
               >
                 {item.label}
               </Link>
@@ -50,11 +49,11 @@ export function SiteFooter() {
         </div>
 
         {/* Divider + copyright */}
-        <div className="mt-10 border-t border-slate-700 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <p className="text-xs text-slate-500">
+        <div className="mt-10 border-t border-border pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <p className="text-xs text-metallic-500">
             &copy; {new Date().getFullYear()} itrader.im. All rights reserved.
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-metallic-500">
             Created with care on the Isle of Man
           </p>
         </div>

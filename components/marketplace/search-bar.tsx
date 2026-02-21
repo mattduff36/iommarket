@@ -44,9 +44,9 @@ const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           className={cn(
-            "flex h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text-primary",
-            "placeholder:text-text-tertiary",
-            "focus:outline-none focus:border-border-focus focus:shadow-outline",
+            "flex h-10 w-full rounded-sm border border-border bg-surface-elevated pl-9 pr-9 text-sm text-text-primary",
+            "placeholder:text-text-secondary",
+            "focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue",
           )}
           {...props}
         />

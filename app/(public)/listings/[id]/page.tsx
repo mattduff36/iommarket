@@ -66,29 +66,29 @@ export default async function ListingDetailPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       {/* Breadcrumb */}
-      <nav className="mb-8 text-sm text-slate-400" aria-label="Breadcrumb">
-        <ol className="flex items-center gap-1">
-          <li>
-            <Link href="/" className="hover:text-slate-900 transition-colors">Home</Link>
+      <nav className="mb-6 sm:mb-8 text-sm text-metallic-400 overflow-hidden" aria-label="Breadcrumb">
+        <ol className="flex items-center gap-1 min-w-0">
+          <li className="shrink-0">
+            <Link href="/" className="hover:text-text-primary transition-colors">Home</Link>
           </li>
-          <li><ChevronRight className="h-3 w-3" /></li>
-          <li>
+          <li className="shrink-0"><ChevronRight className="h-3 w-3" /></li>
+          <li className="shrink-0">
             <Link
               href={`/categories/${listing.category.slug}`}
-              className="hover:text-slate-900 transition-colors"
+              className="hover:text-text-primary transition-colors"
             >
               {listing.category.name}
             </Link>
           </li>
-          <li><ChevronRight className="h-3 w-3" /></li>
-          <li className="text-slate-700 truncate max-w-[200px] font-medium">
+          <li className="shrink-0"><ChevronRight className="h-3 w-3" /></li>
+          <li className="text-text-primary truncate min-w-0 font-medium">
             {listing.title}
           </li>
         </ol>
       </nav>
 
       {isExpired && (
-        <div className="mb-8 flex items-center gap-2 rounded-xl bg-amber-50 px-5 py-4 text-sm text-amber-800 border border-amber-200">
+        <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           This listing has expired and is no longer active.
         </div>
@@ -101,7 +101,7 @@ export default async function ListingDetailPage({ params }: Props) {
           <div className="grid gap-3">
             {listing.images.length > 0 ? (
               <>
-                <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-slate-100">
+                <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-graphite-800">
                   <Image
                     src={listing.images[0].url}
                     alt={listing.title}
@@ -112,11 +112,11 @@ export default async function ListingDetailPage({ params }: Props) {
                   />
                 </div>
                 {listing.images.length > 1 && (
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
                     {listing.images.slice(1, 5).map((img) => (
                       <div
                         key={img.id}
-                        className="relative aspect-square overflow-hidden rounded-xl bg-slate-100"
+                        className="relative aspect-square overflow-hidden rounded-lg bg-graphite-800"
                       >
                         <Image
                           src={img.url}
@@ -131,7 +131,7 @@ export default async function ListingDetailPage({ params }: Props) {
                 )}
               </>
             ) : (
-              <div className="flex aspect-[16/10] items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <div className="flex aspect-[16/10] items-center justify-center rounded-lg bg-graphite-800 text-metallic-500">
                 No images available
               </div>
             )}
@@ -139,7 +139,7 @@ export default async function ListingDetailPage({ params }: Props) {
 
           {/* Title + price + details */}
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+            <h1 className="text-2xl font-bold text-text-primary font-heading sm:text-3xl">
               {listing.title}
             </h1>
             <div className="mt-3">
@@ -163,23 +163,23 @@ export default async function ListingDetailPage({ params }: Props) {
               </Badge>
             </div>
 
-            <div className="mt-8 text-sm text-slate-700 whitespace-pre-line leading-relaxed">
+            <div className="mt-8 text-sm text-text-secondary whitespace-pre-line leading-relaxed">
               {listing.description}
             </div>
 
             {/* Attributes */}
             {listing.attributeValues.length > 0 && (
               <div className="mt-8">
-                <h2 className="section-heading-accent text-lg font-bold text-slate-900 mb-5">
+                <h2 className="section-heading-accent text-lg font-bold text-text-primary mb-5">
                   Specifications
                 </h2>
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
                   {listing.attributeValues.map((av) => (
                     <div key={av.id} className="flex flex-col">
-                      <dt className="font-medium text-slate-500">
+                      <dt className="font-medium text-text-secondary">
                         {av.attributeDefinition.name}
                       </dt>
-                      <dd className="text-slate-900">{av.value}</dd>
+                      <dd className="text-text-primary">{av.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -197,7 +197,7 @@ export default async function ListingDetailPage({ params }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="text-sm font-semibold text-text-primary">
                 {listing.dealer?.name ?? listing.user.name ?? "Anonymous"}
               </p>
               {listing.dealer && (
@@ -208,7 +208,7 @@ export default async function ListingDetailPage({ params }: Props) {
                 </Button>
               )}
               {listing.dealer?.phone && (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-text-secondary">
                   {listing.dealer.phone}
                 </p>
               )}

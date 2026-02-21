@@ -25,7 +25,7 @@ function EmptyState({
       )}
       {...props}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-text-secondary">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-elevated text-text-secondary">
         {icon ?? <PackageOpen className="h-6 w-6" />}
       </div>
       <div className="flex flex-col gap-1">

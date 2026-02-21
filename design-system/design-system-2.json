@@ -1,0 +1,303 @@
+{
+"meta": {
+"name": "iTrader.im Pro Brand System",
+"version": "2.0.0",
+"description": "A high-performance, precision-engineered design system for premium marketplaces. Derived from the iTrader.im brand board.",
+"brandAttributes": ["High Performance", "Precision", "Motorsport Energy", "Luxury", "Technological Excellence"],
+"visualTone": "Dark Mode, High Contrast, Neon Glow, Metallic Reflections",
+"motionLanguage": "Fast, Kinetic, Linear Streaks, Pulsing Energy",
+"iconographyStyle": "Dynamic Swoosh, Glassmorphism, Dual-Tone Glow",
+"surfaceStyle": "Carbon Graphite, Frosted Glass, Polished Metal"
+},
+"tokens": {
+"color": {
+"palette": {
+"graphite": {
+"950": "#050505",
+"900": "#0A0A0B",
+"800": "#121214",
+"700": "#1C1C1E",
+"600": "#2C2C2E"
+},
+"neonRed": {
+"400": "#FF4D4D",
+"500": "#FF1F1F",
+"600": "#D90000",
+"glow": "rgba(255, 31, 31, 0.5)"
+},
+"neonBlue": {
+"400": "#33A3FF",
+"500": "#0085FF",
+"600": "#0056A3",
+"glow": "rgba(0, 133, 255, 0.5)"
+},
+"premiumGold": {
+"400": "#F2D086",
+"500": "#C5A059",
+"600": "#8E6F36",
+"glow": "rgba(197, 160, 89, 0.4)"
+},
+"metallic": {
+"100": "#FFFFFF",
+"200": "#EBEBF5",
+"300": "#C7C7CC",
+"400": "#8E8E93",
+"500": "#636366"
+},
+"white": "#FFFFFF",
+"black": "#000000"
+},
+"semantic": {
+"bg": {
+"canvas": "tokens.color.palette.graphite.950",
+"surface": "tokens.color.palette.graphite.900",
+"surfaceElevated": "tokens.color.palette.graphite.800",
+"glass": "rgba(20, 20, 22, 0.7)"
+},
+"text": {
+"primary": "tokens.color.palette.white",
+"secondary": "tokens.color.palette.metallic.400",
+"energy": "tokens.color.palette.neonRed.500",
+"trust": "tokens.color.palette.neonBlue.500",
+"premium": "tokens.color.palette.premiumGold.500"
+},
+"border": {
+"default": "tokens.color.palette.graphite.700",
+"active": "tokens.color.palette.metallic.400",
+"energy": "tokens.color.palette.neonRed.600",
+"trust": "tokens.color.palette.neonBlue.600"
+}
+}
+},
+"effects": {
+"glow": {
+"red": "0 0 15px 2px tokens.color.palette.neonRed.glow",
+"blue": "0 0 15px 2px tokens.color.palette.neonBlue.glow",
+"gold": "0 0 15px 2px tokens.color.palette.premiumGold.glow",
+"softWhite": "0 0 10px 0 rgba(255, 255, 255, 0.2)"
+},
+"neonBorder": {
+"energy": "1px solid tokens.color.palette.neonRed.500",
+"trust": "1px solid tokens.color.palette.neonBlue.500"
+},
+"glassSurface": {
+"background": "tokens.color.semantic.bg.glass",
+"backdropFilter": "blur(12px)",
+"border": "1px solid rgba(255, 255, 255, 0.1)"
+},
+"metallicSurface": {
+"background": "linear-gradient(135deg, #3A3A3C 0%, #1C1C1E 100%)",
+"border": "1px solid #48484A"
+},
+"motionBlur": "blur(4px)",
+"gradientStreak": "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)"
+},
+"typography": {
+"fontFamily": {
+"heading": "'Orbitron', 'Inter', sans-serif",
+"body": "'Inter', -apple-system, sans-serif"
+},
+"italicAngle": "-12deg",
+"letterSpacing": {
+"tight": "-0.02em",
+"normal": "0",
+"wide": "0.05em",
+"motorsport": "0.15em"
+},
+"presets": {
+"h1Performance": {
+"fontSize": "48px",
+"fontWeight": "800",
+"fontStyle": "italic",
+"textTransform": "uppercase",
+"letterSpacing": "tokens.typography.letterSpacing.tight"
+},
+"h2Premium": {
+"fontSize": "32px",
+"fontWeight": "700",
+"letterSpacing": "tokens.typography.letterSpacing.wide",
+"color": "tokens.color.palette.premiumGold.500"
+}
+}
+},
+"surface": {
+"canvasDark": "tokens.color.palette.graphite.950",
+"cardDark": "tokens.color.palette.graphite.900",
+"elevatedDark": "tokens.color.palette.graphite.800",
+"glassDark": "tokens.effects.glassSurface",
+"premiumDark": "tokens.effects.metallicSurface"
+},
+"radius": {
+"none": "0",
+"sm": "2px",
+"md": "4px",
+"lg": "8px",
+"xl": "16px",
+"full": "9999px"
+},
+"shadow": {
+"low": "0 2px 4px rgba(0,0,0,0.5)",
+"high": "0 10px 30px rgba(0,0,0,0.8)",
+"neonRed": "tokens.effects.glow.red",
+"neonBlue": "tokens.effects.glow.blue"
+},
+"spacing": {
+"0": 0,
+"1": 4,
+"2": 8,
+"3": 12,
+"4": 16,
+"5": 20,
+"6": 24,
+"8": 32,
+"10": 40,
+"12": 48
+},
+"borderWidth": {
+"0": 0,
+"1": 1,
+"2": 2
+},
+"zIndex": {
+"base": 0,
+"dropdown": 1000,
+"overlay": 1300,
+"modal": 1400,
+"tooltip": 1500
+},
+"motion": {
+"fast": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+"premium": "400ms cubic-bezier(0.22, 1, 0.36, 1)",
+"hoverLift": "translateY(-2px)",
+"glowPulse": "pulse 2s infinite alternate",
+"slideStreak": "translateX(100%)"
+},
+"appIcon": {
+"background": "tokens.color.palette.graphite.900",
+"cornerRadius": "22.5%",
+"overlay": "tokens.effects.glassSurface",
+"glowStyle": "radial-gradient(circle at top left, tokens.color.palette.neonRed.glow, transparent)"
+}
+},
+"components": [
+{
+"name": "Button",
+"variants": [
+{
+"name": "Energy",
+"styles": {
+"backgroundColor": "tokens.color.palette.neonRed.500",
+"color": "tokens.color.palette.white",
+"boxShadow": "tokens.effects.glow.red",
+"textTransform": "uppercase",
+"fontStyle": "italic",
+"fontWeight": "700"
+},
+"hover": {
+"backgroundColor": "tokens.color.palette.neonRed.400",
+"boxShadow": "0 0 20px 4px tokens.color.palette.neonRed.glow"
+}
+},
+{
+"name": "Trust",
+"styles": {
+"backgroundColor": "tokens.color.palette.neonBlue.500",
+"color": "tokens.color.palette.white",
+"boxShadow": "tokens.effects.glow.blue"
+}
+},
+{
+"name": "Premium",
+"styles": {
+"background": "linear-gradient(180deg, tokens.color.palette.premiumGold.400, tokens.color.palette.premiumGold.600)",
+"color": "tokens.color.palette.black",
+"border": "1px solid tokens.color.palette.premiumGold.400"
+}
+}
+]
+},
+{
+"name": "Input",
+"styles": {
+"backgroundColor": "tokens.color.palette.graphite.800",
+"border": "1px solid tokens.color.palette.graphite.700",
+"color": "tokens.color.palette.white",
+"borderRadius": "tokens.radius.sm"
+},
+"focus": {
+"borderColor": "tokens.color.palette.neonBlue.500",
+"boxShadow": "tokens.effects.glow.blue"
+}
+},
+{
+"name": "ListingCard",
+"styles": {
+"backgroundColor": "tokens.color.palette.graphite.900",
+"borderRadius": "tokens.radius.lg",
+"border": "1px solid tokens.color.palette.graphite.700",
+"overflow": "hidden"
+},
+"hover": {
+"borderColor": "tokens.color.palette.metallic.400",
+"transform": "tokens.motion.hoverLift"
+},
+"parts": {
+"imageContainer": {
+"position": "relative",
+"height": "240px",
+"overlay": "linear-gradient(to top, tokens.color.palette.graphite.900, transparent)"
+},
+"priceTag": {
+"color": "tokens.color.palette.neonRed.500",
+"fontWeight": "800",
+"fontSize": "tokens.typography.presets.h2Premium.fontSize"
+}
+}
+},
+{
+"name": "Navbar",
+"styles": {
+"backgroundColor": "tokens.effects.glassSurface.background",
+"backdropFilter": "tokens.effects.glassSurface.backdropFilter",
+"borderBottom": "tokens.effects.neonBorder.trust",
+"height": "80px"
+}
+},
+{
+"name": "Badge",
+"variants": [
+{
+"name": "Energy",
+"styles": {
+"backgroundColor": "rgba(255, 31, 31, 0.1)",
+"color": "tokens.color.palette.neonRed.500",
+"border": "tokens.effects.neonBorder.energy"
+}
+}
+]
+}
+],
+"patterns": {
+"layout": [
+{
+"name": "Performance Dashboard",
+"rules": [
+"Max-width: 1440px",
+"Grid columns: 12",
+"Gutter: tokens.spacing.6",
+"Background: tokens.color.palette.graphite.950"
+]
+}
+],
+"decoration": [
+{
+"name": "Motion Streaks",
+"styles": {
+"height": "1px",
+"background": "tokens.effects.gradientStreak",
+"opacity": 0.3
+}
+}
+]
+}
+}

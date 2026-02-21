@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 36" width="120" height="36">
+<rect width="120" height="36" rx="18.0" fill="#0F0D10" opacity="0.9"/>
+<rect x="1" y="1" width="118" height="34" rx="17.0" fill="none" stroke="#23252C" opacity="0.7"/>
+<circle cx="18" cy="18.0" r="8" fill="#4CAF50" opacity="0.85"/>
+<text x="68.0" y="18.0" text-anchor="middle" dominant-baseline="central" 
+      font-family="'Montserrat', sans-serif" font-weight="600" font-size="10" 
+      letter-spacing="1.8" fill="#FAFAFC">SECURE</text>
+</svg>

@@ -32,3 +32,6 @@ test-results/
 /lib/generated/prisma
 
 .vercel
+
+# Playwright
+e2e/.auth/

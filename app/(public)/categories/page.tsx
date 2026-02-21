@@ -17,9 +17,9 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  car: "from-royal-700 to-royal-800",
-  van: "from-sky-500 to-sky-700",
-  motorbike: "from-amber-500 to-amber-700",
+  car: "from-neon-red-500 to-neon-red-600",
+  van: "from-neon-blue-500 to-neon-blue-600",
+  motorbike: "from-premium-gold-500 to-premium-gold-600",
 };
 
 export default async function CategoriesPage() {
@@ -36,30 +36,30 @@ export default async function CategoriesPage() {
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mb-12">
-        <h1 className="section-heading-accent text-3xl font-bold text-slate-900">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:py-16 sm:px-6 lg:px-8">
+      <div className="mb-8 sm:mb-12">
+        <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           Categories
         </h1>
-        <p className="mt-4 text-slate-500">
+        <p className="mt-3 sm:mt-4 text-text-secondary">
           Browse vehicle categories. Cars, vans, motorbikes.
         </p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((cat) => {
-          const gradient = CATEGORY_COLORS[cat.slug] ?? "from-slate-600 to-slate-800";
+          const gradient = CATEGORY_COLORS[cat.slug] ?? "from-graphite-700 to-graphite-900";
           return (
             <Link
               key={cat.id}
               href={`/categories/${cat.slug}`}
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]"
+              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]"
               style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }}
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
               <div className="relative z-10">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20 text-white mb-4">
-                  {CATEGORY_ICONS[cat.slug] ?? <Tag className="h-8 w-8" />}
+                <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-xl bg-white/20 text-white mb-3 sm:mb-4">
+                  {CATEGORY_ICONS[cat.slug] ?? <Tag className="h-6 w-6 sm:h-8 sm:w-8" />}
                 </div>
                 <h2 className="text-xl font-bold">
                   {cat.name}
@@ -72,7 +72,7 @@ export default async function CategoriesPage() {
                     {cat.children.map((c) => c.name).join(", ")}
                   </p>
                 )}
-                <span className="mt-5 inline-flex items-center gap-1 rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold text-slate-900">
+                <span className="mt-5 inline-flex items-center gap-1 rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold text-graphite-950">
                   Browse
                 </span>
               </div>
@@ -82,7 +82,7 @@ export default async function CategoriesPage() {
       </div>
 
       {categories.length === 0 && (
-        <p className="text-center text-slate-500 py-16">
+        <p className="text-center text-text-secondary py-16">
           No categories available yet. Check back soon.
         </p>
       )}

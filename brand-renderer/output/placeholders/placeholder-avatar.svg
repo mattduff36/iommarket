@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="45%" r="85%">
+      <stop offset="0" stop-color="#0B0A0D"/>
+      <stop offset="0.6" stop-color="#050405"/>
+      <stop offset="1" stop-color="#000"/>
+    </radialGradient>
+  </defs>
+  <rect width="900" height="900" fill="url(#g)"/>
+  <circle cx="450" cy="410" r="90" fill="none" stroke="#EFF0F3" stroke-width="10" opacity="0.6"/>
+       <path d="M280 620c40-90 300-90 340 0" fill="none" stroke="#EFF0F3" stroke-width="10" opacity="0.6"/>
+  <text x="50%" y="770" text-anchor="middle" font-family="Montserrat, Arial" font-size="54" fill="#EFF0F3" opacity="0.85">User</text>
+  <text x="50%" y="825" text-anchor="middle" font-family="Montserrat, Arial" font-size="28" fill="#B7ACAA" opacity="0.75">iTrader.im</text>
+</svg>

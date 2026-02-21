@@ -255,7 +255,7 @@ export function AdvancedSearchModal({
   }) {
     return (
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">{label}</label>
+        <label className="mb-1 block text-xs font-medium text-text-secondary">{label}</label>
         <Select
           value={value || "any"}
           onValueChange={(v) => onChange(v === "any" ? "" : v)}
@@ -287,10 +287,10 @@ export function AdvancedSearchModal({
         <div className="space-y-6 py-4">
           {/* --- Vehicle --- */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Vehicle</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Vehicle</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500">Make</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Make</label>
                 <Select
                   value={make || "any"}
                   onValueChange={(v) => { setMake(v === "any" ? "" : v); setModel(""); }}
@@ -305,7 +305,7 @@ export function AdvancedSearchModal({
                 </Select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500">Model</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Model</label>
                 <Select
                   value={model || "any"}
                   onValueChange={(v) => setModel(v === "any" ? "" : v)}
@@ -333,7 +333,7 @@ export function AdvancedSearchModal({
 
           {/* --- Price & Mileage --- */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Price, Mileage &amp; Age</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Price, Mileage &amp; Age</h3>
             <div className="space-y-4">
               <RangeSlider label="Price" min={0} max={PRICE_MAX} step={PRICE_STEP} value={priceRange} onValueChange={setPriceRange} formatValue={(v) => `£${v.toLocaleString()}`} />
               <RangeSlider label="Mileage" min={0} max={MILEAGE_MAX} step={MILEAGE_STEP} value={mileageRange} onValueChange={setMileageRange} formatValue={(v) => `${v.toLocaleString()} mi`} />
@@ -343,7 +343,7 @@ export function AdvancedSearchModal({
 
           {/* --- Performance --- */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Performance</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Performance</h3>
             <div className="space-y-4">
               <RangeSlider label="Engine Size" min={0} max={ENGINE_SIZE_MAX} step={1} value={engineSizeRange} onValueChange={setEngineSizeRange} formatValue={(v) => `${(v / 10).toFixed(1)}L`} />
               <RangeSlider label="Engine Power" min={0} max={ENGINE_POWER_MAX} step={10} value={enginePowerRange} onValueChange={setEnginePowerRange} formatValue={(v) => `${v} bhp`} />
@@ -353,7 +353,7 @@ export function AdvancedSearchModal({
 
           {/* --- Running Costs --- */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Running Costs</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Running Costs</h3>
             <div className="space-y-4">
               <RangeSlider label="Fuel Consumption" min={0} max={FUEL_CONSUMPTION_MAX} step={1} value={fuelConsumptionRange} onValueChange={setFuelConsumptionRange} formatValue={(v) => `${v} mpg`} />
               <RangeSlider label="CO2 Emissions" min={0} max={CO2_MAX} step={5} value={co2Range} onValueChange={setCo2Range} formatValue={(v) => `${v} g/km`} />
@@ -364,7 +364,7 @@ export function AdvancedSearchModal({
 
           {/* --- EV --- */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Electric Vehicle</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Electric Vehicle</h3>
             <div className="space-y-4">
               <RangeSlider label="Battery Range" min={0} max={BATTERY_RANGE_MAX} step={10} value={batteryRange} onValueChange={setBatteryRange} formatValue={(v) => `${v} mi`} />
               <RangeSlider label="Charging Time" min={0} max={CHARGING_TIME_MAX} step={10} value={chargingTimeRange} onValueChange={setChargingTimeRange} formatValue={(v) => v >= 60 ? `${Math.floor(v / 60)}h ${v % 60}m` : `${v}m`} />
@@ -373,7 +373,7 @@ export function AdvancedSearchModal({
 
           {/* --- Other --- */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Other</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Other</h3>
             <div className="space-y-4">
               <RangeSlider label="Boot Space" min={0} max={BOOT_SPACE_MAX} step={50} value={bootSpaceRange} onValueChange={setBootSpaceRange} formatValue={(v) => `${v}L`} />
 
@@ -385,7 +385,7 @@ export function AdvancedSearchModal({
               )}
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500">Keyword (e.g. sunroof, heated seats)</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Keyword (e.g. sunroof, heated seats)</label>
                 <SearchBar
                   value={keyword}
                   onValueChange={setKeyword}

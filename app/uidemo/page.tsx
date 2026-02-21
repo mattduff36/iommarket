@@ -61,7 +61,7 @@ import { SearchBar } from "@/components/marketplace/search-bar";
 import { FilterPanel } from "@/components/marketplace/filter-panel";
 
 /* ---- Icons ---- */
-import { ChevronDown, Plus, Search as SearchIcon } from "lucide-react";
+import { ChevronDown, Plus, Zap, Shield, Crown } from "lucide-react";
 
 /* ================================================================== */
 /*  Section wrapper                                                   */
@@ -118,52 +118,81 @@ export default function UIDemoPage() {
   return (
     <div className="min-h-screen bg-canvas">
       {/* Header */}
-      <header className="sticky top-0 z-[1100] flex h-16 items-center border-b border-border bg-surface px-6">
-        <h1 className="text-lg font-bold text-text-primary">
-          itrader.im – UI Demo
+      <header className="sticky top-0 z-[1100] flex h-16 items-center border-b border-border glass-surface px-6">
+        <h1 className="text-lg font-bold text-text-primary font-heading tracking-wide">
+          itrader.im – UI Demo v2
         </h1>
       </header>
 
       <main className="mx-auto max-w-5xl space-y-12 px-6 py-10">
         {/* ---- Colour palette ---- */}
         <Section title="Colour Palette">
-          <Row label="Slate">
-            {["50", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(
-              (s) => (
-                <div key={s} className="flex flex-col items-center gap-1">
-                  <div
-                    className="h-10 w-10 rounded-md border border-border"
-                    style={{ backgroundColor: `var(--color-slate-${s})` }}
-                  />
-                  <span className="text-[10px] text-text-secondary">{s}</span>
-                </div>
-              ),
-            )}
-          </Row>
-          <Row label="Royal Blue">
-            {["50", "100", "500", "600", "700", "800"].map((s) => (
+          <Row label="Graphite">
+            {["600", "700", "800", "900", "950"].map((s) => (
               <div key={s} className="flex flex-col items-center gap-1">
                 <div
                   className="h-10 w-10 rounded-md border border-border"
-                  style={{ backgroundColor: `var(--color-royalBlue-${s})` }}
+                  style={{ backgroundColor: `var(--color-graphite-${s})` }}
                 />
                 <span className="text-[10px] text-text-secondary">{s}</span>
               </div>
             ))}
           </Row>
-          <Row label="Status">
+          <Row label="Neon Red">
+            {["400", "500", "600"].map((s) => (
+              <div key={s} className="flex flex-col items-center gap-1">
+                <div
+                  className="h-10 w-10 rounded-md border border-border"
+                  style={{ backgroundColor: `var(--color-neonRed-${s})` }}
+                />
+                <span className="text-[10px] text-text-secondary">{s}</span>
+              </div>
+            ))}
+          </Row>
+          <Row label="Neon Blue">
+            {["400", "500", "600"].map((s) => (
+              <div key={s} className="flex flex-col items-center gap-1">
+                <div
+                  className="h-10 w-10 rounded-md border border-border"
+                  style={{ backgroundColor: `var(--color-neonBlue-${s})` }}
+                />
+                <span className="text-[10px] text-text-secondary">{s}</span>
+              </div>
+            ))}
+          </Row>
+          <Row label="Premium Gold">
+            {["400", "500", "600"].map((s) => (
+              <div key={s} className="flex flex-col items-center gap-1">
+                <div
+                  className="h-10 w-10 rounded-md border border-border"
+                  style={{ backgroundColor: `var(--color-premiumGold-${s})` }}
+                />
+                <span className="text-[10px] text-text-secondary">{s}</span>
+              </div>
+            ))}
+          </Row>
+          <Row label="Metallic">
+            {["100", "200", "300", "400", "500"].map((s) => (
+              <div key={s} className="flex flex-col items-center gap-1">
+                <div
+                  className="h-10 w-10 rounded-md border border-border"
+                  style={{ backgroundColor: `var(--color-metallic-${s})` }}
+                />
+                <span className="text-[10px] text-text-secondary">{s}</span>
+              </div>
+            ))}
+          </Row>
+          <Row label="Glow Effects">
             {[
-              { name: "Success", bg: "var(--sem-status-success-bg)", text: "var(--sem-status-success-text)" },
-              { name: "Error", bg: "var(--sem-status-error-bg)", text: "var(--sem-status-error-text)" },
-              { name: "Warning", bg: "var(--sem-status-warning-bg)", text: "var(--sem-status-warning-text)" },
-              { name: "Info", bg: "var(--sem-status-info-bg)", text: "var(--sem-status-info-text)" },
-            ].map((s) => (
+              { name: "Energy", cls: "glow-energy" },
+              { name: "Trust", cls: "glow-trust" },
+              { name: "Premium", cls: "glow-premium" },
+            ].map((g) => (
               <div
-                key={s.name}
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium"
-                style={{ backgroundColor: s.bg, color: s.text }}
+                key={g.name}
+                className={`h-10 w-24 rounded-md bg-surface-elevated flex items-center justify-center text-xs font-medium text-text-primary ${g.cls}`}
               >
-                {s.name}
+                {g.name}
               </div>
             ))}
           </Row>
@@ -171,35 +200,61 @@ export default function UIDemoPage() {
 
         {/* ---- Typography ---- */}
         <Section title="Typography">
-          <div className="space-y-2">
-            <p className="text-3xl font-bold">Heading 3xl (30px bold)</p>
-            <p className="text-2xl font-semibold">Heading 2xl (24px semibold)</p>
-            <p className="text-xl font-semibold">Heading xl (20px semibold)</p>
-            <p className="text-lg font-medium">Heading lg (18px medium)</p>
-            <p className="text-base">Body base (16px regular)</p>
-            <p className="text-sm text-text-secondary">Body sm (14px secondary)</p>
-            <p className="text-xs text-text-tertiary">Caption xs (12px tertiary)</p>
+          <div className="space-y-3">
+            <p className="font-heading text-4xl font-extrabold uppercase italic tracking-tight text-text-primary">
+              h1 Performance (Orbitron)
+            </p>
+            <p className="font-heading text-2xl font-bold tracking-wide text-text-premium">
+              h2 Premium (Orbitron)
+            </p>
+            <p className="font-heading text-xl font-semibold text-text-primary">
+              h3 Heading (Orbitron)
+            </p>
+            <p className="text-base text-text-primary">Body base (Inter 16px)</p>
+            <p className="text-sm text-text-secondary">Body sm (Inter 14px secondary)</p>
+            <p className="text-xs text-metallic-500">Caption xs (12px metallic)</p>
+          </div>
+        </Section>
+
+        {/* ---- Surfaces ---- */}
+        <Section title="Surfaces">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg p-6 bg-canvas border border-border">
+              <p className="text-sm text-text-secondary">Canvas</p>
+            </div>
+            <div className="rounded-lg p-6 bg-surface border border-border">
+              <p className="text-sm text-text-secondary">Surface</p>
+            </div>
+            <div className="rounded-lg p-6 bg-surface-elevated border border-border">
+              <p className="text-sm text-text-secondary">Elevated</p>
+            </div>
+            <div className="rounded-lg p-6 glass-surface">
+              <p className="text-sm text-text-secondary">Glass Surface</p>
+            </div>
+            <div className="rounded-lg p-6 metal-surface">
+              <p className="text-sm text-text-secondary">Metal Surface</p>
+            </div>
           </div>
         </Section>
 
         {/* ---- Buttons ---- */}
         <Section title="Button">
           <Row label="Variants">
-            <Button variant="primary">Primary</Button>
-            <Button variant="secondary">Secondary</Button>
-            <Button variant="destructive">Destructive</Button>
+            <Button variant="energy" leftIcon={<Zap className="h-4 w-4" />}>Energy</Button>
+            <Button variant="trust" leftIcon={<Shield className="h-4 w-4" />}>Trust</Button>
+            <Button variant="premium" leftIcon={<Crown className="h-4 w-4" />}>Premium</Button>
             <Button variant="ghost">Ghost</Button>
             <Button variant="link">Link</Button>
           </Row>
           <Row label="Sizes">
-            <Button size="sm">Small</Button>
-            <Button size="md">Medium</Button>
-            <Button size="lg">Large</Button>
-            <Button size="icon"><Plus className="h-4 w-4" /></Button>
+            <Button variant="energy" size="sm">Small</Button>
+            <Button variant="energy" size="md">Medium</Button>
+            <Button variant="energy" size="lg">Large</Button>
+            <Button variant="energy" size="icon"><Plus className="h-4 w-4" /></Button>
           </Row>
           <Row label="States">
-            <Button loading>Loading</Button>
-            <Button disabled>Disabled</Button>
+            <Button variant="energy" loading>Loading</Button>
+            <Button variant="trust" disabled>Disabled</Button>
           </Row>
         </Section>
 
@@ -267,12 +322,20 @@ export default function UIDemoPage() {
 
         {/* ---- Badge ---- */}
         <Section title="Badge">
-          <Row>
+          <Row label="Brand">
+            <Badge variant="energy">Energy</Badge>
+            <Badge variant="trust">Trust</Badge>
+            <Badge variant="premium">Premium</Badge>
+            <Badge variant="neutral">Neutral</Badge>
+          </Row>
+          <Row label="Status">
             <Badge variant="success">Active</Badge>
             <Badge variant="error">Expired</Badge>
             <Badge variant="warning">Pending</Badge>
             <Badge variant="info">New</Badge>
-            <Badge variant="neutral">Draft</Badge>
+          </Row>
+          <Row label="Special">
+            <Badge variant="price">£12,500</Badge>
           </Row>
         </Section>
 
@@ -290,8 +353,8 @@ export default function UIDemoPage() {
                 </p>
               </CardContent>
               <CardFooter className="gap-2">
-                <Button size="sm">Action</Button>
-                <Button size="sm" variant="secondary">Cancel</Button>
+                <Button variant="energy" size="sm">Action</Button>
+                <Button size="sm" variant="ghost">Cancel</Button>
               </CardFooter>
             </Card>
           </div>
@@ -301,7 +364,7 @@ export default function UIDemoPage() {
         <Section title="Dialog">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="secondary">Open Dialog</Button>
+              <Button variant="trust">Open Dialog</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -311,8 +374,8 @@ export default function UIDemoPage() {
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
-                <Button variant="secondary">Cancel</Button>
-                <Button>Confirm</Button>
+                <Button variant="ghost">Cancel</Button>
+                <Button variant="energy">Confirm</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -322,7 +385,7 @@ export default function UIDemoPage() {
         <Section title="Dropdown Menu">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary">
+              <Button variant="ghost">
                 Options <ChevronDown className="ml-1 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -331,7 +394,7 @@ export default function UIDemoPage() {
               <DropdownMenuItem>Edit Listing</DropdownMenuItem>
               <DropdownMenuItem>Duplicate</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+              <DropdownMenuItem className="text-text-energy">Delete</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </Section>
@@ -437,7 +500,7 @@ export default function UIDemoPage() {
             title="No listings found"
             description="Try adjusting your filters or create a new listing."
             action={
-              <Button size="sm">
+              <Button variant="energy" size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 Create Listing
               </Button>
@@ -450,7 +513,7 @@ export default function UIDemoPage() {
         {/* ================================================================== */}
 
         <div className="pt-8 border-t border-border">
-          <h2 className="text-2xl font-bold text-text-primary mb-8">
+          <h2 className="text-2xl font-bold text-text-primary font-heading mb-8">
             Marketplace Components
           </h2>
         </div>
@@ -528,7 +591,7 @@ export default function UIDemoPage() {
         {/* ---- Marketplace Grid Layout Demo ---- */}
         <Section title="Marketplace Grid Layout">
           <p className="text-sm text-text-secondary mb-4">
-            280px sidebar + responsive auto-fill grid (per design-system.json layout pattern).
+            280px sidebar + responsive auto-fill grid (per design-system-2.json layout pattern).
           </p>
           <div className="flex gap-6">
             <div className="shrink-0 rounded-lg border border-border bg-surface p-4">

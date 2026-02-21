@@ -75,11 +75,11 @@ export function ReportButton({ listingId }: Props) {
               rows={3}
               minLength={10}
               placeholder="Please describe the issue..."
-              className="flex w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline"
+              className="flex w-full rounded-sm border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue"
             />
           </div>
           {error && <p className="text-xs text-text-error">{error}</p>}
-          <Button type="submit" variant="destructive" size="sm" loading={loading}>
+          <Button type="submit" variant="energy" size="sm" loading={loading}>
             Submit Report
           </Button>
         </form>

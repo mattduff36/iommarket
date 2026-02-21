@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" width="200" height="44">
+<defs>
+<linearGradient id="badgeFill" x1="4.7%" y1="28.9%" x2="95.3%" y2="71.1%">
+<stop offset="0%" stop-color="#3A2411" stop-opacity="1"/>
+<stop offset="18%" stop-color="#7A4A22" stop-opacity="1"/>
+<stop offset="46%" stop-color="#C48551" stop-opacity="1"/>
+<stop offset="62%" stop-color="#FFD089" stop-opacity="1"/>
+<stop offset="82%" stop-color="#C48551" stop-opacity="1"/>
+<stop offset="100%" stop-color="#4A2E15" stop-opacity="1"/>
+</linearGradient>
+<filter id="badgeGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="12.0" flood-color="#FFD089" flood-opacity="0.4"/>
+</filter>
+</defs>
+<rect x="0" y="0" width="200" height="44" rx="22.0" fill="url(#badgeFill)" opacity="0.92" filter="url(#badgeGlow)"/>
+<rect x="1.3" y="1.3" width="197.4" height="41.4" rx="22.0" fill="none" stroke="#FFD089" stroke-width="2.6" opacity="0.8"/>
+<g transform="translate(15.7,9.7) scale(1.027)"><path d="M2 19h20v3H2v-3zm1-9l5 3 4-5.5 4 5.5 5-3-1 9H4l-1-9z" fill="#0B0A0D"/></g>
+<text x="116.0" y="22.9" dominant-baseline="central" font-family="'Montserrat', Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="1.6" fill="#0B0A0D">PREMIUM</text>
+</svg>

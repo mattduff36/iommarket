@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+<defs>
+<linearGradient id="chromeText" x1="50.0%" y1="0.0%" x2="50.0%" y2="100.0%">
+<stop offset="0%" stop-color="#6B6F7A" stop-opacity="1"/>
+<stop offset="18%" stop-color="#EFF0F3" stop-opacity="1"/>
+<stop offset="46%" stop-color="#B7ACAA" stop-opacity="1"/>
+<stop offset="62%" stop-color="#FAFAFC" stop-opacity="1"/>
+<stop offset="100%" stop-color="#777B86" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="redAccent" x1="3.0%" y1="32.9%" x2="97.0%" y2="67.1%">
+<stop offset="0%" stop-color="#2A0606" stop-opacity="1"/>
+<stop offset="20%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="58%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="80%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#4A0A0A" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="whiteGrad" x1="50.0%" y1="0.0%" x2="50.0%" y2="100.0%">
+<stop offset="0%" stop-color="#CFCFD4" stop-opacity="1"/>
+<stop offset="40%" stop-color="#FAFAFC" stop-opacity="1"/>
+<stop offset="100%" stop-color="#D7D8DE" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="redStreak" x1="0.0%" y1="50.0%" x2="100.0%" y2="50.0%">
+<stop offset="0%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="38%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="55%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="72%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#3B0A0A" stop-opacity="1"/>
+</linearGradient>
+<filter id="textGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="5.0" flood-color="#FFFFFF" flood-opacity="0.18"/>
+</filter>
+<filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="9.0" flood-color="#FF2436" flood-opacity="0.55"/>
+</filter>
+<filter id="taglineGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="3.0" flood-color="#FFFFFF" flood-opacity="0.12"/>
+</filter>
+
+<linearGradient id="redArc" x1="3.0%" y1="32.9%" x2="97.0%" y2="67.1%">
+<stop offset="0%" stop-color="#3B0A0A" stop-opacity="1"/>
+<stop offset="18%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="45%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="60%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="78%" stop-color="#E22229" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="blueArc" x1="0.8%" y1="58.7%" x2="99.2%" y2="41.3%">
+<stop offset="0%" stop-color="#04223F" stop-opacity="1"/>
+<stop offset="18%" stop-color="#0B549A" stop-opacity="1"/>
+<stop offset="45%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="62%" stop-color="#3CAAFF" stop-opacity="1"/>
+<stop offset="80%" stop-color="#157BCA" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="chromeCore" x1="71.1%" y1="4.7%" x2="28.9%" y2="95.3%">
+<stop offset="0%" stop-color="#2B2E36" stop-opacity="1"/>
+<stop offset="35%" stop-color="#B7ACAA" stop-opacity="1"/>
+<stop offset="55%" stop-color="#EFF0F3" stop-opacity="1"/>
+<stop offset="78%" stop-color="#6B6F7A" stop-opacity="1"/>
+<stop offset="100%" stop-color="#1A1C22" stop-opacity="1"/>
+</linearGradient>
+<filter id="iconShadow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0.0" dy="3.5546875" stdDeviation="3.5546875" flood-color="#000000" flood-opacity="0.55"/>
+</filter>
+<filter id="specBlur" x="-50%" y="-50%" width="200%" height="200%">
+  <feGaussianBlur stdDeviation="1.015625"/>
+</filter>
+
+</defs>
+<g transform="translate(384.0, 208.0) skewX(-12.0)" >
+  <text font-family="'Montserrat', 'Eurostile', 'Bank Gothic', Arial, sans-serif" 
+        font-weight="bold" font-size="152.0" 
+        letter-spacing="-1" fill="#101114" dominant-baseline="central">
+    <tspan>iTrader</tspan><tspan fill="#C7001A">.im</tspan>
+  </text>
+</g><text x="600.0" y="332.0" text-anchor="middle" font-family="'Montserrat', 'Gotham', Arial, sans-serif" font-weight="500" font-size="33.4" letter-spacing="2.4" fill="#2B2C31" opacity="0.9" >BUY &bull; SELL &bull; UPGRADE</text><g transform="translate(24.0, 50.0)">
+<ellipse cx="130.0" cy="130.0" rx="119.60000000000001" ry="88.4" transform="rotate(-18 130.0 130.0)" fill="#050405" opacity="0.6" filter="url(#iconShadow)"/><path d="M 50.59 195.98 L 47.11 193.49 L 43.84 190.86 L 40.79 188.09 L 37.96 185.20 L 35.36 182.19 L 32.99 179.06 L 30.85 175.84 L 28.95 172.51 L 27.28 169.08 L 25.85 165.57 L 24.67 161.97 L 23.72 158.29 L 23.02 154.54 L 22.56 150.71 L 22.35 146.82 L 22.40 142.87 L 22.70 138.87 L 23.26 134.82 L 24.08 130.74 L 25.16 126.64 L 26.49 122.51 L 28.09 118.39 L 29.95 114.27 L 32.07 110.17 L 34.44 106.10 L 37.06 102.07 L 39.93 98.09 L 43.03 94.18 L 46.37 90.35 L 49.93 86.61 L 53.70 82.97 L 57.69 79.44 L 61.86 76.04 L 66.22 72.76 L 70.76 69.63 L 75.46 66.64 L 80.31 63.82 L 85.29 61.16 L 90.40 58.68 L 95.62 56.37 L 100.94 54.26 L 106.34 52.34 L 111.81 50.62 L 117.33 49.10 L 122.90 47.79 L 128.49 46.70 L 134.09 45.81 L 139.68 45.15 L 145.26 44.70 L 150.81 44.46 L 156.30 44.45 L 161.74 44.66 L 167.10 45.08 L 172.38 45.72 L 177.55 46.58 L 182.60 47.65 L 187.53 48.93 L 192.32 50.41 L 196.96 52.09 L 201.44 53.97 L 205.74 56.04 L 209.86 58.30 L 213.79 60.74 L 217.52 63.36 L 221.04 66.14 L 224.35 69.09 L 227.43 72.20 L 230.28 75.45 L 232.90 78.86 L 235.27 82.40 L 237.39 86.07 L 239.26 89.87 L 240.87 93.78 L 242.22 97.81 L 243.29 101.93 L 244.10 106.16 L 244.62 110.46 L 244.87 114.84 L 244.82 119.28 L 244.50 123.78 L 247.96 124.28 L 248.67 119.59 L 249.08 114.91 L 249.18 110.24 L 248.97 105.59 L 248.46 100.99 L 247.63 96.43 L 246.50 91.93 L 245.06 87.52 L 243.31 83.19 L 241.27 78.97 L 238.92 74.86 L 236.29 70.88 L 233.37 67.05 L 230.17 63.36 L 226.71 59.84 L 223.00 56.50 L 219.03 53.33 L 214.84 50.36 L 210.42 47.59 L 205.79 45.03 L 200.96 42.67 L 195.94 40.54 L 190.76 38.63 L 185.41 36.96 L 179.92 35.51 L 174.30 34.30 L 168.57 33.33 L 162.73 32.60 L 156.81 32.11 L 150.81 31.86 L 144.75 31.86 L 138.66 32.10 L 132.53 32.58 L 126.39 33.30 L 120.26 34.26 L 114.14 35.46 L 108.05 36.90 L 102.01 38.56 L 96.03 40.45 L 90.12 42.56 L 84.31 44.89 L 78.60 47.43 L 73.01 50.18 L 67.55 53.13 L 62.23 56.27 L 57.07 59.60 L 52.08 63.11 L 47.27 66.79 L 42.66 70.64 L 38.26 74.64 L 34.07 78.80 L 30.11 83.09 L 26.38 87.51 L 22.91 92.05 L 19.70 96.70 L 16.75 101.46 L 14.08 106.31 L 11.70 111.23 L 9.61 116.23 L 7.83 121.29 L 6.36 126.39 L 5.20 131.52 L 4.37 136.68 L 3.86 141.83 L 3.69 146.98 L 3.86 152.10 L 4.36 157.18 L 5.20 162.20 L 6.38 167.15 L 7.90 172.00 L 9.74 176.74 L 11.91 181.35 L 14.40 185.82 L 17.19 190.14 L 20.27 194.29 L 23.64 198.25 L 27.28 202.03 L 31.18 205.60 L 35.33 208.96 L 39.71 212.10 Z" fill="url(#blueArc)" opacity="0.9"/><ellipse cx="130.0" cy="130.0" rx="93.60000000000001" ry="67.6" transform="rotate(-18 130.0 130.0)" fill="none" stroke="url(#chromeCore)" stroke-width="52.0" opacity="0.95"/><path d="M 209.41 64.02 L 212.89 66.51 L 216.16 69.14 L 219.21 71.91 L 222.04 74.80 L 224.64 77.81 L 227.01 80.94 L 229.15 84.16 L 231.05 87.49 L 232.72 90.92 L 234.15 94.43 L 235.33 98.03 L 236.28 101.71 L 236.98 105.46 L 237.44 109.29 L 237.65 113.18 L 237.60 117.13 L 237.30 121.13 L 236.74 125.18 L 235.92 129.26 L 234.84 133.36 L 233.51 137.49 L 231.91 141.61 L 230.05 145.73 L 227.93 149.83 L 225.56 153.90 L 222.94 157.93 L 220.07 161.91 L 216.97 165.82 L 213.63 169.65 L 210.07 173.39 L 206.30 177.03 L 202.31 180.56 L 198.14 183.96 L 193.78 187.24 L 189.24 190.37 L 184.54 193.36 L 179.69 196.18 L 174.71 198.84 L 169.60 201.32 L 164.38 203.63 L 159.06 205.74 L 153.66 207.66 L 148.19 209.38 L 142.67 210.90 L 137.10 212.21 L 131.51 213.30 L 125.91 214.19 L 120.32 214.85 L 114.74 215.30 L 109.19 215.54 L 103.70 215.55 L 98.26 215.34 L 92.90 214.92 L 87.62 214.28 L 82.45 213.42 L 77.40 212.35 L 72.47 211.07 L 67.68 209.59 L 63.04 207.91 L 58.56 206.03 L 54.26 203.96 L 50.14 201.70 L 46.21 199.26 L 42.48 196.64 L 38.96 193.86 L 35.65 190.91 L 32.57 187.80 L 29.72 184.55 L 27.10 181.14 L 24.73 177.60 L 22.61 173.93 L 20.74 170.13 L 19.13 166.22 L 17.78 162.19 L 16.71 158.07 L 15.90 153.84 L 15.38 149.54 L 15.13 145.16 L 15.18 140.72 L 15.50 136.22 L 12.04 135.72 L 11.33 140.41 L 10.92 145.09 L 10.82 149.76 L 11.03 154.41 L 11.54 159.01 L 12.37 163.57 L 13.50 168.07 L 14.94 172.48 L 16.69 176.81 L 18.73 181.03 L 21.08 185.14 L 23.71 189.12 L 26.63 192.95 L 29.83 196.64 L 33.29 200.16 L 37.00 203.50 L 40.97 206.67 L 45.16 209.64 L 49.58 212.41 L 54.21 214.97 L 59.04 217.33 L 64.06 219.46 L 69.24 221.37 L 74.59 223.04 L 80.08 224.49 L 85.70 225.70 L 91.43 226.67 L 97.27 227.40 L 103.19 227.89 L 109.19 228.14 L 115.25 228.14 L 121.34 227.90 L 127.47 227.42 L 133.61 226.70 L 139.74 225.74 L 145.86 224.54 L 151.95 223.10 L 157.99 221.44 L 163.97 219.55 L 169.88 217.44 L 175.69 215.11 L 181.40 212.57 L 186.99 209.82 L 192.45 206.87 L 197.77 203.73 L 202.93 200.40 L 207.92 196.89 L 212.73 193.21 L 217.34 189.36 L 221.74 185.36 L 225.93 181.20 L 229.89 176.91 L 233.62 172.49 L 237.09 167.95 L 240.30 163.30 L 243.25 158.54 L 245.92 153.69 L 248.30 148.77 L 250.39 143.77 L 252.17 138.71 L 253.64 133.61 L 254.80 128.48 L 255.63 123.32 L 256.14 118.17 L 256.31 113.02 L 256.14 107.90 L 255.64 102.82 L 254.80 97.80 L 253.62 92.85 L 252.10 88.00 L 250.26 83.26 L 248.09 78.65 L 245.60 74.18 L 242.81 69.86 L 239.73 65.71 L 236.36 61.75 L 232.72 57.97 L 228.82 54.40 L 224.67 51.04 L 220.29 47.90 Z" fill="url(#redArc)" opacity="0.92"/><circle cx="191.7" cy="78.2" r="23.4" fill="white" opacity="0.55" filter="url(#specBlur)"/><ellipse cx="130.0" cy="114.4" rx="64.22" ry="44.459999999999994" transform="rotate(-18 130.0 114.4)" fill="none" stroke="#EFF0F3" stroke-width="1.5" opacity="0.35" filter="url(#specBlur)"/><circle cx="150.1" cy="226.0" r="0.4" fill="white" opacity="0.15179998562001187"/><circle cx="67.5" cy="240.3" r="0.3" fill="white" opacity="0.37779197056621067"/><circle cx="112.2" cy="214.8" r="0.3" fill="white" opacity="0.19101832322408785"/><circle cx="247.0" cy="64.0" r="0.3" fill="white" opacity="0.37567189337740237"/>
+</g>
+</svg>

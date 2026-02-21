@@ -246,12 +246,12 @@ export default async function SearchPage({ searchParams }: Props) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mb-10">
-        <h1 className="section-heading-accent text-3xl font-bold text-slate-900">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+      <div className="mb-6 sm:mb-10">
+        <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           {query ? `Results for "${query}"` : "All Listings"}
         </h1>
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-3 sm:mt-4 text-sm text-text-secondary">
           {total} result{total !== 1 ? "s" : ""} found
         </p>
       </div>
@@ -271,11 +271,11 @@ export default async function SearchPage({ searchParams }: Props) {
         initial={currentParams}
         mode="instant"
         showAdvancedInline
-        className="mb-8"
+        className="mb-6 sm:mb-8"
       />
 
       {listings.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
           {listings.map((listing) => (
             <ListingCard
               key={listing.id}
@@ -291,7 +291,7 @@ export default async function SearchPage({ searchParams }: Props) {
           ))}
         </div>
       ) : (
-        <p className="text-center py-16 text-slate-500">
+        <p className="text-center py-16 text-text-secondary">
           No listings found. Try adjusting your search.
         </p>
       )}
@@ -304,8 +304,8 @@ export default async function SearchPage({ searchParams }: Props) {
               href={buildSearchUrl(currentParams, { page: String(p) })}
               className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${
                 p === page
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-slate-500 hover:bg-slate-100"
+                  ? "bg-neon-red-500 text-white shadow-glow-red"
+                  : "text-text-secondary hover:bg-surface-elevated"
               }`}
             >
               {p}

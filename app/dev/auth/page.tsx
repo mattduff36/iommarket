@@ -36,10 +36,10 @@ export default function DevAuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-canvas">
       <form onSubmit={handleSubmit} className="w-full max-w-sm px-4">
-        <div className="rounded-lg bg-white p-8 shadow-xl">
-          <h1 className="text-lg font-semibold text-slate-900">
+        <div className="rounded-lg bg-surface p-8 shadow-high border border-border">
+          <h1 className="text-lg font-semibold text-text-primary">
             Access Required
           </h1>
           <div className="mt-4">
@@ -48,7 +48,7 @@ export default function DevAuthPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-royal-500 focus:outline-none focus:ring-1 focus:ring-royal-500"
+              className="w-full rounded-sm border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:border-neon-blue-500 focus:outline-none focus:shadow-glow-blue"
               autoFocus
               required
             />
@@ -56,7 +56,7 @@ export default function DevAuthPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            className="mt-4 w-full rounded-sm bg-neon-red-500 px-4 py-2 text-sm font-bold uppercase italic text-white hover:bg-neon-red-400 disabled:opacity-50 transition-colors shadow-glow-red"
           >
             {loading ? "..." : "Enter"}
           </button>

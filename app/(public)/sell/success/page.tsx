@@ -36,7 +36,7 @@ export default async function SellSuccessPage({ searchParams }: Props) {
                 <Link href={`/listings/${listingId}`}>View Listing</Link>
               </Button>
             )}
-            <Button asChild variant="secondary">
+            <Button asChild variant="trust">
               <Link href="/sell">Create Another Listing</Link>
             </Button>
             <Button asChild variant="ghost">

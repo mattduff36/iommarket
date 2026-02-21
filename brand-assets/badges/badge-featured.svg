@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" width="200" height="44">
+<defs>
+<linearGradient id="badgeFill" x1="0.0%" y1="50.0%" x2="100.0%" y2="50.0%">
+<stop offset="0%" stop-color="#0B549A" stop-opacity="1"/>
+<stop offset="38%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="56%" stop-color="#3CAAFF" stop-opacity="1"/>
+<stop offset="74%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="100%" stop-color="#04223F" stop-opacity="1"/>
+</linearGradient>
+<filter id="badgeGlow" x="-50%" y="-50%" width="200%" height="200%">
+  <feDropShadow dx="0" dy="0" stdDeviation="12.0" flood-color="#3CAAFF" flood-opacity="0.42"/>
+</filter>
+</defs>
+<rect x="0" y="0" width="200" height="44" rx="22.0" fill="url(#badgeFill)" opacity="0.9" filter="url(#badgeGlow)"/>
+<rect x="1.3" y="1.3" width="197.4" height="41.4" rx="22.0" fill="none" stroke="#3CAAFF" stroke-width="2.6" opacity="0.75"/>
+<g transform="translate(15.7,9.7) scale(1.027)"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#FAFAFC"/></g>
+<text x="116.0" y="22.9" dominant-baseline="central" font-family="'Montserrat', Arial, sans-serif" font-weight="500" font-size="11" letter-spacing="1.6" fill="#FAFAFC">FEATURED</text>
+</svg>

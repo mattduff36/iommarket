@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 1024" width="120" height="1024">
+<defs><linearGradient id="streakGrad" x1="0.0%" y1="50.0%" x2="100.0%" y2="50.0%">
+<stop offset="0%" stop-color="#0B549A" stop-opacity="1"/>
+<stop offset="38%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="56%" stop-color="#3CAAFF" stop-opacity="1"/>
+<stop offset="74%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="100%" stop-color="#04223F" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="streakGrad2" x1="0.0%" y1="50.0%" x2="100.0%" y2="50.0%">
+<stop offset="0%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="38%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="55%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="72%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="100%" stop-color="#3B0A0A" stop-opacity="1"/>
+</linearGradient>
+<filter id="streakBlur" x="-50%" y="-50%" width="200%" height="200%">
+  <feGaussianBlur stdDeviation="13.0"/>
+</filter></defs>
+<path d="M 30.0 0 Q 24.0 102.4 42.0 512.0 Q 54.0 921.6 60.0 1024 L 60.0 1024 Q 66.0 921.6 78.0 512.0 Q 96.0 102.4 90.0 0 Z" fill="url(#streakGrad)" opacity="0.85" filter="url(#streakBlur)"/><g transform="translate(9.6, 0)"><path d="M 30.0 0 Q 24.0 102.4 42.0 512.0 Q 54.0 921.6 60.0 1024 L 60.0 1024 Q 66.0 921.6 78.0 512.0 Q 96.0 102.4 90.0 0 Z" fill="url(#streakGrad2)" opacity="0.25" filter="url(#streakBlur)"/></g>
+</svg>

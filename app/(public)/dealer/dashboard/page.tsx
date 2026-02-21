@@ -79,7 +79,7 @@ export default async function DealerDashboardPage() {
               New Listing
             </Link>
           </Button>
-          <Button asChild variant="secondary">
+          <Button asChild variant="ghost">
             <Link href={`/dealers/${user.dealerProfile.slug}`}>
               <ExternalLink className="h-4 w-4" />
               View Profile
@@ -89,7 +89,7 @@ export default async function DealerDashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-4 mb-8">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 mb-8">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-text-secondary">
@@ -109,7 +109,7 @@ export default async function DealerDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-emerald-600">{liveCount}</p>
+            <p className="text-2xl font-bold text-neon-blue-500">{liveCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -119,7 +119,7 @@ export default async function DealerDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-amber-600">
+            <p className="text-2xl font-bold text-premium-gold-500">
               {pendingCount}
             </p>
           </CardContent>
@@ -140,8 +140,8 @@ export default async function DealerDashboardPage() {
 
       {/* Subscription status */}
       <Card className="mb-8">
-        <CardContent className="flex items-center justify-between py-4">
-          <div className="flex items-center gap-3">
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className="text-sm font-medium text-text-primary">
               Subscription:
             </span>
@@ -209,7 +209,7 @@ export default async function DealerDashboardPage() {
                 <TableCell>
                   <Link
                     href={`/listings/${listing.id}`}
-                    className="text-sm text-text-brand hover:underline"
+                    className="text-sm text-text-trust hover:underline"
                   >
                     View
                   </Link>
@@ -222,7 +222,7 @@ export default async function DealerDashboardPage() {
         <div className="text-center py-16">
           <p className="text-text-secondary">
             No listings yet.{" "}
-            <Link href="/sell" className="text-text-brand hover:underline">
+            <Link href="/sell" className="text-text-trust hover:underline">
               Create your first listing
             </Link>
           </p>
