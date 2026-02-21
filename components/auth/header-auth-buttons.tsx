@@ -73,6 +73,15 @@ export function HeaderAuthButtons() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem asChild>
+          <Link href="/account/favourites">Saved listings</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account/saved-searches">Saved searches</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/dealer/dashboard">Dealer dashboard</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href="/account/change-password">Change password</Link>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>

@@ -4,6 +4,7 @@
  */
 
 const requests = new Map<string, { count: number; resetAt: number }>();
+let lastCleanupAt = 0;
 
 interface RateLimitConfig {
   windowMs: number;
@@ -22,6 +23,14 @@ export function checkRateLimit(
   const { windowMs, maxRequests } = { ...DEFAULTS, ...config };
   const now = Date.now();
 
+  // Opportunistic cleanup to avoid unbounded growth.
+  if (now - lastCleanupAt > 60_000) {
+    for (const [mapKey, value] of requests.entries()) {
+      if (value.resetAt < now) requests.delete(mapKey);
+    }
+    lastCleanupAt = now;
+  }
+
   const entry = requests.get(key);
 
   if (!entry || entry.resetAt < now) {
@@ -39,4 +48,8 @@ export function checkRateLimit(
     remaining: maxRequests - entry.count,
     resetAt: entry.resetAt,
   };
+}
+
+export function makeRateLimitKey(scope: string, identifier: string): string {
+  return `${scope}:${identifier.trim().toLowerCase()}`;
 }

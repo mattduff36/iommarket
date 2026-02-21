@@ -17,6 +17,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Plus, ExternalLink } from "lucide-react";
+import { DevSubscriptionBypass } from "@/components/dev/dev-subscription-bypass";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -164,6 +165,12 @@ export default async function DealerDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {!subscription && process.env.NODE_ENV !== "production" && (
+        <div className="mb-8">
+          <DevSubscriptionBypass />
+        </div>
+      )}
 
       {/* Listings table */}
       <h2 className="text-lg font-semibold text-text-primary mb-4">

@@ -8,6 +8,8 @@ const FOOTER_NAV = [
   { label: "Sell", href: "/sell" },
   { label: "Terms", href: "/terms" },
   { label: "Privacy", href: "/privacy" },
+  { label: "Cookies", href: "/cookies" },
+  { label: "Buyer Safety", href: "/safety" },
   { label: "Contact", href: "/contact" },
 ];
 

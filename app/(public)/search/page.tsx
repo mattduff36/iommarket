@@ -2,10 +2,12 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { ListingCard } from "@/components/marketplace/listing-card";
+import { getCurrentUser } from "@/lib/auth";
 import { SearchControls } from "@/components/marketplace/search/search-controls";
+import { ListingResultsClient } from "@/components/marketplace/search/listing-results-client";
+import { SaveSearchButton } from "@/components/marketplace/save-search-button";
 import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
-import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
+import { type SearchParams } from "@/lib/search/search-url";
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -13,9 +15,22 @@ interface Props {
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const canonicalParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (!value) continue;
+    if (key === "page" && value === "1") continue;
+    canonicalParams.set(key, value);
+  }
+  const canonicalPath = canonicalParams.toString()
+    ? `/search?${canonicalParams.toString()}`
+    : "/search";
   return {
     title: sp.q ? `Search: ${sp.q}` : "Search",
     description: "Search vehicles on itrader.im. Cars, vans, motorbikes across the Isle of Man.",
+    alternates: {
+      canonical: `${appUrl}${canonicalPath}`,
+    },
   };
 }
 
@@ -33,6 +48,7 @@ interface NumericRangeFilter {
 
 export default async function SearchPage({ searchParams }: Props) {
   const sp = await searchParams;
+  const currentUser = await getCurrentUser();
   const query = sp.q?.trim() ?? "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
@@ -89,6 +105,7 @@ export default async function SearchPage({ searchParams }: Props) {
   if (sp.bodyType) exactAttrFilters.push({ slug: "body-type", value: sp.bodyType });
   if (sp.colour) exactAttrFilters.push({ slug: "colour", value: sp.colour });
   if (sp.driveType) exactAttrFilters.push({ slug: "drive-type", value: sp.driveType });
+  if (sp.location) exactAttrFilters.push({ slug: "location", value: sp.location });
 
   const attrAndClauses = [
     ...(sp.make
@@ -221,8 +238,6 @@ export default async function SearchPage({ searchParams }: Props) {
   const dbMakes = [...new Set(makeRows.map((r) => r.value))];
   const makes = getMakesWithDb(dbMakes);
 
-  const totalPages = Math.ceil(total / pageSize);
-
   const currentParams: SearchParams = {
     q: sp.q, category: sp.category, region: sp.region,
     make: sp.make, model: sp.model,
@@ -232,7 +247,7 @@ export default async function SearchPage({ searchParams }: Props) {
     bodyType: sp.bodyType, colour: sp.colour,
     doors: sp.doors, seats: sp.seats,
     fuelType: sp.fuelType, transmission: sp.transmission,
-    driveType: sp.driveType, sellerType: sp.sellerType,
+    driveType: sp.driveType, sellerType: sp.sellerType, location: sp.location,
     minEngineSize: sp.minEngineSize, maxEngineSize: sp.maxEngineSize,
     minEnginePower: sp.minEnginePower, maxEnginePower: sp.maxEnginePower,
     minBatteryRange: sp.minBatteryRange, maxBatteryRange: sp.maxBatteryRange,
@@ -251,67 +266,56 @@ export default async function SearchPage({ searchParams }: Props) {
         <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           {query ? `Results for "${query}"` : "All Listings"}
         </h1>
-        <p className="mt-3 sm:mt-4 text-sm text-text-secondary">
-          {total} result{total !== 1 ? "s" : ""} found
-        </p>
+      </div>
+      <div className="sticky top-16 z-20 bg-canvas/95 backdrop-blur-sm py-2 mb-5 border-b border-border">
+        <SearchControls
+          makes={makes}
+          modelsByMake={modelsByMake}
+          categories={categories.map((c) => ({
+            label: c.name,
+            value: c.slug,
+            count: c._count.listings,
+          }))}
+          regions={regions.map((r) => ({
+            label: r.name,
+            value: r.slug,
+          }))}
+          initial={currentParams}
+          mode="instant"
+          showAdvancedInline
+          className="mb-0"
+        />
       </div>
 
-      <SearchControls
-        makes={makes}
-        modelsByMake={modelsByMake}
-        categories={categories.map((c) => ({
-          label: c.name,
-          value: c.slug,
-          count: c._count.listings,
-        }))}
-        regions={regions.map((r) => ({
-          label: r.name,
-          value: r.slug,
-        }))}
-        initial={currentParams}
-        mode="instant"
-        showAdvancedInline
-        className="mb-6 sm:mb-8"
-      />
+      <div className="mb-4 flex justify-end">
+        {currentUser ? (
+          <SaveSearchButton
+            queryParams={Object.fromEntries(
+              Object.entries(currentParams).filter(([, value]) => Boolean(value))
+            ) as Record<string, string>}
+          />
+        ) : null}
+      </div>
 
       {listings.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-          {listings.map((listing) => (
-            <ListingCard
-              key={listing.id}
-              title={listing.title}
-              price={listing.price / 100}
-              imageSrc={listing.images[0]?.url}
-              location={listing.region.name}
-              meta={listing.category.name}
-              featured={listing.featured}
-              badge={listing.featured ? "Featured" : undefined}
-              href={`/listings/${listing.id}`}
-            />
-          ))}
-        </div>
+        <ListingResultsClient
+          initialListings={listings.map((listing) => ({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            featured: listing.featured,
+            imageSrc: listing.images[0]?.url,
+            categoryName: listing.category.name,
+            regionName: listing.region.name,
+          }))}
+          total={total}
+          pageSize={pageSize}
+          queryParams={currentParams}
+        />
       ) : (
         <p className="text-center py-16 text-text-secondary">
           No listings found. Try adjusting your search.
         </p>
-      )}
-
-      {totalPages > 1 && (
-        <div className="mt-10 flex justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <a
-              key={p}
-              href={buildSearchUrl(currentParams, { page: String(p) })}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${
-                p === page
-                  ? "bg-neon-red-500 text-white shadow-glow-red"
-                  : "text-text-secondary hover:bg-surface-elevated"
-              }`}
-            >
-              {p}
-            </a>
-          ))}
-        </div>
       )}
     </div>
   );

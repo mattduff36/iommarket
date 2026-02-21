@@ -44,6 +44,17 @@ export const reportListingSchema = z.object({
     .max(2000, "Reason is too long"),
 });
 
+export const contactSellerSchema = z.object({
+  listingId: z.string().cuid(),
+  name: z.string().min(2, "Name is required").max(120, "Name is too long"),
+  email: z.string().email("Valid email required"),
+  message: z
+    .string()
+    .min(10, "Please provide more detail")
+    .max(2000, "Message is too long"),
+  website: z.string().max(0).optional().default(""),
+});
+
 export const moderateListingSchema = z.object({
   listingId: z.string().cuid(),
   action: z.enum(["APPROVE", "REJECT", "TAKE_DOWN"]),
@@ -54,3 +65,4 @@ export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type UpdateListingInput = z.infer<typeof updateListingSchema>;
 export type ReportListingInput = z.infer<typeof reportListingSchema>;
 export type ModerateListingInput = z.infer<typeof moderateListingSchema>;
+export type ContactSellerInput = z.infer<typeof contactSellerSchema>;

@@ -1,3 +1,251 @@
+# iTrader.im MVP Product Requirements Document
+
+## 1) Problem, Mission, Positioning
+
+iTrader.im solves the lack of a structured, trustworthy marketplace for high-value local items on the Isle of Man, starting with vehicles. Existing options are cluttered, low-trust, and weak on filtering.
+
+- **Mission**: deliver a premium-feeling, local-first marketplace that is simple, trusted, and effective.
+- **Positioning**: professional and premium (not startup-y), minimal motion, clarity-first UX.
+- **MVP geography**: Isle of Man only, with default region scope set to the whole Isle of Man.
+
+## 2) Personas
+
+- **Private seller**: wants low-friction listing flow, clear pricing, fast publishing, and renewals.
+- **Dealer**: wants subscription-based posting, profile branding, and ongoing listing management.
+- **Buyer**: wants fast search/filtering, confidence/trust cues, and easy seller contact without account creation.
+- **Admin/moderator**: needs queue-based moderation, reporting workflow, and listing controls.
+
+## 3) Scope: MVP vs Post-MVP
+
+### MVP (must-have)
+
+- Vehicle marketplace (cars, vans, motorbikes).
+- Homepage with dominant search, featured listings, subtle dealer spotlight, trust stats, SEO content block.
+- Search results with:
+  - grid default
+  - optional grid/list toggle
+  - infinite scroll
+  - sticky filters
+  - URL-persistent filter state
+  - crawlable filter URLs and canonical strategy
+- Listing detail with large gallery + thumbnails, sticky contact/price area, spec table, expandable description, similar listings, share actions.
+- Seller wizard with:
+  - step-based flow
+  - photo guidance
+  - min 2 / max 20 photos
+  - preview before publish
+  - create draft, submit for moderation, live for 30 days when approved
+- Monetisation:
+  - first month free for all listings
+  - paid private listings after free window
+  - dealer subscriptions
+  - featured listing upsell
+- Buyer tools:
+  - favourites (account required)
+  - saved searches (account required)
+  - contact seller without account
+- Admin moderation:
+  - approve/takedown queue
+  - report handling
+  - dealer verification visibility
+  - feature toggle support
+- Trust/legal:
+  - terms, privacy, cookies pages
+  - buyer safety guidance
+  - cookie consent banner
+
+### Post-MVP (explicitly future)
+
+- Saved filter presets and price-drop alerts.
+- 360 image support, recently viewed, price history chart.
+- Map view and finance teaser/integration.
+- Multi-region rollout beyond Isle of Man.
+- Mobile apps.
+- Dealer ratings and bulk upload.
+
+## 4) User Journeys
+
+### A) Browse/Search Listings
+
+1. User lands on homepage.
+2. User searches by category/make/model/price and optional advanced filters.
+3. User reaches results page in grid by default.
+4. User scrolls for more results (infinite scroll), toggles list/grid if desired.
+5. URL remains shareable and crawlable.
+
+### B) View Listing Detail
+
+1. User opens listing page.
+2. User views gallery, specs, and seller context.
+3. User uses share actions and checks similar listings.
+4. User contacts seller without signing in.
+
+### C) Favourite + Saved Search
+
+1. Authenticated user favorites listing from results/detail.
+2. User saves current search filter state.
+3. User returns to profile area and re-runs saved search quickly.
+
+### D) Contact Seller (No Account)
+
+1. Buyer opens contact form on listing.
+2. Submits name/email/message with anti-spam checks.
+3. Platform sends transactional email to seller and confirmation to buyer.
+
+### E) Create Listing Wizard (Private)
+
+1. User starts `/sell`.
+2. Completes step-based form + attributes.
+3. Uploads 2-20 photos with guidance.
+4. Reviews preview.
+5. Submits listing:
+   - if free window active: moves to moderation submission
+   - else: checkout payment required before moderation submission
+
+### F) Dealer Flow
+
+1. Dealer creates/uses account and profile.
+2. Dealer purchases subscription via Stripe Checkout.
+3. Active subscription unlocks dealer posting capability.
+4. Dealer profile page displays branding and current inventory.
+
+### G) Admin Moderation
+
+1. Admin views pending queue.
+2. Approves/takes down listings and can feature where applicable.
+3. Reviews reports, updates report status, leaves notes.
+4. Dealer verification flag is visible.
+
+## 5) Functional Requirements by Area
+
+### Homepage
+
+- Brand + search-first hero.
+- Featured listing section.
+- Subtle dealer spotlight area.
+- Live marketplace trust stats.
+- SEO-friendly descriptive content block.
+
+### Search + Filters + Results
+
+- Supports required filters from questionnaire including:
+  - price/year/mileage/body type/colour/fuel/transmission/drive type/seats
+  - battery range, engine size, acceleration, fuel consumption, CO2
+  - tax per year (Isle of Man context), insurance group
+  - seller type
+  - location attribute (Isle of Man or UK)
+  - keyword
+- Filter state reflected in URLs.
+- URL strategy supports crawlability and canonical normalization.
+- Results show featured style subtly.
+
+### Listing Detail
+
+- Gallery with primary image + thumbs.
+- Sticky contact + pricing area.
+- Expandable description and structured specs.
+- Similar listing suggestions.
+- Share actions.
+
+### Seller Wizard
+
+- Multi-step with validation per step.
+- Photo constraints: min 2, max 20.
+- Preview step mandatory before publish.
+- Submission creates moderation candidate.
+- Live listings expire at 30 days; renewal flow available.
+
+### Dealer
+
+- Subscription-required posting control.
+- Dealer profile branding and listing display.
+- Basic dealer dashboard metrics.
+- Verification badge support.
+
+### Monetisation
+
+- Configurable first-month free window.
+- Paid private listings after free window.
+- Dealer recurring subscriptions.
+- Featured upsell purchase path.
+
+### Trust / Legal
+
+- Public terms/privacy/cookies pages.
+- Fraud report form.
+- Buyer safety guidance linked site-wide.
+- Cookie consent capture.
+
+## 6) Non-Functional Requirements
+
+### SEO
+
+- Crawlable filter URLs with canonical normalization.
+- Listing/detail/category pages include canonical.
+- Include `robots.txt` and sitemap generation.
+- Avoid duplicate index bloat from equivalent filter combinations.
+
+### Performance
+
+- Optimized image delivery and reasonable sizing.
+- Server-render first page of search for crawlability, then incremental load.
+- Cache safe read-heavy queries where possible.
+
+### Security
+
+- Zod validation for write paths.
+- Rate limiting + spam controls for public submissions.
+- Role-gated admin operations.
+- Webhook signature verification and idempotency.
+
+### Accessibility
+
+- Semantic labels for controls/forms.
+- Keyboard usable filter/search and wizard actions.
+- Contrast and focus states preserved.
+
+## 7) Data Model (Prisma)
+
+### Existing core models
+
+- `User`, `DealerProfile`, `Region`, `Category`, `AttributeDefinition`
+- `Listing`, `ListingImage`, `ListingAttributeValue`
+- `Payment`, `Subscription`, `Report`
+
+### Required additions/changes
+
+- Add `Favourite` model (`userId`, `listingId`, timestamps, unique pair).
+- Add `SavedSearch` model (`userId`, `name`, `queryParamsJson`).
+- Add listing analytics model/counter (for basic view counts).
+- Add optional report workflow fields if needed for admin notes lifecycle.
+- Ensure listing publish/renew logic references free-window config.
+
+## 8) Integrations / Services
+
+- **Database**: Postgres (Supabase Postgres compatible).
+- **Auth**: Supabase Auth.
+- **Image**: Cloudinary + `publicId` persistence and deletion hooks.
+- **Payments**: Stripe Checkout + subscriptions + webhooks + idempotency.
+- **Email**: Resend for contact/report confirmations.
+- **Analytics**: Vercel Analytics baseline events.
+- **Error Monitoring**: optional Sentry (minimal MVP setup).
+- **Moderation**: in-app admin dashboard tooling.
+
+## 9) Acceptance Criteria (Testable)
+
+- Search supports required filters and persistent shareable URLs.
+- Search defaults to grid, supports list toggle and infinite scroll.
+- Listing contact works without account and sends transactional emails.
+- Seller wizard enforces 2-20 images and includes preview before publish.
+- Listing lifecycle enforces moderation and 30-day expiry with renewal.
+- Free window pricing rule is configurable and active in logic.
+- Dealer posting is gated by active subscription status.
+- Favourites and saved searches work for authenticated users.
+- Admin can approve/takedown listings and process reports.
+- Terms/privacy/cookies and buyer safety pages are live and linked.
+- `robots` and sitemap are available.
+- Seed can generate 100-300 realistic listings.
+- Vitest and Playwright suites run locally with documented setup.
 # Isle of Man Marketplace (itrader.im) — PRD + Implementation Plan
 
 This document is the **source of truth PRD** and a **build-ready implementation plan** for an Isle of Man hyper-local marketplace MVP. It is written to be actionable by another engineer/model to implement directly.

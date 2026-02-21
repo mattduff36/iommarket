@@ -63,6 +63,7 @@ const CO2_MAX = 300;
 const TAX_MAX = 600;
 const INSURANCE_GROUP_MAX = 50;
 const BOOT_SPACE_MAX = 2500;
+const LOCATION_OPTIONS = ["Isle of Man", "UK"] as const;
 
 function parseNum(s: string | undefined, fallback: number): number {
   if (!s) return fallback;
@@ -97,6 +98,7 @@ export function AdvancedSearchModal({
   const [transmission, setTransmission] = React.useState(initial.transmission ?? "");
   const [driveType, setDriveType] = React.useState(initial.driveType ?? "");
   const [sellerType, setSellerType] = React.useState(initial.sellerType ?? "");
+  const [location, setLocation] = React.useState(initial.location ?? "");
   const [doors, setDoors] = React.useState(initial.doors ?? "");
   const [seats, setSeats] = React.useState(initial.seats ?? "");
 
@@ -153,6 +155,7 @@ export function AdvancedSearchModal({
     setTransmission(initial.transmission ?? "");
     setDriveType(initial.driveType ?? "");
     setSellerType(initial.sellerType ?? "");
+    setLocation(initial.location ?? "");
     setDoors(initial.doors ?? "");
     setSeats(initial.seats ?? "");
     setPriceRange([parseNum(initial.minPrice, 0), parseNum(initial.maxPrice, PRICE_MAX)]);
@@ -208,6 +211,7 @@ export function AdvancedSearchModal({
       transmission: transmission || undefined,
       driveType: driveType || undefined,
       sellerType: sellerType || undefined,
+      location: location || undefined,
       doors: doors || undefined,
       seats: seats || undefined,
       minPrice: rangeMinParam(priceRange[0], 0),
@@ -328,6 +332,7 @@ export function AdvancedSearchModal({
               <SelectField label="Fuel Type" value={fuelType} onChange={setFuelType} options={FUEL_TYPE_OPTIONS} />
               <SelectField label="Drive Type" value={driveType} onChange={setDriveType} options={DRIVE_TYPE_OPTIONS} />
               <SelectField label="Seller Type" value={sellerType} onChange={setSellerType} options={SELLER_TYPE_OPTIONS} />
+              <SelectField label="Location" value={location} onChange={setLocation} options={LOCATION_OPTIONS} />
             </div>
           </section>
 

@@ -81,3 +81,22 @@ test.describe("Layout sanity – no horizontal overflow", () => {
     });
   }
 });
+
+test.describe("Marketplace journey", () => {
+  test("home -> search -> listing detail", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.goto("/search", { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("heading", { name: /all listings|results/i }).first()
+    ).toBeVisible();
+
+    const firstListing = page.locator("a[href^='/listings/']").first();
+    await expect(firstListing).toBeVisible();
+    await firstListing.click();
+
+    await expect(page).toHaveURL(/\/listings\//);
+    await expect(
+      page.getByRole("heading", { level: 1 })
+    ).toBeVisible();
+  });
+});

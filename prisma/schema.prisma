@@ -30,6 +30,9 @@ model User {
   listings      Listing[]
   dealerProfile DealerProfile?
   reports       Report[]
+  favourites    Favourite[]
+  savedSearches SavedSearch[]
+  listingViews  ListingView[]
 
   @@index([authUserId])
   @@index([email])
@@ -44,6 +47,7 @@ model DealerProfile {
   website   String?
   phone     String?
   logoUrl   String?
+  verified  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -135,6 +139,8 @@ model Listing {
   price       Int           // stored in pence
   status      ListingStatus @default(DRAFT)
   featured    Boolean       @default(false)
+  slug        String?
+  viewCount   Int           @default(0)
   expiresAt   DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -148,10 +154,13 @@ model Listing {
   attributeValues ListingAttributeValue[]
   payments        Payment[]
   reports         Report[]
+  favouritedBy    Favourite[]
+  views           ListingView[]
 
   @@index([categoryId, regionId, status])
   @@index([status])
   @@index([price])
+  @@index([slug])
   @@index([userId])
   @@index([dealerId])
   @@index([createdAt])
@@ -260,4 +269,45 @@ model Report {
 
   @@index([listingId])
   @@index([status])
+}
+
+model Favourite {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([userId])
+  @@index([listingId])
+}
+
+model SavedSearch {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  queryParamsJson Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ListingView {
+  id         String   @id @default(cuid())
+  listingId  String
+  viewerId   String?
+  viewerHash String
+  createdAt  DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  viewer  User?   @relation(fields: [viewerId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt])
+  @@index([viewerHash, createdAt])
 }

@@ -15,7 +15,7 @@ import { ArrowRight } from "lucide-react";
 /* ------------------------------------------------------------------ */
 export default async function HomePage() {
   /* Fetch categories + latest listings per top-2 categories */
-  const [categories, regions, makeDefs, modelDefs] = await Promise.all([
+  const [categories, regions, makeDefs, modelDefs, dealers] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
@@ -34,6 +34,13 @@ export default async function HomePage() {
     db.attributeDefinition.findMany({
       where: { slug: "model" },
       select: { id: true },
+    }),
+    db.dealerProfile.findMany({
+      take: 3,
+      orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { listings: { where: { status: "LIVE" } } } },
+      },
     }),
   ]);
 
@@ -136,6 +143,7 @@ export default async function HomePage() {
         </div>
       </section>
 
+
       {/* ============ PER-CATEGORY LISTING ROWS ============ */}
       {categoryListings.map(({ category, listings }) =>
         listings.length > 0 ? (
@@ -174,6 +182,32 @@ export default async function HomePage() {
         ) : null,
       )}
 
+      {/* ============ DEALER SPOTLIGHTS ============ */}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="section-heading-accent text-xl sm:text-2xl font-bold text-text-primary font-heading">
+            Dealer Spotlights
+          </h2>
+          <Link href="/search?sellerType=dealer" className="text-sm text-text-trust hover:underline">
+            View all dealers
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
+          {dealers.map((dealer) => (
+            <div key={dealer.id} className="rounded-lg border border-border bg-surface p-5">
+              <h3 className="font-semibold text-text-primary">{dealer.name}</h3>
+              <p className="mt-2 text-sm text-text-secondary line-clamp-3">{dealer.bio ?? "Trusted Isle of Man dealer."}</p>
+              <p className="mt-3 text-xs text-text-secondary">
+                {dealer._count.listings} live listings
+              </p>
+              <Link href={`/dealers/${dealer.slug}`} className="mt-3 inline-block text-sm text-text-trust hover:underline">
+                Visit profile
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ============ CTA ============ */}
       <section className="bg-surface">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:py-20 sm:px-6 lg:px-8 text-center">
@@ -196,6 +230,15 @@ export default async function HomePage() {
             </Button>
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+        <h2 className="text-lg font-semibold text-text-primary">Isle of Man vehicle marketplace</h2>
+        <p className="mt-3 text-sm text-text-secondary leading-relaxed">
+          iTrader.im helps buyers and sellers across the Isle of Man connect through structured listings,
+          transparent pricing, and moderation-first trust standards. Search by make, model, running costs,
+          and location to find the right vehicle faster.
+        </p>
       </section>
     </>
   );

@@ -19,6 +19,7 @@ const SEARCH_KEYS = [
   "transmission",
   "driveType",
   "sellerType",
+  "location",
   "minEngineSize",
   "maxEngineSize",
   "minEnginePower",

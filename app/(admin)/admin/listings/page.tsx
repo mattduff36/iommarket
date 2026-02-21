@@ -84,6 +84,7 @@ export default async function AdminListingsPage() {
                 <ModerationActions
                   listingId={listing.id}
                   currentStatus={listing.status}
+                  featured={listing.featured}
                 />
               </TableCell>
             </TableRow>

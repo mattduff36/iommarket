@@ -23,7 +23,7 @@ const buttonVariants = cva(
           "active:bg-neon-red-600",
         ].join(" "),
         trust: [
-          "bg-neon-blue-500 text-white",
+          "bg-neon-blue-500 text-white font-bold uppercase italic",
           "shadow-glow-blue",
           "hover:bg-neon-blue-400 hover:shadow-[0_0_20px_4px_var(--color-neonBlue-glow)]",
           "active:bg-neon-blue-600",

@@ -43,6 +43,9 @@ export default function PricingPage() {
         <p className="mt-4 text-lg text-text-secondary max-w-xl mx-auto">
           No hidden fees. Just straightforward pricing for Isle of Man sellers.
         </p>
+        <p className="mt-3 text-sm text-premium-gold-500">
+          Launch offer: first month free for all listings.
+        </p>
       </div>
 
       <div className="grid gap-8 md:grid-cols-2 max-w-3xl mx-auto">

@@ -8,6 +8,7 @@ import {
   createFeaturedUpgradeCheckout,
 } from "@/lib/payments/stripe";
 import { createCheckoutSchema } from "@/lib/validations/payment";
+import { getListingFeePence, isListingFreeNow } from "@/lib/config/marketplace";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -31,13 +32,21 @@ export async function payForListing(listingId: string) {
   }
 
   try {
-    // Default listing fee: £4.99 = 499 pence
-    const LISTING_FEE_PENCE = 499;
+    const shouldSkipPayment =
+      isListingFreeNow() || (user.role === "DEALER" && Boolean(user.dealerProfile));
+    if (shouldSkipPayment) {
+      // Do NOT update status here. The caller must still invoke submitListingForReview
+      // so that server-side image validation (≥ 2 photos) is enforced before the
+      // listing enters the moderation queue.
+      return { data: { checkoutUrl: null, skippedPayment: true } };
+    }
+
+    const listingFeePence = getListingFeePence();
 
     const session = await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
-      amountInPence: LISTING_FEE_PENCE,
+      amountInPence: listingFeePence,
       customerEmail: user.email,
       successUrl: `${APP_URL}/sell/success?listing=${listing.id}`,
       cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}`,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { contactSeller } from "@/actions/listings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -10,10 +11,32 @@ interface Props {
 
 export function ContactSellerForm({ listingId }: Props) {
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // MVP: simple mailto or form submission
+    setError(null);
+    setIsSending(true);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await contactSeller({
+      listingId,
+      name: String(formData.get("name") ?? ""),
+      email: String(formData.get("email") ?? ""),
+      message: String(formData.get("message") ?? ""),
+      website: String(formData.get("website") ?? ""),
+    });
+    setIsSending(false);
+
+    if (result.error) {
+      setError(
+        typeof result.error === "string"
+          ? result.error
+          : "Unable to send your message right now."
+      );
+      return;
+    }
     setSent(true);
   }
 
@@ -57,8 +80,16 @@ export function ContactSellerForm({ listingId }: Props) {
         />
       </div>
       <input type="hidden" name="listingId" value={listingId} />
+      <input
+        type="text"
+        name="website"
+        autoComplete="off"
+        tabIndex={-1}
+        className="hidden"
+      />
+      {error ? <p className="text-xs text-text-error">{error}</p> : null}
       <Button type="submit" className="w-full">
-        Send Message
+        {isSending ? "Sending..." : "Send Message"}
       </Button>
     </form>
   );

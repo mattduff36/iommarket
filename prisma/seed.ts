@@ -1,7 +1,26 @@
-import "dotenv/config";
+import * as fs from "fs";
+import * as path from "path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+
+// Load .env then .env.local so the seed always targets the same DB as the dev server.
+// .env.local values take priority, matching Next.js conventions.
+function loadEnv(file: string, override = false) {
+  if (!fs.existsSync(file)) return;
+  const lines = fs.readFileSync(file, "utf-8").split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
+    if (key && (override || !process.env[key])) process.env[key] = val;
+  }
+}
+loadEnv(path.resolve(process.cwd(), ".env"));
+loadEnv(path.resolve(process.cwd(), ".env.local"), true);
 
 const raw =
   process.env.POSTGRES_URL_NON_POOLING ??
@@ -54,6 +73,8 @@ async function main() {
   // Regions (Isle of Man towns)
   // ---------------------------------------------------------------------------
   const regionData = [
+    { name: "Entire Isle of Man", slug: "isle-of-man" },
+    { name: "United Kingdom", slug: "uk" },
     { name: "Douglas", slug: "douglas" },
     { name: "Ramsey", slug: "ramsey" },
     { name: "Peel", slug: "peel" },
@@ -144,14 +165,29 @@ async function main() {
     { name: "Tax Per Year", slug: "tax-per-year", dataType: "number", required: false, sortOrder: 18 },
     { name: "Insurance Group", slug: "insurance-group", dataType: "number", required: false, sortOrder: 19 },
     {
+      name: "Location",
+      slug: "location",
+      dataType: "select",
+      required: false,
+      sortOrder: 20,
+      options: JSON.stringify(["Isle of Man", "UK"]),
+    },
+    {
       name: "Drive Type",
       slug: "drive-type",
       dataType: "select",
       required: false,
-      sortOrder: 20,
+      sortOrder: 21,
       options: JSON.stringify(["FWD", "RWD", "4WD", "AWD"]),
     },
-    { name: "Boot Space", slug: "boot-space", dataType: "number", required: false, sortOrder: 21 },
+    {
+      name: "Previously Written Off",
+      slug: "previously-written-off",
+      dataType: "boolean",
+      required: false,
+      sortOrder: 22,
+    },
+    { name: "Boot Space", slug: "boot-space", dataType: "number", required: false, sortOrder: 23 },
   ];
 
   const motorbikeAttrDefs = vehicleAttrDefs.filter(
@@ -216,8 +252,8 @@ async function main() {
     { authUserId: "00000000-0000-0000-0000-000000000003", email: "mark.kelly@example.im", name: "Mark Kelly", role: "USER" as const },
     { authUserId: "00000000-0000-0000-0000-000000000004", email: "emma.corlett@example.im", name: "Emma Corlett", role: "USER" as const },
     { authUserId: "00000000-0000-0000-0000-000000000005", email: "info@manxmotors.im", name: "Manx Motors Ltd", role: "DEALER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000006", email: "info@islandmarine.im", name: "Island Marine Services", role: "DEALER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000007", email: "sales@soundisland.im", name: "Sound Island Audio", role: "DEALER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000006", email: "info@ramseymotors.im", name: "Ramsey Motor Company", role: "DEALER" as const },
+    { authUserId: "00000000-0000-0000-0000-000000000007", email: "sales@douglasauto.im", name: "Douglas Auto Exchange", role: "DEALER" as const },
     { authUserId: "00000000-0000-0000-0000-000000000008", email: "david.shimmin@example.im", name: "David Shimmin", role: "USER" as const },
     { authUserId: "00000000-0000-0000-0000-000000000009", email: "fiona.clague@example.im", name: "Fiona Clague", role: "USER" as const },
     { authUserId: "00000000-0000-0000-0000-00000000000a", email: "admin@itrader.im", name: "itrader.im Admin", role: "ADMIN" as const },
@@ -233,7 +269,7 @@ async function main() {
         email: u.email,
         name: u.name,
         role: u.role,
-        regionId: regions["douglas"].id,
+        regionId: regions["isle-of-man"].id,
       },
     });
     users[u.authUserId] = user;
@@ -261,38 +297,42 @@ async function main() {
       bio: "The Isle of Man's premier used car dealership. We've been serving the island for over 15 years with quality pre-owned vehicles, full service history checks, and honest pricing. Visit our showroom on Peel Road, Douglas.",
       website: "https://manxmotors.example.im",
       phone: "01624 612345",
+      verified: true,
     },
   });
 
-  const islandMarine = await prisma.dealerProfile.upsert({
-    where: { slug: "island-marine" },
+  const ramseyMotors = await prisma.dealerProfile.upsert({
+    where: { slug: "ramsey-motors" },
     update: {},
     create: {
       userId: users[dealer002].id,
-      name: "Island Marine Services",
-      slug: "island-marine",
-      bio: "Specialists in marine sales and servicing on the Isle of Man. From dinghies to motor cruisers, we handle sales, maintenance, and winter storage at our Peel marina facility.",
-      website: "https://islandmarine.example.im",
-      phone: "01624 843210",
+      name: "Ramsey Motor Company",
+      slug: "ramsey-motors",
+      bio: "Family-run pre-owned car dealership based in Ramsey, serving the north of the island since 2001. We specialise in quality used cars and light vans, with part-exchange welcome and flexible finance options available.",
+      website: "https://ramseymotors.example.im",
+      phone: "01624 813456",
+      verified: true,
     },
   });
 
-  const soundIsland = await prisma.dealerProfile.upsert({
-    where: { slug: "sound-island" },
+  const douglasAuto = await prisma.dealerProfile.upsert({
+    where: { slug: "douglas-auto" },
     update: {},
     create: {
       userId: users[dealer003].id,
-      name: "Sound Island Audio",
-      slug: "sound-island",
-      bio: "Hi-fi enthusiasts serving the Isle of Man. We stock premium audio equipment from brands like Naim, Rega, KEF, and more. Demo room available by appointment in Onchan.",
-      phone: "01624 675890",
+      name: "Douglas Auto Exchange",
+      slug: "douglas-auto",
+      bio: "Douglas-based used vehicle specialist offering cars, vans, and 4x4s across all budgets. HPI-checked stock, same-day test drives, and competitive part-exchange valuations. Find us on Peel Road.",
+      website: "https://douglasauto.example.im",
+      phone: "01624 671234",
+      verified: true,
     },
   });
 
   console.log("  Created 3 dealer profiles");
 
   // Dealer subscriptions (active)
-  for (const dealer of [manxMotors, islandMarine, soundIsland]) {
+  for (const dealer of [manxMotors, ramseyMotors, douglasAuto]) {
     await prisma.subscription.upsert({
       where: { stripeSubscriptionId: `demo_sub_${dealer.slug}` },
       update: {},
@@ -703,6 +743,113 @@ async function main() {
     daysAgo: 7,
   });
 
+  // ---------------------------------------------------------------------------
+  // Generated listings (target total: 100-300)
+  // ---------------------------------------------------------------------------
+  const random = (min: number, max: number) =>
+    Math.floor(Math.random() * (max - min + 1)) + min;
+  const pick = <T,>(items: readonly T[]): T =>
+    items[Math.floor(Math.random() * items.length)];
+
+  const carMakes = ["BMW", "Audi", "Volkswagen", "Ford", "Mercedes-Benz", "Tesla", "MINI", "Kia"] as const;
+  const bikeMakes = ["Honda", "Yamaha", "Triumph", "Suzuki", "Kawasaki"] as const;
+  const vanMakes = ["Ford", "Volkswagen", "Mercedes-Benz", "Renault"] as const;
+  const colours = ["Black", "White", "Silver", "Grey", "Blue", "Red"] as const;
+  const fuels = ["Petrol", "Diesel", "Electric", "Hybrid"] as const;
+  const transmissions = ["Manual", "Automatic"] as const;
+  const iomRegionSlugs = [
+    "isle-of-man",
+    "douglas",
+    "ramsey",
+    "peel",
+    "castletown",
+    "port-erin",
+    "onchan",
+    "laxey",
+    "port-st-mary",
+    "ballasalla",
+    "kirk-michael",
+  ] as const;
+
+  const generatedCount = 120;
+  for (let i = 0; i < generatedCount; i++) {
+    const categoryRoll = i % 3;
+    const categoryId = categoryRoll === 0 ? car.id : categoryRoll === 1 ? van.id : motorbike.id;
+    const attrs = categoryRoll === 0 ? carAttrs : categoryRoll === 1 ? vanAttrs : motorbikeAttrs;
+    const make =
+      categoryRoll === 0 ? pick(carMakes) : categoryRoll === 1 ? pick(vanMakes) : pick(bikeMakes);
+    const year = random(2012, 2025);
+    const mileage = random(5000, 150000);
+    const price = categoryRoll === 2 ? random(2500, 12000) : random(4500, 42000);
+    const isElectric = Math.random() < 0.1;
+    const fuel = isElectric ? "Electric" : pick(fuels);
+    const transmission = pick(transmissions);
+    const location = Math.random() < 0.9 ? "Isle of Man" : "UK";
+    const regionSlug = location === "UK" ? "uk" : pick(iomRegionSlugs);
+    const writtenOff = Math.random() < 0.07 ? "true" : "false";
+
+    const baseAttributes: Array<{ attrId: string; value: string }> = [
+      { attrId: attrs["make"].id, value: make },
+      { attrId: attrs["model"].id, value: `${make} ${random(1, 9)}${String.fromCharCode(65 + (i % 26))}` },
+      { attrId: attrs["year"].id, value: String(year) },
+      { attrId: attrs["mileage"].id, value: String(mileage) },
+      { attrId: attrs["fuel-type"].id, value: fuel },
+      { attrId: attrs["transmission"].id, value: transmission },
+      { attrId: attrs["colour"].id, value: pick(colours) },
+      { attrId: attrs["tax-per-year"].id, value: String(random(0, 580)) },
+      { attrId: attrs["insurance-group"].id, value: String(random(1, 50)) },
+      { attrId: attrs["location"].id, value: location },
+      { attrId: attrs["previously-written-off"].id, value: writtenOff },
+    ];
+
+    if (attrs["engine-size"]) {
+      baseAttributes.push({ attrId: attrs["engine-size"].id, value: String(random(10, 65)) });
+    }
+    if (attrs["engine-power"]) {
+      baseAttributes.push({ attrId: attrs["engine-power"].id, value: String(random(65, 420)) });
+    }
+    if (attrs["battery-range"] && isElectric) {
+      baseAttributes.push({ attrId: attrs["battery-range"].id, value: String(random(120, 360)) });
+      baseAttributes.push({ attrId: attrs["charging-time"].id, value: String(random(30, 420)) });
+    }
+    if (attrs["acceleration"]) {
+      baseAttributes.push({ attrId: attrs["acceleration"].id, value: String(random(3, 14)) });
+    }
+    if (attrs["fuel-consumption"]) {
+      baseAttributes.push({ attrId: attrs["fuel-consumption"].id, value: String(random(25, 72)) });
+    }
+    if (attrs["co2-emissions"]) {
+      baseAttributes.push({ attrId: attrs["co2-emissions"].id, value: String(random(0, 260)) });
+    }
+    if (attrs["drive-type"]) {
+      baseAttributes.push({ attrId: attrs["drive-type"].id, value: pick(["FWD", "RWD", "4WD", "AWD"] as const) });
+    }
+    if (attrs["doors"] && categoryRoll !== 2) {
+      baseAttributes.push({ attrId: attrs["doors"].id, value: String(pick([2, 3, 4, 5] as const)) });
+    }
+    if (attrs["seats"]) {
+      baseAttributes.push({ attrId: attrs["seats"].id, value: String(categoryRoll === 1 ? pick([2, 3, 5, 6, 8] as const) : pick([2, 4, 5, 7] as const)) });
+    }
+    if (attrs["boot-space"] && categoryRoll !== 2) {
+      baseAttributes.push({ attrId: attrs["boot-space"].id, value: String(random(220, 1400)) });
+    }
+
+    await createListing({
+      userId: i % 5 === 0 ? users[dealer001].id : users[pick([user001, user002, user003, user004, user005] as const)].id,
+      dealerId: i % 5 === 0 ? manxMotors.id : undefined,
+      categoryId,
+      regionSlug,
+      title: `${year} ${make} ${categoryRoll === 2 ? "Motorbike" : categoryRoll === 1 ? "Van" : "Vehicle"} - Excellent Condition`,
+      description:
+        "Well maintained and in strong mechanical condition. Full history available, recently serviced, and ready to drive away. Contact for details and viewing.",
+      price,
+      featured: i % 19 === 0,
+      imageUrl: categoryRoll === 2 ? pick([IMG.bike1, IMG.bike2, IMG.bike3] as const) : categoryRoll === 1 ? pick([IMG.van1, IMG.van2, IMG.van3] as const) : pick([IMG.bmw3, IMG.audi, IMG.vw, IMG.mini, IMG.landrover, IMG.tesla, IMG.ford, IMG.merc, IMG.porsche] as const),
+      attributes: baseAttributes,
+      daysAgo: random(0, 28),
+    });
+  }
+
   // --- One PENDING listing for admin demo ---
   const pendingListing = await prisma.listing.create({
     data: {
@@ -728,7 +875,7 @@ async function main() {
     },
   });
 
-  console.log("  Created 17 listings (16 LIVE vehicles, 1 PENDING)");
+  console.log(`  Created ${17 + generatedCount} listings (${16 + generatedCount} LIVE vehicles, 1 PENDING)`);
   console.log("\nSeed completed successfully!");
   console.log("Admin login: admin@itrader.im (demo_admin_001)");
 }

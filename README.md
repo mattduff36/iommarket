@@ -8,7 +8,7 @@ A trusted, hyper-local marketplace for the Isle of Man. Buy and sell vehicles, m
 - **Language**: TypeScript
 - **UI**: React 19, Tailwind CSS v4, shadcn/ui + Radix UI
 - **Database**: PostgreSQL + Prisma ORM
-- **Auth**: Clerk
+- **Auth**: Supabase Auth
 - **Payments**: Stripe (Checkout + Webhooks)
 - **Images**: Cloudinary
 - **Deployment**: Vercel (serverless)
@@ -35,8 +35,9 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string (Supabase/Neon) |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
-| `CLERK_SECRET_KEY` | Clerk secret key |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
 | `STRIPE_SECRET_KEY` | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
@@ -46,7 +47,7 @@ cp .env.example .env
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret |
 | `NEXT_PUBLIC_APP_URL` | App URL (e.g. `http://localhost:3000`) |
 
-**Note:** The app degrades gracefully without Clerk credentials — auth gates are bypassed in development.
+**Note:** Supabase credentials are required for authenticated journeys.
 
 ### 3. Database setup
 
@@ -75,7 +76,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The data model uses an **EAV (Entity-Attribute-Value)** pattern for category-specific attributes:
 
-- **User** — synced from Clerk
+- **User** — synced from Supabase Auth
 - **DealerProfile** — dealer business info
 - **Region** — first-class geography (multi-island ready)
 - **Category** — hierarchical categories
@@ -213,7 +214,7 @@ components/
 ├── ui/                  # UI primitives (Button, Input, Card, Badge, etc.)
 ├── marketplace/         # Domain components (ListingCard, SearchBar, FilterPanel, ImageUpload)
 ├── layout/              # Layout components (SiteHeader, SiteFooter)
-└── providers/           # Context providers (Clerk)
+└── providers/           # Context providers
 
 lib/
 ├── auth/                # Authentication helpers

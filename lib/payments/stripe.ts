@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { getFeaturedFeePence } from "@/lib/config/marketplace";
 
 let _stripe: Stripe | null = null;
 
@@ -107,24 +108,27 @@ export async function createFeaturedUpgradeCheckout(params: {
   customerEmail?: string;
 }) {
   const stripe = getStripe();
-  const FEATURED_FEE_PENCE = 499; // £4.99
+  const featuredPriceId = process.env.STRIPE_FEATURED_PRICE_ID;
+  const featuredFeePence = getFeaturedFeePence();
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
     customer_email: params.customerEmail,
     line_items: [
-      {
-        price_data: {
-          currency: "gbp",
-          product_data: {
-            name: `Featured Upgrade: ${params.listingTitle}`,
-            description: "Promote your listing to featured status on itrader.im",
+      featuredPriceId
+        ? { price: featuredPriceId, quantity: 1 }
+        : {
+            price_data: {
+              currency: "gbp",
+              product_data: {
+                name: `Featured Upgrade: ${params.listingTitle}`,
+                description: "Promote your listing to featured status on itrader.im",
+              },
+              unit_amount: featuredFeePence,
+            },
+            quantity: 1,
           },
-          unit_amount: FEATURED_FEE_PENCE,
-        },
-        quantity: 1,
-      },
     ],
     metadata: {
       listingId: params.listingId,
