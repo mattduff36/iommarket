@@ -55,9 +55,14 @@ export function HeaderAuthButtons() {
 
   if (!user) {
     return (
-      <Button asChild variant="trust" size="sm">
-        <Link href="/sign-in">Sign In</Link>
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button asChild variant="link" size="sm">
+          <Link href="/sign-up">Sign Up</Link>
+        </Button>
+        <Button asChild variant="trust" size="sm">
+          <Link href="/sign-in">Sign In</Link>
+        </Button>
+      </div>
     );
   }
 
