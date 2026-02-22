@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Webhook } from "standardwebhooks";
 import {
   sendSignupConfirmationEmail,
   sendPasswordResetEmail,
@@ -7,7 +8,10 @@ import {
   sendInviteEmail,
 } from "@/lib/email/resend";
 
-const HOOK_SECRET = process.env.SUPABASE_AUTH_HOOK_SECRET;
+// Supabase sends the secret as "v1,whsec_<base64>" — strip the prefix for standardwebhooks
+const rawSecret = process.env.SUPABASE_AUTH_HOOK_SECRET ?? "";
+const HOOK_SECRET = rawSecret.replace(/^v1,whsec_/, "");
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -21,9 +25,14 @@ function buildVerifyUrl(tokenHash: string, type: string, redirectTo: string): st
 }
 
 export async function POST(req: NextRequest) {
+  const payload = await req.text();
+
   if (HOOK_SECRET) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${HOOK_SECRET}`) {
+    const headers = Object.fromEntries(req.headers.entries());
+    const wh = new Webhook(HOOK_SECRET);
+    try {
+      wh.verify(payload, headers);
+    } catch {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
@@ -40,7 +49,7 @@ export async function POST(req: NextRequest) {
   };
 
   try {
-    body = await req.json();
+    body = JSON.parse(payload);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }

@@ -24,39 +24,16 @@ export function SignUpForm() {
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      const redirectTo = `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback?next=${encodeURIComponent(next)}`;
-      // eslint-disable-next-line no-console
-      console.group("[DEBUG] supabase.auth.signUp");
-      // eslint-disable-next-line no-console
-      console.log("payload", { email, redirectTo, hasName: !!name });
-      const result = await supabase.auth.signUp({
+      const { error: err } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: name ? { full_name: name } : undefined,
-          emailRedirectTo: redirectTo,
+          emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback?next=${encodeURIComponent(next)}`,
         },
       });
-      // eslint-disable-next-line no-console
-      console.log("raw result", JSON.parse(JSON.stringify(result)));
-      // eslint-disable-next-line no-console
-      console.log("error", result.error);
-      if (result.error) {
-        // eslint-disable-next-line no-console
-        console.log("error.message", result.error.message);
-        // eslint-disable-next-line no-console
-        console.log("error.status", result.error.status);
-        // eslint-disable-next-line no-console
-        console.log("error.name", result.error.name);
-        // eslint-disable-next-line no-console
-        console.log("error (all keys)", Object.keys(result.error));
-        // eslint-disable-next-line no-console
-        console.log("error (stringified)", JSON.stringify(result.error));
-      }
-      // eslint-disable-next-line no-console
-      console.groupEnd();
-      if (result.error) {
-        setError(result.error.message);
+      if (err) {
+        setError(err.message);
         return;
       }
       setSuccess(true);
