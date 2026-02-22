@@ -285,6 +285,37 @@ export async function contactSeller(input: ContactSellerInput) {
 }
 
 // ---------------------------------------------------------------------------
+// Mark Listing As Sold
+// ---------------------------------------------------------------------------
+
+export async function markListingAsSold(listingId: string) {
+  const user = await requireAuth();
+
+  const listing = await db.listing.findUnique({ where: { id: listingId } });
+  if (!listing) return { error: "Listing not found" };
+  if (listing.userId !== user.id && user.role !== "ADMIN") {
+    return { error: "Not authorized" };
+  }
+  if (listing.status !== "LIVE") {
+    return { error: "Only live listings can be marked as sold" };
+  }
+
+  try {
+    const updated = await db.listing.update({
+      where: { id: listingId },
+      data: { status: "SOLD", soldAt: new Date() },
+    });
+
+    revalidatePath(`/listings/${listingId}`);
+    revalidatePath("/");
+    return { data: updated };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to mark listing as sold";
+    return { error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Upload Listing Images (save records after Cloudinary upload)
 // ---------------------------------------------------------------------------
 

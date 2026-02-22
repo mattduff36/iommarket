@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
-import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { HeroSearch } from "@/components/marketplace/hero-search";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import { ArrowRight } from "lucide-react";
 /* ------------------------------------------------------------------ */
 export default async function HomePage() {
   /* Fetch categories + latest listings per top-2 categories */
-  const [categories, regions, makeDefs, modelDefs, dealers] = await Promise.all([
+  const [categories, regions, makeDefs, modelDefs, dealers, soldCount] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
@@ -42,6 +41,7 @@ export default async function HomePage() {
         _count: { select: { listings: { where: { status: "LIVE" } } } },
       },
     }),
+    db.listing.count({ where: { status: "SOLD" } }),
   ]);
 
   const makeIds = makeDefs.map((d) => d.id);
@@ -69,19 +69,39 @@ export default async function HomePage() {
   ]);
 
   const modelByListingId = new Map(modelRows.map((r) => [r.listingId, r.value]));
-  const modelsByMake: Record<string, string[]> = {};
+  const modelCountsByMake: Record<string, Record<string, number>> = {};
   makeRows.forEach((row) => {
     const model = modelByListingId.get(row.listingId);
     if (model) {
       const make = row.value;
-      if (!modelsByMake[make]) modelsByMake[make] = [];
-      if (!modelsByMake[make].includes(model)) modelsByMake[make].push(model);
+      if (!modelCountsByMake[make]) modelCountsByMake[make] = {};
+      modelCountsByMake[make][model] = (modelCountsByMake[make][model] ?? 0) + 1;
     }
   });
-  Object.keys(modelsByMake).forEach((m) => modelsByMake[m].sort());
+  const modelsByMake: Record<string, string[]> = {};
+  for (const [make, models] of Object.entries(modelCountsByMake)) {
+    modelsByMake[make] = Object.keys(models).sort();
+  }
 
-  const dbMakes = [...new Set(makeRows.map((r) => r.value))];
-  const makes = getMakesWithDb(dbMakes);
+  const makeCounts: Record<string, number> = {};
+  for (const row of makeRows) {
+    makeCounts[row.value] = (makeCounts[row.value] ?? 0) + 1;
+  }
+  const makes = Object.entries(makeCounts)
+    .map(([label, count]) => ({ label, value: label, count }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+
+  /* Fetch featured listings across all categories */
+  const featuredListings = await db.listing.findMany({
+    where: { status: "LIVE", featured: true },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+    include: {
+      images: { take: 1, orderBy: { order: "asc" } },
+      category: true,
+      region: true,
+    },
+  });
 
   /* Get the two largest categories for featured rows */
   const topCategories = [...categories]
@@ -130,6 +150,7 @@ export default async function HomePage() {
           <HeroSearch
             makes={makes}
             modelsByMake={modelsByMake}
+            modelCountsByMake={modelCountsByMake}
             categories={categories.map((c) => ({
               label: c.name,
               value: c.slug,
@@ -143,6 +164,38 @@ export default async function HomePage() {
         </div>
       </section>
 
+
+      {/* ============ FEATURED LISTINGS ============ */}
+      {featuredListings.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mb-6 sm:mb-8">
+            <h2 className="section-heading-accent text-xl sm:text-2xl font-bold text-text-primary font-heading">
+              Featured
+            </h2>
+            <Link
+              href="/search?featured=true"
+              className="inline-flex items-center gap-1 text-sm font-medium text-metallic-400 hover:text-neon-blue-400 transition-colors"
+            >
+              See All <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+            {featuredListings.map((listing) => (
+              <ListingCard
+                key={listing.id}
+                title={listing.title}
+                price={listing.price / 100}
+                imageSrc={listing.images[0]?.url}
+                location={listing.region.name}
+                meta={listing.category.name}
+                featured
+                badge="Featured"
+                href={`/listings/${listing.id}`}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ============ PER-CATEGORY LISTING ROWS ============ */}
       {categoryListings.map(({ category, listings }) =>
@@ -207,6 +260,21 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* ============ SOLD STAT ============ */}
+      {soldCount > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-6 py-4">
+            <span className="inline-flex items-center justify-center rounded-full bg-emerald-500 text-white font-bold text-xs px-2.5 py-0.5">
+              SOLD
+            </span>
+            <p className="text-sm text-text-secondary">
+              <span className="font-bold text-text-primary text-base">{soldCount.toLocaleString()}</span>{" "}
+              vehicle{soldCount !== 1 ? "s" : ""} sold through itrader.im
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* ============ CTA ============ */}
       <section className="bg-surface">

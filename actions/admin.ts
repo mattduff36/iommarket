@@ -179,6 +179,66 @@ export async function updateReportStatus(input: {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Delete Attribute Definition
+// ---------------------------------------------------------------------------
+
+export async function deleteAttributeDefinition(id: string) {
+  await requireRole("ADMIN");
+  if (!id) return { error: "Missing id" };
+  try {
+    await db.attributeDefinition.delete({ where: { id } });
+    revalidatePath("/admin/categories");
+    return { data: { deleted: true } };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to delete attribute";
+    return { error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Toggle Category Active
+// ---------------------------------------------------------------------------
+
+export async function toggleCategoryActive(id: string, active: boolean) {
+  await requireRole("ADMIN");
+  if (!id) return { error: "Missing id" };
+  try {
+    const category = await db.category.update({ where: { id }, data: { active } });
+    revalidatePath("/admin/categories");
+    revalidatePath("/");
+    return { data: category };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update category";
+    return { error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Delete Category
+// ---------------------------------------------------------------------------
+
+export async function deleteCategory(id: string) {
+  await requireRole("ADMIN");
+  if (!id) return { error: "Missing id" };
+  const listingCount = await db.listing.count({ where: { categoryId: id } });
+  if (listingCount > 0) {
+    return { error: `Cannot delete: category has ${listingCount} listing${listingCount !== 1 ? "s" : ""}` };
+  }
+  try {
+    await db.category.delete({ where: { id } });
+    revalidatePath("/admin/categories");
+    return { data: { deleted: true } };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to delete category";
+    return { error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Feature Toggle (listing)
+// ---------------------------------------------------------------------------
+
 const toggleFeatureSchema = z.object({
   listingId: z.string().cuid(),
   featured: z.boolean(),

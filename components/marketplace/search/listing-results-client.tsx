@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -11,6 +12,7 @@ interface ListingItem {
   title: string;
   price: number;
   featured: boolean;
+  sold?: boolean;
   imageSrc?: string;
   categoryName: string;
   regionName: string;
@@ -31,10 +33,12 @@ export function ListingResultsClient({
   pageSize,
   queryParams,
 }: Props) {
+  const router = useRouter();
   const [items, setItems] = useState<ListingItem[]>(initialListings);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const includeSold = queryParams.includeSold === "true";
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const hasMore = items.length < total;
 
@@ -83,27 +87,41 @@ export function ListingResultsClient({
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-text-secondary">
           {total} result{total !== 1 ? "s" : ""} found
         </p>
-        <div className="inline-flex rounded-md border border-border overflow-hidden">
-          <Button
-            type="button"
-            size="sm"
-            variant={viewMode === "grid" ? "energy" : "ghost"}
-            onClick={() => setViewMode("grid")}
-          >
-            Grid
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={viewMode === "list" ? "energy" : "ghost"}
-            onClick={() => setViewMode("list")}
-          >
-            List
-          </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeSold}
+              onChange={(e) => {
+                const next = e.target.checked ? "true" : undefined;
+                router.push(buildSearchUrl(queryParams, { includeSold: next, page: undefined }));
+              }}
+              className="h-4 w-4 rounded border-border accent-neon-blue-500"
+            />
+            Include sold
+          </label>
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === "grid" ? "energy" : "ghost"}
+              onClick={() => setViewMode("grid")}
+            >
+              Grid
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === "list" ? "energy" : "ghost"}
+              onClick={() => setViewMode("list")}
+            >
+              List
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -129,6 +147,7 @@ export function ListingResultsClient({
               location={listing.regionName}
               meta={listing.categoryName}
               featured={listing.featured}
+              sold={listing.sold}
               badge={listing.featured ? "Featured" : undefined}
               href={`/listings/${listing.id}`}
             />

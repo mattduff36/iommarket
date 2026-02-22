@@ -12,8 +12,17 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CreateCategoryForm } from "./create-category-form";
+import { AddAttributeForm } from "./add-attribute-form";
+import { AttributeDeleteButton, CategoryRowActions } from "./category-actions";
 
 export const metadata: Metadata = { title: "Manage Categories" };
+
+const DATA_TYPE_LABEL: Record<string, string> = {
+  text: "Text",
+  number: "Number",
+  select: "Select",
+  boolean: "Bool",
+};
 
 export default async function AdminCategoriesPage() {
   const categories = await db.category.findMany({
@@ -25,14 +34,20 @@ export default async function AdminCategoriesPage() {
     },
   });
 
+  const topLevelCategories = categories.filter((c) => !c.parentId);
+
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Categories</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Manage categories and their filterable attributes.
+        </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        {/* ── Table ── */}
+        <div className="lg:col-span-2 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -41,7 +56,8 @@ export default async function AdminCategoriesPage() {
                 <TableHead>Parent</TableHead>
                 <TableHead>Attributes</TableHead>
                 <TableHead>Listings</TableHead>
-                <TableHead>Active</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-28">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -51,18 +67,31 @@ export default async function AdminCategoriesPage() {
                   <TableCell className="text-text-secondary font-mono text-xs">
                     {cat.slug}
                   </TableCell>
-                  <TableCell>{cat.parent?.name ?? "—"}</TableCell>
+                  <TableCell className="text-text-secondary text-sm">
+                    {cat.parent?.name ?? "—"}
+                  </TableCell>
                   <TableCell>
                     {cat.attributeDefinitions.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {cat.attributeDefinitions.map((attr) => (
-                          <Badge key={attr.id} variant="neutral">
+                          <span
+                            key={attr.id}
+                            className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface-elevated px-2 py-0.5 text-xs text-text-primary"
+                            title={`${DATA_TYPE_LABEL[attr.dataType] ?? attr.dataType}${attr.required ? " · required" : ""}${attr.options ? ` · options: ${attr.options}` : ""}`}
+                          >
                             {attr.name}
-                          </Badge>
+                            <span className="text-text-tertiary text-[10px]">
+                              {DATA_TYPE_LABEL[attr.dataType] ?? attr.dataType}
+                            </span>
+                            {attr.required && (
+                              <span className="text-neon-blue-400 text-[10px]">*</span>
+                            )}
+                            <AttributeDeleteButton attrId={attr.id} attrName={attr.name} />
+                          </span>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-text-tertiary">None</span>
+                      <span className="text-text-tertiary text-xs">None</span>
                     )}
                   </TableCell>
                   <TableCell>{cat._count.listings}</TableCell>
@@ -71,18 +100,25 @@ export default async function AdminCategoriesPage() {
                       {cat.active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <CategoryRowActions
+                      categoryId={cat.id}
+                      active={cat.active}
+                      listingCount={cat._count.listings}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
 
-        <div>
+        {/* ── Right panel ── */}
+        <div className="flex flex-col gap-6">
           <CreateCategoryForm
-            parentCategories={categories
-              .filter((c) => !c.parentId)
-              .map((c) => ({ id: c.id, name: c.name }))}
+            parentCategories={topLevelCategories.map((c) => ({ id: c.id, name: c.name }))}
           />
+          <AddAttributeForm categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
         </div>
       </div>
     </>

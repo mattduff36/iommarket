@@ -15,6 +15,7 @@ export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   meta?: string;
   featured?: boolean;
   badge?: string;
+  sold?: boolean;
   href?: string;
 }
 
@@ -33,10 +34,11 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
       imageSrc,
       imageAlt,
       location,
-      meta,
-      featured = false,
-      badge,
-      href,
+    meta,
+    featured = false,
+    badge,
+    sold = false,
+    href,
       className,
       ...props
     },
@@ -66,7 +68,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
               src={imageSrc}
               alt={imageAlt ?? title}
               fill
-              className="object-cover transition-transform duration-fast group-hover:scale-[1.02]"
+              className={`object-cover transition-transform duration-fast group-hover:scale-[1.02]${sold ? " brightness-75" : ""}`}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           ) : (
@@ -78,9 +80,21 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
           )}
           {/* Bottom gradient overlay */}
           <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
-          {badge && (
+          {sold && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="rotate-[-15deg] text-lg sm:text-xl font-black tracking-widest text-white opacity-95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] border-4 border-white px-3 py-1 rounded-sm">
+                SOLD
+              </span>
+            </div>
+          )}
+          {!sold && badge && (
             <div className="absolute top-3 left-3">
               <Badge variant="energy">{badge}</Badge>
+            </div>
+          )}
+          {sold && (
+            <div className="absolute top-3 left-3">
+              <Badge variant="success">Sold</Badge>
             </div>
           )}
         </div>

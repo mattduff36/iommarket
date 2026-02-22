@@ -20,6 +20,7 @@ const SEARCH_KEYS = [
   "driveType",
   "sellerType",
   "location",
+  "includeSold",
   "minEngineSize",
   "maxEngineSize",
   "minEnginePower",

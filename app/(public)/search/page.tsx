@@ -6,7 +6,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { SearchControls } from "@/components/marketplace/search/search-controls";
 import { ListingResultsClient } from "@/components/marketplace/search/listing-results-client";
 import { SaveSearchButton } from "@/components/marketplace/save-search-button";
-import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
 import { type SearchParams } from "@/lib/search/search-url";
 
 interface Props {
@@ -53,6 +52,7 @@ export default async function SearchPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
 
+  const includeSold = sp.includeSold === "true";
   const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
   const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
 
@@ -93,7 +93,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
-      WHERE l.status = 'LIVE'
+      WHERE (l.status = 'LIVE' OR (${includeSold} AND l.status = 'SOLD'))
       AND ${combined}
     `;
     listingIdsFromAttributes = result.map((r) => r.id);
@@ -138,9 +138,13 @@ export default async function SearchPage({ searchParams }: Props) {
     })),
   ];
 
+  const statusFilter = includeSold
+    ? { status: { in: ["LIVE", "SOLD"] as const } }
+    : { status: "LIVE" as const };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
-    status: "LIVE" as const,
+    ...statusFilter,
     ...(listingIdsFromAttributes !== null
       ? { id: { in: listingIdsFromAttributes } }
       : {}),
@@ -225,18 +229,26 @@ export default async function SearchPage({ searchParams }: Props) {
   ]);
 
   const modelByListingId = new Map(modelRows.map((r) => [r.listingId, r.value]));
-  const modelsByMake: Record<string, string[]> = {};
+  const modelCountsByMake: Record<string, Record<string, number>> = {};
   for (const row of makeRows) {
     const mdl = modelByListingId.get(row.listingId);
     if (mdl) {
-      if (!modelsByMake[row.value]) modelsByMake[row.value] = [];
-      if (!modelsByMake[row.value].includes(mdl)) modelsByMake[row.value].push(mdl);
+      if (!modelCountsByMake[row.value]) modelCountsByMake[row.value] = {};
+      modelCountsByMake[row.value][mdl] = (modelCountsByMake[row.value][mdl] ?? 0) + 1;
     }
   }
-  Object.keys(modelsByMake).forEach((m) => modelsByMake[m].sort());
+  const modelsByMake: Record<string, string[]> = {};
+  for (const [make, models] of Object.entries(modelCountsByMake)) {
+    modelsByMake[make] = Object.keys(models).sort();
+  }
 
-  const dbMakes = [...new Set(makeRows.map((r) => r.value))];
-  const makes = getMakesWithDb(dbMakes);
+  const makeCounts: Record<string, number> = {};
+  for (const row of makeRows) {
+    makeCounts[row.value] = (makeCounts[row.value] ?? 0) + 1;
+  }
+  const makes = Object.entries(makeCounts)
+    .map(([label, count]) => ({ label, value: label, count }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 
   const currentParams: SearchParams = {
     q: sp.q, category: sp.category, region: sp.region,
@@ -248,6 +260,7 @@ export default async function SearchPage({ searchParams }: Props) {
     doors: sp.doors, seats: sp.seats,
     fuelType: sp.fuelType, transmission: sp.transmission,
     driveType: sp.driveType, sellerType: sp.sellerType, location: sp.location,
+    includeSold: sp.includeSold,
     minEngineSize: sp.minEngineSize, maxEngineSize: sp.maxEngineSize,
     minEnginePower: sp.minEnginePower, maxEnginePower: sp.maxEnginePower,
     minBatteryRange: sp.minBatteryRange, maxBatteryRange: sp.maxBatteryRange,
@@ -271,6 +284,7 @@ export default async function SearchPage({ searchParams }: Props) {
         <SearchControls
           makes={makes}
           modelsByMake={modelsByMake}
+          modelCountsByMake={modelCountsByMake}
           categories={categories.map((c) => ({
             label: c.name,
             value: c.slug,
@@ -304,6 +318,7 @@ export default async function SearchPage({ searchParams }: Props) {
             title: listing.title,
             price: listing.price,
             featured: listing.featured,
+            sold: listing.status === "SOLD",
             imageSrc: listing.images[0]?.url,
             categoryName: listing.category.name,
             regionName: listing.region.name,

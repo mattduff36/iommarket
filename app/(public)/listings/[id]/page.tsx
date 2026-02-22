@@ -16,6 +16,7 @@ import { ReportButton } from "./report-button";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
+import { MarkSoldButton } from "./mark-sold-button";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -60,7 +61,8 @@ export default async function ListingDetailPage({ params }: Props) {
 
   const isExpired = listing.status === "EXPIRED";
   const isTakenDown = listing.status === "TAKEN_DOWN";
-  const isVisible = listing.status === "LIVE" || listing.status === "APPROVED";
+  const isSold = listing.status === "SOLD";
+  const isVisible = listing.status === "LIVE" || listing.status === "APPROVED" || isSold;
   const isFavourite = currentUser
     ? Boolean(
         await db.favourite.findUnique({
@@ -168,6 +170,20 @@ export default async function ListingDetailPage({ params }: Props) {
         </div>
       )}
 
+      {isSold && (
+        <div className="mb-8 flex items-center gap-3 rounded-lg bg-emerald-500/10 px-5 py-4 text-sm text-emerald-500 border border-emerald-500/30">
+          <span className="inline-flex items-center justify-center rounded-full bg-emerald-500 text-white font-bold text-xs px-2.5 py-0.5 shrink-0">
+            SOLD
+          </span>
+          This vehicle has been sold through itrader.im.
+          {listing.soldAt && (
+            <span className="text-text-secondary">
+              Sold {listing.soldAt.toLocaleDateString("en-GB")}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-10 lg:grid-cols-3">
         {/* Left: images + details */}
         <div className="lg:col-span-2 space-y-8">
@@ -180,10 +196,17 @@ export default async function ListingDetailPage({ params }: Props) {
                     src={listing.images[0].url}
                     alt={listing.title}
                     fill
-                    className="object-cover"
+                    className={`object-cover${isSold ? " brightness-75" : ""}`}
                     priority
                     sizes="(max-width: 768px) 100vw, 66vw"
                   />
+                  {isSold && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="rotate-[-20deg] text-5xl font-black tracking-widest text-white opacity-90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] border-[6px] border-white px-6 py-2 rounded-sm">
+                        SOLD
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {listing.images.length > 1 && (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
@@ -293,7 +316,7 @@ export default async function ListingDetailPage({ params }: Props) {
             </CardContent>
           </Card>
 
-          {isVisible && (
+          {isVisible && !isSold && (
             <Card>
               <CardHeader>
                 <CardTitle>Contact Seller</CardTitle>
@@ -346,6 +369,14 @@ export default async function ListingDetailPage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {listing.status === "LIVE" &&
+        currentUser &&
+        (listing.userId === currentUser.id || currentUser.role === "ADMIN") && (
+          <div className="mt-8">
+            <MarkSoldButton listingId={listing.id} />
+          </div>
+        )}
 
       {isVisible &&
         !listing.featured &&

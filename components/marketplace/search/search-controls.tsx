@@ -33,8 +33,9 @@ interface FilterOption {
 }
 
 export interface SearchControlsProps {
-  makes: string[];
+  makes: FilterOption[];
   modelsByMake: Record<string, string[]>;
+  modelCountsByMake?: Record<string, Record<string, number>>;
   categories?: FilterOption[];
   regions?: FilterOption[];
   initial?: SearchParams;
@@ -56,6 +57,7 @@ function parseNum(s: string | undefined, fallback: number): number {
 export function SearchControls({
   makes,
   modelsByMake,
+  modelCountsByMake,
   categories = [],
   regions = [],
   initial = {},
@@ -69,6 +71,7 @@ export function SearchControls({
 
   const [make, setMake] = React.useState(initial.make ?? "");
   const [model, setModel] = React.useState(initial.model ?? "");
+  const [region, setRegion] = React.useState(initial.region ?? "");
 
   const [priceRange, setPriceRange] = React.useState<[number, number]>([
     parseNum(initial.minPrice, 0),
@@ -99,16 +102,23 @@ export function SearchControls({
   React.useEffect(() => {
     setMake(initial.make ?? "");
     setModel(initial.model ?? "");
+    setRegion(initial.region ?? "");
     setPriceRange([parseNum(initial.minPrice, 0), parseNum(initial.maxPrice, PRICE_MAX)]);
     setMileageRange([parseNum(initial.minMileage, 0), parseNum(initial.maxMileage, MILEAGE_MAX)]);
     setAgeRange(yearRangeToAgeRange(initial.minYear, initial.maxYear));
   }, [
-    initial.make, initial.model,
+    initial.make, initial.model, initial.region,
     initial.minPrice, initial.maxPrice, initial.minMileage, initial.maxMileage,
     initial.minYear, initial.maxYear,
   ]);
 
   const modelsForMake = make ? (modelsByMake[make] ?? []) : [];
+
+  const sortedRegions = React.useMemo(() => {
+    const isleOfMan = regions.find((r) => r.value === "isle-of-man");
+    const rest = regions.filter((r) => r.value !== "isle-of-man");
+    return isleOfMan ? [isleOfMan, ...rest] : regions;
+  }, [regions]);
 
   function getAllParams(): SearchParams {
     const isAgeDefault = ageRange[0] === 0 && ageRange[1] >= AGE_MAX;
@@ -123,6 +133,7 @@ export function SearchControls({
       ...advancedParams,
       make: make || undefined,
       model: model || undefined,
+      region: region || undefined,
       minPrice: priceRange[0] > 0 ? String(priceRange[0]) : undefined,
       maxPrice: priceRange[1] < PRICE_MAX ? String(priceRange[1]) : undefined,
       minMileage: mileageRange[0] > 0 ? String(mileageRange[0]) : undefined,
@@ -136,6 +147,12 @@ export function SearchControls({
     if (mode === "instant") {
       router.push(buildSearchUrl(initial, overrides));
     }
+  }
+
+  function handleRegionChange(value: string) {
+    const v = value === "any" ? "" : value;
+    setRegion(v);
+    instantNav({ region: v || undefined });
   }
 
   function handleMakeChange(value: string) {
@@ -223,7 +240,9 @@ export function SearchControls({
               <SelectContent>
                 <SelectItem value="any">Any</SelectItem>
                 {makes.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.count !== undefined ? `${m.label} (${m.count})` : m.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -243,12 +262,36 @@ export function SearchControls({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">Any</SelectItem>
-                {modelsForMake.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
+                {modelsForMake.map((m) => {
+                  const count = modelCountsByMake?.[make]?.[m];
+                  return (
+                    <SelectItem key={m} value={m}>
+                      {count !== undefined ? `${m} (${count})` : m}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
+
+          {regions.length > 0 && (
+            <div className="w-full sm:w-[180px]">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                Location
+              </label>
+              <Select value={region || "any"} onValueChange={handleRegionChange}>
+                <SelectTrigger className={selectClass}>
+                  <SelectValue placeholder="Any area" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any area</SelectItem>
+                  {sortedRegions.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <Button type="submit" className="h-11 w-full sm:w-auto rounded-lg px-6 text-sm font-semibold">
             <Search className="h-4 w-4" />
@@ -329,8 +372,9 @@ export function SearchControls({
         onOpenChange={setModalOpen}
         makes={makes}
         modelsByMake={modelsByMake}
+        modelCountsByMake={modelCountsByMake}
         categories={categories}
-        regions={regions}
+        regions={sortedRegions}
         initial={mode === "instant" ? initial : getAllParams()}
         onApply={handleAdvancedApply}
       />

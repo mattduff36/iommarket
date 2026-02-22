@@ -15,13 +15,14 @@ import { ModerationActions } from "./moderation-actions";
 
 export const metadata: Metadata = { title: "Moderate Listings" };
 
-const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error" | "info"> = {
+const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error" | "info" | "premium"> = {
   DRAFT: "neutral",
   PENDING: "warning",
   APPROVED: "info",
   LIVE: "success",
   EXPIRED: "neutral",
   TAKEN_DOWN: "error",
+  SOLD: "premium",
 };
 
 export default async function AdminListingsPage() {

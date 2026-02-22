@@ -9,6 +9,7 @@
   - optional compatibility URLs (`POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`)
 - **Local**: local Postgres container or Supabase dev project.
 - **Staging/Prod**: managed Postgres with backups and migration pipeline.
+- **Row Level Security (RLS)**: Enabled on all public tables (migration `20260222120000_enable_rls_public`). With no permissive policies for `anon`/`authenticated`, PostgREST access is denied. The app uses Prisma with the DB connection role (BYPASSRLS), so server-side access is unchanged.
 
 ## Authentication
 

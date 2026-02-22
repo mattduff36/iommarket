@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, Number.parseInt(sp.get("page") ?? "1", 10));
   const pageSize = 12;
 
+  const includeSold = sp.get("includeSold") === "true";
   const minPricePence = sp.get("minPrice")
     ? Number.parseInt(sp.get("minPrice") ?? "0", 10) * 100
     : undefined;
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
-      WHERE l.status = 'LIVE'
+      WHERE (l.status = 'LIVE' OR (${includeSold} AND l.status = 'SOLD'))
       AND ${combined}
     `;
     listingIdsFromAttributes = result.map((row) => row.id);
@@ -112,9 +113,13 @@ export async function GET(request: NextRequest) {
     })),
   ];
 
+  const statusFilter = includeSold
+    ? { status: { in: ["LIVE", "SOLD"] as const } }
+    : { status: "LIVE" as const };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
-    status: "LIVE" as const,
+    ...statusFilter,
     ...(listingIdsFromAttributes !== null ? { id: { in: listingIdsFromAttributes } } : {}),
     ...(query
       ? {
@@ -163,6 +168,7 @@ export async function GET(request: NextRequest) {
       title: listing.title,
       price: listing.price,
       featured: listing.featured,
+      sold: listing.status === "SOLD",
       imageSrc: listing.images[0]?.url,
       categoryName: listing.category.name,
       regionName: listing.region.name,

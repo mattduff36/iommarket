@@ -37,11 +37,18 @@ interface FilterOption {
   value: string;
 }
 
+interface MakeOption {
+  label: string;
+  value: string;
+  count?: number;
+}
+
 export interface AdvancedSearchModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  makes: string[];
+  makes: MakeOption[];
   modelsByMake: Record<string, string[]>;
+  modelCountsByMake?: Record<string, Record<string, number>>;
   categories?: FilterOption[];
   regions?: FilterOption[];
   initial: SearchParams;
@@ -54,7 +61,7 @@ const MILEAGE_MAX = 150_000;
 const MILEAGE_STEP = 5_000;
 const AGE_MAX = 15;
 const ENGINE_SIZE_MAX = 70;
-const ENGINE_POWER_MAX = 700;
+const ENGINE_POWER_MAX = 800;
 const BATTERY_RANGE_MAX = 500;
 const CHARGING_TIME_MAX = 720;
 const ACCELERATION_MAX = 20;
@@ -62,7 +69,7 @@ const FUEL_CONSUMPTION_MAX = 80;
 const CO2_MAX = 300;
 const TAX_MAX = 600;
 const INSURANCE_GROUP_MAX = 50;
-const BOOT_SPACE_MAX = 2500;
+const BOOT_SPACE_MAX = 1500;
 const LOCATION_OPTIONS = ["Isle of Man", "UK"] as const;
 
 function parseNum(s: string | undefined, fallback: number): number {
@@ -82,6 +89,7 @@ export function AdvancedSearchModal({
   onOpenChange,
   makes,
   modelsByMake,
+  modelCountsByMake,
   categories = [],
   regions = [],
   initial,
@@ -304,7 +312,11 @@ export function AdvancedSearchModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="any">Any</SelectItem>
-                    {makes.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    {makes.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.count !== undefined ? `${m.label} (${m.count})` : m.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -320,7 +332,14 @@ export function AdvancedSearchModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="any">Any</SelectItem>
-                    {modelsForMake.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    {modelsForMake.map((m) => {
+                      const count = modelCountsByMake?.[make]?.[m];
+                      return (
+                        <SelectItem key={m} value={m}>
+                          {count !== undefined ? `${m} (${count})` : m}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -332,7 +351,7 @@ export function AdvancedSearchModal({
               <SelectField label="Fuel Type" value={fuelType} onChange={setFuelType} options={FUEL_TYPE_OPTIONS} />
               <SelectField label="Drive Type" value={driveType} onChange={setDriveType} options={DRIVE_TYPE_OPTIONS} />
               <SelectField label="Seller Type" value={sellerType} onChange={setSellerType} options={SELLER_TYPE_OPTIONS} />
-              <SelectField label="Location" value={location} onChange={setLocation} options={LOCATION_OPTIONS} />
+              <SelectField label="Market" value={location} onChange={setLocation} options={LOCATION_OPTIONS} />
             </div>
           </section>
 

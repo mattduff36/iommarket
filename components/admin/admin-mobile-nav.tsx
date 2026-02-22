@@ -14,6 +14,7 @@ import {
   ClipboardList,
   FolderTree,
   DollarSign,
+  ShieldAlert,
   ArrowLeft,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ const ADMIN_NAV = [
   { label: "Listings", href: "/admin/listings", icon: ClipboardList },
   { label: "Categories", href: "/admin/categories", icon: FolderTree },
   { label: "Revenue", href: "/admin/revenue", icon: DollarSign },
+  { label: "Reports", href: "/admin/reports", icon: ShieldAlert },
 ];
 
 export function AdminMobileNav() {

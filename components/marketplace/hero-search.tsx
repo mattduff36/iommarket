@@ -8,11 +8,12 @@ import { SearchControls, type SearchControlsProps } from "./search/search-contro
 export interface HeroSearchProps {
   makes: SearchControlsProps["makes"];
   modelsByMake: SearchControlsProps["modelsByMake"];
+  modelCountsByMake?: SearchControlsProps["modelCountsByMake"];
   categories?: SearchControlsProps["categories"];
   regions?: SearchControlsProps["regions"];
 }
 
-export function HeroSearch({ makes, modelsByMake, categories, regions }: HeroSearchProps) {
+export function HeroSearch({ makes, modelsByMake, modelCountsByMake, categories, regions }: HeroSearchProps) {
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   return (
@@ -21,6 +22,7 @@ export function HeroSearch({ makes, modelsByMake, categories, regions }: HeroSea
         <SearchControls
           makes={makes}
           modelsByMake={modelsByMake}
+          modelCountsByMake={modelCountsByMake}
           categories={categories}
           regions={regions}
           mode="submit"

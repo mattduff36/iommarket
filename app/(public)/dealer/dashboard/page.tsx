@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, ExternalLink } from "lucide-react";
 import { DevSubscriptionBypass } from "@/components/dev/dev-subscription-bypass";
+import { MarkSoldButton } from "./mark-sold-button";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -26,14 +27,15 @@ export const metadata: Metadata = {
 
 const STATUS_VARIANT: Record<
   string,
-  "neutral" | "warning" | "success" | "error" | "info"
+  "neutral" | "warning" | "success" | "error" | "info" | "premium"
 > = {
   DRAFT: "neutral",
   PENDING: "warning",
   LIVE: "success",
   EXPIRED: "neutral",
   TAKEN_DOWN: "error",
-};
+  SOLD: "premium",
+} as const;
 
 export default async function DealerDashboardPage() {
   const user = await getCurrentUser();
@@ -214,12 +216,17 @@ export default async function DealerDashboardPage() {
                     : "—"}
                 </TableCell>
                 <TableCell>
-                  <Link
-                    href={`/listings/${listing.id}`}
-                    className="text-sm text-text-trust hover:underline"
-                  >
-                    View
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/listings/${listing.id}`}
+                      className="text-sm text-text-trust hover:underline"
+                    >
+                      View
+                    </Link>
+                    {listing.status === "LIVE" && (
+                      <MarkSoldButton listingId={listing.id} />
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

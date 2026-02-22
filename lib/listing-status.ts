@@ -12,9 +12,10 @@ const VALID_TRANSITIONS: Record<ListingStatus, ListingStatus[]> = {
   DRAFT: ["PENDING"],
   PENDING: ["LIVE", "TAKEN_DOWN"],
   APPROVED: ["LIVE", "TAKEN_DOWN"],
-  LIVE: ["EXPIRED", "TAKEN_DOWN"],
+  LIVE: ["EXPIRED", "TAKEN_DOWN", "SOLD"],
   EXPIRED: ["DRAFT"], // renewal resets to draft
   TAKEN_DOWN: [], // terminal state for moderation
+  SOLD: [], // terminal state – seller has sold the vehicle
 };
 
 /**

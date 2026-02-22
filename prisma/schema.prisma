@@ -126,6 +126,7 @@ enum ListingStatus {
   LIVE
   EXPIRED
   TAKEN_DOWN
+  SOLD
 }
 
 model Listing {
@@ -142,6 +143,7 @@ model Listing {
   slug        String?
   viewCount   Int           @default(0)
   expiresAt   DateTime?
+  soldAt      DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

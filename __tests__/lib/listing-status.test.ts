@@ -29,6 +29,16 @@ describe("isValidTransition", () => {
     expect(isValidTransition("LIVE", "TAKEN_DOWN")).toBe(true);
   });
 
+  it("allows LIVE → SOLD", () => {
+    expect(isValidTransition("LIVE", "SOLD")).toBe(true);
+  });
+
+  it("disallows SOLD → anything", () => {
+    expect(isValidTransition("SOLD", "DRAFT")).toBe(false);
+    expect(isValidTransition("SOLD", "LIVE")).toBe(false);
+    expect(isValidTransition("SOLD", "PENDING")).toBe(false);
+  });
+
   it("allows EXPIRED → DRAFT (renewal)", () => {
     expect(isValidTransition("EXPIRED", "DRAFT")).toBe(true);
   });

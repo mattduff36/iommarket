@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -43,14 +42,14 @@ export default function PricingPage() {
         <p className="mt-4 text-lg text-text-secondary max-w-xl mx-auto">
           No hidden fees. Just straightforward pricing for Isle of Man sellers.
         </p>
-        <p className="mt-3 text-sm text-premium-gold-500">
-          Launch offer: first month free for all listings.
+        <p className="mt-4 inline-block rounded-lg border border-premium-gold-500/40 bg-premium-gold-500/10 px-4 py-3 text-base font-semibold text-premium-gold-500">
+          Launch offer: all listings are currently FREE for a limited time only…
         </p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-2 max-w-3xl mx-auto">
+      <div className="grid gap-8 md:grid-cols-2 max-w-3xl mx-auto items-stretch">
         {/* Private Seller */}
-        <Card className="p-2">
+        <Card className="flex flex-col p-2 h-full ring-2 ring-neon-blue-500 shadow-high">
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Private Seller</CardTitle>
             <CardDescription>
@@ -63,8 +62,8 @@ export default function PricingPage() {
               <span className="text-text-secondary text-sm"> / listing</span>
             </div>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
+          <CardContent className="flex flex-1 flex-col">
+            <ul className="flex-1 space-y-4">
               {SELLER_FEATURES.map((feature) => (
                 <li key={feature} className="flex items-start gap-3 text-sm">
                   <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10">
@@ -81,10 +80,7 @@ export default function PricingPage() {
         </Card>
 
         {/* Dealer */}
-        <Card className="relative p-2 ring-2 ring-neon-blue-500 shadow-high">
-          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-            <Badge variant="info" className="px-4 py-1 text-xs font-bold">Most Popular</Badge>
-          </div>
+        <Card className="flex flex-col p-2 h-full ring-2 ring-red-500 shadow-high">
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Dealer</CardTitle>
             <CardDescription>
@@ -97,12 +93,12 @@ export default function PricingPage() {
               <span className="text-text-secondary text-sm"> / month</span>
             </div>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
+          <CardContent className="flex flex-1 flex-col">
+            <ul className="flex-1 space-y-4">
               {DEALER_FEATURES.map((feature) => (
                 <li key={feature} className="flex items-start gap-3 text-sm">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10">
-                    <Check className="h-3 w-3 text-neon-blue-500" />
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                    <Check className="h-3 w-3 text-red-500" />
                   </div>
                   <span className="text-text-secondary">{feature}</span>
                 </li>
