@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return NextResponse.json(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, name: user.name ?? null, role: user.role },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -129,7 +129,7 @@ export default async function HomePage() {
     <>
       {/* ============ HERO ============ */}
       <section
-        className="relative min-h-[calc(100dvh-64px)] sm:min-h-[calc(100dvh-116px)] md:min-h-0 overflow-hidden"
+        className="relative min-h-[calc(100svh-64px)] sm:min-h-[calc(100svh-116px)] md:min-h-0 overflow-hidden"
         style={{ background: HERO_GRADIENT }}
       >
         <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24 lg:py-32 lg:px-8 text-center">

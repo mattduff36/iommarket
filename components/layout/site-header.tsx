@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Mail, Phone } from "lucide-react";
-import { useState } from "react";
-import { HeaderAuthButtons } from "@/components/auth/header-auth-buttons";
+import { Menu, X, Mail, Phone, ShieldCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
@@ -18,7 +19,74 @@ const NAV_ITEMS = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    displayName: null,
+    role: null,
+    loading: true,
+    handleSignOut,
+  });
+
+  async function handleSignOut() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    setMobileOpen(false);
+    router.push("/");
+    router.refresh();
+  }
+
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      setAuthState((s) => ({ ...s, loading: false }));
+      return;
+    }
+
+    const supabase = createSupabaseBrowserClient();
+
+    async function fetchMe(userEmail: string | null | undefined) {
+      try {
+        const res = await fetch("/api/me", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const displayName = data.name?.trim() || userEmail || null;
+        setAuthState((s) => ({ ...s, role: data.role ?? null, displayName }));
+      } catch {
+        // silently fail
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null;
+      setAuthState((s) => ({
+        ...s,
+        user: u,
+        loading: false,
+        displayName: u?.email ?? null,
+      }));
+      if (u) fetchMe(u.email);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
+      if (!u) {
+        setAuthState((s) => ({ ...s, user: null, role: null, displayName: null }));
+      } else {
+        setAuthState((s) => ({ ...s, user: u, displayName: u.email ?? null }));
+        fetchMe(u.email);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { user, role } = authState;
+  const isDealer = role === "DEALER" || role === "ADMIN";
 
   return (
     <>
@@ -84,7 +152,7 @@ export function SiteHeader() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
-            <HeaderAuthButtons />
+            <HeaderAuthButtons authState={{ ...authState, handleSignOut }} />
             <Button
               type="button"
               variant="ghost"
@@ -102,7 +170,9 @@ export function SiteHeader() {
         {/* Mobile menu */}
         {mobileOpen && (
           <div className="md:hidden border-t border-border bg-surface px-4 py-4">
-            <nav className="flex flex-col gap-1" aria-label="Mobile">
+
+            {/* ── Nav links ── */}
+            <nav className="flex flex-col gap-1 mb-3" aria-label="Mobile">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
@@ -119,6 +189,74 @@ export function SiteHeader() {
                 </Link>
               ))}
             </nav>
+
+            {/* ── Divider ── */}
+            <div className="border-t border-border mb-3" />
+
+            {/* ── Account section ── */}
+            {user ? (
+              <div className="flex flex-col gap-1">
+                <Link
+                  href="/account/favourites"
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                >
+                  Saved listings
+                </Link>
+                <Link
+                  href="/account/saved-searches"
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                >
+                  Saved searches
+                </Link>
+                {isDealer && (
+                  <Link
+                    href="/dealer/dashboard"
+                    onClick={() => setMobileOpen(false)}
+                    className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                  >
+                    Dealer dashboard
+                  </Link>
+                )}
+                <Link
+                  href="/account/change-password"
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                >
+                  Change password
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="text-left px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                >
+                  Sign out
+                </button>
+                {role === "ADMIN" && (
+                  <>
+                    <div className="border-t border-border my-2" />
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors"
+                    >
+                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                      Admin area
+                    </Link>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div>
+                <Link
+                  href="/sign-up"
+                  onClick={() => setMobileOpen(false)}
+                  className="block px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </header>
