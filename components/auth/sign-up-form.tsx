@@ -24,7 +24,7 @@ export function SignUpForm() {
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error: err } = await supabase.auth.signUp({
+      const { data, error: err } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -34,6 +34,14 @@ export function SignUpForm() {
       });
       if (err) {
         setError(err.message);
+        return;
+      }
+      // Supabase silently "succeeds" for existing emails to prevent enumeration.
+      // An empty identities array is the reliable signal that the email is already registered.
+      if (data.user && data.user.identities?.length === 0) {
+        setError(
+          "An account with this email already exists. Please sign in instead.",
+        );
         return;
       }
       setSuccess(true);
