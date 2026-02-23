@@ -50,12 +50,15 @@ export async function syncUser(authUserId: string, email: string, name?: string)
 }
 
 /**
- * Require authentication. Throws if not authenticated.
+ * Require authentication. Throws if not authenticated or account is disabled.
  */
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error("Authentication required");
+  }
+  if (user.disabledAt) {
+    throw new Error("Account disabled");
   }
   return user;
 }
@@ -72,9 +75,13 @@ export async function requireRole(role: UserRole) {
 }
 
 /**
- * Check if the current user is an admin.
+ * Check if the current user is an authenticated, non-disabled admin.
  */
 export async function isAdmin() {
-  const user = await getCurrentUser();
-  return user?.role === "ADMIN";
+  try {
+    const user = await requireAuth();
+    return user.role === "ADMIN";
+  } catch {
+    return false;
+  }
 }

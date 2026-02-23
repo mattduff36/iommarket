@@ -2,22 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
-import {
-  LayoutDashboard,
-  ClipboardList,
-  FolderTree,
-  DollarSign,
-  ShieldAlert,
-  ArrowLeft,
-} from "lucide-react";
-
-const ADMIN_NAV = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Listings", href: "/admin/listings", icon: ClipboardList },
-  { label: "Categories", href: "/admin/categories", icon: FolderTree },
-  { label: "Revenue", href: "/admin/revenue", icon: DollarSign },
-  { label: "Reports", href: "/admin/reports", icon: ShieldAlert },
-];
+import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
+import { ArrowLeft } from "lucide-react";
 
 export default async function AdminLayout({
   children,
@@ -40,22 +26,30 @@ export default async function AdminLayout({
             Back to site
           </Link>
         </div>
-        <div className="px-4 py-4">
-          <p className="mb-4 text-xs font-semibold uppercase text-text-tertiary tracking-wider">
-            Admin
-          </p>
-          <nav className="flex flex-col gap-1" aria-label="Admin">
-            {ADMIN_NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+        <div className="px-4 py-4 space-y-5 overflow-y-auto max-h-[calc(100vh-4rem)]">
+          {ADMIN_NAV_GROUPS.map((group) => {
+            const items = ADMIN_NAV.filter((i) => i.group === group.key);
+            if (items.length === 0) return null;
+            return (
+              <div key={group.key}>
+                <p className={`mb-2 text-xs font-semibold uppercase tracking-wider ${group.accent}`}>
+                  {group.label}
+                </p>
+                <nav className="flex flex-col gap-0.5" aria-label={group.label}>
+                  {items.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                    >
+                      <item.icon className={`h-4 w-4 ${group.accent} opacity-50 group-hover:opacity-100 transition-opacity`} />
+                      {item.label}
+                    </Link>
+                  ))}
+                </nav>
+              </div>
+            );
+          })}
         </div>
       </aside>
 

@@ -154,3 +154,32 @@ export function constructWebhookEvent(
 
   return stripe.webhooks.constructEvent(body, signature, secret);
 }
+
+// ---------------------------------------------------------------------------
+// Admin helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Refund a payment intent (full refund).
+ */
+export async function refundPaymentIntent(paymentIntentId: string) {
+  const stripe = getStripe();
+  return stripe.refunds.create({ payment_intent: paymentIntentId });
+}
+
+/**
+ * Cancel a Stripe subscription.
+ * @param immediately If true, cancel now. Otherwise cancel at period end.
+ */
+export async function cancelStripeSubscription(
+  stripeSubscriptionId: string,
+  immediately: boolean
+) {
+  const stripe = getStripe();
+  if (immediately) {
+    return stripe.subscriptions.cancel(stripeSubscriptionId);
+  }
+  return stripe.subscriptions.update(stripeSubscriptionId, {
+    cancel_at_period_end: true,
+  });
+}

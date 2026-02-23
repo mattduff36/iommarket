@@ -17,14 +17,16 @@ enum UserRole {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  authUserId String   @unique
-  email      String   @unique
-  name       String?
-  role       UserRole @default(USER)
-  regionId   String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String    @id @default(cuid())
+  authUserId     String    @unique
+  email          String    @unique
+  name           String?
+  role           UserRole  @default(USER)
+  regionId       String?
+  disabledAt     DateTime?
+  disabledReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   region        Region?        @relation(fields: [regionId], references: [id])
   listings      Listing[]
@@ -312,4 +314,59 @@ model ListingView {
 
   @@index([listingId, createdAt])
   @@index([viewerHash, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Admin Audit Log
+// ---------------------------------------------------------------------------
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// CMS Content Pages
+// ---------------------------------------------------------------------------
+
+enum ContentPageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model ContentPage {
+  id              String            @id @default(cuid())
+  slug            String            @unique
+  title           String
+  markdown        String
+  metaTitle       String?
+  metaDescription String?
+  status          ContentPageStatus @default(DRAFT)
+  publishedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([slug])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Site Settings (DB-backed overrides)
+// ---------------------------------------------------------------------------
+
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }
