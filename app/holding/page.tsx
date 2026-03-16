@@ -45,7 +45,7 @@ export default function HoldingPage() {
 
         <h1 className="mt-6 text-center font-heading font-bold leading-tight text-text-primary">
           <span className="block text-2xl sm:text-3xl lg:text-4xl">
-            Isle of Man&apos;s
+            The Isle of Man&apos;s
           </span>
           <span className="block text-3xl sm:text-4xl lg:text-5xl lg:leading-[1.15]">
             Dedicated Vehicle Marketplace
