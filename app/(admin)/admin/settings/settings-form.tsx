@@ -17,6 +17,7 @@ const KNOWN_SETTINGS = [
   { key: SETTING_KEYS.FEATURED_FEE_PENCE, label: "Featured Fee (pence)", type: "number" as const },
   { key: SETTING_KEYS.FREE_LISTING_WINDOW_DAYS, label: "Free Listing Window (days)", type: "number" as const },
   { key: SETTING_KEYS.LAUNCH_FREE_UNTIL, label: "Launch Free Until (ISO date)", type: "text" as const },
+  { key: SETTING_KEYS.FREE_LAUNCH_SLOTS_TOTAL, label: "Free Launch Slots (first N people)", type: "number" as const },
 ];
 
 export function SettingsForm({ settings, envDefaults }: SettingsFormProps) {

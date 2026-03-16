@@ -3,8 +3,12 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Check } from "lucide-react";
+import {
+  getFreeLaunchSlotsRemaining,
+  getFreeLaunchSlotsTotal,
+} from "@/lib/config/marketplace";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -17,6 +21,7 @@ const SELLER_FEATURES = [
   "Contact form included",
   "Moderation within 1-2 days",
   "Renew for another £4.99",
+  "Option to upgrade to a featured listing",
 ];
 
 const DEALER_FEATURES = [
@@ -29,7 +34,20 @@ const DEALER_FEATURES = [
   "Cancel anytime",
 ];
 
-export default function PricingPage() {
+const FREE_LAUNCH_FEATURES = [
+  "One free listing per person",
+  "30-day listing duration",
+  "Up to 10 photos",
+  "Contact form included",
+  "Moderation within 1-2 days",
+];
+
+export default async function PricingPage() {
+  const [slotsRemaining, slotsTotal] = await Promise.all([
+    getFreeLaunchSlotsRemaining(),
+    getFreeLaunchSlotsTotal(),
+  ]);
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="text-center mb-16">
@@ -42,71 +60,105 @@ export default function PricingPage() {
         <p className="mt-4 text-lg text-text-secondary max-w-xl mx-auto">
           No hidden fees. Just straightforward pricing for Isle of Man sellers.
         </p>
-        <p className="mt-4 inline-block rounded-lg border border-premium-gold-500/40 bg-premium-gold-500/10 px-4 py-3 text-base font-semibold text-premium-gold-500">
-          Launch offer: all listings are currently FREE for a limited time only…
-        </p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-2 max-w-3xl mx-auto items-stretch">
-        {/* Private Seller */}
-        <Card className="flex flex-col p-2 h-full ring-2 ring-neon-blue-500 shadow-high">
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Private Seller</CardTitle>
-            <CardDescription>
-              Perfect for selling individual items
-            </CardDescription>
-            <div className="mt-6">
-              <span className="text-4xl font-bold text-text-primary">
-                £4.99
-              </span>
-              <span className="text-text-secondary text-sm"> / listing</span>
+      <div className="flex flex-col gap-6 w-full">
+        {/* Free Launch Offer - First 100 */}
+        {slotsRemaining > 0 && (
+          <Card className="flex flex-row items-center p-4 ring-2 ring-premium-gold-500 shadow-high w-full min-h-[7rem]">
+            <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
+              <CardTitle className="text-lg text-premium-gold-500">
+                Free Launch Offer
+              </CardTitle>
+              <CardDescription className="text-left">
+                FREE private seller listing for the first {slotsTotal} people only
+              </CardDescription>
+              <div className="mt-2">
+                <span className="text-2xl font-bold text-premium-gold-500">
+                  £0
+                </span>
+                <span className="text-text-secondary text-xs"> / listing</span>
+              </div>
+              <p className="text-sm font-semibold text-premium-gold-500 mt-1">
+                {slotsRemaining} spots left
+              </p>
+              <Button asChild variant="energy" size="sm" className="mt-3">
+                <Link href="/sell">Claim Your Free Listing</Link>
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col">
-            <ul className="flex-1 space-y-4">
-              {SELLER_FEATURES.map((feature) => (
-                <li key={feature} className="flex items-start gap-3 text-sm">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10">
-                    <Check className="h-3 w-3 text-neon-blue-500" />
+            <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
+              {FREE_LAUNCH_FEATURES.map((feature) => (
+                <div key={feature} className="flex items-center gap-2 text-xs">
+                  <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-premium-gold-500/10">
+                    <Check className="h-2.5 w-2.5 text-premium-gold-500" />
                   </div>
                   <span className="text-text-secondary">{feature}</span>
-                </li>
+                </div>
               ))}
-            </ul>
-            <Button asChild variant="trust" className="w-full mt-8">
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Private Seller */}
+        <Card className="flex flex-row items-center p-4 ring-2 ring-neon-blue-500 shadow-high w-full min-h-[7rem]">
+          <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
+            <CardTitle className="text-lg">
+              Private Seller{" "}
+              <span className="font-normal text-text-tertiary">
+                - (Choose to support a new local business!)
+              </span>
+            </CardTitle>
+            <CardDescription className="text-left">
+              Perfect for selling individual items
+            </CardDescription>
+            <div className="mt-2">
+              <span className="text-2xl font-bold text-text-primary">
+                £4.99
+              </span>
+              <span className="text-text-secondary text-xs"> / listing</span>
+            </div>
+            <Button asChild variant="trust" size="sm" className="mt-3">
               <Link href="/sell">List an Item</Link>
             </Button>
+          </div>
+          <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
+            {SELLER_FEATURES.map((feature) => (
+              <div key={feature} className="flex items-center gap-2 text-xs">
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10">
+                  <Check className="h-2.5 w-2.5 text-neon-blue-500" />
+                </div>
+                <span className="text-text-secondary">{feature}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
         {/* Dealer */}
-        <Card className="flex flex-col p-2 h-full ring-2 ring-red-500 shadow-high">
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Dealer</CardTitle>
-            <CardDescription>
+        <Card className="flex flex-row items-center p-4 ring-2 ring-red-500 shadow-high w-full min-h-[7rem]">
+          <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
+            <CardTitle className="text-lg">Dealer</CardTitle>
+            <CardDescription className="text-left">
               For businesses with multiple items to sell
             </CardDescription>
-            <div className="mt-6">
-              <span className="text-4xl font-bold text-text-primary">
+            <div className="mt-2">
+              <span className="text-2xl font-bold text-text-primary">
                 £29.99
               </span>
-              <span className="text-text-secondary text-sm"> / month</span>
+              <span className="text-text-secondary text-xs"> / month</span>
             </div>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col">
-            <ul className="flex-1 space-y-4">
-              {DEALER_FEATURES.map((feature) => (
-                <li key={feature} className="flex items-start gap-3 text-sm">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/10">
-                    <Check className="h-3 w-3 text-red-500" />
-                  </div>
-                  <span className="text-text-secondary">{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <Button asChild variant="energy" className="w-full mt-8">
+            <Button asChild variant="energy" size="sm" className="mt-3">
               <Link href="/sell">Get Started</Link>
             </Button>
+          </div>
+          <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
+            {DEALER_FEATURES.map((feature) => (
+              <div key={feature} className="flex items-center gap-2 text-xs">
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                  <Check className="h-2.5 w-2.5 text-red-500" />
+                </div>
+                <span className="text-text-secondary">{feature}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </div>

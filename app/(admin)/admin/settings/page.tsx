@@ -6,6 +6,7 @@ import {
   getListingFeePence,
   getFeaturedFeePence,
   getFreeListingWindowDays,
+  getFreeLaunchSlotsTotal,
 } from "@/lib/config/marketplace";
 import { SETTING_KEYS } from "@/lib/config/site-settings";
 import { SettingsForm } from "./settings-form";
@@ -13,13 +14,17 @@ import { SettingsForm } from "./settings-form";
 export const metadata: Metadata = { title: "Settings | Admin" };
 
 export default async function AdminSettingsPage() {
-  const settings = await db.siteSetting.findMany({ orderBy: { key: "asc" } });
+  const [settings, freeSlotsTotal] = await Promise.all([
+    db.siteSetting.findMany({ orderBy: { key: "asc" } }),
+    getFreeLaunchSlotsTotal(),
+  ]);
 
   const envDefaults: Record<string, string> = {
     [SETTING_KEYS.LISTING_FEE_PENCE]: String(getListingFeePence()),
     [SETTING_KEYS.FEATURED_FEE_PENCE]: String(getFeaturedFeePence()),
     [SETTING_KEYS.FREE_LISTING_WINDOW_DAYS]: String(getFreeListingWindowDays()),
     [SETTING_KEYS.LAUNCH_FREE_UNTIL]: process.env.LAUNCH_FREE_UNTIL ?? "(not set)",
+    [SETTING_KEYS.FREE_LAUNCH_SLOTS_TOTAL]: String(freeSlotsTotal),
   };
 
   return (

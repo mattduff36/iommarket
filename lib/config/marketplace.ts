@@ -1,3 +1,4 @@
+import { db } from "@/lib/db";
 import { getNumberSetting, getStringSetting, SETTING_KEYS } from "./site-settings";
 
 const DEFAULT_LISTING_FEE_PENCE = 499;
@@ -66,4 +67,89 @@ export async function isListingFreeNowAsync(now = new Date()): Promise<boolean> 
   const freeUntil = await getLaunchFreeUntilAsync();
   if (freeUntil) return now <= freeUntil;
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Free launch slots (first N private sellers get free listing)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_FREE_LAUNCH_SLOTS = 100;
+
+/** Total number of free launch slots (configurable via SiteSetting) */
+export async function getFreeLaunchSlotsTotal(): Promise<number> {
+  return getNumberSetting(SETTING_KEYS.FREE_LAUNCH_SLOTS_TOTAL, DEFAULT_FREE_LAUNCH_SLOTS);
+}
+
+/**
+ * Count of unique users who have claimed a free private seller listing.
+ * A "free" listing = private seller (dealerId null), submitted (status != DRAFT), no successful Payment.
+ */
+export async function getFreeLaunchSlotsUsed(): Promise<number> {
+  const paidListingIds = await db.payment
+    .findMany({
+      where: { status: "SUCCEEDED" },
+      select: { listingId: true },
+    })
+    .then((rows) => new Set(rows.map((r) => r.listingId)));
+
+  const listings = await db.listing.findMany({
+    where: {
+      dealerId: null,
+      status: { not: "DRAFT" },
+    },
+    select: { userId: true, id: true },
+  });
+
+  const usersWithFreeListing = new Set<string>();
+  for (const l of listings) {
+    if (!paidListingIds.has(l.id)) {
+      usersWithFreeListing.add(l.userId);
+    }
+  }
+  return usersWithFreeListing.size;
+}
+
+/** Number of free slots remaining (0 when all claimed) */
+export async function getFreeLaunchSlotsRemaining(): Promise<number> {
+  const [total, used] = await Promise.all([
+    getFreeLaunchSlotsTotal(),
+    getFreeLaunchSlotsUsed(),
+  ]);
+  return Math.max(0, total - used);
+}
+
+/** True if the user has already claimed a free slot (has a free private seller listing) */
+export async function hasUserClaimedFreeSlot(userId: string): Promise<boolean> {
+  const paidListingIds = await db.payment
+    .findMany({
+      where: { status: "SUCCEEDED" },
+      select: { listingId: true },
+    })
+    .then((rows) => new Set(rows.map((r) => r.listingId)));
+
+  const userListings = await db.listing.findMany({
+    where: {
+      userId,
+      dealerId: null,
+      status: { not: "DRAFT" },
+    },
+    select: { id: true },
+  });
+
+  return userListings.some((l) => !paidListingIds.has(l.id));
+}
+
+/**
+ * True if a private seller listing can be free: slots remaining and user hasn't claimed yet.
+ * Also true if time-based free window (LAUNCH_FREE_UNTIL) is active (backwards compat).
+ */
+export async function isPrivateListingFreeForUser(userId: string): Promise<boolean> {
+  const freeUntil = await getLaunchFreeUntilAsync();
+  if (freeUntil && new Date() <= freeUntil) return true;
+
+  const [remaining, hasClaimed] = await Promise.all([
+    getFreeLaunchSlotsRemaining(),
+    hasUserClaimedFreeSlot(userId),
+  ]);
+  return remaining > 0 && !hasClaimed;
 }

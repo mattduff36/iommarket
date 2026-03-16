@@ -8,7 +8,10 @@ import {
   createFeaturedUpgradeCheckout,
 } from "@/lib/payments/stripe";
 import { createCheckoutSchema } from "@/lib/validations/payment";
-import { getListingFeePence, isListingFreeNow } from "@/lib/config/marketplace";
+import {
+  getListingFeePence,
+  isPrivateListingFreeForUser,
+} from "@/lib/config/marketplace";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -32,8 +35,11 @@ export async function payForListing(listingId: string) {
   }
 
   try {
-    const shouldSkipPayment =
-      isListingFreeNow() || (user.role === "DEALER" && Boolean(user.dealerProfile));
+    const isDealerWithSub = user.role === "DEALER" && Boolean(user.dealerProfile);
+    const isFreePrivateSeller =
+      !listing.dealerId &&
+      (await isPrivateListingFreeForUser(user.id));
+    const shouldSkipPayment = isDealerWithSub || isFreePrivateSeller;
     if (shouldSkipPayment) {
       // Do NOT update status here. The caller must still invoke submitListingForReview
       // so that server-side image validation (≥ 2 photos) is enforced before the
