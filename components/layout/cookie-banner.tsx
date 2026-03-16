@@ -22,16 +22,16 @@ export function CookieBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 rounded-lg border border-border bg-surface p-4 shadow-high">
-      <p className="text-sm text-text-secondary">
-        We use essential cookies to keep the marketplace secure and functional.
-        Read our{" "}
-        <Link href="/cookies" className="text-text-trust hover:underline">
-          cookie policy
-        </Link>
-        .
-      </p>
-      <div className="mt-3">
+    <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-surface px-5 py-2.5 shadow-high">
+      <div className="flex items-center gap-4">
+        <p className="whitespace-nowrap text-sm text-text-secondary">
+          We use essential cookies to keep the marketplace secure and functional.
+          Read our{" "}
+          <Link href="/cookies" className="text-text-trust hover:underline">
+            cookie policy
+          </Link>
+          .
+        </p>
         <Button type="button" size="sm" onClick={accept}>
           Accept
         </Button>
