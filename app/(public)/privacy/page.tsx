@@ -248,7 +248,8 @@ function PrivacyFallback() {
         <ul className="list-inside list-disc space-y-1">
           <li>
             <strong className="text-text-primary">Waiting list data</strong> —
-            held for 3 months after launch
+            retained for 3 months after the platform launches, or until you
+            request removal, whichever is sooner
           </li>
           <li>
             <strong className="text-text-primary">Account data</strong> —
