@@ -1,8 +1,13 @@
 import { Resend } from "resend";
 
-function getResendClient(): Resend | null {
+function getResendClient(): Resend {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    throw new Error(
+      "Resend is not configured in this runtime (missing RESEND_API_KEY). " +
+      "Ensure env vars are loaded for the current process."
+    );
+  }
   return new Resend(apiKey);
 }
 
@@ -204,4 +209,146 @@ export async function sendReportNotificationEmail(params: {
       text: `Reporter: ${params.reporterEmail}\n\nReason:\n${params.reason}`,
     });
   }
+}
+
+function parseEmailRecipients(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((email) => email.trim())
+    .filter((email) => email.length > 0);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export async function sendWaitlistConfirmationEmail(params: {
+  to: string;
+  interests: string[];
+}): Promise<void> {
+  const resend = getResendClient();
+  if (!resend) return;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const canonicalAppUrl = appUrl.replace(/\/$/, "");
+  const logoUrl = `${canonicalAppUrl}/images/logo-itrader.png`;
+  const ctaUrl = canonicalAppUrl || "https://itrader.im";
+
+  const interestsList = params.interests.map((item) => `- ${item}`).join("\n");
+
+  await resend.emails.send({
+    from: getFromEmail(),
+    to: params.to,
+    subject: "You're on the iTrader.im waiting list",
+    text: [
+      "You're on the list!",
+      "",
+      "Thanks for your interest in iTrader.im — the upcoming vehicle marketplace for the Isle of Man.",
+      "",
+      "We'll notify you as soon as the platform launches.",
+      "",
+      "Your selected interests:",
+      interestsList,
+      "",
+      "iTrader.im",
+      "Buy • Sell • Upgrade",
+    ].join("\n"),
+    html: `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>You're on the iTrader.im waiting list</title>
+        </head>
+        <body style="margin:0;padding:0;background-color:#000000;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#000000" style="background-color:#000000;">
+            <tr>
+              <td align="center" style="padding:28px 14px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;border:1px solid #1e2a46;border-radius:14px;background:radial-gradient(ellipse 90% 80% at 15% 0%, rgba(35,86,225,0.30) 0%, rgba(15,22,40,0) 60%),radial-gradient(ellipse 80% 70% at 85% 0%, rgba(232,72,35,0.20) 0%, rgba(15,22,40,0) 62%),#0f1628;">
+                  <tr>
+                    <td align="center" style="padding:26px 24px 14px 24px;">
+                      <img src="${logoUrl}" alt="iTrader.im" width="230" style="display:block;width:230px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding:0 24px 24px 24px;">
+                      <p style="margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:13px;line-height:18px;color:#2f86ff;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;">
+                        Coming Soon
+                      </p>
+                      <h1 style="margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:34px;line-height:40px;font-weight:800;color:#ffffff;text-align:center;">
+                        You're on the list!
+                      </h1>
+                      <p style="margin:0 auto 12px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
+                        Thanks for your interest in iTrader.im — the upcoming vehicle marketplace for the Isle of Man.
+                      </p>
+                      <p style="margin:0 auto 0 auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
+                        We'll notify you as soon as the platform launches.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding:18px 24px;border-top:1px solid #1e2a46;">
+                      <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;line-height:20px;color:#95a1be;text-align:center;">
+                        iTrader.im<br />
+                        Buy • Sell • Upgrade
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `,
+  });
+}
+
+export async function sendWaitlistAdminNotificationEmail(params: {
+  email: string;
+  interests: string[];
+  createdAt: Date;
+  source: string;
+}): Promise<void> {
+  const resend = getResendClient();
+  if (!resend) return;
+
+  const recipients = parseEmailRecipients(
+    process.env.RESEND_WAITLIST_TO_EMAIL ?? process.env.RESEND_REPORTS_TO_EMAIL
+  );
+  if (recipients.length === 0) return;
+
+  const interestLine = params.interests.join(", ");
+  const timestamp = params.createdAt.toLocaleString("en-GB", { timeZone: "UTC" });
+
+  await resend.emails.send({
+    from: getFromEmail(),
+    to: recipients,
+    subject: "New iTrader Waitlist Signup",
+    text: [
+      "A new waitlist signup has been captured.",
+      "",
+      `Email: ${params.email}`,
+      `Selected interests: ${interestLine}`,
+      `Timestamp (UTC): ${timestamp}`,
+      `Source: ${params.source}`,
+    ].join("\n"),
+    html: `
+      <div style="margin:0;padding:20px;background:#0b0d16;color:#f5f7ff;font-family:Inter,Arial,sans-serif;">
+        <div style="max-width:620px;margin:0 auto;border:1px solid #2a2f44;border-radius:10px;background:#121a2f;padding:20px;">
+          <h2 style="margin:0 0 14px 0;font-size:22px;color:#ffffff;">New iTrader Waitlist Signup</h2>
+          <p style="margin:0 0 10px 0;color:#d1d7ea;"><strong>Email:</strong> ${params.email}</p>
+          <p style="margin:0 0 10px 0;color:#d1d7ea;"><strong>Selected interests:</strong> ${interestLine}</p>
+          <p style="margin:0 0 10px 0;color:#d1d7ea;"><strong>Timestamp (UTC):</strong> ${timestamp}</p>
+          <p style="margin:0;color:#d1d7ea;"><strong>Source:</strong> ${params.source}</p>
+        </div>
+      </div>
+    `,
+  });
 }

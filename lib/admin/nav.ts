@@ -12,6 +12,7 @@ import {
   Settings,
   Image,
   BarChart3,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +31,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Categories", href: "/admin/categories", icon: FolderTree, group: "core" },
   { label: "Regions", href: "/admin/regions", icon: MapPin, group: "core" },
   { label: "Reports", href: "/admin/reports", icon: ShieldAlert, group: "operations" },
+  { label: "Waitlist", href: "/admin/waitlist", icon: Mail, group: "operations" },
   { label: "Payments", href: "/admin/payments", icon: CreditCard, group: "operations" },
   { label: "Revenue", href: "/admin/revenue", icon: DollarSign, group: "operations" },
   { label: "Pages", href: "/admin/pages", icon: FileText, group: "content" },

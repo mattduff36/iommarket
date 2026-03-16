@@ -66,10 +66,12 @@
 - **Scope**:
   - contact seller delivery
   - report submission confirmation/notification
+  - waitlist confirmation + admin signup notifications
 - **Env vars**:
   - `RESEND_API_KEY`
   - `RESEND_FROM_EMAIL`
   - optional `RESEND_REPLY_TO_EMAIL`
+  - optional `RESEND_WAITLIST_TO_EMAIL` (comma-separated recipients; falls back to `RESEND_REPORTS_TO_EMAIL`)
 - **Local**: Resend test/dev domain and non-production sender.
 - **Staging/Prod**: verified domain and monitored bounce/reject logs.
 
