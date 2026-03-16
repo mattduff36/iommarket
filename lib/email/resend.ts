@@ -237,7 +237,6 @@ export async function sendWaitlistConfirmationEmail(params: {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const canonicalAppUrl = appUrl.replace(/\/$/, "");
   const logoUrl = `${canonicalAppUrl}/images/logo-itrader.png`;
-  const ctaUrl = canonicalAppUrl || "https://itrader.im";
 
   const interestsList = params.interests.map((item) => `- ${item}`).join("\n");
 
@@ -285,7 +284,8 @@ export async function sendWaitlistConfirmationEmail(params: {
                         You're on the list!
                       </h1>
                       <p style="margin:0 auto 12px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
-                        Thanks for your interest in iTrader.im — the upcoming vehicle marketplace for the Isle of Man.
+                        Thanks for your interest in iTrader.im —<br />
+                        the upcoming vehicle marketplace for the Isle of Man.
                       </p>
                       <p style="margin:0 auto 0 auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
                         We'll notify you as soon as the platform launches.

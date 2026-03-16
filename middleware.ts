@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/dev/auth") return true;
-  if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo")) return true;
+  if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo") || pathname === "/privacy" || pathname === "/terms" || pathname === "/cookies" || pathname === "/contact" || pathname === "/safety") return true;
   return false;
 }
 
@@ -45,9 +45,19 @@ export default async function middleware(request: NextRequest) {
   /* ------------------------------------------------------------------ */
   const devAuth = request.cookies.get("dev-auth")?.value === "true";
 
+  const isLegalPath =
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/cookies" ||
+    pathname === "/contact" ||
+    pathname === "/safety";
+
   if (!devAuth) {
     if (pathname === "/") {
       return NextResponse.rewrite(new URL("/holding", request.url));
+    }
+    if (isLegalPath) {
+      return NextResponse.next();
     }
     return NextResponse.redirect(new URL("/", request.url));
   }
