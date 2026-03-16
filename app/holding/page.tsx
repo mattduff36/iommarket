@@ -14,7 +14,7 @@ export default function HoldingPage() {
       className="relative flex min-h-screen flex-col"
       style={{ background: HERO_GRADIENT }}
     >
-      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+      <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
         <Image
           src="/images/logo-itrader.png"
           alt="iTrader.im – Buy · Sell · Upgrade"
@@ -24,17 +24,32 @@ export default function HoldingPage() {
           className="w-auto max-w-[260px] sm:max-w-[340px] drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
         />
 
-        <div className="mt-10 inline-flex items-center gap-2 rounded-full border border-neon-blue-500/25 bg-neon-blue-500/[0.08] px-4 py-1.5">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neon-blue-400" />
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-blue-400">
-            Coming Soon
+        <div className="mt-10 inline-flex items-center gap-2.5 rounded-full border border-amber-500/30 bg-amber-500/[0.06] px-4 py-1.5">
+          <svg className="h-3.5 w-2.5 shrink-0" viewBox="0 0 10 14" aria-hidden="true">
+            <path d="M5 0L9 11H1L5 0Z" fill="#f59e0b" />
+            <rect x="0" y="11.5" width="10" height="2" rx="0.5" fill="#d97706" />
+          </svg>
+          <span className="h-1.5 w-1.5 animate-strobe rounded-full bg-amber-400" />
+          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-amber-400">
+            Under Construction
           </span>
+          <span
+            className="h-1.5 w-1.5 animate-strobe rounded-full bg-amber-400"
+            style={{ animationDelay: "0.3s" }}
+          />
+          <svg className="h-3.5 w-2.5 shrink-0" viewBox="0 0 10 14" aria-hidden="true">
+            <path d="M5 0L9 11H1L5 0Z" fill="#f59e0b" />
+            <rect x="0" y="11.5" width="10" height="2" rx="0.5" fill="#d97706" />
+          </svg>
         </div>
 
-        <h1 className="mt-6 text-center font-heading text-3xl font-bold leading-tight text-text-primary sm:text-4xl lg:text-5xl lg:leading-[1.15]">
-          Isle of Man&apos;s Dedicated
-          <br />
-          Vehicle Marketplace
+        <h1 className="mt-6 text-center font-heading font-bold leading-tight text-text-primary">
+          <span className="block text-2xl sm:text-3xl lg:text-4xl">
+            Isle of Man&apos;s
+          </span>
+          <span className="block text-3xl sm:text-4xl lg:text-5xl lg:leading-[1.15]">
+            Dedicated Vehicle Marketplace
+          </span>
         </h1>
 
         <p className="mt-5 text-center text-lg leading-relaxed text-metallic-300">
