@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Button } from "@/components/ui/button";
+import { BrandedSpinner } from "@/components/ui/branded-spinner";
 import { cn } from "@/lib/cn";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
 
@@ -12,6 +13,7 @@ interface ListingItem {
   title: string;
   price: number;
   featured: boolean;
+  isFavourite?: boolean;
   sold?: boolean;
   imageSrc?: string;
   categoryName: string;
@@ -23,6 +25,7 @@ interface Props {
   total: number;
   pageSize: number;
   queryParams: SearchParams;
+  enableFavourites?: boolean;
 }
 
 type ViewMode = "grid" | "list";
@@ -32,6 +35,7 @@ export function ListingResultsClient({
   total,
   pageSize,
   queryParams,
+  enableFavourites = false,
 }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<ListingItem[]>(initialListings);
@@ -150,6 +154,9 @@ export function ListingResultsClient({
               sold={listing.sold}
               badge={listing.featured ? "Featured" : undefined}
               href={`/listings/${listing.id}`}
+              listingId={listing.id}
+              showFavourite={enableFavourites}
+              initialIsFavourite={Boolean(listing.isFavourite)}
             />
           </div>
         ))}
@@ -157,7 +164,14 @@ export function ListingResultsClient({
 
       {hasMore ? (
         <div ref={loaderRef} className="py-6 text-center text-sm text-text-secondary">
-          {isLoading ? "Loading more listings..." : "Scroll for more"}
+          {isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <BrandedSpinner size="sm" />
+              Loading more listings...
+            </span>
+          ) : (
+            "Scroll for more"
+          )}
         </div>
       ) : (
         <p className="py-6 text-center text-sm text-text-secondary">End of results</p>

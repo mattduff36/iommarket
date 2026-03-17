@@ -7,7 +7,11 @@ import {
   createDealerSubscriptionCheckout,
   createFeaturedUpgradeCheckout,
 } from "@/lib/payments/stripe";
-import { createCheckoutSchema } from "@/lib/validations/payment";
+import {
+  createCheckoutSchema,
+  createDealerSubscriptionSchema,
+  payForListingSchema,
+} from "@/lib/validations/payment";
 import {
   getListingFeePence,
   isPrivateListingFreeForUser,
@@ -19,10 +23,16 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 // Pay for Listing (creates Stripe Checkout Session)
 // ---------------------------------------------------------------------------
 
-export async function payForListing(listingId: string) {
+export async function payForListing(
+  listingId: string,
+  options?: { supportAmountPence?: number }
+) {
   const user = await requireAuth();
 
-  const parsed = createCheckoutSchema.safeParse({ listingId });
+  const parsed = payForListingSchema.safeParse({
+    listingId,
+    supportAmountPence: options?.supportAmountPence ?? 0,
+  });
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
@@ -39,8 +49,24 @@ export async function payForListing(listingId: string) {
     const isFreePrivateSeller =
       !listing.dealerId &&
       (await isPrivateListingFreeForUser(user.id));
+    const supportAmountPence = parsed.data.supportAmountPence;
     const shouldSkipPayment = isDealerWithSub || isFreePrivateSeller;
     if (shouldSkipPayment) {
+      if (isFreePrivateSeller && supportAmountPence > 0) {
+        const supportSession = await createListingCheckout({
+          listingId: listing.id,
+          listingTitle: listing.title,
+          amountInPence: supportAmountPence,
+          checkoutType: "listing_support",
+          lineItemDescription: "Optional support contribution for itrader.im",
+          customerEmail: user.email,
+          successUrl: `${APP_URL}/sell/success?listing=${listing.id}`,
+          cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}`,
+          idempotencyKey: `listing-support-${listing.id}-${Date.now()}`,
+        });
+        return { data: { checkoutUrl: supportSession.url, skippedPayment: false } };
+      }
+
       // Do NOT update status here. The caller must still invoke submitListingForReview
       // so that server-side image validation (≥ 2 photos) is enforced before the
       // listing enters the moderation queue.
@@ -53,6 +79,7 @@ export async function payForListing(listingId: string) {
       listingId: listing.id,
       listingTitle: listing.title,
       amountInPence: listingFeePence,
+      checkoutType: "listing_payment",
       customerEmail: user.email,
       successUrl: `${APP_URL}/sell/success?listing=${listing.id}`,
       cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}`,
@@ -71,16 +98,25 @@ export async function payForListing(listingId: string) {
 // Create Dealer Subscription (creates Stripe Checkout Session)
 // ---------------------------------------------------------------------------
 
-export async function createDealerSubscription() {
+export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTER") {
   const user = await requireAuth();
 
   if (!user.dealerProfile) {
     return { error: "You must have a dealer profile to subscribe" };
   }
 
+  const parsed = createDealerSubscriptionSchema.safeParse({
+    dealerId: user.dealerProfile.id,
+    tier,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors };
+  }
+
   try {
     const session = await createDealerSubscriptionCheckout({
-      dealerId: user.dealerProfile.id,
+      dealerId: parsed.data.dealerId,
+      tier: parsed.data.tier,
       customerEmail: user.email,
       successUrl: `${APP_URL}/dealer/dashboard?subscribed=true`,
       cancelUrl: `${APP_URL}/pricing`,
@@ -114,6 +150,22 @@ export async function upgradeFeatured(listingId: string) {
   }
   if (listing.featured) {
     return { error: "This listing is already featured" };
+  }
+  if (listing.dealerId === null) {
+    const paidListing = await db.payment.findFirst({
+      where: {
+        listingId: listing.id,
+        status: "SUCCEEDED",
+        type: "LISTING",
+      },
+      select: { id: true },
+    });
+    if (!paidListing) {
+      return {
+        error:
+          "Free listings cannot be featured. Choose a paid listing plan to unlock featured upgrades.",
+      };
+    }
   }
 
   try {

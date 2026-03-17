@@ -19,6 +19,10 @@ import {
 import { Plus, ExternalLink } from "lucide-react";
 import { DevSubscriptionBypass } from "@/components/dev/dev-subscription-bypass";
 import { MarkSoldButton } from "./mark-sold-button";
+import {
+  DEALER_TIER_LABELS,
+  getDealerListingCap,
+} from "@/lib/config/dealer-tiers";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -63,6 +67,11 @@ export default async function DealerDashboardPage() {
   const liveCount = listings.filter((l) => l.status === "LIVE").length;
   const pendingCount = listings.filter((l) => l.status === "PENDING").length;
   const draftCount = listings.filter((l) => l.status === "DRAFT").length;
+  const activeSlotsUsed = listings.filter((l) =>
+    ["DRAFT", "PENDING", "APPROVED", "LIVE"].includes(l.status)
+  ).length;
+  const listingCap = getDealerListingCap(user.dealerProfile.tier);
+  const tierLabel = DEALER_TIER_LABELS[user.dealerProfile.tier];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -153,6 +162,10 @@ export default async function DealerDashboardPage() {
             ) : (
               <Badge variant="error">Inactive</Badge>
             )}
+            <Badge variant="info">{tierLabel} plan</Badge>
+            <span className="text-sm text-text-secondary">
+              {Math.min(activeSlotsUsed, listingCap)}/{listingCap} active listing slots used
+            </span>
             {subscription?.currentPeriodEnd && (
               <span className="text-sm text-text-secondary">
                 Renews{" "}

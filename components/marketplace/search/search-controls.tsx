@@ -222,6 +222,17 @@ export function SearchControls({
     }
   }
 
+  function handleResetFilters() {
+    setMake("");
+    setModel("");
+    setRegion("");
+    setPriceRange([0, PRICE_MAX]);
+    setMileageRange([0, MILEAGE_MAX]);
+    setAgeRange([0, AGE_MAX]);
+    setAdvancedParams({});
+    router.push("/search");
+  }
+
   const selectClass = "h-11 rounded-sm border border-border bg-surface-elevated text-text-primary text-sm font-medium";
 
   return (
@@ -328,6 +339,15 @@ export function SearchControls({
             Advanced Search
           </Button>
         )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleResetFilters}
+          className="text-metallic-400 hover:text-text-primary"
+        >
+          Reset filters
+        </Button>
       </div>
 
       {/* ---- MORE OPTIONS PANEL ---- */}

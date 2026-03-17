@@ -2,6 +2,9 @@ import { db } from "@/lib/db";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { UserRole } from "@prisma/client";
+import { z } from "zod";
+
+const signUpRoleSchema = z.enum(["USER", "DEALER"]);
 
 /**
  * Get the current authenticated user from DB, syncing from Supabase Auth if needed.
@@ -18,6 +21,9 @@ export async function getCurrentUser() {
   } = await supabase.auth.getUser();
   if (!authUser) return null;
 
+  const parsedRole = signUpRoleSchema.safeParse(authUser.user_metadata?.role);
+  const requestedRole = parsedRole.success ? parsedRole.data : undefined;
+
   let user = await db.user.findUnique({
     where: { authUserId: authUser.id },
     include: { dealerProfile: true },
@@ -27,10 +33,20 @@ export async function getCurrentUser() {
     const synced = await syncUser(
       authUser.id,
       authUser.email ?? "",
-      authUser.user_metadata?.full_name as string | undefined
+      authUser.user_metadata?.full_name as string | undefined,
+      requestedRole
     );
     return db.user.findUnique({
       where: { id: synced.id },
+      include: { dealerProfile: true },
+    });
+  }
+
+  // Preserve higher-privilege roles; only allow first-time upgrade USER -> DEALER from signup metadata.
+  if (requestedRole === "DEALER" && user.role === "USER") {
+    user = await db.user.update({
+      where: { id: user.id },
+      data: { role: "DEALER" },
       include: { dealerProfile: true },
     });
   }
@@ -41,11 +57,16 @@ export async function getCurrentUser() {
 /**
  * Sync a Supabase Auth user to the local database (called on first visit after sign-in).
  */
-export async function syncUser(authUserId: string, email: string, name?: string) {
+export async function syncUser(
+  authUserId: string,
+  email: string,
+  name?: string,
+  role: "USER" | "DEALER" = "USER"
+) {
   return db.user.upsert({
     where: { authUserId },
     update: { email, name },
-    create: { authUserId, email, name, role: "USER" },
+    create: { authUserId, email, name, role },
   });
 }
 

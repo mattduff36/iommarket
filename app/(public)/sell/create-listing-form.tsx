@@ -11,6 +11,7 @@ import { payForListing } from "@/actions/payments";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 
 interface AttributeDef {
@@ -46,6 +47,8 @@ export function CreateListingForm({ categories, regions }: Props) {
   const [step, setStep] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [trustConfirmed, setTrustConfirmed] = useState(false);
+  const [supportPlatform, setSupportPlatform] = useState(false);
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
@@ -68,6 +71,12 @@ export function CreateListingForm({ categories, regions }: Props) {
     setError(null);
 
     const form = new FormData(e.currentTarget);
+    if (!trustConfirmed) {
+      setError(
+        "Please confirm the vehicle is not stolen and has no outstanding finance."
+      );
+      return;
+    }
 
     const attributes: Array<{ attributeDefinitionId: string; value: string }> = [];
     if (selectedCategory) {
@@ -86,6 +95,7 @@ export function CreateListingForm({ categories, regions }: Props) {
         price: Math.round(parseFloat(form.get("price") as string) * 100),
         categoryId: form.get("categoryId") as string,
         regionId: form.get("regionId") as string,
+        trustDeclarationAccepted: trustConfirmed,
         attributes,
       });
 
@@ -111,7 +121,9 @@ export function CreateListingForm({ categories, regions }: Props) {
           }
         }
 
-        const payResult = await payForListing(result.data.id);
+        const payResult = await payForListing(result.data.id, {
+          supportAmountPence: supportPlatform ? 500 : 0,
+        });
         if (payResult.error) {
           setError(
             typeof payResult.error === "string"
@@ -254,6 +266,16 @@ export function CreateListingForm({ categories, regions }: Props) {
               <p className="text-sm text-text-secondary">
                 Photos selected: {uploadedImages.length}
               </p>
+              <Checkbox
+                checked={trustConfirmed}
+                onCheckedChange={(checked) => setTrustConfirmed(checked === true)}
+                label="I confirm this vehicle is not stolen and has no outstanding finance"
+              />
+              <Checkbox
+                checked={supportPlatform}
+                onCheckedChange={(checked) => setSupportPlatform(checked === true)}
+                label="Optional: add £5 to support the platform"
+              />
           </div>
 
           {/* Dynamic category attributes */}

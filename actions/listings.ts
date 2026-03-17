@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
   createListingSchema,
@@ -40,6 +41,21 @@ export async function createListing(input: CreateListingInput) {
     if (!activeSub) {
       return { error: "Active dealer subscription required to post listings." };
     }
+
+    const listingCap = getDealerListingCap(user.dealerProfile.tier);
+    const activeListingCount = await db.listing.count({
+      where: {
+        dealerId: user.dealerProfile.id,
+        status: {
+          in: ["DRAFT", "PENDING", "APPROVED", "LIVE"],
+        },
+      },
+    });
+    if (activeListingCount >= listingCap) {
+      return {
+        error: `Your ${user.dealerProfile.tier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
+      };
+    }
   }
 
   const rateCheck = checkRateLimit(`create-listing:${user.id}`, {
@@ -55,7 +71,7 @@ export async function createListing(input: CreateListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const { attributes, ...data } = parsed.data;
+  const { attributes, trustDeclarationAccepted, ...data } = parsed.data;
 
   try {
     const listing = await db.listing.create({
@@ -64,6 +80,8 @@ export async function createListing(input: CreateListingInput) {
         userId: user.id,
         dealerId: user.dealerProfile?.id ?? null,
         status: "DRAFT",
+        trustDeclarationAccepted,
+        trustDeclarationAcceptedAt: trustDeclarationAccepted ? new Date() : null,
         attributeValues: {
           create: attributes.map((attr) => ({
             attributeDefinitionId: attr.attributeDefinitionId,
@@ -147,6 +165,12 @@ export async function submitListingForReview(listingId: string) {
   if (listing.userId !== user.id) return { error: "Not authorized" };
   if (listing.status !== "DRAFT") return { error: "Listing is not in draft status" };
   if (listing.images.length < 2) return { error: "At least 2 photos are required" };
+  if (!listing.trustDeclarationAccepted) {
+    return {
+      error:
+        "Please confirm the vehicle is not stolen and has no outstanding finance before submitting.",
+    };
+  }
 
   try {
     const updated = await db.listing.update({

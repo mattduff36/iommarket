@@ -16,6 +16,11 @@ enum UserRole {
   ADMIN
 }
 
+enum DealerTier {
+  STARTER
+  PRO
+}
+
 model User {
   id             String    @id @default(cuid())
   authUserId     String    @unique
@@ -50,6 +55,7 @@ model DealerProfile {
   phone     String?
   logoUrl   String?
   verified  Boolean  @default(false)
+  tier      DealerTier @default(STARTER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -146,6 +152,8 @@ model Listing {
   viewCount   Int           @default(0)
   expiresAt   DateTime?
   soldAt      DateTime?
+  trustDeclarationAccepted   Boolean  @default(false)
+  trustDeclarationAcceptedAt DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -206,12 +214,19 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentType {
+  LISTING
+  FEATURED
+  SUPPORT
+}
+
 model Payment {
   id              String        @id @default(cuid())
   listingId       String
   stripePaymentId String        @unique
   amount          Int           // in pence
   currency        String        @default("gbp")
+  type            PaymentType   @default(LISTING)
   status          PaymentStatus @default(PENDING)
   idempotencyKey  String?       @unique
   createdAt       DateTime      @default(now())

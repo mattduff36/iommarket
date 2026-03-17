@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 function safeInt(v: string | null): number | undefined {
   if (!v) return undefined;
@@ -14,6 +15,7 @@ interface NumericRangeFilter {
 }
 
 export async function GET(request: NextRequest) {
+  const currentUser = await getCurrentUser();
   const sp = request.nextUrl.searchParams;
   const query = sp.get("q")?.trim() ?? "";
   const page = Math.max(1, Number.parseInt(sp.get("page") ?? "1", 10));
@@ -158,6 +160,19 @@ export async function GET(request: NextRequest) {
     }),
     db.listing.count({ where }),
   ]);
+  const favouriteListingIds = currentUser
+    ? new Set(
+        (
+          await db.favourite.findMany({
+            where: {
+              userId: currentUser.id,
+              listingId: { in: listings.map((listing) => listing.id) },
+            },
+            select: { listingId: true },
+          })
+        ).map((favourite) => favourite.listingId)
+      )
+    : new Set<string>();
 
   return NextResponse.json({
     total,
@@ -168,6 +183,7 @@ export async function GET(request: NextRequest) {
       title: listing.title,
       price: listing.price,
       featured: listing.featured,
+      isFavourite: favouriteListingIds.has(listing.id),
       sold: listing.status === "SOLD",
       imageSrc: listing.images[0]?.url,
       categoryName: listing.category.name,

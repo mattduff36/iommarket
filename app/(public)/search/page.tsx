@@ -204,6 +204,19 @@ export default async function SearchPage({ searchParams }: Props) {
       select: { id: true },
     }),
   ]);
+  const favouriteListingIds = currentUser
+    ? new Set(
+        (
+          await db.favourite.findMany({
+            where: {
+              userId: currentUser.id,
+              listingId: { in: listings.map((listing) => listing.id) },
+            },
+            select: { listingId: true },
+          })
+        ).map((favourite) => favourite.listingId)
+      )
+    : new Set<string>();
 
   const makeIds = makeDefs.map((d) => d.id);
   const modelIds = modelDefs.map((d) => d.id);
@@ -318,6 +331,7 @@ export default async function SearchPage({ searchParams }: Props) {
             title: listing.title,
             price: listing.price,
             featured: listing.featured,
+            isFavourite: favouriteListingIds.has(listing.id),
             sold: listing.status === "SOLD",
             imageSrc: listing.images[0]?.url,
             categoryName: listing.category.name,
@@ -326,6 +340,7 @@ export default async function SearchPage({ searchParams }: Props) {
           total={total}
           pageSize={pageSize}
           queryParams={currentParams}
+          enableFavourites={Boolean(currentUser)}
         />
       ) : (
         <p className="text-center py-16 text-text-secondary">
