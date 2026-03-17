@@ -91,7 +91,7 @@ export default async function PricingPage() {
                 </span>
                 <span className="text-text-secondary text-xs"> / listing</span>
               </div>
-              <Button asChild variant="energy" size="sm" className="mt-3">
+              <Button asChild variant="premium" size="sm" className="mt-3">
                 <Link href="/sell/private">Claim Your Free Listing</Link>
               </Button>
             </div>
