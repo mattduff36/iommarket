@@ -1,0 +1,22 @@
+flowchart TD
+  Actor[SellerOrDealer]
+  PaymentAction[paymentsAction]
+  StripeSession[StripeCheckoutSession]
+  StripeWebhook[POSTApiWebhooksStripe]
+  PaymentRecord[(PaymentTable)]
+  SubscriptionRecord[(SubscriptionTable)]
+  ListingRecord[(ListingTable)]
+
+  Actor -->|"Current"| PaymentAction
+  PaymentAction -->|"Current:ListingPayment"| StripeSession
+  PaymentAction -->|"Current:FeaturedUpgrade"| StripeSession
+  PaymentAction -->|"Current:DealerSubscription"| StripeSession
+  StripeSession -->|"Current"| StripeWebhook
+
+  StripeWebhook -->|"Current:listing_payment"| PaymentRecord
+  StripeWebhook -->|"Current:listing_payment"| ListingRecord
+  StripeWebhook -->|"Current:featured_upgrade"| PaymentRecord
+  StripeWebhook -->|"Current:featured_upgrade"| ListingRecord
+  StripeWebhook -->|"Current:dealer_subscription"| SubscriptionRecord
+  StripeWebhook -->|"Current:subscription_updated_deleted"| SubscriptionRecord
+  StripeWebhook -->|"Current:charge_refunded"| PaymentRecord

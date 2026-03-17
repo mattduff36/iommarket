@@ -1,0 +1,25 @@
+flowchart TD
+  Request[IncomingRequest]
+  Middleware[Middleware]
+  DevCookie{dev-authCookie}
+  Holding[HoldingPage]
+  PublicRoute{isPublicPath}
+  SupabaseSession[SupabaseSessionCheck]
+  SignIn[SignInPage]
+  RouteAllowed[RouteAllowed]
+  ApiRoute[ApiRoute]
+  PublicAppFlow[PublicAppFlow]
+  AdminFlow[AdminFlow]
+
+  Request -->|"Current"| Middleware
+  Middleware -->|"Current"| ApiRoute
+  Middleware -->|"Current"| DevCookie
+  DevCookie -->|"Current:NoAtRoot"| Holding
+  DevCookie -->|"Current:NoNotRoot"| SignIn
+  DevCookie -->|"Current:Yes"| SupabaseSession
+  SupabaseSession -->|"Current:NoUserAndPublic"| RouteAllowed
+  SupabaseSession -->|"Current:NoUserAndProtected"| SignIn
+  SupabaseSession -->|"Current:UserPresent"| RouteAllowed
+
+  RouteAllowed -->|"Current"| PublicAppFlow
+  RouteAllowed -->|"Current"| AdminFlow

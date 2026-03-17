@@ -1,0 +1,35 @@
+flowchart TD
+  Seller[AuthenticatedSeller]
+  Form[CreateListingForm]
+  CreateAction[createListing]
+  Draft[(ListingStatusDraft)]
+  UploadImages[saveListingImages]
+  PayAction[payForListing]
+  Checkout{checkoutUrlReturned}
+  StripeCheckout[StripeCheckoutSession]
+  StripeWebhook[StripeWebhook]
+  Pending[(ListingStatusPending)]
+  ReviewAction[submitListingForReview]
+  AdminReview[AdminModerationAction]
+  Live[(ListingStatusLive)]
+  Sold[(ListingStatusSold)]
+  Expired[(ListingStatusExpired)]
+
+  Seller -->|"Current"| Form
+  Form -->|"Current"| CreateAction
+  CreateAction -->|"Current"| Draft
+  Form -->|"Current"| UploadImages
+  UploadImages -->|"Current"| Draft
+  Draft -->|"Current"| PayAction
+  PayAction -->|"Current"| Checkout
+  Checkout -->|"Current:Yes"| StripeCheckout
+  StripeCheckout -->|"Current"| StripeWebhook
+  StripeWebhook -->|"Current"| Pending
+  Checkout -->|"Current:NoSkippedPayment"| ReviewAction
+  ReviewAction -->|"Current"| Pending
+  Pending -->|"Current"| AdminReview
+  AdminReview -->|"Current:Approve"| Live
+  AdminReview -->|"Current:RejectOrTakeDown"| Expired
+  Live -->|"Current:OwnerMarksSold"| Sold
+
+  StripeCheckout -->|"FutureGap:CancelRedirectPath"| SellCheckoutRoute

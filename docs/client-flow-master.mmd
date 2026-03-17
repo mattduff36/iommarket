@@ -1,0 +1,53 @@
+flowchart TD
+  Visitor[Visitor]
+  Buyer[Buyer]
+  Seller[Seller]
+  Dealer[Dealer]
+  Admin[Admin]
+
+  subgraph publicApp [PublicApp]
+    Home[HomeOrHolding]
+    Search[SearchAndBrowse]
+    ListingDetail[ListingDetail]
+    SellFlow[SellCreateListing]
+    Account[AccountArea]
+  end
+
+  subgraph adminApp [AdminApp]
+    AdminConsole[AdminDashboard]
+    Moderation[ListingModeration]
+    WaitlistAdmin[WaitlistAdmin]
+  end
+
+  subgraph externalServices [ExternalServices]
+    Supabase[SupabaseAuth]
+    Stripe[StripeCheckout]
+    Resend[ResendEmail]
+    Cloudinary[CloudinaryUploads]
+  end
+
+  subgraph dataLayer [DataLayer]
+    Postgres[(PostgresViaPrisma)]
+  end
+
+  Visitor -->|"Current"| Home
+  Home -->|"Current"| Search
+  Buyer -->|"Current"| Search
+  Search -->|"Current"| ListingDetail
+  Seller -->|"Current"| SellFlow
+  Seller -->|"Current"| Account
+  Dealer -->|"Current"| SellFlow
+  Admin -->|"Current"| AdminConsole
+
+  Home -->|"Current"| Supabase
+  Account -->|"Current"| Supabase
+  SellFlow -->|"Current"| Cloudinary
+  SellFlow -->|"Current"| Stripe
+  SellFlow -->|"Current"| Postgres
+  Search -->|"Current"| Postgres
+  ListingDetail -->|"Current"| Resend
+  AdminConsole -->|"Current"| Postgres
+  WaitlistAdmin -->|"Current"| Postgres
+  Stripe -->|"Current"| Postgres
+
+  SellFlow -->|"FutureGap"| CheckoutReviewRoute
