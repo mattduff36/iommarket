@@ -176,7 +176,7 @@ export default async function PricingPage() {
               For dealers with larger monthly inventory
             </CardDescription>
             <div className="mt-2">
-              <span className="text-2xl font-bold text-red-500">
+              <span className="text-2xl font-bold text-text-primary">
                 £49.99
               </span>
               <span className="text-text-secondary text-xs"> / month</span>
