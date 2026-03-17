@@ -12,6 +12,7 @@ describe("createListingSchema", () => {
     price: 1500000, // £15,000 in pence
     categoryId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
     regionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+    trustDeclarationAccepted: true,
   };
 
   it("accepts valid input", () => {
