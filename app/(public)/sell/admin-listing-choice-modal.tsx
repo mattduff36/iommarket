@@ -31,10 +31,10 @@ export function AdminListingChoiceModal() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button asChild variant="ghost">
+            <Button asChild variant="trust">
               <Link href="/sell/private">Private listing</Link>
             </Button>
-            <Button asChild>
+            <Button asChild variant="energy">
               <Link href="/sell/dealer">Dealer listing</Link>
             </Button>
           </DialogFooter>
@@ -47,10 +47,10 @@ export function AdminListingChoiceModal() {
             Choose how you want to create this listing.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="ghost">
+            <Button asChild variant="trust">
               <Link href="/sell/private">Private listing</Link>
             </Button>
-            <Button asChild>
+            <Button asChild variant="energy">
               <Link href="/sell/dealer">Dealer listing</Link>
             </Button>
           </div>
