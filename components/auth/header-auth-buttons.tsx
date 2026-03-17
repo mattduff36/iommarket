@@ -48,19 +48,31 @@ export function HeaderAuthButtons({ authState }: Props) {
     );
   }
 
+  const roleLabel = role ?? "USER";
+
   return (
     <>
       {/* Mobile: plain non-clickable label (no dropdown) */}
-      <span className="md:hidden max-w-[140px] truncate text-sm font-medium text-text-secondary">
-        {displayName ?? user.email ?? "Account"}
-      </span>
+      <div className="md:hidden flex flex-col items-end">
+        <span className="max-w-[140px] truncate text-sm font-medium text-text-secondary">
+          {displayName ?? user.email ?? "Account"}
+        </span>
+        <span className="text-[10px] uppercase tracking-wider text-text-tertiary">
+          {roleLabel}
+        </span>
+      </div>
 
       {/* Desktop: full dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-1">
-            <span className="max-w-[180px] truncate">
-              {displayName ?? user.email ?? "Account"}
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-1 h-auto py-1">
+            <span className="flex flex-col items-end leading-tight">
+              <span className="max-w-[180px] truncate">
+                {displayName ?? user.email ?? "Account"}
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-normal">
+                {roleLabel}
+              </span>
             </span>
             <ChevronDown className="h-4 w-4 shrink-0" />
           </Button>
