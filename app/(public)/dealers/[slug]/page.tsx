@@ -3,13 +3,19 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Badge } from "@/components/ui/badge";
 import { Globe, Phone, Calendar } from "lucide-react";
+import { DealerReviewForm } from "./dealer-review-form";
 
 interface Props {
   params: Promise<{ slug: string }>;
+}
+
+function stars(rating: number) {
+  return "★".repeat(rating) + "☆".repeat(Math.max(0, 5 - rating));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -50,6 +56,37 @@ export default async function DealerProfilePage({ params }: Props) {
   if (!dealer) notFound();
 
   const isSubscribed = dealer.subscriptions.length > 0;
+  const [reviewStats, approvedReviews, currentUser] = await Promise.all([
+    db.dealerReview.aggregate({
+      where: {
+        dealerId: dealer.id,
+        status: "APPROVED",
+      },
+      _avg: { rating: true },
+      _count: { _all: true },
+    }),
+    db.dealerReview.findMany({
+      where: {
+        dealerId: dealer.id,
+        status: "APPROVED",
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        reviewerType: true,
+        reviewerName: true,
+      },
+    }),
+    getCurrentUser(),
+  ]);
+  const reviewCount = reviewStats._count._all;
+  const averageRating = reviewStats._avg.rating
+    ? Number(reviewStats._avg.rating.toFixed(1))
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -113,6 +150,55 @@ export default async function DealerProfilePage({ params }: Props) {
       </div>
 
       {/* Listings */}
+      <div className="mb-12 grid gap-6 lg:grid-cols-3">
+        <div className="rounded-lg border border-border bg-surface p-5 lg:col-span-2">
+          <h2 className="text-lg font-semibold text-text-primary">
+            Dealer Ratings
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            {reviewCount > 0
+              ? `${averageRating}/5 from ${reviewCount} approved review${reviewCount === 1 ? "" : "s"}`
+              : "No approved reviews yet."}
+          </p>
+
+          <div className="mt-4 space-y-3">
+            {approvedReviews.map((review) => (
+              <div key={review.id} className="rounded-md border border-border p-3">
+                <p className="text-sm text-premium-gold-500" aria-label={`${review.rating} stars`}>
+                  {stars(review.rating)}
+                </p>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  {review.reviewerType === "REGISTERED"
+                    ? review.reviewerName || "Registered user"
+                    : "Anonymous"}{" "}
+                  · {review.createdAt.toLocaleDateString("en-GB")}
+                </p>
+                {review.comment ? (
+                  <p className="mt-2 text-sm text-text-secondary whitespace-pre-wrap">
+                    {review.comment}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+            {approvedReviews.length === 0 ? (
+              <p className="text-sm text-text-secondary">
+                Be the first to leave a rating for this dealer.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface p-5">
+          <h3 className="text-base font-semibold text-text-primary">Leave a Review</h3>
+          <p className="mt-1 text-xs text-text-secondary">
+            Every review is moderated before it appears publicly.
+          </p>
+          <div className="mt-4">
+            <DealerReviewForm dealerId={dealer.id} canComment={Boolean(currentUser)} />
+          </div>
+        </div>
+      </div>
+
       <h2 className="section-heading-accent text-xl font-bold text-text-primary font-heading mb-8">
         {dealer.listings.length} Active Listing{dealer.listings.length !== 1 ? "s" : ""}
       </h2>

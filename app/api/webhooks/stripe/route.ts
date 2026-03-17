@@ -80,10 +80,30 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       },
     });
 
-    await db.listing.update({
+    const listing = await db.listing.findUnique({
       where: { id: listingId },
-      data: { status: "PENDING" },
+      select: {
+        id: true,
+        status: true,
+        trustDeclarationAccepted: true,
+      },
     });
+    if (!listing) return;
+
+    const imageCount = await db.listingImage.count({
+      where: { listingId },
+    });
+
+    if (
+      (listing.status === "DRAFT" || listing.status === "EXPIRED") &&
+      imageCount >= 2 &&
+      listing.trustDeclarationAccepted
+    ) {
+      await db.listing.update({
+        where: { id: listingId },
+        data: { status: "PENDING" },
+      });
+    }
   }
 
   if (type === "listing_support") {
@@ -110,11 +130,6 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         status: "SUCCEEDED",
         idempotencyKey: `support-${session.id}`,
       },
-    });
-
-    await db.listing.update({
-      where: { id: listingId },
-      data: { status: "PENDING" },
     });
   }
 

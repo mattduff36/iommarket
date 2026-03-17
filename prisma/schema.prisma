@@ -21,6 +21,18 @@ enum DealerTier {
   PRO
 }
 
+enum DealerReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HIDDEN
+}
+
+enum DealerReviewerType {
+  REGISTERED
+  ANONYMOUS
+}
+
 model User {
   id             String    @id @default(cuid())
   authUserId     String    @unique
@@ -40,6 +52,7 @@ model User {
   favourites    Favourite[]
   savedSearches SavedSearch[]
   listingViews  ListingView[]
+  dealerReviews DealerReview[]
 
   @@index([authUserId])
   @@index([email])
@@ -62,6 +75,7 @@ model DealerProfile {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   listings      Listing[]
   subscriptions Subscription[]
+  reviews       DealerReview[]
 
   @@index([slug])
 }
@@ -288,6 +302,30 @@ model Report {
 
   @@index([listingId])
   @@index([status])
+}
+
+model DealerReview {
+  id                String             @id @default(cuid())
+  dealerId          String
+  reviewerUserId    String?
+  reviewerDeviceId  String?
+  reviewerType      DealerReviewerType
+  reviewerName      String?
+  rating            Int
+  comment           String?
+  status            DealerReviewStatus @default(PENDING)
+  adminNotes        String?
+  moderatedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  dealer   DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  reviewer User?         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@unique([dealerId, reviewerUserId])
+  @@unique([dealerId, reviewerDeviceId])
+  @@index([dealerId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model Favourite {

@@ -4,18 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { getAccountNavItems, PUBLIC_NAV_ITEMS } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Mail, Phone, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
-
-const NAV_ITEMS = [
-  { label: "Home", href: "/" },
-  { label: "Categories", href: "/categories" },
-  { label: "Sell", href: "/sell" },
-  { label: "Pricing", href: "/pricing" },
-];
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -86,7 +80,7 @@ export function SiteHeader() {
   }, []);
 
   const { user, role } = authState;
-  const isDealer = role === "DEALER" || role === "ADMIN";
+  const accountNavItems = getAccountNavItems(role);
 
   return (
     <>
@@ -134,7 +128,7 @@ export function SiteHeader() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-8" aria-label="Main">
-            {NAV_ITEMS.map((item) => (
+            {PUBLIC_NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -173,7 +167,7 @@ export function SiteHeader() {
 
             {/* ── Nav links ── */}
             <nav className="flex flex-col gap-1 mb-3" aria-label="Mobile">
-              {NAV_ITEMS.map((item) => (
+              {PUBLIC_NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -196,55 +190,36 @@ export function SiteHeader() {
             {/* ── Account section ── */}
             {user ? (
               <div className="flex flex-col gap-1">
-                <Link
-                  href="/account/favourites"
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                >
-                  Saved listings
-                </Link>
-                <Link
-                  href="/account/saved-searches"
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                >
-                  Saved searches
-                </Link>
-                {isDealer && (
-                  <Link
-                    href="/dealer/dashboard"
-                    onClick={() => setMobileOpen(false)}
-                    className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                  >
-                    Dealer dashboard
-                  </Link>
+                {accountNavItems.map((item) =>
+                  item.href === "/admin" ? (
+                    <div key={item.href}>
+                      <div className="border-t border-border my-2" />
+                      <Link
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors"
+                      >
+                        <ShieldCheck className="h-4 w-4 shrink-0" />
+                        {item.label}
+                      </Link>
+                    </div>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                    >
+                      {item.label}
+                    </Link>
+                  )
                 )}
-                <Link
-                  href="/account/change-password"
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                >
-                  Change password
-                </Link>
                 <button
                   onClick={handleSignOut}
                   className="text-left px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
                 >
                   Sign out
                 </button>
-                {role === "ADMIN" && (
-                  <>
-                    <div className="border-t border-border my-2" />
-                    <Link
-                      href="/admin"
-                      onClick={() => setMobileOpen(false)}
-                      className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors"
-                    >
-                      <ShieldCheck className="h-4 w-4 shrink-0" />
-                      Admin area
-                    </Link>
-                  </>
-                )}
               </div>
             ) : (
               <div>

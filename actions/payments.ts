@@ -19,6 +19,23 @@ import {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
+function isStripeCheckoutConfigured() {
+  return Boolean(process.env.STRIPE_SECRET_KEY);
+}
+
+function toUserPaymentError(message: string) {
+  if (message.includes("STRIPE_SECRET_KEY")) {
+    return "Payments are temporarily unavailable in this environment. Please try again later.";
+  }
+  if (message.includes("STRIPE_DEALER_PRO_PRICE_ID")) {
+    return "Dealer Pro checkout is not configured yet. Please contact support.";
+  }
+  if (message.includes("STRIPE_DEALER_STARTER_PRICE_ID") || message.includes("STRIPE_DEALER_PRICE_ID")) {
+    return "Dealer Starter checkout is not configured yet. Please contact support.";
+  }
+  return message;
+}
+
 // ---------------------------------------------------------------------------
 // Pay for Listing (creates Stripe Checkout Session)
 // ---------------------------------------------------------------------------
@@ -45,7 +62,22 @@ export async function payForListing(
   }
 
   try {
-    const isDealerWithSub = user.role === "DEALER" && Boolean(user.dealerProfile);
+    const flow = listing.dealerId ? "dealer" : "private";
+    const hasActiveDealerSubscription = listing.dealerId
+      ? await db.subscription.findFirst({
+          where: {
+            dealerId: listing.dealerId,
+            status: "ACTIVE",
+          },
+          select: { id: true },
+        })
+      : null;
+    const isDealerWithSub = Boolean(hasActiveDealerSubscription);
+    if (listing.dealerId && !isDealerWithSub) {
+      return {
+        error: "Active dealer subscription required before submitting dealer listings.",
+      };
+    }
     const isFreePrivateSeller =
       !listing.dealerId &&
       (await isPrivateListingFreeForUser(user.id));
@@ -53,6 +85,11 @@ export async function payForListing(
     const shouldSkipPayment = isDealerWithSub || isFreePrivateSeller;
     if (shouldSkipPayment) {
       if (isFreePrivateSeller && supportAmountPence > 0) {
+        // Optional support payments should never block the core listing submission flow.
+        if (!isStripeCheckoutConfigured()) {
+          return { data: { checkoutUrl: null, skippedPayment: true } };
+        }
+
         const supportSession = await createListingCheckout({
           listingId: listing.id,
           listingTitle: listing.title,
@@ -60,11 +97,11 @@ export async function payForListing(
           checkoutType: "listing_support",
           lineItemDescription: "Optional support contribution for itrader.im",
           customerEmail: user.email,
-          successUrl: `${APP_URL}/sell/success?listing=${listing.id}`,
-          cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}`,
+          successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=support`,
+          cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,
           idempotencyKey: `listing-support-${listing.id}-${Date.now()}`,
         });
-        return { data: { checkoutUrl: supportSession.url, skippedPayment: false } };
+        return { data: { checkoutUrl: supportSession.url, skippedPayment: true } };
       }
 
       // Do NOT update status here. The caller must still invoke submitListingForReview
@@ -81,8 +118,8 @@ export async function payForListing(
       amountInPence: listingFeePence,
       checkoutType: "listing_payment",
       customerEmail: user.email,
-      successUrl: `${APP_URL}/sell/success?listing=${listing.id}`,
-      cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}`,
+      successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=paid`,
+      cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,
       idempotencyKey: `listing-pay-${listing.id}-${Date.now()}`,
     });
 
@@ -90,7 +127,7 @@ export async function payForListing(
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
-    return { error: message };
+    return { error: toUserPaymentError(message) };
   }
 }
 
@@ -126,7 +163,7 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to create subscription";
-    return { error: message };
+    return { error: toUserPaymentError(message) };
   }
 }
 
@@ -181,6 +218,6 @@ export async function upgradeFeatured(listingId: string) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
-    return { error: message };
+    return { error: toUserPaymentError(message) };
   }
 }

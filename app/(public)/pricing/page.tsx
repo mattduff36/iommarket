@@ -92,7 +92,7 @@ export default async function PricingPage() {
                 {slotsRemaining} spots left
               </p>
               <Button asChild variant="energy" size="sm" className="mt-3">
-                <Link href="/sell">Claim Your Free Listing</Link>
+                <Link href="/sell/private">Claim Your Free Listing</Link>
               </Button>
             </div>
             <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
@@ -127,7 +127,7 @@ export default async function PricingPage() {
               <span className="text-text-secondary text-xs"> / listing</span>
             </div>
             <Button asChild variant="trust" size="sm" className="mt-3">
-              <Link href="/sell">List an Item</Link>
+              <Link href="/sell/private">List an Item</Link>
             </Button>
           </div>
           <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
@@ -156,7 +156,7 @@ export default async function PricingPage() {
               <span className="text-text-secondary text-xs"> / month</span>
             </div>
             <Button asChild variant="energy" size="sm" className="mt-3">
-              <Link href="/sell">Choose Starter</Link>
+              <Link href="/sell/dealer">Choose Starter</Link>
             </Button>
           </div>
           <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
@@ -184,7 +184,7 @@ export default async function PricingPage() {
               <span className="text-text-secondary text-xs"> / month</span>
             </div>
             <Button asChild variant="trust" size="sm" className="mt-3">
-              <Link href="/sell">Choose Pro</Link>
+              <Link href="/sell/dealer">Choose Pro</Link>
             </Button>
           </div>
           <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">

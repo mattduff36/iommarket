@@ -38,9 +38,10 @@ interface RegionOption {
 interface Props {
   categories: CategoryOption[];
   regions: RegionOption[];
+  mode?: "private" | "dealer";
 }
 
-export function CreateListingForm({ categories, regions }: Props) {
+export function CreateListingForm({ categories, regions, mode = "private" }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +123,8 @@ export function CreateListingForm({ categories, regions }: Props) {
         }
 
         const payResult = await payForListing(result.data.id, {
-          supportAmountPence: supportPlatform ? 500 : 0,
+          supportAmountPence:
+            mode === "private" && supportPlatform ? 500 : 0,
         });
         if (payResult.error) {
           setError(
@@ -132,9 +134,8 @@ export function CreateListingForm({ categories, regions }: Props) {
           );
           return;
         }
-        if (payResult.data?.checkoutUrl) {
-          window.location.href = payResult.data.checkoutUrl;
-        } else {
+
+        if (payResult.data?.skippedPayment) {
           const reviewResult = await submitListingForReview(result.data.id);
           if (reviewResult?.error) {
             setError(
@@ -144,8 +145,19 @@ export function CreateListingForm({ categories, regions }: Props) {
             );
             return;
           }
-          router.push(`/sell/success?listing=${result.data.id}`);
         }
+
+        if (payResult.data?.checkoutUrl) {
+          window.location.href = payResult.data.checkoutUrl;
+          return;
+        }
+
+        const search = new URLSearchParams({
+          listing: result.data.id,
+          flow: mode,
+          payment: payResult.data?.skippedPayment ? "skipped" : "paid",
+        });
+        router.push(`/sell/success?${search.toString()}`);
       }
     });
   }
@@ -261,7 +273,9 @@ export function CreateListingForm({ categories, regions }: Props) {
           <div className={step === 3 ? "space-y-3 rounded-lg border border-border p-4" : "hidden"}>
               <h3 className="text-base font-semibold text-text-primary">Preview</h3>
               <p className="text-sm text-text-secondary">
-                Review your listing and publish. Your listing will be submitted for moderation.
+                {mode === "dealer"
+                  ? "Review your listing and submit. Your listing will go to moderation once submitted."
+                  : "Review your listing and continue to checkout. Your listing will be submitted for moderation after checkout."}
               </p>
               <p className="text-sm text-text-secondary">
                 Photos selected: {uploadedImages.length}
@@ -271,11 +285,13 @@ export function CreateListingForm({ categories, regions }: Props) {
                 onCheckedChange={(checked) => setTrustConfirmed(checked === true)}
                 label="I confirm this vehicle is not stolen and has no outstanding finance"
               />
-              <Checkbox
-                checked={supportPlatform}
-                onCheckedChange={(checked) => setSupportPlatform(checked === true)}
-                label="Optional: add £5 to support the platform"
-              />
+              {mode === "private" && (
+                <Checkbox
+                  checked={supportPlatform}
+                  onCheckedChange={(checked) => setSupportPlatform(checked === true)}
+                  label="Optional: add £5 to support the platform"
+                />
+              )}
           </div>
 
           {/* Dynamic category attributes */}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { getAccountNavItems, type AuthRole } from "@/lib/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,7 @@ import { ChevronDown, ShieldCheck } from "lucide-react";
 export interface AuthState {
   user: { email?: string | null } | null;
   displayName: string | null;
-  role: string | null;
+  role: AuthRole;
   loading: boolean;
   handleSignOut: () => Promise<void>;
 }
@@ -25,6 +26,7 @@ interface Props {
 
 export function HeaderAuthButtons({ authState }: Props) {
   const { user, displayName, role, loading, handleSignOut } = authState;
+  const accountNavItems = getAccountNavItems(role);
 
   if (loading) {
     return (
@@ -78,29 +80,27 @@ export function HeaderAuthButtons({ authState }: Props) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          {role === "ADMIN" && (
-            <>
-              <DropdownMenuItem asChild className="!text-red-400 hover:!text-red-300">
-                <Link href="/admin" className="flex items-center gap-2 font-medium">
-                  <ShieldCheck className="h-4 w-4 shrink-0" />
-                  Admin area
-                </Link>
+          {accountNavItems.map((item) =>
+            item.href === "/admin" ? (
+              [
+                <DropdownMenuSeparator key={`${item.href}-separator`} />,
+                <DropdownMenuItem
+                  key={item.href}
+                  asChild
+                  className="!text-red-400 hover:!text-red-300"
+                >
+                  <Link href={item.href} className="flex items-center gap-2 font-medium">
+                    <ShieldCheck className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </Link>
+                </DropdownMenuItem>,
+              ]
+            ) : (
+              <DropdownMenuItem key={item.href} asChild>
+                <Link href={item.href}>{item.label}</Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
+            )
           )}
-          <DropdownMenuItem asChild>
-            <Link href="/account/favourites">Saved listings</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/account/saved-searches">Saved searches</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dealer/dashboard">Dealer dashboard</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/account/change-password">Change password</Link>
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

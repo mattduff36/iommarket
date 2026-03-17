@@ -1,17 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-
-const FOOTER_NAV = [
-  { label: "Home", href: "/" },
-  { label: "Categories", href: "/categories" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Sell", href: "/sell" },
-  { label: "Terms", href: "/terms" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Cookies", href: "/cookies" },
-  { label: "Buyer Safety", href: "/safety" },
-  { label: "Contact", href: "/contact" },
-];
+import { FOOTER_NAV_ITEMS } from "@/lib/navigation";
 
 export function SiteFooter() {
   const dataControllerReference =
@@ -41,7 +30,7 @@ export function SiteFooter() {
 
           {/* Nav links */}
           <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Footer">
-            {FOOTER_NAV.map((item) => (
+            {FOOTER_NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

@@ -86,7 +86,7 @@ export default async function DealerDashboardPage() {
         </div>
         <div className="flex gap-3">
           <Button asChild>
-            <Link href="/sell">
+            <Link href="/sell/dealer">
               <Plus className="h-4 w-4" />
               New Listing
             </Link>
@@ -249,7 +249,7 @@ export default async function DealerDashboardPage() {
         <div className="text-center py-16">
           <p className="text-text-secondary">
             No listings yet.{" "}
-            <Link href="/sell" className="text-text-trust hover:underline">
+            <Link href="/sell/dealer" className="text-text-trust hover:underline">
               Create your first listing
             </Link>
           </p>
