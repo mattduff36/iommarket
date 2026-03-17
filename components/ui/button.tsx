@@ -29,7 +29,7 @@ const buttonVariants = cva(
           "active:bg-neon-blue-600",
         ].join(" "),
         premium: [
-          "bg-gradient-to-b from-premium-gold-400 to-premium-gold-600 text-black",
+          "bg-gradient-to-b from-premium-gold-400 to-premium-gold-600 text-black font-bold uppercase italic",
           "border border-premium-gold-400",
           "hover:shadow-glow-gold",
           "active:from-premium-gold-500 active:to-premium-gold-600",
