@@ -22,7 +22,6 @@ const SELLER_FEATURES = [
   "Moderation within 1-2 days",
   "Renew for another £4.99",
   "Option to upgrade to a featured listing",
-  "Optional £5 support contribution at checkout",
   "Choose to support a new local business!",
 ];
 
@@ -77,10 +76,10 @@ export default async function PricingPage() {
         {slotsRemaining > 0 && (
           <Card className="relative flex flex-row items-center p-4 ring-2 ring-premium-gold-500 shadow-high w-full min-h-[7rem] bg-gradient-to-r from-premium-gold-500/5 to-transparent overflow-hidden">
             <div className="absolute top-0 right-0 bg-premium-gold-500 text-black text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-bl-lg">
-              Limited
+              {slotsRemaining} spots remaining
             </div>
             <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
-              <CardTitle className="text-lg text-premium-gold-500">
+              <CardTitle className="text-lg">
                 Free Launch Offer
               </CardTitle>
               <CardDescription className="text-left">
@@ -92,9 +91,6 @@ export default async function PricingPage() {
                 </span>
                 <span className="text-text-secondary text-xs"> / listing</span>
               </div>
-              <p className="text-sm font-semibold text-premium-gold-500 mt-1">
-                {slotsRemaining} spots left
-              </p>
               <Button asChild variant="energy" size="sm" className="mt-3">
                 <Link href="/sell/private">Claim Your Free Listing</Link>
               </Button>
@@ -175,7 +171,7 @@ export default async function PricingPage() {
             Pro
           </div>
           <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
-            <CardTitle className="text-lg text-red-500">Dealer Pro</CardTitle>
+            <CardTitle className="text-lg">Dealer Pro</CardTitle>
             <CardDescription className="text-left">
               For dealers with larger monthly inventory
             </CardDescription>
