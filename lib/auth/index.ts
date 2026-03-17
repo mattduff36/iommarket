@@ -24,7 +24,7 @@ export async function getCurrentUser() {
   const parsedRole = signUpRoleSchema.safeParse(authUser.user_metadata?.role);
   const requestedRole = parsedRole.success ? parsedRole.data : undefined;
 
-  let user = await db.user.findUnique({
+  const user = await db.user.findUnique({
     where: { authUserId: authUser.id },
     include: { dealerProfile: true },
   });
@@ -42,16 +42,7 @@ export async function getCurrentUser() {
     });
   }
 
-  // Preserve higher-privilege roles; only allow first-time upgrade USER -> DEALER from signup metadata.
-  if (requestedRole === "DEALER" && user.role === "USER") {
-    user = await db.user.update({
-      where: { id: user.id },
-      data: { role: "DEALER" },
-      include: { dealerProfile: true },
-    });
-  }
-
-  return user ?? null;
+  return user;
 }
 
 /**

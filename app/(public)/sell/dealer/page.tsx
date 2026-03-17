@@ -14,15 +14,58 @@ export const metadata: Metadata = {
   description: "Create a dealer listing on itrader.im.",
 };
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function ensureAdminDealerProfile(user: {
+  id: string;
+  name: string | null;
+  email: string;
+}) {
+  const baseRaw =
+    user.name?.trim() || user.email.split("@")[0] || `admin-${user.id.slice(-6)}`;
+  const base = slugify(baseRaw) || `admin-${user.id.slice(-6)}`;
+  const profileName = user.name?.trim() || `${baseRaw} Dealer`;
+
+  for (let i = 0; i < 100; i += 1) {
+    const slug = i === 0 ? `${base}-dealer` : `${base}-dealer-${i}`;
+    const existing = await db.dealerProfile.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (existing) continue;
+
+    return db.dealerProfile.create({
+      data: {
+        userId: user.id,
+        name: profileName,
+        slug,
+      },
+    });
+  }
+
+  throw new Error("Failed to provision dealer profile for admin user.");
+}
+
 export default async function SellDealerPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in?next=/sell/dealer");
   if (user.role === "USER") redirect("/sell/private");
-  if (!user.dealerProfile) redirect("/pricing");
+  let dealerProfile = user.dealerProfile;
+
+  if (!dealerProfile && user.role === "ADMIN") {
+    dealerProfile = await ensureAdminDealerProfile(user);
+  }
+
+  if (!dealerProfile) redirect("/pricing");
 
   const activeSubscription = await db.subscription.findFirst({
     where: {
-      dealerId: user.dealerProfile.id,
+      dealerId: dealerProfile.id,
       status: "ACTIVE",
     },
     select: { id: true },
