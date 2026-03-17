@@ -1,12 +1,9 @@
 import { Resend } from "resend";
 
-function getResendClient(): Resend {
+function getResendClient(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    throw new Error(
-      "Resend is not configured in this runtime (missing RESEND_API_KEY). " +
-      "Ensure env vars are loaded for the current process."
-    );
+    return null;
   }
   return new Resend(apiKey);
 }
@@ -239,6 +236,12 @@ export async function sendWaitlistConfirmationEmail(params: {
   const logoUrl = `${canonicalAppUrl}/images/logo-itrader.png`;
 
   const interestsList = params.interests.map((item) => `- ${item}`).join("\n");
+  const interestsHtml = params.interests
+    .map(
+      (item) =>
+        `<li style="margin:0 0 6px 0;font-family:Arial,sans-serif;font-size:15px;line-height:22px;color:#d7dff2;">${escapeHtml(item)}</li>`
+    )
+    .join("");
 
   await resend.emails.send({
     from: getFromEmail(),
@@ -283,20 +286,37 @@ export async function sendWaitlistConfirmationEmail(params: {
                       <h1 style="margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:34px;line-height:40px;font-weight:800;color:#ffffff;text-align:center;">
                         You're on the list!
                       </h1>
-                      <p style="margin:0 auto 12px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
+                      <p style="margin:0 auto 16px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
                         Thanks for your interest in iTrader.im —<br />
                         the upcoming vehicle marketplace for the Isle of Man.
                       </p>
-                      <p style="margin:0 auto 0 auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
+                      <p style="margin:0 auto 16px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
                         We'll notify you as soon as the platform launches.
                       </p>
+                      ${
+                        params.interests.length > 0
+                          ? `
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;background:rgba(255,255,255,0.05);border:1px solid #1e2a46;border-radius:10px;padding:0;">
+                        <tr>
+                          <td style="padding:14px 24px;">
+                            <p style="margin:0 0 8px 0;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#2f86ff;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;">
+                              Your interests
+                            </p>
+                            <ul style="margin:0;padding:0 0 0 18px;list-style:disc;">
+                              ${interestsHtml}
+                            </ul>
+                          </td>
+                        </tr>
+                      </table>`
+                          : ""
+                      }
                     </td>
                   </tr>
                   <tr>
                     <td align="center" style="padding:18px 24px;border-top:1px solid #1e2a46;">
                       <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;line-height:20px;color:#95a1be;text-align:center;">
                         iTrader.im<br />
-                        Buy • Sell • Upgrade
+                        Buy &bull; Sell &bull; Upgrade
                       </p>
                     </td>
                   </tr>

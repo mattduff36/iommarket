@@ -87,7 +87,7 @@ export async function getFreeLaunchSlotsTotal(): Promise<number> {
 export async function getFreeLaunchSlotsUsed(): Promise<number> {
   const paidListingIds = await db.payment
     .findMany({
-      where: { status: "SUCCEEDED" },
+      where: { status: "SUCCEEDED", type: "LISTING" },
       select: { listingId: true },
     })
     .then((rows) => new Set(rows.map((r) => r.listingId)));
@@ -122,7 +122,7 @@ export async function getFreeLaunchSlotsRemaining(): Promise<number> {
 export async function hasUserClaimedFreeSlot(userId: string): Promise<boolean> {
   const paidListingIds = await db.payment
     .findMany({
-      where: { status: "SUCCEEDED" },
+      where: { status: "SUCCEEDED", type: "LISTING" },
       select: { listingId: true },
     })
     .then((rows) => new Set(rows.map((r) => r.listingId)));

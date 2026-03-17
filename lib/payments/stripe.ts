@@ -1,5 +1,7 @@
 import Stripe from "stripe";
 import { getFeaturedFeePence } from "@/lib/config/marketplace";
+import { getDealerStripePriceId } from "@/lib/config/dealer-tiers";
+import type { DealerTier } from "@prisma/client";
 
 let _stripe: Stripe | null = null;
 
@@ -28,6 +30,8 @@ export async function createListingCheckout(params: {
   listingId: string;
   listingTitle: string;
   amountInPence: number;
+  checkoutType?: "listing_payment" | "listing_support";
+  lineItemDescription?: string;
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
@@ -46,7 +50,9 @@ export async function createListingCheckout(params: {
             currency: "gbp",
             product_data: {
               name: `Listing: ${params.listingTitle}`,
-              description: "30-day marketplace listing on itrader.im",
+              description:
+                params.lineItemDescription ??
+                "30-day marketplace listing on itrader.im",
             },
             unit_amount: params.amountInPence,
           },
@@ -55,7 +61,7 @@ export async function createListingCheckout(params: {
       ],
       metadata: {
         listingId: params.listingId,
-        type: "listing_payment",
+        type: params.checkoutType ?? "listing_payment",
       },
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
@@ -73,13 +79,13 @@ export async function createListingCheckout(params: {
  */
 export async function createDealerSubscriptionCheckout(params: {
   dealerId: string;
+  tier: DealerTier;
   customerEmail: string;
   successUrl: string;
   cancelUrl: string;
 }) {
   const stripe = getStripe();
-  const priceId = process.env.STRIPE_DEALER_PRICE_ID;
-  if (!priceId) throw new Error("STRIPE_DEALER_PRICE_ID is not set");
+  const priceId = getDealerStripePriceId(params.tier);
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
@@ -89,6 +95,7 @@ export async function createDealerSubscriptionCheckout(params: {
     metadata: {
       dealerId: params.dealerId,
       type: "dealer_subscription",
+      tier: params.tier,
     },
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,

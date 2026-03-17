@@ -16,25 +16,50 @@ enum UserRole {
   ADMIN
 }
 
+enum DealerTier {
+  STARTER
+  PRO
+}
+
+enum DealerReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HIDDEN
+}
+
+enum DealerReviewerType {
+  REGISTERED
+  ANONYMOUS
+}
+
 model User {
   id             String    @id @default(cuid())
   authUserId     String    @unique
   email          String    @unique
   name           String?
+  phone          String?
+  bio            String?
+  avatarUrl      String?
   role           UserRole  @default(USER)
   regionId       String?
   disabledAt     DateTime?
   disabledReason String?
+  deletedAt      DateTime?
+  deletionReason String?
+  deletionRequestedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  region        Region?        @relation(fields: [regionId], references: [id])
-  listings      Listing[]
-  dealerProfile DealerProfile?
-  reports       Report[]
-  favourites    Favourite[]
-  savedSearches SavedSearch[]
-  listingViews  ListingView[]
+  region              Region?              @relation(fields: [regionId], references: [id])
+  listings            Listing[]
+  dealerProfile       DealerProfile?
+  reports             Report[]
+  favourites          Favourite[]
+  savedSearches       SavedSearch[]
+  listingViews        ListingView[]
+  dealerReviews       DealerReview[]
+  listingStatusEvents ListingStatusEvent[]
 
   @@index([authUserId])
   @@index([email])
@@ -50,12 +75,14 @@ model DealerProfile {
   phone     String?
   logoUrl   String?
   verified  Boolean  @default(false)
+  tier      DealerTier @default(STARTER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   listings      Listing[]
   subscriptions Subscription[]
+  reviews       DealerReview[]
 
   @@index([slug])
 }
@@ -131,6 +158,13 @@ enum ListingStatus {
   SOLD
 }
 
+enum ListingStatusEventSource {
+  USER
+  ADMIN
+  SYSTEM
+  PAYMENT
+}
+
 model Listing {
   id          String        @id @default(cuid())
   userId      String
@@ -146,6 +180,8 @@ model Listing {
   viewCount   Int           @default(0)
   expiresAt   DateTime?
   soldAt      DateTime?
+  trustDeclarationAccepted   Boolean  @default(false)
+  trustDeclarationAcceptedAt DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -160,6 +196,7 @@ model Listing {
   reports         Report[]
   favouritedBy    Favourite[]
   views           ListingView[]
+  statusEvents    ListingStatusEvent[]
 
   @@index([categoryId, regionId, status])
   @@index([status])
@@ -168,6 +205,24 @@ model Listing {
   @@index([userId])
   @@index([dealerId])
   @@index([createdAt])
+}
+
+model ListingStatusEvent {
+  id              String                   @id @default(cuid())
+  listingId       String
+  fromStatus      ListingStatus?
+  toStatus        ListingStatus
+  changedByUserId String?
+  source          ListingStatusEventSource
+  notes           String?
+  createdAt       DateTime                 @default(now())
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  changedBy User?   @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt])
+  @@index([changedByUserId, createdAt])
+  @@index([toStatus, createdAt])
 }
 
 model ListingImage {
@@ -206,12 +261,19 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentType {
+  LISTING
+  FEATURED
+  SUPPORT
+}
+
 model Payment {
   id              String        @id @default(cuid())
   listingId       String
   stripePaymentId String        @unique
   amount          Int           // in pence
   currency        String        @default("gbp")
+  type            PaymentType   @default(LISTING)
   status          PaymentStatus @default(PENDING)
   idempotencyKey  String?       @unique
   createdAt       DateTime      @default(now())
@@ -273,6 +335,30 @@ model Report {
 
   @@index([listingId])
   @@index([status])
+}
+
+model DealerReview {
+  id                String             @id @default(cuid())
+  dealerId          String
+  reviewerUserId    String?
+  reviewerDeviceId  String?
+  reviewerType      DealerReviewerType
+  reviewerName      String?
+  rating            Int
+  comment           String?
+  status            DealerReviewStatus @default(PENDING)
+  adminNotes        String?
+  moderatedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  dealer   DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  reviewer User?         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@unique([dealerId, reviewerUserId])
+  @@unique([dealerId, reviewerDeviceId])
+  @@index([dealerId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model Favourite {

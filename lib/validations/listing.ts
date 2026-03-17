@@ -16,6 +16,12 @@ export const createListingSchema = z.object({
     .max(100_000_000, "Maximum price is £1,000,000"),
   categoryId: z.string().cuid("Invalid category"),
   regionId: z.string().cuid("Invalid region"),
+  trustDeclarationAccepted: z
+    .boolean()
+    .refine(
+      (value) => value,
+      "You must confirm the vehicle is not stolen and has no outstanding finance"
+    ),
   attributes: z
     .array(
       z.object({

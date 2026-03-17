@@ -1,0 +1,24 @@
+flowchart TD
+  User[VisitorOrBuyer]
+  Home[HomePage]
+  SearchControls[SearchControls]
+  SearchApi[GETApiSearch]
+  Listings[(ListingsData)]
+  Detail[ListingDetailPage]
+  Favourite[ToggleFavourite]
+  SavedSearch[SaveSearch]
+  Contact[ContactSeller]
+  Report[ReportListing]
+  Email[(EmailNotifications)]
+
+  User -->|"Current"| Home
+  Home -->|"Current"| SearchControls
+  SearchControls -->|"Current"| SearchApi
+  SearchApi -->|"Current"| Listings
+  Listings -->|"Current"| Detail
+  Detail -->|"Current"| Favourite
+  Detail -->|"Current"| Contact
+  Detail -->|"Current"| Report
+  SearchControls -->|"Current"| SavedSearch
+  Contact -->|"Current"| Email
+  Report -->|"Current"| Email

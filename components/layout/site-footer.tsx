@@ -1,19 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
-
-const FOOTER_NAV = [
-  { label: "Home", href: "/" },
-  { label: "Categories", href: "/categories" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Sell", href: "/sell" },
-  { label: "Terms", href: "/terms" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Cookies", href: "/cookies" },
-  { label: "Buyer Safety", href: "/safety" },
-  { label: "Contact", href: "/contact" },
-];
+import { FOOTER_NAV_ITEMS } from "@/lib/navigation";
 
 export function SiteFooter() {
+  const dataControllerReference =
+    process.env.NEXT_PUBLIC_IOM_DATA_CONTROLLER_REF ?? "Pending publication";
+
   return (
     <footer className="bg-graphite-950">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -38,7 +30,7 @@ export function SiteFooter() {
 
           {/* Nav links */}
           <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Footer">
-            {FOOTER_NAV.map((item) => (
+            {FOOTER_NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -52,12 +44,15 @@ export function SiteFooter() {
 
         {/* Divider + copyright */}
         <div className="mt-10 border-t border-border pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <p className="text-xs text-metallic-500">
-            &copy; {new Date().getFullYear()} itrader.im. All rights reserved.
-          </p>
-          <p className="text-xs text-metallic-500">
-            Created with care on the Isle of Man
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs text-metallic-500">
+              &copy; {new Date().getFullYear()} itrader.im. All rights reserved.
+            </p>
+            <p className="text-xs text-metallic-500">
+              Isle of Man Data Controller Registration Ref: {dataControllerReference}
+            </p>
+          </div>
+          <p className="text-xs text-metallic-500">Created with care on the Isle of Man</p>
         </div>
       </div>
     </footer>

@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
+import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 
 export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   title: string;
@@ -17,6 +18,9 @@ export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   badge?: string;
   sold?: boolean;
   href?: string;
+  listingId?: string;
+  showFavourite?: boolean;
+  initialIsFavourite?: boolean;
 }
 
 function formatPrice(price: number, currency = "£"): string {
@@ -39,6 +43,9 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
     badge,
     sold = false,
     href,
+    listingId,
+    showFavourite = false,
+    initialIsFavourite = false,
       className,
       ...props
     },
@@ -95,6 +102,15 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
           {sold && (
             <div className="absolute top-3 left-3">
               <Badge variant="success">Sold</Badge>
+            </div>
+          )}
+          {showFavourite && listingId && !sold && (
+            <div className="absolute top-3 right-3 z-10">
+              <FavouriteToggle
+                listingId={listingId}
+                initialIsFavourite={initialIsFavourite}
+                compact
+              />
             </div>
           )}
         </div>

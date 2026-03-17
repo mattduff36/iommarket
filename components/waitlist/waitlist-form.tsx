@@ -81,7 +81,7 @@ export function WaitlistForm() {
 
       <fieldset className="space-y-3 text-center">
         <legend className="sr-only">Interests</legend>
-        <div className="flex flex-col items-center gap-2">
+        <div className="inline-flex flex-col items-stretch gap-2">
           {INTEREST_OPTIONS.map((option) => {
             const selected = interestsSelected.has(option.id);
             return (
@@ -89,11 +89,11 @@ export function WaitlistForm() {
                 key={option.id}
                 type="button"
                 variant="ghost"
-                size="lg"
+                size="md"
                 aria-pressed={selected}
                 onClick={() => toggleInterest(option.id, !selected)}
                 className={[
-                  "w-full max-w-md border text-base normal-case not-italic",
+                  "border text-sm normal-case not-italic whitespace-nowrap",
                   "focus-visible:ring-neon-blue-500",
                   selected
                     ? "border-neon-blue-500 bg-neon-blue-500/15 text-text-primary shadow-glow-blue"

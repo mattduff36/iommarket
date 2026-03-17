@@ -8,9 +8,14 @@ import { Button } from "@/components/ui/button";
 interface Props {
   listingId: string;
   initialIsFavourite: boolean;
+  compact?: boolean;
 }
 
-export function FavouriteToggle({ listingId, initialIsFavourite }: Props) {
+export function FavouriteToggle({
+  listingId,
+  initialIsFavourite,
+  compact = false,
+}: Props) {
   const [isFavourite, setIsFavourite] = useState(initialIsFavourite);
   const [isPending, startTransition] = useTransition();
 
@@ -27,13 +32,14 @@ export function FavouriteToggle({ listingId, initialIsFavourite }: Props) {
     <Button
       type="button"
       variant={isFavourite ? "energy" : "ghost"}
-      size="sm"
+      size={compact ? "icon" : "sm"}
       disabled={isPending}
       onClick={onClick}
-      className="w-full"
+      className={compact ? "h-9 w-9 rounded-full backdrop-blur-sm" : "w-full"}
+      aria-label={isFavourite ? "Remove from favourites" : "Save to favourites"}
     >
       <Heart className={`h-4 w-4 ${isFavourite ? "fill-current" : ""}`} />
-      {isFavourite ? "Saved" : "Save"}
+      {!compact ? (isFavourite ? "Saved" : "Save") : null}
     </Button>
   );
 }

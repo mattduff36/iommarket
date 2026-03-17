@@ -1,0 +1,24 @@
+flowchart TD
+  PublicUser[PublicVisitor]
+  RootRequest[RequestSlash]
+  Middleware[Middleware]
+  Holding[HoldingPage]
+  WaitlistForm[WaitlistForm]
+  JoinWaitlist[joinWaitlistAction]
+  WaitlistData[(WaitlistUserTable)]
+  EmailSend[WaitlistEmails]
+  AdminUser[AdminUser]
+  ExportApi[GETApiAdminWaitlistExport]
+  CsvDownload[CsvDownload]
+
+  PublicUser -->|"Current"| RootRequest
+  RootRequest -->|"Current"| Middleware
+  Middleware -->|"Current:NoDevCookieRewrite"| Holding
+  Holding -->|"Current"| WaitlistForm
+  WaitlistForm -->|"Current"| JoinWaitlist
+  JoinWaitlist -->|"Current"| WaitlistData
+  JoinWaitlist -->|"Current"| EmailSend
+
+  AdminUser -->|"Current"| ExportApi
+  ExportApi -->|"Current"| WaitlistData
+  ExportApi -->|"Current"| CsvDownload

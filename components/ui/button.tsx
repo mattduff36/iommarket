@@ -4,7 +4,7 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
-import { Loader2 } from "lucide-react";
+import { BrandedSpinner } from "@/components/ui/branded-spinner";
 
 const buttonVariants = cva(
   [
@@ -29,7 +29,7 @@ const buttonVariants = cva(
           "active:bg-neon-blue-600",
         ].join(" "),
         premium: [
-          "bg-gradient-to-b from-premium-gold-400 to-premium-gold-600 text-black",
+          "bg-gradient-to-b from-premium-gold-400 to-premium-gold-600 text-black font-bold uppercase italic",
           "border border-premium-gold-400",
           "hover:shadow-glow-gold",
           "active:from-premium-gold-500 active:to-premium-gold-600",
@@ -92,7 +92,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           children
         ) : (
           <>
-            {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            {loading && <BrandedSpinner size="sm" />}
             {!loading && leftIcon}
             {children}
             {rightIcon}

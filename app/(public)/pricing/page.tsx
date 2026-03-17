@@ -22,15 +22,24 @@ const SELLER_FEATURES = [
   "Moderation within 1-2 days",
   "Renew for another £4.99",
   "Option to upgrade to a featured listing",
+  "Choose to support a new local business!",
 ];
 
-const DEALER_FEATURES = [
-  "Unlimited active listings",
+const DEALER_STARTER_FEATURES = [
+  "Up to 10 active listings",
   "Dedicated dealer profile page",
   "Up to 20 photos per listing",
   "Priority moderation",
-  "Analytics dashboard",
   "Phone number displayed",
+  "Cancel anytime",
+];
+
+const DEALER_PRO_FEATURES = [
+  "Up to 30 active listings",
+  "All Starter features",
+  "Priority moderation",
+  "Dealer dashboard",
+  "Ideal for larger inventories",
   "Cancel anytime",
 ];
 
@@ -65,9 +74,12 @@ export default async function PricingPage() {
       <div className="flex flex-col gap-6 w-full">
         {/* Free Launch Offer - First 100 */}
         {slotsRemaining > 0 && (
-          <Card className="flex flex-row items-center p-4 ring-2 ring-premium-gold-500 shadow-high w-full min-h-[7rem]">
+          <Card className="relative flex flex-row items-center p-4 ring-2 ring-premium-gold-500 shadow-high w-full min-h-[7rem] bg-gradient-to-r from-premium-gold-500/5 to-transparent overflow-hidden">
+            <div className="absolute top-0 right-0 bg-premium-gold-500 text-black text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-bl-lg">
+              {slotsRemaining} spots remaining
+            </div>
             <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
-              <CardTitle className="text-lg text-premium-gold-500">
+              <CardTitle className="text-lg">
                 Free Launch Offer
               </CardTitle>
               <CardDescription className="text-left">
@@ -79,11 +91,8 @@ export default async function PricingPage() {
                 </span>
                 <span className="text-text-secondary text-xs"> / listing</span>
               </div>
-              <p className="text-sm font-semibold text-premium-gold-500 mt-1">
-                {slotsRemaining} spots left
-              </p>
-              <Button asChild variant="energy" size="sm" className="mt-3">
-                <Link href="/sell">Claim Your Free Listing</Link>
+              <Button asChild variant="premium" size="sm" className="mt-3">
+                <Link href="/sell/private">Claim Your Free Listing</Link>
               </Button>
             </div>
             <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
@@ -102,12 +111,7 @@ export default async function PricingPage() {
         {/* Private Seller */}
         <Card className="flex flex-row items-center p-4 ring-2 ring-neon-blue-500 shadow-high w-full min-h-[7rem]">
           <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
-            <CardTitle className="text-lg">
-              Private Seller{" "}
-              <span className="font-normal text-text-tertiary">
-                - (Choose to support a new local business!)
-              </span>
-            </CardTitle>
+            <CardTitle className="text-lg">Private Seller</CardTitle>
             <CardDescription className="text-left">
               Perfect for selling individual items
             </CardDescription>
@@ -118,7 +122,7 @@ export default async function PricingPage() {
               <span className="text-text-secondary text-xs"> / listing</span>
             </div>
             <Button asChild variant="trust" size="sm" className="mt-3">
-              <Link href="/sell">List an Item</Link>
+              <Link href="/sell/private">List an Item</Link>
             </Button>
           </div>
           <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
@@ -133,12 +137,12 @@ export default async function PricingPage() {
           </CardContent>
         </Card>
 
-        {/* Dealer */}
+        {/* Dealer tiers */}
         <Card className="flex flex-row items-center p-4 ring-2 ring-red-500 shadow-high w-full min-h-[7rem]">
           <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
-            <CardTitle className="text-lg">Dealer</CardTitle>
+            <CardTitle className="text-lg">Dealer Starter</CardTitle>
             <CardDescription className="text-left">
-              For businesses with multiple items to sell
+              For smaller dealerships getting started
             </CardDescription>
             <div className="mt-2">
               <span className="text-2xl font-bold text-text-primary">
@@ -147,11 +151,42 @@ export default async function PricingPage() {
               <span className="text-text-secondary text-xs"> / month</span>
             </div>
             <Button asChild variant="energy" size="sm" className="mt-3">
-              <Link href="/sell">Get Started</Link>
+              <Link href="/sell/dealer">Choose Starter</Link>
             </Button>
           </div>
           <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
-            {DEALER_FEATURES.map((feature) => (
+            {DEALER_STARTER_FEATURES.map((feature) => (
+              <div key={feature} className="flex items-center gap-2 text-xs">
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                  <Check className="h-2.5 w-2.5 text-red-500" />
+                </div>
+                <span className="text-text-secondary">{feature}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="relative flex flex-row items-center p-4 ring-2 ring-red-500 shadow-high w-full min-h-[7rem] bg-gradient-to-r from-red-500/5 to-transparent overflow-hidden">
+          <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-bl-lg">
+            Pro
+          </div>
+          <div className="flex shrink-0 flex-col items-start gap-1 pr-8">
+            <CardTitle className="text-lg">Dealer Pro</CardTitle>
+            <CardDescription className="text-left">
+              For dealers with larger monthly inventory
+            </CardDescription>
+            <div className="mt-2">
+              <span className="text-2xl font-bold text-text-primary">
+                £49.99
+              </span>
+              <span className="text-text-secondary text-xs"> / month</span>
+            </div>
+            <Button asChild variant="energy" size="sm" className="mt-3">
+              <Link href="/sell/dealer">Choose Pro</Link>
+            </Button>
+          </div>
+          <CardContent className="flex flex-1 flex-wrap gap-x-6 gap-y-1 p-0">
+            {DEALER_PRO_FEATURES.map((feature) => (
               <div key={feature} className="flex items-center gap-2 text-xs">
                 <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500/10">
                   <Check className="h-2.5 w-2.5 text-red-500" />

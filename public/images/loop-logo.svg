@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<defs>
+<linearGradient id="redArc" x1="3.0%" y1="32.9%" x2="97.0%" y2="67.1%">
+<stop offset="0%" stop-color="#3B0A0A" stop-opacity="1"/>
+<stop offset="18%" stop-color="#821515" stop-opacity="1"/>
+<stop offset="45%" stop-color="#E22229" stop-opacity="1"/>
+<stop offset="60%" stop-color="#FF2436" stop-opacity="1"/>
+<stop offset="78%" stop-color="#E22229" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="blueArc" x1="0.8%" y1="58.7%" x2="99.2%" y2="41.3%">
+<stop offset="0%" stop-color="#04223F" stop-opacity="1"/>
+<stop offset="18%" stop-color="#0B549A" stop-opacity="1"/>
+<stop offset="45%" stop-color="#157BCA" stop-opacity="1"/>
+<stop offset="62%" stop-color="#3CAAFF" stop-opacity="1"/>
+<stop offset="80%" stop-color="#157BCA" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="chromeCore" x1="71.1%" y1="4.7%" x2="28.9%" y2="95.3%">
+<stop offset="0%" stop-color="#2B2E36" stop-opacity="1"/>
+<stop offset="35%" stop-color="#B7ACAA" stop-opacity="1"/>
+<stop offset="55%" stop-color="#EFF0F3" stop-opacity="1"/>
+<stop offset="78%" stop-color="#6B6F7A" stop-opacity="1"/>
+<stop offset="100%" stop-color="#1A1C22" stop-opacity="1"/>
+</linearGradient>
+</defs>
+<g transform="translate(20,20)">
+<ellipse cx="40" cy="40" rx="40.48" ry="29.92" transform="rotate(-18 40 40)" fill="#FF2436" opacity="0.33"/>
+<ellipse cx="40" cy="40" rx="40.48" ry="29.92" transform="rotate(-18 40 40)" fill="#3CAAFF" opacity="0.30"/>
+<ellipse cx="40" cy="40" rx="40.48" ry="29.92" transform="rotate(-18 40 40)" fill="#FFFFFF" opacity="0.12"/>
+<ellipse cx="40" cy="40" rx="36.8" ry="27.2" transform="rotate(-18 40 40)" fill="#050405" opacity="0.60"/>
+<path d="M15.57 60.30C8.67 55.14 4.67 49.11 4.77 41.92C4.90 33.32 11.19 24.67 22.46 15.44C36.66 3.83 57.68 2.53 70.86 23.22C78.16 34.66 76.92 50.16 68.23 57.03C57.60 65.37 37.08 73.98 15.57 60.30Z" fill="url(#blueArc)" opacity="0.90"/>
+<ellipse cx="40" cy="40" rx="28.8" ry="20.8" transform="rotate(-18 40 40)" fill="none" stroke="url(#chromeCore)" stroke-width="16" opacity="0.95"/>
+<path d="M64.43 19.70C71.33 24.86 75.33 30.89 75.23 38.08C75.10 46.68 68.81 55.33 57.54 64.56C43.34 76.17 22.32 77.47 9.14 56.78C1.84 45.34 3.08 29.84 11.77 22.97C22.40 14.63 42.92 6.02 64.43 19.70Z" fill="url(#redArc)" opacity="0.92"/>
+</g>
+</svg>

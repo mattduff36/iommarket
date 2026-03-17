@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { constructWebhookEvent } from "@/lib/payments/stripe";
+import { getDealerTierFromPriceId } from "@/lib/config/dealer-tiers";
+import { transitionListingStatus } from "@/lib/listings/status-events";
 import type Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -73,14 +75,65 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         stripePaymentId,
         amount: session.amount_total ?? 0,
         currency: session.currency ?? "gbp",
+        type: "LISTING",
         status: "SUCCEEDED",
         idempotencyKey: `checkout-${session.id}`,
       },
     });
 
-    await db.listing.update({
+    const listing = await db.listing.findUnique({
       where: { id: listingId },
-      data: { status: "PENDING" },
+      select: {
+        id: true,
+        status: true,
+        trustDeclarationAccepted: true,
+      },
+    });
+    if (!listing) return;
+
+    const imageCount = await db.listingImage.count({
+      where: { listingId },
+    });
+
+    if (
+      (listing.status === "DRAFT" || listing.status === "EXPIRED") &&
+      imageCount >= 2 &&
+      listing.trustDeclarationAccepted
+    ) {
+      await transitionListingStatus({
+        listingId,
+        toStatus: "PENDING",
+        changedByUserId: null,
+        source: "PAYMENT",
+        notes: "Listing fee paid — submitted for moderation",
+      });
+    }
+  }
+
+  if (type === "listing_support") {
+    const listingId = session.metadata?.listingId;
+    if (!listingId || !session.payment_intent) return;
+
+    const stripePaymentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent.id;
+
+    const existingSupportPayment = await db.payment.findUnique({
+      where: { stripePaymentId },
+    });
+    if (existingSupportPayment) return;
+
+    await db.payment.create({
+      data: {
+        listingId,
+        stripePaymentId,
+        amount: session.amount_total ?? 0,
+        currency: session.currency ?? "gbp",
+        type: "SUPPORT",
+        status: "SUCCEEDED",
+        idempotencyKey: `support-${session.id}`,
+      },
     });
   }
 
@@ -105,6 +158,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         stripePaymentId,
         amount: session.amount_total ?? 0,
         currency: session.currency ?? "gbp",
+        type: "FEATURED",
         status: "SUCCEEDED",
         idempotencyKey: `featured-${session.id}`,
       },
@@ -119,11 +173,20 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   if (type === "dealer_subscription") {
     const dealerId = session.metadata?.dealerId;
     if (!dealerId || !session.subscription) return;
+    const tierFromMetadata =
+      session.metadata?.tier === "PRO" ? "PRO" : "STARTER";
 
     const subscriptionId =
       typeof session.subscription === "string"
         ? session.subscription
         : session.subscription.id;
+    const stripePriceId =
+      tierFromMetadata === "PRO"
+        ? process.env.STRIPE_DEALER_PRO_PRICE_ID ?? ""
+        : process.env.STRIPE_DEALER_STARTER_PRICE_ID ??
+          process.env.STRIPE_DEALER_PRICE_ID ??
+          "";
+    if (!stripePriceId) return;
 
     // Upsert by Stripe subscription ID for idempotency
     await db.subscription.upsert({
@@ -132,9 +195,13 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       create: {
         dealerId,
         stripeSubscriptionId: subscriptionId,
-        stripePriceId: process.env.STRIPE_DEALER_PRICE_ID ?? "",
+        stripePriceId,
         status: "ACTIVE",
       },
+    });
+    await db.dealerProfile.update({
+      where: { id: dealerId },
+      data: { tier: tierFromMetadata },
     });
   }
 }
@@ -149,6 +216,8 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     };
 
   const status = statusMap[subscription.status] ?? "INCOMPLETE";
+  const stripePriceId = subscription.items.data[0]?.price?.id;
+  const tier = getDealerTierFromPriceId(stripePriceId);
 
   // Stripe SDK types vary by version; access period end safely
   const periodEnd = (subscription as unknown as Record<string, unknown>)
@@ -164,8 +233,13 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     where: { stripeSubscriptionId: subscription.id },
     data: {
       status,
+      ...(stripePriceId ? { stripePriceId } : {}),
       ...(periodEnd ? { currentPeriodEnd: new Date(periodEnd * 1000) } : {}),
     },
+  });
+  await db.dealerProfile.update({
+    where: { id: existing.dealerId },
+    data: { tier },
   });
 }
 

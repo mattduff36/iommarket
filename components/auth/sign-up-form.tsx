@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type SignUpRole = "USER" | "DEALER";
 
 export function SignUpForm() {
   const router = useRouter();
@@ -14,6 +23,7 @@ export function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [role, setRole] = useState<SignUpRole>("USER");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -28,7 +38,10 @@ export function SignUpForm() {
         email,
         password,
         options: {
-          data: name ? { full_name: name } : undefined,
+          data: {
+            ...(name ? { full_name: name } : {}),
+            role,
+          },
           emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback?next=${encodeURIComponent(next)}`,
         },
       });
@@ -89,6 +102,18 @@ export function SignUpForm() {
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-text-primary">Account type</label>
+        <Select value={role} onValueChange={(value) => setRole(value as SignUpRole)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="USER">Private Seller</SelectItem>
+            <SelectItem value="DEALER">Dealer</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       {error && (
         <p className="text-sm text-text-energy" role="alert">
           {error}
