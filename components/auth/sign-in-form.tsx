@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/";
+  const next = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,28 @@ export function SignInForm() {
         setError(err.message);
         return;
       }
-      router.push(next);
+
+      if (next) {
+        router.push(next);
+        router.refresh();
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/me", { credentials: "same-origin" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role === "ADMIN") {
+            router.push("/admin");
+            router.refresh();
+            return;
+          }
+        }
+      } catch {
+        // fall through to default destination
+      }
+
+      router.push("/account");
       router.refresh();
     } finally {
       setLoading(false);
@@ -62,7 +83,7 @@ export function SignInForm() {
           {loading ? "Signing in…" : "Sign in"}
         </Button>
         <Link
-          href={`/forgot-password${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
+          href={`/forgot-password${next ? `?next=${encodeURIComponent(next)}` : ""}`}
           className="text-sm text-text-secondary hover:text-text-brand text-center"
         >
           Forgot password?

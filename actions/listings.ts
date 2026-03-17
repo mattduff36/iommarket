@@ -19,6 +19,9 @@ import {
   sendReportNotificationEmail,
   sendSellerContactEmail,
 } from "@/lib/email/resend";
+import {
+  transitionListingStatus,
+} from "@/lib/listings/status-events";
 
 // ---------------------------------------------------------------------------
 // Create Listing
@@ -74,21 +77,35 @@ export async function createListing(input: CreateListingInput) {
   const { attributes, trustDeclarationAccepted, ...data } = parsed.data;
 
   try {
-    const listing = await db.listing.create({
-      data: {
-        ...data,
-        userId: user.id,
-        dealerId: user.dealerProfile?.id ?? null,
-        status: "DRAFT",
-        trustDeclarationAccepted,
-        trustDeclarationAcceptedAt: trustDeclarationAccepted ? new Date() : null,
-        attributeValues: {
-          create: attributes.map((attr) => ({
-            attributeDefinitionId: attr.attributeDefinitionId,
-            value: attr.value,
-          })),
+    const listing = await db.$transaction(async (tx) => {
+      const created = await tx.listing.create({
+        data: {
+          ...data,
+          userId: user.id,
+          dealerId: user.dealerProfile?.id ?? null,
+          status: "DRAFT",
+          trustDeclarationAccepted,
+          trustDeclarationAcceptedAt: trustDeclarationAccepted ? new Date() : null,
+          attributeValues: {
+            create: attributes.map((attr) => ({
+              attributeDefinitionId: attr.attributeDefinitionId,
+              value: attr.value,
+            })),
+          },
         },
-      },
+      });
+
+      await tx.listingStatusEvent.create({
+        data: {
+          listingId: created.id,
+          toStatus: "DRAFT",
+          changedByUserId: user.id,
+          source: user.role === "ADMIN" ? "ADMIN" : "USER",
+          notes: "Listing created",
+        },
+      });
+
+      return created;
     });
 
     revalidatePath("/");
@@ -120,12 +137,13 @@ export async function updateListing(input: unknown) {
   }
 
   try {
-    const listing = await db.listing.update({
-      where: { id },
-      data: {
-        ...data,
-        status: "DRAFT", // edits reset to draft for re-moderation
-      },
+    const listing = await transitionListingStatus({
+      listingId: id,
+      toStatus: "DRAFT",
+      changedByUserId: user.id,
+      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      notes: "Listing edited and reset for moderation",
+      additionalData: data,
     });
 
     if (attributes && attributes.length > 0) {
@@ -173,9 +191,12 @@ export async function submitListingForReview(listingId: string) {
   }
 
   try {
-    const updated = await db.listing.update({
-      where: { id: listingId },
-      data: { status: "PENDING" },
+    const updated = await transitionListingStatus({
+      listingId,
+      toStatus: "PENDING",
+      changedByUserId: user.id,
+      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      notes: "Submitted for moderation",
     });
 
     revalidatePath(`/listings/${listingId}`);
@@ -201,9 +222,12 @@ export async function renewListing(listingId: string) {
   }
 
   try {
-    const updated = await db.listing.update({
-      where: { id: listingId },
-      data: { status: "DRAFT" },
+    const updated = await transitionListingStatus({
+      listingId,
+      toStatus: "DRAFT",
+      changedByUserId: user.id,
+      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      notes: "Listing renewed",
     });
 
     revalidatePath(`/listings/${listingId}`);
@@ -325,9 +349,13 @@ export async function markListingAsSold(listingId: string) {
   }
 
   try {
-    const updated = await db.listing.update({
-      where: { id: listingId },
-      data: { status: "SOLD", soldAt: new Date() },
+    const updated = await transitionListingStatus({
+      listingId,
+      toStatus: "SOLD",
+      changedByUserId: user.id,
+      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      notes: "Marked as sold",
+      additionalData: { soldAt: new Date() },
     });
 
     revalidatePath(`/listings/${listingId}`);

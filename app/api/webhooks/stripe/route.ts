@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { constructWebhookEvent } from "@/lib/payments/stripe";
 import { getDealerTierFromPriceId } from "@/lib/config/dealer-tiers";
+import { transitionListingStatus } from "@/lib/listings/status-events";
 import type Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -99,9 +100,12 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       imageCount >= 2 &&
       listing.trustDeclarationAccepted
     ) {
-      await db.listing.update({
-        where: { id: listingId },
-        data: { status: "PENDING" },
+      await transitionListingStatus({
+        listingId,
+        toStatus: "PENDING",
+        changedByUserId: null,
+        source: "PAYMENT",
+        notes: "Listing fee paid — submitted for moderation",
       });
     }
   }

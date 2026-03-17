@@ -111,12 +111,18 @@ export async function payForListing(
     }
 
     const listingFeePence = getListingFeePence();
+    const totalAmountPence = listingFeePence + supportAmountPence;
+    const lineItemDescription =
+      supportAmountPence > 0
+        ? `Listing fee + £${(supportAmountPence / 100).toFixed(2)} optional platform support`
+        : undefined;
 
     const session = await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
-      amountInPence: listingFeePence,
+      amountInPence: totalAmountPence,
       checkoutType: "listing_payment",
+      lineItemDescription,
       customerEmail: user.email,
       successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=paid`,
       cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,

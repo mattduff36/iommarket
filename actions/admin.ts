@@ -13,6 +13,7 @@ import {
   type CreateCategoryInput,
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
+import { transitionListingStatus } from "@/lib/listings/status-events";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -20,7 +21,7 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 export async function moderateListing(input: ModerateListingInput) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
 
   const parsed = moderateListingSchema.safeParse(input);
   if (!parsed.success) {
@@ -36,16 +37,18 @@ export async function moderateListing(input: ModerateListingInput) {
   };
 
   try {
-    const listing = await db.listing.update({
-      where: { id: listingId },
-      data: {
-        status: statusMap[action],
-        ...(action === "APPROVE"
+    const listing = await transitionListingStatus({
+      listingId,
+      toStatus: statusMap[action],
+      changedByUserId: admin.id,
+      source: "ADMIN",
+      notes: adminNotes,
+      additionalData:
+        action === "APPROVE"
           ? {
               expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
             }
-          : {}),
-      },
+          : undefined,
     });
 
     revalidatePath("/admin/listings");

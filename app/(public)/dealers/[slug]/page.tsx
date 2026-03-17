@@ -2,11 +2,13 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Globe, Phone, Calendar } from "lucide-react";
 import { DealerReviewForm } from "./dealer-review-form";
 
@@ -87,6 +89,18 @@ export default async function DealerProfilePage({ params }: Props) {
   const averageRating = reviewStats._avg.rating
     ? Number(reviewStats._avg.rating.toFixed(1))
     : null;
+  const isProfileOwner = Boolean(currentUser && currentUser.id === dealer.userId);
+  const profileFields = [
+    dealer.name,
+    dealer.slug,
+    dealer.bio,
+    dealer.website,
+    dealer.phone,
+    dealer.logoUrl,
+  ];
+  const profileCompletionPercent = Math.round(
+    (profileFields.filter(Boolean).length / profileFields.length) * 100
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -146,8 +160,56 @@ export default async function DealerProfilePage({ params }: Props) {
               })}
             </span>
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {dealer.phone ? <Badge variant="info">Phone Verified</Badge> : null}
+            {dealer.website ? <Badge variant="info">Website Added</Badge> : null}
+            {isSubscribed ? <Badge variant="success">Subscription Active</Badge> : null}
+          </div>
         </div>
       </div>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-text-secondary">Live Listings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-text-primary">{dealer.listings.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-text-secondary">Average Rating</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-premium-gold-500">
+              {averageRating ?? "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-text-secondary">Approved Reviews</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-neon-blue-500">{reviewCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isProfileOwner ? (
+        <div className="mb-8 rounded-lg border border-border bg-surface p-4">
+          <p className="text-sm font-medium text-text-primary">
+            Profile completion: {profileCompletionPercent}%
+          </p>
+          <p className="mt-1 text-sm text-text-secondary">
+            Add more profile details to improve trust with buyers.
+          </p>
+          <Link href="/dealer/profile" className="mt-2 inline-block text-sm text-text-trust hover:underline">
+            Manage dealer profile
+          </Link>
+        </div>
+      ) : null}
 
       {/* Listings */}
       <div className="mb-12 grid gap-6 lg:grid-cols-3">

@@ -38,21 +38,28 @@ model User {
   authUserId     String    @unique
   email          String    @unique
   name           String?
+  phone          String?
+  bio            String?
+  avatarUrl      String?
   role           UserRole  @default(USER)
   regionId       String?
   disabledAt     DateTime?
   disabledReason String?
+  deletedAt      DateTime?
+  deletionReason String?
+  deletionRequestedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  region        Region?        @relation(fields: [regionId], references: [id])
-  listings      Listing[]
-  dealerProfile DealerProfile?
-  reports       Report[]
-  favourites    Favourite[]
-  savedSearches SavedSearch[]
-  listingViews  ListingView[]
-  dealerReviews DealerReview[]
+  region              Region?              @relation(fields: [regionId], references: [id])
+  listings            Listing[]
+  dealerProfile       DealerProfile?
+  reports             Report[]
+  favourites          Favourite[]
+  savedSearches       SavedSearch[]
+  listingViews        ListingView[]
+  dealerReviews       DealerReview[]
+  listingStatusEvents ListingStatusEvent[]
 
   @@index([authUserId])
   @@index([email])
@@ -151,6 +158,13 @@ enum ListingStatus {
   SOLD
 }
 
+enum ListingStatusEventSource {
+  USER
+  ADMIN
+  SYSTEM
+  PAYMENT
+}
+
 model Listing {
   id          String        @id @default(cuid())
   userId      String
@@ -182,6 +196,7 @@ model Listing {
   reports         Report[]
   favouritedBy    Favourite[]
   views           ListingView[]
+  statusEvents    ListingStatusEvent[]
 
   @@index([categoryId, regionId, status])
   @@index([status])
@@ -190,6 +205,24 @@ model Listing {
   @@index([userId])
   @@index([dealerId])
   @@index([createdAt])
+}
+
+model ListingStatusEvent {
+  id              String                   @id @default(cuid())
+  listingId       String
+  fromStatus      ListingStatus?
+  toStatus        ListingStatus
+  changedByUserId String?
+  source          ListingStatusEventSource
+  notes           String?
+  createdAt       DateTime                 @default(now())
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  changedBy User?   @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt])
+  @@index([changedByUserId, createdAt])
+  @@index([toStatus, createdAt])
 }
 
 model ListingImage {

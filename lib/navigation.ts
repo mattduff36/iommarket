@@ -26,8 +26,12 @@ export const FOOTER_NAV_ITEMS: NavItem[] = [
 ];
 
 const ACCOUNT_NAV_ITEMS: AccountNavItem[] = [
+  { label: "Dashboard", href: "/account" },
+  { label: "My Listings", href: "/account/listings" },
+  { label: "Profile & Security", href: "/account/profile" },
   { label: "Saved listings", href: "/account/favourites" },
   { label: "Saved searches", href: "/account/saved-searches" },
+  { label: "Dealer profile", href: "/dealer/profile", visibility: "dealer_admin" },
   { label: "Dealer dashboard", href: "/dealer/dashboard", visibility: "dealer_admin" },
   { label: "Change password", href: "/account/change-password" },
   { label: "Admin area", href: "/admin", visibility: "admin" },
