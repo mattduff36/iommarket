@@ -68,45 +68,48 @@ async function persistCapture(
     component: prepared.component,
   });
 
-  const existing = await db.monitoringIssue.findUnique({
+  const issue = await db.monitoringIssue.upsert({
     where: { fingerprint },
-    select: { id: true, severity: true, status: true },
+    create: {
+      fingerprint,
+      title: prepared.title,
+      status: "OPEN",
+      severity: prepared.severity,
+      source: prepared.source,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      occurrences: 1,
+      sampleMessage: prepared.message,
+      sampleRoute: prepared.route ?? null,
+      sampleAction: prepared.action ?? null,
+      sampleComponent: prepared.component ?? null,
+    },
+    update: {
+      lastSeenAt: now,
+      occurrences: { increment: 1 },
+      sampleMessage: prepared.message,
+      sampleRoute: prepared.route ?? null,
+      sampleAction: prepared.action ?? null,
+      sampleComponent: prepared.component ?? null,
+    },
+    select: { id: true, severity: true, status: true, occurrences: true },
   });
 
-  const issue = existing
-    ? await db.monitoringIssue.update({
-        where: { id: existing.id },
-        data: {
-          lastSeenAt: now,
-          occurrences: { increment: 1 },
-          severity: maxSeverity(existing.severity, prepared.severity),
-          sampleMessage: prepared.message,
-          sampleRoute: prepared.route ?? null,
-          sampleAction: prepared.action ?? null,
-          sampleComponent: prepared.component ?? null,
-          ...(existing.status === "RESOLVED"
-            ? { status: "OPEN", resolvedAt: null }
-            : {}),
-        },
-        select: { id: true },
-      })
-    : await db.monitoringIssue.create({
-        data: {
-          fingerprint,
-          title: prepared.title,
-          status: "OPEN",
-          severity: prepared.severity,
-          source: prepared.source,
-          firstSeenAt: now,
-          lastSeenAt: now,
-          occurrences: 1,
-          sampleMessage: prepared.message,
-          sampleRoute: prepared.route ?? null,
-          sampleAction: prepared.action ?? null,
-          sampleComponent: prepared.component ?? null,
-        },
-        select: { id: true },
-      });
+  const isNew = issue.occurrences === 1;
+  const desiredSeverity = maxSeverity(issue.severity, prepared.severity);
+  const shouldReopen = !isNew && issue.status === "RESOLVED";
+
+  if (desiredSeverity !== issue.severity || shouldReopen) {
+    await db.monitoringIssue.update({
+      where: { id: issue.id },
+      data: {
+        ...(desiredSeverity !== issue.severity
+          ? { severity: desiredSeverity }
+          : {}),
+        ...(shouldReopen ? { status: "OPEN", resolvedAt: null } : {}),
+      },
+    });
+  }
 
   const event = await db.monitoringEvent.create({
     data: {
@@ -141,7 +144,7 @@ async function persistCapture(
     issueId: issue.id,
     eventId: event.id,
     fingerprint,
-    createdIssue: !existing,
+    createdIssue: isNew,
   };
 }
 

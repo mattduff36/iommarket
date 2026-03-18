@@ -37,18 +37,25 @@ export function FeaturedUpgradeButton({
 
   if (variant === "inline") {
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={handleUpgrade}
-        loading={isPending}
-        className="text-premium-gold-400 hover:text-premium-gold-500"
-        title="Upgrade to featured"
-      >
-        <Star className="h-3.5 w-3.5" />
-        Feature
-      </Button>
+      <div className="inline-flex items-center gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleUpgrade}
+          loading={isPending}
+          className="text-premium-gold-400 hover:text-premium-gold-500"
+          title="Upgrade to featured"
+        >
+          <Star className="h-3.5 w-3.5" />
+          Feature
+        </Button>
+        {error && (
+          <p className="text-xs text-text-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
     );
   }
 
