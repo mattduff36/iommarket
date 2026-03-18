@@ -175,6 +175,66 @@ export async function refundPaymentIntent(paymentIntentId: string) {
 }
 
 /**
+ * Resolve the most recent paid subscription invoice with a payment intent.
+ * Used by admin tooling to refund subscription payments.
+ */
+export async function getLatestPaidSubscriptionPaymentIntent(
+  stripeSubscriptionId: string
+) {
+  const stripe = getStripe();
+  const invoices = await stripe.invoices.list({
+    subscription: stripeSubscriptionId,
+    limit: 20,
+    // Newer Stripe API versions expose invoice payments under `payments`
+    // instead of `payment_intent` on the invoice root.
+    expand: ["data.payments"],
+  });
+
+  const latestPaidInvoice = invoices.data.find(
+    (invoice) => invoice.status === "paid" && invoice.amount_paid > 0
+  );
+
+  if (!latestPaidInvoice) {
+    return null;
+  }
+
+  // Stripe SDK v20+ removed `payment_intent` from the Invoice type.
+  // Access it via the `payments` expansion; fall back to the legacy field
+  // (still returned by the API) for older API versions.
+  const legacy = (latestPaidInvoice as unknown as Record<string, unknown>)
+    .payment_intent;
+  const rootPaymentIntentId =
+    typeof legacy === "string"
+      ? legacy
+      : (legacy as { id?: string } | null | undefined)?.id ?? null;
+
+  const invoicePayments = latestPaidInvoice.payments?.data ?? [];
+  const rawInvoicePI = invoicePayments.find(
+    (entry) =>
+      entry.status === "paid" &&
+      entry.payment?.type === "payment_intent" &&
+      Boolean(entry.payment.payment_intent)
+  )?.payment.payment_intent ?? null;
+  const invoicePaymentIntentId =
+    typeof rawInvoicePI === "string"
+      ? rawInvoicePI
+      : rawInvoicePI?.id ?? null;
+
+  const paymentIntentId = rootPaymentIntentId ?? invoicePaymentIntentId;
+
+  if (!paymentIntentId) {
+    return null;
+  }
+
+  return {
+    invoiceId: latestPaidInvoice.id,
+    paymentIntentId,
+    amountPaid: latestPaidInvoice.amount_paid,
+    currency: latestPaidInvoice.currency ?? "gbp",
+  };
+}
+
+/**
  * Cancel a Stripe subscription.
  * @param immediately If true, cancel now. Otherwise cancel at period end.
  */

@@ -208,6 +208,23 @@ export async function sendReportNotificationEmail(params: {
   }
 }
 
+export async function sendMonitoringAlertEmail(params: {
+  to: string[];
+  subject: string;
+  text: string;
+}): Promise<void> {
+  const resend = getResendClient();
+  if (!resend) return;
+  if (params.to.length === 0) return;
+
+  await resend.emails.send({
+    from: getFromEmail(),
+    to: params.to,
+    subject: params.subject,
+    text: params.text,
+  });
+}
+
 function parseEmailRecipients(raw: string | undefined): string[] {
   if (!raw) return [];
   return raw

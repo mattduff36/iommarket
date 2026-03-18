@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,8 +29,10 @@ export const metadata: Metadata = { title: "Admin Dashboard" };
 
 export default async function AdminDashboardPage() {
   await requireRole("ADMIN");
+  await expireStaleLiveListings();
 
   const now = new Date();
+  const liveWhere = liveListingWhere(now);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -55,7 +58,7 @@ export default async function AdminDashboardPage() {
   ] = await Promise.all([
     db.listing.count(),
     db.listing.count({ where: { status: "PENDING" } }),
-    db.listing.count({ where: { status: "LIVE" } }),
+    db.listing.count({ where: liveWhere }),
     db.dealerProfile.count(),
     db.dealerProfile.count({ where: { verified: true } }),
     db.report.count({ where: { status: "OPEN" } }),

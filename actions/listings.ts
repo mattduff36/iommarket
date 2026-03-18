@@ -19,6 +19,7 @@ import {
   sendReportNotificationEmail,
   sendSellerContactEmail,
 } from "@/lib/email/resend";
+import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import {
   transitionListingStatus,
 } from "@/lib/listings/status-events";
@@ -111,6 +112,15 @@ export async function createListing(input: CreateListingInput) {
     revalidatePath("/");
     return { data: listing };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "createListing",
+      route: "/sell/private",
+      requestPath: "/sell/private",
+      userId: user.id,
+      userEmail: user.email,
+    });
     const message = err instanceof Error ? err.message : "Failed to create listing";
     return { error: message };
   }
@@ -161,6 +171,16 @@ export async function updateListing(input: unknown) {
     revalidatePath("/");
     return { data: listing };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "updateListing",
+      route: `/listings/${id}`,
+      requestPath: `/listings/${id}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId: id },
+    });
     const message = err instanceof Error ? err.message : "Failed to update listing";
     return { error: message };
   }
@@ -202,6 +222,16 @@ export async function submitListingForReview(listingId: string) {
     revalidatePath(`/listings/${listingId}`);
     return { data: updated };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "submitListingForReview",
+      route: `/listings/${listingId}`,
+      requestPath: `/listings/${listingId}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId },
+    });
     const message = err instanceof Error ? err.message : "Failed to submit listing";
     return { error: message };
   }
@@ -233,6 +263,16 @@ export async function renewListing(listingId: string) {
     revalidatePath(`/listings/${listingId}`);
     return { data: updated };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "renewListing",
+      route: "/account/listings",
+      requestPath: "/account/listings",
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId },
+    });
     const message = err instanceof Error ? err.message : "Failed to renew listing";
     return { error: message };
   }
@@ -270,15 +310,45 @@ export async function reportListing(input: ReportListingInput) {
       select: { title: true },
     });
     if (listing) {
-      await sendReportNotificationEmail({
-        reporterEmail: parsed.data.reporterEmail,
-        listingTitle: listing.title,
-        reason: parsed.data.reason,
-      });
+      try {
+        await sendReportNotificationEmail({
+          reporterEmail: parsed.data.reporterEmail,
+          listingTitle: listing.title,
+          reason: parsed.data.reason,
+        });
+      } catch (err) {
+        await captureBusinessEvent({
+          source: "BUSINESS",
+          severity: "MEDIUM",
+          title: "Report confirmation email failed",
+          message: "Report created successfully but notification email sending failed.",
+          action: "reportListing",
+          route: `/listings/${parsed.data.listingId}`,
+          requestPath: `/listings/${parsed.data.listingId}`,
+          tags: {
+            listingId: parsed.data.listingId,
+            reporterEmail: parsed.data.reporterEmail,
+          },
+          extra: {
+            error:
+              err instanceof Error
+                ? { name: err.name, message: err.message }
+                : { message: "Unknown error" },
+          },
+        });
+      }
     }
 
     return { data: report };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "reportListing",
+      route: `/listings/${parsed.data.listingId}`,
+      requestPath: `/listings/${parsed.data.listingId}`,
+      tags: { listingId: parsed.data.listingId },
+    });
     const message = err instanceof Error ? err.message : "Failed to submit report";
     return { error: message };
   }
@@ -316,20 +386,33 @@ export async function contactSeller(input: ContactSellerInput) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const listingUrl = `${appUrl}/listings/${listing.id}`;
-  await sendSellerContactEmail({
-    sellerEmail: listing.user.email,
-    listingTitle: listing.title,
-    listingUrl,
-    fromName: parsed.data.name,
-    fromEmail: parsed.data.email,
-    message: parsed.data.message,
-  });
-  await sendContactConfirmationEmail({
-    buyerEmail: parsed.data.email,
-    listingTitle: listing.title,
-  });
-
-  return { data: { sent: true } };
+  try {
+    await sendSellerContactEmail({
+      sellerEmail: listing.user.email,
+      listingTitle: listing.title,
+      listingUrl,
+      fromName: parsed.data.name,
+      fromEmail: parsed.data.email,
+      message: parsed.data.message,
+    });
+    await sendContactConfirmationEmail({
+      buyerEmail: parsed.data.email,
+      listingTitle: listing.title,
+    });
+    return { data: { sent: true } };
+  } catch (err) {
+    await captureException({
+      source: "BUSINESS",
+      error: err,
+      severity: "MEDIUM",
+      title: "Contact seller email delivery failure",
+      action: "contactSeller",
+      route: `/listings/${parsed.data.listingId}`,
+      requestPath: `/listings/${parsed.data.listingId}`,
+      tags: { listingId: parsed.data.listingId },
+    });
+    return { error: "Failed to send message. Please try again later." };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -362,6 +445,16 @@ export async function markListingAsSold(listingId: string) {
     revalidatePath("/");
     return { data: updated };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "markListingAsSold",
+      route: `/listings/${listingId}`,
+      requestPath: `/listings/${listingId}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId },
+    });
     const message = err instanceof Error ? err.message : "Failed to mark listing as sold";
     return { error: message };
   }
@@ -400,6 +493,16 @@ export async function saveListingImages(
     revalidatePath(`/listings/${listingId}`);
     return { data: created };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "saveListingImages",
+      route: `/listings/${listingId}`,
+      requestPath: `/listings/${listingId}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId, imageCount: images.length },
+    });
     const message = err instanceof Error ? err.message : "Failed to save images";
     return { error: message };
   }

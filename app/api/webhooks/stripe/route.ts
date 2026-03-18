@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { constructWebhookEvent } from "@/lib/payments/stripe";
 import { getDealerTierFromPriceId } from "@/lib/config/dealer-tiers";
 import { transitionListingStatus } from "@/lib/listings/status-events";
+import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import type Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -42,6 +43,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
+    await captureException({
+      source: "WEBHOOK",
+      error: err,
+      severity: "HIGH",
+      title: "Stripe webhook processing failed",
+      action: "stripeWebhookPost",
+      route: "/api/webhooks/stripe",
+      requestPath: "/api/webhooks/stripe",
+      tags: { eventType: event.type, eventId: event.id },
+    });
     const message = err instanceof Error ? err.message : "Webhook handler error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -89,7 +100,19 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         trustDeclarationAccepted: true,
       },
     });
-    if (!listing) return;
+    if (!listing) {
+      await captureBusinessEvent({
+        source: "WEBHOOK",
+        severity: "HIGH",
+        title: "Payment webhook references missing listing",
+        message: "Stripe checkout.session.completed received for listing_payment but listing was not found.",
+        action: "handleCheckoutComplete",
+        route: "/api/webhooks/stripe",
+        requestPath: "/api/webhooks/stripe",
+        tags: { listingId, checkoutSessionId: session.id, stripePaymentId },
+      });
+      return;
+    }
 
     const imageCount = await db.listingImage.count({
       where: { listingId },
@@ -106,6 +129,24 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         changedByUserId: null,
         source: "PAYMENT",
         notes: "Listing fee paid — submitted for moderation",
+      });
+    } else {
+      await captureBusinessEvent({
+        source: "WEBHOOK",
+        severity: "MEDIUM",
+        title: "Listing payment captured but moderation transition skipped",
+        message:
+          "Payment succeeded but listing was not transitioned to PENDING due to unmet submission conditions.",
+        action: "handleCheckoutComplete",
+        route: "/api/webhooks/stripe",
+        requestPath: "/api/webhooks/stripe",
+        tags: {
+          listingId,
+          checkoutSessionId: session.id,
+          status: listing.status,
+          imageCount,
+          trustDeclarationAccepted: listing.trustDeclarationAccepted,
+        },
       });
     }
   }
@@ -199,9 +240,14 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         status: "ACTIVE",
       },
     });
-    await db.dealerProfile.update({
+    const dealerProfile = await db.dealerProfile.update({
       where: { id: dealerId },
       data: { tier: tierFromMetadata },
+      select: { userId: true },
+    });
+    await db.user.update({
+      where: { id: dealerProfile.userId },
+      data: { role: "DEALER" },
     });
   }
 }
@@ -227,7 +273,20 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const existing = await db.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });
-  if (!existing) return; // Subscription not in our DB — skip
+  if (!existing) {
+    await captureBusinessEvent({
+      source: "WEBHOOK",
+      severity: "MEDIUM",
+      title: "Subscription update with no local record",
+      message:
+        "Stripe subscription.updated was received for a subscription that does not exist locally.",
+      action: "handleSubscriptionUpdate",
+      route: "/api/webhooks/stripe",
+      requestPath: "/api/webhooks/stripe",
+      tags: { stripeSubscriptionId: subscription.id, status: subscription.status },
+    });
+    return;
+  }
 
   await db.subscription.update({
     where: { stripeSubscriptionId: subscription.id },
@@ -247,7 +306,20 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const existing = await db.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });
-  if (!existing) return;
+  if (!existing) {
+    await captureBusinessEvent({
+      source: "WEBHOOK",
+      severity: "LOW",
+      title: "Subscription deletion with no local record",
+      message:
+        "Stripe subscription.deleted was received for a subscription that does not exist locally.",
+      action: "handleSubscriptionDeleted",
+      route: "/api/webhooks/stripe",
+      requestPath: "/api/webhooks/stripe",
+      tags: { stripeSubscriptionId: subscription.id },
+    });
+    return;
+  }
 
   await db.subscription.update({
     where: { stripeSubscriptionId: subscription.id },
@@ -263,8 +335,21 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
 
   if (!paymentIntentId) return;
 
-  await db.payment.updateMany({
+  const updated = await db.payment.updateMany({
     where: { stripePaymentId: paymentIntentId },
     data: { status: "REFUNDED" },
   });
+
+  if (updated.count === 0) {
+    await captureBusinessEvent({
+      source: "WEBHOOK",
+      severity: "MEDIUM",
+      title: "Refund webhook with no matching payment",
+      message: "Stripe charge.refunded received but no local payment matched.",
+      action: "handleChargeRefunded",
+      route: "/api/webhooks/stripe",
+      requestPath: "/api/webhooks/stripe",
+      tags: { paymentIntentId, chargeId: charge.id },
+    });
+  }
 }

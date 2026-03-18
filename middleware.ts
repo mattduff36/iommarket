@@ -95,9 +95,10 @@ export default async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && !isPublicPath(pathname)) {
-    const signInUrl = new URL("/sign-in", request.url);
-    signInUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(signInUrl);
+    const signUpUrl = new URL("/sign-up", request.url);
+    const nextTarget = `${pathname}${request.nextUrl.search}`;
+    signUpUrl.searchParams.set("next", nextTarget);
+    return NextResponse.redirect(signUpUrl);
   }
 
   return response;

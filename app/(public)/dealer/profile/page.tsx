@@ -8,7 +8,7 @@ import { DealerProfileForm } from "./dealer-profile-form";
 
 export default async function DealerProfileManagePage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in?next=/dealer/profile");
+  if (!user) redirect("/sign-up?next=/dealer/profile");
   if (!user.dealerProfile) redirect("/pricing");
 
   return (

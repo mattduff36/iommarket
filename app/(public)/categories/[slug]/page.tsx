@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { CategoryFilters } from "./category-filters";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {
+  await expireStaleLiveListings();
   const { slug } = await params;
   const sp = await searchParams;
 
@@ -37,10 +39,11 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
+  const liveWhere = liveListingWhere();
 
   const where = {
+    ...liveWhere,
     categoryId: category.id,
-    status: "LIVE" as const,
     ...(sp.region ? { region: { slug: sp.region } } : {}),
     ...(sp.minPrice ? { price: { gte: parseInt(sp.minPrice, 10) * 100 } } : {}),
     ...(sp.maxPrice ? { price: { lte: parseInt(sp.maxPrice, 10) * 100 } } : {}),

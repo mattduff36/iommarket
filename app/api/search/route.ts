@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  expireStaleLiveListings,
+  liveOrSoldListingWhere,
+} from "@/lib/listings/expiry";
 
 function safeInt(v: string | null): number | undefined {
   if (!v) return undefined;
@@ -15,6 +19,7 @@ interface NumericRangeFilter {
 }
 
 export async function GET(request: NextRequest) {
+  await expireStaleLiveListings();
   const currentUser = await getCurrentUser();
   const sp = request.nextUrl.searchParams;
   const query = sp.get("q")?.trim() ?? "";
@@ -22,6 +27,7 @@ export async function GET(request: NextRequest) {
   const pageSize = 12;
 
   const includeSold = sp.get("includeSold") === "true";
+  const now = new Date();
   const minPricePence = sp.get("minPrice")
     ? Number.parseInt(sp.get("minPrice") ?? "0", 10) * 100
     : undefined;
@@ -66,7 +72,10 @@ export async function GET(request: NextRequest) {
 
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
-      WHERE (l.status = 'LIVE' OR (${includeSold} AND l.status = 'SOLD'))
+      WHERE (
+        (l.status = 'LIVE' AND (l.expires_at IS NULL OR l.expires_at > NOW()))
+        OR (${includeSold} AND l.status = 'SOLD')
+      )
       AND ${combined}
     `;
     listingIdsFromAttributes = result.map((row) => row.id);
@@ -115,9 +124,7 @@ export async function GET(request: NextRequest) {
     })),
   ];
 
-  const statusFilter = includeSold
-    ? { status: { in: ["LIVE", "SOLD"] as const } }
-    : { status: "LIVE" as const };
+  const statusFilter = liveOrSoldListingWhere(includeSold, now);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {

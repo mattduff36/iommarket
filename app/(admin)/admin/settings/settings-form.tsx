@@ -18,6 +18,10 @@ const KNOWN_SETTINGS = [
   { key: SETTING_KEYS.FREE_LISTING_WINDOW_DAYS, label: "Free Listing Window (days)", type: "number" as const },
   { key: SETTING_KEYS.LAUNCH_FREE_UNTIL, label: "Launch Free Until (ISO date)", type: "text" as const },
   { key: SETTING_KEYS.FREE_LAUNCH_SLOTS_TOTAL, label: "Free Launch Slots (first N people)", type: "number" as const },
+  { key: SETTING_KEYS.MONITORING_ALERT_EMAILS, label: "Monitoring Alert Emails (comma-separated)", type: "text" as const },
+  { key: SETTING_KEYS.MONITORING_ALERT_WEBHOOK_URL, label: "Monitoring Alert Webhook URL", type: "text" as const },
+  { key: SETTING_KEYS.MONITORING_ALERT_MIN_SEVERITY, label: "Monitoring Alert Minimum Severity (LOW|MEDIUM|HIGH|CRITICAL)", type: "text" as const },
+  { key: SETTING_KEYS.MONITORING_ALERT_COOLDOWN_MINUTES, label: "Monitoring Alert Cooldown (minutes)", type: "number" as const },
 ];
 
 export function SettingsForm({ settings, envDefaults }: SettingsFormProps) {

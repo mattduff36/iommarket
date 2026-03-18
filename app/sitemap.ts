@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  await expireStaleLiveListings();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const staticRoutes = [
     "/",
@@ -15,7 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const listings = await db.listing.findMany({
-    where: { status: "LIVE" },
+    where: liveListingWhere(),
     select: { id: true, updatedAt: true },
     take: 2000,
     orderBy: { updatedAt: "desc" },

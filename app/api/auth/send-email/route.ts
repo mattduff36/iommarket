@@ -12,16 +12,39 @@ import {
 const rawSecret = process.env.SUPABASE_AUTH_HOOK_SECRET ?? "";
 const HOOK_SECRET = rawSecret.replace(/^v1,whsec_/, "");
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const APP_ORIGIN = (() => {
+  try {
+    return new URL(APP_URL).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+})();
 
 function buildVerifyUrl(tokenHash: string, type: string, redirectTo: string): string {
+  let origin = APP_ORIGIN;
+  let nextPath = "/";
+  try {
+    const redirectUrl = new URL(redirectTo);
+    origin = redirectUrl.origin;
+    const nextFromQuery = redirectUrl.searchParams.get("next");
+    if (
+      nextFromQuery &&
+      nextFromQuery.startsWith("/") &&
+      !nextFromQuery.startsWith("//")
+    ) {
+      nextPath = nextFromQuery;
+    }
+  } catch {
+    // fall through with defaults
+  }
+
   const params = new URLSearchParams({
-    token: tokenHash,
+    token_hash: tokenHash,
     type,
-    redirect_to: redirectTo,
+    next: nextPath,
   });
-  return `${SUPABASE_URL}/auth/v1/verify?${params.toString()}`;
+  return `${origin}/auth/callback?${params.toString()}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -60,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { token_hash, token_hash_new, email_action_type, new_email } = email_data;
-  const redirectTo = email_data.redirect_to || `${APP_URL}/auth/callback`;
+  const redirectTo = email_data.redirect_to || `${APP_ORIGIN}/auth/callback`;
   const verifyUrl = buildVerifyUrl(token_hash, email_action_type, redirectTo);
 
   try {

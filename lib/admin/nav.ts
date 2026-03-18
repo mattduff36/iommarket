@@ -14,6 +14,7 @@ import {
   Image,
   BarChart3,
   Mail,
+  Bug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Pages", href: "/admin/pages", icon: FileText, group: "content" },
   { label: "Media", href: "/admin/media", icon: Image, group: "content" },
   { label: "Analytics", href: "/admin/analytics", icon: BarChart3, group: "insights" },
+  { label: "Monitoring", href: "/admin/monitoring", icon: Bug, group: "insights" },
   { label: "Settings", href: "/admin/settings", icon: Settings, group: "insights" },
 ];
 

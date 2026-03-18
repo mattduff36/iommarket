@@ -10,16 +10,25 @@ import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Calendar, Tag, AlertTriangle, ChevronRight } from "lucide-react";
+import { MapPin, Calendar, Tag, AlertTriangle, ChevronRight, Star } from "lucide-react";
 import { ContactSellerForm } from "./contact-form";
 import { ReportButton } from "./report-button";
+import { ExpandableDescription } from "./expandable-description";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
+import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
+import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
+import {
+  expireStaleLiveListings,
+  isListingEffectivelyExpired,
+  liveListingWhere,
+} from "@/lib/listings/expiry";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ featured?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -39,8 +48,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function ListingDetailPage({ params }: Props) {
+export default async function ListingDetailPage({ params, searchParams }: Props) {
+  await expireStaleLiveListings();
   const { id } = await params;
+  const sp = await searchParams;
+  const justUpgraded = sp.featured === "true";
   const currentUser = await getCurrentUser();
 
   const listing = await db.listing.findUnique({
@@ -59,10 +71,15 @@ export default async function ListingDetailPage({ params }: Props) {
 
   if (!listing) notFound();
 
-  const isExpired = listing.status === "EXPIRED";
+  const isExpired = isListingEffectivelyExpired({
+    status: listing.status,
+    expiresAt: listing.expiresAt,
+  });
   const isTakenDown = listing.status === "TAKEN_DOWN";
   const isSold = listing.status === "SOLD";
-  const isVisible = listing.status === "LIVE" || listing.status === "APPROVED" || isSold;
+  const isVisible =
+    (!isExpired && (listing.status === "LIVE" || listing.status === "APPROVED")) ||
+    isSold;
   const isFavourite = currentUser
     ? Boolean(
         await db.favourite.findUnique({
@@ -121,8 +138,8 @@ export default async function ListingDetailPage({ params }: Props) {
 
   const similarListings = await db.listing.findMany({
     where: {
+      ...liveListingWhere(),
       id: { not: listing.id },
-      status: "LIVE",
       categoryId: listing.categoryId,
       regionId: listing.regionId,
     },
@@ -134,6 +151,19 @@ export default async function ListingDetailPage({ params }: Props) {
       region: true,
     },
   });
+
+  const isOwner = currentUser && (listing.userId === currentUser.id || currentUser.role === "ADMIN");
+  const canUpgradeToFeatured =
+    isOwner &&
+    listing.status === "LIVE" &&
+    !listing.featured &&
+    (listing.dealerId !== null ||
+      Boolean(
+        await db.payment.findFirst({
+          where: { listingId: listing.id, status: "SUCCEEDED", type: "LISTING" },
+          select: { id: true },
+        })
+      ));
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const encodedUrl = encodeURIComponent(`${appUrl}/listings/${listing.id}`);
@@ -162,6 +192,13 @@ export default async function ListingDetailPage({ params }: Props) {
           </li>
         </ol>
       </nav>
+
+      {justUpgraded && (
+        <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
+          <Star className="h-4 w-4 shrink-0" />
+          Featured upgrade successful! Your listing will now appear in promoted positions.
+        </div>
+      )}
 
       {isExpired && (
         <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
@@ -261,8 +298,11 @@ export default async function ListingDetailPage({ params }: Props) {
               <Badge variant="neutral">{listing.viewCount + (isVisible ? 1 : 0)} views</Badge>
             </div>
 
-            <div className="mt-8 text-sm text-text-secondary whitespace-pre-line leading-relaxed">
-              {listing.description}
+            <div className="mt-8">
+              <h2 className="section-heading-accent text-lg font-bold text-text-primary mb-3">
+                Description
+              </h2>
+              <ExpandableDescription description={listing.description} />
             </div>
 
             {/* Attributes */}
@@ -287,7 +327,23 @@ export default async function ListingDetailPage({ params }: Props) {
         </div>
 
         {/* Right: seller info + contact */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle>Price</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-2xl font-bold text-text-primary">{formattedPrice}</p>
+              <p className="text-xs text-text-secondary">
+                Listed {listing.createdAt.toLocaleDateString("en-GB")}
+              </p>
+              {listing.status === "SOLD" ? (
+                <Badge variant="premium">Sold</Badge>
+              ) : null}
+              {isExpired ? <Badge variant="warning">Expired</Badge> : null}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>
@@ -370,23 +426,26 @@ export default async function ListingDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {listing.status === "LIVE" &&
-        currentUser &&
-        (listing.userId === currentUser.id || currentUser.role === "ADMIN") && (
-          <div className="mt-8">
-            <MarkSoldButton listingId={listing.id} />
-          </div>
-        )}
-
-      {isVisible &&
-        !listing.featured &&
-        process.env.NODE_ENV !== "production" &&
-        currentUser &&
-        (listing.userId === currentUser.id || currentUser.role === "ADMIN") && (
-          <div className="mt-8">
-            <DevFeaturedBypass listingId={listing.id} />
-          </div>
-        )}
+      {isOwner && listing.status === "LIVE" && (
+        <div className="mt-8 space-y-4">
+          {canUpgradeToFeatured && (
+            <FeaturedUpgradeButton listingId={listing.id} />
+          )}
+          {canUpgradeToFeatured &&
+            process.env.NODE_ENV !== "production" && (
+              <DevFeaturedBypass listingId={listing.id} />
+            )}
+          <MarkSoldButton listingId={listing.id} />
+        </div>
+      )}
+      {isOwner && listing.status === "EXPIRED" && (
+        <div className="mt-8">
+          <RenewListingButton
+            listingId={listing.id}
+            flow={listing.dealerId ? "dealer" : "private"}
+          />
+        </div>
+      )}
 
       {similarListings.length > 0 && (
         <section className="mt-12">

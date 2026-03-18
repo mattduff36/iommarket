@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Tag, Car } from "lucide-react";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
 export const metadata: Metadata = {
   title: "Categories",
@@ -23,11 +24,13 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default async function CategoriesPage() {
+  await expireStaleLiveListings();
+  const liveWhere = liveListingWhere();
   const categories = await db.category.findMany({
     where: { active: true, parentId: null },
     orderBy: { sortOrder: "asc" },
     include: {
-      _count: { select: { listings: { where: { status: "LIVE" } } } },
+      _count: { select: { listings: { where: liveWhere } } },
       children: {
         where: { active: true },
         orderBy: { sortOrder: "asc" },

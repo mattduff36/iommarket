@@ -18,11 +18,14 @@ import {
 } from "@/components/ui/table";
 import { Plus, ExternalLink, Star } from "lucide-react";
 import { DevSubscriptionBypass } from "@/components/dev/dev-subscription-bypass";
+import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
+import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
 import {
   DEALER_TIER_LABELS,
   getDealerListingCap,
 } from "@/lib/config/dealer-tiers";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -73,9 +76,10 @@ interface Props {
 }
 
 export default async function DealerDashboardPage({ searchParams }: Props) {
+  await expireStaleLiveListings();
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in");
-  if (!user.dealerProfile) redirect("/pricing");
+  if (!user) redirect("/sign-up");
+  if (!user.dealerProfile) redirect("/dealer/subscribe");
 
   const params = searchParams ? await searchParams : {};
   const q = params.q?.trim() ?? "";
@@ -269,7 +273,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           </div>
           {!subscription && (
             <Button asChild size="sm">
-              <Link href="/pricing">Subscribe</Link>
+              <Link href="/dealer/subscribe">Subscribe</Link>
             </Button>
           )}
         </CardContent>
@@ -401,9 +405,22 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                       >
                         View
                       </Link>
-                      {listing.status === "LIVE" ? (
+                      {listing.status === "LIVE" && !listing.featured && (
+                        <FeaturedUpgradeButton
+                          listingId={listing.id}
+                          variant="inline"
+                        />
+                      )}
+                      {listing.status === "LIVE" && (
                         <MarkSoldButton listingId={listing.id} />
-                      ) : null}
+                      )}
+                      {listing.status === "EXPIRED" && (
+                        <RenewListingButton
+                          listingId={listing.id}
+                          flow="dealer"
+                          variant="inline"
+                        />
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

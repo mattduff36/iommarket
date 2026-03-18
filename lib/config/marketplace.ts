@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getNumberSetting, getStringSetting, SETTING_KEYS } from "./site-settings";
 
 const DEFAULT_LISTING_FEE_PENCE = 499;
-const DEFAULT_FEATURED_FEE_PENCE = 499;
+const DEFAULT_FEATURED_FEE_PENCE = 1000;
 const DEFAULT_FREE_WINDOW_DAYS = 30;
 
 function parseIntegerEnv(value: string | undefined, fallback: number): number {
@@ -82,7 +82,10 @@ export async function getFreeLaunchSlotsTotal(): Promise<number> {
 
 /**
  * Count of unique users who have claimed a free private seller listing.
- * A "free" listing = private seller (dealerId null), submitted (status != DRAFT), no successful Payment.
+ * A "free" listing = private seller (dealerId null), approved through moderation
+ * (APPROVED / LIVE / SOLD / EXPIRED), and has no successful Payment.
+ * PENDING and DRAFT listings don't count — the slot is only consumed once
+ * an admin has approved the listing.
  */
 export async function getFreeLaunchSlotsUsed(): Promise<number> {
   const paidListingIds = await db.payment
@@ -95,7 +98,7 @@ export async function getFreeLaunchSlotsUsed(): Promise<number> {
   const listings = await db.listing.findMany({
     where: {
       dealerId: null,
-      status: { not: "DRAFT" },
+      status: { in: ["APPROVED", "LIVE", "SOLD", "EXPIRED"] },
     },
     select: { userId: true, id: true },
   });
@@ -118,7 +121,12 @@ export async function getFreeLaunchSlotsRemaining(): Promise<number> {
   return Math.max(0, total - used);
 }
 
-/** True if the user has already claimed a free slot (has a free private seller listing) */
+/**
+ * True if the user has already claimed a free slot — meaning they have a free
+ * private seller listing that is at least submitted (PENDING or later).
+ * We check all non-DRAFT statuses here so the user can't submit multiple free
+ * listings while one is awaiting moderation.
+ */
 export async function hasUserClaimedFreeSlot(userId: string): Promise<boolean> {
   const paidListingIds = await db.payment
     .findMany({

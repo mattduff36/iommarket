@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
+import { captureException } from "@/lib/monitoring";
 import {
   listUsersSchema,
   setUserRoleSchema,
@@ -127,6 +128,15 @@ export async function setUserRole(input: SetUserRoleInput) {
     revalidatePath(`/admin/users/${userId}`);
     return { data: user };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "setUserRole",
+      route: "/admin/users",
+      requestPath: "/admin/users",
+      userId: admin.id,
+      tags: { userId, role },
+    });
     const message = err instanceof Error ? err.message : "Failed to update role";
     return { error: message };
   }
@@ -163,6 +173,15 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
     revalidatePath(`/admin/users/${userId}`);
     return { data: user };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "setUserDisabled",
+      route: "/admin/users",
+      requestPath: "/admin/users",
+      userId: admin.id,
+      tags: { userId, disabled },
+    });
     const message = err instanceof Error ? err.message : "Failed to update user";
     return { error: message };
   }
@@ -194,6 +213,15 @@ export async function setUserRegion(input: SetUserRegionInput) {
     revalidatePath(`/admin/users/${userId}`);
     return { data: user };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "setUserRegion",
+      route: "/admin/users",
+      requestPath: "/admin/users",
+      userId: admin.id,
+      tags: { userId, regionId: regionId ?? "null" },
+    });
     const message = err instanceof Error ? err.message : "Failed to update region";
     return { error: message };
   }

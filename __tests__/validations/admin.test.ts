@@ -10,6 +10,7 @@ import {
   updateRegionSchema,
   searchPaymentsSchema,
   refundPaymentSchema,
+  refundSubscriptionPaymentSchema,
   cancelSubscriptionSchema,
   upsertContentPageSchema,
   updateSiteSettingSchema,
@@ -172,6 +173,15 @@ describe("refundPaymentSchema", () => {
   it("accepts valid cuid", () => {
     const result = refundPaymentSchema.safeParse({
       paymentId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("refundSubscriptionPaymentSchema", () => {
+  it("accepts valid cuid", () => {
+    const result = refundSubscriptionPaymentSchema.safeParse({
+      subscriptionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
     });
     expect(result.success).toBe(true);
   });

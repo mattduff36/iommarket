@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Globe, Phone, Calendar } from "lucide-react";
 import { DealerReviewForm } from "./dealer-review-form";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -34,13 +35,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DealerProfilePage({ params }: Props) {
+  await expireStaleLiveListings();
   const { slug } = await params;
+  const liveWhere = liveListingWhere();
 
   const dealer = await db.dealerProfile.findUnique({
     where: { slug },
     include: {
       listings: {
-        where: { status: "LIVE" },
+        where: liveWhere,
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
         include: {
           images: { take: 1, orderBy: { order: "asc" } },

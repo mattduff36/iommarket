@@ -7,6 +7,11 @@ import { SearchControls } from "@/components/marketplace/search/search-controls"
 import { ListingResultsClient } from "@/components/marketplace/search/listing-results-client";
 import { SaveSearchButton } from "@/components/marketplace/save-search-button";
 import { type SearchParams } from "@/lib/search/search-url";
+import {
+  expireStaleLiveListings,
+  liveListingWhere,
+  liveOrSoldListingWhere,
+} from "@/lib/listings/expiry";
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -46,6 +51,7 @@ interface NumericRangeFilter {
 }
 
 export default async function SearchPage({ searchParams }: Props) {
+  await expireStaleLiveListings();
   const sp = await searchParams;
   const currentUser = await getCurrentUser();
   const query = sp.q?.trim() ?? "";
@@ -53,6 +59,8 @@ export default async function SearchPage({ searchParams }: Props) {
   const pageSize = 12;
 
   const includeSold = sp.includeSold === "true";
+  const now = new Date();
+  const liveVisibilityWhere = liveListingWhere(now);
   const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
   const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
 
@@ -93,7 +101,10 @@ export default async function SearchPage({ searchParams }: Props) {
 
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
-      WHERE (l.status = 'LIVE' OR (${includeSold} AND l.status = 'SOLD'))
+      WHERE (
+        (l.status = 'LIVE' AND (l.expires_at IS NULL OR l.expires_at > NOW()))
+        OR (${includeSold} AND l.status = 'SOLD')
+      )
       AND ${combined}
     `;
     listingIdsFromAttributes = result.map((r) => r.id);
@@ -138,9 +149,7 @@ export default async function SearchPage({ searchParams }: Props) {
     })),
   ];
 
-  const statusFilter = includeSold
-    ? { status: { in: ["LIVE", "SOLD"] as const } }
-    : { status: "LIVE" as const };
+  const statusFilter = liveOrSoldListingWhere(includeSold, now);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
@@ -188,7 +197,7 @@ export default async function SearchPage({ searchParams }: Props) {
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
       include: {
-        _count: { select: { listings: { where: { status: "LIVE" } } } },
+        _count: { select: { listings: { where: liveVisibilityWhere } } },
       },
     }),
     db.region.findMany({
@@ -225,7 +234,7 @@ export default async function SearchPage({ searchParams }: Props) {
       ? db.listingAttributeValue.findMany({
           where: {
             attributeDefinitionId: { in: makeIds },
-            listing: { status: "LIVE" },
+            listing: liveVisibilityWhere,
           },
           select: { listingId: true, value: true },
         })
@@ -234,7 +243,7 @@ export default async function SearchPage({ searchParams }: Props) {
       ? db.listingAttributeValue.findMany({
           where: {
             attributeDefinitionId: { in: modelIds },
-            listing: { status: "LIVE" },
+            listing: liveVisibilityWhere,
           },
           select: { listingId: true, value: true },
         })

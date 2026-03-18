@@ -8,7 +8,7 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 
 export default async function FavouritesPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) redirect("/sign-up");
 
   const favourites = await db.favourite.findMany({
     where: { userId: user.id },

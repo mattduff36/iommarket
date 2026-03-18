@@ -40,3 +40,6 @@ test-results/
 
 # Playwright
 e2e/.auth/
+
+# Turbopack dev artifact (Windows)
+NUL

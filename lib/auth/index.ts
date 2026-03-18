@@ -2,9 +2,6 @@ import { db } from "@/lib/db";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { UserRole } from "@prisma/client";
-import { z } from "zod";
-
-const signUpRoleSchema = z.enum(["USER", "DEALER"]);
 
 /**
  * Get the current authenticated user from DB, syncing from Supabase Auth if needed.
@@ -21,9 +18,6 @@ export async function getCurrentUser() {
   } = await supabase.auth.getUser();
   if (!authUser) return null;
 
-  const parsedRole = signUpRoleSchema.safeParse(authUser.user_metadata?.role);
-  const requestedRole = parsedRole.success ? parsedRole.data : undefined;
-
   const user = await db.user.findUnique({
     where: { authUserId: authUser.id },
     include: { dealerProfile: true },
@@ -33,8 +27,7 @@ export async function getCurrentUser() {
     const synced = await syncUser(
       authUser.id,
       authUser.email ?? "",
-      authUser.user_metadata?.full_name as string | undefined,
-      requestedRole
+      authUser.user_metadata?.full_name as string | undefined
     );
     return db.user.findUnique({
       where: { id: synced.id },
@@ -42,23 +35,51 @@ export async function getCurrentUser() {
     });
   }
 
+  if (user.deletedAt || user.disabledAt) return null;
+
   return user;
 }
 
 /**
  * Sync a Supabase Auth user to the local database (called on first visit after sign-in).
+ * New users are always created with USER role. Dealer role is granted only through
+ * the subscription flow (admin or self-service).
+ *
+ * Handles re-registration after account deletion: if a soft-deleted user record
+ * still holds the email, its email is freed before creating the new record.
  */
 export async function syncUser(
   authUserId: string,
   email: string,
-  name?: string,
-  role: "USER" | "DEALER" = "USER"
+  name?: string
 ) {
-  return db.user.upsert({
-    where: { authUserId },
-    update: { email, name },
-    create: { authUserId, email, name, role },
-  });
+  try {
+    return await db.user.upsert({
+      where: { authUserId },
+      update: { email, name },
+      create: { authUserId, email, name, role: "USER" },
+    });
+  } catch (err) {
+    const isUniqueViolation =
+      err instanceof Error &&
+      (err.message.includes("Unique constraint") || err.message.includes("P2002"));
+
+    if (isUniqueViolation && email) {
+      const existing = await db.user.findUnique({ where: { email } });
+      if (existing && existing.deletedAt && existing.authUserId !== authUserId) {
+        await db.user.update({
+          where: { id: existing.id },
+          data: { email: `deleted-${existing.id}@deleted.local` },
+        });
+        return db.user.upsert({
+          where: { authUserId },
+          update: { email, name },
+          create: { authUserId, email, name, role: "USER" },
+        });
+      }
+    }
+    throw err;
+  }
 }
 
 /**

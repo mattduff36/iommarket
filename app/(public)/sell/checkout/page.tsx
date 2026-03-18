@@ -23,7 +23,7 @@ interface Props {
 
 export default async function SellCheckoutPage({ searchParams }: Props) {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in?next=/sell");
+  if (!user) redirect("/sign-up?next=/sell");
 
   const sp = await searchParams;
   if (!sp.listing) {

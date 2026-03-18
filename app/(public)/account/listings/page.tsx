@@ -14,6 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
+import { MarkSoldButton } from "@/app/(public)/dealer/dashboard/mark-sold-button";
+import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
@@ -65,8 +69,9 @@ interface Props {
 }
 
 export default async function AccountListingsPage({ searchParams }: Props) {
+  await expireStaleLiveListings();
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in?next=/account/listings");
+  if (!user) redirect("/sign-up?next=/account/listings");
 
   const params = searchParams ? await searchParams : {};
   const status = STATUS_FILTERS.includes(params.status as StatusFilter)
@@ -95,6 +100,11 @@ export default async function AccountListingsPage({ searchParams }: Props) {
           take: 1,
           orderBy: { createdAt: "desc" },
           select: { createdAt: true, fromStatus: true, toStatus: true },
+        },
+        payments: {
+          where: { status: "SUCCEEDED", type: "LISTING" },
+          select: { id: true },
+          take: 1,
         },
       },
     }),
@@ -185,12 +195,32 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                   {listing.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
                 <TableCell>
-                  <Link
-                    href={`/listings/${listing.id}`}
-                    className="text-sm text-text-trust hover:underline"
-                  >
-                    View
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/listings/${listing.id}`}
+                      className="text-sm text-text-trust hover:underline"
+                    >
+                      View
+                    </Link>
+                    {listing.status === "LIVE" &&
+                      !listing.featured &&
+                      (listing.dealerId !== null || listing.payments.length > 0) && (
+                      <FeaturedUpgradeButton
+                        listingId={listing.id}
+                        variant="inline"
+                      />
+                    )}
+                    {listing.status === "LIVE" && (
+                      <MarkSoldButton listingId={listing.id} />
+                    )}
+                    {listing.status === "EXPIRED" && (
+                      <RenewListingButton
+                        listingId={listing.id}
+                        flow={listing.dealerId ? "dealer" : "private"}
+                        variant="inline"
+                      />
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Orbitron } from "next/font/google";
 import { ThemeProvider } from "@once-ui-system/core";
 import { Analytics } from "@vercel/analytics/next";
+import { ClientErrorListener } from "@/components/monitoring/client-error-listener";
 import "./globals.css";
 
 const inter = Inter({
@@ -60,6 +61,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased bg-canvas text-text-primary">
         <ThemeProvider theme="dark" brand="blue" accent="indigo">
           {children}
+          <ClientErrorListener />
           <Analytics />
         </ThemeProvider>
       </body>

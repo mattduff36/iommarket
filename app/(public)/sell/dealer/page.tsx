@@ -53,7 +53,7 @@ async function ensureAdminDealerProfile(user: {
 
 export default async function SellDealerPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in?next=/sell/dealer");
+  if (!user) redirect("/sign-up?next=/sell/dealer");
   if (user.role === "USER") redirect("/sell/private");
   let dealerProfile = user.dealerProfile;
 
@@ -61,7 +61,7 @@ export default async function SellDealerPage() {
     dealerProfile = await ensureAdminDealerProfile(user);
   }
 
-  if (!dealerProfile) redirect("/pricing");
+  if (!dealerProfile) redirect("/dealer/subscribe");
 
   const activeSubscription = await db.subscription.findFirst({
     where: {
@@ -80,10 +80,10 @@ export default async function SellDealerPage() {
         </p>
         <div className="flex items-center gap-3">
           <Button asChild>
-            <Link href="/pricing">View Dealer Plans</Link>
+            <Link href="/dealer/subscribe">Subscribe Now</Link>
           </Button>
           <Button asChild variant="ghost">
-            <Link href="/dealer/dashboard">Back to Dashboard</Link>
+            <Link href="/pricing">View Plans</Link>
           </Button>
         </div>
       </div>

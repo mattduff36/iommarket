@@ -415,6 +415,126 @@ model WaitlistUser {
 }
 
 // ---------------------------------------------------------------------------
+// Monitoring
+// ---------------------------------------------------------------------------
+
+enum MonitoringIssueStatus {
+  OPEN
+  ACKNOWLEDGED
+  MUTED
+  RESOLVED
+}
+
+enum MonitoringSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MonitoringSource {
+  SERVER
+  CLIENT
+  WEBHOOK
+  BUSINESS
+}
+
+enum MonitoringAlertChannel {
+  EMAIL
+  WEBHOOK
+}
+
+enum MonitoringAlertStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model MonitoringIssue {
+  id               String                @id @default(cuid())
+  fingerprint      String                @unique
+  title            String
+  status           MonitoringIssueStatus @default(OPEN)
+  severity         MonitoringSeverity    @default(MEDIUM)
+  source           MonitoringSource
+  firstSeenAt      DateTime              @default(now())
+  lastSeenAt       DateTime              @default(now())
+  occurrences      Int                   @default(1)
+  sampleMessage    String
+  sampleRoute      String?
+  sampleAction     String?
+  sampleComponent  String?
+  mutedUntil       DateTime?
+  resolvedAt       DateTime?
+  assigneeAdminId  String?
+  lastAlertedAt    DateTime?
+  lastGeneratedPrompt String?
+  lastPromptGeneratedAt DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  events           MonitoringEvent[]
+  alertDeliveries  MonitoringAlertDelivery[]
+
+  @@index([status, severity, lastSeenAt])
+  @@index([source, lastSeenAt])
+  @@index([createdAt])
+}
+
+model MonitoringEvent {
+  id             String             @id @default(cuid())
+  issueId        String
+  source         MonitoringSource
+  severity       MonitoringSeverity
+  environment    String
+  message        String
+  stack          String?
+  route          String?
+  action         String?
+  component      String?
+  requestMethod  String?
+  requestPath    String?
+  requestId      String?
+  userId         String?
+  userEmail      String?
+  ipHash         String?
+  tags           Json?
+  extra          Json?
+  occurredAt     DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+
+  issue          MonitoringIssue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  alertDeliveries MonitoringAlertDelivery[]
+
+  @@index([issueId, occurredAt])
+  @@index([source, severity, occurredAt])
+  @@index([requestPath, occurredAt])
+}
+
+model MonitoringAlertDelivery {
+  id          String                @id @default(cuid())
+  issueId      String?
+  eventId      String?
+  channel      MonitoringAlertChannel
+  target       String
+  status       MonitoringAlertStatus @default(PENDING)
+  attempts     Int                   @default(0)
+  lastError    String?
+  sentAt       DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  issue        MonitoringIssue?      @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  event        MonitoringEvent?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([channel, status, createdAt])
+  @@index([issueId, createdAt])
+  @@index([eventId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
 // Admin Audit Log
 // ---------------------------------------------------------------------------
 

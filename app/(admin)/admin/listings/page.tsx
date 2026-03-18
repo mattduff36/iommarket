@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ModerationActions } from "./moderation-actions";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
 
 export const metadata: Metadata = { title: "Moderate Listings" };
 
@@ -26,6 +27,7 @@ const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error"
 };
 
 export default async function AdminListingsPage() {
+  await expireStaleLiveListings();
   const listings = await db.listing.findMany({
     orderBy: [
       { status: "asc" },

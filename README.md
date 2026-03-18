@@ -146,7 +146,7 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
 ### Featured Upgrade
 
-Live listings can be upgraded to "Featured" status for +£4.99 via a separate Stripe Checkout session.
+Live listings can be upgraded to "Featured" status for +£10 via a separate Stripe Checkout session.
 
 ### Dealer Subscriptions
 

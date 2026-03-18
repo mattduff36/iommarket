@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -15,9 +16,11 @@ import {
 export const metadata: Metadata = { title: "Analytics | Admin" };
 
 export default async function AdminAnalyticsPage() {
+  await expireStaleLiveListings();
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const liveWhere = liveListingWhere(now);
 
   const [
     totalViews30d,
@@ -35,11 +38,11 @@ export default async function AdminAnalyticsPage() {
     db.listingView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
     db.listingView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     db.user.count(),
-    db.listing.count({ where: { status: "LIVE" } }),
+    db.listing.count({ where: liveWhere }),
     db.favourite.count(),
     db.savedSearch.count(),
     db.listing.findMany({
-      where: { status: "LIVE" },
+      where: liveWhere,
       orderBy: { viewCount: "desc" },
       take: 10,
       select: {
@@ -51,7 +54,7 @@ export default async function AdminAnalyticsPage() {
       },
     }),
     db.listing.findMany({
-      where: { status: "LIVE" },
+      where: liveWhere,
       orderBy: { favouritedBy: { _count: "desc" } },
       take: 10,
       select: {
@@ -70,8 +73,8 @@ export default async function AdminAnalyticsPage() {
       GROUP BY DATE("createdAt")
       ORDER BY day DESC
     `,
-    db.listing.count({ where: { status: "LIVE", dealerId: { not: null } } }),
-    db.listing.count({ where: { status: "LIVE", dealerId: null } }),
+    db.listing.count({ where: { ...liveWhere, dealerId: { not: null } } }),
+    db.listing.count({ where: { ...liveWhere, dealerId: null } }),
   ]);
 
   return (

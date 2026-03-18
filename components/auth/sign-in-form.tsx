@@ -7,10 +7,24 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+function getSafeNextPath(nextPath: string | null): string | null {
+  if (!nextPath) return null;
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return null;
+  return nextPath;
+}
+
+function getDealerTierIntent(value: unknown): "STARTER" | "PRO" | null {
+  if (value === "STARTER" || value === "PRO") return value;
+  return null;
+}
+
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next");
+  const next = getSafeNextPath(searchParams.get("next"));
+  const signUpHref = next
+    ? `/sign-up?next=${encodeURIComponent(next)}`
+    : "/sign-up";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +36,10 @@ export function SignInForm() {
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: err } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       if (err) {
         setError(err.message);
         return;
@@ -46,6 +63,15 @@ export function SignInForm() {
         }
       } catch {
         // fall through to default destination
+      }
+
+      const dealerTierIntent = getDealerTierIntent(
+        data.user?.user_metadata?.dealer_tier_intent,
+      );
+      if (dealerTierIntent) {
+        router.push(`/dealer/subscribe?tier=${dealerTierIntent}`);
+        router.refresh();
+        return;
       }
 
       router.push("/account");
@@ -90,7 +116,7 @@ export function SignInForm() {
         </Link>
         <p className="text-center text-sm text-text-secondary">
           No account?{" "}
-          <Link href="/sign-up" className="text-text-brand hover:underline">
+          <Link href={signUpHref} className="text-text-brand hover:underline">
             Sign up
           </Link>
         </p>

@@ -25,6 +25,16 @@ export default async function AdminSettingsPage() {
     [SETTING_KEYS.FREE_LISTING_WINDOW_DAYS]: String(getFreeListingWindowDays()),
     [SETTING_KEYS.LAUNCH_FREE_UNTIL]: process.env.LAUNCH_FREE_UNTIL ?? "(not set)",
     [SETTING_KEYS.FREE_LAUNCH_SLOTS_TOTAL]: String(freeSlotsTotal),
+    [SETTING_KEYS.MONITORING_ALERT_EMAILS]:
+      process.env.MONITORING_ALERT_EMAILS ??
+      process.env.RESEND_REPORTS_TO_EMAIL ??
+      "(not set)",
+    [SETTING_KEYS.MONITORING_ALERT_WEBHOOK_URL]:
+      process.env.MONITORING_ALERT_WEBHOOK_URL ?? "(not set)",
+    [SETTING_KEYS.MONITORING_ALERT_MIN_SEVERITY]:
+      process.env.MONITORING_ALERT_MIN_SEVERITY ?? "HIGH",
+    [SETTING_KEYS.MONITORING_ALERT_COOLDOWN_MINUTES]:
+      process.env.MONITORING_ALERT_COOLDOWN_MINUTES ?? "30",
   };
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateMyProfile, deactivateMyAccount } from "@/actions/account";
@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Shield, FileX, UserX, LogOut, CheckCircle } from "lucide-react";
 
 interface RegionOption {
   id: string;
@@ -25,6 +26,147 @@ interface Props {
     hasDealerProfile: boolean;
   };
   regions: RegionOption[];
+}
+
+const DELETION_STEPS = [
+  { id: "listings", label: "Taking down active listings", icon: FileX },
+  { id: "profile", label: "Removing profile data", icon: UserX },
+  { id: "auth", label: "Deleting authentication credentials", icon: Shield },
+  { id: "signout", label: "Signing out of all sessions", icon: LogOut },
+  { id: "done", label: "Account deleted", icon: CheckCircle },
+] as const;
+
+function DeletionProgressOverlay({
+  onComplete,
+}: {
+  onComplete: () => void;
+}) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  const stepCount = DELETION_STEPS.length;
+
+  const advanceSteps = useCallback(() => {
+    const stepDuration = 1200;
+    const tickInterval = 30;
+    const ticksPerStep = stepDuration / tickInterval;
+    let tick = 0;
+
+    const interval = setInterval(() => {
+      tick++;
+      const totalTicks = stepCount * ticksPerStep;
+      const currentProgress = Math.min((tick / totalTicks) * 100, 100);
+      setProgress(currentProgress);
+
+      const step = Math.min(Math.floor(tick / ticksPerStep), stepCount - 1);
+      setCurrentStep(step);
+
+      if (tick >= totalTicks) {
+        clearInterval(interval);
+        setTimeout(onComplete, 800);
+      }
+    }, tickInterval);
+
+    return () => clearInterval(interval);
+  }, [stepCount, onComplete]);
+
+  useEffect(() => {
+    return advanceSteps();
+  }, [advanceSteps]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-canvas/95 backdrop-blur-sm">
+      <div className="w-full max-w-md px-6">
+        <div className="text-center mb-8">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-neon-red-500/10">
+            <Shield className="h-8 w-8 text-neon-red-500 animate-pulse" />
+          </div>
+          <h2 className="text-xl font-bold text-text-primary font-heading">
+            Deleting Your Account
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Please wait while we securely remove your data...
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-elevated">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-neon-red-500 to-neon-red-400 transition-all duration-150 ease-linear"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-2 text-right text-xs text-text-secondary tabular-nums">
+            {Math.round(progress)}%
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {DELETION_STEPS.map((step, index) => {
+            const Icon = step.icon;
+            const isActive = index === currentStep;
+            const isComplete = index < currentStep;
+            const isPending = index > currentStep;
+
+            return (
+              <div
+                key={step.id}
+                className={`flex items-center gap-3 rounded-lg border px-4 py-3 transition-all duration-300 ${
+                  isActive
+                    ? "border-neon-red-500/50 bg-neon-red-500/5 shadow-sm"
+                    : isComplete
+                      ? "border-neon-blue-500/30 bg-neon-blue-500/5"
+                      : "border-border/50 bg-surface/50 opacity-40"
+                }`}
+              >
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
+                    isActive
+                      ? "bg-neon-red-500/20"
+                      : isComplete
+                        ? "bg-neon-blue-500/20"
+                        : "bg-surface-elevated"
+                  }`}
+                >
+                  {isComplete ? (
+                    <CheckCircle className="h-4 w-4 text-neon-blue-500" />
+                  ) : (
+                    <Icon
+                      className={`h-4 w-4 transition-colors duration-300 ${
+                        isActive
+                          ? "text-neon-red-500 animate-pulse"
+                          : "text-text-secondary"
+                      }`}
+                    />
+                  )}
+                </div>
+                <span
+                  className={`text-sm font-medium transition-colors duration-300 ${
+                    isActive
+                      ? "text-text-primary"
+                      : isComplete
+                        ? "text-neon-blue-500"
+                        : isPending
+                          ? "text-text-tertiary"
+                          : "text-text-secondary"
+                  }`}
+                >
+                  {step.label}
+                  {isComplete && (
+                    <span className="ml-2 text-xs text-neon-blue-500">Done</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="mt-6 text-center text-xs text-text-tertiary">
+          You&apos;ll be redirected to the home page shortly.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function ProfileSecurityForm({ user, regions }: Props) {
@@ -52,6 +194,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
   const [deletionReason, setDeletionReason] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeletionProgress, setShowDeletionProgress] = useState(false);
 
   function parseFieldError(error: unknown): string {
     if (typeof error === "string") return error;
@@ -136,16 +279,29 @@ export function ProfileSecurityForm({ user, regions }: Props) {
 
       if (result.error) {
         setDeleteError(parseFieldError(result.error));
+        setDeleteLoading(false);
         return;
       }
 
-      const supabase = createSupabaseBrowserClient();
-      await supabase.auth.signOut();
-      router.push("/");
-      router.refresh();
-    } finally {
+      setShowDeletionProgress(true);
+    } catch {
+      setDeleteError("Something went wrong. Please try again.");
       setDeleteLoading(false);
     }
+  }
+
+  async function handleDeletionComplete() {
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    } catch {
+      // sign-out may fail if auth was already deleted server-side
+    }
+    window.location.href = "/";
+  }
+
+  if (showDeletionProgress) {
+    return <DeletionProgressOverlay onComplete={handleDeletionComplete} />;
   }
 
   return (
@@ -292,7 +448,27 @@ export function ProfileSecurityForm({ user, regions }: Props) {
             </Button>
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Become a Dealer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-text-secondary">
+              Upgrade to a dealer account to list more vehicles and unlock your public
+              dealer profile.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href="/dealer/subscribe?tier=STARTER">Choose Starter</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/dealer/subscribe?tier=PRO">Choose Pro</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

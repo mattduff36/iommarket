@@ -39,9 +39,10 @@ interface Props {
   categories: CategoryOption[];
   regions: RegionOption[];
   mode?: "private" | "dealer";
+  isFreeForUser?: boolean;
 }
 
-export function CreateListingForm({ categories, regions, mode = "private" }: Props) {
+export function CreateListingForm({ categories, regions, mode = "private", isFreeForUser = false }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -273,9 +274,9 @@ export function CreateListingForm({ categories, regions, mode = "private" }: Pro
           <div className={step === 3 ? "space-y-3 rounded-lg border border-border p-4" : "hidden"}>
               <h3 className="text-base font-semibold text-text-primary">Preview</h3>
               <p className="text-sm text-text-secondary">
-                {mode === "dealer"
+                {mode === "dealer" || isFreeForUser
                   ? "Review your listing and submit. Your listing will go to moderation once submitted."
-                  : "Review your listing and continue to checkout. Your listing will be submitted for moderation after checkout."}
+                  : "Review your listing and continue to checkout. Your listing will be submitted for moderation after payment."}
               </p>
               <p className="text-sm text-text-secondary">
                 Photos selected: {uploadedImages.length}
@@ -352,7 +353,9 @@ export function CreateListingForm({ categories, regions, mode = "private" }: Pro
               </Button>
             ) : (
               <Button type="submit" size="lg" className="w-full" loading={isPending}>
-                Publish Listing
+                {mode === "dealer" || isFreeForUser
+                  ? "Submit Listing"
+                  : "Continue to Checkout"}
               </Button>
             )}
           </div>

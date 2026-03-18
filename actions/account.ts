@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   deactivateMyAccountSchema,
   updateDealerSelfProfileSchema,
@@ -149,6 +150,14 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
         },
       });
     });
+
+    try {
+      const supabaseAdmin = createSupabaseAdminClient();
+      await supabaseAdmin.auth.admin.deleteUser(user.authUserId);
+    } catch {
+      // Non-fatal: DB records are already soft-deleted so the user is locked out
+      // even if the Supabase Auth deletion fails (e.g. missing service role key).
+    }
 
     revalidatePath("/");
     revalidatePath("/account");

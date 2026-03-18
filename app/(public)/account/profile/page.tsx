@@ -7,7 +7,7 @@ import { ProfileSecurityForm } from "./profile-security-form";
 
 export default async function AccountProfilePage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in?next=/account/profile");
+  if (!user) redirect("/sign-up?next=/account/profile");
 
   const regions = await db.region.findMany({
     where: { active: true },

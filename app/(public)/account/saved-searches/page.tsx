@@ -9,7 +9,7 @@ import { DeleteSavedSearchButton } from "./delete-saved-search-button";
 
 export default async function SavedSearchesPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) redirect("/sign-up");
 
   const savedSearches = await db.savedSearch.findMany({
     where: { userId: user.id },

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { getAccountNavItems, PUBLIC_NAV_ITEMS } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Mail, Phone, ShieldCheck } from "lucide-react";
+import { Menu, X, Mail, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
@@ -32,6 +32,21 @@ export function SiteHeader() {
     router.refresh();
   }
 
+  async function fetchMe(userEmail: string | null | undefined) {
+    try {
+      const res = await fetch("/api/me", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const displayName = data.name?.trim() || userEmail || null;
+      setAuthState((s) => ({ ...s, role: data.role ?? null, displayName }));
+    } catch {
+      // silently fail
+    }
+  }
+
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -41,18 +56,6 @@ export function SiteHeader() {
     }
 
     const supabase = createSupabaseBrowserClient();
-
-    async function fetchMe(userEmail: string | null | undefined) {
-      try {
-        const res = await fetch("/api/me", { credentials: "same-origin" });
-        if (!res.ok) return;
-        const data = await res.json();
-        const displayName = data.name?.trim() || userEmail || null;
-        setAuthState((s) => ({ ...s, role: data.role ?? null, displayName }));
-      } catch {
-        // silently fail
-      }
-    }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
@@ -79,6 +82,13 @@ export function SiteHeader() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (authState.user) {
+      fetchMe(authState.user.email);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   const { user, role } = authState;
   const accountNavItems = getAccountNavItems(role);
 
@@ -88,10 +98,6 @@ export function SiteHeader() {
       <div className="hidden sm:block bg-graphite-950 text-text-secondary">
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between px-4 text-xs sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
-            <span className="hidden sm:inline-flex items-center gap-1.5">
-              <Phone className="h-3 w-3" />
-              Isle of Man Vehicle Sales
-            </span>
             <a
               href="mailto:hello@itrader.im"
               className="inline-flex items-center gap-1.5 hover:text-neon-blue-400 transition-colors"

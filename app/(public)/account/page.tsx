@@ -7,12 +7,14 @@ import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
 
 const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
 export default async function AccountDashboardPage() {
+  await expireStaleLiveListings();
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in?next=/account");
+  if (!user) redirect("/sign-up?next=/account");
 
   const [statusGroups, recentListings, recentEvents] = await Promise.all([
     db.listing.groupBy({
@@ -110,6 +112,31 @@ export default async function AccountDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {user.role === "USER" ? (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Become a Dealer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-text-secondary">
+              Need more active listings and a public dealer profile? Upgrade to a dealer
+              subscription any time.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href="/dealer/subscribe?tier=STARTER">Choose Starter</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/dealer/subscribe?tier=PRO">Choose Pro</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/pricing">Compare Plans</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

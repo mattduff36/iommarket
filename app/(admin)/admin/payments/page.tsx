@@ -13,7 +13,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { RefundButton } from "./payment-actions";
-import { CancelSubButton } from "./subscription-actions";
+import { CancelSubButton, RefundSubPaymentButton } from "./subscription-actions";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Payments | Admin" };
@@ -22,6 +22,7 @@ interface Props {
   searchParams: Promise<{
     q?: string;
     status?: string;
+    type?: string;
     tab?: string;
     page?: string;
   }>;
@@ -48,11 +49,19 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
   const tab = params.tab ?? "payments";
   const query = params.q ?? "";
   const statusFilter = params.status;
+  const typeFilter = params.type;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
   function buildUrl(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
-    const merged = { tab, q: query || undefined, status: statusFilter, page: String(page), ...overrides };
+    const merged = {
+      tab,
+      q: query || undefined,
+      status: statusFilter,
+      type: typeFilter,
+      page: String(page),
+      ...overrides,
+    };
     for (const [k, v] of Object.entries(merged)) {
       if (v && v !== "undefined") p.set(k, v);
     }
@@ -104,6 +113,12 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           <span className="text-xs text-text-tertiary ml-auto">{subTotal} subscriptions</span>
         </div>
 
+        <div className="mb-4 rounded-md border border-border bg-surface-elevated px-4 py-3 text-xs text-text-secondary">
+          Use <span className="font-medium text-text-primary">Refund latest payment</span> to
+          refund the most recent paid invoice for a subscription. Use
+          <span className="font-medium text-text-primary"> Cancel</span> to stop future billing.
+        </div>
+
         <Table>
           <TableHeader>
             <TableRow>
@@ -132,7 +147,10 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   {sub.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
                 <TableCell>
-                  <CancelSubButton subscriptionId={sub.id} status={sub.status} />
+                  <div className="flex flex-wrap items-center gap-1">
+                    <CancelSubButton subscriptionId={sub.id} status={sub.status} />
+                    <RefundSubPaymentButton subscriptionId={sub.id} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -161,9 +179,11 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
     payWhere.OR = [
       { stripePaymentId: { contains: query } },
       { listing: { title: { contains: query, mode: "insensitive" } } },
+      { listing: { user: { email: { contains: query, mode: "insensitive" } } } },
     ];
   }
   if (statusFilter) payWhere.status = statusFilter as "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+  if (typeFilter) payWhere.type = typeFilter as "LISTING" | "FEATURED" | "SUPPORT";
 
   const [payments, payTotal] = await Promise.all([
     db.payment.findMany({
@@ -195,7 +215,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <form method="get" action="/admin/payments" className="flex gap-2">
-          <input name="q" defaultValue={query} placeholder="Search Stripe ID or listing..." className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus" />
+          <input name="q" defaultValue={query} placeholder="Search Stripe ID, listing, or email..." className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus" />
           <input type="hidden" name="tab" value="payments" />
           <button type="submit" className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border">Search</button>
         </form>
@@ -211,6 +231,17 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             {s}
           </Link>
         ))}
+        {(["LISTING", "FEATURED", "SUPPORT"] as const).map((t) => (
+          <Link
+            key={t}
+            href={buildUrl({ type: typeFilter === t ? undefined : t, page: "1" })}
+            className={`h-8 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
+              typeFilter === t ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
+            }`}
+          >
+            {t}
+          </Link>
+        ))}
         <span className="text-xs text-text-tertiary ml-auto">{payTotal} payments</span>
       </div>
 
@@ -220,6 +251,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             <TableHead>Date</TableHead>
             <TableHead>Listing</TableHead>
             <TableHead>Customer</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Stripe ID</TableHead>
@@ -237,6 +269,9 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               </TableCell>
               <TableCell className="text-sm text-text-secondary">
                 {payment.listing.user.email}
+              </TableCell>
+              <TableCell className="text-sm text-text-secondary">
+                {payment.type}
               </TableCell>
               <TableCell className="text-sm text-text-primary">
                 £{(payment.amount / 100).toFixed(2)}
@@ -256,7 +291,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           ))}
           {payments.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-text-tertiary py-8">No payments found.</TableCell>
+              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">No payments found.</TableCell>
             </TableRow>
           )}
         </TableBody>

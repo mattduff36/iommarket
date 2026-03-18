@@ -16,6 +16,8 @@ import {
   getListingFeePence,
   isPrivateListingFreeForUser,
 } from "@/lib/config/marketplace";
+import { captureException } from "@/lib/monitoring";
+import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -45,6 +47,15 @@ export async function payForListing(
   options?: { supportAmountPence?: number }
 ) {
   const user = await requireAuth();
+  const checkoutRate = checkRateLimit(
+    makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
+    { windowMs: 5 * 60_000, maxRequests: 5 }
+  );
+  if (!checkoutRate.allowed) {
+    return {
+      error: "Too many checkout attempts. Please wait a few minutes and try again.",
+    };
+  }
 
   const parsed = payForListingSchema.safeParse({
     listingId,
@@ -131,6 +142,16 @@ export async function payForListing(
 
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "payForListing",
+      route: "/sell/checkout",
+      requestPath: "/sell/checkout",
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId, supportAmountPence: options?.supportAmountPence ?? 0 },
+    });
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
     return { error: toUserPaymentError(message) };
@@ -143,6 +164,16 @@ export async function payForListing(
 
 export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTER") {
   const user = await requireAuth();
+  const subscriptionRate = checkRateLimit(
+    makeRateLimitKey("checkout-dealer-subscription", user.id),
+    { windowMs: 10 * 60_000, maxRequests: 4 }
+  );
+  if (!subscriptionRate.allowed) {
+    return {
+      error:
+        "Too many subscription checkout attempts. Please wait a few minutes and try again.",
+    };
+  }
 
   if (!user.dealerProfile) {
     return { error: "You must have a dealer profile to subscribe" };
@@ -167,6 +198,16 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
 
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "createDealerSubscription",
+      route: "/dealer/subscribe",
+      requestPath: "/dealer/subscribe",
+      userId: user.id,
+      userEmail: user.email,
+      tags: { tier },
+    });
     const message =
       err instanceof Error ? err.message : "Failed to create subscription";
     return { error: toUserPaymentError(message) };
@@ -179,6 +220,15 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
 
 export async function upgradeFeatured(listingId: string) {
   const user = await requireAuth();
+  const featuredRate = checkRateLimit(
+    makeRateLimitKey("checkout-featured-upgrade", `${user.id}:${listingId}`),
+    { windowMs: 5 * 60_000, maxRequests: 5 }
+  );
+  if (!featuredRate.allowed) {
+    return {
+      error: "Too many featured upgrade attempts. Please wait and try again.",
+    };
+  }
 
   const parsed = createCheckoutSchema.safeParse({ listingId });
   if (!parsed.success) {
@@ -222,6 +272,16 @@ export async function upgradeFeatured(listingId: string) {
 
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "upgradeFeatured",
+      route: `/listings/${listingId}`,
+      requestPath: `/listings/${listingId}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId },
+    });
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
     return { error: toUserPaymentError(message) };

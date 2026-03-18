@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { invalidateSettingsCache } from "@/lib/config/site-settings";
+import { captureException } from "@/lib/monitoring";
 import {
   updateSiteSettingSchema,
   type UpdateSiteSettingInput,
@@ -44,6 +45,15 @@ export async function updateSiteSetting(input: UpdateSiteSettingInput) {
     revalidatePath("/admin/settings");
     return { data: setting };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "updateSiteSetting",
+      route: "/admin/settings",
+      requestPath: "/admin/settings",
+      userId: admin.id,
+      tags: { key },
+    });
     const message = err instanceof Error ? err.message : "Failed to update setting";
     return { error: message };
   }
@@ -67,6 +77,15 @@ export async function deleteSiteSetting(key: string) {
     revalidatePath("/admin/settings");
     return { data: { deleted: true } };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "deleteSiteSetting",
+      route: "/admin/settings",
+      requestPath: "/admin/settings",
+      userId: admin.id,
+      tags: { key },
+    });
     const message = err instanceof Error ? err.message : "Failed to delete setting";
     return { error: message };
   }

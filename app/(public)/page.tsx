@@ -8,18 +8,21 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 import { HeroSearch } from "@/components/marketplace/hero-search";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 export default async function HomePage() {
+  await expireStaleLiveListings();
+  const liveWhere = liveListingWhere();
   /* Fetch categories + latest listings per top-2 categories */
   const [categories, regions, makeDefs, modelDefs, dealers, soldCount] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
       include: {
-        _count: { select: { listings: { where: { status: "LIVE" } } } },
+        _count: { select: { listings: { where: liveWhere } } },
       },
     }),
     db.region.findMany({
@@ -38,7 +41,7 @@ export default async function HomePage() {
       take: 3,
       orderBy: { createdAt: "desc" },
       include: {
-        _count: { select: { listings: { where: { status: "LIVE" } } } },
+        _count: { select: { listings: { where: liveWhere } } },
       },
     }),
     db.listing.count({ where: { status: "SOLD" } }),
@@ -52,7 +55,7 @@ export default async function HomePage() {
       ? db.listingAttributeValue.findMany({
           where: {
             attributeDefinitionId: { in: makeIds },
-            listing: { status: "LIVE" },
+            listing: liveWhere,
           },
           select: { listingId: true, value: true },
         })
@@ -61,7 +64,7 @@ export default async function HomePage() {
       ? db.listingAttributeValue.findMany({
           where: {
             attributeDefinitionId: { in: modelIds },
-            listing: { status: "LIVE" },
+            listing: liveWhere,
           },
           select: { listingId: true, value: true },
         })
@@ -93,7 +96,7 @@ export default async function HomePage() {
 
   /* Fetch featured listings across all categories */
   const featuredListings = await db.listing.findMany({
-    where: { status: "LIVE", featured: true },
+    where: { ...liveWhere, featured: true },
     orderBy: { createdAt: "desc" },
     take: 8,
     include: {
@@ -112,7 +115,7 @@ export default async function HomePage() {
   const categoryListings = await Promise.all(
     topCategories.map(async (cat) => {
       const listings = await db.listing.findMany({
-        where: { categoryId: cat.id, status: "LIVE" },
+        where: { ...liveWhere, categoryId: cat.id },
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
         take: 4,
         include: {

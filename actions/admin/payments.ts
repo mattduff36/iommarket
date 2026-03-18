@@ -4,13 +4,20 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
-import { refundPaymentIntent, cancelStripeSubscription } from "@/lib/payments/stripe";
+import {
+  refundPaymentIntent,
+  cancelStripeSubscription,
+  getLatestPaidSubscriptionPaymentIntent,
+} from "@/lib/payments/stripe";
+import { captureException } from "@/lib/monitoring";
 import {
   searchPaymentsSchema,
   refundPaymentSchema,
+  refundSubscriptionPaymentSchema,
   cancelSubscriptionSchema,
   type SearchPaymentsInput,
   type RefundPaymentInput,
+  type RefundSubscriptionPaymentInput,
   type CancelSubscriptionInput,
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
@@ -81,6 +88,69 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
     revalidatePath("/admin/revenue");
     return { data: { refunded: true } };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "adminRefundPayment",
+      route: "/admin/payments",
+      requestPath: "/admin/payments",
+      userId: admin.id,
+      tags: { paymentId: payment.id, stripePaymentId: payment.stripePaymentId },
+    });
+    const message = err instanceof Error ? err.message : "Failed to process refund";
+    return { error: message };
+  }
+}
+
+export async function adminRefundSubscriptionPayment(
+  input: RefundSubscriptionPaymentInput
+) {
+  const admin = await requireRole("ADMIN");
+
+  const parsed = refundSubscriptionPaymentSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const sub = await db.subscription.findUnique({
+    where: { id: parsed.data.subscriptionId },
+  });
+  if (!sub) return { error: "Subscription not found" };
+
+  try {
+    const latestPaid =
+      await getLatestPaidSubscriptionPaymentIntent(sub.stripeSubscriptionId);
+    if (!latestPaid) {
+      return { error: "No paid subscription charge found to refund" };
+    }
+
+    await refundPaymentIntent(latestPaid.paymentIntentId);
+
+    await logAdminAction({
+      adminId: admin.id,
+      action: "REFUND_SUBSCRIPTION_PAYMENT",
+      entityType: "Subscription",
+      entityId: sub.id,
+      details: {
+        stripeSubscriptionId: sub.stripeSubscriptionId,
+        stripeInvoiceId: latestPaid.invoiceId,
+        stripePaymentId: latestPaid.paymentIntentId,
+        amount: latestPaid.amountPaid,
+        currency: latestPaid.currency,
+      },
+    });
+
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/revenue");
+    return { data: { refunded: true } };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "adminRefundSubscriptionPayment",
+      route: "/admin/payments",
+      requestPath: "/admin/payments",
+      userId: admin.id,
+      tags: { subscriptionId: sub.id, stripeSubscriptionId: sub.stripeSubscriptionId },
+    });
     const message = err instanceof Error ? err.message : "Failed to process refund";
     return { error: message };
   }
@@ -118,6 +188,15 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
     revalidatePath("/admin/revenue");
     return { data: { cancelled: true } };
   } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "adminCancelSubscription",
+      route: "/admin/payments",
+      requestPath: "/admin/payments",
+      userId: admin.id,
+      tags: { subscriptionId: sub.id, stripeSubscriptionId: sub.stripeSubscriptionId },
+    });
     const message = err instanceof Error ? err.message : "Failed to cancel subscription";
     return { error: message };
   }

@@ -96,6 +96,13 @@ export const refundPaymentSchema = z.object({
 });
 export type RefundPaymentInput = z.infer<typeof refundPaymentSchema>;
 
+export const refundSubscriptionPaymentSchema = z.object({
+  subscriptionId: z.string().cuid(),
+});
+export type RefundSubscriptionPaymentInput = z.infer<
+  typeof refundSubscriptionPaymentSchema
+>;
+
 export const cancelSubscriptionSchema = z.object({
   subscriptionId: z.string().cuid(),
   immediately: z.boolean().default(false),

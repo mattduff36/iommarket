@@ -40,7 +40,7 @@ export function getValidNextStatuses(status: ListingStatus): ListingStatus[] {
  */
 export const LISTING_FEES = {
   STANDARD_LISTING: 499, // £4.99
-  FEATURED_UPGRADE: 499, // £4.99
+  FEATURED_UPGRADE: 1000, // £10
   DEALER_MONTHLY: 2999, // £29.99/month
 } as const;
 
