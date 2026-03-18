@@ -1,10 +1,15 @@
 # Dependencies
 node_modules/
 
-# Environment files
+# Environment files — never commit secrets
 .env
+.env.*
 .env.local
 .env.*.local
+# Explicit entries for clarity (also covered by .env.* above)
+.env.production
+.env.staging
+.env.development
 
 # IDE
 .vscode/

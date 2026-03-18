@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CopyEmailButton } from "./copy-email-button";
+import { DeleteWaitlistButton } from "./delete-waitlist-button";
 
 export const metadata: Metadata = { title: "Waitlist | Admin" };
 
@@ -134,7 +135,10 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
                 </TableCell>
                 <TableCell className="text-xs text-text-tertiary">{user.source}</TableCell>
                 <TableCell>
-                  <CopyEmailButton email={user.email} />
+                  <span className="inline-flex items-center gap-1">
+                    <CopyEmailButton email={user.email} />
+                    <DeleteWaitlistButton id={user.id} email={user.email} />
+                  </span>
                 </TableCell>
               </TableRow>
             );

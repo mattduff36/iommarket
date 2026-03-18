@@ -1,6 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
   joinWaitlistSchema,
@@ -74,6 +76,27 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
         err instanceof Error && err.message.includes("WaitlistUser")
           ? "Waitlist is currently being prepared. Please try again in a minute."
           : "Unable to join the waitlist right now. Please try again shortly.",
+    };
+  }
+}
+
+export async function deleteWaitlistUser(id: string) {
+  await requireRole("ADMIN");
+
+  if (!id || typeof id !== "string") {
+    return { error: "Invalid ID." };
+  }
+
+  try {
+    await db.waitlistUser.delete({ where: { id } });
+    revalidatePath("/admin/waitlist");
+    return { success: true };
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error && err.message.includes("Record to delete does not exist")
+          ? "Entry not found."
+          : "Failed to delete entry. Please try again.",
     };
   }
 }

@@ -133,3 +133,36 @@
 - **Notes**:
   - staging should mirror production behavior as closely as possible.
   - all secrets must remain server-side and not leak to client bundles.
+
+---
+
+## Secrets Rotation Procedure
+
+If any credential is suspected to be exposed (e.g. accidentally committed, visible in logs, or leaked via a third-party breach), follow these steps immediately:
+
+### 1. Supabase
+- **Anon key / JWT secret**: Supabase Dashboard → Settings → API → Reset keys.
+- **Service role key**: Same page — rotate separately.
+- **Auth hook secret**: Supabase Dashboard → Auth → Hooks → regenerate the signing secret; update `SUPABASE_AUTH_HOOK_SECRET` everywhere.
+- **Database password**: Supabase Dashboard → Settings → Database → Reset password; update all `POSTGRES_*` and `DATABASE_URL` vars.
+
+### 2. Stripe
+- **Secret key / Webhook secret**: Stripe Dashboard → Developers → API keys → Roll key. Update `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Vercel and `.env.local`.
+- Publishable key does not need rotation (it is public by design).
+
+### 3. Cloudinary
+- **API secret**: Cloudinary Console → Settings → Access Keys → Generate new key pair. Update `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`.
+
+### 4. Resend
+- **API key**: Resend Dashboard → API Keys → Delete old key, create new. Update `RESEND_API_KEY`.
+
+### 5. After rotation
+1. Update Vercel env vars: `npx vercel env add <VAR> production --force` (repeat for preview / development).
+2. Redeploy: `npx vercel --prod` or push to `main` to trigger CI.
+3. Verify the env-check e2e suite passes: `npm run test:e2e -- --grep "\[AuthHook\]|\[Cloudinary\]|\[Resend\]|\[Stripe"`.
+4. Confirm no secrets remain in git history: `git log --all --full-history -- .env.production` should return nothing.
+
+### Git safeguards in place
+- `.gitignore` covers all `.env.*` files (broad glob + explicit entries for `.env.production`, `.env.staging`, `.env.development`).
+- `.git/hooks/pre-commit` blocks any staged `.env.*` file from being committed.
+- All production secrets are stored exclusively in Vercel (encrypted at rest).
