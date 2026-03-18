@@ -5,9 +5,12 @@
 - **Service**: PostgreSQL (Supabase Postgres recommended).
 - **Why**: already aligned with Prisma + current repo architecture.
 - **Env vars**:
-  - `DATABASE_URL`
-  - optional compatibility URLs (`POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`)
-- **Local**: local Postgres container or Supabase dev project.
+  - `DATABASE_URL` (direct non-pooled, used for migrations/seeds)
+  - `POSTGRES_URL` (pooled, used at runtime by Prisma)
+  - `POSTGRES_URL_NON_POOLING` (non-pooled runtime fallback)
+  - `POSTGRES_PRISMA_URL` (pgBouncer-mode pooled URL)
+  - `POSTGRES_DATABASE`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_USER` (Vercel Postgres integration)
+- **Local**: Supabase hosted project or local Postgres container.
 - **Staging/Prod**: managed Postgres with backups and migration pipeline.
 - **Row Level Security (RLS)**: Enabled on all public tables (migration `20260222120000_enable_rls_public`). With no permissive policies for `anon`/`authenticated`, PostgREST access is denied. The app uses Prisma with the DB connection role (BYPASSRLS), so server-side access is unchanged.
 
@@ -18,7 +21,12 @@
 - **Env vars**:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+  - `SUPABASE_URL` (server-side alias)
+  - `SUPABASE_SECRET_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY` (server-only tasks/scripts)
+  - `SUPABASE_JWT_SECRET` (webhook verification)
+  - `SUPABASE_AUTH_HOOK_SECRET` (Supabase Auth → Hooks → Send Email)
 - **Local**: Supabase hosted project acceptable for MVP local dev.
 - **Staging/Prod**: separate Supabase projects per environment.
 
@@ -52,10 +60,15 @@
   - `STRIPE_SECRET_KEY`
   - `STRIPE_WEBHOOK_SECRET`
   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_DEALER_PRICE_ID`
-  - `STRIPE_FEATURED_PRICE_ID` (or amount config if using dynamic price_data)
-  - `LISTING_FEE_PENCE`
+  - `STRIPE_DEALER_PRICE_ID` (legacy fallback)
+  - `STRIPE_DEALER_STARTER_PRICE_ID`
+  - `STRIPE_DEALER_PRO_PRICE_ID`
+  - `STRIPE_FEATURED_PRICE_ID`
+  - `LISTING_FEE_PENCE` (pence; default 499)
+  - `LAUNCH_FREE_UNTIL` (ISO timestamp for time-based free window)
+  - `FREE_LISTING_WINDOW_DAYS` (default 30)
 - **Local**: Stripe test mode + stripe CLI forwarding webhooks.
+  ⚠️ Currently using live Stripe keys in dev. Switch to `sk_test_` / `pk_test_` keys for safe local payment testing.
 - **Staging**: dedicated test keys/prices/webhook endpoint.
 - **Production**: live keys, monitored webhook retries.
 
@@ -70,8 +83,9 @@
 - **Env vars**:
   - `RESEND_API_KEY`
   - `RESEND_FROM_EMAIL`
-  - optional `RESEND_REPLY_TO_EMAIL`
-  - optional `RESEND_WAITLIST_TO_EMAIL` (comma-separated recipients; falls back to `RESEND_REPORTS_TO_EMAIL`)
+  - `RESEND_REPLY_TO_EMAIL`
+  - `RESEND_REPORTS_TO_EMAIL` (moderation/report notifications)
+  - `RESEND_WAITLIST_TO_EMAIL` (comma-separated; falls back to `RESEND_REPORTS_TO_EMAIL`)
 - **Local**: Resend test/dev domain and non-production sender.
 - **Staging/Prod**: verified domain and monitored bounce/reject logs.
 
