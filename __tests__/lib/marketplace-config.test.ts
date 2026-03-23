@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   getListingFeePence,
+  getPrivateListingStripePriceId,
   getLaunchFreeUntil,
   isListingFreeNow,
 } from "@/lib/config/marketplace";
@@ -8,6 +9,7 @@ import {
 describe("marketplace config", () => {
   beforeEach(() => {
     delete process.env.LISTING_FEE_PENCE;
+    delete process.env.STRIPE_PRIVATE_LISTING_FEE;
     delete process.env.LAUNCH_FREE_UNTIL;
   });
 
@@ -18,6 +20,11 @@ describe("marketplace config", () => {
   it("parses listing fee from env", () => {
     process.env.LISTING_FEE_PENCE = "750";
     expect(getListingFeePence()).toBe(750);
+  });
+
+  it("reads the private listing Stripe price id from env", () => {
+    process.env.STRIPE_PRIVATE_LISTING_FEE = "price_private_123";
+    expect(getPrivateListingStripePriceId()).toBe("price_private_123");
   });
 
   it("detects free window from launch date env", () => {

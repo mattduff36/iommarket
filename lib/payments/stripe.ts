@@ -1,5 +1,7 @@
 import Stripe from "stripe";
-import { getFeaturedFeePence } from "@/lib/config/marketplace";
+import {
+  getFeaturedFeePence,
+} from "@/lib/config/marketplace";
 import { getDealerStripePriceId } from "@/lib/config/dealer-tiers";
 import type { DealerTier } from "@prisma/client";
 
@@ -29,36 +31,55 @@ export function getStripe(): Stripe {
 export async function createListingCheckout(params: {
   listingId: string;
   listingTitle: string;
-  amountInPence: number;
+  amountInPence?: number;
+  stripePriceId?: string;
   checkoutType?: "listing_payment" | "listing_support";
-  lineItemDescription?: string;
+  supportAmountPence?: number;
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
   idempotencyKey?: string;
 }) {
   const stripe = getStripe();
+  if (!params.stripePriceId && typeof params.amountInPence !== "number") {
+    throw new Error("Listing checkout requires either stripePriceId or amountInPence");
+  }
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    params.stripePriceId
+      ? { price: params.stripePriceId, quantity: 1 }
+      : {
+          price_data: {
+            currency: "gbp",
+            product_data: {
+              name: `Listing: ${params.listingTitle}`,
+              description: "30-day marketplace listing on itrader.im",
+            },
+            unit_amount: params.amountInPence!,
+          },
+          quantity: 1,
+        },
+  ];
+
+  if ((params.supportAmountPence ?? 0) > 0) {
+    lineItems.push({
+      price_data: {
+        currency: "gbp",
+        product_data: {
+          name: "Optional platform support",
+          description: "Optional support contribution for itrader.im",
+        },
+        unit_amount: params.supportAmountPence,
+      },
+      quantity: 1,
+    });
+  }
 
   const session = await stripe.checkout.sessions.create(
     {
       mode: "payment",
       payment_method_types: ["card"],
       customer_email: params.customerEmail,
-      line_items: [
-        {
-          price_data: {
-            currency: "gbp",
-            product_data: {
-              name: `Listing: ${params.listingTitle}`,
-              description:
-                params.lineItemDescription ??
-                "30-day marketplace listing on itrader.im",
-            },
-            unit_amount: params.amountInPence,
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       metadata: {
         listingId: params.listingId,
         type: params.checkoutType ?? "listing_payment",

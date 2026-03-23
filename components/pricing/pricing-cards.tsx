@@ -14,7 +14,7 @@ export const SELLER_FEATURES = [
   "Contact form included",
   "Moderation within 1-2 days",
   "Renew for another £4.99",
-  "Upgrade to featured listing for £10",
+  "Upgrade to featured listing for £5",
   "Choose to support a new local business!",
 ];
 

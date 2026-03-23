@@ -317,7 +317,7 @@ test.describe("[Resend] Email delivery", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 12–13  Stripe config (LISTING_FEE_PENCE / NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+// 12–13  Stripe config (STRIPE_PRIVATE_LISTING_FEE / NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
 // ---------------------------------------------------------------------------
 
 test.describe("[Stripe] Configuration", () => {

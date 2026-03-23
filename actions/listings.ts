@@ -19,6 +19,7 @@ import {
   sendReportNotificationEmail,
   sendSellerContactEmail,
 } from "@/lib/email/resend";
+import { validateListingAttributes } from "@/lib/listings/attribute-ui";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import {
   transitionListingStatus,
@@ -76,6 +77,34 @@ export async function createListing(input: CreateListingInput) {
   }
 
   const { attributes, trustDeclarationAccepted, ...data } = parsed.data;
+  const category = await db.category.findUnique({
+    where: { id: data.categoryId },
+    select: {
+      slug: true,
+      attributeDefinitions: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          dataType: true,
+          required: true,
+          options: true,
+        },
+      },
+    },
+  });
+  if (!category) {
+    return { error: { categoryId: ["Invalid category."] } };
+  }
+
+  const attributeValidation = validateListingAttributes({
+    categorySlug: category.slug,
+    definitions: category.attributeDefinitions,
+    attributes,
+  });
+  if (Object.keys(attributeValidation.fieldErrors).length > 0) {
+    return { error: attributeValidation.fieldErrors };
+  }
 
   try {
     const listing = await db.$transaction(async (tx) => {
@@ -88,7 +117,7 @@ export async function createListing(input: CreateListingInput) {
           trustDeclarationAccepted,
           trustDeclarationAcceptedAt: trustDeclarationAccepted ? new Date() : null,
           attributeValues: {
-            create: attributes.map((attr) => ({
+            create: attributeValidation.sanitizedAttributes.map((attr) => ({
               attributeDefinitionId: attr.attributeDefinitionId,
               value: attr.value,
             })),

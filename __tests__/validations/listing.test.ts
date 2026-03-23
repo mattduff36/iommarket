@@ -56,6 +56,33 @@ describe("createListingSchema", () => {
       expect(result.data.attributes).toEqual([]);
     }
   });
+
+  it("trims title, description, and attribute values", () => {
+    const result = createListingSchema.safeParse({
+      ...validInput,
+      title: "  2019 BMW 320d M Sport  ",
+      description: "  Low mileage, full service history, excellent condition throughout.  ",
+      attributes: [
+        {
+          attributeDefinitionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+          value: "  BMW  ",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.title).toBe("2019 BMW 320d M Sport");
+      expect(result.data.description).toBe(
+        "Low mileage, full service history, excellent condition throughout."
+      );
+      expect(result.data.attributes[0]?.value).toBe("BMW");
+    }
+  });
+
+  it("rejects NaN prices", () => {
+    const result = createListingSchema.safeParse({ ...validInput, price: Number.NaN });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("reportListingSchema", () => {

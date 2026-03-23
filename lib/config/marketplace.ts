@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getNumberSetting, getStringSetting, SETTING_KEYS } from "./site-settings";
 
 const DEFAULT_LISTING_FEE_PENCE = 499;
-const DEFAULT_FEATURED_FEE_PENCE = 1000;
+const DEFAULT_FEATURED_FEE_PENCE = 500;
 const DEFAULT_FREE_WINDOW_DAYS = 30;
 
 function parseIntegerEnv(value: string | undefined, fallback: number): number {
@@ -14,6 +14,14 @@ function parseIntegerEnv(value: string | undefined, fallback: number): number {
 /** Sync version (env only) — kept for backwards compatibility and tests */
 export function getListingFeePence(): number {
   return parseIntegerEnv(process.env.LISTING_FEE_PENCE, DEFAULT_LISTING_FEE_PENCE);
+}
+
+export function getPrivateListingStripePriceId(): string {
+  const priceId = process.env.STRIPE_PRIVATE_LISTING_FEE;
+  if (!priceId) {
+    throw new Error("STRIPE_PRIVATE_LISTING_FEE is not set");
+  }
+  return priceId;
 }
 
 /** Sync version (env only) */

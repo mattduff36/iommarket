@@ -68,7 +68,7 @@ export function FeaturedUpgradeButton({
         </p>
         <p className="text-sm text-text-secondary mt-0.5">
           Get more visibility with a promoted position in search results and on
-          the homepage. One-time fee of £10.
+          the homepage. One-time fee of £5.
         </p>
       </div>
       <Button
@@ -79,7 +79,7 @@ export function FeaturedUpgradeButton({
         className="shrink-0"
       >
         <Star className="h-3.5 w-3.5" />
-        Upgrade — £10
+        Upgrade — £5
       </Button>
       {error && (
         <p className="text-sm text-text-energy w-full" role="alert">

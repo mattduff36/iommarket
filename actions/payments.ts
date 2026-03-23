@@ -13,7 +13,7 @@ import {
   payForListingSchema,
 } from "@/lib/validations/payment";
 import {
-  getListingFeePence,
+  getPrivateListingStripePriceId,
   isPrivateListingFreeForUser,
 } from "@/lib/config/marketplace";
 import { captureException } from "@/lib/monitoring";
@@ -34,6 +34,9 @@ function toUserPaymentError(message: string) {
   }
   if (message.includes("STRIPE_DEALER_STARTER_PRICE_ID") || message.includes("STRIPE_DEALER_PRICE_ID")) {
     return "Dealer Starter checkout is not configured yet. Please contact support.";
+  }
+  if (message.includes("STRIPE_PRIVATE_LISTING_FEE")) {
+    return "Private listing checkout is not configured yet. Please contact support.";
   }
   return message;
 }
@@ -106,7 +109,6 @@ export async function payForListing(
           listingTitle: listing.title,
           amountInPence: supportAmountPence,
           checkoutType: "listing_support",
-          lineItemDescription: "Optional support contribution for itrader.im",
           customerEmail: user.email,
           successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=support`,
           cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,
@@ -121,19 +123,14 @@ export async function payForListing(
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
-    const listingFeePence = getListingFeePence();
-    const totalAmountPence = listingFeePence + supportAmountPence;
-    const lineItemDescription =
-      supportAmountPence > 0
-        ? `Listing fee + £${(supportAmountPence / 100).toFixed(2)} optional platform support`
-        : undefined;
+    const listingPriceId = getPrivateListingStripePriceId();
 
     const session = await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
-      amountInPence: totalAmountPence,
+      stripePriceId: listingPriceId,
       checkoutType: "listing_payment",
-      lineItemDescription,
+      supportAmountPence,
       customerEmail: user.email,
       successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=paid`,
       cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,

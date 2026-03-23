@@ -43,6 +43,12 @@ function canViewItem(item: AccountNavItem, role: AuthRole): boolean {
   return role === "DEALER" || role === "ADMIN";
 }
 
+export function getSellLandingPath(role: AuthRole): string | null {
+  if (role === "USER") return "/sell/private";
+  if (role === "DEALER") return "/sell/dealer";
+  return null;
+}
+
 export function getAccountNavItems(role: AuthRole): AccountNavItem[] {
   return ACCOUNT_NAV_ITEMS.filter((item) => canViewItem(item, role));
 }

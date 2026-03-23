@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, type Dispatch, type SetStateAction } from "react";
 import { CldUploadWidget, type CloudinaryUploadWidgetResults } from "next-cloudinary";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ export interface UploadedImage {
 
 interface ImageUploadProps {
   images: UploadedImage[];
-  onImagesChange: (images: UploadedImage[]) => void;
+  onImagesChange: Dispatch<SetStateAction<UploadedImage[]>>;
   maxImages?: number;
 }
 
@@ -34,29 +34,35 @@ export function ImageUpload({
         public_id: string;
       };
 
-      if (images.length >= maxImages) {
-        setError(`Maximum ${maxImages} images allowed`);
-        return;
-      }
+      onImagesChange((currentImages) => {
+        if (currentImages.some((image) => image.publicId === info.public_id)) {
+          return currentImages;
+        }
+        if (currentImages.length >= maxImages) {
+          setError(`Maximum ${maxImages} images allowed`);
+          return currentImages;
+        }
 
-      setError(null);
-      onImagesChange([
-        ...images,
-        {
-          url: info.secure_url,
-          publicId: info.public_id,
-          order: images.length,
-        },
-      ]);
+        setError(null);
+        return [
+          ...currentImages,
+          {
+            url: info.secure_url,
+            publicId: info.public_id,
+            order: currentImages.length,
+          },
+        ];
+      });
     },
-    [images, maxImages, onImagesChange],
+    [maxImages, onImagesChange],
   );
 
   function handleRemove(index: number) {
-    const updated = images
-      .filter((_, i) => i !== index)
-      .map((img, i) => ({ ...img, order: i }));
-    onImagesChange(updated);
+    onImagesChange((currentImages) =>
+      currentImages
+        .filter((_, i) => i !== index)
+        .map((img, i) => ({ ...img, order: i }))
+    );
     setError(null);
   }
 
@@ -82,6 +88,7 @@ export function ImageUpload({
                 fill
                 className="object-cover"
                 sizes="(max-width: 768px) 33vw, 160px"
+                unoptimized
               />
               <Button
                 type="button"

@@ -4,16 +4,22 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { setUserRole, setUserDisabled } from "@/actions/admin/users";
+import { deleteUser, setUserRole, setUserDisabled } from "@/actions/admin/users";
 import type { UserRole } from "@prisma/client";
 
 interface UserActionsProps {
   userId: string;
   currentRole: UserRole;
   isDisabled: boolean;
+  redirectOnDelete?: string;
 }
 
-export function UserActions({ userId, currentRole, isDisabled }: UserActionsProps) {
+export function UserActions({
+  userId,
+  currentRole,
+  isDisabled,
+  redirectOnDelete,
+}: UserActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +42,23 @@ export function UserActions({ userId, currentRole, isDisabled }: UserActionsProp
       const result = await setUserDisabled({ userId, disabled: !isDisabled });
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed to update status");
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  function handleDelete() {
+    if (!confirm("Delete this account permanently? This cannot be undone.")) return;
+
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteUser({ userId });
+      if (result.error) {
+        setError(typeof result.error === "string" ? result.error : "Failed to delete user");
+      } else if (redirectOnDelete) {
+        router.push(redirectOnDelete);
+        router.refresh();
       } else {
         router.refresh();
       }
@@ -70,6 +93,16 @@ export function UserActions({ userId, currentRole, isDisabled }: UserActionsProp
         className="text-xs"
       >
         {isDisabled ? "Enable Account" : "Disable Account"}
+      </Button>
+
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={handleDelete}
+        disabled={isPending}
+        className="text-xs text-text-error hover:text-text-error hover:bg-neon-red-500/10"
+      >
+        Delete Account
       </Button>
 
       {isDisabled && <Badge variant="error">Disabled</Badge>}

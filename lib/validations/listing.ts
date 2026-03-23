@@ -3,14 +3,17 @@ import { z } from "zod";
 export const createListingSchema = z.object({
   title: z
     .string()
+    .trim()
     .min(5, "Title must be at least 5 characters")
     .max(120, "Title must be under 120 characters"),
   description: z
     .string()
+    .trim()
     .min(20, "Description must be at least 20 characters")
     .max(5000, "Description must be under 5,000 characters"),
   price: z
     .number()
+    .finite("Price must be a valid number")
     .int("Price must be a whole number (in pence)")
     .min(100, "Minimum price is £1")
     .max(100_000_000, "Maximum price is £1,000,000"),
@@ -26,7 +29,7 @@ export const createListingSchema = z.object({
     .array(
       z.object({
         attributeDefinitionId: z.string().cuid(),
-        value: z.string().min(1, "Value is required"),
+        value: z.string().trim().min(1, "Value is required"),
       })
     )
     .optional()

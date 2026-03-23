@@ -261,7 +261,7 @@ Build a trusted, hyper-local marketplace for the Isle of Man that starts with **
 - **Monetize quickly**:
   - Private seller paid listing fee (e.g. **£4.99–£9.99** for **30 days**).
   - Dealer subscriptions (e.g. **£29.99–£49.99 / month**, unlimited listings).
-  - Featured listing upgrade (e.g. **+£10**).
+  - Featured listing upgrade (e.g. **+£5**).
 - **Buyer experience**: fast browse + search + filters tuned to local discovery.
 - **Seller experience**: minimal steps to list + pay + go live after moderation.
 - **Ops**: manual moderation is acceptable; provide simple admin tools.
@@ -748,6 +748,7 @@ Refund/dispute handling:
   - `STRIPE_SECRET_KEY`
   - `STRIPE_WEBHOOK_SECRET`
   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+  - `STRIPE_PRIVATE_LISTING_FEE`
   - `STRIPE_DEALER_PRICE_ID`
 - Cloudinary:
   - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createListing,
@@ -13,6 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
+import {
+  getAttributeFieldConfig,
+  isAttributeVisible,
+  validateListingAttributes,
+} from "@/lib/listings/attribute-ui";
 
 interface AttributeDef {
   id: string;
@@ -44,26 +49,87 @@ interface Props {
 
 export function CreateListingForm({ categories, regions, mode = "private", isFreeForUser = false }: Props) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [supportPlatform, setSupportPlatform] = useState(false);
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const fuelTypeAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "fuel-type");
+  const isDetailsStep = step === 1;
+  const selectedFuelType = fuelTypeAttribute
+    ? attributeValues[fuelTypeAttribute.id]
+    : undefined;
+  const visibleAttributes = selectedCategory?.attributes
+    .map((attr) => ({
+      attr,
+      config: getAttributeFieldConfig(selectedCategory.slug, attr, selectedFuelType),
+    }))
+    .filter(
+      (
+        item
+      ): item is {
+        attr: AttributeDef;
+        config: NonNullable<ReturnType<typeof getAttributeFieldConfig>>;
+      } => item.config !== null
+    ) ?? [];
+  const fieldErrorMessages = [
+    ...Object.values(fieldErrors).flat(),
+    ...(error ? [error] : []),
+  ];
+
+  function getFieldError(fieldName: string) {
+    return fieldErrors[fieldName]?.[0];
+  }
+
+  function handleCategoryChange(categoryId: string) {
+    setSelectedCategoryId(categoryId);
+    setAttributeValues({});
+    setFieldErrors({});
+    setError(null);
+  }
+
+  function handleAttributeChange(attribute: AttributeDef, value: string) {
+    setAttributeValues((currentValues) => {
+      const nextValues = { ...currentValues, [attribute.id]: value };
+      if (!selectedCategory) {
+        return nextValues;
+      }
+
+      if (attribute.slug === "fuel-type") {
+        for (const candidate of selectedCategory.attributes) {
+          if (!isAttributeVisible(selectedCategory.slug, candidate.slug, value || undefined)) {
+            delete nextValues[candidate.id];
+          }
+        }
+      }
+
+      return nextValues;
+    });
+  }
 
   function nextStep() {
+    if (step === 1 && formRef.current && !formRef.current.reportValidity()) {
+      return;
+    }
     if (step === 2 && uploadedImages.length < 2) {
+      setFieldErrors({});
       setError("Please upload at least 2 photos before continuing.");
       return;
     }
+    setFieldErrors({});
     setError(null);
     setStep((currentStep) => Math.min(3, currentStep + 1));
   }
 
   function prevStep() {
+    setFieldErrors({});
     setError(null);
     setStep((currentStep) => Math.max(1, currentStep - 1));
   }
@@ -71,6 +137,7 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
 
     const form = new FormData(e.currentTarget);
     if (!trustConfirmed) {
@@ -83,10 +150,21 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
     const attributes: Array<{ attributeDefinitionId: string; value: string }> = [];
     if (selectedCategory) {
       for (const attr of selectedCategory.attributes) {
-        const val = form.get(`attr-${attr.id}`) as string;
+        const val = (form.get(`attr-${attr.id}`) as string | null)?.trim() ?? "";
         if (val) {
           attributes.push({ attributeDefinitionId: attr.id, value: val });
         }
+      }
+
+      const clientAttributeValidation = validateListingAttributes({
+        categorySlug: selectedCategory.slug,
+        definitions: selectedCategory.attributes,
+        attributes,
+      });
+      if (Object.keys(clientAttributeValidation.fieldErrors).length > 0) {
+        setFieldErrors(clientAttributeValidation.fieldErrors);
+        setStep(1);
+        return;
       }
     }
 
@@ -102,11 +180,12 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
       });
 
       if (result.error) {
-        setError(
-          typeof result.error === "string"
-            ? result.error
-            : "Please check the form for errors."
-        );
+        if (typeof result.error === "string") {
+          setError(result.error);
+        } else {
+          setFieldErrors(result.error);
+          setStep(1);
+        }
         return;
       }
 
@@ -171,15 +250,16 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className={step === 1 ? "space-y-6" : "hidden"}>
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+          <div className={isDetailsStep ? "space-y-6" : "hidden"}>
               <Input
                 label="Title"
                 name="title"
-                required
+                required={isDetailsStep}
                 minLength={5}
                 maxLength={120}
                 placeholder="e.g. 2019 BMW 320d M Sport"
+                error={getFieldError("title")}
               />
 
               <div className="flex flex-col gap-1">
@@ -192,24 +272,35 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                 <textarea
                   id="description"
                   name="description"
-                  required
+                  required={isDetailsStep}
                   minLength={20}
                   maxLength={5000}
                   rows={6}
+                  aria-invalid={getFieldError("description") ? true : undefined}
+                  aria-describedby={getFieldError("description") ? "description-error" : undefined}
                   placeholder="Describe your item in detail..."
-                  className="flex w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline"
+                  className={`flex w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline ${
+                    getFieldError("description") ? "border-neon-red-500" : "border-border"
+                  }`}
                 />
+                {getFieldError("description") ? (
+                  <p id="description-error" className="text-xs text-text-energy">
+                    {getFieldError("description")}
+                  </p>
+                ) : null}
               </div>
 
               <Input
                 label="Price (£)"
                 name="price"
                 type="number"
-                required
+                required={isDetailsStep}
                 min={1}
                 max={1000000}
                 step={0.01}
+                inputMode="decimal"
                 placeholder="e.g. 15000"
+                error={getFieldError("price")}
               />
 
               <div className="flex flex-col gap-1">
@@ -222,10 +313,14 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                 <select
                   id="categoryId"
                   name="categoryId"
-                  required
+                  required={isDetailsStep}
                   value={selectedCategoryId}
-                  onChange={(e) => setSelectedCategoryId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline"
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  aria-invalid={getFieldError("categoryId") ? true : undefined}
+                  aria-describedby={getFieldError("categoryId") ? "category-error" : undefined}
+                  className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
+                    getFieldError("categoryId") ? "border-neon-red-500" : "border-border"
+                  }`}
                 >
                   <option value="">Select a category</option>
                   {categories.map((c) => (
@@ -234,6 +329,11 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                     </option>
                   ))}
                 </select>
+                {getFieldError("categoryId") ? (
+                  <p id="category-error" className="text-xs text-text-energy">
+                    {getFieldError("categoryId")}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-col gap-1">
@@ -246,9 +346,13 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                 <select
                   id="regionId"
                   name="regionId"
-                  required
+                  required={isDetailsStep}
                   defaultValue=""
-                  className="flex h-10 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline"
+                  aria-invalid={getFieldError("regionId") ? true : undefined}
+                  aria-describedby={getFieldError("regionId") ? "region-error" : undefined}
+                  className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
+                    getFieldError("regionId") ? "border-neon-red-500" : "border-border"
+                  }`}
                 >
                   <option value="">Select a region</option>
                   {regions.map((r) => (
@@ -257,6 +361,11 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                     </option>
                   ))}
                 </select>
+                {getFieldError("regionId") ? (
+                  <p id="region-error" className="text-xs text-text-energy">
+                    {getFieldError("regionId")}
+                  </p>
+                ) : null}
               </div>
           </div>
 
@@ -296,30 +405,71 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
           </div>
 
           {/* Dynamic category attributes */}
-          {selectedCategory && selectedCategory.attributes.length > 0 && (
-            <div className={step === 1 ? "space-y-4 rounded-lg border border-border p-4" : "hidden"}>
+          {selectedCategory && visibleAttributes.length > 0 && (
+            <div className={isDetailsStep ? "space-y-4 rounded-lg border border-border p-4" : "hidden"}>
               <h3 className="text-sm font-semibold text-text-primary">
                 {selectedCategory.name} Details
               </h3>
-              {selectedCategory.attributes.map((attr) => {
-                if (attr.dataType === "select" && attr.options) {
-                  const opts = JSON.parse(attr.options) as string[];
+              {visibleAttributes.map(({ attr, config }) => {
+                const fieldName = `attr-${attr.id}`;
+                const fieldError = getFieldError(fieldName);
+                const label = `${attr.name}${attr.required ? " *" : ""}`;
+
+                if (config.control === "select") {
                   return (
                     <div key={attr.id} className="flex flex-col gap-1">
-                      <label className="text-sm font-medium text-text-primary">
-                        {attr.name}
-                        {attr.required && " *"}
+                      <label htmlFor={fieldName} className="text-sm font-medium text-text-primary">
+                        {label}
                       </label>
                       <select
-                        name={`attr-${attr.id}`}
-                        required={attr.required}
-                        className="flex h-10 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline"
+                        id={fieldName}
+                        name={fieldName}
+                        required={isDetailsStep && attr.required}
+                        value={attributeValues[attr.id] ?? ""}
+                        onChange={(e) => handleAttributeChange(attr, e.target.value)}
+                        aria-invalid={fieldError ? true : undefined}
+                        aria-describedby={fieldError ? `${fieldName}-error` : undefined}
+                        className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
+                          fieldError ? "border-neon-red-500" : "border-border"
+                        }`}
                       >
-                        <option value="">Select...</option>
-                        {opts.map((o) => (
-                          <option key={o} value={o}>{o}</option>
+                        <option value="">
+                          {attr.slug === "make" ? "Select a make" : `Select ${attr.name.toLowerCase()}`}
+                        </option>
+                        {config.options?.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
                         ))}
                       </select>
+                      {fieldError ? (
+                        <p id={`${fieldName}-error`} className="text-xs text-text-energy">
+                          {fieldError}
+                        </p>
+                      ) : config.helperText ? (
+                        <p className="text-xs text-text-secondary">{config.helperText}</p>
+                      ) : null}
+                    </div>
+                  );
+                }
+
+                if (config.control === "checkbox") {
+                  return (
+                    <div key={attr.id} className="space-y-2">
+                      <input type="hidden" name={fieldName} value={attributeValues[attr.id] ?? ""} />
+                      <Checkbox
+                        id={fieldName}
+                        checked={attributeValues[attr.id] === "true"}
+                        onCheckedChange={(checked) =>
+                          handleAttributeChange(attr, checked === true ? "true" : "")
+                        }
+                        label={label}
+                      />
+                      {fieldError ? (
+                        <p id={`${fieldName}-error`} className="text-xs text-text-energy">
+                          {fieldError}
+                        </p>
+                      ) : null}
                     </div>
                   );
                 }
@@ -327,19 +477,38 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                 return (
                   <Input
                     key={attr.id}
-                    label={`${attr.name}${attr.required ? " *" : ""}`}
-                    name={`attr-${attr.id}`}
-                    required={attr.required}
-                    type={attr.dataType === "number" ? "number" : "text"}
+                    id={fieldName}
+                    label={label}
+                    name={fieldName}
+                    required={isDetailsStep && attr.required}
+                    type={config.control === "number" ? "number" : "text"}
+                    value={attributeValues[attr.id] ?? ""}
+                    onChange={(e) => handleAttributeChange(attr, e.target.value)}
+                    min={config.min}
+                    max={config.max}
+                    step={config.step}
+                    inputMode={config.inputMode}
+                    placeholder={config.placeholder}
+                    helperText={config.helperText}
+                    error={fieldError}
                   />
                 );
               })}
             </div>
           )}
 
-          {error && (
-            <p className="text-sm text-text-error">{error}</p>
-          )}
+          {fieldErrorMessages.length > 0 ? (
+            <div className="rounded-md border border-neon-red-500/40 bg-neon-red-500/5 px-3 py-2">
+              <p className="text-sm font-medium text-text-error">
+                Please fix the following:
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-sm text-text-error">
+                {fieldErrorMessages.map((message, index) => (
+                  <li key={`${message}-${index}`}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="flex items-center gap-3">
             {step > 1 ? (

@@ -41,6 +41,7 @@ cp .env.example .env
 | `STRIPE_SECRET_KEY` | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
+| `STRIPE_PRIVATE_LISTING_FEE` | Stripe Price ID for private seller listing checkout |
 | `STRIPE_DEALER_PRICE_ID` | Stripe Price ID for dealer subscription |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
@@ -146,7 +147,7 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
 ### Featured Upgrade
 
-Live listings can be upgraded to "Featured" status for +£10 via a separate Stripe Checkout session.
+Live listings can be upgraded to "Featured" status for +£5 via a separate Stripe Checkout session.
 
 ### Dealer Subscriptions
 

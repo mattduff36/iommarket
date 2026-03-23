@@ -3,6 +3,7 @@ import {
   listUsersSchema,
   setUserRoleSchema,
   setUserDisabledSchema,
+  deleteUserSchema,
   setUserRegionSchema,
   createDealerProfileSchema,
   updateDealerProfileSchema,
@@ -74,6 +75,20 @@ describe("setUserDisabledSchema", () => {
       disabled: true,
       reason: "x".repeat(501),
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("deleteUserSchema", () => {
+  it("accepts valid input", () => {
+    const result = deleteUserSchema.safeParse({
+      userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects missing userId", () => {
+    const result = deleteUserSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });

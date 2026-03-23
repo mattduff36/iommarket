@@ -27,6 +27,11 @@ export const setUserDisabledSchema = z.object({
 });
 export type SetUserDisabledInput = z.infer<typeof setUserDisabledSchema>;
 
+export const deleteUserSchema = z.object({
+  userId: z.string().cuid(),
+});
+export type DeleteUserInput = z.infer<typeof deleteUserSchema>;
+
 export const setUserRegionSchema = z.object({
   userId: z.string().cuid(),
   regionId: z.string().cuid().nullable(),

@@ -91,8 +91,8 @@ describe("calculateListingFee", () => {
     expect(calculateListingFee({})).toBe(499);
   });
 
-  it("returns 1499 pence (£14.99) for featured listing", () => {
-    expect(calculateListingFee({ featured: true })).toBe(1499);
+  it("returns 999 pence (£9.99) for featured listing", () => {
+    expect(calculateListingFee({ featured: true })).toBe(999);
   });
 });
 
@@ -130,7 +130,7 @@ describe("LISTING_FEES constants", () => {
   });
 
   it("has correct featured upgrade fee", () => {
-    expect(LISTING_FEES.FEATURED_UPGRADE).toBe(1000);
+    expect(LISTING_FEES.FEATURED_UPGRADE).toBe(500);
   });
 
   it("has correct dealer monthly fee", () => {

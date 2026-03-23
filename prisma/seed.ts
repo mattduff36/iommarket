@@ -375,7 +375,7 @@ async function main() {
   // Listings
   // ---------------------------------------------------------------------------
 
-  const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const placeholderExpiryDate = new Date("2026-12-31T23:59:59.000Z");
 
   // Helper to create a listing + image + optional attributes
   async function createListing(data: {
@@ -403,7 +403,7 @@ async function main() {
         price: Math.round(data.price * 100), // convert pounds to pence
         status: "LIVE",
         featured: data.featured ?? false,
-        expiresAt: thirtyDaysFromNow,
+        expiresAt: placeholderExpiryDate,
         createdAt,
         attributeValues: data.attributes
           ? {

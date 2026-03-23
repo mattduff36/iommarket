@@ -87,6 +87,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
           userId={user.id}
           currentRole={user.role}
           isDisabled={!!user.disabledAt}
+          redirectOnDelete="/admin/users"
         />
       </div>
 

@@ -5,14 +5,17 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { captureException } from "@/lib/monitoring";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   listUsersSchema,
   setUserRoleSchema,
   setUserDisabledSchema,
+  deleteUserSchema,
   setUserRegionSchema,
   type ListUsersInput,
   type SetUserRoleInput,
   type SetUserDisabledInput,
+  type DeleteUserInput,
   type SetUserRegionInput,
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
@@ -183,6 +186,114 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
       tags: { userId, disabled },
     });
     const message = err instanceof Error ? err.message : "Failed to update user";
+    return { error: message };
+  }
+}
+
+export async function deleteUser(input: DeleteUserInput) {
+  const admin = await requireRole("ADMIN");
+
+  const parsed = deleteUserSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const { userId } = parsed.data;
+
+  if (userId === admin.id) return { error: "Cannot delete your own account" };
+
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      authUserId: true,
+      dealerProfile: { select: { id: true } },
+    },
+  });
+
+  if (!user) return { error: "User not found" };
+
+  try {
+    const deletedListingIds = await db.$transaction(async (tx) => {
+      const listings = await tx.listing.findMany({
+        where: {
+          OR: [
+            { userId },
+            ...(user.dealerProfile ? [{ dealerId: user.dealerProfile.id }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+
+      const listingIds = listings.map((listing) => listing.id);
+
+      if (listingIds.length > 0) {
+        await tx.payment.deleteMany({
+          where: { listingId: { in: listingIds } },
+        });
+
+        await tx.report.deleteMany({
+          where: { listingId: { in: listingIds } },
+        });
+
+        await tx.listing.deleteMany({
+          where: { id: { in: listingIds } },
+        });
+      }
+
+      await tx.report.updateMany({
+        where: { reporterId: userId },
+        data: { reporterId: null },
+      });
+
+      await tx.user.delete({
+        where: { id: userId },
+      });
+
+      return listingIds;
+    });
+
+    try {
+      const supabaseAdmin = createSupabaseAdminClient();
+      await supabaseAdmin.auth.admin.deleteUser(user.authUserId);
+    } catch (authErr) {
+      await captureException({
+        source: "SERVER",
+        error: authErr,
+        action: "deleteUser.supabaseAuthCleanup",
+        route: "/admin/users",
+        requestPath: "/admin/users",
+        userId: admin.id,
+        tags: { deletedUserId: userId },
+      });
+    }
+
+    await logAdminAction({
+      adminId: admin.id,
+      action: "DELETE_USER",
+      entityType: "User",
+      entityId: userId,
+      details: {
+        dealerProfileId: user.dealerProfile?.id ?? null,
+        deletedListingCount: deletedListingIds.length,
+      },
+    });
+
+    revalidatePath("/admin/users");
+    revalidatePath(`/admin/users/${userId}`);
+    revalidatePath("/admin/dealers");
+    revalidatePath("/");
+    revalidatePath("/search");
+    return { data: { success: true } };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "deleteUser",
+      route: "/admin/users",
+      requestPath: "/admin/users",
+      userId: admin.id,
+      tags: { userId },
+    });
+    const message = err instanceof Error ? err.message : "Failed to delete user";
     return { error: message };
   }
 }
