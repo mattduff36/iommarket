@@ -12,6 +12,7 @@ export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   currency?: string;
   imageSrc?: string;
   imageAlt?: string;
+  imageSizes?: string;
   location?: string;
   meta?: string;
   featured?: boolean;
@@ -37,6 +38,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
       currency = "£",
       imageSrc,
       imageAlt,
+      imageSizes,
       location,
     meta,
     featured = false,
@@ -76,7 +78,10 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
               alt={imageAlt ?? title}
               fill
               className={`object-cover transition-transform duration-fast group-hover:scale-[1.02]${sold ? " brightness-75" : ""}`}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              sizes={
+                imageSizes ??
+                "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              }
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-metallic-500">

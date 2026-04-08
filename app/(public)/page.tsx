@@ -5,6 +5,7 @@ import Image from "next/image";
 import { db } from "@/lib/db";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { FeaturedListingsCarousel } from "@/components/marketplace/home/featured-listings-carousel";
 import { HeroSearch } from "@/components/marketplace/hero-search";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
@@ -127,6 +128,15 @@ export default async function HomePage() {
       return { category: cat, listings };
     }),
   );
+  const featuredCarouselListings = featuredListings.map((listing) => ({
+    id: listing.id,
+    title: listing.title,
+    price: listing.price / 100,
+    imageSrc: listing.images[0]?.url,
+    location: listing.region.name,
+    meta: listing.category.name,
+    href: `/listings/${listing.id}`,
+  }));
 
   return (
     <>
@@ -182,21 +192,7 @@ export default async function HomePage() {
               See All <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
-            {featuredListings.map((listing) => (
-              <ListingCard
-                key={listing.id}
-                title={listing.title}
-                price={listing.price / 100}
-                imageSrc={listing.images[0]?.url}
-                location={listing.region.name}
-                meta={listing.category.name}
-                featured
-                badge="Featured"
-                href={`/listings/${listing.id}`}
-              />
-            ))}
-          </div>
+          <FeaturedListingsCarousel listings={featuredCarouselListings} />
         </section>
       )}
 
