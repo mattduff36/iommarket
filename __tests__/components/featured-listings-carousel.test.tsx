@@ -17,6 +17,22 @@ const autoplayPlugin = {
   play: vi.fn(),
 };
 
+function mockMatchMedia(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
 vi.mock("embla-carousel-react", () => ({
   default: vi.fn(() => [
     vi.fn(),
@@ -46,6 +62,8 @@ vi.mock("@/components/marketplace/listing-card", () => ({
 describe("FeaturedListingsCarousel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
+    mockMatchMedia(false);
     selectedScrollSnap.mockReturnValue(0);
     canScrollPrev.mockReturnValue(true);
     canScrollNext.mockReturnValue(true);
@@ -84,11 +102,12 @@ describe("FeaturedListingsCarousel", () => {
       expect(nextButton.disabled).toBe(false);
     });
 
+    const initialPlayCount = autoplayPlugin.play.mock.calls.length;
     fireEvent.click(nextButton);
 
     expect(scrollNext).toHaveBeenCalledTimes(1);
     expect(autoplayPlugin.reset).toHaveBeenCalledTimes(1);
-    expect(autoplayPlugin.play).toHaveBeenCalledTimes(1);
+    expect(autoplayPlugin.play.mock.calls.length).toBe(initialPlayCount + 1);
   });
 
   it("shows the full arrow state when hovering inside the edge zone", () => {
@@ -146,6 +165,41 @@ describe("FeaturedListingsCarousel", () => {
     expect(
       screen.queryByRole("button", { name: "Next featured listing" }),
     ).toBeNull();
+    expect(screen.queryByLabelText("Go to featured listing 1")).toBeNull();
+  });
+
+  it("uses the mobile-specific layout without arrow controls", () => {
+    mockMatchMedia(true);
+
+    render(
+      <FeaturedListingsCarousel
+        listings={[
+          {
+            id: "one",
+            title: "Roadster",
+            price: 12000,
+            href: "/listings/one",
+          },
+          {
+            id: "two",
+            title: "Tourer",
+            price: 18000,
+            href: "/listings/two",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Previous featured listing" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Next featured listing" }),
+    ).toBeNull();
+
+    expect(
+      screen.getByTestId("featured-listings-carousel-mobile-scroller"),
+    ).toBeTruthy();
     expect(screen.queryByLabelText("Go to featured listing 1")).toBeNull();
   });
 });

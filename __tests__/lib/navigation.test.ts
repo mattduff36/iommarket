@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getAccountNavItems, getSellLandingPath } from "@/lib/navigation";
+import {
+  getAccountNavItems,
+  getSellLandingPath,
+  PUBLIC_NAV_ITEMS,
+} from "@/lib/navigation";
 
 describe("getSellLandingPath", () => {
   it("sends private sellers to the private listing flow", () => {
@@ -23,5 +27,13 @@ describe("getAccountNavItems", () => {
 
     expect(userItems.some((item) => item.href === "/dealer/profile")).toBe(false);
     expect(userItems.some((item) => item.href === "/admin")).toBe(false);
+  });
+});
+
+describe("PUBLIC_NAV_ITEMS", () => {
+  it("includes the vehicle check page in public navigation", () => {
+    expect(
+      PUBLIC_NAV_ITEMS.some((item) => item.href === "/vehicle-check")
+    ).toBe(true);
   });
 });

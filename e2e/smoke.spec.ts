@@ -33,6 +33,14 @@ test.describe("Static pages", () => {
       page.getByRole("heading", { name: /categories/i })
     ).toBeVisible({ timeout: 45_000 });
   });
+
+  test("vehicle check page loads", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.goto("/vehicle-check", { waitUntil: "commit" });
+    await expect(
+      page.getByRole("heading", { name: /tax and mot intelligence/i })
+    ).toBeVisible({ timeout: 45_000 });
+  });
 });
 
 test.describe("Navigation", () => {
@@ -67,7 +75,7 @@ test.describe("Navigation", () => {
 });
 
 test.describe("Layout sanity – no horizontal overflow", () => {
-  const PAGES = ["/", "/categories", "/pricing"];
+  const PAGES = ["/", "/categories", "/pricing", "/vehicle-check"];
 
   for (const path of PAGES) {
     test(`${path}`, async ({ page }) => {
