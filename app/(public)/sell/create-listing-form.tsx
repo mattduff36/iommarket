@@ -15,75 +15,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 import {
   getAttributeFieldConfig,
-  isAttributeVisible,
   validateListingAttributes,
 } from "@/lib/listings/attribute-ui";
 import { mapVehicleResultToListingAttributes } from "@/lib/listings/vehicle-autofill";
-import type {
-  VehicleCheckResponse,
-  VehicleCheckResult,
-} from "@/lib/services/vehicle-check-types";
+import type { VehicleCheckResponse } from "@/lib/services/vehicle-check-types";
 import { formatRegistrationForDisplay } from "@/lib/utils/registration";
-import { Bike, BusFront, Car, Truck } from "lucide-react";
-
-const REGISTRATION_LOOKUP_CATEGORY_SLUGS = new Set(["car", "van", "motorbike", "motorhome"]);
-
-const CATEGORY_TILE_META: Record<
-  string,
-  {
-    icon: typeof Car;
-    idleIconClass: string;
-    selectedClass: string;
-  }
-> = {
-  car: {
-    icon: Car,
-    idleIconClass: "text-neon-red-400",
-    selectedClass:
-      "border-neon-red-400 bg-neon-red-500/15 text-white ring-2 ring-neon-red-500/70 shadow-glow-red",
-  },
-  van: {
-    icon: Truck,
-    idleIconClass: "text-neon-blue-400",
-    selectedClass:
-      "border-neon-blue-400 bg-neon-blue-500/15 text-white ring-2 ring-neon-blue-500/70 shadow-glow-blue",
-  },
-  motorbike: {
-    icon: Bike,
-    idleIconClass: "text-premium-gold-400",
-    selectedClass:
-      "border-premium-gold-400 bg-premium-gold-500/20 text-white ring-2 ring-premium-gold-400/60 shadow-glow-gold",
-  },
-  motorhome: {
-    icon: BusFront,
-    idleIconClass: "text-violet-300",
-    selectedClass:
-      "border-violet-400 bg-violet-500/15 text-white ring-2 ring-violet-400/70 shadow-[0_0_18px_rgba(167,139,250,0.35)]",
-  },
-};
-
-function extractLookupErrorMessage(payload: unknown): string {
-  if (!payload || typeof payload !== "object") {
-    return "Vehicle lookup failed. Please try again.";
-  }
-
-  const record = payload as Record<string, unknown>;
-  if (typeof record.error === "string") {
-    return record.error;
-  }
-
-  if (record.error && typeof record.error === "object") {
-    const firstValue = Object.values(record.error)[0];
-    if (typeof firstValue === "string") {
-      return firstValue;
-    }
-    if (Array.isArray(firstValue) && typeof firstValue[0] === "string") {
-      return firstValue[0];
-    }
-  }
-
-  return "Vehicle lookup failed. Please try again.";
-}
+import {
+  CATEGORY_TILE_META,
+  DEFAULT_CATEGORY_TILE_ICON,
+} from "./create-listing-form.constants";
+import {
+  buildSuggestedListingTitle,
+  extractLookupErrorMessage,
+  inferCategoryFromLookupResult,
+  pruneHiddenAttributes,
+  REGISTRATION_LOOKUP_CATEGORY_SLUGS,
+} from "./create-listing-form.helpers";
 
 interface AttributeDef {
   id: string;
@@ -111,73 +58,6 @@ interface Props {
   regions: RegionOption[];
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
-}
-
-function inferCategorySlugFromLookupResult(result: VehicleCheckResult): string | null {
-  const hints = [
-    result.vehicle?.category,
-    result.vehicle?.wheelPlan,
-    result.vehicle?.model,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toUpperCase();
-
-  if (!hints) return null;
-
-  if (
-    /(MOTORHOME|MOTOR\s*HOME|MOTORCARAVAN|MOTOR\s*CARAVAN|CAMPER|CAMPERVAN|CARAVAN)/.test(
-      hints
-    )
-  ) {
-    return "motorhome";
-  }
-  if (/(MOTORBIKE|MOTORCYCLE|MOTOR\s*CYCLE|2[-\s]?WHEEL|BIKE)/.test(hints)) {
-    return "motorbike";
-  }
-  if (/(PANEL\s*VAN|LIGHT\s*GOODS|LGV|PICKUP|VAN|TRUCK|LORRY)/.test(hints)) {
-    return "van";
-  }
-  if (/(HATCHBACK|SALOON|ESTATE|COUPE|CONVERTIBLE|SUV|MPV|CAR)/.test(hints)) {
-    return "car";
-  }
-
-  return null;
-}
-
-function inferCategoryFromLookupResult(
-  result: VehicleCheckResult,
-  categories: CategoryOption[]
-): CategoryOption | null {
-  const inferredSlug = inferCategorySlugFromLookupResult(result);
-  if (!inferredSlug) return null;
-  return categories.find((category) => category.slug === inferredSlug) ?? null;
-}
-
-function normalizeTitleToken(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const normalized = value.trim().replace(/\s+/g, " ");
-  return normalized.length > 0 ? normalized : null;
-}
-
-function buildSuggestedListingTitle(params: {
-  year: string | null;
-  make: string | null;
-  model: string | null;
-}): string | null {
-  const year = normalizeTitleToken(params.year);
-  const make = normalizeTitleToken(params.make);
-  const model = normalizeTitleToken(params.model);
-
-  const parts = [year, make, model].filter(
-    (part): part is string => Boolean(part)
-  );
-  if (parts.length === 0) {
-    return null;
-  }
-
-  const title = parts.join(" ").slice(0, 120).trim();
-  return title.length > 0 ? title : null;
 }
 
 export function CreateListingForm({ categories, regions, mode = "private", isFreeForUser = false }: Props) {
@@ -240,25 +120,6 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
     setError(null);
     setLookupError(null);
     setLookupMeta(null);
-  }
-
-  function pruneHiddenAttributes(
-    values: Record<string, string>,
-    category: CategoryOption
-  ) {
-    const nextValues = { ...values };
-    const fuelTypeDef = category.attributes.find(
-      (attribute) => attribute.slug === "fuel-type"
-    );
-    const fuelType = fuelTypeDef ? nextValues[fuelTypeDef.id] : undefined;
-
-    for (const candidate of category.attributes) {
-      if (!isAttributeVisible(category.slug, candidate.slug, fuelType || undefined)) {
-        delete nextValues[candidate.id];
-      }
-    }
-
-    return nextValues;
   }
 
   function handleAttributeChange(attribute: AttributeDef, value: string) {
@@ -583,7 +444,7 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                   {categories.map((category) => {
                     const isSelected = category.id === selectedCategoryId;
                     const meta = CATEGORY_TILE_META[category.slug];
-                    const Icon = meta?.icon ?? Car;
+                    const Icon = meta?.icon ?? DEFAULT_CATEGORY_TILE_ICON;
                     return (
                       <Button
                         key={category.id}
