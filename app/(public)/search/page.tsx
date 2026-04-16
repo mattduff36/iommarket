@@ -31,7 +31,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     : "/search";
   return {
     title: sp.q ? `Search: ${sp.q}` : "Search",
-    description: "Search vehicles on itrader.im. Cars, vans, motorbikes across the Isle of Man.",
+    description:
+      "Search vehicles on itrader.im. Cars, vans, motorbikes, and motorhomes across the Isle of Man.",
     alternates: {
       canonical: `${appUrl}${canonicalPath}`,
     },

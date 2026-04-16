@@ -24,7 +24,7 @@ export function SiteFooter() {
             </Link>
             <p className="mt-2 max-w-xs text-sm text-metallic-400">
               The Isle of Man&apos;s trusted marketplace for cars, vans,
-              motorbikes and more.
+              motorbikes, and motorhomes.
             </p>
           </div>
 

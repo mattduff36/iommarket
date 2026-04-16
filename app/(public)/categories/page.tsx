@@ -3,24 +3,26 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { Tag, Car } from "lucide-react";
+import { Bike, BusFront, Car, Tag, Truck } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
 export const metadata: Metadata = {
   title: "Categories",
-  description: "Browse vehicle categories on itrader.im. Cars, vans, motorbikes.",
+  description: "Browse vehicle categories on itrader.im. Cars, vans, motorbikes, motorhomes.",
 };
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   car: <Car className="h-8 w-8" />,
-  van: <Car className="h-8 w-8" />,
-  motorbike: <Car className="h-8 w-8" />,
+  van: <Truck className="h-8 w-8" />,
+  motorbike: <Bike className="h-8 w-8" />,
+  motorhome: <BusFront className="h-8 w-8" />,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
   car: "from-neon-red-500 to-neon-red-600",
   van: "from-neon-blue-500 to-neon-blue-600",
   motorbike: "from-premium-gold-500 to-premium-gold-600",
+  motorhome: "from-violet-500 to-violet-700",
 };
 
 export default async function CategoriesPage() {
@@ -45,11 +47,11 @@ export default async function CategoriesPage() {
           Categories
         </h1>
         <p className="mt-3 sm:mt-4 text-text-secondary">
-          Browse vehicle categories. Cars, vans, motorbikes.
+          Browse vehicle categories. Cars, vans, motorbikes, and motorhomes.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {categories.map((cat) => {
           const gradient = CATEGORY_COLORS[cat.slug] ?? "from-graphite-700 to-graphite-900";
           return (

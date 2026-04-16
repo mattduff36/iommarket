@@ -48,7 +48,7 @@ const prisma = new PrismaClient({ adapter });
 
 /**
  * Vehicle-only seed for itrader.im.
- * Clears existing placeholder data, then creates regions, vehicle categories (Car, Van, Motorbike),
+ * Clears existing placeholder data, then creates regions, vehicle categories (Cars, Vans, Motorbikes, Motorhomes),
  * attribute definitions, users, dealers, and vehicle-only LIVE listings.
  */
 async function main() {
@@ -99,22 +99,25 @@ async function main() {
   console.log(`  Created ${regionData.length} regions`);
 
   // ---------------------------------------------------------------------------
-  // Vehicle-only categories: Car, Van, Motorbike
+  // Vehicle-only categories: Cars, Vans, Motorbikes, Motorhomes
   // ---------------------------------------------------------------------------
   const car = await prisma.category.create({
-    data: { name: "Car", slug: "car", sortOrder: 1 },
+    data: { name: "Cars", slug: "car", sortOrder: 1 },
   });
   const van = await prisma.category.create({
-    data: { name: "Van", slug: "van", sortOrder: 2 },
+    data: { name: "Vans", slug: "van", sortOrder: 2 },
   });
   const motorbike = await prisma.category.create({
-    data: { name: "Motorbike", slug: "motorbike", sortOrder: 3 },
+    data: { name: "Motorbikes", slug: "motorbike", sortOrder: 3 },
   });
-  console.log("  Created 3 vehicle categories (Car, Van, Motorbike)");
+  const motorhome = await prisma.category.create({
+    data: { name: "Motorhomes", slug: "motorhome", sortOrder: 4 },
+  });
+  console.log("  Created 4 vehicle categories (Cars, Vans, Motorbikes, Motorhomes)");
 
   // ---------------------------------------------------------------------------
   // Attribute definitions (make, model, year, mileage, fuel-type, transmission)
-  // Shared across Car, Van, Motorbike for consistent search/filtering.
+  // Shared across Cars, Vans, and Motorhomes for consistent search/filtering.
   // ---------------------------------------------------------------------------
   const vehicleAttrDefs = [
     { name: "Make", slug: "make", dataType: "text", required: true, sortOrder: 1 },
@@ -241,7 +244,25 @@ async function main() {
     });
     motorbikeAttrs[attr.slug] = created;
   }
-  console.log(`  Created ${vehicleAttrDefs.length} attribute definitions for Car/Van, ${motorbikeAttrDefs.length} for Motorbike`);
+
+  const motorhomeAttrs: Record<string, { id: string }> = {};
+  for (const attr of vehicleAttrDefs) {
+    const created = await prisma.attributeDefinition.create({
+      data: {
+        categoryId: motorhome.id,
+        name: attr.name,
+        slug: attr.slug,
+        dataType: attr.dataType,
+        required: attr.required,
+        sortOrder: attr.sortOrder,
+        options: (attr as { options?: string }).options ?? null,
+      },
+    });
+    motorhomeAttrs[attr.slug] = created;
+  }
+  console.log(
+    `  Created ${vehicleAttrDefs.length} attribute definitions for Cars/Vans/Motorhomes, ${motorbikeAttrDefs.length} for Motorbikes`,
+  );
 
   // ---------------------------------------------------------------------------
   // Demo users (authUserId = placeholder UUIDs; not real Supabase Auth users)
@@ -754,6 +775,7 @@ async function main() {
   const carMakes = ["BMW", "Audi", "Volkswagen", "Ford", "Mercedes-Benz", "Tesla", "MINI", "Kia"] as const;
   const bikeMakes = ["Honda", "Yamaha", "Triumph", "Suzuki", "Kawasaki"] as const;
   const vanMakes = ["Ford", "Volkswagen", "Mercedes-Benz", "Renault"] as const;
+  const motorhomeMakes = ["Fiat", "Ford", "Volkswagen", "Auto-Trail", "Swift"] as const;
   const colours = ["Black", "White", "Silver", "Grey", "Blue", "Red"] as const;
   const fuels = ["Petrol", "Diesel", "Electric", "Hybrid"] as const;
   const transmissions = ["Manual", "Automatic"] as const;
@@ -773,14 +795,47 @@ async function main() {
 
   const generatedCount = 120;
   for (let i = 0; i < generatedCount; i++) {
-    const categoryRoll = i % 3;
-    const categoryId = categoryRoll === 0 ? car.id : categoryRoll === 1 ? van.id : motorbike.id;
-    const attrs = categoryRoll === 0 ? carAttrs : categoryRoll === 1 ? vanAttrs : motorbikeAttrs;
+    const categoryRoll = i % 4;
+    const categoryType =
+      categoryRoll === 0
+        ? "car"
+        : categoryRoll === 1
+          ? "van"
+          : categoryRoll === 2
+            ? "motorbike"
+            : "motorhome";
+    const categoryId =
+      categoryType === "car"
+        ? car.id
+        : categoryType === "van"
+          ? van.id
+          : categoryType === "motorbike"
+            ? motorbike.id
+            : motorhome.id;
+    const attrs =
+      categoryType === "car"
+        ? carAttrs
+        : categoryType === "van"
+          ? vanAttrs
+          : categoryType === "motorbike"
+            ? motorbikeAttrs
+            : motorhomeAttrs;
     const make =
-      categoryRoll === 0 ? pick(carMakes) : categoryRoll === 1 ? pick(vanMakes) : pick(bikeMakes);
+      categoryType === "car"
+        ? pick(carMakes)
+        : categoryType === "van"
+          ? pick(vanMakes)
+          : categoryType === "motorbike"
+            ? pick(bikeMakes)
+            : pick(motorhomeMakes);
     const year = random(2012, 2025);
     const mileage = random(5000, 150000);
-    const price = categoryRoll === 2 ? random(2500, 12000) : random(4500, 42000);
+    const price =
+      categoryType === "motorbike"
+        ? random(2500, 12000)
+        : categoryType === "motorhome"
+          ? random(14000, 78000)
+          : random(4500, 42000);
     const isElectric = Math.random() < 0.1;
     const fuel = isElectric ? "Electric" : pick(fuels);
     const transmission = pick(transmissions);
@@ -824,13 +879,17 @@ async function main() {
     if (attrs["drive-type"]) {
       baseAttributes.push({ attrId: attrs["drive-type"].id, value: pick(["FWD", "RWD", "4WD", "AWD"] as const) });
     }
-    if (attrs["doors"] && categoryRoll !== 2) {
+    if (attrs["doors"] && categoryType !== "motorbike") {
       baseAttributes.push({ attrId: attrs["doors"].id, value: String(pick([2, 3, 4, 5] as const)) });
     }
     if (attrs["seats"]) {
-      baseAttributes.push({ attrId: attrs["seats"].id, value: String(categoryRoll === 1 ? pick([2, 3, 5, 6, 8] as const) : pick([2, 4, 5, 7] as const)) });
+      const seats =
+        categoryType === "van" || categoryType === "motorhome"
+          ? pick([2, 3, 4, 5, 6, 8] as const)
+          : pick([2, 4, 5, 7] as const);
+      baseAttributes.push({ attrId: attrs["seats"].id, value: String(seats) });
     }
-    if (attrs["boot-space"] && categoryRoll !== 2) {
+    if (attrs["boot-space"] && categoryType !== "motorbike") {
       baseAttributes.push({ attrId: attrs["boot-space"].id, value: String(random(220, 1400)) });
     }
 
@@ -839,12 +898,17 @@ async function main() {
       dealerId: i % 5 === 0 ? manxMotors.id : undefined,
       categoryId,
       regionSlug,
-      title: `${year} ${make} ${categoryRoll === 2 ? "Motorbike" : categoryRoll === 1 ? "Van" : "Vehicle"} - Excellent Condition`,
+      title: `${year} ${make} ${categoryType === "motorbike" ? "Motorbike" : categoryType === "van" ? "Van" : categoryType === "motorhome" ? "Motorhome" : "Vehicle"} - Excellent Condition`,
       description:
         "Well maintained and in strong mechanical condition. Full history available, recently serviced, and ready to drive away. Contact for details and viewing.",
       price,
       featured: i % 19 === 0,
-      imageUrl: categoryRoll === 2 ? pick([IMG.bike1, IMG.bike2, IMG.bike3] as const) : categoryRoll === 1 ? pick([IMG.van1, IMG.van2, IMG.van3] as const) : pick([IMG.bmw3, IMG.audi, IMG.vw, IMG.mini, IMG.landrover, IMG.tesla, IMG.ford, IMG.merc, IMG.porsche] as const),
+      imageUrl:
+        categoryType === "motorbike"
+          ? pick([IMG.bike1, IMG.bike2, IMG.bike3] as const)
+          : categoryType === "van" || categoryType === "motorhome"
+            ? pick([IMG.van1, IMG.van2, IMG.van3] as const)
+            : pick([IMG.bmw3, IMG.audi, IMG.vw, IMG.mini, IMG.landrover, IMG.tesla, IMG.ford, IMG.merc, IMG.porsche] as const),
       attributes: baseAttributes,
       daysAgo: random(0, 28),
     });

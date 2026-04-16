@@ -25,7 +25,7 @@ export interface ListingAttributeFieldConfig {
   step?: number;
 }
 
-const VEHICLE_CATEGORY_SLUGS = new Set(["car", "van", "motorbike"]);
+const VEHICLE_CATEGORY_SLUGS = new Set(["car", "van", "motorbike", "motorhome"]);
 const EV_COMPATIBLE_FUELS = new Set(["Electric", "Plug-in Hybrid"]);
 const EV_ONLY_ATTRIBUTE_SLUGS = new Set(["battery-range", "charging-time"]);
 const ELECTRIC_ONLY_HIDDEN_ATTRIBUTE_SLUGS = new Set([

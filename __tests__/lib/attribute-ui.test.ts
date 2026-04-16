@@ -63,6 +63,12 @@ describe("getAttributeFieldConfig", () => {
     expect(config?.options?.includes("BMW")).toBe(true);
   });
 
+  it("treats motorhome as a vehicle category", () => {
+    const config = getAttributeFieldConfig("motorhome", makeDef, undefined);
+    expect(config?.control).toBe("select");
+    expect(config?.options?.includes("Ford")).toBe(true);
+  });
+
   it("hides EV-only fields for petrol vehicles and duplicate location always", () => {
     expect(getAttributeFieldConfig("car", batteryRangeDef, "Petrol")).toBeNull();
     expect(getAttributeFieldConfig("car", locationDef, "Electric")).toBeNull();
@@ -117,5 +123,16 @@ describe("validateListingAttributes", () => {
       { attributeDefinitionId: modelDef.id, value: "320d" },
       { attributeDefinitionId: fuelTypeDef.id, value: "Petrol" },
     ]);
+  });
+
+  it("requires make and model for motorhomes", () => {
+    const result = validateListingAttributes({
+      categorySlug: "motorhome",
+      definitions,
+      attributes: [],
+    });
+
+    expect(result.fieldErrors[`attr-${makeDef.id}`]).toEqual(["Make is required."]);
+    expect(result.fieldErrors[`attr-${modelDef.id}`]).toEqual(["Model is required."]);
   });
 });

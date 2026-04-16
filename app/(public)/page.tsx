@@ -4,9 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
-import { ListingCard } from "@/components/marketplace/listing-card";
 import { FeaturedListingsCarousel } from "@/components/marketplace/home/featured-listings-carousel";
 import { HeroSearch } from "@/components/marketplace/hero-search";
+import { HomeVehicleCheck } from "@/components/vehicle-check/home-vehicle-check";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
@@ -17,7 +17,7 @@ import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry
 export default async function HomePage() {
   await expireStaleLiveListings();
   const liveWhere = liveListingWhere();
-  /* Fetch categories + latest listings per top-2 categories */
+  /* Fetch categories and dealer/search datasets */
   const [categories, regions, makeDefs, modelDefs, dealers, soldCount] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
@@ -107,27 +107,6 @@ export default async function HomePage() {
     },
   });
 
-  /* Get the two largest categories for featured rows */
-  const topCategories = [...categories]
-    .sort((a, b) => b._count.listings - a._count.listings)
-    .slice(0, 2);
-
-  /* Fetch 4 listings per top category */
-  const categoryListings = await Promise.all(
-    topCategories.map(async (cat) => {
-      const listings = await db.listing.findMany({
-        where: { ...liveWhere, categoryId: cat.id },
-        orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
-        take: 4,
-        include: {
-          images: { take: 1, orderBy: { order: "asc" } },
-          category: true,
-          region: true,
-        },
-      });
-      return { category: cat, listings };
-    }),
-  );
   const featuredCarouselListings = featuredListings.map((listing) => ({
     id: listing.id,
     title: listing.title,
@@ -157,7 +136,7 @@ export default async function HomePage() {
             />
           </div>
           <p className="mx-auto mt-3 sm:mt-5 max-w-xl text-base sm:text-lg text-metallic-400">
-            Cars, vans, motorbikes and more &mdash; from trusted Isle of Man sellers.
+            Cars, vans, motorbikes, and motorhomes &mdash; from trusted Isle of Man sellers.
           </p>
 
           <HeroSearch
@@ -196,43 +175,10 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ============ PER-CATEGORY LISTING ROWS ============ */}
-      {categoryListings.map(({ category, listings }) =>
-        listings.length > 0 ? (
-          <section
-            key={category.id}
-            className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8"
-          >
-            {/* Section header with accent underline */}
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mb-6 sm:mb-8">
-              <h2 className="section-heading-accent text-xl sm:text-2xl font-bold text-text-primary font-heading">
-                {category.name}
-              </h2>
-              <Link
-                href={`/categories/${category.slug}`}
-                className="inline-flex items-center gap-1 text-sm font-medium text-metallic-400 hover:text-neon-blue-400 transition-colors"
-              >
-                See All <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  title={listing.title}
-                  price={listing.price / 100}
-                  imageSrc={listing.images[0]?.url}
-                  location={listing.region.name}
-                  featured={listing.featured}
-                  badge={listing.featured ? "Featured" : undefined}
-                  href={`/listings/${listing.id}`}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null,
-      )}
+      {/* ============ QUICK VEHICLE CHECK ============ */}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+        <HomeVehicleCheck />
+      </section>
 
       {/* ============ DEALER SPOTLIGHTS ============ */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">

@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     default: "iTrader.im – Isle of Man Vehicle Sales",
     template: "%s | itrader.im",
   },
-  description: "Buy and sell cars, vans and motorbikes on the Isle of Man.",
+  description: "Buy and sell cars, vans, motorbikes, and motorhomes on the Isle of Man.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   ),

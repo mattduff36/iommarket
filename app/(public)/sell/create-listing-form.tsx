@@ -18,6 +18,72 @@ import {
   isAttributeVisible,
   validateListingAttributes,
 } from "@/lib/listings/attribute-ui";
+import { mapVehicleResultToListingAttributes } from "@/lib/listings/vehicle-autofill";
+import type {
+  VehicleCheckResponse,
+  VehicleCheckResult,
+} from "@/lib/services/vehicle-check-types";
+import { formatRegistrationForDisplay } from "@/lib/utils/registration";
+import { Bike, BusFront, Car, Truck } from "lucide-react";
+
+const REGISTRATION_LOOKUP_CATEGORY_SLUGS = new Set(["car", "van", "motorbike", "motorhome"]);
+
+const CATEGORY_TILE_META: Record<
+  string,
+  {
+    icon: typeof Car;
+    idleIconClass: string;
+    selectedClass: string;
+  }
+> = {
+  car: {
+    icon: Car,
+    idleIconClass: "text-neon-red-400",
+    selectedClass:
+      "border-neon-red-400 bg-neon-red-500/15 text-white ring-2 ring-neon-red-500/70 shadow-glow-red",
+  },
+  van: {
+    icon: Truck,
+    idleIconClass: "text-neon-blue-400",
+    selectedClass:
+      "border-neon-blue-400 bg-neon-blue-500/15 text-white ring-2 ring-neon-blue-500/70 shadow-glow-blue",
+  },
+  motorbike: {
+    icon: Bike,
+    idleIconClass: "text-premium-gold-400",
+    selectedClass:
+      "border-premium-gold-400 bg-premium-gold-500/20 text-white ring-2 ring-premium-gold-400/60 shadow-glow-gold",
+  },
+  motorhome: {
+    icon: BusFront,
+    idleIconClass: "text-violet-300",
+    selectedClass:
+      "border-violet-400 bg-violet-500/15 text-white ring-2 ring-violet-400/70 shadow-[0_0_18px_rgba(167,139,250,0.35)]",
+  },
+};
+
+function extractLookupErrorMessage(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    return "Vehicle lookup failed. Please try again.";
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (typeof record.error === "string") {
+    return record.error;
+  }
+
+  if (record.error && typeof record.error === "object") {
+    const firstValue = Object.values(record.error)[0];
+    if (typeof firstValue === "string") {
+      return firstValue;
+    }
+    if (Array.isArray(firstValue) && typeof firstValue[0] === "string") {
+      return firstValue[0];
+    }
+  }
+
+  return "Vehicle lookup failed. Please try again.";
+}
 
 interface AttributeDef {
   id: string;
@@ -47,6 +113,73 @@ interface Props {
   isFreeForUser?: boolean;
 }
 
+function inferCategorySlugFromLookupResult(result: VehicleCheckResult): string | null {
+  const hints = [
+    result.vehicle?.category,
+    result.vehicle?.wheelPlan,
+    result.vehicle?.model,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toUpperCase();
+
+  if (!hints) return null;
+
+  if (
+    /(MOTORHOME|MOTOR\s*HOME|MOTORCARAVAN|MOTOR\s*CARAVAN|CAMPER|CAMPERVAN|CARAVAN)/.test(
+      hints
+    )
+  ) {
+    return "motorhome";
+  }
+  if (/(MOTORBIKE|MOTORCYCLE|MOTOR\s*CYCLE|2[-\s]?WHEEL|BIKE)/.test(hints)) {
+    return "motorbike";
+  }
+  if (/(PANEL\s*VAN|LIGHT\s*GOODS|LGV|PICKUP|VAN|TRUCK|LORRY)/.test(hints)) {
+    return "van";
+  }
+  if (/(HATCHBACK|SALOON|ESTATE|COUPE|CONVERTIBLE|SUV|MPV|CAR)/.test(hints)) {
+    return "car";
+  }
+
+  return null;
+}
+
+function inferCategoryFromLookupResult(
+  result: VehicleCheckResult,
+  categories: CategoryOption[]
+): CategoryOption | null {
+  const inferredSlug = inferCategorySlugFromLookupResult(result);
+  if (!inferredSlug) return null;
+  return categories.find((category) => category.slug === inferredSlug) ?? null;
+}
+
+function normalizeTitleToken(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function buildSuggestedListingTitle(params: {
+  year: string | null;
+  make: string | null;
+  model: string | null;
+}): string | null {
+  const year = normalizeTitleToken(params.year);
+  const make = normalizeTitleToken(params.make);
+  const model = normalizeTitleToken(params.model);
+
+  const parts = [year, make, model].filter(
+    (part): part is string => Boolean(part)
+  );
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const title = parts.join(" ").slice(0, 120).trim();
+  return title.length > 0 ? title : null;
+}
+
 export function CreateListingForm({ categories, regions, mode = "private", isFreeForUser = false }: Props) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -55,12 +188,21 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [titleValue, setTitleValue] = useState("");
   const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [supportPlatform, setSupportPlatform] = useState(false);
+  const [registrationInput, setRegistrationInput] = useState("");
+  const [lookupPending, setLookupPending] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupMeta, setLookupMeta] = useState<string | null>(null);
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const isLookupCategorySupported = Boolean(
+    selectedCategory &&
+      REGISTRATION_LOOKUP_CATEGORY_SLUGS.has(selectedCategory.slug)
+  );
   const fuelTypeAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "fuel-type");
   const isDetailsStep = step === 1;
   const selectedFuelType = fuelTypeAttribute
@@ -89,10 +231,34 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
   }
 
   function handleCategoryChange(categoryId: string) {
+    if (categoryId === selectedCategoryId) {
+      return;
+    }
     setSelectedCategoryId(categoryId);
     setAttributeValues({});
     setFieldErrors({});
     setError(null);
+    setLookupError(null);
+    setLookupMeta(null);
+  }
+
+  function pruneHiddenAttributes(
+    values: Record<string, string>,
+    category: CategoryOption
+  ) {
+    const nextValues = { ...values };
+    const fuelTypeDef = category.attributes.find(
+      (attribute) => attribute.slug === "fuel-type"
+    );
+    const fuelType = fuelTypeDef ? nextValues[fuelTypeDef.id] : undefined;
+
+    for (const candidate of category.attributes) {
+      if (!isAttributeVisible(category.slug, candidate.slug, fuelType || undefined)) {
+        delete nextValues[candidate.id];
+      }
+    }
+
+    return nextValues;
   }
 
   function handleAttributeChange(attribute: AttributeDef, value: string) {
@@ -103,20 +269,176 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
       }
 
       if (attribute.slug === "fuel-type") {
-        for (const candidate of selectedCategory.attributes) {
-          if (!isAttributeVisible(selectedCategory.slug, candidate.slug, value || undefined)) {
-            delete nextValues[candidate.id];
-          }
-        }
+        return pruneHiddenAttributes(nextValues, selectedCategory);
       }
 
       return nextValues;
     });
   }
 
-  function nextStep() {
-    if (step === 1 && formRef.current && !formRef.current.reportValidity()) {
+  async function handleVehicleLookup() {
+    if (selectedCategory && !isLookupCategorySupported) {
+      setLookupError(
+        "Vehicle lookup is available for car, van, motorbike, and motorhome listings."
+      );
+      setLookupMeta(null);
       return;
+    }
+
+    const submittedRegistration = registrationInput.trim();
+    if (!submittedRegistration) {
+      setLookupError("Enter a number plate to run the lookup.");
+      setLookupMeta(null);
+      return;
+    }
+
+    setLookupPending(true);
+    setLookupError(null);
+    setLookupMeta(null);
+
+    try {
+      const response = await fetch("/api/vehicle-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ registration: submittedRegistration }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | VehicleCheckResponse
+        | Record<string, unknown>
+        | null;
+
+      if (!response.ok || !payload || !("success" in payload) || payload.success !== true) {
+        setLookupError(extractLookupErrorMessage(payload));
+        return;
+      }
+      const lookupPayload = payload as VehicleCheckResponse;
+
+      let activeCategory = selectedCategory;
+      let autoSelectedCategoryName: string | null = null;
+      if (!activeCategory) {
+        const inferredCategory = inferCategoryFromLookupResult(
+          lookupPayload.result,
+          categories
+        );
+        if (!inferredCategory) {
+          setLookupError(
+            "Could not auto-select a category from the lookup result. Please choose a category and try again."
+          );
+          setLookupMeta(null);
+          return;
+        }
+        activeCategory = inferredCategory;
+        autoSelectedCategoryName = inferredCategory.name;
+        setSelectedCategoryId(inferredCategory.id);
+      }
+
+      if (!REGISTRATION_LOOKUP_CATEGORY_SLUGS.has(activeCategory.slug)) {
+        setLookupError(
+          "Vehicle lookup is available for car, van, motorbike, and motorhome listings."
+        );
+        setLookupMeta(null);
+        return;
+      }
+
+      const mapped = mapVehicleResultToListingAttributes({
+        definitions: activeCategory.attributes,
+        result: lookupPayload.result,
+      });
+
+      const yearDefinition = activeCategory.attributes.find(
+        (attribute) => attribute.slug === "year"
+      );
+      const makeDefinition = activeCategory.attributes.find(
+        (attribute) => attribute.slug === "make"
+      );
+      const modelDefinition = activeCategory.attributes.find(
+        (attribute) => attribute.slug === "model"
+      );
+      const suggestedTitle = buildSuggestedListingTitle({
+        year: yearDefinition ? mapped.values[yearDefinition.id] ?? null : null,
+        make:
+          (makeDefinition ? mapped.values[makeDefinition.id] ?? null : null) ??
+          lookupPayload.result.vehicle?.make ??
+          lookupPayload.result.motHistory?.make ??
+          null,
+        model:
+          (modelDefinition ? mapped.values[modelDefinition.id] ?? null : null) ??
+          lookupPayload.result.vehicle?.model ??
+          lookupPayload.result.motHistory?.model ??
+          null,
+      });
+      const didSuggestTitle = Boolean(suggestedTitle && !titleValue.trim());
+
+      setRegistrationInput(formatRegistrationForDisplay(submittedRegistration));
+      if (didSuggestTitle && suggestedTitle) {
+        setTitleValue(suggestedTitle);
+      }
+
+      if (mapped.appliedAttributeIds.length === 0 && !didSuggestTitle) {
+        setLookupMeta(
+          "Vehicle found, but no matching listing fields were available to auto-fill."
+        );
+        return;
+      }
+
+      setAttributeValues((currentValues) =>
+        pruneHiddenAttributes(
+          { ...currentValues, ...mapped.values },
+          activeCategory
+        )
+      );
+      setFieldErrors((currentErrors) => {
+        const nextErrors = { ...currentErrors };
+        for (const attributeId of mapped.appliedAttributeIds) {
+          delete nextErrors[`attr-${attributeId}`];
+        }
+        if (didSuggestTitle) {
+          delete nextErrors.title;
+        }
+        return nextErrors;
+      });
+
+      const statusMessages: string[] = [];
+      if (autoSelectedCategoryName) {
+        statusMessages.push(`Category auto-selected: ${autoSelectedCategoryName}`);
+      }
+      if (mapped.appliedAttributeIds.length > 0) {
+        statusMessages.push(
+          `Auto-filled ${mapped.appliedAttributeIds.length} field${mapped.appliedAttributeIds.length === 1 ? "" : "s"} from registration data`
+        );
+      }
+      if (didSuggestTitle) {
+        statusMessages.push("Suggested a listing title");
+      }
+
+      const warningSuffix = lookupPayload.result.warnings.length
+        ? ` (${lookupPayload.result.warnings.length} warning${lookupPayload.result.warnings.length === 1 ? "" : "s"} reported in lookup data).`
+        : ".";
+      setLookupMeta(
+        `${statusMessages.join(". ")}. Please review before submitting${warningSuffix}`
+      );
+    } catch {
+      setLookupError("Vehicle lookup failed. Please try again.");
+    } finally {
+      setLookupPending(false);
+    }
+  }
+
+  function nextStep() {
+    if (step === 1) {
+      if (!selectedCategoryId) {
+        setFieldErrors((current) => ({
+          ...current,
+          categoryId: ["Please choose a category."],
+        }));
+        return;
+      }
+      if (formRef.current && !formRef.current.reportValidity()) {
+        return;
+      }
     }
     if (step === 2 && uploadedImages.length < 2) {
       setFieldErrors({});
@@ -252,9 +574,109 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
       <CardContent>
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <div className={isDetailsStep ? "space-y-6" : "hidden"}>
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <h3 className="text-sm font-semibold text-text-primary">
+                  Category
+                </h3>
+                <input type="hidden" name="categoryId" value={selectedCategoryId} />
+                <div className="grid grid-cols-4 gap-2">
+                  {categories.map((category) => {
+                    const isSelected = category.id === selectedCategoryId;
+                    const meta = CATEGORY_TILE_META[category.slug];
+                    const Icon = meta?.icon ?? Car;
+                    return (
+                      <Button
+                        key={category.id}
+                        type="button"
+                        variant="ghost"
+                        aria-pressed={isSelected}
+                        onClick={() => handleCategoryChange(category.id)}
+                        className={[
+                          "h-16 w-full flex-col gap-1 rounded-md border text-[11px] leading-tight sm:text-xs",
+                          "font-semibold normal-case not-italic",
+                          isSelected
+                            ? (meta?.selectedClass ??
+                              "border-neon-blue-400 bg-neon-blue-500/15 text-white ring-2 ring-neon-blue-500/70")
+                            : "border-border bg-surface/40 text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
+                        ].join(" ")}
+                        leftIcon={
+                          <Icon
+                            className={`h-4 w-4 ${isSelected ? "text-white" : meta?.idleIconClass ?? "text-neon-blue-400"}`}
+                          />
+                        }
+                      >
+                        {category.name}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {getFieldError("categoryId") ? (
+                  <p id="category-error" className="text-xs text-text-energy">
+                    {getFieldError("categoryId")}
+                  </p>
+                ) : (
+                  <p className="text-xs text-text-secondary">
+                    Select the listing type first, then use number plate lookup.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <h3 className="text-sm font-semibold text-text-primary">
+                  Number Plate Lookup
+                </h3>
+                <p className="text-xs text-text-secondary">
+                  Enter a UK or Isle of Man plate to auto-fill available vehicle details.
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <Input
+                    label="Number Plate"
+                    value={registrationInput}
+                    onChange={(event) => {
+                      setRegistrationInput(
+                        event.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z0-9 -]/g, "")
+                      );
+                      setLookupError(null);
+                    }}
+                    onBlur={() => {
+                      if (!registrationInput.trim()) return;
+                      setRegistrationInput(formatRegistrationForDisplay(registrationInput));
+                    }}
+                    placeholder="e.g. AB12 CDE or MAN 123"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => void handleVehicleLookup()}
+                    loading={lookupPending}
+                    disabled={lookupPending}
+                  >
+                    Lookup Vehicle
+                  </Button>
+                </div>
+                {!selectedCategory ? (
+                  <p className="text-xs text-text-secondary">
+                    If category is empty, lookup will try to auto-select one from returned data.
+                  </p>
+                ) : !isLookupCategorySupported ? (
+                  <p className="text-xs text-text-secondary">
+                    Lookup is available for car, van, motorbike, and motorhome categories.
+                  </p>
+                ) : null}
+                {lookupError ? (
+                  <p className="text-xs text-text-error">{lookupError}</p>
+                ) : null}
+                {lookupMeta ? (
+                  <p className="text-xs text-text-secondary">{lookupMeta}</p>
+                ) : null}
+              </div>
+
               <Input
                 label="Title"
                 name="title"
+                value={titleValue}
+                onChange={(event) => setTitleValue(event.target.value)}
                 required={isDetailsStep}
                 minLength={5}
                 maxLength={120}
@@ -305,39 +727,6 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
 
               <div className="flex flex-col gap-1">
                 <label
-                  htmlFor="categoryId"
-                  className="text-sm font-medium text-text-primary"
-                >
-                  Category
-                </label>
-                <select
-                  id="categoryId"
-                  name="categoryId"
-                  required={isDetailsStep}
-                  value={selectedCategoryId}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
-                  aria-invalid={getFieldError("categoryId") ? true : undefined}
-                  aria-describedby={getFieldError("categoryId") ? "category-error" : undefined}
-                  className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
-                    getFieldError("categoryId") ? "border-neon-red-500" : "border-border"
-                  }`}
-                >
-                  <option value="">Select a category</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {getFieldError("categoryId") ? (
-                  <p id="category-error" className="text-xs text-text-energy">
-                    {getFieldError("categoryId")}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label
                   htmlFor="regionId"
                   className="text-sm font-medium text-text-primary"
                 >
@@ -367,6 +756,7 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
                   </p>
                 ) : null}
               </div>
+
           </div>
 
           <div className={step === 2 ? "space-y-3" : "hidden"}>
