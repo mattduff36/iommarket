@@ -11,7 +11,7 @@ import {
 export const metadata: Metadata = {
   title: "Sign Up",
   description:
-    "Create your itrader.im account to save listings, save searches, review dealers, and sell when you are ready.",
+    "Create your itrader.im account to save favourites, save searches, review dealers, and sell when you're ready.",
 };
 
 interface Props {
@@ -58,8 +58,8 @@ export default async function SignUpPage({ searchParams }: Props) {
           Create Your Account
         </h1>
         <p className="mt-4 text-lg text-text-secondary max-w-xl mx-auto">
-          Join Isle of Man&apos;s trusted vehicle marketplace to save favourites,
-          save searches, review dealers, and start selling when it suits you.
+          Join the Isle of Man&apos;s trusted vehicle marketplace. Save favourites,
+          track searches, and sell when you&apos;re ready.
         </p>
       </div>
 

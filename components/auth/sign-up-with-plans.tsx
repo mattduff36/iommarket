@@ -79,17 +79,17 @@ export function SignUpWithPlans({
     {
       icon: Heart,
       title: "Save listings",
-      description: "Keep your favourites in one place and come back when you are ready.",
+      description: "Save favourites and come back when you are ready.",
     },
     {
       icon: Search,
       title: "Save searches",
-      description: "Reuse your filters in one click and stay on top of new matches.",
+      description: "Reuse your filters in one click.",
     },
     {
       icon: Star,
       title: "Review dealers",
-      description: "Signed-in members can leave named feedback on dealer profiles.",
+      description: "Leave named feedback on dealer profiles.",
     },
   ];
 
@@ -171,17 +171,17 @@ export function SignUpWithPlans({
           </p>
           <h2 className="mt-3 text-2xl font-bold text-text-primary font-heading">
             {isDealerSignup
-              ? "Create your account to continue to dealer setup"
+              ? "Create your account to continue"
               : isPrivateSellerIntent
-                ? "Create your account and keep selling when you are ready"
-                : "Create an account for buying, browsing, and selling later"}
+                ? "Create your account to continue selling"
+                : "Create an account to save, browse, and sell"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-text-secondary">
             {isDealerSignup
-              ? "You are one step away from choosing your dealer plan. Create your account now and we will take you straight back to dealer setup after you confirm your email."
+              ? "Create your account now and we will take you back to dealer setup after you confirm your email."
               : isPrivateSellerIntent
-                ? "Create a free account first, then continue into the private seller flow. You can still save favourites, save searches, and leave dealer reviews along the way."
-                : "Your account lets you save favourites, save searches, leave named dealer reviews, and move into private selling or dealer upgrade flows whenever you choose."}
+                ? "Create a free account, then continue to the private seller flow."
+                : "Save favourites, save searches, review dealers, and start selling when you are ready."}
           </p>
         </div>
 
@@ -224,15 +224,15 @@ export function SignUpWithPlans({
             {loading ? "Creating account…" : submitLabel}
           </Button>
           <p className="text-xs leading-5 text-text-secondary">
-            By joining, you can use buyer tools immediately and choose to list privately or
-            upgrade to a dealer plan later on the same account.
+            Use buyer tools now, then move into private or dealer selling later on the same
+            account.
           </p>
         </div>
       </form>
 
       <div className="space-y-4">
         <div className="rounded-2xl border border-border bg-surface-elevated/70 p-6 shadow-low">
-          <h3 className="text-lg font-semibold text-text-primary">What your account unlocks</h3>
+          <h3 className="text-lg font-semibold text-text-primary">What you can do</h3>
           <div className="mt-5 space-y-4">
             {benefitCards.map((card) => {
               const Icon = card.icon;
@@ -263,13 +263,13 @@ export function SignUpWithPlans({
               <div>
                 <p className="font-medium text-text-primary">Private selling stays available</p>
                 <p className="mt-1">
-                  Use the same account to post a private listing any time from the sell flow.
+                  Use the same account to post a private listing at any time.
                 </p>
                 {showFreeOffer ? (
                   <p className="mt-2 text-xs text-premium-gold-500">
                     {isFreeWindowActive
-                      ? "Private seller listings are currently free during launch."
-                      : `${slotsRemaining} free private seller launch spots are still available.`}
+                      ? "Private seller listings are free during launch."
+                      : `${slotsRemaining} free private seller launch spots left.`}
                   </p>
                 ) : null}
               </div>
@@ -282,7 +282,7 @@ export function SignUpWithPlans({
               <div>
                 <p className="font-medium text-text-primary">Dealer upgrade when you need it</p>
                 <p className="mt-1">
-                  Start as a member today, then move into a dealer plan when your inventory grows.
+                  Upgrade to a dealer plan when your stock grows.
                 </p>
               </div>
             </div>
