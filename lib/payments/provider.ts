@@ -233,6 +233,18 @@ function normalizePaymentStatus(status: string | null): string | null {
   return status.replace(/\s+/g, "_").toUpperCase();
 }
 
+function hasPaymentSuccessKeyword(rawType: string): boolean {
+  return (
+    rawType.includes("succeed") ||
+    rawType.includes("paid") ||
+    rawType.includes("complete")
+  );
+}
+
+function hasPaymentFailureKeyword(rawType: string): boolean {
+  return rawType.includes("fail") || rawType.includes("declin");
+}
+
 function inferEventType(input: {
   rawType: string;
   paymentStatus: string | null;
@@ -254,6 +266,8 @@ function inferEventType(input: {
   }
 
   if (input.providerPaymentId || raw.includes("payment")) {
+    if (hasPaymentSuccessKeyword(raw)) return "payment.succeeded";
+    if (hasPaymentFailureKeyword(raw)) return "payment.failed";
     if (input.paymentStatus === "SUCCEEDED" || input.paymentStatus === "PAID" || input.paymentStatus === "COMPLETED") {
       return "payment.succeeded";
     }
