@@ -280,7 +280,7 @@ export function SignUpWithPlans({
                 <ShieldCheck className="h-3 w-3" />
               </div>
               <div>
-                <p className="font-medium text-text-primary">Dealer upgrade when you need it</p>
+                <p className="font-medium text-text-primary">Upgrade and become a dealer</p>
                 <p className="mt-1">
                   Upgrade to a dealer plan when your stock grows.
                 </p>
