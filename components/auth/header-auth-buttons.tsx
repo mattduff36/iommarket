@@ -39,9 +39,14 @@ export function HeaderAuthButtons({ authState }: Props) {
   if (!user) {
     return (
       <div className="flex items-center gap-3">
-        {/* Create account is hidden on mobile — it moves to the burger menu */}
-        <Button asChild variant="link" size="sm" className="hidden md:inline-flex">
-          <Link href="/sign-up">Create account</Link>
+        {/* Sign up is hidden on mobile — it moves to the burger menu */}
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="hidden border border-neon-blue-500 bg-transparent font-bold uppercase italic text-neon-blue-500 hover:bg-neon-blue-500/10 hover:text-neon-blue-400 md:inline-flex"
+        >
+          <Link href="/sign-up">Sign Up</Link>
         </Button>
         <Button asChild variant="trust" size="sm">
           <Link href="/sign-in">Sign In</Link>

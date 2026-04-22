@@ -234,7 +234,7 @@ export function SiteHeader() {
                   onClick={() => setMobileOpen(false)}
                   className="block px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
                 >
-                  Create account
+                  Sign Up
                 </Link>
               </div>
             )}
