@@ -66,9 +66,16 @@ interface Props {
   regions: RegionOption[];
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
+  cloudinaryUploadPreset?: string | null;
 }
 
-export function CreateListingForm({ categories, regions, mode = "private", isFreeForUser = false }: Props) {
+export function CreateListingForm({
+  categories,
+  regions,
+  mode = "private",
+  isFreeForUser = false,
+  cloudinaryUploadPreset = null,
+}: Props) {
   const router = useRouter();
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
@@ -686,6 +693,7 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
               <ImageUpload
                 images={uploadedImages}
                 onImagesChange={setUploadedImages}
+                uploadPreset={cloudinaryUploadPreset}
                 maxImages={20}
               />
           </div>

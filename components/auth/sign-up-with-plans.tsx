@@ -6,13 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check } from "lucide-react";
-import {
-  FREE_LAUNCH_FEATURES,
-  SELLER_FEATURES,
-  DEALER_STARTER_FEATURES,
-  DEALER_PRO_FEATURES,
-} from "@/components/pricing/pricing-cards";
+import { Check, ChevronRight, Heart, Search, ShieldCheck, Star } from "lucide-react";
 
 function getSafeNextPath(nextPath: string | null | undefined): string {
   if (!nextPath) return "/";
@@ -43,29 +37,9 @@ function buildAuthCallbackUrl(nextPath: string): string {
   )}`;
 }
 
-interface PlanCard {
-  id: string;
-  title: string;
-  description: string;
-  price: string;
-  priceSuffix: string;
-  features: string[];
-  borderColor: string;
-  focusRingColor: string;
-  checkBg: string;
-  checkColor: string;
-  buttonVariant: "premium" | "trust" | "energy";
-  buttonLabel: string;
-  nextPath: string;
-  badge?: string;
-  badgeBg?: string;
-  gradientFrom?: string;
-}
-
 interface SignUpWithPlansProps {
   showFreeOffer: boolean;
   slotsRemaining: number;
-  slotsTotal: number;
   isFreeWindowActive: boolean;
   dealerTierIntent: "STARTER" | "PRO" | null;
 }
@@ -79,7 +53,8 @@ export function SignUpWithPlans({
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialNextPath = getSafeNextPath(searchParams.get("next"));
-  const [signedUpNextPath, setSignedUpNextPath] = useState(initialNextPath);
+  const defaultNextPath = initialNextPath === "/" ? "/account" : initialNextPath;
+  const [signedUpNextPath, setSignedUpNextPath] = useState(defaultNextPath);
   const signInHref = signedUpNextPath !== "/"
     ? `/sign-in?next=${encodeURIComponent(signedUpNextPath)}`
     : "/sign-in";
@@ -90,9 +65,36 @@ export function SignUpWithPlans({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
-  async function handleSubmit(planNextPath: string) {
+  const isDealerSignup = dealerTierIntent !== null;
+  const isPrivateSellerIntent =
+    defaultNextPath.startsWith("/sell") && !defaultNextPath.startsWith("/dealer/");
+  const submitLabel = isDealerSignup
+    ? `Create account and continue to ${dealerTierIntent === "PRO" ? "Dealer Pro" : "Dealer Starter"}`
+    : isPrivateSellerIntent
+      ? "Create account and continue to sell"
+      : "Create account";
+
+  const benefitCards = [
+    {
+      icon: Heart,
+      title: "Save listings",
+      description: "Keep your favourites in one place and come back when you are ready.",
+    },
+    {
+      icon: Search,
+      title: "Save searches",
+      description: "Reuse your filters in one click and stay on top of new matches.",
+    },
+    {
+      icon: Star,
+      title: "Review dealers",
+      description: "Signed-in members can leave named feedback on dealer profiles.",
+    },
+  ];
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError(null);
 
     if (!email || !password) {
@@ -101,14 +103,13 @@ export function SignUpWithPlans({
       return;
     }
 
-    const safePlanNextPath = getSafeNextPath(planNextPath);
-    setSignedUpNextPath(safePlanNextPath);
-    setSelectedPlan(safePlanNextPath);
+    const safeNextPath = getSafeNextPath(defaultNextPath);
+    setSignedUpNextPath(safeNextPath);
     setLoading(true);
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const dealerTierIntent = getDealerTierFromNextPath(safePlanNextPath);
+      const dealerTierIntent = getDealerTierFromNextPath(safeNextPath);
       const { data, error: err } = await supabase.auth.signUp({
         email,
         password,
@@ -119,7 +120,7 @@ export function SignUpWithPlans({
               ? { dealer_tier_intent: dealerTierIntent }
               : {}),
           },
-          emailRedirectTo: buildAuthCallbackUrl(safePlanNextPath),
+          emailRedirectTo: buildAuthCallbackUrl(safeNextPath),
         },
       });
       if (err) {
@@ -136,7 +137,6 @@ export function SignUpWithPlans({
       router.refresh();
     } finally {
       setLoading(false);
-      setSelectedPlan(null);
     }
   }
 
@@ -155,86 +155,36 @@ export function SignUpWithPlans({
     );
   }
 
-  const plans: PlanCard[] = [
-    ...(showFreeOffer
-      ? [
-          {
-            id: "free-launch",
-            title: "Free Launch Offer",
-            description: isFreeWindowActive
-              ? "FREE during our launch period"
-              : `${slotsRemaining} free spots remaining`,
-            price: "£0",
-            priceSuffix: " / listing",
-            features: FREE_LAUNCH_FEATURES.slice(0, 4),
-            borderColor: "border-premium-gold-500",
-            focusRingColor: "focus:ring-premium-gold-500",
-            checkBg: "bg-premium-gold-500/10",
-            checkColor: "text-premium-gold-500",
-            buttonVariant: "premium" as const,
-            buttonLabel: "Sign Up Free",
-            nextPath: "/sell/private",
-            badge: "Launch Offer",
-            badgeBg: "bg-premium-gold-500 text-black",
-          },
-        ]
-      : []),
-    {
-      id: "private-seller",
-      title: "Private Seller",
-      description: "Sell individual items",
-      price: "£4.99",
-      priceSuffix: " / listing",
-      features: SELLER_FEATURES.slice(0, 4),
-      borderColor: "border-neon-blue-500",
-      focusRingColor: "focus:ring-neon-blue-500",
-      checkBg: "bg-neon-blue-500/10",
-      checkColor: "text-neon-blue-500",
-      buttonVariant: "trust" as const,
-      buttonLabel: "Sign Up to Sell",
-      nextPath: "/sell/private",
-    },
-    {
-      id: "dealer-starter",
-      title: "Dealer Starter",
-      description: "For dealerships getting started",
-      price: "£29.99",
-      priceSuffix: " / month",
-      features: DEALER_STARTER_FEATURES.slice(0, 4),
-      borderColor: "border-red-500",
-      focusRingColor: "focus:ring-red-500",
-      checkBg: "bg-red-500/10",
-      checkColor: "text-red-500",
-      buttonVariant: "energy" as const,
-      buttonLabel: "Sign Up for Starter",
-      nextPath: "/dealer/subscribe?tier=STARTER",
-      gradientFrom: dealerTierIntent === "STARTER" ? "from-red-500/5" : undefined,
-      badge: dealerTierIntent === "STARTER" ? "Selected" : undefined,
-      badgeBg: dealerTierIntent === "STARTER" ? "bg-red-500 text-white" : undefined,
-    },
-    {
-      id: "dealer-pro",
-      title: "Dealer Pro",
-      description: "For larger monthly inventory",
-      price: "£49.99",
-      priceSuffix: " / month",
-      features: DEALER_PRO_FEATURES.slice(0, 4),
-      borderColor: "border-red-500",
-      focusRingColor: "focus:ring-red-500",
-      checkBg: "bg-red-500/10",
-      checkColor: "text-red-500",
-      buttonVariant: "energy" as const,
-      buttonLabel: "Sign Up for Pro",
-      nextPath: "/dealer/subscribe?tier=PRO",
-      badge: dealerTierIntent === "PRO" ? "Selected" : "Pro",
-      badgeBg: "bg-red-500 text-white",
-      gradientFrom: "from-red-500/5",
-    },
-  ];
-
   return (
-    <div className="space-y-12">
-      <div className="mx-auto max-w-sm">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+      <form
+        onSubmit={handleSubmit}
+        className="rounded-2xl border border-neon-blue-500/25 bg-surface p-6 shadow-low sm:p-8"
+      >
+        <div className="mb-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-neon-blue-500">
+            {isDealerSignup
+              ? "Dealer setup"
+              : isPrivateSellerIntent
+                ? "Private selling"
+                : "Member account"}
+          </p>
+          <h2 className="mt-3 text-2xl font-bold text-text-primary font-heading">
+            {isDealerSignup
+              ? "Create your account to continue to dealer setup"
+              : isPrivateSellerIntent
+                ? "Create your account and keep selling when you are ready"
+                : "Create an account for buying, browsing, and selling later"}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-text-secondary">
+            {isDealerSignup
+              ? "You are one step away from choosing your dealer plan. Create your account now and we will take you straight back to dealer setup after you confirm your email."
+              : isPrivateSellerIntent
+                ? "Create a free account first, then continue into the private seller flow. You can still save favourites, save searches, and leave dealer reviews along the way."
+                : "Your account lets you save favourites, save searches, leave named dealer reviews, and move into private selling or dealer upgrade flows whenever you choose."}
+          </p>
+        </div>
+
         <div className="space-y-4">
           <Input
             label="Email"
@@ -270,72 +220,88 @@ export function SignUpWithPlans({
               Sign in
             </Link>
           </p>
+          <Button type="submit" variant="trust" className="w-full" loading={loading}>
+            {loading ? "Creating account…" : submitLabel}
+          </Button>
+          <p className="text-xs leading-5 text-text-secondary">
+            By joining, you can use buyer tools immediately and choose to list privately or
+            upgrade to a dealer plan later on the same account.
+          </p>
         </div>
-      </div>
+      </form>
 
-      <div>
-        <h2 className="text-xl font-bold text-text-primary text-center mb-6">
-          Choose your plan to create your account
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-          {plans.map((plan) => (
-            <button
-              key={plan.id}
-              type="button"
-              disabled={loading}
-              onClick={() => handleSubmit(plan.nextPath)}
-              className={`relative flex flex-col p-4 rounded-lg border-2 text-left transition-all
-                ${plan.borderColor}
-                ${plan.gradientFrom ? `bg-gradient-to-br ${plan.gradientFrom} to-transparent` : ""}
-                hover:shadow-high focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface
-                ${plan.focusRingColor}
-                disabled:opacity-60 disabled:cursor-not-allowed`}
-            >
-              {plan.badge && (
-                <span className={`absolute top-0 right-0 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-bl-lg ${plan.badgeBg}`}>
-                  {plan.badge}
-                </span>
-              )}
-              <div className="mb-2">
-                <h3 className="text-base font-semibold text-text-primary">{plan.title}</h3>
-                <p className="text-xs text-text-secondary">{plan.description}</p>
-              </div>
-              <div className="mb-3">
-                <span className="text-xl font-bold text-text-primary">{plan.price}</span>
-                <span className="text-text-secondary text-xs">{plan.priceSuffix}</span>
-              </div>
-              <div className="flex flex-col gap-1 mb-4 flex-1">
-                {plan.features.map((feature) => (
-                  <div key={feature} className="flex items-center gap-1.5 text-xs">
-                    <div className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${plan.checkBg}`}>
-                      <Check className={`h-2 w-2 ${plan.checkColor}`} />
-                    </div>
-                    <span className="text-text-secondary">{feature}</span>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-border bg-surface-elevated/70 p-6 shadow-low">
+          <h3 className="text-lg font-semibold text-text-primary">What your account unlocks</h3>
+          <div className="mt-5 space-y-4">
+            {benefitCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div key={card.title} className="flex gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10 text-neon-blue-400">
+                    <Icon className="h-4 w-4" />
                   </div>
-                ))}
-              </div>
-              <div className="mt-auto">
-                <Button
-                  variant={plan.buttonVariant}
-                  size="sm"
-                  className="w-full pointer-events-none"
-                  tabIndex={-1}
-                  disabled={loading && selectedPlan === plan.nextPath}
-                >
-                  {loading && selectedPlan === plan.nextPath
-                    ? "Creating account\u2026"
-                    : plan.buttonLabel}
-                </Button>
-              </div>
-            </button>
-          ))}
+                  <div>
+                    <h4 className="text-sm font-semibold text-text-primary">{card.title}</h4>
+                    <p className="mt-1 text-sm leading-6 text-text-secondary">
+                      {card.description}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <p className="mt-4 text-center text-xs text-text-secondary">
-          Want more details?{" "}
-          <Link href="/pricing" className="text-text-trust hover:underline">
-            View full pricing breakdown
-          </Link>
-        </p>
+
+        <div className="rounded-2xl border border-border bg-surface p-6 shadow-low">
+          <h3 className="text-lg font-semibold text-text-primary">After you join</h3>
+          <div className="mt-4 space-y-3 text-sm text-text-secondary">
+            <div className="flex gap-3 rounded-lg border border-border/70 bg-surface-elevated/60 p-4">
+              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-blue-500/10 text-neon-blue-400">
+                <Check className="h-3 w-3" />
+              </div>
+              <div>
+                <p className="font-medium text-text-primary">Private selling stays available</p>
+                <p className="mt-1">
+                  Use the same account to post a private listing any time from the sell flow.
+                </p>
+                {showFreeOffer ? (
+                  <p className="mt-2 text-xs text-premium-gold-500">
+                    {isFreeWindowActive
+                      ? "Private seller listings are currently free during launch."
+                      : `${slotsRemaining} free private seller launch spots are still available.`}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex gap-3 rounded-lg border border-border/70 bg-surface-elevated/60 p-4">
+              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-red-500/10 text-neon-red-500">
+                <ShieldCheck className="h-3 w-3" />
+              </div>
+              <div>
+                <p className="font-medium text-text-primary">Dealer upgrade when you need it</p>
+                <p className="mt-1">
+                  Start as a member today, then move into a dealer plan when your inventory grows.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button asChild variant={isDealerSignup ? "energy" : "ghost"} size="sm">
+              <Link href={isDealerSignup ? defaultNextPath : "/pricing"}>
+                {isDealerSignup ? "Review dealer plan" : "Compare dealer plans"}
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={isPrivateSellerIntent ? "/sell" : "/search"}>
+                {isPrivateSellerIntent ? "Back to sell flow" : "Browse marketplace"}
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

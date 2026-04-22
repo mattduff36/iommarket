@@ -16,15 +16,18 @@ export interface UploadedImage {
 interface ImageUploadProps {
   images: UploadedImage[];
   onImagesChange: Dispatch<SetStateAction<UploadedImage[]>>;
+  uploadPreset?: string | null;
   maxImages?: number;
 }
 
 export function ImageUpload({
   images,
   onImagesChange,
+  uploadPreset = null,
   maxImages = 10,
 }: ImageUploadProps) {
   const [error, setError] = useState<string | null>(null);
+  const hasUploadPreset = Boolean(uploadPreset?.trim());
 
   const handleUpload = useCallback(
     (result: CloudinaryUploadWidgetResults) => {
@@ -112,36 +115,52 @@ export function ImageUpload({
 
       {/* Upload button */}
       {images.length < maxImages && (
-        <CldUploadWidget
-          uploadPreset="iommarket_unsigned"
-          options={{
-            folder: IMAGE_CONSTRAINTS.folder,
-            maxFileSize: IMAGE_CONSTRAINTS.maxFileSizeBytes,
-            clientAllowedFormats: [...IMAGE_CONSTRAINTS.allowedFormats],
-            maxImageWidth: IMAGE_CONSTRAINTS.maxWidth,
-            maxImageHeight: IMAGE_CONSTRAINTS.maxHeight,
-            multiple: true,
-            maxFiles: maxImages - images.length,
-            sources: ["local", "camera"],
-            cropping: false,
-          }}
-          onSuccess={handleUpload}
-        >
-          {({ open }) => (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => open()}
-              className="w-full"
-            >
-              <ImagePlus className="h-4 w-4" />
-              Add Photos
-            </Button>
-          )}
-        </CldUploadWidget>
+        hasUploadPreset ? (
+          <CldUploadWidget
+            uploadPreset={uploadPreset ?? undefined}
+            options={{
+              folder: IMAGE_CONSTRAINTS.folder,
+              maxFileSize: IMAGE_CONSTRAINTS.maxFileSizeBytes,
+              clientAllowedFormats: [...IMAGE_CONSTRAINTS.allowedFormats],
+              maxImageWidth: IMAGE_CONSTRAINTS.maxWidth,
+              maxImageHeight: IMAGE_CONSTRAINTS.maxHeight,
+              multiple: true,
+              maxFiles: maxImages - images.length,
+              sources: ["local", "camera"],
+              cropping: false,
+            }}
+            onSuccess={handleUpload}
+          >
+            {({ open }) => (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => open()}
+                className="w-full"
+              >
+                <ImagePlus className="h-4 w-4" />
+                Add Photos
+              </Button>
+            )}
+          </CldUploadWidget>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled
+            className="w-full"
+          >
+            <ImagePlus className="h-4 w-4" />
+            Add Photos
+          </Button>
+        )
       )}
 
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {(error || !hasUploadPreset) && (
+        <p className="text-xs text-text-error">
+          {error ?? "Image uploads are temporarily unavailable because the Cloudinary upload preset is not configured."}
+        </p>
+      )}
 
       <p className="text-xs text-text-tertiary">
         Upload up to {maxImages} photos. JPG, PNG, or WebP, max 10MB each.

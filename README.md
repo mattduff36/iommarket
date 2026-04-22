@@ -50,6 +50,7 @@ cp .env.example .env
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret |
+| `CLOUDINARY_UPLOAD_PRESET` | Cloudinary unsigned upload preset used by listing photos |
 | `NEXT_PUBLIC_APP_URL` | App URL (e.g. `http://localhost:3000`) |
 
 **Note:** Supabase credentials are required for authenticated journeys.

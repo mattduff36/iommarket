@@ -27,11 +27,11 @@ export const FOOTER_NAV_ITEMS: NavItem[] = [
 ];
 
 const ACCOUNT_NAV_ITEMS: AccountNavItem[] = [
-  { label: "Dashboard", href: "/account" },
-  { label: "My Listings", href: "/account/listings" },
+  { label: "Account overview", href: "/account" },
+  { label: "My listings", href: "/account/listings" },
   { label: "Profile & Security", href: "/account/profile" },
-  { label: "Saved listings", href: "/account/favourites" },
-  { label: "Saved searches", href: "/account/saved-searches" },
+  { label: "Saved Listings", href: "/account/favourites" },
+  { label: "Saved Searches", href: "/account/saved-searches" },
   { label: "Dealer profile", href: "/dealer/profile", visibility: "dealer_admin" },
   { label: "Dealer dashboard", href: "/dealer/dashboard", visibility: "dealer_admin" },
   { label: "Change password", href: "/account/change-password" },
@@ -47,6 +47,13 @@ function canViewItem(item: AccountNavItem, role: AuthRole): boolean {
 export function getSellLandingPath(role: AuthRole): string | null {
   if (role === "USER") return "/sell/private";
   if (role === "DEALER") return "/sell/dealer";
+  return null;
+}
+
+export function getRoleLabel(role: AuthRole): string | null {
+  if (role === "USER") return "Member";
+  if (role === "DEALER") return "Dealer";
+  if (role === "ADMIN") return "Admin";
   return null;
 }
 

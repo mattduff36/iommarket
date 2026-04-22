@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAccountNavItems, type AuthRole } from "@/lib/navigation";
+import { getAccountNavItems, getRoleLabel, type AuthRole } from "@/lib/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,9 +39,9 @@ export function HeaderAuthButtons({ authState }: Props) {
   if (!user) {
     return (
       <div className="flex items-center gap-3">
-        {/* Sign Up is hidden on mobile — it moves to the burger menu */}
+        {/* Create account is hidden on mobile — it moves to the burger menu */}
         <Button asChild variant="link" size="sm" className="hidden md:inline-flex">
-          <Link href="/sign-up">Sign Up</Link>
+          <Link href="/sign-up">Create account</Link>
         </Button>
         <Button asChild variant="trust" size="sm">
           <Link href="/sign-in">Sign In</Link>
@@ -50,7 +50,7 @@ export function HeaderAuthButtons({ authState }: Props) {
     );
   }
 
-  const roleLabel = role ?? "USER";
+  const roleLabel = getRoleLabel(role) ?? "Member";
 
   return (
     <>

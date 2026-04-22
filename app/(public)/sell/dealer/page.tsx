@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { Button } from "@/components/ui/button";
 import { CreateListingForm } from "../create-listing-form";
 import { getSellFormData } from "../sell-form-data";
@@ -91,6 +92,7 @@ export default async function SellDealerPage() {
   }
 
   const { categories, regions } = await getSellFormData();
+  const cloudinaryUploadPreset = getCloudinaryUploadPreset();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -101,7 +103,12 @@ export default async function SellDealerPage() {
         Publish inventory from your dealer account. Your listing is submitted for moderation after this step.
       </p>
 
-      <CreateListingForm categories={categories} regions={regions} mode="dealer" />
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="dealer"
+        cloudinaryUploadPreset={cloudinaryUploadPreset}
+      />
     </div>
   );
 }

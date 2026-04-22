@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAccountNavItems,
+  getRoleLabel,
   getSellLandingPath,
   PUBLIC_NAV_ITEMS,
 } from "@/lib/navigation";
@@ -22,11 +23,22 @@ describe("getSellLandingPath", () => {
 });
 
 describe("getAccountNavItems", () => {
-  it("keeps dealer-only items hidden from regular users", () => {
+  it("keeps dealer-only items hidden from regular users while keeping buyer tools visible", () => {
     const userItems = getAccountNavItems("USER");
 
+    expect(userItems.some((item) => item.href === "/account/favourites")).toBe(true);
+    expect(userItems.some((item) => item.href === "/account/saved-searches")).toBe(true);
     expect(userItems.some((item) => item.href === "/dealer/profile")).toBe(false);
     expect(userItems.some((item) => item.href === "/admin")).toBe(false);
+  });
+});
+
+describe("getRoleLabel", () => {
+  it("shows customer-friendly labels for account roles", () => {
+    expect(getRoleLabel("USER")).toBe("Member");
+    expect(getRoleLabel("DEALER")).toBe("Dealer");
+    expect(getRoleLabel("ADMIN")).toBe("Admin");
+    expect(getRoleLabel(null)).toBeNull();
   });
 });
 

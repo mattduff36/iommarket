@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
+import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { CreateListingForm } from "../create-listing-form";
 import { getSellFormData } from "../sell-form-data";
 
@@ -22,6 +23,7 @@ export default async function SellPrivatePage() {
     getSellFormData(),
     isPrivateListingFreeForUser(user.id),
   ]);
+  const cloudinaryUploadPreset = getCloudinaryUploadPreset();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -45,6 +47,7 @@ export default async function SellPrivatePage() {
         regions={regions}
         mode="private"
         isFreeForUser={isFreeForUser}
+        cloudinaryUploadPreset={cloudinaryUploadPreset}
       />
     </div>
   );

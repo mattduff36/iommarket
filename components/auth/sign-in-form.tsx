@@ -115,9 +115,9 @@ export function SignInForm() {
           Forgot password?
         </Link>
         <p className="text-center text-sm text-text-secondary">
-          No account?{" "}
+          Need an account to save favourites, searches, or review dealers?{" "}
           <Link href={signUpHref} className="text-text-brand hover:underline">
-            Sign up
+            Create one
           </Link>
         </p>
       </div>
