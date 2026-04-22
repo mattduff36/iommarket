@@ -28,6 +28,12 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 type HostedReturnContext = "listing" | "featured" | "subscription";
 
+function assertDevMode() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Demo payment actions are not available in production.");
+  }
+}
+
 function buildHostedReturnUrl(params: {
   status: "success" | "cancel";
   context: HostedReturnContext;
@@ -369,6 +375,7 @@ export async function simulateDemoListingPaymentOutcome(input: {
   flow: "private" | "dealer";
   outcome: "success" | "declined";
 }) {
+  assertDevMode();
   const user = await requireAuth();
 
   const listing = await db.listing.findUnique({
@@ -466,6 +473,7 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
   tier: "STARTER" | "PRO";
   outcome: "success" | "declined";
 }) {
+  assertDevMode();
   const user = await requireAuth();
 
   if (!user.dealerProfile) {

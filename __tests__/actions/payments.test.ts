@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalSupportUrl = process.env.RIPPLE_LISTING_SUPPORT_URL;
+const originalNodeEnv = process.env.NODE_ENV;
 
 const {
   requireAuthMock,
   isPrivateListingFreeForUserMock,
   createListingCheckoutMock,
+  processProviderWebhookEventMock,
   captureExceptionMock,
   checkRateLimitMock,
   makeRateLimitKeyMock,
@@ -16,6 +18,7 @@ const {
   requireAuthMock: vi.fn(),
   isPrivateListingFreeForUserMock: vi.fn(),
   createListingCheckoutMock: vi.fn(),
+  processProviderWebhookEventMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   checkRateLimitMock: vi.fn(),
   makeRateLimitKeyMock: vi.fn(),
@@ -52,6 +55,10 @@ vi.mock("@/lib/monitoring", () => ({
   captureException: captureExceptionMock,
 }));
 
+vi.mock("@/lib/payments/webhook-processing", () => ({
+  processProviderWebhookEvent: processProviderWebhookEventMock,
+}));
+
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: checkRateLimitMock,
   makeRateLimitKey: makeRateLimitKeyMock,
@@ -68,7 +75,11 @@ vi.mock("@/lib/payments/provider", async () => {
   };
 });
 
-import { payForListing } from "@/actions/payments";
+import {
+  payForListing,
+  simulateDemoDealerSubscriptionOutcome,
+  simulateDemoListingPaymentOutcome,
+} from "@/actions/payments";
 
 describe("payForListing", () => {
   beforeEach(() => {
@@ -97,10 +108,16 @@ describe("payForListing", () => {
   afterEach(() => {
     if (originalSupportUrl === undefined) {
       delete process.env.RIPPLE_LISTING_SUPPORT_URL;
+    } else {
+      process.env.RIPPLE_LISTING_SUPPORT_URL = originalSupportUrl;
+    }
+
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
       return;
     }
 
-    process.env.RIPPLE_LISTING_SUPPORT_URL = originalSupportUrl;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it("skips optional support checkout for free private sellers when no support URL is configured", async () => {
@@ -117,5 +134,37 @@ describe("payForListing", () => {
     expect(isPrivateListingFreeForUserMock).toHaveBeenCalledWith("user_123");
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("demo payment actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NODE_ENV = "production";
+  });
+
+  it("blocks demo listing payment simulation in production", async () => {
+    await expect(
+      simulateDemoListingPaymentOutcome({
+        listingId: "listing_123",
+        flow: "private",
+        outcome: "success",
+      })
+    ).rejects.toThrow("Demo payment actions are not available in production.");
+
+    expect(requireAuthMock).not.toHaveBeenCalled();
+    expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks demo dealer subscription simulation in production", async () => {
+    await expect(
+      simulateDemoDealerSubscriptionOutcome({
+        tier: "STARTER",
+        outcome: "success",
+      })
+    ).rejects.toThrow("Demo payment actions are not available in production.");
+
+    expect(requireAuthMock).not.toHaveBeenCalled();
+    expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
 });
