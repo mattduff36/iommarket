@@ -6,14 +6,16 @@ import {
   createListingCheckout,
   createDealerSubscriptionCheckout,
   createFeaturedUpgradeCheckout,
-} from "@/lib/payments/stripe";
+  isOptionalSupportCheckoutConfigured,
+} from "@/lib/payments/provider";
 import {
   createCheckoutSchema,
   createDealerSubscriptionSchema,
   payForListingSchema,
 } from "@/lib/validations/payment";
 import {
-  getPrivateListingStripePriceId,
+  getFeaturedFeePence,
+  getListingFeePence,
   isPrivateListingFreeForUser,
 } from "@/lib/config/marketplace";
 import { captureException } from "@/lib/monitoring";
@@ -21,28 +23,27 @@ import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-function isStripeCheckoutConfigured() {
-  return Boolean(process.env.STRIPE_SECRET_KEY);
-}
-
 function toUserPaymentError(message: string) {
-  if (message.includes("STRIPE_SECRET_KEY")) {
+  if (message.includes("RIPPLE_LISTING_PAYMENT_URL")) {
+    return "Listing checkout is not configured yet. Please contact support.";
+  }
+  if (message.includes("RIPPLE_LISTING_SUPPORT_URL")) {
     return "Payments are temporarily unavailable in this environment. Please try again later.";
   }
-  if (message.includes("STRIPE_DEALER_PRO_PRICE_ID")) {
+  if (message.includes("RIPPLE_DEALER_PRO_URL")) {
     return "Dealer Pro checkout is not configured yet. Please contact support.";
   }
-  if (message.includes("STRIPE_DEALER_STARTER_PRICE_ID") || message.includes("STRIPE_DEALER_PRICE_ID")) {
+  if (message.includes("RIPPLE_DEALER_STARTER_URL")) {
     return "Dealer Starter checkout is not configured yet. Please contact support.";
   }
-  if (message.includes("STRIPE_PRIVATE_LISTING_FEE")) {
-    return "Private listing checkout is not configured yet. Please contact support.";
+  if (message.includes("RIPPLE_FEATURED_PAYMENT_URL")) {
+    return "Featured upgrade checkout is not configured yet. Please contact support.";
   }
   return message;
 }
 
 // ---------------------------------------------------------------------------
-// Pay for Listing (creates Stripe Checkout Session)
+// Pay for Listing (creates hosted payment session)
 // ---------------------------------------------------------------------------
 
 export async function payForListing(
@@ -100,7 +101,7 @@ export async function payForListing(
     if (shouldSkipPayment) {
       if (isFreePrivateSeller && supportAmountPence > 0) {
         // Optional support payments should never block the core listing submission flow.
-        if (!isStripeCheckoutConfigured()) {
+        if (!isOptionalSupportCheckoutConfigured()) {
           return { data: { checkoutUrl: null, skippedPayment: true } };
         }
 
@@ -123,12 +124,10 @@ export async function payForListing(
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
-    const listingPriceId = getPrivateListingStripePriceId();
-
     const session = await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
-      stripePriceId: listingPriceId,
+      amountInPence: getListingFeePence(),
       checkoutType: "listing_payment",
       supportAmountPence,
       customerEmail: user.email,
@@ -156,7 +155,7 @@ export async function payForListing(
 }
 
 // ---------------------------------------------------------------------------
-// Create Dealer Subscription (creates Stripe Checkout Session)
+// Create Dealer Subscription (creates hosted payment session)
 // ---------------------------------------------------------------------------
 
 export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTER") {
@@ -212,7 +211,7 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
 }
 
 // ---------------------------------------------------------------------------
-// Featured Listing Upgrade (creates Stripe Checkout Session)
+// Featured Listing Upgrade (creates hosted payment session)
 // ---------------------------------------------------------------------------
 
 export async function upgradeFeatured(listingId: string) {
@@ -265,6 +264,7 @@ export async function upgradeFeatured(listingId: string) {
       customerEmail: user.email,
       successUrl: `${APP_URL}/listings/${listing.id}?featured=true`,
       cancelUrl: `${APP_URL}/listings/${listing.id}`,
+      amountInPence: getFeaturedFeePence(),
     });
 
     return { data: { checkoutUrl: session.url } };

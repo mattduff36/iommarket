@@ -354,13 +354,15 @@ async function main() {
 
   // Dealer subscriptions (active)
   for (const dealer of [manxMotors, ramseyMotors, douglasAuto]) {
+    const demoSubscriptionId = `ripple_demo_sub_${dealer.slug}`;
     await prisma.subscription.upsert({
-      where: { stripeSubscriptionId: `demo_sub_${dealer.slug}` },
+      where: { providerSubscriptionId: demoSubscriptionId },
       update: {},
       create: {
         dealerId: dealer.id,
-        stripeSubscriptionId: `demo_sub_${dealer.slug}`,
-        stripePriceId: "price_demo_dealer_monthly",
+        paymentProvider: "RIPPLE",
+        providerSubscriptionId: demoSubscriptionId,
+        providerPlanId: "ripple_demo_gym_starter_monthly",
         status: "ACTIVE",
         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
@@ -447,14 +449,17 @@ async function main() {
     });
 
     // Create a corresponding payment record
+    const demoPaymentId = `ripple_demo_pay_${listing.id}`;
     await prisma.payment.create({
       data: {
         listingId: listing.id,
-        stripePaymentId: `demo_pi_${listing.id}`,
+        paymentProvider: "RIPPLE",
+        providerPaymentId: demoPaymentId,
+        providerReference: `ripple_demo_ref_${listing.id}`,
         amount: 499,
         currency: "gbp",
         status: "SUCCEEDED",
-        idempotencyKey: `demo_idem_${listing.id}`,
+        idempotencyKey: `ripple_demo_ref_${listing.id}`,
       },
     });
 
@@ -931,11 +936,13 @@ async function main() {
   await prisma.payment.create({
     data: {
       listingId: pendingListing.id,
-      stripePaymentId: `demo_pi_pending_${pendingListing.id}`,
+      paymentProvider: "RIPPLE",
+      providerPaymentId: `ripple_demo_pay_pending_${pendingListing.id}`,
+      providerReference: `ripple_demo_ref_pending_${pendingListing.id}`,
       amount: 499,
       currency: "gbp",
       status: "SUCCEEDED",
-      idempotencyKey: `demo_idem_pending_${pendingListing.id}`,
+      idempotencyKey: `ripple_demo_ref_pending_${pendingListing.id}`,
     },
   });
 

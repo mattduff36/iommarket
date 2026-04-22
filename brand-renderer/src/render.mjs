@@ -1013,7 +1013,7 @@ async function exportBadges() {
 
   // placeholders you can replace with official assets later
   writeText(path.join(payDir, "payment-secure.svg"), badgeSvg({ label: "Secure", color: "#B7ACAA", icon: "check", w: 240, h: 76 }));
-  writeText(path.join(payDir, "payment-stripe.svg"), badgeSvg({ label: "Stripe", color: "#B7ACAA", icon: "check", w: 240, h: 76 }));
+  writeText(path.join(payDir, "payment-ripple.svg"), badgeSvg({ label: "Ripple", color: "#B7ACAA", icon: "check", w: 240, h: 76 }));
 }
 
 // ---------- legal/misc icons ----------

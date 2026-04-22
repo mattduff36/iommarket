@@ -105,7 +105,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 ### F) Dealer Flow
 
 1. Dealer creates/uses account and profile.
-2. Dealer purchases subscription via Stripe Checkout.
+2. Dealer purchases subscription via Ripple hosted checkout.
 3. Active subscription unlocks dealer posting capability.
 4. Dealer profile page displays branding and current inventory.
 
@@ -225,7 +225,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 - **Database**: Postgres (Supabase Postgres compatible).
 - **Auth**: Supabase Auth.
 - **Image**: Cloudinary + `publicId` persistence and deletion hooks.
-- **Payments**: Stripe Checkout + subscriptions + webhooks + idempotency.
+- **Payments**: Ripple hosted checkout + subscriptions + webhooks + idempotency.
 - **Email**: Resend for contact/report confirmations.
 - **Analytics**: Vercel Analytics baseline events.
 - **Error Monitoring**: optional Sentry (minimal MVP setup).
@@ -378,7 +378,7 @@ Mitigations:
 #### Pay to publish
 - **Story**: As a seller, I can pay and then my listing is submitted for moderation.
 - **Acceptance**:
-  - Listing does not become public until Stripe checkout is successful.
+  - Listing does not become public until the payment provider confirms checkout success.
   - After payment, listing transitions to PENDING and appears in admin queue.
 
 #### Edit / renew / expire
@@ -520,7 +520,7 @@ Mitigations:
 Note: During local development without Clerk configured, the app should degrade gracefully (no auth gates, or a simple stub). For production, Clerk keys must be valid.
 
 ### Payments & subscriptions
-**Stripe**
+**Ripple**
 - One-off payments for listing fees and featured upgrades.
 - Recurring subscription for dealers.
 - Webhooks to confirm payment status; always treat webhooks as source of truth.
@@ -542,7 +542,7 @@ Future: pluggable search service interface (Meilisearch/Algolia/Typesense) witho
 - `createListing(input)`
 - `updateListing(input)`
 - `saveListingImages(listingId, images[])`
-- `payForListing(listingId)` → creates Stripe Checkout session
+- `payForListing(listingId)` → creates a hosted payment session
 - `createDealerSubscription()`
 - `submitListingForReview(listingId)`
 - `renewListing(listingId)`
@@ -564,15 +564,15 @@ Use **zod** on every action input and route handler.
 - Consider Upstash Ratelimit in production; for MVP, a simple limiter is acceptable but must be swapped later.
 
 ### Webhooks + idempotency
-- Stripe events:
-  - `checkout.session.completed`
-  - `customer.subscription.updated`
-  - `customer.subscription.deleted`
-  - `charge.refunded`
+- Provider events:
+  - `payment.succeeded`
+  - `subscription.updated`
+  - `subscription.cancelled`
+  - `payment.refunded`
 - Idempotency:
-  - Store idempotency keys and/or Stripe IDs in DB
-  - Upsert subscriptions by Stripe subscription ID
-  - Ensure payment creation is unique by payment intent ID
+  - Store idempotency keys and provider references in DB
+  - Upsert subscriptions by provider subscription ID
+  - Ensure payment creation is unique by provider payment reference
 
 ---
 
@@ -614,7 +614,7 @@ Do **not** introduce a new UI system.
 Goal: prove end-to-end value chain.
 - Create listing DRAFT (title, description, price, category, region)
 - Upload 1–3 photos (Cloudinary)
-- Stripe checkout for listing fee
+- Hosted checkout for listing fee
 - After payment: listing becomes PENDING
 - Admin approves → listing becomes LIVE
 - Public can browse LIVE listings on Home + Category page
@@ -623,7 +623,7 @@ Goal: prove end-to-end value chain.
 **Epics**
 - Data model + migrations
 - Listing CRUD + image upload
-- Stripe checkout + webhook confirmation
+- Hosted checkout + webhook confirmation
 - Browse/search/filter pages (MVP)
 - Admin moderation queue (approve/reject/takedown)
 
@@ -691,7 +691,7 @@ Refund/dispute handling:
 - DB: £0–£25
 - Cloudinary: £0–£20
 - Sentry/analytics: £0–£20
-- Stripe: per transaction fees
+- Ripple/Cashflows: per transaction fees
 
 ---
 
@@ -704,7 +704,7 @@ Refund/dispute handling:
 - Listing status transitions (policy rules)
 
 ### E2E smoke tests (Playwright)
-- Create listing → checkout (Stripe test) → success → admin approve → listing visible
+- Create listing → checkout → success → admin approve → listing visible
 - Search + filters + pagination
 - Report listing flow
 
@@ -712,8 +712,8 @@ Refund/dispute handling:
 - Enforce file type/size
 - Ensure image count limits
 
-### Stripe webhook tests
-- Stripe CLI to replay events
+### Payment webhook tests
+- Replay provider webhook payloads against the payment webhook route
 - Verify idempotency and correct state transitions
 
 ### Security basics
@@ -730,7 +730,7 @@ Refund/dispute handling:
 ### Repo structure proposal (aligned to current repo)
 - `app/(public)/*` public pages
 - `app/(admin)/*` admin pages
-- `app/api/webhooks/stripe/route.ts` webhook handler
+- `app/api/webhooks/payments/route.ts` webhook handler
 - `actions/*` server actions
 - `components/ui/*` primitives (existing)
 - `components/marketplace/*` domain components (existing)
@@ -744,12 +744,17 @@ Refund/dispute handling:
 - Clerk:
   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
   - `CLERK_SECRET_KEY`
-- Stripe:
-  - `STRIPE_SECRET_KEY`
-  - `STRIPE_WEBHOOK_SECRET`
-  - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_PRIVATE_LISTING_FEE`
-  - `STRIPE_DEALER_PRICE_ID`
+- Ripple:
+  - `RIPPLE_WEBHOOK_SECRET`
+  - `RIPPLE_LISTING_PAYMENT_URL`
+  - `RIPPLE_LISTING_SUPPORT_URL`
+  - `RIPPLE_FEATURED_PAYMENT_URL`
+  - `RIPPLE_DEALER_STARTER_URL`
+  - `RIPPLE_DEALER_PRO_URL`
+  - `RIPPLE_DEALER_STARTER_PLAN_ID`
+  - `RIPPLE_DEALER_PRO_PLAN_ID`
+  - `RIPPLE_DASHBOARD_URL`
+  - `RIPPLE_EMBED_SCRIPT_URL`
 - Cloudinary:
   - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
   - `CLOUDINARY_API_KEY`
@@ -760,7 +765,7 @@ Refund/dispute handling:
 ### README outline for future devs
 - Quick start + env vars
 - DB setup + migrations + seeding
-- Stripe webhook setup (Stripe CLI)
+- Ripple webhook setup
 - How to add categories/attributes
 - Deployment steps (Vercel)
 

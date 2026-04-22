@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Dev-only server actions that simulate Stripe webhook effects.
+ * Dev-only server actions that simulate payment-provider webhook effects.
  * These actions are guarded against production use.
  * Remove this file before going live (or leave it — it no-ops in production).
  */
@@ -17,7 +17,7 @@ function assertDevMode() {
 }
 
 // ---------------------------------------------------------------------------
-// Activate dealer subscription without Stripe
+// Activate dealer subscription without hosted checkout
 // ---------------------------------------------------------------------------
 
 export async function devActivateDealerSubscription() {
@@ -33,15 +33,17 @@ export async function devActivateDealerSubscription() {
 
   try {
     await db.subscription.upsert({
-      where: { stripeSubscriptionId: fakeSubId },
+      where: { providerSubscriptionId: fakeSubId },
       update: {
+        paymentProvider: "DEV",
         status: "ACTIVE",
         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
       create: {
         dealerId,
-        stripeSubscriptionId: fakeSubId,
-        stripePriceId: process.env.STRIPE_DEALER_PRICE_ID ?? "price_dev",
+        paymentProvider: "DEV",
+        providerSubscriptionId: fakeSubId,
+        providerPlanId: "dev_plan",
         status: "ACTIVE",
         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
@@ -56,7 +58,7 @@ export async function devActivateDealerSubscription() {
 }
 
 // ---------------------------------------------------------------------------
-// Mark listing as featured without Stripe
+// Mark listing as featured without hosted checkout
 // ---------------------------------------------------------------------------
 
 export async function devMarkListingFeatured(listingId: string) {
@@ -74,11 +76,13 @@ export async function devMarkListingFeatured(listingId: string) {
     const fakePaymentId = `dev_pi_featured_${listingId}`;
 
     await db.payment.upsert({
-      where: { stripePaymentId: fakePaymentId },
-      update: { status: "SUCCEEDED" },
+      where: { providerPaymentId: fakePaymentId },
+      update: { paymentProvider: "DEV", status: "SUCCEEDED" },
       create: {
         listingId,
-        stripePaymentId: fakePaymentId,
+        paymentProvider: "DEV",
+        providerPaymentId: fakePaymentId,
+        providerReference: `dev-featured-${listingId}`,
         amount: 0,
         currency: "gbp",
         status: "SUCCEEDED",

@@ -11,15 +11,36 @@ import {
 interface CancelSubButtonProps {
   subscriptionId: string;
   status: string;
+  enabled: boolean;
+  providerPortalUrl?: string | null;
 }
 
-export function CancelSubButton({ subscriptionId, status }: CancelSubButtonProps) {
+export function CancelSubButton({
+  subscriptionId,
+  status,
+  enabled,
+  providerPortalUrl,
+}: CancelSubButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   if (status === "CANCELLED") return null;
+  if (!enabled) {
+    return providerPortalUrl ? (
+      <a
+        href={providerPortalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-text-secondary underline"
+      >
+        Manage in Ripple
+      </a>
+    ) : (
+      <span className="text-xs text-text-tertiary">Manage in Ripple</span>
+    );
+  }
 
   function handleCancel(immediately: boolean) {
     setError(null);
@@ -66,15 +87,34 @@ export function CancelSubButton({ subscriptionId, status }: CancelSubButtonProps
 
 interface RefundSubPaymentButtonProps {
   subscriptionId: string;
+  enabled: boolean;
+  providerPortalUrl?: string | null;
 }
 
 export function RefundSubPaymentButton({
   subscriptionId,
+  enabled,
+  providerPortalUrl,
 }: RefundSubPaymentButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  if (!enabled) {
+    return providerPortalUrl ? (
+      <a
+        href={providerPortalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-text-secondary underline"
+      >
+        Manage in Ripple
+      </a>
+    ) : (
+      <span className="text-xs text-text-tertiary">Manage in Ripple</span>
+    );
+  }
 
   function handleRefund() {
     setError(null);

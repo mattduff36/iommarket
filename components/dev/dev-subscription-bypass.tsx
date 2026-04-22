@@ -24,7 +24,7 @@ export function DevSubscriptionBypass() {
           Dev Mode
         </p>
         <p className="text-sm text-text-secondary">
-          Stripe not configured. Use the bypass below to simulate a paid subscription.
+          Ripple checkout not configured. Use the bypass below to simulate a paid subscription.
         </p>
       </div>
       <Button

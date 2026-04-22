@@ -9,7 +9,7 @@ A trusted, hyper-local marketplace for the Isle of Man. Buy and sell vehicles, m
 - **UI**: React 19, Tailwind CSS v4, shadcn/ui + Radix UI
 - **Database**: PostgreSQL + Prisma ORM
 - **Auth**: Supabase Auth
-- **Payments**: Stripe (Checkout + Webhooks)
+- **Payments**: Ripple (Hosted Checkout + Webhooks)
 - **Images**: Cloudinary
 - **Deployment**: Vercel (serverless)
 - **Testing**: Vitest (unit) + Playwright (E2E)
@@ -38,17 +38,22 @@ cp .env.example .env
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
-| `STRIPE_SECRET_KEY` | Stripe secret key |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
-| `STRIPE_PRIVATE_LISTING_FEE` | Stripe Price ID for private seller listing checkout |
-| `STRIPE_DEALER_PRICE_ID` | Stripe Price ID for dealer subscription |
+| `RIPPLE_LISTING_PAYMENT_URL` | Ripple hosted payment URL for private listing checkout |
+| `RIPPLE_LISTING_SUPPORT_URL` | Ripple hosted payment URL for optional support payments |
+| `RIPPLE_FEATURED_PAYMENT_URL` | Ripple hosted payment URL for featured upgrades |
+| `RIPPLE_DEALER_STARTER_URL` | Ripple hosted subscription URL for dealer starter |
+| `RIPPLE_DEALER_PRO_URL` | Ripple hosted subscription URL for dealer pro |
+| `RIPPLE_DEALER_STARTER_PLAN_ID` | Ripple plan ID used to map starter subscriptions from webhooks |
+| `RIPPLE_DEALER_PRO_PLAN_ID` | Ripple plan ID used to map pro subscriptions from webhooks |
+| `RIPPLE_WEBHOOK_SECRET` | Ripple webhook signing secret |
+| `RIPPLE_DASHBOARD_URL` | Ripple portal URL for admin billing operations |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret |
 | `NEXT_PUBLIC_APP_URL` | App URL (e.g. `http://localhost:3000`) |
 
 **Note:** Supabase credentials are required for authenticated journeys.
+For local redirect smoke tests without onboarding credentials, the app falls back to public demo URLs from Ripple's `demo-gym` portal for hosted payment pages and the dashboard. A real `RIPPLE_WEBHOOK_SECRET` is still required to test webhook verification.
 
 ### 3. Database setup
 
@@ -85,8 +90,8 @@ The data model uses an **EAV (Entity-Attribute-Value)** pattern for category-spe
 - **ListingAttributeValue** — per-listing attribute values
 - **Listing** — marketplace listings
 - **ListingImage** — Cloudinary images
-- **Payment** — Stripe payment records
-- **Subscription** — dealer subscription records
+- **Payment** — provider-neutral payment records
+- **Subscription** — provider-neutral dealer subscription records
 - **Report** — trust & safety reports
 
 ### Status Models
@@ -119,39 +124,37 @@ To add a new category:
 
 Attributes support data types: `text`, `number`, `select`, `boolean`.
 
-## Stripe Setup
+## Ripple Setup
 
-### Webhook Setup (Local Development)
+### Hosted Checkout + Webhooks
+
+Set the Ripple portal webhook destination to:
 
 ```bash
-# Install Stripe CLI
-brew install stripe/stripe-cli/stripe
-
-# Login
-stripe login
-
-# Forward webhooks to local
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
-
-# Copy the webhook signing secret to .env as STRIPE_WEBHOOK_SECRET
+http://localhost:3000/api/webhooks/payments
 ```
+
+Use a tunnel or public preview URL when Ripple needs a publicly reachable endpoint.
+
+See `docs/payments/ripple-migration.md` for the current provider assumptions, event mapping, and cutover checklist.
 
 ### Webhook Events Handled
 
 | Event | Action |
 |-------|--------|
-| `checkout.session.completed` | Record payment, set listing to PENDING |
-| `customer.subscription.updated` | Sync subscription status |
-| `customer.subscription.deleted` | Mark subscription CANCELLED |
-| `charge.refunded` | Mark payment REFUNDED |
+| `payment.succeeded` | Record payment, set listing to PENDING when applicable |
+| `payment.failed` | Mark payment FAILED when linked metadata is present |
+| `payment.refunded` | Mark payment REFUNDED |
+| `subscription.created` / `subscription.updated` | Sync dealer subscription status and tier |
+| `subscription.cancelled` | Mark subscription CANCELLED |
 
 ### Featured Upgrade
 
-Live listings can be upgraded to "Featured" status for +£5 via a separate Stripe Checkout session.
+Live listings can be upgraded to "Featured" status for +£5 via a separate Ripple hosted payment flow.
 
 ### Dealer Subscriptions
 
-Create a recurring Price in Stripe Dashboard and set the ID as `STRIPE_DEALER_PRICE_ID`.
+Create Ripple starter and pro plans in the portal and set their IDs as `RIPPLE_DEALER_STARTER_PLAN_ID` and `RIPPLE_DEALER_PRO_PLAN_ID`.
 
 ## Cloudinary Setup
 
@@ -195,7 +198,7 @@ npm run test:e2e:ui
 2. Set all environment variables in Vercel Dashboard
 3. Ensure `DATABASE_URL` points to a production PostgreSQL instance
 4. Set `NEXT_PUBLIC_APP_URL` to your production URL
-5. Configure Stripe webhook endpoint to `https://yourdomain.com/api/webhooks/stripe`
+5. Configure Ripple webhook endpoint to `https://yourdomain.com/api/webhooks/payments`
 6. Deploy
 
 Build command: `prisma generate && next build` (configured in `package.json`)
@@ -206,7 +209,7 @@ Build command: `prisma generate && next build` (configured in `package.json`)
 app/
 ├── (public)/            # Public pages (home, categories, search, listings, sell, pricing, dealers)
 ├── (admin)/             # Admin pages (dashboard, listings, categories, revenue)
-├── api/webhooks/stripe/ # Stripe webhook handler
+├── api/webhooks/payments/ # Payment webhook handler
 ├── uidemo/              # UI component demo page
 └── layout.tsx           # Root layout
 
@@ -220,7 +223,7 @@ components/
 lib/
 ├── auth/                # Authentication helpers
 ├── db/                  # Prisma client
-├── payments/            # Stripe helpers
+├── payments/            # Payment provider helpers
 ├── upload/              # Cloudinary helpers
 ├── validations/         # Zod schemas
 ├── listing-status.ts    # Status transitions & fee calculations

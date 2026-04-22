@@ -86,13 +86,13 @@
 ### Files/Routes Affected
 
 - `actions/payments.ts`
-- `lib/payments/stripe.ts`
-- `app/api/webhooks/stripe/route.ts`
+- `lib/payments/provider.ts`
+- `app/api/webhooks/payments/route.ts`
 - listing submit/renew actions and related UI messaging
 
 ### Dependencies
 
-- Stripe products/prices configured in test mode and staging.
+- Ripple hosted payment links, plan IDs, and webhook secrets configured in staging.
 
 ### Risks
 
@@ -172,7 +172,7 @@
 - Run Prisma migration and seed target volume (100-300).
 - Verify Supabase auth callbacks and role seeding.
 - Verify Cloudinary upload preset and image delete API behavior.
-- Verify Stripe checkout + webhook endpoint in staging.
+- Verify Ripple checkout links and payment webhook endpoint in staging.
 - Verify Resend domain sender and transactional delivery.
 - Verify robots and sitemap endpoints.
 - Run smoke E2E on staging URL.

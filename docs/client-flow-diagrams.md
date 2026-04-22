@@ -50,7 +50,7 @@ flowchart TD
 
   subgraph externalServices [ExternalServices]
     Supabase[SupabaseAuth]
-    Stripe[StripeCheckout]
+    Ripple[RippleHostedCheckout]
     Resend[ResendEmail]
     Cloudinary[CloudinaryUploads]
   end
@@ -71,13 +71,13 @@ flowchart TD
   Home -->|"Current"| Supabase
   Account -->|"Current"| Supabase
   SellFlow -->|"Current"| Cloudinary
-  SellFlow -->|"Current"| Stripe
+  SellFlow -->|"Current"| Ripple
   SellFlow -->|"Current"| Postgres
   Search -->|"Current"| Postgres
   ListingDetail -->|"Current"| Resend
   AdminConsole -->|"Current"| Postgres
   WaitlistAdmin -->|"Current"| Postgres
-  Stripe -->|"Current"| Postgres
+  Ripple -->|"Current"| Postgres
 
   SellFlow -->|"FutureGap"| CheckoutReviewRoute
 ```
@@ -125,8 +125,8 @@ flowchart TD
   UploadImages[saveListingImages]
   PayAction[payForListing]
   Checkout{checkoutUrlReturned}
-  StripeCheckout[StripeCheckoutSession]
-  StripeWebhook[StripeWebhook]
+  RippleCheckout[RippleHostedCheckout]
+  PaymentsWebhook[PaymentsWebhook]
   Pending[(ListingStatusPending)]
   ReviewAction[submitListingForReview]
   AdminReview[AdminModerationAction]
@@ -141,9 +141,9 @@ flowchart TD
   UploadImages -->|"Current"| Draft
   Draft -->|"Current"| PayAction
   PayAction -->|"Current"| Checkout
-  Checkout -->|"Current:Yes"| StripeCheckout
-  StripeCheckout -->|"Current"| StripeWebhook
-  StripeWebhook -->|"Current"| Pending
+  Checkout -->|"Current:Yes"| RippleCheckout
+  RippleCheckout -->|"Current"| PaymentsWebhook
+  PaymentsWebhook -->|"Current"| Pending
   Checkout -->|"Current:NoSkippedPayment"| ReviewAction
   ReviewAction -->|"Current"| Pending
   Pending -->|"Current"| AdminReview
@@ -151,7 +151,7 @@ flowchart TD
   AdminReview -->|"Current:RejectOrTakeDown"| Expired
   Live -->|"Current:OwnerMarksSold"| Sold
 
-  StripeCheckout -->|"FutureGap:CancelRedirectPath"| SellCheckoutRoute
+  RippleCheckout -->|"FutureGap:CancelRedirectPath"| SellCheckoutRoute
 ```
 
 ---
@@ -193,25 +193,25 @@ flowchart TD
 flowchart TD
   Actor[SellerOrDealer]
   PaymentAction[paymentsAction]
-  StripeSession[StripeCheckoutSession]
-  StripeWebhook[POSTApiWebhooksStripe]
+  RippleSession[RippleHostedCheckout]
+  PaymentsWebhook[POSTApiWebhooksPayments]
   PaymentRecord[(PaymentTable)]
   SubscriptionRecord[(SubscriptionTable)]
   ListingRecord[(ListingTable)]
 
   Actor -->|"Current"| PaymentAction
-  PaymentAction -->|"Current:ListingPayment"| StripeSession
-  PaymentAction -->|"Current:FeaturedUpgrade"| StripeSession
-  PaymentAction -->|"Current:DealerSubscription"| StripeSession
-  StripeSession -->|"Current"| StripeWebhook
+  PaymentAction -->|"Current:ListingPayment"| RippleSession
+  PaymentAction -->|"Current:FeaturedUpgrade"| RippleSession
+  PaymentAction -->|"Current:DealerSubscription"| RippleSession
+  RippleSession -->|"Current"| PaymentsWebhook
 
-  StripeWebhook -->|"Current:listing_payment"| PaymentRecord
-  StripeWebhook -->|"Current:listing_payment"| ListingRecord
-  StripeWebhook -->|"Current:featured_upgrade"| PaymentRecord
-  StripeWebhook -->|"Current:featured_upgrade"| ListingRecord
-  StripeWebhook -->|"Current:dealer_subscription"| SubscriptionRecord
-  StripeWebhook -->|"Current:subscription_updated_deleted"| SubscriptionRecord
-  StripeWebhook -->|"Current:charge_refunded"| PaymentRecord
+  PaymentsWebhook -->|"Current:listing_payment"| PaymentRecord
+  PaymentsWebhook -->|"Current:listing_payment"| ListingRecord
+  PaymentsWebhook -->|"Current:featured_upgrade"| PaymentRecord
+  PaymentsWebhook -->|"Current:featured_upgrade"| ListingRecord
+  PaymentsWebhook -->|"Current:dealer_subscription"| SubscriptionRecord
+  PaymentsWebhook -->|"Current:subscription_updated_deleted"| SubscriptionRecord
+  PaymentsWebhook -->|"Current:payment_refunded"| PaymentRecord
 ```
 
 ---
@@ -262,6 +262,6 @@ flowchart TD
 - Session/user identity: `app/api/me/route.ts`, `lib/auth/index.ts`, `components/layout/site-header.tsx`
 - Discovery/search: `app/(public)/search/page.tsx`, `app/api/search/route.ts`, `components/marketplace/search/search-controls.tsx`
 - Listing pipeline: `app/(public)/sell/create-listing-form.tsx`, `actions/listings.ts`, `actions/payments.ts`
-- Payment reconciliation: `app/api/webhooks/stripe/route.ts`
+- Payment reconciliation: `app/api/webhooks/payments/route.ts`
 - Waitlist flow: `app/holding/page.tsx`, `components/waitlist/waitlist-form.tsx`, `actions/waitlist.ts`, `app/api/admin/waitlist/export/route.ts`
 - Admin moderation/ops: `app/(admin)`, `actions/admin.ts`

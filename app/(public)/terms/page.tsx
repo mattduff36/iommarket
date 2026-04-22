@@ -4,8 +4,7 @@ import { MarkdownRenderer } from "@/components/cms/markdown-renderer";
 
 const FALLBACK_CONTENT = `iTrader.im provides a marketplace platform for users to list and discover vehicles on the Isle of Man. You are responsible for the accuracy of your listing and communications.
 
-Listings may be moderated and removed if they breach our trust and safety standards. Payments for paid products are processed by Stripe.
-
+Listings may be moderated and removed if they breach our trust and safety standards. Payments for paid products are processed by Ripple.
 Final legal copy should be reviewed by legal counsel prior to launch.`;
 
 export async function generateMetadata(): Promise<Metadata> {

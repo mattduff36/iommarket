@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   getListingFeePence,
-  getPrivateListingStripePriceId,
+  getPrivateListingPaymentLinkUrl,
   getLaunchFreeUntil,
   isListingFreeNow,
 } from "@/lib/config/marketplace";
@@ -9,7 +9,7 @@ import {
 describe("marketplace config", () => {
   beforeEach(() => {
     delete process.env.LISTING_FEE_PENCE;
-    delete process.env.STRIPE_PRIVATE_LISTING_FEE;
+    delete process.env.RIPPLE_LISTING_PAYMENT_URL;
     delete process.env.LAUNCH_FREE_UNTIL;
   });
 
@@ -22,9 +22,11 @@ describe("marketplace config", () => {
     expect(getListingFeePence()).toBe(750);
   });
 
-  it("reads the private listing Stripe price id from env", () => {
-    process.env.STRIPE_PRIVATE_LISTING_FEE = "price_private_123";
-    expect(getPrivateListingStripePriceId()).toBe("price_private_123");
+  it("reads the private listing Ripple payment link from env", () => {
+    process.env.RIPPLE_LISTING_PAYMENT_URL = "https://portal.startyourripple.co.uk/pay/listing";
+    expect(getPrivateListingPaymentLinkUrl()).toBe(
+      "https://portal.startyourripple.co.uk/pay/listing"
+    );
   });
 
   it("detects free window from launch date env", () => {

@@ -12,6 +12,11 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  getPaymentDisplayId,
+  getProviderLabel,
+  getSubscriptionDisplayId,
+} from "@/lib/payments/records";
 
 export const metadata: Metadata = { title: "Revenue" };
 
@@ -101,7 +106,8 @@ export default async function AdminRevenuePage() {
             <TableHead>Listing</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Stripe ID</TableHead>
+            <TableHead>Provider Ref</TableHead>
+            <TableHead>Provider</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -122,7 +128,10 @@ export default async function AdminRevenuePage() {
                 </Badge>
               </TableCell>
               <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
-                {payment.stripePaymentId}
+                {getPaymentDisplayId(payment)}
+              </TableCell>
+              <TableCell className="text-xs text-text-tertiary">
+                {getProviderLabel(payment.paymentProvider)}
               </TableCell>
             </TableRow>
           ))}
@@ -139,7 +148,8 @@ export default async function AdminRevenuePage() {
             <TableHead>Dealer</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Period End</TableHead>
-            <TableHead>Stripe ID</TableHead>
+            <TableHead>Provider Ref</TableHead>
+            <TableHead>Provider</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -163,7 +173,10 @@ export default async function AdminRevenuePage() {
                 {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}
               </TableCell>
               <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
-                {sub.stripeSubscriptionId}
+                {getSubscriptionDisplayId(sub)}
+              </TableCell>
+              <TableCell className="text-xs text-text-tertiary">
+                {getProviderLabel(sub.paymentProvider)}
               </TableCell>
             </TableRow>
           ))}

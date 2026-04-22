@@ -3,6 +3,10 @@
 import { useState, useTransition } from "react";
 import { upgradeFeatured } from "@/actions/payments";
 import { Button } from "@/components/ui/button";
+import {
+  RippleDemoCheckoutDialog,
+  useRippleDemoCheckout,
+} from "@/components/payments/ripple-demo-checkout-dialog";
 import { Star } from "lucide-react";
 
 interface FeaturedUpgradeButtonProps {
@@ -15,6 +19,8 @@ export function FeaturedUpgradeButton({
   variant = "card",
 }: FeaturedUpgradeButtonProps) {
   const [isPending, startTransition] = useTransition();
+  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
+    useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
 
   function handleUpgrade() {
@@ -30,7 +36,7 @@ export function FeaturedUpgradeButton({
         return;
       }
       if (result.data?.checkoutUrl) {
-        window.location.href = result.data.checkoutUrl;
+        openCheckout(result.data.checkoutUrl);
       }
     });
   }
@@ -55,6 +61,12 @@ export function FeaturedUpgradeButton({
             {error}
           </p>
         )}
+        <RippleDemoCheckoutDialog
+          open={demoDialogOpen}
+          onOpenChange={setDemoDialogOpen}
+          checkoutUrl={demoCheckoutUrl}
+          checkoutLabel="featured upgrade"
+        />
       </div>
     );
   }
@@ -86,6 +98,12 @@ export function FeaturedUpgradeButton({
           {error}
         </p>
       )}
+      <RippleDemoCheckoutDialog
+        open={demoDialogOpen}
+        onOpenChange={setDemoDialogOpen}
+        checkoutUrl={demoCheckoutUrl}
+        checkoutLabel="featured upgrade"
+      />
     </div>
   );
 }

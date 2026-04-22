@@ -28,7 +28,7 @@ export function DevFeaturedBypass({ listingId }: Props) {
           Dev Mode
         </p>
         <p className="text-sm text-text-secondary">
-          Stripe not configured. Use the bypass below to simulate a featured payment.
+          Ripple checkout not configured. Use the bypass below to simulate a featured payment.
         </p>
       </div>
       <Button

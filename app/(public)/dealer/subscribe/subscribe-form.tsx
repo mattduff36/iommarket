@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  RippleDemoCheckoutDialog,
+  useRippleDemoCheckout,
+} from "@/components/payments/ripple-demo-checkout-dialog";
 import { Check } from "lucide-react";
 import { createSelfServiceDealerProfile } from "@/actions/dealer";
 import { createDealerSubscription } from "@/actions/payments";
@@ -27,6 +31,8 @@ export function SubscribeForm({
 }: SubscribeFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
+    useRippleDemoCheckout();
   const [hasProfile, setHasProfile] = useState(initialHasProfile);
   const [businessName, setBusinessName] = useState("");
   const [phone, setPhone] = useState("");
@@ -68,7 +74,7 @@ export function SubscribeForm({
         return;
       }
       if (result.data?.checkoutUrl) {
-        window.location.href = result.data.checkoutUrl;
+        openCheckout(result.data.checkoutUrl);
       }
     });
   }
@@ -155,7 +161,7 @@ export function SubscribeForm({
               Subscribe to {tierLabel}
             </h2>
             <p className="text-sm text-text-secondary mb-4">
-              You&apos;ll be redirected to our secure payment provider (Stripe) to
+              You&apos;ll be redirected to our secure payment provider (Ripple) to
               complete your subscription.
             </p>
             {error && (
@@ -180,6 +186,13 @@ export function SubscribeForm({
           View all plans
         </Link>
       </p>
+
+      <RippleDemoCheckoutDialog
+        open={demoDialogOpen}
+        onOpenChange={setDemoDialogOpen}
+        checkoutUrl={demoCheckoutUrl}
+        checkoutLabel={`${tierLabel.toLowerCase()} subscription`}
+      />
     </div>
   );
 }

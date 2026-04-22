@@ -5,14 +5,13 @@
  * interactions so failures pinpoint which env var / service is broken.
  *
  * Skipped in CI if the corresponding env var is absent (graceful degradation).
- * Stripe payment flows are intentionally excluded — tested manually.
+ * Hosted payment flows are intentionally excluded — tested manually.
  */
 
 import { test, expect, type Page } from "@playwright/test";
 import * as dotenv from "dotenv";
 import * as path from "path";
 import * as crypto from "crypto";
-import Stripe from "stripe";
 
 // Load secrets that are only needed inside the test process itself
 // (e.g. Cloudinary API secret, auth hook secret).
@@ -317,10 +316,10 @@ test.describe("[Resend] Email delivery", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 12–13  Stripe config (STRIPE_PRIVATE_LISTING_FEE / NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+// 12–13  Payments config
 // ---------------------------------------------------------------------------
 
-test.describe("[Stripe] Configuration", () => {
+test.describe("[Payments] Configuration", () => {
   test("12 · /pricing page shows correct fee values from env", async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto("/pricing", { waitUntil: "domcontentloaded" });
@@ -334,11 +333,11 @@ test.describe("[Stripe] Configuration", () => {
     await expect(page.getByText("£49.99").first()).toBeVisible();
   });
 
-  test("13 · /sell/private page loads and shows the listing form (Stripe key configured)", async ({ page }) => {
+  test("13 · /sell/private page loads and shows the listing form", async ({ page }) => {
     test.setTimeout(60_000);
     await signInAsAdmin(page);
     await page.goto("/sell/private", { waitUntil: "domcontentloaded" });
-    // Page renders the create listing form — Stripe client is initialised server-side
+    // Page renders the create listing form and keeps payment orchestration server-side.
     await expect(page.getByRole("heading", { name: /private listing/i })).toBeVisible({ timeout: 20_000 });
     // Step 1 of the listing form should be visible
     await expect(page.getByRole("button", { name: /continue/i }).first()).toBeVisible({ timeout: 20_000 });
@@ -346,19 +345,26 @@ test.describe("[Stripe] Configuration", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 14–16  Stripe webhook (STRIPE_WEBHOOK_SECRET)
+// 14–16  Payment webhook (RIPPLE_WEBHOOK_SECRET)
 // ---------------------------------------------------------------------------
 
-test.describe("[Stripe Webhook] Signature verification", () => {
-  const WEBHOOK_ENDPOINT = "/api/webhooks/stripe";
+test.describe("[Payment Webhook] Signature verification", () => {
+  const WEBHOOK_ENDPOINT = "/api/webhooks/payments";
   const SAMPLE_PAYLOAD = JSON.stringify({
     id: "evt_test_env_check",
-    object: "event",
-    type: "checkout.session.completed",
-    data: { object: { id: "cs_test", metadata: {} } },
+    type: "payment.succeeded",
+    data: {
+      paymentId: "pay_test_env_check",
+      amount: "4.99",
+      currency: "gbp",
+      metadata: {
+        checkoutType: "listing_payment",
+        listingId: "missing_listing",
+      },
+    },
   });
 
-  test("14 · POST without stripe-signature header returns 400", async ({ request }) => {
+  test("14 · POST without signature header returns 400", async ({ request }) => {
     const res = await request.post(WEBHOOK_ENDPOINT, {
       headers: { "Content-Type": "application/json" },
       data: SAMPLE_PAYLOAD,
@@ -366,38 +372,33 @@ test.describe("[Stripe Webhook] Signature verification", () => {
     expect(res.status()).toBe(400);
   });
 
-  test("15 · POST with invalid stripe-signature returns 400", async ({ request }) => {
+  test("15 · POST with invalid ripple-signature returns 400", async ({ request }) => {
     const res = await request.post(WEBHOOK_ENDPOINT, {
       headers: {
         "Content-Type": "application/json",
-        "stripe-signature": "t=0,v1=invalidsignature",
+        "ripple-signature": "sha256=invalidsignature",
       },
       data: SAMPLE_PAYLOAD,
     });
     expect(res.status()).toBe(400);
   });
 
-  test("16 · POST with valid Stripe test signature returns 200", async ({ request }) => {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  test("16 · POST with valid Ripple HMAC signature returns 200", async ({ request }) => {
+    const webhookSecret = process.env.RIPPLE_WEBHOOK_SECRET;
     if (!webhookSecret) {
-      test.skip(true, "STRIPE_WEBHOOK_SECRET not set");
+      test.skip(true, "RIPPLE_WEBHOOK_SECRET not set");
       return;
     }
 
-    // Use Stripe SDK utility to generate a correctly signed test header.
-    const stripe = new Stripe(
-      process.env.STRIPE_SECRET_KEY ?? "sk_test_e2e_placeholder",
-      { apiVersion: "2026-01-28.clover" }
-    );
-    const stripeSignature = stripe.webhooks.generateTestHeaderString({
-      payload: SAMPLE_PAYLOAD,
-      secret: webhookSecret,
-    });
+    const signature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(SAMPLE_PAYLOAD)
+      .digest("hex");
 
     const res = await request.post(WEBHOOK_ENDPOINT, {
       headers: {
         "Content-Type": "application/json",
-        "stripe-signature": stripeSignature,
+        "ripple-signature": `sha256=${signature}`,
       },
       data: SAMPLE_PAYLOAD,
     });

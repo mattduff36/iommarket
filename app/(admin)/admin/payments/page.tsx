@@ -14,6 +14,15 @@ import {
 } from "@/components/ui/table";
 import { RefundButton } from "./payment-actions";
 import { CancelSubButton, RefundSubPaymentButton } from "./subscription-actions";
+import {
+  getPaymentProviderCapabilities,
+  getPaymentProviderPortalUrl,
+} from "@/lib/payments/provider";
+import {
+  getPaymentDisplayId,
+  getProviderLabel,
+  getSubscriptionDisplayId,
+} from "@/lib/payments/records";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Payments | Admin" };
@@ -46,6 +55,8 @@ const PAGE_SIZE = 25;
 
 export default async function AdminPaymentsPage({ searchParams }: Props) {
   const params = await searchParams;
+  const capabilities = getPaymentProviderCapabilities();
+  const providerPortalUrl = getPaymentProviderPortalUrl();
   const tab = params.tab ?? "payments";
   const query = params.q ?? "";
   const statusFilter = params.status;
@@ -114,9 +125,32 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         </div>
 
         <div className="mb-4 rounded-md border border-border bg-surface-elevated px-4 py-3 text-xs text-text-secondary">
-          Use <span className="font-medium text-text-primary">Refund latest payment</span> to
-          refund the most recent paid invoice for a subscription. Use
-          <span className="font-medium text-text-primary"> Cancel</span> to stop future billing.
+          {capabilities.supportsInAppSubscriptionCancellation ? (
+            <>
+              Use <span className="font-medium text-text-primary">Refund latest payment</span> to
+              refund the most recent paid invoice for a subscription. Use
+              <span className="font-medium text-text-primary"> Cancel</span> to stop future billing.
+            </>
+          ) : (
+            <>
+              Subscription billing actions are managed in Ripple&apos;s portal.
+              {providerPortalUrl ? (
+                <>
+                  {" "}
+                  Open{" "}
+                  <a
+                    href={providerPortalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-text-primary underline"
+                  >
+                    Ripple portal
+                  </a>{" "}
+                  for refunds and cancellations.
+                </>
+              ) : null}
+            </>
+          )}
         </div>
 
         <Table>
@@ -125,7 +159,8 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               <TableHead>Dealer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Period End</TableHead>
-              <TableHead>Stripe ID</TableHead>
+              <TableHead>Provider Ref</TableHead>
+              <TableHead>Provider</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -141,22 +176,34 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}
                 </TableCell>
                 <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
-                  {sub.stripeSubscriptionId}
+                  {getSubscriptionDisplayId(sub)}
+              </TableCell>
+              <TableCell className="text-xs text-text-tertiary">
+                {getProviderLabel(sub.paymentProvider)}
                 </TableCell>
                 <TableCell className="text-sm text-text-tertiary">
                   {sub.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap items-center gap-1">
-                    <CancelSubButton subscriptionId={sub.id} status={sub.status} />
-                    <RefundSubPaymentButton subscriptionId={sub.id} />
+                    <CancelSubButton
+                      subscriptionId={sub.id}
+                      status={sub.status}
+                      enabled={capabilities.supportsInAppSubscriptionCancellation}
+                      providerPortalUrl={providerPortalUrl}
+                    />
+                    <RefundSubPaymentButton
+                      subscriptionId={sub.id}
+                      enabled={capabilities.supportsInAppRefunds}
+                      providerPortalUrl={providerPortalUrl}
+                    />
                   </div>
                 </TableCell>
               </TableRow>
             ))}
             {subscriptions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-text-tertiary py-8">No subscriptions found.</TableCell>
+                <TableCell colSpan={7} className="text-center text-text-tertiary py-8">No subscriptions found.</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -177,6 +224,8 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
   const payWhere: Prisma.PaymentWhereInput = {};
   if (query) {
     payWhere.OR = [
+      { providerPaymentId: { contains: query } },
+      { providerReference: { contains: query } },
       { stripePaymentId: { contains: query } },
       { listing: { title: { contains: query, mode: "insensitive" } } },
       { listing: { user: { email: { contains: query, mode: "insensitive" } } } },
@@ -215,7 +264,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <form method="get" action="/admin/payments" className="flex gap-2">
-          <input name="q" defaultValue={query} placeholder="Search Stripe ID, listing, or email..." className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus" />
+          <input name="q" defaultValue={query} placeholder="Search provider ID, listing, or email..." className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus" />
           <input type="hidden" name="tab" value="payments" />
           <button type="submit" className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border">Search</button>
         </form>
@@ -254,7 +303,8 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             <TableHead>Type</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Stripe ID</TableHead>
+            <TableHead>Provider Ref</TableHead>
+            <TableHead>Provider</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -282,16 +332,24 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                 </Badge>
               </TableCell>
               <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
-                {payment.stripePaymentId}
+                {getPaymentDisplayId(payment)}
+              </TableCell>
+              <TableCell className="text-xs text-text-tertiary">
+                {getProviderLabel(payment.paymentProvider)}
               </TableCell>
               <TableCell>
-                <RefundButton paymentId={payment.id} status={payment.status} />
+                <RefundButton
+                  paymentId={payment.id}
+                  status={payment.status}
+                  enabled={capabilities.supportsInAppRefunds}
+                  providerPortalUrl={providerPortalUrl}
+                />
               </TableCell>
             </TableRow>
           ))}
           {payments.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">No payments found.</TableCell>
+              <TableCell colSpan={9} className="text-center text-text-tertiary py-8">No payments found.</TableCell>
             </TableRow>
           )}
         </TableBody>

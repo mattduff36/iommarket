@@ -15,6 +15,10 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { UserActions } from "../user-actions";
+import {
+  getProviderLabel,
+  getSubscriptionDisplayId,
+} from "@/lib/payments/records";
 
 export const metadata: Metadata = { title: "User Detail | Admin" };
 
@@ -222,7 +226,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
                       {sub.status}
                     </Badge>
                     <span>ends {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}</span>
-                    <span className="text-text-tertiary font-mono">{sub.stripeSubscriptionId}</span>
+                    <span className="text-text-tertiary font-mono">{getSubscriptionDisplayId(sub)}</span>
+                    <span className="text-text-tertiary">{getProviderLabel(sub.paymentProvider)}</span>
                   </div>
                 ))}
               </div>

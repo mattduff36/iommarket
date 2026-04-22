@@ -21,7 +21,7 @@ flowchart TD
 
   subgraph externalServices [ExternalServices]
     Supabase[SupabaseAuth]
-    Stripe[StripeCheckout]
+    Ripple[RippleHostedCheckout]
     Resend[ResendEmail]
     Cloudinary[CloudinaryUploads]
   end
@@ -42,12 +42,12 @@ flowchart TD
   Home -->|"Current"| Supabase
   Account -->|"Current"| Supabase
   SellFlow -->|"Current"| Cloudinary
-  SellFlow -->|"Current"| Stripe
+  SellFlow -->|"Current"| Ripple
   SellFlow -->|"Current"| Postgres
   Search -->|"Current"| Postgres
   ListingDetail -->|"Current"| Resend
   AdminConsole -->|"Current"| Postgres
   WaitlistAdmin -->|"Current"| Postgres
-  Stripe -->|"Current"| Postgres
+  Ripple -->|"Current"| Postgres
 
   SellFlow -->|"FutureGap"| CheckoutReviewRoute

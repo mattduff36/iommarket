@@ -8,15 +8,36 @@ import { adminRefundPayment } from "@/actions/admin/payments";
 interface RefundButtonProps {
   paymentId: string;
   status: string;
+  enabled: boolean;
+  providerPortalUrl?: string | null;
 }
 
-export function RefundButton({ paymentId, status }: RefundButtonProps) {
+export function RefundButton({
+  paymentId,
+  status,
+  enabled,
+  providerPortalUrl,
+}: RefundButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   if (status !== "SUCCEEDED") return null;
+  if (!enabled) {
+    return providerPortalUrl ? (
+      <a
+        href={providerPortalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-text-secondary underline"
+      >
+        Manage in Ripple
+      </a>
+    ) : (
+      <span className="text-xs text-text-tertiary">Manage in Ripple</span>
+    );
+  }
 
   function handleRefund() {
     setError(null);

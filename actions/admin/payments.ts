@@ -5,10 +5,14 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import {
-  refundPaymentIntent,
-  cancelStripeSubscription,
-  getLatestPaidSubscriptionPaymentIntent,
-} from "@/lib/payments/stripe";
+  cancelProviderSubscription,
+  getLatestPaidSubscriptionCharge,
+  refundProviderPayment,
+} from "@/lib/payments/provider";
+import {
+  getPaymentDisplayId,
+  getSubscriptionDisplayId,
+} from "@/lib/payments/records";
 import { captureException } from "@/lib/monitoring";
 import {
   searchPaymentsSchema,
@@ -33,6 +37,8 @@ export async function searchPayments(input: SearchPaymentsInput) {
   const where: Prisma.PaymentWhereInput = {};
   if (query) {
     where.OR = [
+      { providerPaymentId: { contains: query } },
+      { providerReference: { contains: query } },
       { stripePaymentId: { contains: query } },
       { listing: { title: { contains: query, mode: "insensitive" } } },
       { listingId: query },
@@ -69,7 +75,11 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
   if (payment.status !== "SUCCEEDED") return { error: "Only succeeded payments can be refunded" };
 
   try {
-    await refundPaymentIntent(payment.stripePaymentId);
+    const providerPaymentId = payment.providerPaymentId ?? payment.stripePaymentId;
+    if (!providerPaymentId) {
+      return { error: "Payment provider reference is missing" };
+    }
+    await refundProviderPayment(providerPaymentId);
 
     await db.payment.update({
       where: { id: payment.id },
@@ -81,7 +91,11 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
       action: "REFUND_PAYMENT",
       entityType: "Payment",
       entityId: payment.id,
-      details: { stripePaymentId: payment.stripePaymentId, amount: payment.amount },
+      details: {
+        paymentProvider: payment.paymentProvider,
+        providerPaymentId: getPaymentDisplayId(payment),
+        amount: payment.amount,
+      },
     });
 
     revalidatePath("/admin/payments");
@@ -95,7 +109,11 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
       route: "/admin/payments",
       requestPath: "/admin/payments",
       userId: admin.id,
-      tags: { paymentId: payment.id, stripePaymentId: payment.stripePaymentId },
+      tags: {
+        paymentId: payment.id,
+        paymentProvider: payment.paymentProvider,
+        providerPaymentId: getPaymentDisplayId(payment),
+      },
     });
     const message = err instanceof Error ? err.message : "Failed to process refund";
     return { error: message };
@@ -116,13 +134,17 @@ export async function adminRefundSubscriptionPayment(
   if (!sub) return { error: "Subscription not found" };
 
   try {
-    const latestPaid =
-      await getLatestPaidSubscriptionPaymentIntent(sub.stripeSubscriptionId);
+    const providerSubscriptionId =
+      sub.providerSubscriptionId ?? sub.stripeSubscriptionId;
+    if (!providerSubscriptionId) {
+      return { error: "Subscription provider reference is missing" };
+    }
+    const latestPaid = await getLatestPaidSubscriptionCharge(providerSubscriptionId);
     if (!latestPaid) {
       return { error: "No paid subscription charge found to refund" };
     }
 
-    await refundPaymentIntent(latestPaid.paymentIntentId);
+    await refundProviderPayment(latestPaid.paymentIntentId);
 
     await logAdminAction({
       adminId: admin.id,
@@ -130,9 +152,10 @@ export async function adminRefundSubscriptionPayment(
       entityType: "Subscription",
       entityId: sub.id,
       details: {
-        stripeSubscriptionId: sub.stripeSubscriptionId,
-        stripeInvoiceId: latestPaid.invoiceId,
-        stripePaymentId: latestPaid.paymentIntentId,
+        paymentProvider: sub.paymentProvider,
+        providerSubscriptionId: getSubscriptionDisplayId(sub),
+        invoiceId: latestPaid.invoiceId,
+        providerPaymentId: latestPaid.paymentIntentId,
         amount: latestPaid.amountPaid,
         currency: latestPaid.currency,
       },
@@ -149,7 +172,11 @@ export async function adminRefundSubscriptionPayment(
       route: "/admin/payments",
       requestPath: "/admin/payments",
       userId: admin.id,
-      tags: { subscriptionId: sub.id, stripeSubscriptionId: sub.stripeSubscriptionId },
+      tags: {
+        subscriptionId: sub.id,
+        paymentProvider: sub.paymentProvider,
+        providerSubscriptionId: getSubscriptionDisplayId(sub),
+      },
     });
     const message = err instanceof Error ? err.message : "Failed to process refund";
     return { error: message };
@@ -167,7 +194,12 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
   if (sub.status === "CANCELLED") return { error: "Subscription already cancelled" };
 
   try {
-    await cancelStripeSubscription(sub.stripeSubscriptionId, parsed.data.immediately);
+    const providerSubscriptionId =
+      sub.providerSubscriptionId ?? sub.stripeSubscriptionId;
+    if (!providerSubscriptionId) {
+      return { error: "Subscription provider reference is missing" };
+    }
+    await cancelProviderSubscription(providerSubscriptionId, parsed.data.immediately);
 
     if (parsed.data.immediately) {
       await db.subscription.update({
@@ -181,7 +213,11 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
       action: "CANCEL_SUBSCRIPTION",
       entityType: "Subscription",
       entityId: sub.id,
-      details: { stripeSubscriptionId: sub.stripeSubscriptionId, immediately: parsed.data.immediately },
+      details: {
+        paymentProvider: sub.paymentProvider,
+        providerSubscriptionId: getSubscriptionDisplayId(sub),
+        immediately: parsed.data.immediately,
+      },
     });
 
     revalidatePath("/admin/payments");
@@ -195,7 +231,11 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
       route: "/admin/payments",
       requestPath: "/admin/payments",
       userId: admin.id,
-      tags: { subscriptionId: sub.id, stripeSubscriptionId: sub.stripeSubscriptionId },
+      tags: {
+        subscriptionId: sub.id,
+        paymentProvider: sub.paymentProvider,
+        providerSubscriptionId: getSubscriptionDisplayId(sub),
+      },
     });
     const message = err instanceof Error ? err.message : "Failed to cancel subscription";
     return { error: message };

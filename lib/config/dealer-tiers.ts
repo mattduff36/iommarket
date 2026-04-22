@@ -10,37 +10,32 @@ export const DEALER_TIER_LABELS: Record<DealerTier, string> = {
   PRO: "Pro",
 };
 
+const DEMO_STARTER_PLAN_ID = "ripple_demo_gym_starter_monthly";
+const DEMO_PRO_PLAN_ID = "ripple_demo_gym_pro_monthly";
+
 export function getDealerListingCap(tier: DealerTier | null | undefined): number {
   return DEALER_TIER_CAPS[tier ?? "STARTER"];
 }
 
-export function getDealerStripePriceId(tier: DealerTier): string {
+export function getDealerProviderPlanId(tier: DealerTier): string {
   if (tier === "PRO") {
-    const proPriceId = process.env.STRIPE_DEALER_PRO_PRICE_ID;
-    if (!proPriceId) {
-      throw new Error("STRIPE_DEALER_PRO_PRICE_ID is not set");
-    }
-    return proPriceId;
+    const proPlanId = process.env.RIPPLE_DEALER_PRO_PLAN_ID ?? DEMO_PRO_PLAN_ID;
+    return proPlanId;
   }
 
-  const starterPriceId =
-    process.env.STRIPE_DEALER_STARTER_PRICE_ID ?? process.env.STRIPE_DEALER_PRICE_ID;
-  if (!starterPriceId) {
-    throw new Error(
-      "STRIPE_DEALER_STARTER_PRICE_ID (or STRIPE_DEALER_PRICE_ID) is not set"
-    );
-  }
-  return starterPriceId;
+  const starterPlanId =
+    process.env.RIPPLE_DEALER_STARTER_PLAN_ID ?? DEMO_STARTER_PLAN_ID;
+  return starterPlanId;
 }
 
-export function getDealerTierFromPriceId(priceId: string | null | undefined): DealerTier {
-  if (!priceId) return "STARTER";
-  const proPriceId = process.env.STRIPE_DEALER_PRO_PRICE_ID;
-  if (proPriceId && priceId === proPriceId) return "PRO";
+export function getDealerTierFromProviderPlanId(planId: string | null | undefined): DealerTier {
+  if (!planId) return "STARTER";
+  const proPlanId = process.env.RIPPLE_DEALER_PRO_PLAN_ID ?? DEMO_PRO_PLAN_ID;
+  if (proPlanId && planId === proPlanId) return "PRO";
 
-  const starterPriceId =
-    process.env.STRIPE_DEALER_STARTER_PRICE_ID ?? process.env.STRIPE_DEALER_PRICE_ID;
-  if (starterPriceId && priceId === starterPriceId) return "STARTER";
+  const starterPlanId =
+    process.env.RIPPLE_DEALER_STARTER_PLAN_ID ?? DEMO_STARTER_PLAN_ID;
+  if (starterPlanId && planId === starterPlanId) return "STARTER";
 
   return "STARTER";
 }

@@ -6,8 +6,8 @@ flowchart TD
   UploadImages[saveListingImages]
   PayAction[payForListing]
   Checkout{checkoutUrlReturned}
-  StripeCheckout[StripeCheckoutSession]
-  StripeWebhook[StripeWebhook]
+  RippleCheckout[RippleHostedCheckout]
+  PaymentsWebhook[PaymentsWebhook]
   Pending[(ListingStatusPending)]
   ReviewAction[submitListingForReview]
   AdminReview[AdminModerationAction]
@@ -22,9 +22,9 @@ flowchart TD
   UploadImages -->|"Current"| Draft
   Draft -->|"Current"| PayAction
   PayAction -->|"Current"| Checkout
-  Checkout -->|"Current:Yes"| StripeCheckout
-  StripeCheckout -->|"Current"| StripeWebhook
-  StripeWebhook -->|"Current"| Pending
+  Checkout -->|"Current:Yes"| RippleCheckout
+  RippleCheckout -->|"Current"| PaymentsWebhook
+  PaymentsWebhook -->|"Current"| Pending
   Checkout -->|"Current:NoSkippedPayment"| ReviewAction
   ReviewAction -->|"Current"| Pending
   Pending -->|"Current"| AdminReview
@@ -32,4 +32,4 @@ flowchart TD
   AdminReview -->|"Current:RejectOrTakeDown"| Expired
   Live -->|"Current:OwnerMarksSold"| Sold
 
-  StripeCheckout -->|"FutureGap:CancelRedirectPath"| SellCheckoutRoute
+  RippleCheckout -->|"FutureGap:CancelRedirectPath"| SellCheckoutRoute

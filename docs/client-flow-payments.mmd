@@ -1,22 +1,22 @@
 flowchart TD
   Actor[SellerOrDealer]
   PaymentAction[paymentsAction]
-  StripeSession[StripeCheckoutSession]
-  StripeWebhook[POSTApiWebhooksStripe]
+  RippleSession[RippleHostedCheckout]
+  PaymentsWebhook[POSTApiWebhooksPayments]
   PaymentRecord[(PaymentTable)]
   SubscriptionRecord[(SubscriptionTable)]
   ListingRecord[(ListingTable)]
 
   Actor -->|"Current"| PaymentAction
-  PaymentAction -->|"Current:ListingPayment"| StripeSession
-  PaymentAction -->|"Current:FeaturedUpgrade"| StripeSession
-  PaymentAction -->|"Current:DealerSubscription"| StripeSession
-  StripeSession -->|"Current"| StripeWebhook
+  PaymentAction -->|"Current:ListingPayment"| RippleSession
+  PaymentAction -->|"Current:FeaturedUpgrade"| RippleSession
+  PaymentAction -->|"Current:DealerSubscription"| RippleSession
+  RippleSession -->|"Current"| PaymentsWebhook
 
-  StripeWebhook -->|"Current:listing_payment"| PaymentRecord
-  StripeWebhook -->|"Current:listing_payment"| ListingRecord
-  StripeWebhook -->|"Current:featured_upgrade"| PaymentRecord
-  StripeWebhook -->|"Current:featured_upgrade"| ListingRecord
-  StripeWebhook -->|"Current:dealer_subscription"| SubscriptionRecord
-  StripeWebhook -->|"Current:subscription_updated_deleted"| SubscriptionRecord
-  StripeWebhook -->|"Current:charge_refunded"| PaymentRecord
+  PaymentsWebhook -->|"Current:listing_payment"| PaymentRecord
+  PaymentsWebhook -->|"Current:listing_payment"| ListingRecord
+  PaymentsWebhook -->|"Current:featured_upgrade"| PaymentRecord
+  PaymentsWebhook -->|"Current:featured_upgrade"| ListingRecord
+  PaymentsWebhook -->|"Current:dealer_subscription"| SubscriptionRecord
+  PaymentsWebhook -->|"Current:subscription_updated_deleted"| SubscriptionRecord
+  PaymentsWebhook -->|"Current:payment_refunded"| PaymentRecord

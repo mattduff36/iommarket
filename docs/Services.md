@@ -49,29 +49,29 @@
 
 ## Payments
 
-- **Service**: Stripe.
-- **Why**: checkout + subscriptions + webhook model already in place.
+- **Service**: Ripple.
+- **Why**: hosted checkout plus signed webhooks align with the current marketplace flow while keeping card collection off-site.
 - **Scope**:
   - one-time private listing payment (post-free-window)
   - dealer subscription billing
   - featured upsell one-time checkout
   - webhook-driven status sync + idempotency
 - **Env vars**:
-  - `STRIPE_SECRET_KEY`
-  - `STRIPE_WEBHOOK_SECRET`
-  - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_PRIVATE_LISTING_FEE`
-  - `STRIPE_DEALER_PRICE_ID` (legacy fallback)
-  - `STRIPE_DEALER_STARTER_PRICE_ID`
-  - `STRIPE_DEALER_PRO_PRICE_ID`
-  - `STRIPE_FEATURED_PRICE_ID`
+  - `RIPPLE_LISTING_PAYMENT_URL`
+  - `RIPPLE_LISTING_SUPPORT_URL`
+  - `RIPPLE_FEATURED_PAYMENT_URL`
+  - `RIPPLE_DEALER_STARTER_URL`
+  - `RIPPLE_DEALER_PRO_URL`
+  - `RIPPLE_DEALER_STARTER_PLAN_ID`
+  - `RIPPLE_DEALER_PRO_PLAN_ID`
+  - `RIPPLE_WEBHOOK_SECRET`
+  - `RIPPLE_DASHBOARD_URL`
   - `LISTING_FEE_PENCE` (pence; default 499)
   - `LAUNCH_FREE_UNTIL` (ISO timestamp for time-based free window)
   - `FREE_LISTING_WINDOW_DAYS` (default 30)
-- **Local**: Stripe test mode + stripe CLI forwarding webhooks.
-  ⚠️ Currently using live Stripe keys in dev. Switch to `sk_test_` / `pk_test_` keys for safe local payment testing.
-- **Staging**: dedicated test keys/prices/webhook endpoint.
-- **Production**: live keys, monitored webhook retries.
+- **Local**: use Ripple demo/hosted links and a publicly reachable webhook URL.
+- **Staging**: dedicated Ripple hosted links and webhook endpoint.
+- **Production**: live Ripple portal configuration plus monitored webhook retries.
 
 ## Email
 
@@ -147,9 +147,9 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 - **Auth hook secret**: Supabase Dashboard → Auth → Hooks → regenerate the signing secret; update `SUPABASE_AUTH_HOOK_SECRET` everywhere.
 - **Database password**: Supabase Dashboard → Settings → Database → Reset password; update all `POSTGRES_*` and `DATABASE_URL` vars.
 
-### 2. Stripe
-- **Secret key / Webhook secret**: Stripe Dashboard → Developers → API keys → Roll key. Update `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Vercel and `.env.local`.
-- Publishable key does not need rotation (it is public by design).
+### 2. Ripple
+- **Webhook secret**: rotate it from the Ripple portal/onboarding contact and update `RIPPLE_WEBHOOK_SECRET` in Vercel and local env files.
+- **Hosted payment URLs / plan IDs**: update `RIPPLE_*` URLs and plan IDs whenever Ripple regenerates or replaces them.
 
 ### 3. Cloudinary
 - **API secret**: Cloudinary Console → Settings → Access Keys → Generate new key pair. Update `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`.
@@ -160,7 +160,7 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 ### 5. After rotation
 1. Update Vercel env vars: `npx vercel env add <VAR> production --force` (repeat for preview / development).
 2. Redeploy: `npx vercel --prod` or push to `main` to trigger CI.
-3. Verify the env-check e2e suite passes: `npm run test:e2e -- --grep "\[AuthHook\]|\[Cloudinary\]|\[Resend\]|\[Stripe"`.
+3. Verify the env-check e2e suite passes: `npm run test:e2e -- --grep "\[AuthHook\]|\[Cloudinary\]|\[Resend\]|\[Payment"`.
 4. Confirm no secrets remain in git history: `git log --all --full-history -- .env.production` should return nothing.
 
 ### Git safeguards in place

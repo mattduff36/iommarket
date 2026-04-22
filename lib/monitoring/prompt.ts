@@ -51,8 +51,8 @@ function suggestFiles(issue: MonitoringIssue, events: MonitoringEvent[]): string
   for (const requestPath of pathCandidates) {
     const candidate = requestPath?.toLowerCase() ?? "";
     if (!candidate) continue;
-    if (candidate === "/api/webhooks/stripe") {
-      files.add("app/api/webhooks/stripe/route.ts");
+    if (candidate === "/api/webhooks/payments" || candidate === "/api/webhooks/ripple") {
+      files.add("app/api/webhooks/payments/route.ts");
     }
     if (candidate.startsWith("/api/search")) files.add("app/api/search/route.ts");
   }

@@ -267,21 +267,33 @@ enum PaymentType {
   SUPPORT
 }
 
+enum PaymentProvider {
+  STRIPE
+  RIPPLE
+  DEV
+}
+
 model Payment {
-  id              String        @id @default(cuid())
-  listingId       String
-  stripePaymentId String        @unique
-  amount          Int           // in pence
-  currency        String        @default("gbp")
-  type            PaymentType   @default(LISTING)
-  status          PaymentStatus @default(PENDING)
-  idempotencyKey  String?       @unique
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                String          @id @default(cuid())
+  listingId         String
+  paymentProvider   PaymentProvider @default(STRIPE)
+  providerPaymentId String?         @unique
+  providerReference String?         @unique
+  stripePaymentId   String?         @unique
+  amount            Int             // in pence
+  currency          String          @default("gbp")
+  type              PaymentType     @default(LISTING)
+  status            PaymentStatus   @default(PENDING)
+  idempotencyKey    String?         @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   listing Listing @relation(fields: [listingId], references: [id])
 
   @@index([listingId])
+  @@index([paymentProvider])
+  @@index([providerPaymentId])
+  @@index([providerReference])
   @@index([stripePaymentId])
 }
 
@@ -293,18 +305,23 @@ enum SubscriptionStatus {
 }
 
 model Subscription {
-  id                   String             @id @default(cuid())
-  dealerId             String
-  stripeSubscriptionId String             @unique
-  stripePriceId        String
-  status               SubscriptionStatus @default(INCOMPLETE)
-  currentPeriodEnd     DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                     String             @id @default(cuid())
+  dealerId               String
+  paymentProvider        PaymentProvider    @default(STRIPE)
+  providerSubscriptionId String?            @unique
+  providerPlanId         String?
+  stripeSubscriptionId   String?            @unique
+  stripePriceId          String?
+  status                 SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   dealer DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 
   @@index([dealerId])
+  @@index([paymentProvider])
+  @@index([providerSubscriptionId])
   @@index([stripeSubscriptionId])
 }
 

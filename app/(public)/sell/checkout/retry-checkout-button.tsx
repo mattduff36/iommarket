@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { payForListing } from "@/actions/payments";
 import { submitListingForReview } from "@/actions/listings";
 import { Button } from "@/components/ui/button";
+import {
+  RippleDemoCheckoutDialog,
+  useRippleDemoCheckout,
+} from "@/components/payments/ripple-demo-checkout-dialog";
 
 interface Props {
   listingId: string;
@@ -13,6 +17,8 @@ interface Props {
 
 export function RetryCheckoutButton({ listingId, flow }: Props) {
   const router = useRouter();
+  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
+    useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -42,7 +48,7 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
       }
 
       if (payResult.data?.checkoutUrl) {
-        window.location.href = payResult.data.checkoutUrl;
+        openCheckout(payResult.data.checkoutUrl);
         return;
       }
 
@@ -56,6 +62,13 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
         Retry checkout
       </Button>
       {error ? <p className="text-sm text-text-error">{error}</p> : null}
+
+      <RippleDemoCheckoutDialog
+        open={demoDialogOpen}
+        onOpenChange={setDemoDialogOpen}
+        checkoutUrl={demoCheckoutUrl}
+        checkoutLabel="listing payment"
+      />
     </div>
   );
 }

@@ -8,6 +8,10 @@ import {
   submitListingForReview,
 } from "@/actions/listings";
 import { payForListing } from "@/actions/payments";
+import {
+  RippleDemoCheckoutDialog,
+  useRippleDemoCheckout,
+} from "@/components/payments/ripple-demo-checkout-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +66,8 @@ interface Props {
 
 export function CreateListingForm({ categories, regions, mode = "private", isFreeForUser = false }: Props) {
   const router = useRouter();
+  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
+    useRippleDemoCheckout();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -411,7 +417,7 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
         }
 
         if (payResult.data?.checkoutUrl) {
-          window.location.href = payResult.data.checkoutUrl;
+          openCheckout(payResult.data.checkoutUrl);
           return;
         }
 
@@ -426,14 +432,15 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          Create Listing - Step {step} of 3
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Create Listing - Step {step} of 3
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <div className={isDetailsStep ? "space-y-6" : "hidden"}>
               <div className="space-y-3 rounded-lg border border-border p-4">
                 <h3 className="text-sm font-semibold text-text-primary">
@@ -783,8 +790,16 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
           <p className="text-xs text-text-tertiary text-center">
             Your listing will be reviewed by our moderation team before going live.
           </p>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+
+      <RippleDemoCheckoutDialog
+        open={demoDialogOpen}
+        onOpenChange={setDemoDialogOpen}
+        checkoutUrl={demoCheckoutUrl}
+        checkoutLabel="listing payment"
+      />
+    </>
   );
 }

@@ -16,12 +16,14 @@ export function getListingFeePence(): number {
   return parseIntegerEnv(process.env.LISTING_FEE_PENCE, DEFAULT_LISTING_FEE_PENCE);
 }
 
-export function getPrivateListingStripePriceId(): string {
-  const priceId = process.env.STRIPE_PRIVATE_LISTING_FEE;
-  if (!priceId) {
-    throw new Error("STRIPE_PRIVATE_LISTING_FEE is not set");
+export function getPrivateListingPaymentLinkUrl(): string {
+  const url =
+    process.env.RIPPLE_LISTING_PAYMENT_URL ??
+    "https://portal.startyourripple.co.uk/card/demo-gym/pay-any";
+  if (!url) {
+    throw new Error("RIPPLE_LISTING_PAYMENT_URL is not set");
   }
-  return priceId;
+  return url;
 }
 
 /** Sync version (env only) */
