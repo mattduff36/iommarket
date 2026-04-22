@@ -12,7 +12,11 @@ import {
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { Check } from "lucide-react";
 import { createSelfServiceDealerProfile } from "@/actions/dealer";
-import { createDealerSubscription } from "@/actions/payments";
+import {
+  createDealerSubscription,
+  simulateDemoDealerSubscriptionOutcome,
+} from "@/actions/payments";
+import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 
 interface SubscribeFormProps {
   tier: "STARTER" | "PRO";
@@ -31,6 +35,7 @@ export function SubscribeForm({
 }: SubscribeFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
   const [hasProfile, setHasProfile] = useState(initialHasProfile);
@@ -38,6 +43,8 @@ export function SubscribeForm({
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
 
   function handleCreateProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -63,6 +70,8 @@ export function SubscribeForm({
 
   function handleSubscribe() {
     setError(null);
+    setNotice(null);
+    setDemoOutcomeError(null);
     startTransition(async () => {
       const result = await createDealerSubscription(tier);
       if (result.error) {
@@ -75,7 +84,40 @@ export function SubscribeForm({
       }
       if (result.data?.checkoutUrl) {
         openCheckout(result.data.checkoutUrl);
+        if (isRippleDemoCheckoutUrl(result.data.checkoutUrl)) {
+          setNotice(
+            "Demo checkout is ready in the modal below. Use the temporary outcome buttons after previewing the hosted tab."
+          );
+        }
       }
+    });
+  }
+
+  function handleSimulatedDemoOutcome(outcome: "success" | "declined") {
+    setDemoOutcomeError(null);
+    startSimulatingDemoOutcome(async () => {
+      const result = await simulateDemoDealerSubscriptionOutcome({
+        tier,
+        outcome,
+      });
+
+      if (result.error) {
+        setDemoOutcomeError(
+          typeof result.error === "string"
+            ? result.error
+            : "Could not simulate the demo subscription outcome."
+        );
+        return;
+      }
+
+      setDemoDialogOpen(false);
+
+      if (result.data?.nextUrl) {
+        router.push(result.data.nextUrl);
+        return;
+      }
+
+      router.refresh();
     });
   }
 
@@ -161,12 +203,17 @@ export function SubscribeForm({
               Subscribe to {tierLabel}
             </h2>
             <p className="text-sm text-text-secondary mb-4">
-              You&apos;ll be redirected to our secure payment provider (Ripple) to
-              complete your subscription.
+              A secure Ripple checkout will open in a new tab so you can keep
+              this subscription page open while you complete payment.
             </p>
             {error && (
               <p className="text-sm text-text-energy mb-4" role="alert">
                 {error}
+              </p>
+            )}
+            {notice && (
+              <p className="text-sm text-text-secondary mb-4" role="status">
+                {notice}
               </p>
             )}
             <Button
@@ -192,6 +239,12 @@ export function SubscribeForm({
         onOpenChange={setDemoDialogOpen}
         checkoutUrl={demoCheckoutUrl}
         checkoutLabel={`${tierLabel.toLowerCase()} subscription`}
+        demoOutcomeControls={{
+          isPending: isSimulatingDemoOutcome,
+          error: demoOutcomeError,
+          onSimulateSuccess: () => handleSimulatedDemoOutcome("success"),
+          onSimulateDeclined: () => handleSimulatedDemoOutcome("declined"),
+        }}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -19,9 +20,37 @@ import {
   isPrivateListingFreeForUser,
 } from "@/lib/config/marketplace";
 import { captureException } from "@/lib/monitoring";
+import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
+import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+type HostedReturnContext = "listing" | "featured" | "subscription";
+
+function buildHostedReturnUrl(params: {
+  status: "success" | "cancel";
+  context: HostedReturnContext;
+  returnTo: string;
+  listingId?: string;
+  flow?: "private" | "dealer";
+}) {
+  const url = new URL("/payment-return", APP_URL);
+
+  url.searchParams.set("status", params.status);
+  url.searchParams.set("context", params.context);
+  url.searchParams.set("returnTo", params.returnTo);
+
+  if (params.listingId) {
+    url.searchParams.set("listing", params.listingId);
+  }
+
+  if (params.flow) {
+    url.searchParams.set("flow", params.flow);
+  }
+
+  return url.toString();
+}
 
 function toUserPaymentError(message: string) {
   if (message.includes("RIPPLE_LISTING_PAYMENT_URL")) {
@@ -78,6 +107,7 @@ export async function payForListing(
 
   try {
     const flow = listing.dealerId ? "dealer" : "private";
+    const listingReturnTo = `/sell/checkout?listing=${listing.id}&flow=${flow}`;
     const hasActiveDealerSubscription = listing.dealerId
       ? await db.subscription.findFirst({
           where: {
@@ -111,8 +141,20 @@ export async function payForListing(
           amountInPence: supportAmountPence,
           checkoutType: "listing_support",
           customerEmail: user.email,
-          successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=support`,
-          cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,
+          successUrl: buildHostedReturnUrl({
+            status: "success",
+            context: "listing",
+            listingId: listing.id,
+            flow,
+            returnTo: listingReturnTo,
+          }),
+          cancelUrl: buildHostedReturnUrl({
+            status: "cancel",
+            context: "listing",
+            listingId: listing.id,
+            flow,
+            returnTo: listingReturnTo,
+          }),
           idempotencyKey: `listing-support-${listing.id}-${Date.now()}`,
         });
         return { data: { checkoutUrl: supportSession.url, skippedPayment: true } };
@@ -131,8 +173,20 @@ export async function payForListing(
       checkoutType: "listing_payment",
       supportAmountPence,
       customerEmail: user.email,
-      successUrl: `${APP_URL}/sell/success?listing=${listing.id}&flow=${flow}&payment=paid`,
-      cancelUrl: `${APP_URL}/sell/checkout?listing=${listing.id}&flow=${flow}`,
+      successUrl: buildHostedReturnUrl({
+        status: "success",
+        context: "listing",
+        listingId: listing.id,
+        flow,
+        returnTo: listingReturnTo,
+      }),
+      cancelUrl: buildHostedReturnUrl({
+        status: "cancel",
+        context: "listing",
+        listingId: listing.id,
+        flow,
+        returnTo: listingReturnTo,
+      }),
       idempotencyKey: `listing-pay-${listing.id}-${Date.now()}`,
     });
 
@@ -184,12 +238,22 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
   }
 
   try {
+    const dashboardReturnTo = "/dealer/dashboard?subscribed=true";
+    const pricingReturnTo = "/pricing";
     const session = await createDealerSubscriptionCheckout({
       dealerId: parsed.data.dealerId,
       tier: parsed.data.tier,
       customerEmail: user.email,
-      successUrl: `${APP_URL}/dealer/dashboard?subscribed=true`,
-      cancelUrl: `${APP_URL}/pricing`,
+      successUrl: buildHostedReturnUrl({
+        status: "success",
+        context: "subscription",
+        returnTo: dashboardReturnTo,
+      }),
+      cancelUrl: buildHostedReturnUrl({
+        status: "cancel",
+        context: "subscription",
+        returnTo: pricingReturnTo,
+      }),
     });
 
     return { data: { checkoutUrl: session.url } };
@@ -258,12 +322,23 @@ export async function upgradeFeatured(listingId: string) {
   }
 
   try {
+    const listingReturnTo = `/listings/${listing.id}`;
     const session = await createFeaturedUpgradeCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
       customerEmail: user.email,
-      successUrl: `${APP_URL}/listings/${listing.id}?featured=true`,
-      cancelUrl: `${APP_URL}/listings/${listing.id}`,
+      successUrl: buildHostedReturnUrl({
+        status: "success",
+        context: "featured",
+        listingId: listing.id,
+        returnTo: `${listingReturnTo}?featured=true`,
+      }),
+      cancelUrl: buildHostedReturnUrl({
+        status: "cancel",
+        context: "featured",
+        listingId: listing.id,
+        returnTo: listingReturnTo,
+      }),
       amountInPence: getFeaturedFeePence(),
     });
 
@@ -282,5 +357,195 @@ export async function upgradeFeatured(listingId: string) {
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
     return { error: toUserPaymentError(message) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Temporary demo controls for listing checkout outcomes
+// ---------------------------------------------------------------------------
+
+export async function simulateDemoListingPaymentOutcome(input: {
+  listingId: string;
+  flow: "private" | "dealer";
+  outcome: "success" | "declined";
+}) {
+  const user = await requireAuth();
+
+  const listing = await db.listing.findUnique({
+    where: { id: input.listingId },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  if (!listing) {
+    return { error: "Listing not found" };
+  }
+
+  if (listing.userId !== user.id && user.role !== "ADMIN") {
+    return { error: "Not authorized" };
+  }
+
+  const providerPaymentId = `demo_listing_payment_${listing.id}`;
+  const providerReference = `demo-listing-${listing.id}`;
+  const eventType =
+    input.outcome === "success" ? "payment.succeeded" : "payment.failed";
+
+  try {
+    const simulatedEvent: NormalizedProviderWebhookEvent = {
+      id: `demo-webhook-${listing.id}-${input.outcome}`,
+      type: eventType,
+      rawType: eventType,
+      providerPaymentId,
+      providerReference,
+      providerSubscriptionId: null,
+      providerPlanId: null,
+      paymentStatus:
+        input.outcome === "success" ? "SUCCEEDED" : "DECLINED",
+      subscriptionStatus: null,
+      amount: getListingFeePence(),
+      currency: "gbp",
+      currentPeriodEnd: null,
+      metadata: {
+        checkoutType: "listing_payment",
+        listingId: listing.id,
+        dealerId: null,
+        tier: null,
+      },
+      payload: {
+        source: "demo-modal",
+        emulatedWebhook: true,
+      },
+    };
+
+    await processProviderWebhookEvent(simulatedEvent);
+
+    revalidatePath("/");
+    revalidatePath("/account/listings");
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/revenue");
+    revalidatePath(`/listings/${listing.id}`);
+    revalidatePath(`/sell/checkout?listing=${listing.id}&flow=${input.flow}`);
+
+    return {
+      data: {
+        paymentStatus:
+          input.outcome === "success" ? "SUCCEEDED" : "FAILED",
+        nextUrl:
+          input.outcome === "success"
+            ? `/sell/success?listing=${listing.id}&flow=${input.flow}&payment=paid`
+            : `/sell/checkout?listing=${listing.id}&flow=${input.flow}`,
+      },
+    };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "simulateDemoListingPaymentOutcome",
+      route: "/sell/checkout",
+      requestPath: "/sell/checkout",
+      userId: user.id,
+      userEmail: user.email,
+      tags: {
+        listingId: listing.id,
+        outcome: input.outcome,
+      },
+    });
+
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Failed to simulate the demo payment outcome";
+
+    return { error: message };
+  }
+}
+
+export async function simulateDemoDealerSubscriptionOutcome(input: {
+  tier: "STARTER" | "PRO";
+  outcome: "success" | "declined";
+}) {
+  const user = await requireAuth();
+
+  if (!user.dealerProfile) {
+    return { error: "You must have a dealer profile before simulating subscription payment." };
+  }
+
+  const providerSubscriptionId = `demo_subscription_${user.dealerProfile.id}_${input.tier.toLowerCase()}`;
+  const providerPlanId = `demo_plan_${input.tier.toLowerCase()}`;
+  const eventType =
+    input.outcome === "success" ? "subscription.created" : "subscription.updated";
+
+  try {
+    const simulatedEvent: NormalizedProviderWebhookEvent = {
+      id: `demo-webhook-subscription-${user.dealerProfile.id}-${input.outcome}`,
+      type: eventType,
+      rawType: eventType,
+      providerPaymentId: null,
+      providerReference: null,
+      providerSubscriptionId,
+      providerPlanId,
+      paymentStatus: null,
+      subscriptionStatus:
+        input.outcome === "success" ? "ACTIVE" : "DECLINED",
+      amount: null,
+      currency: "gbp",
+      currentPeriodEnd:
+        input.outcome === "success"
+          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          : null,
+      metadata: {
+        checkoutType: "dealer_subscription",
+        listingId: null,
+        dealerId: user.dealerProfile.id,
+        tier: input.tier,
+      },
+      payload: {
+        source: "demo-modal",
+        emulatedWebhook: true,
+      },
+    };
+
+    await processProviderWebhookEvent(simulatedEvent);
+
+    revalidatePath("/");
+    revalidatePath("/pricing");
+    revalidatePath("/dealer/subscribe");
+    revalidatePath("/dealer/dashboard");
+    revalidatePath("/admin/payments");
+
+    return {
+      data: {
+        subscriptionStatus:
+          input.outcome === "success" ? "ACTIVE" : "PAST_DUE",
+        nextUrl:
+          input.outcome === "success"
+            ? "/dealer/dashboard?subscribed=true"
+            : `/dealer/subscribe?tier=${input.tier}&payment=declined`,
+      },
+    };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "simulateDemoDealerSubscriptionOutcome",
+      route: "/dealer/subscribe",
+      requestPath: "/dealer/subscribe",
+      userId: user.id,
+      userEmail: user.email,
+      tags: {
+        dealerId: user.dealerProfile.id,
+        tier: input.tier,
+        outcome: input.outcome,
+      },
+    });
+
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Failed to simulate the demo subscription outcome";
+
+    return { error: message };
   }
 }

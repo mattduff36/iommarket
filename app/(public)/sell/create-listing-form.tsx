@@ -7,7 +7,10 @@ import {
   saveListingImages,
   submitListingForReview,
 } from "@/actions/listings";
-import { payForListing } from "@/actions/payments";
+import {
+  payForListing,
+  simulateDemoListingPaymentOutcome,
+} from "@/actions/payments";
 import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,
@@ -24,6 +27,7 @@ import {
 import { mapVehicleResultToListingAttributes } from "@/lib/listings/vehicle-autofill";
 import type { VehicleCheckResponse } from "@/lib/services/vehicle-check-types";
 import { formatRegistrationForDisplay } from "@/lib/utils/registration";
+import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import {
   CATEGORY_TILE_META,
   DEFAULT_CATEGORY_TILE_ICON,
@@ -70,11 +74,14 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
     useRippleDemoCheckout();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [titleValue, setTitleValue] = useState("");
+  const [pendingListingId, setPendingListingId] = useState<string | null>(null);
   const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [trustConfirmed, setTrustConfirmed] = useState(false);
@@ -323,6 +330,40 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
     setStep((currentStep) => Math.max(1, currentStep - 1));
   }
 
+  function handleSimulatedDemoOutcome(outcome: "success" | "declined") {
+    if (!pendingListingId) {
+      setDemoOutcomeError("A listing must be created before simulating payment.");
+      return;
+    }
+
+    setDemoOutcomeError(null);
+    startSimulatingDemoOutcome(async () => {
+      const result = await simulateDemoListingPaymentOutcome({
+        listingId: pendingListingId,
+        flow: mode,
+        outcome,
+      });
+
+      if (result.error) {
+        setDemoOutcomeError(
+          typeof result.error === "string"
+            ? result.error
+            : "Could not simulate the demo payment outcome."
+        );
+        return;
+      }
+
+      setDemoDialogOpen(false);
+
+      if (result.data?.nextUrl) {
+        router.push(result.data.nextUrl);
+        return;
+      }
+
+      router.refresh();
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -379,6 +420,7 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
       }
 
       if (result.data) {
+        setPendingListingId(result.data.id);
         if (uploadedImages.length > 0) {
           const saveResult = await saveListingImages(result.data.id, uploadedImages);
           if (saveResult?.error) {
@@ -417,7 +459,17 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
         }
 
         if (payResult.data?.checkoutUrl) {
+          setDemoOutcomeError(null);
           openCheckout(payResult.data.checkoutUrl);
+          if (isRippleDemoCheckoutUrl(payResult.data.checkoutUrl)) {
+            return;
+          }
+          const checkoutSearch = new URLSearchParams({
+            listing: result.data.id,
+            flow: mode,
+            opened: "1",
+          });
+          router.push(`/sell/checkout?${checkoutSearch.toString()}`);
           return;
         }
 
@@ -799,6 +851,16 @@ export function CreateListingForm({ categories, regions, mode = "private", isFre
         onOpenChange={setDemoDialogOpen}
         checkoutUrl={demoCheckoutUrl}
         checkoutLabel="listing payment"
+        demoOutcomeControls={
+          pendingListingId
+            ? {
+                isPending: isSimulatingDemoOutcome,
+                error: demoOutcomeError,
+                onSimulateSuccess: () => handleSimulatedDemoOutcome("success"),
+                onSimulateDeclined: () => handleSimulatedDemoOutcome("declined"),
+              }
+            : undefined
+        }
       />
     </>
   );

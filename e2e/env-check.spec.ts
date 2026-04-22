@@ -415,7 +415,9 @@ test.describe("[AppConfig] Application-level env vars", () => {
   test("17 · footer displays NEXT_PUBLIC_IOM_DATA_CONTROLLER_REF value", async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const footer = page.locator("footer");
+    await page.waitForLoadState("networkidle");
+    const footer = page.locator("footer").last();
+    await expect(footer).toBeVisible({ timeout: 20_000 });
     await footer.scrollIntoViewIfNeeded();
     // The footer renders the data controller ref (or "Pending registration" as current value)
     const ref = process.env.NEXT_PUBLIC_IOM_DATA_CONTROLLER_REF ?? "Pending registration";

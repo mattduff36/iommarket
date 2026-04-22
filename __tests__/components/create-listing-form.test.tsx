@@ -2,9 +2,16 @@ import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateListingForm } from "@/app/(public)/sell/create-listing-form";
+import { createListing, saveListingImages, submitListingForReview } from "@/actions/listings";
+import {
+  payForListing,
+  simulateDemoListingPaymentOutcome,
+} from "@/actions/payments";
+
+const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
 }));
 
 vi.mock("@/actions/listings", () => ({
@@ -15,10 +22,38 @@ vi.mock("@/actions/listings", () => ({
 
 vi.mock("@/actions/payments", () => ({
   payForListing: vi.fn(),
+  simulateDemoListingPaymentOutcome: vi.fn(),
 }));
 
 vi.mock("@/components/marketplace/image-upload", () => ({
-  ImageUpload: () => <div data-testid="mock-image-upload" />,
+  ImageUpload: ({
+    onImagesChange,
+  }: {
+    onImagesChange: (
+      images: Array<{ url: string; publicId: string; order: number }>
+    ) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-image-upload"
+      onClick={() =>
+        onImagesChange([
+          {
+            url: "https://example.com/image-1.jpg",
+            publicId: "image-1",
+            order: 0,
+          },
+          {
+            url: "https://example.com/image-2.jpg",
+            publicId: "image-2",
+            order: 1,
+          },
+        ])
+      }
+    >
+      Add mock images
+    </button>
+  ),
 }));
 
 const fetchMock = vi.fn();
@@ -117,7 +152,14 @@ const regions = [{ id: "iom", name: "Douglas" }];
 describe("CreateListingForm registration lookup", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    pushMock.mockReset();
+    vi.mocked(createListing).mockReset();
+    vi.mocked(saveListingImages).mockReset();
+    vi.mocked(submitListingForReview).mockReset();
+    vi.mocked(payForListing).mockReset();
+    vi.mocked(simulateDemoListingPaymentOutcome).mockReset();
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("open", vi.fn());
     vi.stubGlobal(
       "ResizeObserver",
       class ResizeObserver {
@@ -299,5 +341,128 @@ describe("CreateListingForm registration lookup", () => {
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
       "2019 Honda CBR600RR"
     );
+  });
+
+  it("opens hosted checkout in a new tab and moves the original tab to checkout status", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-123" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(saveListingImages).mockResolvedValue({
+      data: { count: 0 },
+    } as Awaited<ReturnType<typeof saveListingImages>>);
+    vi.mocked(submitListingForReview).mockResolvedValue({
+      data: null,
+    } as Awaited<ReturnType<typeof submitListingForReview>>);
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/pay/123" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm categories={categories} regions={regions} mode="private" />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "2019 BMW 320d M Sport" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "A well-kept BMW with full history and plenty of specification." },
+    });
+    fireEvent.change(screen.getByLabelText("Price (£)"), {
+      target: { value: "15000" },
+    });
+    fireEvent.change(screen.getByLabelText("Region"), {
+      target: { value: "iom" },
+    });
+    fireEvent.change(screen.getByLabelText(/Make/i), {
+      target: { value: "BMW" },
+    });
+    fireEvent.change(screen.getByLabelText(/Model/i), {
+      target: { value: "320d M Sport" },
+    });
+    fireEvent.change(screen.getByLabelText(/Year/i), {
+      target: { value: "2019" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(
+        "I confirm this vehicle is not stolen and has no outstanding finance"
+      )
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    await waitFor(() => {
+      expect(window.open).toHaveBeenCalledWith(
+        "https://checkout.example/pay/123",
+        "_blank",
+        "noopener,noreferrer"
+      );
+    });
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith(
+        "/sell/checkout?listing=listing-123&flow=private&opened=1"
+      );
+    });
+  });
+
+  it("keeps demo checkout inside the Ripple modal instead of redirecting the original tab", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-456" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(saveListingImages).mockResolvedValue({
+      data: { count: 0 },
+    } as Awaited<ReturnType<typeof saveListingImages>>);
+    vi.mocked(payForListing).mockResolvedValue({
+      data: {
+        checkoutUrl: "https://portal.startyourripple.co.uk/card/demo-gym/checkout-123",
+      },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm categories={categories} regions={regions} mode="private" />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "2018 Audi A4 S line" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Clean example with full history and a tidy interior for testing." },
+    });
+    fireEvent.change(screen.getByLabelText("Price (£)"), {
+      target: { value: "12000" },
+    });
+    fireEvent.change(screen.getByLabelText("Region"), {
+      target: { value: "iom" },
+    });
+    fireEvent.change(screen.getByLabelText(/Make/i), {
+      target: { value: "Audi" },
+    });
+    fireEvent.change(screen.getByLabelText(/Model/i), {
+      target: { value: "A4 S line" },
+    });
+    fireEvent.change(screen.getByLabelText(/Year/i), {
+      target: { value: "2018" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(
+        "I confirm this vehicle is not stolen and has no outstanding finance"
+      )
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    await screen.findByText("Preview the Ripple hosted payment journey");
+    expect(
+      screen.getByRole("button", { name: "Emulate successful payment" })
+    ).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });

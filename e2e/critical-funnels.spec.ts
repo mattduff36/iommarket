@@ -81,6 +81,9 @@ async function createListingForE2E(params: {
 test.afterEach(async () => {
   if (createdListingIds.length === 0) return;
 
+  await db.report.deleteMany({
+    where: { listingId: { in: createdListingIds } },
+  });
   await db.listing.deleteMany({
     where: { id: { in: createdListingIds } },
   });
@@ -108,7 +111,7 @@ test.describe("Critical launch funnels", () => {
       page.getByRole("heading", { name: /checkout cancelled/i })
     ).toBeVisible({ timeout: 20_000 });
     await expect(
-      page.getByRole("button", { name: /retry checkout/i })
+      page.getByRole("button", { name: /open payment in new tab/i })
     ).toBeVisible({ timeout: 20_000 });
 
     await db.listing.update({
@@ -136,12 +139,21 @@ test.describe("Critical launch funnels", () => {
       timeout: 20_000,
     });
 
-    await page.getByRole("button", { name: /report this listing/i }).click();
-    await page.getByLabel(/your email/i).fill(reporterEmail);
-    await page.getByLabel(/reason/i).fill(
+    const reportTrigger = page.getByRole("button", {
+      name: /report this listing/i,
+    });
+    await reportTrigger.scrollIntoViewIfNeeded();
+    await reportTrigger.click();
+
+    const submitReportButton = page.getByRole("button", {
+      name: /submit report/i,
+    });
+    await expect(submitReportButton).toBeVisible({ timeout: 20_000 });
+    await page.getByLabel(/your email/i).last().fill(reporterEmail);
+    await page.getByLabel(/reason/i).last().fill(
       "Suspicious listing details for e2e validation workflow."
     );
-    await page.getByRole("button", { name: /submit report/i }).click();
+    await submitReportButton.click();
 
     await expect(page.getByText(/report submitted\. thank you\./i)).toBeVisible({
       timeout: 20_000,

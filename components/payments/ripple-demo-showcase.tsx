@@ -38,7 +38,7 @@ interface RippleDemoShowcaseProps {
 const DELIVERY_STEPS = [
   "Start inside iomarket",
   "Explain demo mode in a modal",
-  "Redirect to hosted Ripple checkout",
+  "Open hosted Ripple checkout in a new tab",
   "Swap in live credentials after onboarding",
 ] as const;
 

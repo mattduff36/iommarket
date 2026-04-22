@@ -378,7 +378,7 @@ export function getPaymentProviderCapabilities(): PaymentProviderCapabilities {
 }
 
 export function isOptionalSupportCheckoutConfigured(): boolean {
-  return Boolean(getUrlConfig("RIPPLE_LISTING_SUPPORT_URL"));
+  return Boolean(getTrimmedEnv("RIPPLE_LISTING_SUPPORT_URL"));
 }
 
 export async function createListingCheckout(params: {
