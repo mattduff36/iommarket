@@ -57,7 +57,7 @@ describe("SignUpWithPlans", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /Create an account for buying, browsing, and selling later/i,
+        name: /Create an account to save, browse, and sell/i,
       })
     ).toBeTruthy();
     expect(screen.queryByText(/Choose your plan to create your account/i)).toBeNull();
@@ -96,7 +96,7 @@ describe("SignUpWithPlans", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /Create your account to continue to dealer setup/i,
+        name: /Create your account to continue/i,
       })
     ).toBeTruthy();
 
