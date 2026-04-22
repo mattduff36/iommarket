@@ -282,7 +282,7 @@ export function SignUpWithPlans({
               <div>
                 <p className="font-medium text-text-primary">Upgrade and become a dealer</p>
                 <p className="mt-1">
-                  Upgrade to a dealer plan when your stock grows.
+                  We also offer dealer accounts for businesses and higher-volume sellers.
                 </p>
               </div>
             </div>
