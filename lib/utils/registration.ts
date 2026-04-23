@@ -43,6 +43,24 @@ export function isSupportedVehicleRegistration(registration: string): boolean {
   return isManxRegistration(registration) || isUkRegistration(registration);
 }
 
+export function getRegistrationRegion(registration: string) {
+  const trimmed = registration.trim();
+
+  if (!trimmed) {
+    return "unrecognized";
+  }
+
+  if (isManxRegistration(trimmed)) {
+    return "iom";
+  }
+
+  if (isUkRegistration(trimmed)) {
+    return "uk";
+  }
+
+  return "unrecognized";
+}
+
 export function formatUkRegistrationForDisplay(registration: string): string {
   const clean = normalizeRegistration(registration);
 

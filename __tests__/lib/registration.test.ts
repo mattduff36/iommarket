@@ -3,6 +3,7 @@ import {
   formatIomRegistrationForApi,
   formatRegistrationForDisplay,
   formatRegistrationForApi,
+  getRegistrationRegion,
   isManxRegistration,
   isSupportedVehicleRegistration,
   isUkRegistration,
@@ -31,6 +32,13 @@ describe("registration utilities", () => {
     expect(isSupportedVehicleRegistration("AB12 CDE")).toBe(true);
     expect(isSupportedVehicleRegistration("MAN 123")).toBe(true);
     expect(isSupportedVehicleRegistration("???")).toBe(false);
+  });
+
+  it("classifies registrations for badge display", () => {
+    expect(getRegistrationRegion("AB12 CDE")).toBe("uk");
+    expect(getRegistrationRegion("MAN 123")).toBe("iom");
+    expect(getRegistrationRegion("")).toBe("unrecognized");
+    expect(getRegistrationRegion("HELLO")).toBe("unrecognized");
   });
 
   it("formats display registrations with UK and IoM spacing", () => {

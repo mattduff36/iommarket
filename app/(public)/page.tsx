@@ -175,35 +175,79 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* ============ DEALER SPOTLIGHTS + SELLER CTA ============ */}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-stretch">
+          <div className="rounded-[28px] border border-border bg-surface p-5 sm:p-6">
+            <div className="mb-5 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="section-heading-accent text-xl font-bold text-text-primary font-heading sm:text-2xl">
+                  Dealer Spotlights
+                </h2>
+                <p className="mt-2 text-sm text-text-secondary">
+                  Trusted Isle of Man dealers with fresh stock and active profiles.
+                </p>
+              </div>
+              <Link
+                href="/search?sellerType=dealer"
+                className="shrink-0 text-sm text-text-trust transition-colors hover:text-neon-blue-400"
+              >
+                View all dealers
+              </Link>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              {dealers.map((dealer) => (
+                <div
+                  key={dealer.id}
+                  className="flex h-full flex-col rounded-2xl border border-border bg-black/20 p-4"
+                >
+                  <h3 className="font-semibold text-text-primary">{dealer.name}</h3>
+                  <p className="mt-2 line-clamp-4 text-sm leading-6 text-text-secondary">
+                    {dealer.bio ?? "Trusted Isle of Man dealer."}
+                  </p>
+                  <div className="mt-auto pt-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-metallic-500">
+                      {dealer._count.listings} live listings
+                    </p>
+                    <Link
+                      href={`/dealers/${dealer.slug}`}
+                      className="mt-3 inline-flex items-center text-sm text-text-trust transition-colors hover:text-neon-blue-400"
+                    >
+                      Visit profile
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-neon-blue-500/20 bg-[radial-gradient(circle_at_top,rgba(51,181,255,0.16),transparent_35%),linear-gradient(145deg,rgba(11,16,21,0.98),rgba(16,21,28,0.98))] p-6 text-left sm:p-8 sm:text-center lg:flex lg:flex-col lg:justify-center lg:text-left">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-neon-red-500">
+              For Sellers
+            </p>
+            <h2 className="mt-4 text-3xl font-bold text-text-primary font-heading">
+              Ready to Sell Your Vehicle?
+            </h2>
+            <p className="mt-4 text-base leading-7 text-text-secondary">
+              List from just &pound;4.99 or subscribe as a dealer for unlimited listings with
+              straightforward pricing.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <Button asChild variant="energy" size="lg" className="w-full">
+                <Link href="/sell">Create a Listing</Link>
+              </Button>
+              <Button asChild variant="trust" size="lg" className="w-full">
+                <Link href="/pricing">View Pricing</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ============ QUICK VEHICLE CHECK ============ */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
         <HomeVehicleCheck />
-      </section>
-
-      {/* ============ DEALER SPOTLIGHTS ============ */}
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="section-heading-accent text-xl sm:text-2xl font-bold text-text-primary font-heading">
-            Dealer Spotlights
-          </h2>
-          <Link href="/search?sellerType=dealer" className="text-sm text-text-trust hover:underline">
-            View all dealers
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
-          {dealers.map((dealer) => (
-            <div key={dealer.id} className="rounded-lg border border-border bg-surface p-5">
-              <h3 className="font-semibold text-text-primary">{dealer.name}</h3>
-              <p className="mt-2 text-sm text-text-secondary line-clamp-3">{dealer.bio ?? "Trusted Isle of Man dealer."}</p>
-              <p className="mt-3 text-xs text-text-secondary">
-                {dealer._count.listings} live listings
-              </p>
-              <Link href={`/dealers/${dealer.slug}`} className="mt-3 inline-block text-sm text-text-trust hover:underline">
-                Visit profile
-              </Link>
-            </div>
-          ))}
-        </div>
       </section>
 
       {/* ============ SOLD STAT ============ */}
@@ -220,30 +264,6 @@ export default async function HomePage() {
           </div>
         </section>
       )}
-
-      {/* ============ CTA ============ */}
-      <section className="bg-surface">
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:py-20 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-neon-red-500">
-            For Sellers
-          </p>
-          <h2 className="mt-3 text-3xl font-bold text-text-primary font-heading sm:text-4xl">
-            Ready to Sell Your Vehicle?
-          </h2>
-          <p className="mt-4 text-lg text-text-secondary leading-relaxed">
-            List your vehicle from just &pound;4.99 or subscribe as a dealer for
-            unlimited listings. Simple, transparent pricing with no hidden fees.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button asChild variant="energy" size="lg">
-              <Link href="/sell">Create a Listing</Link>
-            </Button>
-            <Button asChild variant="trust" size="lg">
-              <Link href="/pricing">View Pricing</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
 
       <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
         <h2 className="text-lg font-semibold text-text-primary">Isle of Man vehicle marketplace</h2>
