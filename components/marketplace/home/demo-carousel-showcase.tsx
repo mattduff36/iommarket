@@ -43,13 +43,37 @@ function ensureMinimumSlides(items: DemoCarouselItem[], minimum = 7): DemoCarous
   return repeated;
 }
 
-function relativeOffset(index: number, selectedIndex: number, total: number): number {
-  if (total <= 1) return 0;
-  let offset = index - selectedIndex;
-  const half = total / 2;
-  if (offset > half) offset -= total;
-  if (offset < -half) offset += total;
-  return offset;
+function normalizeLoopValue(value: number): number {
+  return ((value % 1) + 1) % 1;
+}
+
+function averageSnapStep(snaps: number[]): number {
+  if (snaps.length < 2) return 1;
+
+  const sorted = [...snaps].sort((a, b) => a - b);
+  const diffs: number[] = [];
+  for (let index = 0; index < sorted.length - 1; index += 1) {
+    diffs.push(sorted[index + 1] - sorted[index]);
+  }
+  diffs.push(1 + sorted[0] - sorted[sorted.length - 1]);
+
+  const total = diffs.reduce((sum, diff) => sum + diff, 0);
+  return total / diffs.length;
+}
+
+function relativeSnapOffset(index: number, snaps: number[], scrollProgress: number): number {
+  if (snaps.length === 0) return 0;
+
+  const target = normalizeLoopValue(snaps[index] ?? 0);
+  const progress = normalizeLoopValue(scrollProgress);
+  const step = averageSnapStep(snaps);
+  const rawDelta = target - progress;
+  const loopedDeltas = [rawDelta, rawDelta + 1, rawDelta - 1];
+  const nearestDelta = loopedDeltas.reduce((closest, delta) =>
+    Math.abs(delta) < Math.abs(closest) ? delta : closest,
+  );
+
+  return nearestDelta / step;
 }
 
 function useCarouselState(
@@ -102,6 +126,7 @@ function useCarouselState(
 
   return {
     emblaRef,
+    emblaApi,
     selectedIndex,
     canScrollPrev,
     canScrollNext,
@@ -367,6 +392,28 @@ function PosterStageCarousel({ items }: { items: DemoCarouselItem[] }) {
 
 function DepthStackCarousel({ items }: { items: DemoCarouselItem[] }) {
   const carousel = useCarouselState(items.length);
+  const [scrollProgress, setScrollProgress] = React.useState(0);
+  const [scrollSnaps, setScrollSnaps] = React.useState<number[]>([]);
+
+  React.useEffect(() => {
+    if (!carousel.emblaApi) return;
+
+    const syncMotionState = () => {
+      setScrollProgress(carousel.emblaApi?.scrollProgress() ?? 0);
+      setScrollSnaps(carousel.emblaApi?.scrollSnapList() ?? []);
+    };
+
+    syncMotionState();
+    carousel.emblaApi.on("scroll", syncMotionState);
+    carousel.emblaApi.on("select", syncMotionState);
+    carousel.emblaApi.on("reInit", syncMotionState);
+
+    return () => {
+      carousel.emblaApi?.off("scroll", syncMotionState);
+      carousel.emblaApi?.off("select", syncMotionState);
+      carousel.emblaApi?.off("reInit", syncMotionState);
+    };
+  }, [carousel.emblaApi]);
 
   return (
     <div className="relative" aria-roledescription="carousel" aria-label="Depth stack carousel">
@@ -382,12 +429,17 @@ function DepthStackCarousel({ items }: { items: DemoCarouselItem[] }) {
       <div className="overflow-hidden py-3" ref={carousel.emblaRef}>
         <div className="-ml-2 flex touch-pan-y touch-pinch-zoom sm:-ml-3">
           {items.map((item, index) => {
-            const offset = relativeOffset(index, carousel.selectedIndex, items.length);
-            const absOffset = Math.abs(offset);
-            const isFocused = absOffset === 0;
-            const scale = isFocused ? 1 : absOffset === 1 ? 0.87 : 0.74;
-            const translate = isFocused ? 0 : offset < 0 ? 22 : -22;
-            const rotate = isFocused ? 0 : offset < 0 ? -8 : 8;
+            const offset = relativeSnapOffset(index, scrollSnaps, scrollProgress);
+            const clampedOffset = Math.max(-2.6, Math.min(2.6, offset));
+            const absOffset = Math.abs(clampedOffset);
+            const focusStrength = Math.max(0, 1 - absOffset / 2.6);
+            const isFocused = absOffset < 0.22;
+            const scale = 0.72 + focusStrength * 0.28;
+            const translateX = clampedOffset * -18;
+            const translateY = absOffset * 10;
+            const rotate = clampedOffset * 8.5;
+            const opacity = 0.34 + focusStrength * 0.66;
+            const zIndex = Math.max(1, Math.round((focusStrength + 0.1) * 100));
 
             return (
               <div
@@ -396,12 +448,14 @@ function DepthStackCarousel({ items }: { items: DemoCarouselItem[] }) {
               >
                 <article
                   className={cn(
-                    "relative overflow-hidden rounded-xl border border-border bg-surface transition-all duration-fast ease-fast",
-                    isFocused ? "shadow-[0_24px_64px_rgba(0,0,0,0.42)]" : "opacity-50",
+                    "relative overflow-hidden rounded-xl border border-border bg-surface will-change-transform",
+                    isFocused ? "shadow-[0_24px_64px_rgba(0,0,0,0.42)]" : "shadow-[0_14px_34px_rgba(0,0,0,0.28)]",
                   )}
                   style={{
-                    transform: `translateX(${translate}%) scale(${scale}) rotate(${rotate}deg)`,
-                    zIndex: items.length - absOffset,
+                    opacity,
+                    zIndex,
+                    transformOrigin: "50% 120%",
+                    transform: `translateX(${translateX}%) translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
                   }}
                 >
                   <div className="relative aspect-[14/9] overflow-hidden">

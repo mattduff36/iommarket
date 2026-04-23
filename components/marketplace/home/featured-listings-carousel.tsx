@@ -2,16 +2,10 @@
 
 import * as React from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import Autoplay from "embla-carousel-autoplay";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-
-const AUTOPLAY_DELAY_MS = 6000;
-const MOBILE_BREAKPOINT_QUERY = "(max-width: 767px)";
-const MOBILE_SCROLL_INTERVAL_MS = 16;
-const MOBILE_SCROLL_STEP_PX = 0.32;
 
 export interface FeaturedListingsCarouselItem {
   id: string;
@@ -30,214 +24,105 @@ interface FeaturedListingsCarouselProps {
 export function FeaturedListingsCarousel({
   listings,
 }: FeaturedListingsCarouselProps) {
-  const [hoveredEdge, setHoveredEdge] = React.useState<"prev" | "next" | null>(
-    null,
-  );
-  const [isMobileViewport, setIsMobileViewport] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(MOBILE_BREAKPOINT_QUERY).matches;
-  });
-  const [hasMobileInteracted, setHasMobileInteracted] = React.useState(false);
   const canNavigate = listings.length > 1;
-  const mobileScrollerRef = React.useRef<HTMLDivElement | null>(null);
-  const mobileStartTimeoutRef = React.useRef<number | null>(null);
-  const mobileScrollIntervalRef = React.useRef<number | null>(null);
-  const mobileScrollPositionRef = React.useRef(0);
-  const autoplay = React.useRef(
-    Autoplay({
-      delay: AUTOPLAY_DELAY_MS,
-      playOnInit: canNavigate,
-      stopOnInteraction: false,
-      stopOnMouseEnter: true,
-      stopOnFocusIn: false,
-    }),
-  );
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
-      align: "start",
+      align: "center",
       loop: canNavigate,
       skipSnaps: false,
     },
-    [autoplay.current],
   );
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [canScrollPrev, setCanScrollPrev] = React.useState(false);
   const [canScrollNext, setCanScrollNext] = React.useState(false);
+  const [scrollProgress, setScrollProgress] = React.useState(0);
+  const [scrollSnaps, setScrollSnaps] = React.useState<number[]>([]);
 
-  const stopAutoplay = React.useCallback(() => {
-    if (!emblaApi || !canNavigate) return;
-    autoplay.current.stop();
-  }, [canNavigate, emblaApi]);
-
-  const restartAutoplay = React.useCallback(() => {
-    if (!emblaApi || !canNavigate) return;
-    autoplay.current.reset();
-    autoplay.current.play();
-  }, [canNavigate, emblaApi]);
-
-  const updateControls = React.useCallback(() => {
+  const syncState = React.useCallback(() => {
     if (!emblaApi) return;
     setSelectedIndex(emblaApi.selectedScrollSnap());
     setCanScrollPrev(emblaApi.canScrollPrev());
     setCanScrollNext(emblaApi.canScrollNext());
+    setScrollProgress(emblaApi.scrollProgress());
+    setScrollSnaps(emblaApi.scrollSnapList());
   }, [emblaApi]);
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mediaQuery = window.matchMedia(MOBILE_BREAKPOINT_QUERY);
-    const updateViewport = () => {
-      setIsMobileViewport(mediaQuery.matches);
-    };
-
-    updateViewport();
-    mediaQuery.addEventListener("change", updateViewport);
-
-    return () => {
-      mediaQuery.removeEventListener("change", updateViewport);
-    };
-  }, []);
 
   React.useEffect(() => {
     if (!emblaApi) return;
 
-    updateControls();
-    emblaApi.on("select", updateControls);
-    emblaApi.on("reInit", updateControls);
-    emblaApi.on("pointerDown", stopAutoplay);
-    emblaApi.on("settle", restartAutoplay);
+    syncState();
+    emblaApi.on("scroll", syncState);
+    emblaApi.on("select", syncState);
+    emblaApi.on("reInit", syncState);
 
     return () => {
-      emblaApi.off("select", updateControls);
-      emblaApi.off("reInit", updateControls);
-      emblaApi.off("pointerDown", stopAutoplay);
-      emblaApi.off("settle", restartAutoplay);
+      emblaApi.off("scroll", syncState);
+      emblaApi.off("select", syncState);
+      emblaApi.off("reInit", syncState);
     };
-  }, [emblaApi, restartAutoplay, stopAutoplay, updateControls]);
+  }, [emblaApi, syncState]);
 
   const scrollPrev = React.useCallback(
     (event?: React.MouseEvent<HTMLButtonElement>) => {
       if (!emblaApi) return;
       emblaApi.scrollPrev();
-      restartAutoplay();
 
       if (event && event.detail > 0) {
         event.currentTarget.blur();
       }
     },
-    [emblaApi, restartAutoplay],
+    [emblaApi],
   );
 
   const scrollNext = React.useCallback(
     (event?: React.MouseEvent<HTMLButtonElement>) => {
       if (!emblaApi) return;
       emblaApi.scrollNext();
-      restartAutoplay();
 
       if (event && event.detail > 0) {
         event.currentTarget.blur();
       }
     },
-    [emblaApi, restartAutoplay],
+    [emblaApi],
   );
 
   const scrollTo = React.useCallback(
     (index: number) => {
       if (!emblaApi) return;
       emblaApi.scrollTo(index);
-      restartAutoplay();
     },
-    [emblaApi, restartAutoplay],
+    [emblaApi],
   );
 
-  const handleBlurCapture = React.useCallback(
-    (event: React.FocusEvent<HTMLDivElement>) => {
-      const nextTarget = event.relatedTarget;
+  function normalizeLoopValue(value: number): number {
+    return ((value % 1) + 1) % 1;
+  }
 
-      if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-        return;
-      }
+  function averageSnapStep(snaps: number[]): number {
+    if (snaps.length < 2) return 1;
 
-      restartAutoplay();
-    },
-    [restartAutoplay],
-  );
+    const sorted = [...snaps].sort((a, b) => a - b);
+    const diffs: number[] = [];
+    for (let index = 0; index < sorted.length - 1; index += 1) diffs.push(sorted[index + 1] - sorted[index]);
+    diffs.push(1 + sorted[0] - sorted[sorted.length - 1]);
 
-  const stopMobileAutoScroll = React.useCallback(() => {
-    if (mobileStartTimeoutRef.current !== null) {
-      window.clearTimeout(mobileStartTimeoutRef.current);
-      mobileStartTimeoutRef.current = null;
-    }
+    return diffs.reduce((sum, diff) => sum + diff, 0) / diffs.length;
+  }
 
-    if (mobileScrollIntervalRef.current !== null) {
-      window.clearInterval(mobileScrollIntervalRef.current);
-      mobileScrollIntervalRef.current = null;
-    }
-  }, []);
+  function relativeSnapOffset(index: number): number {
+    if (scrollSnaps.length === 0) return 0;
 
-  const handleMobileInteraction = React.useCallback(() => {
-    stopMobileAutoScroll();
-    setHasMobileInteracted(true);
-  }, [stopMobileAutoScroll]);
+    const target = normalizeLoopValue(scrollSnaps[index] ?? 0);
+    const progress = normalizeLoopValue(scrollProgress);
+    const step = averageSnapStep(scrollSnaps);
+    const rawDelta = target - progress;
+    const loopedDeltas = [rawDelta, rawDelta + 1, rawDelta - 1];
+    const nearestDelta = loopedDeltas.reduce((closest, delta) =>
+      Math.abs(delta) < Math.abs(closest) ? delta : closest,
+    );
 
-  const clearHoveredEdge = React.useCallback(() => {
-    setHoveredEdge(null);
-  }, []);
-
-  React.useEffect(() => {
-    if (!isMobileViewport) {
-      stopMobileAutoScroll();
-      return;
-    }
-
-    if (!canNavigate || hasMobileInteracted) {
-      stopMobileAutoScroll();
-      return;
-    }
-
-    const scroller = mobileScrollerRef.current;
-    if (!scroller) {
-      return;
-    }
-
-    mobileStartTimeoutRef.current = window.setTimeout(() => {
-      mobileScrollPositionRef.current = scroller.scrollLeft;
-
-      mobileScrollIntervalRef.current = window.setInterval(() => {
-        const activeScroller = mobileScrollerRef.current;
-        if (!activeScroller) return;
-
-        const loopWidth = activeScroller.scrollWidth / 2;
-        if (loopWidth <= 0) return;
-
-        const nextScrollLeft = mobileScrollPositionRef.current + MOBILE_SCROLL_STEP_PX;
-        mobileScrollPositionRef.current =
-          nextScrollLeft >= loopWidth ? nextScrollLeft - loopWidth : nextScrollLeft;
-        activeScroller.scrollLeft = mobileScrollPositionRef.current;
-      }, MOBILE_SCROLL_INTERVAL_MS);
-    }, AUTOPLAY_DELAY_MS);
-
-    return () => {
-      stopMobileAutoScroll();
-    };
-  }, [canNavigate, hasMobileInteracted, isMobileViewport, stopMobileAutoScroll]);
-
-  React.useEffect(() => {
-    if (!emblaApi) {
-      return;
-    }
-
-    if (isMobileViewport) {
-      autoplay.current.stop();
-      return;
-    }
-
-    if (canNavigate) {
-      autoplay.current.play();
-    }
-  }, [canNavigate, emblaApi, isMobileViewport]);
-
-  const mobileListings = canNavigate ? [...listings, ...listings] : listings;
+    return nearestDelta / step;
+  }
 
   return (
     <div
@@ -245,136 +130,72 @@ export function FeaturedListingsCarousel({
       aria-label="Featured listings carousel"
       aria-roledescription="carousel"
       data-testid="featured-listings-carousel"
-      onFocusCapture={stopAutoplay}
-      onBlurCapture={handleBlurCapture}
     >
-      {!isMobileViewport ? (
+      <div className="pointer-events-none absolute inset-y-4 left-0 z-10 w-10 bg-gradient-to-r from-canvas/95 via-canvas/65 to-transparent sm:w-16" />
+      <div className="pointer-events-none absolute inset-y-4 right-0 z-10 w-10 bg-gradient-to-l from-canvas/95 via-canvas/65 to-transparent sm:w-16" />
+
+      {canNavigate && (
         <>
-          <div
-            className="relative"
-            data-testid="featured-listings-carousel-stage"
-          >
-            {canNavigate && (
-              <>
-                <div className="pointer-events-none absolute inset-y-3 left-0 z-10 w-12 bg-gradient-to-r from-canvas via-canvas/65 to-transparent sm:w-16" />
-                <div className="pointer-events-none absolute inset-y-3 right-0 z-10 w-12 bg-gradient-to-l from-canvas via-canvas/65 to-transparent sm:w-16" />
-
-                <div
-                  className="absolute inset-y-0 left-0 z-20 flex w-20 items-center justify-start sm:w-24"
-                  data-testid="featured-listings-carousel-prev-zone"
-                  onMouseEnter={() => setHoveredEdge("prev")}
-                  onMouseLeave={clearHoveredEdge}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "h-12 w-12 rounded-full border border-white/6 bg-graphite-950/15 text-metallic-500 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm transition-all duration-fast ease-fast focus-visible:h-14 focus-visible:w-14 focus-visible:border-neon-blue-500/60 focus-visible:bg-graphite-950/85 focus-visible:text-white disabled:opacity-0",
-                      hoveredEdge === "prev"
-                        ? "!h-14 !w-14 !border-metallic-300/30 !bg-graphite-950/85 !text-white !shadow-[0_16px_40px_rgba(0,0,0,0.34)] !opacity-100 md:!opacity-100"
-                        : "hover:h-14 hover:w-14 hover:border-metallic-300/30 hover:bg-graphite-950/85 hover:text-white hover:shadow-[0_16px_40px_rgba(0,0,0,0.34)] md:opacity-25 md:group-hover:opacity-60 md:hover:opacity-100",
-                    )}
-                    aria-label="Previous featured listing"
-                    disabled={!emblaApi || !canNavigate || !canScrollPrev}
-                    onClick={scrollPrev}
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div
-                  className="absolute inset-y-0 right-0 z-20 flex w-20 items-center justify-end sm:w-24"
-                  data-testid="featured-listings-carousel-next-zone"
-                  onMouseEnter={() => setHoveredEdge("next")}
-                  onMouseLeave={clearHoveredEdge}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "h-12 w-12 rounded-full border border-white/6 bg-graphite-950/15 text-metallic-500 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm transition-all duration-fast ease-fast focus-visible:h-14 focus-visible:w-14 focus-visible:border-neon-blue-500/60 focus-visible:bg-graphite-950/85 focus-visible:text-white disabled:opacity-0",
-                      hoveredEdge === "next"
-                        ? "!h-14 !w-14 !border-metallic-300/30 !bg-graphite-950/85 !text-white !shadow-[0_16px_40px_rgba(0,0,0,0.34)] !opacity-100 md:!opacity-100"
-                        : "hover:h-14 hover:w-14 hover:border-metallic-300/30 hover:bg-graphite-950/85 hover:text-white hover:shadow-[0_16px_40px_rgba(0,0,0,0.34)] md:opacity-25 md:group-hover:opacity-60 md:hover:opacity-100",
-                    )}
-                    aria-label="Next featured listing"
-                    disabled={!emblaApi || !canNavigate || !canScrollNext}
-                    onClick={scrollNext}
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
-                </div>
-              </>
-            )}
-
-            <div className="overflow-hidden" ref={emblaRef}>
-              <div className="-ml-3 flex touch-pan-y touch-pinch-zoom sm:-ml-4">
-                {listings.map((listing) => (
-                  <div
-                    key={listing.id}
-                    className="min-w-0 flex-[0_0_calc(50%-0.375rem)] pl-3 py-2 sm:flex-[0_0_calc(50%-0.75rem)] sm:pl-4 md:flex-[0_0_calc(25%-1.125rem)]"
-                  >
-                    <ListingCard
-                      title={listing.title}
-                      price={listing.price}
-                      imageSrc={listing.imageSrc}
-                      location={listing.location}
-                      meta={listing.meta}
-                      featured
-                      badge="Featured"
-                      href={listing.href}
-                      className="h-full border-white/10 bg-surface/95"
-                      imageSizes="(max-width: 767px) 50vw, 25vw"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="absolute inset-y-0 left-1 z-20 flex items-center sm:left-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 rounded-full border border-white/10 bg-graphite-950/80 text-metallic-300 hover:border-neon-blue-500/60 hover:text-white"
+              aria-label="Previous featured listing"
+              disabled={!canScrollPrev}
+              onClick={scrollPrev}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
           </div>
-
-          {canNavigate && (
-            <div className="mt-4 flex justify-center">
-              <div className="flex items-center gap-2">
-                {listings.map((listing, index) => {
-                  const isSelected = index === selectedIndex;
-
-                  return (
-                    <button
-                      key={listing.id}
-                      type="button"
-                      className={`h-2 rounded-full transition-all duration-fast ease-fast ${
-                        isSelected
-                          ? "w-8 bg-neon-blue-400 shadow-[0_0_18px_rgba(0,163,255,0.65)]"
-                          : "w-2 bg-white/20 hover:bg-white/40"
-                      }`}
-                      aria-label={`Go to featured listing ${index + 1}`}
-                      aria-current={isSelected ? "true" : undefined}
-                      onClick={() => scrollTo(index)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <div className="absolute inset-y-0 right-1 z-20 flex items-center sm:right-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 rounded-full border border-white/10 bg-graphite-950/80 text-metallic-300 hover:border-neon-blue-500/60 hover:text-white"
+              aria-label="Next featured listing"
+              disabled={!canScrollNext}
+              onClick={scrollNext}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
         </>
-      ) : (
-        <div className="relative">
-          <div className="pointer-events-none absolute inset-y-3 left-0 z-10 w-8 bg-gradient-to-r from-canvas via-canvas/75 to-transparent" />
-          <div className="pointer-events-none absolute inset-y-3 right-0 z-10 w-8 bg-gradient-to-l from-canvas via-canvas/75 to-transparent" />
-          <div
-            ref={mobileScrollerRef}
-            data-testid="featured-listings-carousel-mobile-scroller"
-            className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            onPointerDown={handleMobileInteraction}
-            onWheel={handleMobileInteraction}
-            onFocusCapture={handleMobileInteraction}
-          >
-            <div className="-ml-3 flex">
-              {mobileListings.map((listing, index) => (
-                <div
-                  key={`${listing.id}-${index}`}
-                  className="min-w-0 flex-[0_0_calc(50%-0.375rem)] pl-3 py-2"
+      )}
+
+      <div className="overflow-hidden py-3" ref={emblaRef} data-testid="featured-listings-carousel-stage">
+        <div className="-ml-2 flex touch-pan-y touch-pinch-zoom sm:-ml-3">
+          {listings.map((listing, index) => {
+            const offset = relativeSnapOffset(index);
+            const clampedOffset = Math.max(-2.6, Math.min(2.6, offset));
+            const absOffset = Math.abs(clampedOffset);
+            const focusStrength = Math.max(0, 1 - absOffset / 2.6);
+            const isFocused = absOffset < 0.22;
+            const scale = 0.72 + focusStrength * 0.28;
+            const translateX = clampedOffset * -18;
+            const translateY = absOffset * 10;
+            const rotate = clampedOffset * 8.5;
+            const opacity = 0.34 + focusStrength * 0.66;
+            const zIndex = Math.max(1, Math.round((focusStrength + 0.1) * 100));
+
+            return (
+              <div
+                key={listing.id}
+                className="min-w-0 flex-[0_0_86%] pl-2 py-6 sm:flex-[0_0_60%] sm:pl-3 lg:flex-[0_0_44%]"
+              >
+                <article
+                  className={cn(
+                    "relative overflow-hidden rounded-xl border border-border bg-surface will-change-transform",
+                    isFocused ? "shadow-[0_24px_64px_rgba(0,0,0,0.42)]" : "shadow-[0_14px_34px_rgba(0,0,0,0.28)]",
+                  )}
+                  style={{
+                    opacity,
+                    zIndex,
+                    transformOrigin: "50% 120%",
+                    transform: `translateX(${translateX}%) translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
+                  }}
                 >
                   <ListingCard
                     title={listing.title}
@@ -386,11 +207,37 @@ export function FeaturedListingsCarousel({
                     badge="Featured"
                     href={listing.href}
                     className="h-full border-white/10 bg-surface/95"
-                    imageSizes="50vw"
+                    imageSizes="(max-width: 640px) 85vw, (max-width: 1024px) 60vw, 44vw"
                   />
-                </div>
-              ))}
-            </div>
+                </article>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {canNavigate && (
+        <div className="mt-4 flex justify-center">
+          <div className="flex items-center gap-2">
+            {listings.map((listing, index) => {
+              const isSelected = index === selectedIndex;
+
+              return (
+                <button
+                  key={listing.id}
+                  type="button"
+                  className={cn(
+                    "h-2 rounded-full transition-all duration-fast ease-fast",
+                    isSelected
+                      ? "w-8 bg-neon-blue-400 shadow-[0_0_18px_rgba(0,163,255,0.65)]"
+                      : "w-2 bg-white/20 hover:bg-white/40",
+                  )}
+                  aria-label={`Go to featured listing ${index + 1}`}
+                  aria-current={isSelected ? "true" : undefined}
+                  onClick={() => scrollTo(index)}
+                />
+              );
+            })}
           </div>
         </div>
       )}
