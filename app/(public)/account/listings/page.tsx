@@ -18,6 +18,7 @@ import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade
 import { MarkSoldButton } from "@/app/(public)/dealer/dashboard/mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
@@ -202,6 +203,17 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                     >
                       View
                     </Link>
+                    {listing.status === "DRAFT" && (
+                      <Link
+                        href={getDraftEditorHref({
+                          listingId: listing.id,
+                          dealerId: listing.dealerId,
+                        })}
+                        className="text-sm text-text-trust hover:underline"
+                      >
+                        Continue editing
+                      </Link>
+                    )}
                     {listing.status === "LIVE" &&
                       !listing.featured &&
                       (listing.dealerId !== null || listing.payments.length > 0) && (

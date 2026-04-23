@@ -20,6 +20,7 @@ import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
+import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import {
   expireStaleLiveListings,
   isListingEffectivelyExpired,
@@ -444,6 +445,20 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             listingId={listing.id}
             flow={listing.dealerId ? "dealer" : "private"}
           />
+        </div>
+      )}
+      {isOwner && listing.status === "DRAFT" && (
+        <div className="mt-8">
+          <Button asChild>
+            <Link
+              href={getDraftEditorHref({
+                listingId: listing.id,
+                dealerId: listing.dealerId,
+              })}
+            >
+              Continue editing draft
+            </Link>
+          </Button>
         </div>
       )}
 

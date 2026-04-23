@@ -169,10 +169,59 @@ export async function updateListing(input: unknown) {
 
   const { id, attributes, ...data } = parsed.data;
 
-  const existing = await db.listing.findUnique({ where: { id } });
+  const existing = await db.listing.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      userId: true,
+      categoryId: true,
+      trustDeclarationAcceptedAt: true,
+    },
+  });
   if (!existing) return { error: "Listing not found" };
   if (existing.userId !== user.id && user.role !== "ADMIN") {
     return { error: "Not authorized to edit this listing" };
+  }
+
+  let sanitizedAttributes:
+    | Array<{ attributeDefinitionId: string; value: string }>
+    | undefined;
+
+  if (data.categoryId || attributes !== undefined) {
+    const category = await db.category.findUnique({
+      where: { id: data.categoryId ?? existing.categoryId },
+      select: {
+        slug: true,
+        attributeDefinitions: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            dataType: true,
+            required: true,
+            options: true,
+          },
+        },
+      },
+    });
+
+    if (!category) {
+      return { error: { categoryId: ["Invalid category."] } };
+    }
+
+    if (attributes !== undefined) {
+      const attributeValidation = validateListingAttributes({
+        categorySlug: category.slug,
+        definitions: category.attributeDefinitions,
+        attributes,
+      });
+
+      if (Object.keys(attributeValidation.fieldErrors).length > 0) {
+        return { error: attributeValidation.fieldErrors };
+      }
+
+      sanitizedAttributes = attributeValidation.sanitizedAttributes;
+    }
   }
 
   try {
@@ -182,21 +231,34 @@ export async function updateListing(input: unknown) {
       changedByUserId: user.id,
       source: user.role === "ADMIN" ? "ADMIN" : "USER",
       notes: "Listing edited and reset for moderation",
-      additionalData: data,
+      additionalData: {
+        ...data,
+        ...(data.trustDeclarationAccepted !== undefined
+          ? {
+              trustDeclarationAcceptedAt: data.trustDeclarationAccepted
+                ? existing.trustDeclarationAcceptedAt ?? new Date()
+                : null,
+            }
+          : {}),
+      },
     });
 
-    if (attributes && attributes.length > 0) {
+    if (attributes !== undefined) {
       await db.listingAttributeValue.deleteMany({ where: { listingId: id } });
-      await db.listingAttributeValue.createMany({
-        data: attributes.map((attr) => ({
-          listingId: id,
-          attributeDefinitionId: attr.attributeDefinitionId,
-          value: attr.value,
-        })),
-      });
+      if (sanitizedAttributes && sanitizedAttributes.length > 0) {
+        await db.listingAttributeValue.createMany({
+          data: sanitizedAttributes.map((attr) => ({
+            listingId: id,
+            attributeDefinitionId: attr.attributeDefinitionId,
+            value: attr.value,
+          })),
+        });
+      }
     }
 
     revalidatePath(`/listings/${id}`);
+    revalidatePath("/account/listings");
+    revalidatePath("/dealer/dashboard");
     revalidatePath("/");
     return { data: listing };
   } catch (err) {
@@ -533,6 +595,57 @@ export async function saveListingImages(
       tags: { listingId, imageCount: images.length },
     });
     const message = err instanceof Error ? err.message : "Failed to save images";
+    return { error: message };
+  }
+}
+
+export async function replaceListingImages(
+  listingId: string,
+  images: Array<{ url: string; publicId: string; order: number }>
+) {
+  const user = await requireAuth();
+
+  const listing = await db.listing.findUnique({ where: { id: listingId } });
+  if (!listing) return { error: "Listing not found" };
+  if (listing.userId !== user.id && user.role !== "ADMIN") {
+    return { error: "Not authorized" };
+  }
+  if (images.length > 20) {
+    return { error: "Maximum 20 images allowed" };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.listingImage.deleteMany({ where: { listingId } });
+
+      if (images.length > 0) {
+        await tx.listingImage.createMany({
+          data: images.map((image) => ({
+            listingId,
+            url: image.url,
+            publicId: image.publicId,
+            order: image.order,
+          })),
+        });
+      }
+    });
+
+    revalidatePath(`/listings/${listingId}`);
+    revalidatePath("/account/listings");
+    revalidatePath("/dealer/dashboard");
+    return { data: { count: images.length } };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "replaceListingImages",
+      route: `/listings/${listingId}`,
+      requestPath: `/listings/${listingId}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId, imageCount: images.length },
+    });
+    const message = err instanceof Error ? err.message : "Failed to update images";
     return { error: message };
   }
 }

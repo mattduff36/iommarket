@@ -7,6 +7,8 @@ import {
   createListingCheckout,
   createDealerSubscriptionCheckout,
   createFeaturedUpgradeCheckout,
+  isDemoDealerSubscriptionCheckoutConfigured,
+  isDemoListingCheckoutConfigured,
   isOptionalSupportCheckoutConfigured,
 } from "@/lib/payments/provider";
 import {
@@ -28,10 +30,12 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 type HostedReturnContext = "listing" | "featured" | "subscription";
 
-function assertDevMode() {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Demo payment actions are not available in production.");
+function getDemoPaymentUnavailableError(isDemoCheckoutConfigured: boolean) {
+  if (isDemoCheckoutConfigured) {
+    return null;
   }
+
+  return "Temporary demo payment controls are only available while Ripple demo checkout is active.";
 }
 
 function buildHostedReturnUrl(params: {
@@ -375,7 +379,12 @@ export async function simulateDemoListingPaymentOutcome(input: {
   flow: "private" | "dealer";
   outcome: "success" | "declined";
 }) {
-  assertDevMode();
+  const unavailableError = getDemoPaymentUnavailableError(
+    isDemoListingCheckoutConfigured()
+  );
+  if (unavailableError) {
+    return { error: unavailableError };
+  }
   const user = await requireAuth();
 
   const listing = await db.listing.findUnique({
@@ -473,7 +482,12 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
   tier: "STARTER" | "PRO";
   outcome: "success" | "declined";
 }) {
-  assertDevMode();
+  const unavailableError = getDemoPaymentUnavailableError(
+    isDemoDealerSubscriptionCheckoutConfigured(input.tier)
+  );
+  if (unavailableError) {
+    return { error: unavailableError };
+  }
   const user = await requireAuth();
 
   if (!user.dealerProfile) {

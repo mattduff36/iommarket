@@ -2,7 +2,13 @@ import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateListingForm } from "@/app/(public)/sell/create-listing-form";
-import { createListing, saveListingImages, submitListingForReview } from "@/actions/listings";
+import {
+  createListing,
+  replaceListingImages,
+  saveListingImages,
+  submitListingForReview,
+  updateListing,
+} from "@/actions/listings";
 import {
   payForListing,
   simulateDemoListingPaymentOutcome,
@@ -16,8 +22,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/actions/listings", () => ({
   createListing: vi.fn(),
+  replaceListingImages: vi.fn(),
   saveListingImages: vi.fn(),
   submitListingForReview: vi.fn(),
+  updateListing: vi.fn(),
 }));
 
 vi.mock("@/actions/payments", () => ({
@@ -154,8 +162,10 @@ describe("CreateListingForm registration lookup", () => {
     fetchMock.mockReset();
     pushMock.mockReset();
     vi.mocked(createListing).mockReset();
+    vi.mocked(replaceListingImages).mockReset();
     vi.mocked(saveListingImages).mockReset();
     vi.mocked(submitListingForReview).mockReset();
+    vi.mocked(updateListing).mockReset();
     vi.mocked(payForListing).mockReset();
     vi.mocked(simulateDemoListingPaymentOutcome).mockReset();
     vi.stubGlobal("fetch", fetchMock);
@@ -405,6 +415,99 @@ describe("CreateListingForm registration lookup", () => {
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith(
         "/sell/checkout?listing=listing-123&flow=private&opened=1"
+      );
+    });
+  });
+
+  it("updates an existing draft instead of creating a new listing", async () => {
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "draft-123" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(replaceListingImages).mockResolvedValue({
+      data: { count: 2 },
+    } as Awaited<ReturnType<typeof replaceListingImages>>);
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/pay/draft-123" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        initialDraft={{
+          id: "draft-123",
+          title: "2017 Audi A3 Sport",
+          description: "Previously saved draft description with enough detail to remain valid.",
+          price: 11250,
+          categoryId: "car-category",
+          regionId: "iom",
+          trustDeclarationAccepted: true,
+          images: [
+            {
+              url: "https://example.com/existing-1.jpg",
+              publicId: "existing-1",
+              order: 0,
+            },
+            {
+              url: "https://example.com/existing-2.jpg",
+              publicId: "existing-2",
+              order: 1,
+            },
+          ],
+          attributes: [
+            { attributeDefinitionId: "make", value: "Audi" },
+            { attributeDefinitionId: "model", value: "A3 Sport" },
+            { attributeDefinitionId: "year", value: "2017" },
+          ],
+        }}
+      />
+    );
+
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
+      "2017 Audi A3 Sport"
+    );
+    expect((screen.getByLabelText("Price (£)") as HTMLInputElement).value).toBe("11250");
+    expect((screen.getByLabelText("Region") as HTMLSelectElement).value).toBe("iom");
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    await waitFor(() => {
+      expect(updateListing).toHaveBeenCalledWith({
+        id: "draft-123",
+        title: "2017 Audi A3 Sport",
+        description: "Previously saved draft description with enough detail to remain valid.",
+        price: 1125000,
+        categoryId: "car-category",
+        regionId: "iom",
+        trustDeclarationAccepted: true,
+        attributes: [
+          { attributeDefinitionId: "make", value: "Audi" },
+          { attributeDefinitionId: "model", value: "A3 Sport" },
+          { attributeDefinitionId: "year", value: "2017" },
+        ],
+      });
+    });
+
+    expect(createListing).not.toHaveBeenCalled();
+    expect(replaceListingImages).toHaveBeenCalledWith("draft-123", [
+      {
+        url: "https://example.com/existing-1.jpg",
+        publicId: "existing-1",
+        order: 0,
+      },
+      {
+        url: "https://example.com/existing-2.jpg",
+        publicId: "existing-2",
+        order: 1,
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith(
+        "/sell/checkout?listing=draft-123&flow=private&opened=1"
       );
     });
   });

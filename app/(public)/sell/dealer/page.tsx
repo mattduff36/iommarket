@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { Button } from "@/components/ui/button";
 import { CreateListingForm } from "../create-listing-form";
@@ -52,17 +53,36 @@ async function ensureAdminDealerProfile(user: {
   throw new Error("Failed to provision dealer profile for admin user.");
 }
 
-export default async function SellDealerPage() {
+interface Props {
+  searchParams?: Promise<{
+    draft?: string;
+  }>;
+}
+
+export default async function SellDealerPage({ searchParams }: Props) {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-up?next=/sell/dealer");
   if (user.role === "USER") redirect("/sell/private");
   let dealerProfile = user.dealerProfile;
+  const params = searchParams ? await searchParams : {};
+  const draftId = params.draft?.trim();
 
   if (!dealerProfile && user.role === "ADMIN") {
     dealerProfile = await ensureAdminDealerProfile(user);
   }
 
   if (!dealerProfile) redirect("/dealer/subscribe");
+
+  const initialDraft = draftId
+    ? await getEditableDraft({
+        draftId,
+        userId: user.id,
+        dealerId: dealerProfile.id,
+      })
+    : null;
+  if (draftId && !initialDraft) {
+    redirect("/dealer/dashboard?status=DRAFT");
+  }
 
   const activeSubscription = await db.subscription.findFirst({
     where: {
@@ -72,7 +92,7 @@ export default async function SellDealerPage() {
     select: { id: true },
   });
 
-  if (!activeSubscription) {
+  if (!activeSubscription && !initialDraft) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-4">
         <h1 className="text-3xl font-bold text-text-primary">Dealer Listing</h1>
@@ -97,10 +117,12 @@ export default async function SellDealerPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-bold text-text-primary mb-2">
-        Create a Dealer Listing
+        {initialDraft ? "Continue Editing Your Dealer Draft" : "Create a Dealer Listing"}
       </h1>
       <p className="text-text-secondary mb-8">
-        Publish inventory from your dealer account. Your listing is submitted for moderation after this step.
+        {initialDraft
+          ? "Update your saved dealer draft and continue when the vehicle is ready to submit."
+          : "Publish inventory from your dealer account. Your listing is submitted for moderation after this step."}
       </p>
 
       <CreateListingForm
@@ -108,6 +130,7 @@ export default async function SellDealerPage() {
         regions={regions}
         mode="dealer"
         cloudinaryUploadPreset={cloudinaryUploadPreset}
+        initialDraft={initialDraft}
       />
     </div>
   );

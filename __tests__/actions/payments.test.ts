@@ -13,6 +13,9 @@ const {
   makeRateLimitKeyMock,
   getListingFeePenceMock,
   getFeaturedFeePenceMock,
+  isDemoListingCheckoutConfiguredMock,
+  isDemoDealerSubscriptionCheckoutConfiguredMock,
+  revalidatePathMock,
   mockDb,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
@@ -24,6 +27,9 @@ const {
   makeRateLimitKeyMock: vi.fn(),
   getListingFeePenceMock: vi.fn(),
   getFeaturedFeePenceMock: vi.fn(),
+  isDemoListingCheckoutConfiguredMock: vi.fn(),
+  isDemoDealerSubscriptionCheckoutConfiguredMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
   mockDb: {
     listing: {
       findUnique: vi.fn(),
@@ -55,6 +61,10 @@ vi.mock("@/lib/monitoring", () => ({
   captureException: captureExceptionMock,
 }));
 
+vi.mock("next/cache", () => ({
+  revalidatePath: revalidatePathMock,
+}));
+
 vi.mock("@/lib/payments/webhook-processing", () => ({
   processProviderWebhookEvent: processProviderWebhookEventMock,
 }));
@@ -72,6 +82,9 @@ vi.mock("@/lib/payments/provider", async () => {
   return {
     ...actual,
     createListingCheckout: createListingCheckoutMock,
+    isDemoListingCheckoutConfigured: isDemoListingCheckoutConfiguredMock,
+    isDemoDealerSubscriptionCheckoutConfigured:
+      isDemoDealerSubscriptionCheckoutConfiguredMock,
   };
 });
 
@@ -141,30 +154,97 @@ describe("demo payment actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.NODE_ENV = "production";
+    getListingFeePenceMock.mockReturnValue(499);
   });
 
-  it("blocks demo listing payment simulation in production", async () => {
+  it("blocks demo listing payment simulation when live checkout is configured", async () => {
+    isDemoListingCheckoutConfiguredMock.mockReturnValue(false);
+
     await expect(
       simulateDemoListingPaymentOutcome({
         listingId: "listing_123",
         flow: "private",
         outcome: "success",
       })
-    ).rejects.toThrow("Demo payment actions are not available in production.");
+    ).resolves.toEqual({
+      error:
+        "Temporary demo payment controls are only available while Ripple demo checkout is active.",
+    });
 
     expect(requireAuthMock).not.toHaveBeenCalled();
     expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
 
-  it("blocks demo dealer subscription simulation in production", async () => {
+  it("allows demo listing payment simulation in production when demo checkout is active", async () => {
+    isDemoListingCheckoutConfiguredMock.mockReturnValue(true);
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+    });
+
+    await expect(
+      simulateDemoListingPaymentOutcome({
+        listingId: "listing_123",
+        flow: "private",
+        outcome: "success",
+      })
+    ).resolves.toEqual({
+      data: {
+        paymentStatus: "SUCCEEDED",
+        nextUrl: "/sell/success?listing=listing_123&flow=private&payment=paid",
+      },
+    });
+
+    expect(processProviderWebhookEventMock).toHaveBeenCalledOnce();
+    expect(revalidatePathMock).toHaveBeenCalled();
+  });
+
+  it("blocks demo dealer subscription simulation when live checkout is configured", async () => {
+    isDemoDealerSubscriptionCheckoutConfiguredMock.mockReturnValue(false);
+
     await expect(
       simulateDemoDealerSubscriptionOutcome({
         tier: "STARTER",
         outcome: "success",
       })
-    ).rejects.toThrow("Demo payment actions are not available in production.");
+    ).resolves.toEqual({
+      error:
+        "Temporary demo payment controls are only available while Ripple demo checkout is active.",
+    });
 
     expect(requireAuthMock).not.toHaveBeenCalled();
     expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
+  });
+
+  it("allows demo dealer subscription simulation in production when demo checkout is active", async () => {
+    isDemoDealerSubscriptionCheckoutConfiguredMock.mockReturnValue(true);
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      role: "USER",
+      dealerProfile: {
+        id: "dealer_123",
+      },
+    });
+
+    await expect(
+      simulateDemoDealerSubscriptionOutcome({
+        tier: "STARTER",
+        outcome: "success",
+      })
+    ).resolves.toEqual({
+      data: {
+        subscriptionStatus: "ACTIVE",
+        nextUrl: "/dealer/dashboard?subscribed=true",
+      },
+    });
+
+    expect(processProviderWebhookEventMock).toHaveBeenCalledOnce();
+    expect(revalidatePathMock).toHaveBeenCalled();
   });
 });

@@ -4,8 +4,10 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createListing,
+  replaceListingImages,
   saveListingImages,
   submitListingForReview,
+  updateListing,
 } from "@/actions/listings";
 import {
   payForListing,
@@ -39,6 +41,7 @@ import {
   pruneHiddenAttributes,
   REGISTRATION_LOOKUP_CATEGORY_SLUGS,
 } from "./create-listing-form.helpers";
+import type { EditableDraft } from "@/lib/listings/editable-draft";
 
 interface AttributeDef {
   id: string;
@@ -67,6 +70,7 @@ interface Props {
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
   cloudinaryUploadPreset?: string | null;
+  initialDraft?: EditableDraft | null;
 }
 
 export function CreateListingForm({
@@ -75,23 +79,30 @@ export function CreateListingForm({
   mode = "private",
   isFreeForUser = false,
   cloudinaryUploadPreset = null,
+  initialDraft = null,
 }: Props) {
   const router = useRouter();
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
   const formRef = useRef<HTMLFormElement>(null);
+  const isEditingDraft = Boolean(initialDraft);
   const [isPending, startTransition] = useTransition();
   const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState(1);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [titleValue, setTitleValue] = useState("");
-  const [pendingListingId, setPendingListingId] = useState<string | null>(null);
-  const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [trustConfirmed, setTrustConfirmed] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(initialDraft?.categoryId ?? "");
+  const [titleValue, setTitleValue] = useState(initialDraft?.title ?? "");
+  const [pendingListingId, setPendingListingId] = useState<string | null>(initialDraft?.id ?? null);
+  const [attributeValues, setAttributeValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      initialDraft?.attributes.map((attribute) => [attribute.attributeDefinitionId, attribute.value]) ??
+        []
+    )
+  );
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(initialDraft?.images ?? []);
+  const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
   const [supportPlatform, setSupportPlatform] = useState(false);
   const [registrationInput, setRegistrationInput] = useState("");
@@ -403,7 +414,7 @@ export function CreateListingForm({
     }
 
     startTransition(async () => {
-      const result = await createListing({
+      const listingPayload = {
         title: form.get("title") as string,
         description: form.get("description") as string,
         price: Math.round(parseFloat(form.get("price") as string) * 100),
@@ -411,7 +422,13 @@ export function CreateListingForm({
         regionId: form.get("regionId") as string,
         trustDeclarationAccepted: trustConfirmed,
         attributes,
-      });
+      };
+      const result = isEditingDraft && initialDraft
+        ? await updateListing({
+            id: initialDraft.id,
+            ...listingPayload,
+          })
+        : await createListing(listingPayload);
 
       if (result.error) {
         if (typeof result.error === "string") {
@@ -424,9 +441,12 @@ export function CreateListingForm({
       }
 
       if (result.data) {
-        setPendingListingId(result.data.id);
+        const listingId = initialDraft?.id ?? result.data.id;
+        setPendingListingId(listingId);
         if (uploadedImages.length > 0) {
-          const saveResult = await saveListingImages(result.data.id, uploadedImages);
+          const saveResult = isEditingDraft
+            ? await replaceListingImages(listingId, uploadedImages)
+            : await saveListingImages(listingId, uploadedImages);
           if (saveResult?.error) {
             setError(
               typeof saveResult.error === "string"
@@ -437,7 +457,7 @@ export function CreateListingForm({
           }
         }
 
-        const payResult = await payForListing(result.data.id, {
+        const payResult = await payForListing(listingId, {
           supportAmountPence:
             mode === "private" && supportPlatform ? 500 : 0,
         });
@@ -451,7 +471,7 @@ export function CreateListingForm({
         }
 
         if (payResult.data?.skippedPayment) {
-          const reviewResult = await submitListingForReview(result.data.id);
+          const reviewResult = await submitListingForReview(listingId);
           if (reviewResult?.error) {
             setError(
               typeof reviewResult.error === "string"
@@ -469,7 +489,7 @@ export function CreateListingForm({
             return;
           }
           const checkoutSearch = new URLSearchParams({
-            listing: result.data.id,
+            listing: listingId,
             flow: mode,
             opened: "1",
           });
@@ -478,7 +498,7 @@ export function CreateListingForm({
         }
 
         const search = new URLSearchParams({
-          listing: result.data.id,
+          listing: listingId,
           flow: mode,
           payment: payResult.data?.skippedPayment ? "skipped" : "paid",
         });
@@ -492,7 +512,7 @@ export function CreateListingForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            Create Listing - Step {step} of 3
+            {isEditingDraft ? `Continue Editing - Step ${step} of 3` : `Create Listing - Step ${step} of 3`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -618,6 +638,7 @@ export function CreateListingForm({
                 <textarea
                   id="description"
                   name="description"
+                  defaultValue={initialDraft?.description ?? ""}
                   required={isDetailsStep}
                   minLength={20}
                   maxLength={5000}
@@ -640,6 +661,7 @@ export function CreateListingForm({
                 label="Price (£)"
                 name="price"
                 type="number"
+                defaultValue={initialDraft?.price}
                 required={isDetailsStep}
                 min={1}
                 max={1000000}
@@ -660,7 +682,7 @@ export function CreateListingForm({
                   id="regionId"
                   name="regionId"
                   required={isDetailsStep}
-                  defaultValue=""
+                  defaultValue={initialDraft?.regionId ?? ""}
                   aria-invalid={getFieldError("regionId") ? true : undefined}
                   aria-describedby={getFieldError("regionId") ? "region-error" : undefined}
                   className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${

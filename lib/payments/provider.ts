@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { Webhook } from "standardwebhooks";
 import type { DealerTier, PaymentProvider } from "@prisma/client";
+import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 
 export type PaymentCheckoutType =
   | "listing_payment"
@@ -379,6 +380,20 @@ export function getPaymentProviderCapabilities(): PaymentProviderCapabilities {
 
 export function isOptionalSupportCheckoutConfigured(): boolean {
   return Boolean(getTrimmedEnv("RIPPLE_LISTING_SUPPORT_URL"));
+}
+
+export function isDemoListingCheckoutConfigured(): boolean {
+  return isRippleDemoCheckoutUrl(getUrlConfig("RIPPLE_LISTING_PAYMENT_URL"));
+}
+
+export function isDemoDealerSubscriptionCheckoutConfigured(
+  tier: DealerTier
+): boolean {
+  return isRippleDemoCheckoutUrl(
+    getUrlConfig(
+      tier === "PRO" ? "RIPPLE_DEALER_PRO_URL" : "RIPPLE_DEALER_STARTER_URL"
+    )
+  );
 }
 
 export async function createListingCheckout(params: {

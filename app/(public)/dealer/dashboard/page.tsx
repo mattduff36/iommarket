@@ -26,6 +26,7 @@ import {
   getDealerListingCap,
 } from "@/lib/config/dealer-tiers";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -405,6 +406,17 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                       >
                         View
                       </Link>
+                      {listing.status === "DRAFT" && (
+                        <Link
+                          href={getDraftEditorHref({
+                            listingId: listing.id,
+                            dealerId: listing.dealerId,
+                          })}
+                          className="text-sm text-text-trust hover:underline"
+                        >
+                          Continue editing
+                        </Link>
+                      )}
                       {listing.status === "LIVE" && !listing.featured && (
                         <FeaturedUpgradeButton
                           listingId={listing.id}

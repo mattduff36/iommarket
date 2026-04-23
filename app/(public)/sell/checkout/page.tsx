@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckoutStatusActions } from "./checkout-status-actions";
@@ -156,7 +157,14 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
             <div className="space-y-3">
               <RetryCheckoutButton listingId={listing.id} flow={flow} />
               <Button asChild variant="ghost">
-                <Link href={`/listings/${listing.id}`}>View saved draft</Link>
+                <Link
+                  href={getDraftEditorHref({
+                    listingId: listing.id,
+                    dealerId: listing.dealerId,
+                  })}
+                >
+                  Continue editing draft
+                </Link>
               </Button>
             </div>
           )}
