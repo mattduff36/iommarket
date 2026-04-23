@@ -169,7 +169,7 @@ export function SiteHeader() {
 
         {/* Mobile menu */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-border bg-surface px-4 py-4">
+          <div className="relative z-40 md:hidden border-t border-border bg-surface/95 backdrop-blur-sm px-4 py-4 shadow-2xl">
 
             {/* ── Nav links ── */}
             <nav className="flex flex-col gap-1 mb-3" aria-label="Mobile">
@@ -232,7 +232,7 @@ export function SiteHeader() {
                 <Link
                   href="/sign-up"
                   onClick={() => setMobileOpen(false)}
-                  className="block px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                  className="block rounded-sm border border-neon-blue-500 bg-neon-blue-500/10 px-3 py-3 text-center text-sm font-bold uppercase italic tracking-wide text-neon-blue-400 transition-colors hover:bg-neon-blue-500/20 hover:text-neon-blue-300"
                 >
                   Sign Up
                 </Link>
@@ -241,6 +241,20 @@ export function SiteHeader() {
           </div>
         )}
       </header>
+
+      {/* Mobile menu backdrop — blurs page content behind the open panel.
+          MUST be a sibling of <header>, not a child: the header's
+          `glass-surface` class applies `backdrop-filter`, which creates a
+          containing block for fixed descendants and would confine this
+          overlay to the header's bounds. */}
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-30 bg-graphite-950/60 backdrop-blur-md md:hidden"
+        />
+      )}
     </>
   );
 }
