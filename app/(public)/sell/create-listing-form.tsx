@@ -92,6 +92,7 @@ export function CreateListingForm({
   const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [trustConfirmed, setTrustConfirmed] = useState(false);
+  const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
   const [supportPlatform, setSupportPlatform] = useState(false);
   const [registrationInput, setRegistrationInput] = useState("");
   const [lookupPending, setLookupPending] = useState(false);
@@ -121,11 +122,6 @@ export function CreateListingForm({
         config: NonNullable<ReturnType<typeof getAttributeFieldConfig>>;
       } => item.config !== null
     ) ?? [];
-  const fieldErrorMessages = [
-    ...Object.values(fieldErrors).flat(),
-    ...(error ? [error] : []),
-  ];
-
   function getFieldError(fieldName: string) {
     return fieldErrors[fieldName]?.[0];
   }
@@ -328,12 +324,14 @@ export function CreateListingForm({
     }
     setFieldErrors({});
     setError(null);
+    setTrustConfirmationMissing(false);
     setStep((currentStep) => Math.min(3, currentStep + 1));
   }
 
   function prevStep() {
     setFieldErrors({});
     setError(null);
+    setTrustConfirmationMissing(false);
     setStep((currentStep) => Math.max(1, currentStep - 1));
   }
 
@@ -378,11 +376,10 @@ export function CreateListingForm({
 
     const form = new FormData(e.currentTarget);
     if (!trustConfirmed) {
-      setError(
-        "Please confirm the vehicle is not stolen and has no outstanding finance."
-      );
+      setTrustConfirmationMissing(true);
       return;
     }
+    setTrustConfirmationMissing(false);
 
     const attributes: Array<{ attributeDefinitionId: string; value: string }> = [];
     if (selectedCategory) {
@@ -708,15 +705,30 @@ export function CreateListingForm({
               <p className="text-sm text-text-secondary">
                 Photos selected: {uploadedImages.length}
               </p>
+              <p
+                className={`text-sm ${
+                  trustConfirmationMissing ? "text-text-energy" : "text-text-secondary"
+                }`}
+              >
+                Please confirm the vehicle is not stolen and has no outstanding finance.
+              </p>
               <Checkbox
                 checked={trustConfirmed}
-                onCheckedChange={(checked) => setTrustConfirmed(checked === true)}
+                onCheckedChange={(checked) => {
+                  const isChecked = checked === true;
+                  setTrustConfirmed(isChecked);
+                  if (isChecked) {
+                    setTrustConfirmationMissing(false);
+                  }
+                }}
+                className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
                 label="I confirm this vehicle is not stolen and has no outstanding finance"
               />
               {mode === "private" && (
                 <Checkbox
                   checked={supportPlatform}
                   onCheckedChange={(checked) => setSupportPlatform(checked === true)}
+                  className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
                   label="Optional: add £5 to support the platform"
                 />
               )}
@@ -815,16 +827,9 @@ export function CreateListingForm({
             </div>
           )}
 
-          {fieldErrorMessages.length > 0 ? (
-            <div className="rounded-md border border-neon-red-500/40 bg-neon-red-500/5 px-3 py-2">
-              <p className="text-sm font-medium text-text-error">
-                Please fix the following:
-              </p>
-              <ul className="mt-2 list-disc pl-5 text-sm text-text-error">
-                {fieldErrorMessages.map((message, index) => (
-                  <li key={`${message}-${index}`}>{message}</li>
-                ))}
-              </ul>
+          {error ? (
+            <div className="rounded-md border border-border bg-surface-elevated px-3 py-2">
+              <p className="text-sm text-text-secondary">{error}</p>
             </div>
           ) : null}
 
