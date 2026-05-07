@@ -43,9 +43,13 @@ describe("getRoleLabel", () => {
 });
 
 describe("PUBLIC_NAV_ITEMS", () => {
-  it("includes the vehicle check page in public navigation", () => {
-    expect(
-      PUBLIC_NAV_ITEMS.some((item) => item.href === "/vehicle-check")
-    ).toBe(true);
+  it("uses the requested public navigation order and labels", () => {
+    expect(PUBLIC_NAV_ITEMS).toEqual([
+      { label: "Home", href: "/" },
+      { label: "Buy", href: "/categories" },
+      { label: "Sell", href: "/sell" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Vehicle Check", href: "/vehicle-check" },
+    ]);
   });
 });

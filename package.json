@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "db:seed": "npx tsx prisma/seed.ts",
     "seed:admin": "npx tsx scripts/seed-admin-users.ts",
+    "images:standardize": "npx tsx scripts/standardize-listing-images.ts",
     "tokens:generate": "npx tsx scripts/generate-ui-from-json.ts",
     "tokens:check": "npx tsx scripts/generate-ui-from-json.ts && echo 'Tokens up to date'",
     "test": "vitest",

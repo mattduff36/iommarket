@@ -1,0 +1,149 @@
+{
+  "source": "public/images/logo-itrader.png",
+  "sourceSize": {
+    "width": 738,
+    "height": 187
+  },
+  "processing": {
+    "method": "deterministic upscale + sharpen",
+    "notes": "No redesign. Original crop, colors, transparency, and composition preserved."
+  },
+  "outputs": [
+    {
+      "name": "original-reference",
+      "file": "logo-itrader-original-reference.png",
+      "width": 738,
+      "height": 187
+    },
+    {
+      "name": "master-2x",
+      "file": "logo-itrader-master-2x.png",
+      "width": 1476,
+      "height": 374
+    },
+    {
+      "name": "master-4x-png",
+      "file": "logo-itrader-master-4x.png",
+      "width": 2952,
+      "height": 748
+    },
+    {
+      "name": "master-4x-webp",
+      "file": "logo-itrader-master-4x.webp",
+      "width": 2952,
+      "height": 748
+    },
+    {
+      "name": "footer-1x",
+      "width": 180,
+      "height": 46,
+      "png": "logo-itrader-footer-1x.png",
+      "webp": "logo-itrader-footer-1x.webp"
+    },
+    {
+      "name": "footer-2x",
+      "width": 360,
+      "height": 91,
+      "png": "logo-itrader-footer-2x.png",
+      "webp": "logo-itrader-footer-2x.webp"
+    },
+    {
+      "name": "header-mobile-1x",
+      "width": 142,
+      "height": 36,
+      "png": "logo-itrader-header-mobile-1x.png",
+      "webp": "logo-itrader-header-mobile-1x.webp"
+    },
+    {
+      "name": "header-mobile-2x",
+      "width": 284,
+      "height": 72,
+      "png": "logo-itrader-header-mobile-2x.png",
+      "webp": "logo-itrader-header-mobile-2x.webp"
+    },
+    {
+      "name": "header-desktop-1x",
+      "width": 189,
+      "height": 48,
+      "png": "logo-itrader-header-desktop-1x.png",
+      "webp": "logo-itrader-header-desktop-1x.webp"
+    },
+    {
+      "name": "header-desktop-2x",
+      "width": 378,
+      "height": 96,
+      "png": "logo-itrader-header-desktop-2x.png",
+      "webp": "logo-itrader-header-desktop-2x.webp"
+    },
+    {
+      "name": "holding-mobile-1x",
+      "width": 260,
+      "height": 66,
+      "png": "logo-itrader-holding-mobile-1x.png",
+      "webp": "logo-itrader-holding-mobile-1x.webp"
+    },
+    {
+      "name": "holding-mobile-2x",
+      "width": 520,
+      "height": 132,
+      "png": "logo-itrader-holding-mobile-2x.png",
+      "webp": "logo-itrader-holding-mobile-2x.webp"
+    },
+    {
+      "name": "holding-desktop-1x",
+      "width": 340,
+      "height": 86,
+      "png": "logo-itrader-holding-desktop-1x.png",
+      "webp": "logo-itrader-holding-desktop-1x.webp"
+    },
+    {
+      "name": "holding-desktop-2x",
+      "width": 680,
+      "height": 172,
+      "png": "logo-itrader-holding-desktop-2x.png",
+      "webp": "logo-itrader-holding-desktop-2x.webp"
+    },
+    {
+      "name": "hero-mobile-1x",
+      "width": 320,
+      "height": 81,
+      "png": "logo-itrader-hero-mobile-1x.png",
+      "webp": "logo-itrader-hero-mobile-1x.webp"
+    },
+    {
+      "name": "hero-mobile-2x",
+      "width": 640,
+      "height": 162,
+      "png": "logo-itrader-hero-mobile-2x.png",
+      "webp": "logo-itrader-hero-mobile-2x.webp"
+    },
+    {
+      "name": "hero-tablet-1x",
+      "width": 420,
+      "height": 106,
+      "png": "logo-itrader-hero-tablet-1x.png",
+      "webp": "logo-itrader-hero-tablet-1x.webp"
+    },
+    {
+      "name": "hero-tablet-2x",
+      "width": 840,
+      "height": 213,
+      "png": "logo-itrader-hero-tablet-2x.png",
+      "webp": "logo-itrader-hero-tablet-2x.webp"
+    },
+    {
+      "name": "hero-desktop-1x",
+      "width": 500,
+      "height": 127,
+      "png": "logo-itrader-hero-desktop-1x.png",
+      "webp": "logo-itrader-hero-desktop-1x.webp"
+    },
+    {
+      "name": "hero-desktop-2x",
+      "width": 1000,
+      "height": 253,
+      "png": "logo-itrader-hero-desktop-2x.png",
+      "webp": "logo-itrader-hero-desktop-2x.webp"
+    }
+  ]
+}

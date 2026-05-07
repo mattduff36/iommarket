@@ -60,3 +60,12 @@ export const IMAGE_CONSTRAINTS = {
   allowedFormats: ["jpg", "jpeg", "png", "webp"],
   folder: "iommarket/listings",
 } as const;
+
+export const LISTING_IMAGE_TARGET = {
+  width: 1600,
+  height: 1000,
+  aspectRatio: 16 / 10,
+  aspectRatioLabel: "16:10",
+  outputMimeType: "image/webp",
+  outputQuality: 0.9,
+} as const;

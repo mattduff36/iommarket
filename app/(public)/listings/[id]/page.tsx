@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
@@ -20,7 +19,9 @@ import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
+import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
+import { ListingImageGallery } from "./listing-image-gallery";
 import {
   expireStaleLiveListings,
   isListingEffectivelyExpired,
@@ -29,7 +30,7 @@ import {
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ featured?: string }>;
+  searchParams: Promise<{ adminReview?: string; featured?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -78,6 +79,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   });
   const isTakenDown = listing.status === "TAKEN_DOWN";
   const isSold = listing.status === "SOLD";
+  const isAdminUser = currentUser?.role === "ADMIN";
+  const showAdminReviewActions = isAdminUser && sp.adminReview === "1";
   const isVisible =
     (!isExpired && (listing.status === "LIVE" || listing.status === "APPROVED")) ||
     isSold;
@@ -130,7 +133,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     }
   }
 
-  if (isTakenDown) notFound();
+  if (isTakenDown && !isAdminUser) notFound();
 
   const price = listing.price / 100;
   const formattedPrice = Number.isInteger(price)
@@ -153,7 +156,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     },
   });
 
-  const isOwner = currentUser && (listing.userId === currentUser.id || currentUser.role === "ADMIN");
+  const isOwner = currentUser && (listing.userId === currentUser.id || isAdminUser);
   const canUpgradeToFeatured =
     isOwner &&
     listing.status === "LIVE" &&
@@ -172,6 +175,15 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      {showAdminReviewActions ? (
+        <ListingModerationActions
+          listingId={listing.id}
+          currentStatus={listing.status}
+          featured={listing.featured}
+          variant="floating"
+        />
+      ) : null}
+
       {/* Breadcrumb */}
       <nav className="mb-6 sm:mb-8 text-sm text-metallic-400 overflow-hidden" aria-label="Breadcrumb">
         <ol className="flex items-center gap-1 min-w-0">
@@ -225,52 +237,14 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       <div className="grid gap-10 lg:grid-cols-3">
         {/* Left: images + details */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Image gallery */}
-          <div className="grid gap-3">
-            {listing.images.length > 0 ? (
-              <>
-                <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-graphite-800">
-                  <Image
-                    src={listing.images[0].url}
-                    alt={listing.title}
-                    fill
-                    className={`object-cover${isSold ? " brightness-75" : ""}`}
-                    priority
-                    sizes="(max-width: 768px) 100vw, 66vw"
-                  />
-                  {isSold && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="rotate-[-20deg] text-5xl font-black tracking-widest text-white opacity-90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] border-[6px] border-white px-6 py-2 rounded-sm">
-                        SOLD
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {listing.images.length > 1 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
-                    {listing.images.slice(1, 5).map((img) => (
-                      <div
-                        key={img.id}
-                        className="relative aspect-square overflow-hidden rounded-lg bg-graphite-800"
-                      >
-                        <Image
-                          src={img.url}
-                          alt={listing.title}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 25vw, 16vw"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex aspect-[16/10] items-center justify-center rounded-lg bg-graphite-800 text-metallic-500">
-                No images available
-              </div>
-            )}
-          </div>
+          <ListingImageGallery
+            images={listing.images.map((image) => ({
+              id: image.id,
+              url: image.url,
+            }))}
+            title={listing.title}
+            isSold={isSold}
+          />
 
           {/* Title + price + details */}
           <div>
