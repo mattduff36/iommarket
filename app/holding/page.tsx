@@ -16,7 +16,7 @@ export default function HoldingPage() {
     >
       <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
         <Image
-          src="/images/logo-itrader.png"
+          src="/images/logo-itrader-hq.png"
           alt="iTrader.im – Buy · Sell · Upgrade"
           width={480}
           height={160}

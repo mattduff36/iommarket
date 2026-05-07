@@ -127,7 +127,7 @@ export default async function HomePage() {
         <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24 lg:py-32 lg:px-8 text-center">
           <div className="mx-auto mb-8 flex items-center justify-center">
             <Image
-              src="/images/logo-itrader.png"
+              src="/images/logo-itrader-hq.png"
               alt="iTrader.im – Buy · Sell · Upgrade"
               width={480}
               height={160}

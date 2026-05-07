@@ -15,7 +15,7 @@ export function SiteFooter() {
           <div>
             <Link href="/" className="inline-flex items-center">
               <Image
-                src="/images/logo-itrader.png"
+                src="/images/logo-itrader-hq.png"
                 alt="iTrader.im – Buy · Sell · Upgrade"
                 width={180}
                 height={60}

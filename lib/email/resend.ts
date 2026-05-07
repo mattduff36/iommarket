@@ -250,7 +250,7 @@ export async function sendWaitlistConfirmationEmail(params: {
   if (!resend) return;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const canonicalAppUrl = appUrl.replace(/\/$/, "");
-  const logoUrl = `${canonicalAppUrl}/images/logo-itrader.png`;
+  const logoUrl = `${canonicalAppUrl}/images/logo-itrader-hq.png`;
 
   const interestsList = params.interests.map((item) => `- ${item}`).join("\n");
   const interestsHtml = params.interests

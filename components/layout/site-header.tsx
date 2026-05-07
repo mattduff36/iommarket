@@ -123,7 +123,7 @@ export function SiteHeader() {
           {/* Logo */}
           <Link href="/" className="shrink-0 flex items-center">
             <Image
-              src="/images/logo-itrader.png"
+              src="/images/logo-itrader-hq.png"
               alt="iTrader.im – Buy · Sell · Upgrade"
               width={220}
               height={74}
