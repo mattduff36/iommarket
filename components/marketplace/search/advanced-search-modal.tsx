@@ -72,6 +72,10 @@ const INSURANCE_GROUP_MAX = 50;
 const BOOT_SPACE_MAX = 1500;
 const LOCATION_OPTIONS = ["Isle of Man", "UK"] as const;
 
+function isEvCompatibleFuelType(value: string): boolean {
+  return value === "Electric" || value === "Plug-in Hybrid";
+}
+
 function parseNum(s: string | undefined, fallback: number): number {
   if (!s) return fallback;
   const n = parseInt(s, 10);
@@ -183,6 +187,15 @@ export function AdvancedSearchModal({
   }, [open]);
 
   const modelsForMake = make ? (modelsByMake[make] ?? []) : [];
+  const showBatteryFilters = isEvCompatibleFuelType(fuelType);
+
+  function handleFuelTypeChange(value: string) {
+    setFuelType(value);
+    if (!isEvCompatibleFuelType(value)) {
+      setBatteryRange([0, BATTERY_RANGE_MAX]);
+      setChargingTimeRange([0, CHARGING_TIME_MAX]);
+    }
+  }
 
   function rangeParam(v: number, dflt: number, max: number): string | undefined {
     if (v === dflt) return undefined;
@@ -232,10 +245,10 @@ export function AdvancedSearchModal({
       maxEngineSize: rangeMaxParam(engineSizeRange[1], ENGINE_SIZE_MAX),
       minEnginePower: rangeMinParam(enginePowerRange[0], 0),
       maxEnginePower: rangeMaxParam(enginePowerRange[1], ENGINE_POWER_MAX),
-      minBatteryRange: rangeMinParam(batteryRange[0], 0),
-      maxBatteryRange: rangeMaxParam(batteryRange[1], BATTERY_RANGE_MAX),
-      minChargingTime: rangeMinParam(chargingTimeRange[0], 0),
-      maxChargingTime: rangeMaxParam(chargingTimeRange[1], CHARGING_TIME_MAX),
+      minBatteryRange: showBatteryFilters ? rangeMinParam(batteryRange[0], 0) : undefined,
+      maxBatteryRange: showBatteryFilters ? rangeMaxParam(batteryRange[1], BATTERY_RANGE_MAX) : undefined,
+      minChargingTime: showBatteryFilters ? rangeMinParam(chargingTimeRange[0], 0) : undefined,
+      maxChargingTime: showBatteryFilters ? rangeMaxParam(chargingTimeRange[1], CHARGING_TIME_MAX) : undefined,
       minAcceleration: rangeMinParam(accelerationRange[0], 0),
       maxAcceleration: rangeMaxParam(accelerationRange[1], ACCELERATION_MAX),
       minFuelConsumption: rangeMinParam(fuelConsumptionRange[0], 0),
@@ -348,7 +361,7 @@ export function AdvancedSearchModal({
               <SelectField label="Doors" value={doors} onChange={setDoors} options={DOORS_OPTIONS.map((d) => String(d))} />
               <SelectField label="Seats" value={seats} onChange={setSeats} options={SEATS_OPTIONS.map((s) => String(s))} />
               <SelectField label="Gearbox" value={transmission} onChange={setTransmission} options={TRANSMISSION_OPTIONS} />
-              <SelectField label="Fuel Type" value={fuelType} onChange={setFuelType} options={FUEL_TYPE_OPTIONS} />
+              <SelectField label="Fuel Type" value={fuelType} onChange={handleFuelTypeChange} options={FUEL_TYPE_OPTIONS} />
               <SelectField label="Drive Type" value={driveType} onChange={setDriveType} options={DRIVE_TYPE_OPTIONS} />
               <SelectField label="Seller Type" value={sellerType} onChange={setSellerType} options={SELLER_TYPE_OPTIONS} />
               <SelectField label="Market" value={location} onChange={setLocation} options={LOCATION_OPTIONS} />
@@ -386,14 +399,15 @@ export function AdvancedSearchModal({
             </div>
           </section>
 
-          {/* --- EV --- */}
-          <section>
-            <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Electric Vehicle</h3>
-            <div className="space-y-4">
-              <RangeSlider label="Battery Range" min={0} max={BATTERY_RANGE_MAX} step={10} value={batteryRange} onValueChange={setBatteryRange} formatValue={(v) => `${v} mi`} />
-              <RangeSlider label="Charging Time" min={0} max={CHARGING_TIME_MAX} step={10} value={chargingTimeRange} onValueChange={setChargingTimeRange} formatValue={(v) => v >= 60 ? `${Math.floor(v / 60)}h ${v % 60}m` : `${v}m`} />
-            </div>
-          </section>
+          {showBatteryFilters && (
+            <section>
+              <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Electric Vehicle</h3>
+              <div className="space-y-4">
+                <RangeSlider label="Battery Range" min={0} max={BATTERY_RANGE_MAX} step={10} value={batteryRange} onValueChange={setBatteryRange} formatValue={(v) => `${v} mi`} />
+                <RangeSlider label="Charging Time" min={0} max={CHARGING_TIME_MAX} step={10} value={chargingTimeRange} onValueChange={setChargingTimeRange} formatValue={(v) => v >= 60 ? `${Math.floor(v / 60)}h ${v % 60}m` : `${v}m`} />
+              </div>
+            </section>
+          )}
 
           {/* --- Other --- */}
           <section>

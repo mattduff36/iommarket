@@ -23,11 +23,11 @@ export function CookieBanner() {
 
   return (
     <div
-      className="fixed left-1/2 z-50 w-[calc(100%-1rem)] max-w-3xl -translate-x-1/2 rounded-xl border border-border bg-surface px-4 py-3 shadow-high sm:w-auto sm:rounded-full sm:px-5 sm:py-2.5"
+      className="fixed left-4 right-4 z-50 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface px-4 py-3 shadow-high sm:left-1/2 sm:right-auto sm:w-[min(42rem,calc(100vw-2rem))] sm:-translate-x-1/2 sm:rounded-full sm:px-5 sm:py-2.5"
       style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <p className="text-xs leading-relaxed text-text-secondary sm:text-sm">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <p className="min-w-0 text-xs leading-relaxed text-text-secondary sm:text-sm">
           We use essential cookies to keep the marketplace secure and functional.
           Read our{" "}
           <Link href="/cookies" className="text-text-trust hover:underline">
@@ -39,7 +39,7 @@ export function CookieBanner() {
           type="button"
           size="sm"
           onClick={accept}
-          className="w-full sm:w-auto"
+          className="w-full shrink-0 sm:w-auto"
         >
           Accept
         </Button>

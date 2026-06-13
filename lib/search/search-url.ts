@@ -11,6 +11,8 @@ const SEARCH_KEYS = [
   "minYear",
   "maxYear",
   "page",
+  "sort",
+  "featured",
   "bodyType",
   "colour",
   "doors",

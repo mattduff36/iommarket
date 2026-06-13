@@ -9,10 +9,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Calendar, Tag, AlertTriangle, ChevronRight, Star } from "lucide-react";
+import { MapPin, Calendar, Tag, AlertTriangle, Star } from "lucide-react";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { ContactSellerForm } from "./contact-form";
 import { ReportButton } from "./report-button";
 import { ExpandableDescription } from "./expandable-description";
+import { ShareLinks } from "./share-links";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
@@ -37,13 +39,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const listing = await db.listing.findUnique({
     where: { id },
-    select: { title: true, description: true, price: true },
+    select: {
+      title: true,
+      description: true,
+      price: true,
+      images: { take: 1, orderBy: { order: "asc" }, select: { url: true } },
+    },
   });
   if (!listing) return {};
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return {
     title: listing.title,
     description: listing.description.slice(0, 160),
+    openGraph: {
+      title: listing.title,
+      description: listing.description.slice(0, 160),
+      url: `${appUrl}/listings/${id}`,
+      images: listing.images[0]?.url ? [{ url: listing.images[0].url }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: listing.title,
+      description: listing.description.slice(0, 160),
+      images: listing.images[0]?.url ? [listing.images[0].url] : undefined,
+    },
     alternates: {
       canonical: `${appUrl}/listings/${id}`,
     },
@@ -170,8 +189,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       ));
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const encodedUrl = encodeURIComponent(`${appUrl}/listings/${listing.id}`);
-  const encodedText = encodeURIComponent(`Check out this listing: ${listing.title}`);
+  const shareUrl = `${appUrl}/listings/${listing.id}`;
+  const shareText = `Check out this listing: ${listing.title}`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -184,27 +203,12 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         />
       ) : null}
 
-      {/* Breadcrumb */}
-      <nav className="mb-6 sm:mb-8 text-sm text-metallic-400 overflow-hidden" aria-label="Breadcrumb">
-        <ol className="flex items-center gap-1 min-w-0">
-          <li className="shrink-0">
-            <Link href="/" className="hover:text-text-primary transition-colors">Home</Link>
-          </li>
-          <li className="shrink-0"><ChevronRight className="h-3 w-3" /></li>
-          <li className="shrink-0">
-            <Link
-              href={`/categories/${listing.category.slug}`}
-              className="hover:text-text-primary transition-colors"
-            >
-              {listing.category.name}
-            </Link>
-          </li>
-          <li className="shrink-0"><ChevronRight className="h-3 w-3" /></li>
-          <li className="text-text-primary truncate min-w-0 font-medium">
-            {listing.title}
-          </li>
-        </ol>
-      </nav>
+      <Breadcrumbs
+        items={[
+          { label: listing.category.name, href: `/search?category=${listing.category.slug}` },
+          { label: listing.title },
+        ]}
+      />
 
       {justUpgraded && (
         <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
@@ -329,15 +333,24 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               <p className="text-sm font-semibold text-text-primary">
                 {listing.dealer?.name ?? listing.user.name ?? "Anonymous"}
               </p>
-              {listing.dealer?.verified ? (
-                <Badge variant="success">Verified dealer</Badge>
-              ) : null}
               {listing.dealer && (
-                <Button asChild variant="link" size="sm" className="p-0 h-auto">
-                  <Link href={`/dealers/${listing.dealer.slug}`}>
-                    View dealer profile
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated/60 px-3 py-2">
+                  {listing.dealer.verified ? (
+                    <Badge variant="success" className="shrink-0">
+                      Verified dealer
+                    </Badge>
+                  ) : null}
+                  <Button
+                    asChild
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs font-semibold"
+                  >
+                    <Link href={`/dealers/${listing.dealer.slug}`}>
+                      View dealer profile
+                    </Link>
+                  </Button>
+                </div>
               )}
               {listing.dealer?.phone && (
                 <p className="text-sm text-text-secondary">
@@ -352,8 +365,38 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               <CardHeader>
                 <CardTitle>Contact Seller</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ContactSellerForm listingId={listing.id} />
+              <CardContent className="space-y-4">
+                {currentUser ? (
+                  <ContactSellerForm listingId={listing.id} />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-neon-blue-500/20 bg-neon-blue-500/5 p-4">
+                      <p className="text-sm font-semibold text-text-primary">
+                        Sign in to message the seller
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-text-secondary">
+                        Create an account or sign in to contact this seller securely through itrader.im.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="w-full border border-neon-blue-500 bg-transparent font-bold uppercase italic text-neon-blue-500 hover:bg-neon-blue-500/10 hover:text-neon-blue-400"
+                      >
+                        <Link href={`/sign-up?next=${encodeURIComponent(`/listings/${listing.id}`)}`}>
+                          Sign up
+                        </Link>
+                      </Button>
+                      <Button asChild variant="trust" size="sm" className="w-full">
+                        <Link href={`/sign-in?next=${encodeURIComponent(`/listings/${listing.id}`)}`}>
+                          Sign in
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -375,23 +418,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             <CardHeader>
               <CardTitle>Share</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <a
-                className="block text-sm text-text-trust hover:underline"
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Share on Facebook
-              </a>
-              <a
-                className="block text-sm text-text-trust hover:underline"
-                href={`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Share on X
-              </a>
+            <CardContent>
+              <ShareLinks url={shareUrl} title={listing.title} text={shareText} />
             </CardContent>
           </Card>
 
@@ -410,6 +438,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             process.env.NODE_ENV !== "production" && (
               <DevFeaturedBypass listingId={listing.id} />
             )}
+          <p className="text-sm text-text-secondary">
+            Sold the vehicle? Use this action to inform itrader.im and remove the listing from live results.
+          </p>
           <MarkSoldButton listingId={listing.id} />
         </div>
       )}

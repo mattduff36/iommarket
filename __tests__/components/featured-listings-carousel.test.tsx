@@ -1,6 +1,7 @@
 import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import useEmblaCarousel from "embla-carousel-react";
 import { FeaturedListingsCarousel } from "@/components/marketplace/home/featured-listings-carousel";
 
 const scrollPrev = vi.fn();
@@ -11,6 +12,8 @@ const off = vi.fn();
 const selectedScrollSnap = vi.fn();
 const canScrollPrev = vi.fn();
 const canScrollNext = vi.fn();
+const scrollProgress = vi.fn();
+const scrollSnapList = vi.fn();
 const autoplayPlugin = {
   stop: vi.fn(),
   reset: vi.fn(),
@@ -45,6 +48,8 @@ vi.mock("embla-carousel-react", () => ({
       selectedScrollSnap,
       canScrollPrev,
       canScrollNext,
+      scrollProgress,
+      scrollSnapList,
     },
   ]),
 }));
@@ -67,6 +72,8 @@ describe("FeaturedListingsCarousel", () => {
     selectedScrollSnap.mockReturnValue(0);
     canScrollPrev.mockReturnValue(true);
     canScrollNext.mockReturnValue(true);
+    scrollProgress.mockReturnValue(0);
+    scrollSnapList.mockReturnValue([0, 0.5]);
   });
 
   it("renders featured cards and wires the navigation controls", async () => {
@@ -102,47 +109,13 @@ describe("FeaturedListingsCarousel", () => {
       expect(nextButton.disabled).toBe(false);
     });
 
-    const initialPlayCount = autoplayPlugin.play.mock.calls.length;
     fireEvent.click(nextButton);
 
     expect(scrollNext).toHaveBeenCalledTimes(1);
-    expect(autoplayPlugin.reset).toHaveBeenCalledTimes(1);
-    expect(autoplayPlugin.play.mock.calls.length).toBe(initialPlayCount + 1);
-  });
-
-  it("shows the full arrow state when hovering inside the edge zone", () => {
-    render(
-      <FeaturedListingsCarousel
-        listings={[
-          {
-            id: "one",
-            title: "Roadster",
-            price: 12000,
-            href: "/listings/one",
-          },
-          {
-            id: "two",
-            title: "Tourer",
-            price: 18000,
-            href: "/listings/two",
-          },
-        ]}
-      />,
+    expect(useEmblaCarousel).toHaveBeenCalledWith(
+      expect.objectContaining({ loop: true }),
+      [autoplayPlugin],
     );
-
-    const nextZone = screen.getByTestId("featured-listings-carousel-next-zone");
-    const nextButton = screen.getByRole("button", {
-      name: "Next featured listing",
-    });
-
-    fireEvent.mouseEnter(nextZone);
-
-    expect(nextButton.className).toContain("opacity-100");
-    expect(nextButton.className).toContain("bg-graphite-950/85");
-
-    fireEvent.mouseLeave(nextZone);
-
-    expect(nextButton.className).toContain("md:opacity-25");
   });
 
   it("keeps controls disabled when there is only one featured listing", () => {
@@ -165,41 +138,6 @@ describe("FeaturedListingsCarousel", () => {
     expect(
       screen.queryByRole("button", { name: "Next featured listing" }),
     ).toBeNull();
-    expect(screen.queryByLabelText("Go to featured listing 1")).toBeNull();
-  });
-
-  it("uses the mobile-specific layout without arrow controls", () => {
-    mockMatchMedia(true);
-
-    render(
-      <FeaturedListingsCarousel
-        listings={[
-          {
-            id: "one",
-            title: "Roadster",
-            price: 12000,
-            href: "/listings/one",
-          },
-          {
-            id: "two",
-            title: "Tourer",
-            price: 18000,
-            href: "/listings/two",
-          },
-        ]}
-      />,
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "Previous featured listing" }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Next featured listing" }),
-    ).toBeNull();
-
-    expect(
-      screen.getByTestId("featured-listings-carousel-mobile-scroller"),
-    ).toBeTruthy();
     expect(screen.queryByLabelText("Go to featured listing 1")).toBeNull();
   });
 });

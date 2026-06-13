@@ -25,6 +25,10 @@ import {
   transitionListingStatus,
 } from "@/lib/listings/status-events";
 import { getCloudinaryConfig, IMAGE_CONSTRAINTS } from "@/lib/upload/cloudinary";
+import {
+  getListingPhotoLimit,
+  getListingPhotoLimitError,
+} from "@/lib/listings/photo-limits";
 
 // ---------------------------------------------------------------------------
 // Create Listing
@@ -563,9 +567,10 @@ interface ValidatedListingImage {
 }
 
 function validateListingImages(
-  images: Array<{ url: string; publicId: string; order: number }>
+  images: Array<{ url: string; publicId: string; order: number }>,
+  maxImages: number
 ): { images: ValidatedListingImage[]; error?: undefined } | { images: []; error: string } {
-  if (images.length > 20) return { images: [], error: "Maximum 20 images allowed" };
+  if (images.length > maxImages) return { images: [], error: getListingPhotoLimitError(maxImages) };
 
   const seenPublicIds = new Set<string>();
   const normalizedImages: ValidatedListingImage[] = [];
@@ -638,13 +643,17 @@ export async function saveListingImages(
   if (listing.userId !== user.id && user.role !== "ADMIN") {
     return { error: "Not authorized" };
   }
-  const imageValidation = validateListingImages(images);
+  const maxImages = getListingPhotoLimit({
+    isDealer: listing.dealerId !== null,
+    isFeatured: listing.featured,
+  });
+  const imageValidation = validateListingImages(images, maxImages);
   if (imageValidation.error) return { error: imageValidation.error };
 
   try {
     const existingCount = await db.listingImage.count({ where: { listingId } });
-    if (existingCount + imageValidation.images.length > 20) {
-      return { error: "Maximum 20 images allowed" };
+    if (existingCount + imageValidation.images.length > maxImages) {
+      return { error: getListingPhotoLimitError(maxImages) };
     }
     const created = await db.listingImage.createMany({
       data: imageValidation.images.map((img) => ({
@@ -684,10 +693,14 @@ export async function replaceListingImages(
   if (listing.userId !== user.id && user.role !== "ADMIN") {
     return { error: "Not authorized" };
   }
-  const imageValidation = validateListingImages(images);
+  const maxImages = getListingPhotoLimit({
+    isDealer: listing.dealerId !== null,
+    isFeatured: listing.featured,
+  });
+  const imageValidation = validateListingImages(images, maxImages);
   if (imageValidation.error) return { error: imageValidation.error };
-  if (imageValidation.images.length > 20) {
-    return { error: "Maximum 20 images allowed" };
+  if (imageValidation.images.length > maxImages) {
+    return { error: getListingPhotoLimitError(maxImages) };
   }
 
   try {

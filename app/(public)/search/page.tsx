@@ -6,7 +6,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { SearchControls } from "@/components/marketplace/search/search-controls";
 import { ListingResultsClient } from "@/components/marketplace/search/listing-results-client";
 import { SaveSearchButton } from "@/components/marketplace/save-search-button";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { type SearchParams } from "@/lib/search/search-url";
+import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
   expireStaleLiveListings,
   liveListingWhere,
@@ -45,6 +47,10 @@ function safeInt(v: string | undefined): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
+function isEvCompatibleFuelType(value: string | undefined): boolean {
+  return value === "Electric" || value === "Plug-in Hybrid";
+}
+
 interface NumericRangeFilter {
   slug: string;
   min?: number;
@@ -58,20 +64,26 @@ export default async function SearchPage({ searchParams }: Props) {
   const query = sp.q?.trim() ?? "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
+  const sort = parseSearchSort(sp.sort);
 
   const includeSold = sp.includeSold === "true";
   const now = new Date();
   const liveVisibilityWhere = liveListingWhere(now);
   const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
   const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
+  const canApplyBatteryFilters = !sp.fuelType || isEvCompatibleFuelType(sp.fuelType);
 
   const numericRangeFilters: NumericRangeFilter[] = [
     { slug: "mileage", min: safeInt(sp.minMileage), max: safeInt(sp.maxMileage) },
     { slug: "year", min: safeInt(sp.minYear), max: safeInt(sp.maxYear) },
     { slug: "engine-size", min: safeInt(sp.minEngineSize), max: safeInt(sp.maxEngineSize) },
     { slug: "engine-power", min: safeInt(sp.minEnginePower), max: safeInt(sp.maxEnginePower) },
-    { slug: "battery-range", min: safeInt(sp.minBatteryRange), max: safeInt(sp.maxBatteryRange) },
-    { slug: "charging-time", min: safeInt(sp.minChargingTime), max: safeInt(sp.maxChargingTime) },
+    ...(canApplyBatteryFilters
+      ? [
+          { slug: "battery-range", min: safeInt(sp.minBatteryRange), max: safeInt(sp.maxBatteryRange) },
+          { slug: "charging-time", min: safeInt(sp.minChargingTime), max: safeInt(sp.maxChargingTime) },
+        ]
+      : []),
     { slug: "acceleration", min: safeInt(sp.minAcceleration), max: safeInt(sp.maxAcceleration) },
     { slug: "fuel-consumption", min: safeInt(sp.minFuelConsumption), max: safeInt(sp.maxFuelConsumption) },
     { slug: "co2-emissions", min: safeInt(sp.minCo2), max: safeInt(sp.maxCo2) },
@@ -167,6 +179,7 @@ export default async function SearchPage({ searchParams }: Props) {
         }
       : {}),
     ...(sp.category ? { category: { slug: sp.category } } : {}),
+    ...(sp.featured === "true" ? { featured: true } : {}),
     ...(sp.region ? { region: { slug: sp.region } } : {}),
     ...(minPricePence !== undefined || maxPricePence !== undefined
       ? {
@@ -184,7 +197,7 @@ export default async function SearchPage({ searchParams }: Props) {
   const [listings, total, categories, regions, makeDefs, modelDefs] = await Promise.all([
     db.listing.findMany({
       where,
-      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+      orderBy: getSearchOrderBy(sort),
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
@@ -284,6 +297,7 @@ export default async function SearchPage({ searchParams }: Props) {
     fuelType: sp.fuelType, transmission: sp.transmission,
     driveType: sp.driveType, sellerType: sp.sellerType, location: sp.location,
     includeSold: sp.includeSold,
+    sort: sp.sort, featured: sp.featured,
     minEngineSize: sp.minEngineSize, maxEngineSize: sp.maxEngineSize,
     minEnginePower: sp.minEnginePower, maxEnginePower: sp.maxEnginePower,
     minBatteryRange: sp.minBatteryRange, maxBatteryRange: sp.maxBatteryRange,
@@ -298,6 +312,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+      <Breadcrumbs items={[{ label: "Search" }]} />
       <div className="mb-6 sm:mb-10">
         <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           {query ? `Results for "${query}"` : "All Listings"}

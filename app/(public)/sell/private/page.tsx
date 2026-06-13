@@ -28,7 +28,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
   const params = searchParams ? await searchParams : {};
   const draftId = params.draft?.trim();
 
-  const [{ categories, regions }, isFreeForUser] = await Promise.all([
+  const [{ categories, regions, modelOptionsByMake }, isFreeForUser] = await Promise.all([
     getSellFormData(),
     isPrivateListingFreeForUser(user.id),
   ]);
@@ -65,6 +65,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
       <CreateListingForm
         categories={categories}
         regions={regions}
+        modelOptionsByMake={modelOptionsByMake}
         mode="private"
         isFreeForUser={isFreeForUser}
         cloudinaryUploadPreset={cloudinaryUploadPreset}

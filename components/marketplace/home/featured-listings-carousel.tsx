@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ListingCard } from "@/components/marketplace/listing-card";
@@ -25,12 +26,25 @@ export function FeaturedListingsCarousel({
   listings,
 }: FeaturedListingsCarouselProps) {
   const canNavigate = listings.length > 1;
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
+  const autoplay = React.useMemo(
+    () =>
+      canNavigate && !prefersReducedMotion
+        ? Autoplay({
+            delay: 3_000,
+            stopOnInteraction: true,
+            stopOnMouseEnter: true,
+          })
+        : undefined,
+    [canNavigate, prefersReducedMotion],
+  );
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
       align: "center",
       loop: canNavigate,
       skipSnaps: false,
     },
+    autoplay ? [autoplay] : [],
   );
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [canScrollPrev, setCanScrollPrev] = React.useState(false);
@@ -46,6 +60,18 @@ export function FeaturedListingsCarousel({
     setScrollProgress(emblaApi.scrollProgress());
     setScrollSnaps(emblaApi.scrollSnapList());
   }, [emblaApi]);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mediaQuery.matches);
+
+    function handleChange(event: MediaQueryListEvent) {
+      setPrefersReducedMotion(event.matches);
+    }
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   React.useEffect(() => {
     if (!emblaApi) return;

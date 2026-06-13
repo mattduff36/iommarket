@@ -51,6 +51,7 @@ describe("SellPrivatePage", () => {
     getSellFormDataMock.mockResolvedValue({
       categories: [],
       regions: [],
+      modelOptionsByMake: {},
     });
     isPrivateListingFreeForUserMock.mockResolvedValue(true);
   });
@@ -60,7 +61,7 @@ describe("SellPrivatePage", () => {
       "@/app/(public)/sell/private/page"
     );
 
-    render(await SellPrivatePage());
+    render(await SellPrivatePage({}));
 
     expect(screen.getByRole("heading", { name: /Private Listing/i })).toBeTruthy();
     const form = screen.getByTestId("create-listing-form");
@@ -79,7 +80,7 @@ describe("SellPrivatePage", () => {
       "@/app/(public)/sell/private/page"
     );
 
-    await expect(SellPrivatePage()).rejects.toThrow("redirect:/sell/dealer");
+    await expect(SellPrivatePage({})).rejects.toThrow("redirect:/sell/dealer");
     expect(redirectMock).toHaveBeenCalledWith("/sell/dealer");
   });
 });

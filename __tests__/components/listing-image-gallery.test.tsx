@@ -48,4 +48,14 @@ describe("ListingImageGallery", () => {
 
     expect(screen.getByText("3 / 3")).toBeTruthy();
   });
+
+  it("browses main gallery photos with visible controls", () => {
+    render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next photo" }));
+    expect(screen.getByAltText("Test Volvo").getAttribute("src")).toBe(images[1].url);
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous photo" }));
+    expect(screen.getByAltText("Test Volvo").getAttribute("src")).toBe(images[0].url);
+  });
 });

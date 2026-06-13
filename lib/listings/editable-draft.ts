@@ -8,6 +8,7 @@ export interface EditableDraft {
   categoryId: string;
   regionId: string;
   trustDeclarationAccepted: boolean;
+  featured: boolean;
   images: Array<{
     url: string;
     publicId: string;
@@ -67,6 +68,7 @@ export async function getEditableDraft({
     categoryId: listing.categoryId,
     regionId: listing.regionId,
     trustDeclarationAccepted: listing.trustDeclarationAccepted,
+    featured: listing.featured,
     images: listing.images.map((image) => ({
       url: image.url,
       publicId: image.publicId,

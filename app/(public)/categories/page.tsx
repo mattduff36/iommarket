@@ -5,6 +5,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Bike, BusFront, Car, Tag, Truck } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 export const metadata: Metadata = {
   title: "Categories",
@@ -42,6 +43,7 @@ export default async function CategoriesPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:py-16 sm:px-6 lg:px-8">
+      <Breadcrumbs items={[{ label: "Categories" }]} />
       <div className="mb-8 sm:mb-12">
         <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           Categories
@@ -57,7 +59,7 @@ export default async function CategoriesPage() {
           return (
             <Link
               key={cat.id}
-              href={`/categories/${cat.slug}`}
+              href={`/search?category=${cat.slug}`}
               className="group relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]"
               style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }}
             >

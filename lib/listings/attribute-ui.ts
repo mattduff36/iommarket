@@ -15,7 +15,7 @@ export interface ListingAttributeInputLike {
 }
 
 export interface ListingAttributeFieldConfig {
-  control: "text" | "number" | "select" | "checkbox";
+  control: "text" | "number" | "select" | "checkbox" | "model-select";
   options?: string[];
   helperText?: string;
   placeholder?: string;
@@ -98,9 +98,9 @@ export function getAttributeFieldConfig(
 
   if (isVehicleCategorySlug(categorySlug) && attribute.slug === "model") {
     return {
-      control: "text",
+      control: "model-select",
       placeholder: "e.g. 320d M Sport",
-      helperText: "Enter the model exactly as you want it shown in search.",
+      helperText: "Choose a known model or enter it manually if it is missing.",
     };
   }
 

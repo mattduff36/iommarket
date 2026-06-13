@@ -42,6 +42,7 @@ import {
   REGISTRATION_LOOKUP_CATEGORY_SLUGS,
 } from "./create-listing-form.helpers";
 import type { EditableDraft } from "@/lib/listings/editable-draft";
+import { getListingPhotoLimit } from "@/lib/listings/photo-limits";
 
 interface AttributeDef {
   id: string;
@@ -67,6 +68,7 @@ interface RegionOption {
 interface Props {
   categories: CategoryOption[];
   regions: RegionOption[];
+  modelOptionsByMake?: Record<string, string[]>;
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
   cloudinaryUploadPreset?: string | null;
@@ -76,6 +78,7 @@ interface Props {
 export function CreateListingForm({
   categories,
   regions,
+  modelOptionsByMake = {},
   mode = "private",
   isFreeForUser = false,
   cloudinaryUploadPreset = null,
@@ -109,6 +112,10 @@ export function CreateListingForm({
   const [lookupPending, setLookupPending] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupMeta, setLookupMeta] = useState<string | null>(null);
+  const maxImages = getListingPhotoLimit({
+    isDealer: mode === "dealer",
+    isFeatured: Boolean(initialDraft?.featured),
+  });
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
   const isLookupCategorySupported = Boolean(
@@ -116,10 +123,13 @@ export function CreateListingForm({
       REGISTRATION_LOOKUP_CATEGORY_SLUGS.has(selectedCategory.slug)
   );
   const fuelTypeAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "fuel-type");
+  const makeAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "make");
   const isDetailsStep = step === 1;
   const selectedFuelType = fuelTypeAttribute
     ? attributeValues[fuelTypeAttribute.id]
     : undefined;
+  const selectedMake = makeAttribute ? attributeValues[makeAttribute.id] : undefined;
+  const modelOptions = selectedMake ? (modelOptionsByMake[selectedMake] ?? []) : [];
   const visibleAttributes = selectedCategory?.attributes
     .map((attr) => ({
       attr,
@@ -158,6 +168,11 @@ export function CreateListingForm({
 
       if (attribute.slug === "fuel-type") {
         return pruneHiddenAttributes(nextValues, selectedCategory);
+      }
+
+      if (attribute.slug === "make") {
+        const modelAttribute = selectedCategory.attributes.find((candidate) => candidate.slug === "model");
+        if (modelAttribute) delete nextValues[modelAttribute.id];
       }
 
       return nextValues;
@@ -707,13 +722,13 @@ export function CreateListingForm({
 
           <div className={step === 2 ? "space-y-3" : "hidden"}>
               <p className="text-sm text-text-secondary">
-                Add between 2 and 20 photos. Use a clean first image and include exterior and interior shots.
+                Add between 2 and {maxImages} photos. Use a clean first image and include exterior and interior shots.
               </p>
               <ImageUpload
                 images={uploadedImages}
                 onImagesChange={setUploadedImages}
                 uploadPreset={cloudinaryUploadPreset}
-                maxImages={20}
+                maxImages={maxImages}
               />
           </div>
 
@@ -801,6 +816,56 @@ export function CreateListingForm({
                       ) : config.helperText ? (
                         <p className="text-xs text-text-secondary">{config.helperText}</p>
                       ) : null}
+                    </div>
+                  );
+                }
+
+                if (config.control === "model-select") {
+                  const currentModel = attributeValues[attr.id] ?? "";
+                  const selectedKnownModel = modelOptions.includes(currentModel) ? currentModel : "";
+
+                  return (
+                    <div key={attr.id} className="space-y-3">
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor={`${fieldName}-select`} className="text-sm font-medium text-text-primary">
+                          {label}
+                        </label>
+                        <select
+                          id={`${fieldName}-select`}
+                          value={selectedKnownModel}
+                          disabled={!selectedMake || modelOptions.length === 0}
+                          onChange={(e) => handleAttributeChange(attr, e.target.value)}
+                          aria-describedby={fieldError ? `${fieldName}-error` : undefined}
+                          className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
+                            fieldError ? "border-neon-red-500" : "border-border"
+                          } ${!selectedMake || modelOptions.length === 0 ? "opacity-60" : ""}`}
+                        >
+                          <option value="">
+                            {!selectedMake
+                              ? "Select a make first"
+                              : modelOptions.length > 0
+                                ? "Select a known model"
+                                : "No known models available"}
+                          </option>
+                          {modelOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Input
+                        id={fieldName}
+                        label="Manual model fallback"
+                        name={fieldName}
+                        required={isDetailsStep && attr.required}
+                        value={currentModel}
+                        onChange={(e) => handleAttributeChange(attr, e.target.value)}
+                        maxLength={80}
+                        placeholder={config.placeholder}
+                        helperText={config.helperText}
+                        error={fieldError}
+                      />
                     </div>
                   );
                 }

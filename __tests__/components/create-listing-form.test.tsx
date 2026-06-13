@@ -36,14 +36,17 @@ vi.mock("@/actions/payments", () => ({
 vi.mock("@/components/marketplace/image-upload", () => ({
   ImageUpload: ({
     onImagesChange,
+    maxImages,
   }: {
     onImagesChange: (
       images: Array<{ url: string; publicId: string; order: number }>
     ) => void;
+    maxImages: number;
   }) => (
     <button
       type="button"
       data-testid="mock-image-upload"
+      data-max-images={maxImages}
       onClick={() =>
         onImagesChange([
           {
@@ -59,7 +62,7 @@ vi.mock("@/components/marketplace/image-upload", () => ({
         ])
       }
     >
-      Add mock images
+      Add mock images ({maxImages})
     </button>
   ),
 }));
@@ -180,6 +183,48 @@ describe("CreateListingForm registration lookup", () => {
     );
   });
 
+  it("uses private and dealer photo limits in the upload step", () => {
+    function completeDetailsStep() {
+      fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+      fireEvent.change(screen.getByLabelText("Title"), {
+        target: { value: "2019 BMW 320d M Sport" },
+      });
+      fireEvent.change(screen.getByLabelText(/Description/i), {
+        target: { value: "A clean example with good history and recent servicing." },
+      });
+      fireEvent.change(screen.getByLabelText("Price (£)"), {
+        target: { value: "15000" },
+      });
+      fireEvent.change(screen.getByLabelText("Region"), {
+        target: { value: "iom" },
+      });
+      fireEvent.change(screen.getByLabelText(/Make/i), {
+        target: { value: "BMW" },
+      });
+      fireEvent.change(screen.getByLabelText("Manual model fallback"), {
+        target: { value: "320d M Sport" },
+      });
+      fireEvent.change(screen.getByLabelText(/Year/i), {
+        target: { value: "2019" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    }
+
+    const { unmount } = render(
+      <CreateListingForm categories={categories} regions={regions} mode="private" />
+    );
+
+    completeDetailsStep();
+
+    expect(screen.getByTestId("mock-image-upload").getAttribute("data-max-images")).toBe("10");
+
+    unmount();
+    render(<CreateListingForm categories={categories} regions={regions} mode="dealer" />);
+    completeDetailsStep();
+
+    expect(screen.getByTestId("mock-image-upload").getAttribute("data-max-images")).toBe("20");
+  });
+
   it("auto-fills supported vehicle fields from lookup results", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
@@ -255,7 +300,7 @@ describe("CreateListingForm registration lookup", () => {
     await screen.findByText(/Auto-filled/i);
 
     expect((screen.getByLabelText(/Make/i) as HTMLSelectElement).value).toBe("Mercedes-Benz");
-    expect((screen.getByLabelText(/Model/i) as HTMLInputElement).value).toBe("A 200 AMG LINE");
+    expect((screen.getByLabelText("Manual model fallback") as HTMLInputElement).value).toBe("A 200 AMG LINE");
     expect((screen.getByLabelText(/Year/i) as HTMLInputElement).value).toBe("2020");
     expect((screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement).value).toBe("Petrol");
     expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Grey");
@@ -282,7 +327,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lookup Vehicle" }));
 
     await screen.findByText("Vehicle not found for that registration");
-    expect((screen.getByLabelText(/Model/i) as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Manual model fallback") as HTMLInputElement).value).toBe("");
   });
 
   it("auto-selects category from lookup result when category is unset", async () => {
@@ -347,7 +392,7 @@ describe("CreateListingForm registration lookup", () => {
         .getAttribute("aria-pressed")
     ).toBe("true");
     expect((screen.getByLabelText(/Make/i) as HTMLSelectElement).value).toBe("Honda");
-    expect((screen.getByLabelText(/Model/i) as HTMLInputElement).value).toBe("CBR600RR");
+    expect((screen.getByLabelText("Manual model fallback") as HTMLInputElement).value).toBe("CBR600RR");
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
       "2019 Honda CBR600RR"
     );
@@ -362,7 +407,7 @@ describe("CreateListingForm registration lookup", () => {
     } as Awaited<ReturnType<typeof saveListingImages>>);
     vi.mocked(submitListingForReview).mockResolvedValue({
       data: null,
-    } as Awaited<ReturnType<typeof submitListingForReview>>);
+    } as unknown as Awaited<ReturnType<typeof submitListingForReview>>);
     vi.mocked(payForListing).mockResolvedValue({
       data: { checkoutUrl: "https://checkout.example/pay/123" },
     } as Awaited<ReturnType<typeof payForListing>>);
@@ -387,7 +432,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.change(screen.getByLabelText(/Make/i), {
       target: { value: "BMW" },
     });
-    fireEvent.change(screen.getByLabelText(/Model/i), {
+    fireEvent.change(screen.getByLabelText("Manual model fallback"), {
       target: { value: "320d M Sport" },
     });
     fireEvent.change(screen.getByLabelText(/Year/i), {
@@ -443,6 +488,7 @@ describe("CreateListingForm registration lookup", () => {
           categoryId: "car-category",
           regionId: "iom",
           trustDeclarationAccepted: true,
+          featured: false,
           images: [
             {
               url: "https://example.com/existing-1.jpg",
@@ -545,7 +591,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.change(screen.getByLabelText(/Make/i), {
       target: { value: "Audi" },
     });
-    fireEvent.change(screen.getByLabelText(/Model/i), {
+    fireEvent.change(screen.getByLabelText("Manual model fallback"), {
       target: { value: "A4 S line" },
     });
     fireEvent.change(screen.getByLabelText(/Year/i), {

@@ -5,11 +5,16 @@ import {
   expireStaleLiveListings,
   liveOrSoldListingWhere,
 } from "@/lib/listings/expiry";
+import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 
 function safeInt(v: string | null): number | undefined {
   if (!v) return undefined;
   const n = Number.parseInt(v, 10);
   return Number.isNaN(n) ? undefined : n;
+}
+
+function isEvCompatibleFuelType(value: string | null): boolean {
+  return value === "Electric" || value === "Plug-in Hybrid";
 }
 
 interface NumericRangeFilter {
@@ -25,6 +30,7 @@ export async function GET(request: NextRequest) {
   const query = sp.get("q")?.trim() ?? "";
   const page = Math.max(1, Number.parseInt(sp.get("page") ?? "1", 10));
   const pageSize = 12;
+  const sort = parseSearchSort(sp.get("sort"));
 
   const includeSold = sp.get("includeSold") === "true";
   const now = new Date();
@@ -34,14 +40,20 @@ export async function GET(request: NextRequest) {
   const maxPricePence = sp.get("maxPrice")
     ? Number.parseInt(sp.get("maxPrice") ?? "0", 10) * 100
     : undefined;
+  const fuelType = sp.get("fuelType");
+  const canApplyBatteryFilters = !fuelType || isEvCompatibleFuelType(fuelType);
 
   const numericRangeFilters: NumericRangeFilter[] = [
     { slug: "mileage", min: safeInt(sp.get("minMileage")), max: safeInt(sp.get("maxMileage")) },
     { slug: "year", min: safeInt(sp.get("minYear")), max: safeInt(sp.get("maxYear")) },
     { slug: "engine-size", min: safeInt(sp.get("minEngineSize")), max: safeInt(sp.get("maxEngineSize")) },
     { slug: "engine-power", min: safeInt(sp.get("minEnginePower")), max: safeInt(sp.get("maxEnginePower")) },
-    { slug: "battery-range", min: safeInt(sp.get("minBatteryRange")), max: safeInt(sp.get("maxBatteryRange")) },
-    { slug: "charging-time", min: safeInt(sp.get("minChargingTime")), max: safeInt(sp.get("maxChargingTime")) },
+    ...(canApplyBatteryFilters
+      ? [
+          { slug: "battery-range", min: safeInt(sp.get("minBatteryRange")), max: safeInt(sp.get("maxBatteryRange")) },
+          { slug: "charging-time", min: safeInt(sp.get("minChargingTime")), max: safeInt(sp.get("maxChargingTime")) },
+        ]
+      : []),
     { slug: "acceleration", min: safeInt(sp.get("minAcceleration")), max: safeInt(sp.get("maxAcceleration")) },
     { slug: "fuel-consumption", min: safeInt(sp.get("minFuelConsumption")), max: safeInt(sp.get("maxFuelConsumption")) },
     { slug: "co2-emissions", min: safeInt(sp.get("minCo2")), max: safeInt(sp.get("maxCo2")) },
@@ -139,6 +151,7 @@ export async function GET(request: NextRequest) {
         }
       : {}),
     ...(sp.get("category") ? { category: { slug: sp.get("category") } } : {}),
+    ...(sp.get("featured") === "true" ? { featured: true } : {}),
     ...(sp.get("region") ? { region: { slug: sp.get("region") } } : {}),
     ...(minPricePence !== undefined || maxPricePence !== undefined
       ? {
@@ -156,7 +169,7 @@ export async function GET(request: NextRequest) {
   const [listings, total] = await Promise.all([
     db.listing.findMany({
       where,
-      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+      orderBy: getSearchOrderBy(sort),
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {

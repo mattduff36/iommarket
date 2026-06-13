@@ -10,6 +10,7 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Globe, Phone, Calendar } from "lucide-react";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
@@ -107,6 +108,12 @@ export default async function DealerProfilePage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <Breadcrumbs
+        items={[
+          { label: "Dealers", href: "/search?sellerType=dealer" },
+          { label: dealer.name },
+        ]}
+      />
       {/* Dealer header */}
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-12 pb-10 border-b border-border">
         {dealer.logoUrl ? (

@@ -123,6 +123,9 @@ export default async function AccountListingsPage({ searchParams }: Props) {
         <p className="mt-2 text-sm text-text-secondary">
           View all listings you have created, with latest lifecycle updates.
         </p>
+        <p className="mt-2 text-sm text-text-secondary">
+          Once a vehicle sells, use <span className="font-medium text-text-primary">Mark as sold</span> to inform itrader.im and remove it from live results.
+        </p>
       </div>
 
       <Card className="mb-6">

@@ -25,4 +25,12 @@ describe("buildSearchUrl", () => {
     );
     expect(url).toBe("/search?location=Isle+of+Man");
   });
+
+  it("supports sort and featured parameters", () => {
+    const url = buildSearchUrl(
+      { featured: "true", sort: "price_low" },
+      {}
+    );
+    expect(url).toBe("/search?sort=price_low&featured=true");
+  });
 });

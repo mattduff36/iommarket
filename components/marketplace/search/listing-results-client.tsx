@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { BrandedSpinner } from "@/components/ui/branded-spinner";
 import { cn } from "@/lib/cn";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
+import { SEARCH_SORT_OPTIONS, parseSearchSort } from "@/lib/search/search-order";
 
 interface ListingItem {
   id: string;
@@ -43,6 +44,7 @@ export function ListingResultsClient({
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const includeSold = queryParams.includeSold === "true";
+  const sort = parseSearchSort(queryParams.sort);
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const hasMore = items.length < total;
 
@@ -96,6 +98,23 @@ export function ListingResultsClient({
           {total} result{total !== 1 ? "s" : ""} found
         </p>
         <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-text-secondary">
+            Sort by
+            <select
+              value={sort}
+              onChange={(event) => {
+                const nextSort = event.target.value === "featured" ? undefined : event.target.value;
+                router.push(buildSearchUrl(queryParams, { sort: nextSort, page: undefined }));
+              }}
+              className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-text-primary focus:outline-none focus:border-border-focus"
+            >
+              {SEARCH_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
             <input
               type="checkbox"

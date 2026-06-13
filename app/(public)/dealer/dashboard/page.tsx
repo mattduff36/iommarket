@@ -179,6 +179,9 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           <p className="mt-1 text-text-secondary">
             Manage your listings, dealer profile, and subscription
           </p>
+          <p className="mt-2 text-sm text-text-secondary">
+            When a vehicle sells, use <span className="font-medium text-text-primary">Mark as sold</span> so buyers see accurate availability.
+          </p>
         </div>
         <div className="flex gap-3">
           <Button asChild>

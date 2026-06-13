@@ -111,7 +111,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
     );
   }
 
-  const { categories, regions } = await getSellFormData();
+  const { categories, regions, modelOptionsByMake } = await getSellFormData();
   const cloudinaryUploadPreset = getCloudinaryUploadPreset();
 
   return (
@@ -128,6 +128,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
       <CreateListingForm
         categories={categories}
         regions={regions}
+        modelOptionsByMake={modelOptionsByMake}
         mode="dealer"
         cloudinaryUploadPreset={cloudinaryUploadPreset}
         initialDraft={initialDraft}

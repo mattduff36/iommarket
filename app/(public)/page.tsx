@@ -14,6 +14,15 @@ import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
+function shuffleListings<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
 export default async function HomePage() {
   await expireStaleLiveListings();
   const liveWhere = liveListingWhere();
@@ -98,8 +107,6 @@ export default async function HomePage() {
   /* Fetch featured listings across all categories */
   const featuredListings = await db.listing.findMany({
     where: { ...liveWhere, featured: true },
-    orderBy: { createdAt: "desc" },
-    take: 8,
     include: {
       images: { take: 1, orderBy: { order: "asc" } },
       category: true,
@@ -107,7 +114,7 @@ export default async function HomePage() {
     },
   });
 
-  const featuredCarouselListings = featuredListings.map((listing) => ({
+  const featuredCarouselListings = shuffleListings(featuredListings).slice(0, 8).map((listing) => ({
     id: listing.id,
     title: listing.title,
     price: listing.price / 100,
@@ -202,7 +209,24 @@ export default async function HomePage() {
                   key={dealer.id}
                   className="flex h-full flex-col rounded-2xl border border-border bg-black/20 p-4"
                 >
-                  <h3 className="font-semibold text-text-primary">{dealer.name}</h3>
+                  <div className="mb-4 flex items-center gap-3">
+                    {dealer.logoUrl ? (
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-graphite-800">
+                        <Image
+                          src={dealer.logoUrl}
+                          alt={`${dealer.name} logo`}
+                          fill
+                          className="object-cover"
+                          sizes="56px"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neon-blue-500/20 bg-neon-blue-500/10 text-lg font-bold text-neon-blue-400">
+                        {dealer.name.charAt(0)}
+                      </div>
+                    )}
+                    <h3 className="font-semibold text-text-primary">{dealer.name}</h3>
+                  </div>
                   <p className="mt-2 line-clamp-4 text-sm leading-6 text-text-secondary">
                     {dealer.bio ?? "Trusted Isle of Man dealer."}
                   </p>

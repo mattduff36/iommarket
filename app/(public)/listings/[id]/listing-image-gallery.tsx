@@ -73,31 +73,58 @@ export function ListingImageGallery({
   return (
     <>
       <div className="grid gap-3">
-        <button
-          type="button"
-          onClick={() => setIsLightboxOpen(true)}
-          className="group relative aspect-[16/10] overflow-hidden rounded-lg bg-graphite-800 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          aria-label={`Open image gallery for ${title}`}
-        >
-          <Image
-            src={activeImage.url}
-            alt={title}
-            fill
-            className={cn(
-              "object-cover transition duration-300 group-hover:scale-[1.015]",
-              isSold && "brightness-75"
-            )}
-            priority
-            sizes="(max-width: 768px) 100vw, 66vw"
-          />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-            Tap to view all photos
-          </div>
-          {isSold && <SoldStamp />}
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsLightboxOpen(true)}
+            className="group relative block aspect-[16/10] w-full overflow-hidden rounded-lg bg-graphite-800 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            aria-label={`Open image gallery for ${title}`}
+          >
+            <Image
+              src={activeImage.url}
+              alt={title}
+              fill
+              className={cn(
+                "object-cover transition duration-300 group-hover:scale-[1.015]",
+                isSold && "brightness-75"
+              )}
+              priority
+              sizes="(max-width: 768px) 100vw, 66vw"
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              Tap to view all photos
+            </div>
+            {isSold && <SoldStamp />}
+          </button>
+
+          {canNavigate && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={showPrevious}
+                className="absolute left-3 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full border border-white/15 bg-black/65 text-white hover:bg-black/80"
+                aria-label="Previous photo"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={showNext}
+                className="absolute right-3 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full border border-white/15 bg-black/65 text-white hover:bg-black/80"
+                aria-label="Next photo"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+        </div>
 
         {images.length > 1 && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:pb-0">
             {images.map((image, index) => {
               const isActive = index === activeIndex;
 
@@ -107,7 +134,7 @@ export function ListingImageGallery({
                   type="button"
                   onClick={() => showImage(index)}
                   className={cn(
-                    "relative aspect-[16/10] overflow-hidden rounded-lg bg-graphite-800",
+                    "relative aspect-[16/10] w-36 shrink-0 overflow-hidden rounded-lg bg-graphite-800 sm:w-auto",
                     "border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
                     isActive
                       ? "border-neon-blue-500 shadow-[0_0_0_1px_rgba(66,153,225,0.8)]"
