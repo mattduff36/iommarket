@@ -65,7 +65,7 @@ export default async function AdminMediaPage({ searchParams }: Props) {
     <>
       <h1 className="text-2xl font-bold text-text-primary mb-6">Media Library</h1>
 
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 rounded-lg border border-border bg-canvas/30 p-3">
         <Link
           href="/admin/media"
           className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
@@ -77,7 +77,7 @@ export default async function AdminMediaPage({ searchParams }: Props) {
         <Link
           href="/admin/media?filter=orphan"
           className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            filter === "orphan" ? "bg-neon-red-500/10 text-neon-red-400 border-neon-red-500/30" : "text-text-secondary border-transparent hover:bg-surface-elevated"
+            filter === "orphan" ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
           }`}
         >
           Orphaned (expired/taken down)

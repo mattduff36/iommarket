@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import { deleteWaitlistUser } from "@/actions/waitlist";
 
 interface Props {
@@ -36,42 +39,34 @@ export function DeleteWaitlistButton({ id, email }: Props) {
 
   if (confirming) {
     return (
-      <span className="inline-flex items-center gap-1.5">
+      <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
         <span className="text-xs text-text-secondary hidden sm:inline truncate max-w-[120px]" title={email}>
           Delete {email}?
         </span>
-        <Button
-          type="button"
-          variant="energy"
-          size="sm"
+        <AdminActionButton
           onClick={handleConfirm}
           disabled={isPending}
+          tone="danger"
         >
           {isPending ? "Deleting…" : "Confirm"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+        </AdminActionButton>
+        <AdminActionButton
           onClick={handleCancel}
           disabled={isPending}
         >
           Cancel
-        </Button>
+        </AdminActionButton>
         {error && <span className="text-xs text-destructive">{error}</span>}
-      </span>
+      </AdminActionBar>
     );
   }
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
+    <AdminActionButton
       onClick={handleDeleteClick}
-      className="text-text-tertiary hover:text-destructive"
+      tone="danger"
     >
       Delete
-    </Button>
+    </AdminActionButton>
   );
 }

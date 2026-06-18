@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import { setMonitoringIssueStatus } from "@/actions/admin/monitoring";
 
 interface Props {
@@ -33,35 +36,28 @@ export function IssueStatusControls({ issueId }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
+      <AdminActionBar>
+        <AdminActionButton
           onClick={() => submitStatus("OPEN")}
           disabled={isPending}
         >
           Reopen
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="trust"
+        </AdminActionButton>
+        <AdminActionButton
           onClick={() => submitStatus("ACKNOWLEDGED")}
           disabled={isPending}
+          tone="primary"
         >
           Acknowledge
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="premium"
+        </AdminActionButton>
+        <AdminActionButton
           onClick={() => submitStatus("RESOLVED")}
           disabled={isPending}
+          tone="success"
         >
           Resolve
-        </Button>
-      </div>
+        </AdminActionButton>
+      </AdminActionBar>
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="number"
@@ -72,15 +68,13 @@ export function IssueStatusControls({ issueId }: Props) {
           className="h-9 w-28 rounded-md border border-border bg-surface px-2 text-sm"
           aria-label="Mute duration in hours"
         />
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
+        <AdminActionButton
           onClick={() => submitStatus("MUTED")}
           disabled={isPending}
+          tone="warning"
         >
           Mute for Hours
-        </Button>
+        </AdminActionButton>
       </div>
       {error && <p className="text-xs text-text-error">{error}</p>}
     </div>

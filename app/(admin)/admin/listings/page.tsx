@@ -83,7 +83,7 @@ export default async function AdminListingsPage() {
             <TableHead>Price</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Reports</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className="min-w-[260px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -128,7 +128,7 @@ export default async function AdminListingsPage() {
                     )}
                   </ListingReviewLink>
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-[260px]">
                   <ModerationActions
                     listingId={listing.id}
                     currentStatus={listing.status}

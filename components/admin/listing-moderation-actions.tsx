@@ -3,8 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { moderateListing, setListingFeatured } from "@/actions/admin";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import { cn } from "@/lib/cn";
 
 interface ListingModerationActionsProps {
@@ -92,48 +95,44 @@ export function ListingModerationActions({
         </div>
       ) : null}
 
-      <div className={cn("flex gap-1", variant === "floating" && "flex-wrap justify-end")}>
+      <AdminActionBar className={cn(variant === "floating" && "justify-end")}>
         {canApprove ? (
-          <Button
-            size="sm"
-            variant="trust"
+          <AdminActionButton
+            tone="success"
             onClick={() => handleAction("APPROVE")}
-            loading={isPending}
+            disabled={isPending}
           >
             Approve
-          </Button>
+          </AdminActionButton>
         ) : null}
         {canReject ? (
-          <Button
-            size="sm"
-            variant="energy"
+          <AdminActionButton
+            tone="danger"
             onClick={() => handleAction("REJECT")}
-            loading={isPending}
+            disabled={isPending}
           >
             Reject
-          </Button>
+          </AdminActionButton>
         ) : null}
         {canTakeDown ? (
-          <Button
-            size="sm"
-            variant="energy"
+          <AdminActionButton
+            tone="danger"
             onClick={() => handleAction("TAKE_DOWN")}
-            loading={isPending}
+            disabled={isPending}
           >
             Take Down
-          </Button>
+          </AdminActionButton>
         ) : null}
         {canFeature ? (
-          <Button
-            size="sm"
-            variant="ghost"
+          <AdminActionButton
             onClick={() => handleFeatured(!featured)}
-            loading={isPending}
+            disabled={isPending}
+            tone={featured ? "neutral" : "primary"}
           >
             {featured ? "Unfeature" : "Feature"}
-          </Button>
+          </AdminActionButton>
         ) : null}
-      </div>
+      </AdminActionBar>
 
       {error ? (
         <p className="mt-2 text-xs text-neon-red-400" role="alert">

@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createCategory } from "@/actions/admin";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionButton,
+  AdminActionSelect,
+} from "@/components/admin/admin-action-controls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
@@ -64,9 +67,9 @@ export function CreateCategoryForm({ parentCategories }: Props) {
             <label className="text-sm font-medium text-text-primary">
               Parent Category
             </label>
-            <select
+            <AdminActionSelect
               name="parentId"
-              className="flex h-10 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline"
+              className="h-10 w-full text-sm"
             >
               <option value="">None (top-level)</option>
               {parentCategories.map((p) => (
@@ -74,12 +77,17 @@ export function CreateCategoryForm({ parentCategories }: Props) {
                   {p.name}
                 </option>
               ))}
-            </select>
+            </AdminActionSelect>
           </div>
           {error && <p className="text-sm text-text-error">{error}</p>}
-          <Button type="submit" loading={isPending} className="w-full">
+          <AdminActionButton
+            type="submit"
+            disabled={isPending}
+            tone="primary"
+            className="w-full"
+          >
             Create Category
-          </Button>
+          </AdminActionButton>
         </form>
       </CardContent>
     </Card>

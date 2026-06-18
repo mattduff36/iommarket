@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import { verifyDealer, downgradeDealerToUser } from "@/actions/admin/dealers";
 
 interface DealerActionsProps {
@@ -42,52 +45,45 @@ export function DealerActions({ dealerId, verified }: DealerActionsProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button
-        size="sm"
-        variant={verified ? "ghost" : "energy"}
-        onClick={handleVerify}
-        disabled={isPending}
-        className="text-xs"
-      >
-        {verified ? "Unverify" : "Verify"}
-      </Button>
-
-      {!showConfirm ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setShowConfirm(true)}
+    <div className="space-y-2">
+      <AdminActionBar>
+        <AdminActionButton
+          onClick={handleVerify}
           disabled={isPending}
-          className="text-xs text-neon-red-400"
+          tone={verified ? "neutral" : "success"}
         >
-          Downgrade to User
-        </Button>
-      ) : (
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-text-error">Are you sure?</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleDowngrade}
-            disabled={isPending}
-            className="text-xs text-neon-red-400"
-          >
-            Yes, downgrade
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setShowConfirm(false)}
-            disabled={isPending}
-            className="text-xs"
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
+          {verified ? "Unverify" : "Verify"}
+        </AdminActionButton>
 
-      {error && <span className="text-xs text-text-error">{error}</span>}
+        {!showConfirm ? (
+          <AdminActionButton
+            onClick={() => setShowConfirm(true)}
+            disabled={isPending}
+            tone="danger"
+          >
+            Downgrade
+          </AdminActionButton>
+        ) : (
+          <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
+            <span className="px-1 text-xs text-text-error">Downgrade?</span>
+            <AdminActionButton
+              onClick={handleDowngrade}
+              disabled={isPending}
+              tone="danger"
+            >
+              Confirm
+            </AdminActionButton>
+            <AdminActionButton
+              onClick={() => setShowConfirm(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </AdminActionButton>
+          </AdminActionBar>
+        )}
+      </AdminActionBar>
+
+      {error && <p className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }

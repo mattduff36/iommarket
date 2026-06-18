@@ -3,7 +3,10 @@
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteAttributeDefinition, toggleCategoryActive, deleteCategory } from "@/actions/admin";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import { X, Trash2 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -78,30 +81,25 @@ export function CategoryRowActions({ categoryId, active, listingCount }: Categor
 
   return (
     <div className="flex flex-col gap-1 items-start">
-      <div className="flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+      <AdminActionBar>
+        <AdminActionButton
           onClick={handleToggleActive}
           disabled={isTogglingActive}
-          className="h-7 px-2 text-xs"
+          tone={active ? "neutral" : "success"}
         >
           {active ? "Deactivate" : "Activate"}
-        </Button>
+        </AdminActionButton>
         {listingCount === 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
+          <AdminActionButton
             onClick={handleDelete}
             disabled={isDeleting}
-            className="h-7 px-2 text-xs text-text-error hover:text-text-error hover:bg-neon-red-500/10"
+            tone="danger"
+            aria-label="Delete category"
           >
             <Trash2 className="h-3 w-3" />
-          </Button>
+          </AdminActionButton>
         )}
-      </div>
+      </AdminActionBar>
       {error && <p className="text-xs text-text-error">{error}</p>}
     </div>
   );

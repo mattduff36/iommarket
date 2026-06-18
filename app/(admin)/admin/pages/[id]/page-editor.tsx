@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+  AdminActionSelect,
+  AdminActionTextarea,
+} from "@/components/admin/admin-action-controls";
 import { Input } from "@/components/ui/input";
 import { upsertContentPage, deleteContentPage } from "@/actions/admin/pages";
 
@@ -86,13 +91,13 @@ export function PageEditor({ page }: PageEditorProps) {
         <label htmlFor="markdown" className="text-sm font-medium text-text-primary">
           Content (Markdown)
         </label>
-        <textarea
+        <AdminActionTextarea
           id="markdown"
           name="markdown"
           required
           rows={20}
           defaultValue={page?.markdown ?? ""}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary font-mono placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline"
+          className="text-sm font-mono"
         />
       </div>
 
@@ -114,49 +119,48 @@ export function PageEditor({ page }: PageEditorProps) {
         <label htmlFor="status" className="text-sm font-medium text-text-primary">
           Status
         </label>
-        <select
+        <AdminActionSelect
           id="status"
           name="status"
           defaultValue={page?.status ?? "DRAFT"}
-          className="flex h-10 w-48 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline"
+          className="h-10 w-48 text-sm"
         >
           <option value="DRAFT">Draft</option>
           <option value="PUBLISHED">Published</option>
-        </select>
+        </AdminActionSelect>
       </div>
 
       {error && <p className="text-sm text-text-error">{error}</p>}
 
-      <div className="flex items-center gap-3">
-        <Button type="submit" loading={isPending}>
+      <AdminActionBar>
+        <AdminActionButton type="submit" disabled={isPending} tone="primary">
           {page ? "Save Changes" : "Create Page"}
-        </Button>
+        </AdminActionButton>
 
         {page && (
           <>
             {!showDelete ? (
-              <Button
-                type="button"
-                variant="ghost"
+              <AdminActionButton
                 onClick={() => setShowDelete(true)}
-                className="text-neon-red-400"
+                disabled={isPending}
+                tone="danger"
               >
                 Delete
-              </Button>
+              </AdminActionButton>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-text-error">Delete this page?</span>
-                <Button type="button" variant="ghost" onClick={handleDelete} disabled={isPending} className="text-neon-red-400">
+              <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
+                <span className="px-1 text-sm text-text-error">Delete this page?</span>
+                <AdminActionButton onClick={handleDelete} disabled={isPending} tone="danger">
                   Confirm
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setShowDelete(false)} disabled={isPending}>
+                </AdminActionButton>
+                <AdminActionButton onClick={() => setShowDelete(false)} disabled={isPending}>
                   Cancel
-                </Button>
-              </div>
+                </AdminActionButton>
+              </AdminActionBar>
             )}
           </>
         )}
-      </div>
+      </AdminActionBar>
     </form>
   );
 }

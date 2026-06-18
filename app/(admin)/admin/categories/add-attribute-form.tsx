@@ -4,7 +4,11 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createAttributeDefinition } from "@/actions/admin";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionButton,
+  AdminActionSelect,
+  AdminActionTextarea,
+} from "@/components/admin/admin-action-controls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -93,9 +97,6 @@ export function AddAttributeForm({ categories }: Props) {
     });
   }
 
-  const selectClass =
-    "flex h-10 w-full rounded-sm border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue";
-
   return (
     <Card>
       <CardHeader>
@@ -106,10 +107,10 @@ export function AddAttributeForm({ categories }: Props) {
           {/* Category */}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-text-primary">Category</label>
-            <select
+            <AdminActionSelect
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className={selectClass}
+              className="h-10 w-full text-sm"
               required
             >
               {categories.map((c) => (
@@ -117,7 +118,7 @@ export function AddAttributeForm({ categories }: Props) {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </AdminActionSelect>
           </div>
 
           {/* Name + auto-slug */}
@@ -148,28 +149,28 @@ export function AddAttributeForm({ categories }: Props) {
           {/* Data Type */}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-text-primary">Data Type</label>
-            <select
+            <AdminActionSelect
               value={dataType}
               onChange={(e) => setDataType(e.target.value)}
-              className={selectClass}
+              className="h-10 w-full text-sm"
             >
               {DATA_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
                 </option>
               ))}
-            </select>
+            </AdminActionSelect>
           </div>
 
           {/* Options — only for select type */}
           {dataType === "select" && (
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-text-primary">Options</label>
-              <textarea
+              <AdminActionTextarea
                 name="options"
                 rows={3}
                 placeholder="Comma-separated, e.g. Petrol, Diesel, Electric"
-                className="flex w-full rounded-sm border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue resize-none"
+                className="resize-none text-sm"
               />
               <p className="text-xs text-text-secondary">Separate each option with a comma</p>
             </div>
@@ -184,9 +185,14 @@ export function AddAttributeForm({ categories }: Props) {
 
           {error && <p className="text-sm text-text-error">{error}</p>}
 
-          <Button type="submit" loading={isPending} className="w-full">
+          <AdminActionButton
+            type="submit"
+            disabled={isPending}
+            tone="primary"
+            className="w-full"
+          >
             Add Attribute
-          </Button>
+          </AdminActionButton>
         </form>
       </CardContent>
     </Card>

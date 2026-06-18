@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AdminActionButton } from "@/components/admin/admin-action-controls";
 
 interface Props {
   email: string;
@@ -21,8 +21,8 @@ export function CopyEmailButton({ email }: Props) {
   }
 
   return (
-    <Button type="button" variant="ghost" size="sm" onClick={handleCopy}>
+    <AdminActionButton onClick={handleCopy}>
       {copied ? "Copied" : "Copy"}
-    </Button>
+    </AdminActionButton>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { AdminActionButton } from "@/components/admin/admin-action-controls";
 import { Input } from "@/components/ui/input";
 import { createRegion } from "@/actions/admin/regions";
 
@@ -33,9 +33,9 @@ export function CreateRegionForm() {
     <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
       <Input label="Name" name="name" required minLength={2} maxLength={100} placeholder="e.g. Douglas" className="w-48" />
       <Input label="Slug" name="slug" required minLength={2} maxLength={100} placeholder="e.g. douglas" className="w-48" />
-      <Button type="submit" size="sm" loading={isPending}>
+      <AdminActionButton type="submit" disabled={isPending} tone="primary">
         Add Region
-      </Button>
+      </AdminActionButton>
       {error && <span className="text-xs text-text-error">{error}</span>}
     </form>
   );

@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import { toggleRegionActive, deleteRegion } from "@/actions/admin/regions";
 
 interface RegionActionsProps {
@@ -43,43 +46,41 @@ export function RegionActions({ regionId, active, hasReferences }: RegionActions
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant={active ? "ghost" : "energy"}
-        onClick={handleToggle}
-        disabled={isPending}
-        className="text-xs"
-      >
-        {active ? "Disable" : "Enable"}
-      </Button>
+    <div className="space-y-2">
+      <AdminActionBar>
+        <AdminActionButton
+          onClick={handleToggle}
+          disabled={isPending}
+          tone={active ? "neutral" : "success"}
+        >
+          {active ? "Disable" : "Enable"}
+        </AdminActionButton>
 
-      {!hasReferences && (
-        <>
-          {!showDelete ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowDelete(true)}
-              disabled={isPending}
-              className="text-xs text-neon-red-400"
-            >
-              Delete
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" variant="ghost" onClick={handleDelete} disabled={isPending} className="text-xs text-neon-red-400">
-                Confirm
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowDelete(false)} disabled={isPending} className="text-xs">
-                Cancel
-              </Button>
-            </>
-          )}
-        </>
-      )}
+        {!hasReferences && (
+          <>
+            {!showDelete ? (
+              <AdminActionButton
+                onClick={() => setShowDelete(true)}
+                disabled={isPending}
+                tone="danger"
+              >
+                Delete
+              </AdminActionButton>
+            ) : (
+              <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
+                <AdminActionButton onClick={handleDelete} disabled={isPending} tone="danger">
+                  Confirm
+                </AdminActionButton>
+                <AdminActionButton onClick={() => setShowDelete(false)} disabled={isPending}>
+                  Cancel
+                </AdminActionButton>
+              </AdminActionBar>
+            )}
+          </>
+        )}
+      </AdminActionBar>
 
-      {error && <span className="text-xs text-text-error">{error}</span>}
+      {error && <p className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }

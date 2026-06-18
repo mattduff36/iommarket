@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { AdminActionButton } from "@/components/admin/admin-action-controls";
 import { Input } from "@/components/ui/input";
 import { updateSiteSetting, deleteSiteSetting } from "@/actions/admin/settings";
 import { SETTING_KEYS } from "@/lib/config/setting-keys";
@@ -102,20 +102,16 @@ export function SettingsForm({ settings, envDefaults }: SettingsFormProps) {
                 placeholder={`Override (default: ${envDefault})`}
                 className="flex-1"
               />
-              <Button type="submit" size="sm" disabled={isPending}>
+              <AdminActionButton type="submit" disabled={isPending} tone="primary">
                 Save
-              </Button>
+              </AdminActionButton>
               {hasOverride && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
+                <AdminActionButton
                   onClick={() => handleReset(setting.key)}
                   disabled={isPending}
-                  className="text-xs"
                 >
                   Reset
-                </Button>
+                </AdminActionButton>
               )}
             </form>
             {hasOverride && (

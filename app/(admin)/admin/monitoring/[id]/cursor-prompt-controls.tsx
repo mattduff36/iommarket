@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+  AdminActionTextarea,
+} from "@/components/admin/admin-action-controls";
 import { generateMonitoringCursorPrompt } from "@/actions/admin/monitoring";
 
 interface Props {
@@ -49,28 +53,23 @@ export function CursorPromptControls({ issueId, initialPrompt, generatedAt }: Pr
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="trust"
+      <AdminActionBar>
+        <AdminActionButton
           onClick={handleGenerate}
           disabled={isPending}
+          tone="primary"
         >
           Generate Cursor Prompt
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
+        </AdminActionButton>
+        <AdminActionButton
           onClick={handleCopy}
           disabled={!prompt}
         >
           {copied ? "Copied" : "Copy Prompt"}
-        </Button>
-      </div>
+        </AdminActionButton>
+      </AdminActionBar>
       <p className="text-xs text-text-secondary">{generatedLabel}</p>
-      <textarea
+      <AdminActionTextarea
         readOnly
         value={prompt}
         className="h-64 w-full rounded-md border border-border bg-surface p-3 text-xs text-text-primary"

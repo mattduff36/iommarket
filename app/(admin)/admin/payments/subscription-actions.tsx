@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import {
+  AdminActionBar,
+  AdminActionButton,
+} from "@/components/admin/admin-action-controls";
 import {
   adminCancelSubscription,
   adminRefundSubscriptionPayment,
@@ -56,31 +59,33 @@ export function CancelSubButton({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="space-y-2">
       {!showConfirm ? (
-        <Button
-          size="sm"
-          variant="ghost"
+        <AdminActionButton
           onClick={() => setShowConfirm(true)}
           disabled={isPending}
-          className="text-xs text-neon-red-400"
+          tone="danger"
         >
           Cancel
-        </Button>
+        </AdminActionButton>
       ) : (
-        <>
-          <Button size="sm" variant="ghost" onClick={() => handleCancel(false)} disabled={isPending} className="text-xs">
+        <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
+          <AdminActionButton onClick={() => handleCancel(false)} disabled={isPending}>
             At period end
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => handleCancel(true)} disabled={isPending} className="text-xs text-neon-red-400">
+          </AdminActionButton>
+          <AdminActionButton
+            onClick={() => handleCancel(true)}
+            disabled={isPending}
+            tone="danger"
+          >
             Immediately
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setShowConfirm(false)} disabled={isPending} className="text-xs">
+          </AdminActionButton>
+          <AdminActionButton onClick={() => setShowConfirm(false)} disabled={isPending}>
             Back
-          </Button>
-        </>
+          </AdminActionButton>
+        </AdminActionBar>
       )}
-      {error && <span className="text-xs text-text-error">{error}</span>}
+      {error && <p className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }
@@ -130,41 +135,34 @@ export function RefundSubPaymentButton({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="space-y-2">
       {!showConfirm ? (
-        <Button
-          size="sm"
-          variant="ghost"
+        <AdminActionButton
           onClick={() => setShowConfirm(true)}
           disabled={isPending}
-          className="text-xs text-neon-red-400"
+          tone="danger"
         >
           Refund latest payment
-        </Button>
+        </AdminActionButton>
       ) : (
-        <>
-          <span className="text-xs text-text-error">Refund?</span>
-          <Button
-            size="sm"
-            variant="ghost"
+        <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
+          <span className="px-1 text-xs text-text-error">Refund?</span>
+          <AdminActionButton
             onClick={handleRefund}
             disabled={isPending}
-            className="text-xs text-neon-red-400"
+            tone="danger"
           >
             Yes
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
+          </AdminActionButton>
+          <AdminActionButton
             onClick={() => setShowConfirm(false)}
             disabled={isPending}
-            className="text-xs"
           >
             No
-          </Button>
-        </>
+          </AdminActionButton>
+        </AdminActionBar>
       )}
-      {error && <span className="text-xs text-text-error">{error}</span>}
+      {error && <p className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }

@@ -2,8 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AdminActionBar,
+  AdminActionButton,
+  AdminSegmentedControl,
+} from "@/components/admin/admin-action-controls";
 import { deleteUser, setUserRole, setUserDisabled } from "@/actions/admin/users";
 import type { UserRole } from "@prisma/client";
 
@@ -65,48 +69,38 @@ export function UserActions({
     });
   }
 
-  const roles: UserRole[] = ["USER", "DEALER", "ADMIN"];
+  const roles = [
+    { value: "USER", label: "User" },
+    { value: "DEALER", label: "Dealer" },
+    { value: "ADMIN", label: "Admin" },
+  ] satisfies Array<{ value: UserRole; label: string }>;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1">
-        <span className="text-xs text-text-tertiary mr-1">Role:</span>
-        {roles.map((role) => (
-          <Button
-            key={role}
-            size="sm"
-            variant={currentRole === role ? "energy" : "ghost"}
-            onClick={() => handleRoleChange(role)}
-            disabled={isPending || currentRole === role}
-            className="text-xs"
-          >
-            {role}
-          </Button>
-        ))}
-      </div>
+    <div className="space-y-2">
+      <AdminActionBar>
+        <AdminSegmentedControl
+          label="Role"
+          value={currentRole}
+          options={roles}
+          onChange={handleRoleChange}
+          disabled={isPending}
+        />
 
-      <Button
-        size="sm"
-        variant={isDisabled ? "energy" : "ghost"}
-        onClick={handleToggleDisabled}
-        disabled={isPending}
-        className="text-xs"
-      >
-        {isDisabled ? "Enable Account" : "Disable Account"}
-      </Button>
+        <AdminActionButton
+          onClick={handleToggleDisabled}
+          disabled={isPending}
+          tone={isDisabled ? "success" : "warning"}
+        >
+          {isDisabled ? "Enable" : "Disable"}
+        </AdminActionButton>
 
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={handleDelete}
-        disabled={isPending}
-        className="text-xs text-text-error hover:text-text-error hover:bg-neon-red-500/10"
-      >
-        Delete Account
-      </Button>
+        <AdminActionButton onClick={handleDelete} disabled={isPending} tone="danger">
+          Delete
+        </AdminActionButton>
 
-      {isDisabled && <Badge variant="error">Disabled</Badge>}
-      {error && <span className="text-xs text-text-error">{error}</span>}
+        {isDisabled && <Badge variant="error">Disabled</Badge>}
+      </AdminActionBar>
+      {error && <p className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }

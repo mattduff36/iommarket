@@ -78,7 +78,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
       <h1 className="text-2xl font-bold text-text-primary mb-6">Dealers</h1>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6 rounded-lg border border-border bg-canvas/30 p-3">
         <form method="get" action="/admin/dealers" className="flex gap-2">
           <input
             name="q"
@@ -108,7 +108,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
           href={buildUrl({ verified: verifiedFilter === false ? undefined : "false", page: "1" })}
           className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
             verifiedFilter === false
-              ? "bg-neon-red-500/10 text-neon-red-400 border-neon-red-500/30"
+              ? "bg-surface-elevated text-text-primary border-border"
               : "text-text-secondary border-transparent hover:bg-surface-elevated"
           }`}
         >
@@ -128,7 +128,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
             <TableHead>Subscription</TableHead>
             <TableHead>Listings</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className="min-w-[220px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -167,7 +167,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
               <TableCell className="text-sm text-text-tertiary">
                 {dealer.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell>
+              <TableCell className="min-w-[220px]">
                 <DealerActions dealerId={dealer.id} verified={dealer.verified} />
               </TableCell>
             </TableRow>

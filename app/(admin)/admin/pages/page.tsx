@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableHeader,
@@ -25,8 +24,11 @@ export default async function AdminPagesListPage() {
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Content Pages</h1>
-        <Link href="/admin/pages/new">
-          <Button size="sm">New Page</Button>
+        <Link
+          href="/admin/pages/new"
+          className="inline-flex h-8 items-center justify-center rounded-md border border-neon-blue-500/25 bg-neon-blue-500/10 px-3 text-xs font-medium text-neon-blue-400 transition-colors hover:border-neon-blue-500/45 hover:bg-neon-blue-500/15 hover:text-neon-blue-500"
+        >
+          New Page
         </Link>
       </div>
 
