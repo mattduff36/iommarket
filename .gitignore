@@ -25,6 +25,7 @@ Thumbs.db
 dist/
 build/
 .next/
+tsconfig.tsbuildinfo
 
 # Test artifacts
 coverage/
