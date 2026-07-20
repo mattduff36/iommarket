@@ -46,7 +46,7 @@ async function createListingForE2E(params: {
     db.region.findFirst({
       where: { active: true },
       select: { id: true },
-      orderBy: { name: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
   ]);
 

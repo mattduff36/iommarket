@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "Regions | Admin" };
 
 export default async function AdminRegionsPage() {
   const regions = await db.region.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       _count: { select: { users: true, listings: true } },
     },
@@ -37,6 +37,7 @@ export default async function AdminRegionsPage() {
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Slug</TableHead>
+            <TableHead>Order</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Users</TableHead>
             <TableHead>Listings</TableHead>
@@ -49,6 +50,7 @@ export default async function AdminRegionsPage() {
             <TableRow key={region.id}>
               <TableCell className="font-medium text-text-primary">{region.name}</TableCell>
               <TableCell className="text-sm text-text-tertiary font-mono">{region.slug}</TableCell>
+              <TableCell className="text-sm text-text-secondary">{region.sortOrder}</TableCell>
               <TableCell>
                 <Badge variant={region.active ? "success" : "neutral"}>
                   {region.active ? "Active" : "Inactive"}
@@ -70,7 +72,7 @@ export default async function AdminRegionsPage() {
           ))}
           {regions.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-text-tertiary py-8">
+              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
                 No regions found. Add one above.
               </TableCell>
             </TableRow>

@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
@@ -9,10 +8,12 @@ import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DealerLogo } from "@/components/dealers/dealer-logo";
 import { Globe, Phone, Calendar } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { getDealerEntitlement } from "@/lib/dealers/entitlement";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -52,17 +53,27 @@ export default async function DealerProfilePage({ params }: Props) {
           region: true,
         },
       },
-      subscriptions: {
-        where: { status: "ACTIVE" },
-        take: 1,
+      user: {
+        select: {
+          role: true,
+          disabledAt: true,
+          deletedAt: true,
+        },
       },
     },
   });
 
-  if (!dealer) notFound();
+  if (
+    !dealer ||
+    (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
+    dealer.user.disabledAt ||
+    dealer.user.deletedAt
+  ) {
+    notFound();
+  }
 
-  const isSubscribed = dealer.subscriptions.length > 0;
-  const [reviewStats, approvedReviews, currentUser] = await Promise.all([
+  const [entitlement, reviewStats, approvedReviews, currentUser] = await Promise.all([
+    getDealerEntitlement(dealer.id, dealer.tier),
     db.dealerReview.aggregate({
       where: {
         dealerId: dealer.id,
@@ -89,6 +100,8 @@ export default async function DealerProfilePage({ params }: Props) {
     }),
     getCurrentUser(),
   ]);
+  if (!entitlement) notFound();
+  const isSubscribed = Boolean(entitlement);
   const reviewCount = reviewStats._count._all;
   const averageRating = reviewStats._avg.rating
     ? Number(reviewStats._avg.rating.toFixed(1))
@@ -116,20 +129,11 @@ export default async function DealerProfilePage({ params }: Props) {
       />
       {/* Dealer header */}
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-12 pb-10 border-b border-border">
-        {dealer.logoUrl ? (
-          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-graphite-800 shadow-low">
-            <Image
-              src={dealer.logoUrl}
-              alt={dealer.name}
-              fill
-              className="object-cover"
-            />
-          </div>
-        ) : (
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-neon-blue-500/10 text-3xl font-bold text-neon-blue-500">
-            {dealer.name.charAt(0)}
-          </div>
-        )}
+        <DealerLogo
+          logoUrl={dealer.logoUrl}
+          dealerName={dealer.name}
+          className="h-24 w-24 rounded-lg bg-graphite-800 text-3xl shadow-low"
+        />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">

@@ -16,6 +16,7 @@ import {
   getPaymentDisplayId,
   getProviderLabel,
   getSubscriptionDisplayId,
+  isPaidSubscriptionRecord,
 } from "@/lib/payments/records";
 
 export const metadata: Metadata = { title: "Revenue" };
@@ -84,12 +85,18 @@ export default async function AdminRevenuePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-text-secondary">
-              Active Subscriptions
+              Active Paid Subscriptions
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-text-primary">
-              {subscriptions.filter((s) => s.status === "ACTIVE").length}
+              {
+                subscriptions.filter(
+                  (subscription) =>
+                    isPaidSubscriptionRecord(subscription) &&
+                    subscription.status === "ACTIVE"
+                ).length
+              }
             </p>
           </CardContent>
         </Card>
@@ -108,6 +115,7 @@ export default async function AdminRevenuePage() {
             <TableHead>Status</TableHead>
             <TableHead>Provider Ref</TableHead>
             <TableHead>Provider</TableHead>
+            <TableHead>Source</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -177,6 +185,9 @@ export default async function AdminRevenuePage() {
               </TableCell>
               <TableCell className="text-xs text-text-tertiary">
                 {getProviderLabel(sub.paymentProvider)}
+              </TableCell>
+              <TableCell className="text-xs text-text-tertiary">
+                {sub.source === "ADMIN_GRANT" ? "Free admin grant" : "Paid"}
               </TableCell>
             </TableRow>
           ))}

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   listUsersSchema,
   setUserRoleSchema,
+  grantDealerAccessSchema,
   setUserDisabledSchema,
   deleteUserSchema,
   setUserRegionSchema,
@@ -58,6 +59,40 @@ describe("setUserRoleSchema", () => {
     const result = setUserRoleSchema.safeParse({ role: "USER" });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a bounded integer dealer grant duration", () => {
+    expect(
+      setUserRoleSchema.safeParse({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        role: "DEALER",
+        grantDurationDays: 90,
+      }).success
+    ).toBe(true);
+    expect(
+      setUserRoleSchema.safeParse({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        role: "DEALER",
+        grantDurationDays: 0,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("grantDealerAccessSchema", () => {
+  it("requires a whole duration between one day and ten years", () => {
+    const input = {
+      userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      durationDays: 365,
+    };
+
+    expect(grantDealerAccessSchema.safeParse(input).success).toBe(true);
+    expect(
+      grantDealerAccessSchema.safeParse({ ...input, durationDays: 1.5 }).success
+    ).toBe(false);
+    expect(
+      grantDealerAccessSchema.safeParse({ ...input, durationDays: 3_651 }).success
+    ).toBe(false);
+  });
 });
 
 describe("setUserDisabledSchema", () => {
@@ -110,6 +145,7 @@ describe("createDealerProfileSchema", () => {
       userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       name: "Test Dealer",
       slug: "test-dealer",
+      grantDurationDays: 30,
     });
     expect(result.success).toBe(true);
   });
@@ -119,6 +155,7 @@ describe("createDealerProfileSchema", () => {
       userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       name: "Test",
       slug: "test dealer",
+      grantDurationDays: 30,
     });
     expect(result.success).toBe(false);
   });
@@ -128,9 +165,19 @@ describe("createDealerProfileSchema", () => {
       userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       name: "Test",
       slug: "test",
+      grantDurationDays: 30,
       website: "",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("requires an explicit free access duration", () => {
+    const result = createDealerProfileSchema.safeParse({
+      userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      name: "Test Dealer",
+      slug: "test-dealer",
+    });
+    expect(result.success).toBe(false);
   });
 });
 
@@ -147,14 +194,24 @@ describe("updateDealerProfileSchema", () => {
 describe("createRegionSchema", () => {
   it("accepts valid region", () => {
     const result = createRegionSchema.safeParse({
-      name: "Douglas",
-      slug: "douglas",
+      name: "IOM North",
+      slug: "iom-north",
+      sortOrder: 1,
     });
     expect(result.success).toBe(true);
   });
 
   it("rejects short name", () => {
     const result = createRegionSchema.safeParse({ name: "A", slug: "a" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an invalid sort order", () => {
+    const result = createRegionSchema.safeParse({
+      name: "IOM North",
+      slug: "iom-north",
+      sortOrder: -1,
+    });
     expect(result.success).toBe(false);
   });
 });
@@ -164,6 +221,14 @@ describe("updateRegionSchema", () => {
     const result = updateRegionSchema.safeParse({
       id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       active: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a sort-order update", () => {
+    const result = updateRegionSchema.safeParse({
+      id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      sortOrder: 4,
     });
     expect(result.success).toBe(true);
   });

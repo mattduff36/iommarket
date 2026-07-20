@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { FUEL_TYPE_OPTIONS, isEvCompatibleFuelType } from "../lib/constants/fuel-types";
+import { MARKETPLACE_REGIONS } from "../lib/constants/regions";
 
 // Load .env then .env.local so the seed always targets the same DB as the dev server.
 // .env.local values take priority, matching Next.js conventions.
@@ -68,32 +69,25 @@ async function main() {
   await prisma.user.deleteMany({});
   await prisma.attributeDefinition.deleteMany({});
   await prisma.category.deleteMany({});
+  await prisma.region.deleteMany({});
   console.log("  Cleared existing listings, attribute definitions, categories, users, and dealers");
 
   // ---------------------------------------------------------------------------
-  // Regions (Isle of Man towns)
+  // Regions
   // ---------------------------------------------------------------------------
-  const regionData = [
-    { name: "Entire Isle of Man", slug: "isle-of-man" },
-    { name: "United Kingdom", slug: "uk" },
-    { name: "Douglas", slug: "douglas" },
-    { name: "Ramsey", slug: "ramsey" },
-    { name: "Peel", slug: "peel" },
-    { name: "Castletown", slug: "castletown" },
-    { name: "Port Erin", slug: "port-erin" },
-    { name: "Onchan", slug: "onchan" },
-    { name: "Laxey", slug: "laxey" },
-    { name: "Port St Mary", slug: "port-st-mary" },
-    { name: "Ballasalla", slug: "ballasalla" },
-    { name: "Kirk Michael", slug: "kirk-michael" },
-  ];
+  const regionData = MARKETPLACE_REGIONS;
 
   const regions: Record<string, { id: string }> = {};
   for (const r of regionData) {
     const region = await prisma.region.upsert({
       where: { slug: r.slug },
-      update: {},
-      create: { name: r.name, slug: r.slug, active: true },
+      update: { name: r.name, active: true, sortOrder: r.sortOrder },
+      create: {
+        name: r.name,
+        slug: r.slug,
+        active: true,
+        sortOrder: r.sortOrder,
+      },
     });
     regions[r.slug] = region;
   }
@@ -291,7 +285,7 @@ async function main() {
         email: u.email,
         name: u.name,
         role: u.role,
-        regionId: regions["isle-of-man"].id,
+        regionId: regions["iom-central"].id,
       },
     });
     users[u.authUserId] = user;
@@ -473,7 +467,7 @@ async function main() {
     userId: users[dealer001].id,
     dealerId: manxMotors.id,
     categoryId: car.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2021 BMW 320d M Sport – Immaculate Condition",
     description: "One owner from new, full BMW service history. This stunning 320d M Sport comes in Mineral Grey with black Dakota leather interior. Features include M Sport suspension, professional navigation, Harman Kardon sound system, and rear parking camera. MOT until March 2027. Excellent condition throughout – must be seen.",
     price: 24995,
@@ -494,7 +488,7 @@ async function main() {
     userId: users[dealer001].id,
     dealerId: manxMotors.id,
     categoryId: car.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2020 Audi A4 35 TFSI S Line – Low Miles",
     description: "Beautiful Audi A4 S Line in Navarra Blue. Features virtual cockpit, LED headlights, 3-zone climate control, and Audi smartphone interface. Only 28,000 miles. Two keys, full Audi service history. Finance available.",
     price: 22450,
@@ -514,7 +508,7 @@ async function main() {
   await createListing({
     userId: users[user001].id,
     categoryId: car.id,
-    regionSlug: "ramsey",
+    regionSlug: "iom-north",
     title: "2018 VW Golf 1.5 TSI Match – Great Runner",
     description: "Reliable family hatchback in very good condition. Glacier White, cloth seats, touchscreen infotainment with Apple CarPlay. 4 new tyres fitted recently. Selling as upgrading to something larger. Any inspection welcome.",
     price: 12750,
@@ -534,7 +528,7 @@ async function main() {
     userId: users[dealer001].id,
     dealerId: manxMotors.id,
     categoryId: car.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2022 Tesla Model 3 Long Range – Island Perfect",
     description: "Stunning Pearl White Tesla Model 3 Long Range AWD. Over 300 miles range, autopilot, premium interior with heated seats front and rear. Perfect for island driving – charge at home overnight. Low road tax. Full Tesla warranty remaining.",
     price: 33995,
@@ -554,7 +548,7 @@ async function main() {
   await createListing({
     userId: users[user002].id,
     categoryId: car.id,
-    regionSlug: "peel",
+    regionSlug: "iom-west",
     title: "2017 MINI Cooper S 3-Door – Fun Island Car",
     description: "Chili Red MINI Cooper S with John Cooper Works bodykit. Heated seats, satellite navigation, Harman Kardon speakers. Fast and fun but also economical. Genuine reason for sale – emigrating. Priced to sell quickly.",
     price: 11500,
@@ -574,7 +568,7 @@ async function main() {
     userId: users[dealer001].id,
     dealerId: manxMotors.id,
     categoryId: car.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2019 Land Rover Discovery Sport HSE – 7 Seater",
     description: "Versatile 7-seat SUV in Corris Grey. HSE spec includes leather, panoramic roof, touchscreen pro nav, 360-degree parking aid. Ideal for island families. Full Land Rover service history, cam belt done at 60k.",
     price: 28750,
@@ -593,7 +587,7 @@ async function main() {
   await createListing({
     userId: users[user003].id,
     categoryId: car.id,
-    regionSlug: "castletown",
+    regionSlug: "iom-south",
     title: "2015 Ford Fiesta 1.0 EcoBoost Zetec – First Car Special",
     description: "Perfect first car or runabout. Well maintained, MOT until October. Metallic blue, Bluetooth, air con, electric windows. Cheap to run and insure. Slight dent on rear quarter – reflected in price.",
     price: 5995,
@@ -613,7 +607,7 @@ async function main() {
     userId: users[dealer001].id,
     dealerId: manxMotors.id,
     categoryId: car.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2023 Mercedes-Benz A-Class A200 AMG Line – Nearly New",
     description: "Delivery miles only on this stunning Cosmos Black A-Class. AMG Line styling, MBUX infotainment with touchscreen, LED high performance headlights, ambient lighting, reversing camera. Manufacturer warranty until 2026.",
     price: 29995,
@@ -632,7 +626,7 @@ async function main() {
   await createListing({
     userId: users[user005].id,
     categoryId: car.id,
-    regionSlug: "onchan",
+    regionSlug: "iom-east",
     title: "2016 Porsche Cayman 718 – Weekend Toy",
     description: "Guards Red 718 Cayman with extended leather in Black. Sport Chrono package, PASM sport suspension, BOSE surround sound. Garaged, only used on dry days. HPI clear. A true driver's car for someone who appreciates the finer things.",
     price: 38500,
@@ -655,7 +649,7 @@ async function main() {
     userId: users[dealer001].id,
     dealerId: manxMotors.id,
     categoryId: van.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2020 Ford Transit Custom 2.0 TDCi 290 L2 – Low Miles",
     description: "Ideal for trades or delivery. 290 L2 in Frozen White, 125,000 miles with full service history. Ply-lined, bulkhead, side loading door. MOT until next year. Ready for work.",
     price: 18500,
@@ -675,7 +669,7 @@ async function main() {
   await createListing({
     userId: users[user001].id,
     categoryId: van.id,
-    regionSlug: "ramsey",
+    regionSlug: "iom-north",
     title: "2018 Mercedes-Benz Vito Tourer 111 – 8 Seater",
     description: "Spacious people carrier or family van. 111 CDI in obsidian black, leather trim, dual sliding doors. Full service history. Selling due to downsizing.",
     price: 21995,
@@ -694,7 +688,7 @@ async function main() {
   await createListing({
     userId: users[user003].id,
     categoryId: van.id,
-    regionSlug: "peel",
+    regionSlug: "iom-west",
     title: "2016 Volkswagen Caddy Maxi 2.0 TDI – Tidy Runner",
     description: "Compact van, great for island deliveries. Maxi load length, tailgate, tow bar prep. Well maintained, no rust. Genuine reason for sale.",
     price: 11500,
@@ -715,7 +709,7 @@ async function main() {
   await createListing({
     userId: users[user002].id,
     categoryId: motorbike.id,
-    regionSlug: "douglas",
+    regionSlug: "iom-east",
     title: "2021 Triumph Street Triple RS – Immaculate",
     description: "765cc triple, quickshifter, Öhlins suspension. Only 4,200 miles. Full Triumph service history. Perfect for TT roads. Two keys, paddock stand included.",
     price: 7995,
@@ -735,7 +729,7 @@ async function main() {
   await createListing({
     userId: users[user005].id,
     categoryId: motorbike.id,
-    regionSlug: "onchan",
+    regionSlug: "iom-east",
     title: "2019 Honda CB650R – Neo Sports Café",
     description: "Stunning CB650R in Grand Prix Red. 649cc inline-four, slipper clutch, LED lights. Low miles, one owner. HPI clear. Ideal for commuting and weekend blasts.",
     price: 5495,
@@ -754,7 +748,7 @@ async function main() {
   await createListing({
     userId: users[user004].id,
     categoryId: motorbike.id,
-    regionSlug: "port-erin",
+    regionSlug: "iom-south",
     title: "2020 Yamaha MT-07 – A2 Compliant",
     description: "Popular MT-07 in Ice Fluo. 689cc twin, great for A2 licence holders. Full exhaust, tail tidy. Service history. Reluctant sale – moving abroad.",
     price: 5750,
@@ -786,17 +780,11 @@ async function main() {
   const fuels = FUEL_TYPE_OPTIONS;
   const transmissions = ["Manual", "Automatic"] as const;
   const iomRegionSlugs = [
-    "isle-of-man",
-    "douglas",
-    "ramsey",
-    "peel",
-    "castletown",
-    "port-erin",
-    "onchan",
-    "laxey",
-    "port-st-mary",
-    "ballasalla",
-    "kirk-michael",
+    "iom-north",
+    "iom-south",
+    "iom-east",
+    "iom-west",
+    "iom-central",
   ] as const;
 
   const generatedCount = 120;
@@ -835,7 +823,7 @@ async function main() {
             ? pick(bikeMakes)
             : pick(motorhomeMakes);
     const year = random(2012, 2025);
-    const mileage = random(5000, 150000);
+    const mileage = random(5000, 200000);
     const price =
       categoryType === "motorbike"
         ? random(2500, 12000)
@@ -857,7 +845,7 @@ async function main() {
       { attrId: attrs["fuel-type"].id, value: fuel },
       { attrId: attrs["transmission"].id, value: transmission },
       { attrId: attrs["colour"].id, value: pick(colours) },
-      { attrId: attrs["tax-per-year"].id, value: String(random(0, 580)) },
+      { attrId: attrs["tax-per-year"].id, value: String(random(0, 750)) },
       { attrId: attrs["insurance-group"].id, value: String(random(1, 50)) },
       { attrId: attrs["location"].id, value: location },
       { attrId: attrs["previously-written-off"].id, value: writtenOff },
@@ -877,7 +865,7 @@ async function main() {
       baseAttributes.push({ attrId: attrs["acceleration"].id, value: String(random(3, 14)) });
     }
     if (attrs["fuel-consumption"]) {
-      baseAttributes.push({ attrId: attrs["fuel-consumption"].id, value: String(random(25, 72)) });
+      baseAttributes.push({ attrId: attrs["fuel-consumption"].id, value: String(random(0, 150)) });
     }
     if (attrs["co2-emissions"]) {
       baseAttributes.push({ attrId: attrs["co2-emissions"].id, value: String(random(0, 260)) });
@@ -925,7 +913,7 @@ async function main() {
     data: {
       userId: users[user004].id,
       categoryId: car.id,
-      regionId: regions["castletown"].id,
+      regionId: regions["iom-south"].id,
       title: "2020 Kia Sportage 1.6 GDi 2 – Family SUV",
       description: "Well-specced Kia Sportage in good condition. Needs admin approval before going live.",
       price: 1599000,

@@ -3,11 +3,16 @@
 import { useRouter } from "next/navigation";
 import { FilterPanel, type FilterOption } from "@/components/marketplace/filter-panel";
 import { SearchBar } from "@/components/marketplace/search-bar";
-
-const PRICE_MAX = 100000;
-const MILEAGE_MAX = 150000;
-const YEAR_MIN = 2000;
-const YEAR_MAX = new Date().getFullYear() + 1;
+import {
+  MILEAGE_MAX,
+  MILEAGE_MIN,
+  PRICE_MAX,
+  PRICE_MIN,
+  YEAR_MIN,
+  getCurrentYear,
+  parseBoundedRange,
+  parseYearRange,
+} from "@/lib/constants/search-filters";
 
 interface Props {
   query: string;
@@ -45,6 +50,7 @@ export function SearchFilters({
   models = [],
 }: Props) {
   const router = useRouter();
+  const currentYear = getCurrentYear();
 
   function buildUrl(overrides: Record<string, string | undefined>) {
     const params = new URLSearchParams();
@@ -82,45 +88,41 @@ export function SearchFilters({
         onCategoryChange={(cats) =>
           router.push(buildUrl({ category: cats[0] || undefined }))
         }
-        priceRange={[
-          minPrice ? parseInt(minPrice, 10) : 0,
-          maxPrice ? parseInt(maxPrice, 10) : PRICE_MAX,
-        ]}
-        priceMin={0}
+        priceRange={parseBoundedRange(minPrice, maxPrice, PRICE_MIN, PRICE_MAX)}
+        priceMin={PRICE_MIN}
         priceMax={PRICE_MAX}
         onPriceChange={(range) =>
           router.push(
             buildUrl({
-              minPrice: range[0] > 0 ? String(range[0]) : undefined,
+              minPrice: range[0] > PRICE_MIN ? String(range[0]) : undefined,
               maxPrice: range[1] < PRICE_MAX ? String(range[1]) : undefined,
             })
           )
         }
-        mileageRange={[
-          minMileage ? parseInt(minMileage, 10) : 0,
-          maxMileage ? parseInt(maxMileage, 10) : MILEAGE_MAX,
-        ]}
-        mileageMin={0}
+        mileageRange={parseBoundedRange(
+          minMileage,
+          maxMileage,
+          MILEAGE_MIN,
+          MILEAGE_MAX,
+        )}
+        mileageMin={MILEAGE_MIN}
         mileageMax={MILEAGE_MAX}
         onMileageChange={(range) =>
           router.push(
             buildUrl({
-              minMileage: range[0] > 0 ? String(range[0]) : undefined,
+              minMileage: range[0] > MILEAGE_MIN ? String(range[0]) : undefined,
               maxMileage: range[1] < MILEAGE_MAX ? String(range[1]) : undefined,
             })
           )
         }
-        yearRange={[
-          minYear ? parseInt(minYear, 10) : YEAR_MIN,
-          maxYear ? parseInt(maxYear, 10) : YEAR_MAX,
-        ]}
+        yearRange={parseYearRange(minYear, maxYear)}
         yearMin={YEAR_MIN}
-        yearMax={YEAR_MAX}
+        yearMax={currentYear}
         onYearChange={(range) =>
           router.push(
             buildUrl({
               minYear: range[0] > YEAR_MIN ? String(range[0]) : undefined,
-              maxYear: range[1] < YEAR_MAX ? String(range[1]) : undefined,
+              maxYear: range[1] < currentYear ? String(range[1]) : undefined,
             })
           )
         }

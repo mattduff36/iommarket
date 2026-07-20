@@ -23,6 +23,7 @@ import {
   getDealerPlanPricePence,
   getMarketplacePricing,
 } from "@/lib/config/marketplace-pricing";
+import { getDealerEntitlement } from "@/lib/dealers/entitlement";
 import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
@@ -110,7 +111,12 @@ export async function payForListing(
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const listing = await db.listing.findUnique({ where: { id: listingId } });
+  const listing = await db.listing.findUnique({
+    where: { id: listingId },
+    include: {
+      dealer: { select: { tier: true } },
+    },
+  });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
   if (listing.status !== "DRAFT" && listing.status !== "EXPIRED") {
@@ -121,19 +127,14 @@ export async function payForListing(
     const pricing = await getMarketplacePricing();
     const flow = listing.dealerId ? "dealer" : "private";
     const listingReturnTo = `/sell/checkout?listing=${listing.id}&flow=${flow}`;
-    const hasActiveDealerSubscription = listing.dealerId
-      ? await db.subscription.findFirst({
-          where: {
-            dealerId: listing.dealerId,
-            status: "ACTIVE",
-          },
-          select: { id: true },
-        })
-      : null;
-    const isDealerWithSub = Boolean(hasActiveDealerSubscription);
-    if (listing.dealerId && !isDealerWithSub) {
+    const dealerEntitlement =
+      listing.dealerId && listing.dealer
+        ? await getDealerEntitlement(listing.dealerId, listing.dealer.tier)
+        : null;
+    const hasDealerAccess = Boolean(dealerEntitlement);
+    if (listing.dealerId && !hasDealerAccess) {
       return {
-        error: "Active dealer subscription required before submitting dealer listings.",
+        error: "Active dealer access is required before submitting dealer listings.",
       };
     }
     const isRenewal = Boolean(
@@ -146,7 +147,7 @@ export async function payForListing(
       ? pricing.optionalListingSupportPence
       : 0;
     const shouldSkipPayment =
-      isDealerWithSub || (!isRenewal && isFreePrivateSeller);
+      hasDealerAccess || (!isRenewal && isFreePrivateSeller);
     if (shouldSkipPayment) {
       if (isFreePrivateSeller && supportAmountPence > 0) {
         // Optional support payments should never block the core listing submission flow.

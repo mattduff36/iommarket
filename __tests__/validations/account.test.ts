@@ -35,7 +35,6 @@ describe("updateDealerSelfProfileSchema", () => {
       bio: "Trusted dealer",
       website: "https://dealer.example",
       phone: "01624 123456",
-      logoUrl: "https://example.com/logo.png",
     });
     expect(result.success).toBe(true);
   });
@@ -45,6 +44,16 @@ describe("updateDealerSelfProfileSchema", () => {
       name: "Dealer One",
       slug: "Dealer One",
     });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects raw logo URLs because logo changes use the upload endpoint", () => {
+    const result = updateDealerSelfProfileSchema.safeParse({
+      name: "Dealer One",
+      slug: "dealer-one",
+      logoUrl: "https://example.com/logo.png",
+    });
+
     expect(result.success).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { Button } from "@/components/ui/button";
@@ -84,20 +85,17 @@ export default async function SellDealerPage({ searchParams }: Props) {
     redirect("/dealer/dashboard?status=DRAFT");
   }
 
-  const activeSubscription = await db.subscription.findFirst({
-    where: {
-      dealerId: dealerProfile.id,
-      status: "ACTIVE",
-    },
-    select: { id: true },
+  const entitlement = await getCurrentDealerEntitlement({
+    role: user.role,
+    dealerProfile,
   });
 
-  if (!activeSubscription && !initialDraft) {
+  if (!entitlement && !initialDraft) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-4">
         <h1 className="text-3xl font-bold text-text-primary">Dealer Listing</h1>
         <p className="text-text-secondary">
-          An active dealer subscription is required before you can create new dealer listings.
+          Active dealer access is required before you can create new dealer listings.
         </p>
         <div className="flex items-center gap-3">
           <Button asChild>

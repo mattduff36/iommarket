@@ -7,12 +7,13 @@ import { cn } from "@/lib/cn";
 interface SliderProps
   extends React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> {
   thumbLabels?: string[];
+  thumbValueTexts?: string[];
 }
 
 const Slider = React.forwardRef<
   React.ComponentRef<typeof SliderPrimitive.Root>,
   SliderProps
->(({ className, thumbLabels, ...props }, ref) => (
+>(({ className, thumbLabels, thumbValueTexts, ...props }, ref) => (
   <SliderPrimitive.Root
     ref={ref}
     className={cn(
@@ -31,6 +32,7 @@ const Slider = React.forwardRef<
       <SliderPrimitive.Thumb
         key={i}
         aria-label={thumbLabels?.[i]}
+        aria-valuetext={thumbValueTexts?.[i]}
         className={cn(
           "block h-6 w-6 rounded-full border border-border shadow-md bg-surface",
           "transition-transform duration-150 ease-out hover:scale-110 active:scale-105",

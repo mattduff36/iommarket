@@ -15,16 +15,18 @@ import { RangeSlider } from "@/components/ui/range-slider";
 import { AdvancedSearchModal } from "./advanced-search-modal";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
 import {
-  ageRangeToYearRange,
-  yearRangeToAgeRange,
+  MILEAGE_MAX,
+  MILEAGE_MIN,
+  MILEAGE_STEP,
+  PRICE_MAX,
+  PRICE_MIN,
+  PRICE_STEP,
+  YEAR_MIN,
+  getCurrentYear,
+  parseBoundedRange,
+  parseYearRange,
 } from "@/lib/constants/search-filters";
 import { cn } from "@/lib/cn";
-
-const PRICE_MAX = 100_000;
-const PRICE_STEP = 500;
-const MILEAGE_MAX = 150_000;
-const MILEAGE_STEP = 5_000;
-const AGE_MAX = 15;
 
 interface FilterOption {
   label: string;
@@ -48,12 +50,6 @@ export interface SearchControlsProps {
   onAdvancedModalOpenChange?: (open: boolean) => void;
 }
 
-function parseNum(s: string | undefined, fallback: number): number {
-  if (!s) return fallback;
-  const n = parseInt(s, 10);
-  return Number.isNaN(n) ? fallback : n;
-}
-
 export function SearchControls({
   makes,
   modelsByMake,
@@ -68,21 +64,20 @@ export function SearchControls({
   onAdvancedModalOpenChange,
 }: SearchControlsProps) {
   const router = useRouter();
+  const currentYear = getCurrentYear();
 
   const [make, setMake] = React.useState(initial.make ?? "");
   const [model, setModel] = React.useState(initial.model ?? "");
   const [region, setRegion] = React.useState(initial.region ?? "");
 
-  const [priceRange, setPriceRange] = React.useState<[number, number]>([
-    parseNum(initial.minPrice, 0),
-    parseNum(initial.maxPrice, PRICE_MAX),
-  ]);
-  const [mileageRange, setMileageRange] = React.useState<[number, number]>([
-    parseNum(initial.minMileage, 0),
-    parseNum(initial.maxMileage, MILEAGE_MAX),
-  ]);
-  const [ageRange, setAgeRange] = React.useState<[number, number]>(
-    yearRangeToAgeRange(initial.minYear, initial.maxYear),
+  const [priceRange, setPriceRange] = React.useState<[number, number]>(
+    parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX),
+  );
+  const [mileageRange, setMileageRange] = React.useState<[number, number]>(
+    parseBoundedRange(initial.minMileage, initial.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+  );
+  const [yearRange, setYearRange] = React.useState<[number, number]>(
+    parseYearRange(initial.minYear, initial.maxYear),
   );
 
   const hasMoreOptionsFilters = Boolean(
@@ -103,9 +98,11 @@ export function SearchControls({
     setMake(initial.make ?? "");
     setModel(initial.model ?? "");
     setRegion(initial.region ?? "");
-    setPriceRange([parseNum(initial.minPrice, 0), parseNum(initial.maxPrice, PRICE_MAX)]);
-    setMileageRange([parseNum(initial.minMileage, 0), parseNum(initial.maxMileage, MILEAGE_MAX)]);
-    setAgeRange(yearRangeToAgeRange(initial.minYear, initial.maxYear));
+    setPriceRange(parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX));
+    setMileageRange(
+      parseBoundedRange(initial.minMileage, initial.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+    );
+    setYearRange(parseYearRange(initial.minYear, initial.maxYear));
   }, [
     initial.make, initial.model, initial.region,
     initial.minPrice, initial.maxPrice, initial.minMileage, initial.maxMileage,
@@ -114,32 +111,18 @@ export function SearchControls({
 
   const modelsForMake = make ? (modelsByMake[make] ?? []) : [];
 
-  const sortedRegions = React.useMemo(() => {
-    const isleOfMan = regions.find((r) => r.value === "isle-of-man");
-    const rest = regions.filter((r) => r.value !== "isle-of-man");
-    return isleOfMan ? [isleOfMan, ...rest] : regions;
-  }, [regions]);
-
   function getAllParams(): SearchParams {
-    const isAgeDefault = ageRange[0] === 0 && ageRange[1] >= AGE_MAX;
-    const yearParams = isAgeDefault
-      ? { minYear: undefined, maxYear: undefined }
-      : {
-          minYear: ageRangeToYearRange(ageRange).minYear || undefined,
-          maxYear: ageRangeToYearRange(ageRange).maxYear || undefined,
-        };
-
     return {
       ...advancedParams,
       make: make || undefined,
       model: model || undefined,
       region: region || undefined,
-      minPrice: priceRange[0] > 0 ? String(priceRange[0]) : undefined,
+      minPrice: priceRange[0] > PRICE_MIN ? String(priceRange[0]) : undefined,
       maxPrice: priceRange[1] < PRICE_MAX ? String(priceRange[1]) : undefined,
-      minMileage: mileageRange[0] > 0 ? String(mileageRange[0]) : undefined,
+      minMileage: mileageRange[0] > MILEAGE_MIN ? String(mileageRange[0]) : undefined,
       maxMileage: mileageRange[1] < MILEAGE_MAX ? String(mileageRange[1]) : undefined,
-      minYear: yearParams.minYear,
-      maxYear: yearParams.maxYear,
+      minYear: yearRange[0] > YEAR_MIN ? String(yearRange[0]) : undefined,
+      maxYear: yearRange[1] < currentYear ? String(yearRange[1]) : undefined,
     };
   }
 
@@ -170,26 +153,23 @@ export function SearchControls({
 
   function handlePriceCommit(range: [number, number]) {
     instantNav({
-      minPrice: range[0] > 0 ? String(range[0]) : undefined,
+      minPrice: range[0] > PRICE_MIN ? String(range[0]) : undefined,
       maxPrice: range[1] < PRICE_MAX ? String(range[1]) : undefined,
     });
   }
 
   function handleMileageCommit(range: [number, number]) {
     instantNav({
-      minMileage: range[0] > 0 ? String(range[0]) : undefined,
+      minMileage: range[0] > MILEAGE_MIN ? String(range[0]) : undefined,
       maxMileage: range[1] < MILEAGE_MAX ? String(range[1]) : undefined,
     });
   }
 
-  function handleAgeCommit(range: [number, number]) {
-    const isDefault = range[0] === 0 && range[1] >= AGE_MAX;
-    if (isDefault) {
-      instantNav({ minYear: undefined, maxYear: undefined });
-      return;
-    }
-    const { minYear, maxYear } = ageRangeToYearRange(range);
-    instantNav({ minYear, maxYear });
+  function handleYearCommit(range: [number, number]) {
+    instantNav({
+      minYear: range[0] > YEAR_MIN ? String(range[0]) : undefined,
+      maxYear: range[1] < currentYear ? String(range[1]) : undefined,
+    });
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -202,23 +182,16 @@ export function SearchControls({
       router.push(buildSearchUrl({}, values));
     } else {
       setAdvancedParams(values);
-      if (values.make) setMake(values.make);
-      if (values.model) setModel(values.model);
-      if (values.minPrice || values.maxPrice) {
-        setPriceRange([
-          parseNum(values.minPrice, 0),
-          parseNum(values.maxPrice, PRICE_MAX),
-        ]);
-      }
-      if (values.minMileage || values.maxMileage) {
-        setMileageRange([
-          parseNum(values.minMileage, 0),
-          parseNum(values.maxMileage, MILEAGE_MAX),
-        ]);
-      }
-      if (values.minYear || values.maxYear) {
-        setAgeRange(yearRangeToAgeRange(values.minYear, values.maxYear));
-      }
+      setMake(values.make ?? "");
+      setModel(values.model ?? "");
+      setRegion(values.region ?? "");
+      setPriceRange(
+        parseBoundedRange(values.minPrice, values.maxPrice, PRICE_MIN, PRICE_MAX),
+      );
+      setMileageRange(
+        parseBoundedRange(values.minMileage, values.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+      );
+      setYearRange(parseYearRange(values.minYear, values.maxYear));
     }
   }
 
@@ -226,9 +199,9 @@ export function SearchControls({
     setMake("");
     setModel("");
     setRegion("");
-    setPriceRange([0, PRICE_MAX]);
-    setMileageRange([0, MILEAGE_MAX]);
-    setAgeRange([0, AGE_MAX]);
+    setPriceRange([PRICE_MIN, PRICE_MAX]);
+    setMileageRange([MILEAGE_MIN, MILEAGE_MAX]);
+    setYearRange([YEAR_MIN, currentYear]);
     setAdvancedParams({});
     router.push("/search");
   }
@@ -296,7 +269,7 @@ export function SearchControls({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="any">Any area</SelectItem>
-                  {sortedRegions.map((r) => (
+                  {regions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -355,17 +328,18 @@ export function SearchControls({
         <div className="space-y-5 rounded-lg border border-border bg-surface p-4 sm:p-5">
           <RangeSlider
             label="Price Range"
-            min={0}
+            min={PRICE_MIN}
             max={PRICE_MAX}
             step={PRICE_STEP}
             value={priceRange}
             onValueChange={setPriceRange}
             onValueCommit={handlePriceCommit}
             formatValue={(v) => `£${v.toLocaleString()}`}
+            scale="logarithmic"
           />
           <RangeSlider
             label="Mileage Range"
-            min={0}
+            min={MILEAGE_MIN}
             max={MILEAGE_MAX}
             step={MILEAGE_STEP}
             value={mileageRange}
@@ -374,14 +348,14 @@ export function SearchControls({
             formatValue={(v) => `${v.toLocaleString()} mi`}
           />
           <RangeSlider
-            label="Age Range"
-            min={0}
-            max={AGE_MAX}
+            label="Year"
+            min={YEAR_MIN}
+            max={currentYear}
             step={1}
-            value={ageRange}
-            onValueChange={setAgeRange}
-            onValueCommit={handleAgeCommit}
-            formatValue={(v) => v === 1 ? "1 year" : `${v} years`}
+            value={yearRange}
+            onValueChange={setYearRange}
+            onValueCommit={handleYearCommit}
+            formatValue={String}
           />
         </div>
       )}
@@ -394,7 +368,7 @@ export function SearchControls({
         modelsByMake={modelsByMake}
         modelCountsByMake={modelCountsByMake}
         categories={categories}
-        regions={sortedRegions}
+        regions={regions}
         initial={mode === "instant" ? initial : getAllParams()}
         onApply={handleAdvancedApply}
       />

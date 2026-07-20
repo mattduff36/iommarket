@@ -18,8 +18,20 @@ export type ListUsersInput = z.infer<typeof listUsersSchema>;
 export const setUserRoleSchema = z.object({
   userId: z.string().cuid(),
   role: z.enum(["USER", "DEALER", "ADMIN"]),
+  grantDurationDays: z.number().int().min(1).max(3_650).optional(),
 });
 export type SetUserRoleInput = z.infer<typeof setUserRoleSchema>;
+
+export const grantDealerAccessSchema = z.object({
+  userId: z.string().cuid(),
+  durationDays: z.number().int().min(1).max(3_650),
+});
+export type GrantDealerAccessInput = z.infer<typeof grantDealerAccessSchema>;
+
+export const revokeDealerAccessSchema = z.object({
+  userId: z.string().cuid(),
+});
+export type RevokeDealerAccessInput = z.infer<typeof revokeDealerAccessSchema>;
 
 export const setUserDisabledSchema = z.object({
   userId: z.string().cuid(),
@@ -47,6 +59,7 @@ export const createDealerProfileSchema = z.object({
   userId: z.string().cuid(),
   name: z.string().min(2).max(100),
   slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/, "Slug must be lowercase letters, numbers, and hyphens"),
+  grantDurationDays: z.number().int().min(1).max(3_650),
   bio: z.string().max(2000).optional(),
   website: z.string().url().max(500).optional().or(z.literal("")),
   phone: z.string().max(30).optional(),
@@ -74,6 +87,7 @@ export const createRegionSchema = z.object({
   name: z.string().min(2).max(100),
   slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/, "Slug must be lowercase letters, numbers, and hyphens"),
   active: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).max(999).default(0),
 });
 export type CreateRegionInput = z.infer<typeof createRegionSchema>;
 
@@ -82,6 +96,7 @@ export const updateRegionSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/).optional(),
   active: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(999).optional(),
 });
 export type UpdateRegionInput = z.infer<typeof updateRegionSchema>;
 

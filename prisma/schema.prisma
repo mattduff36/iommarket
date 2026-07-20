@@ -97,12 +97,14 @@ model Region {
   name      String
   slug      String   @unique
   active    Boolean  @default(true)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
   users    User[]
   listings Listing[]
 
   @@index([slug])
+  @@index([active, sortOrder])
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +285,12 @@ enum PaymentProvider {
   STRIPE
   RIPPLE
   DEV
+  ADMIN
+}
+
+enum SubscriptionSource {
+  PAYMENT
+  ADMIN_GRANT
 }
 
 model Payment {
@@ -320,18 +328,24 @@ model Subscription {
   id                     String             @id @default(cuid())
   dealerId               String
   paymentProvider        PaymentProvider    @default(STRIPE)
+  source                 SubscriptionSource @default(PAYMENT)
   providerSubscriptionId String?            @unique
   providerPlanId         String?
   stripeSubscriptionId   String?            @unique
   stripePriceId          String?
   status                 SubscriptionStatus @default(INCOMPLETE)
   currentPeriodEnd       DateTime?
+  grantStartsAt          DateTime?
+  grantEndsAt            DateTime?
+  grantedByAdminId       String?
+  revokedAt              DateTime?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
   dealer DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 
   @@index([dealerId])
+  @@index([dealerId, source, status, grantEndsAt])
   @@index([paymentProvider])
   @@index([providerSubscriptionId])
   @@index([stripeSubscriptionId])

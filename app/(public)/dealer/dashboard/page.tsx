@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
+import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,6 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Plus, ExternalLink, Star } from "lucide-react";
-import { DevSubscriptionBypass } from "@/components/dev/dev-subscription-bypass";
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
@@ -83,6 +83,8 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-up");
   if (!hasDealerDashboardAccess(user)) redirect("/dealer/subscribe");
+  const entitlement = await getCurrentDealerEntitlement(user);
+  if (!entitlement) redirect("/dealer/subscribe");
 
   const params = searchParams ? await searchParams : {};
   const q = params.q?.trim() ?? "";
@@ -103,7 +105,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     ...(status !== "ALL" ? { status } : {}),
   };
 
-  const [listings, totalFiltered, allStatusGroups, subscription, reviewStats, pricing] = await Promise.all([
+  const [listings, totalFiltered, allStatusGroups, reviewStats, pricing] = await Promise.all([
     db.listing.findMany({
       where: listingWhere,
       orderBy: getSortOrder(sort),
@@ -120,12 +122,6 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
       by: ["status"],
       where: { dealerId: user.dealerProfile.id },
       _count: { _all: true },
-    }),
-    db.subscription.findFirst({
-      where: {
-        dealerId: user.dealerProfile.id,
-        status: "ACTIVE",
-      },
     }),
     db.dealerReview.aggregate({
       where: {
@@ -262,27 +258,20 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
             <span className="text-sm font-medium text-text-primary">
               Subscription:
             </span>
-            {subscription ? (
-              <Badge variant="success">Active</Badge>
-            ) : (
-              <Badge variant="error">Inactive</Badge>
-            )}
+            <Badge variant="success">
+              {entitlement.source === "ADMIN_GRANT" ? "Free access" : "Active"}
+            </Badge>
             <Badge variant="info">{tierLabel} plan</Badge>
             <span className="text-sm text-text-secondary">
               {Math.min(activeSlotsUsed, listingCap)}/{listingCap} active listing slots used
             </span>
-            {subscription?.currentPeriodEnd && (
+            {entitlement.endsAt && (
               <span className="text-sm text-text-secondary">
-                Renews{" "}
-                {subscription.currentPeriodEnd.toLocaleDateString("en-GB")}
+                {entitlement.source === "ADMIN_GRANT" ? "Expires" : "Renews"}{" "}
+                {entitlement.endsAt.toLocaleDateString("en-GB")}
               </span>
             )}
           </div>
-          {!subscription && (
-            <Button asChild size="sm">
-              <Link href="/dealer/subscribe">Subscribe</Link>
-            </Button>
-          )}
         </CardContent>
       </Card>
 
@@ -323,12 +312,6 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           </CardContent>
         </Card>
       </div>
-
-      {!subscription && process.env.NODE_ENV !== "production" && (
-        <div className="mb-8">
-          <DevSubscriptionBypass />
-        </div>
-      )}
 
       <Card className="mb-6">
         <CardHeader>

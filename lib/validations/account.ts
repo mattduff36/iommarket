@@ -20,8 +20,7 @@ export const updateDealerSelfProfileSchema = z.object({
   bio: z.string().trim().max(2000).optional().or(z.literal("")),
   website: z.string().trim().url().max(500).optional().or(z.literal("")),
   phone: z.string().trim().max(30).optional().or(z.literal("")),
-  logoUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
-});
+}).strict();
 export type UpdateDealerSelfProfileInput = z.infer<
   typeof updateDealerSelfProfileSchema
 >;

@@ -7,11 +7,16 @@ import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { FeaturedListingsCarousel } from "@/components/marketplace/home/featured-listings-carousel";
 import { HeroSearch } from "@/components/marketplace/hero-search";
 import { HomeVehicleCheck } from "@/components/vehicle-check/home-vehicle-check";
+import { DealerSpotlights } from "@/components/dealers/dealer-spotlights";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
+import {
+  getDealerSpotlightQuery,
+  shuffleDealerSpotlights,
+} from "@/lib/dealers/spotlights";
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -29,7 +34,7 @@ export default async function HomePage() {
   await expireStaleLiveListings();
   const liveWhere = liveListingWhere();
   /* Fetch categories and dealer/search datasets */
-  const [categories, regions, makeDefs, modelDefs, dealers, soldCount, pricing] = await Promise.all([
+  const [categories, regions, makeDefs, modelDefs, dealerResults, soldCount, pricing] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
@@ -39,7 +44,7 @@ export default async function HomePage() {
     }),
     db.region.findMany({
       where: { active: true },
-      orderBy: { name: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     db.attributeDefinition.findMany({
       where: { slug: "make" },
@@ -49,16 +54,11 @@ export default async function HomePage() {
       where: { slug: "model" },
       select: { id: true },
     }),
-    db.dealerProfile.findMany({
-      take: 3,
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: { select: { listings: { where: liveWhere } } },
-      },
-    }),
+    db.dealerProfile.findMany(getDealerSpotlightQuery(liveWhere)),
     db.listing.count({ where: { status: "SOLD" } }),
     getMarketplacePricing(),
   ]);
+  const dealers = shuffleDealerSpotlights(dealerResults);
 
   const makeIds = makeDefs.map((d) => d.id);
   const modelIds = modelDefs.map((d) => d.id);
@@ -188,66 +188,7 @@ export default async function HomePage() {
       {/* ============ DEALER SPOTLIGHTS + SELLER CTA ============ */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-stretch">
-          <div className="rounded-[28px] border border-border bg-surface p-5 sm:p-6">
-            <div className="mb-5 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="section-heading-accent text-xl font-bold text-text-primary font-heading sm:text-2xl">
-                  Dealer Spotlights
-                </h2>
-                <p className="mt-2 text-sm text-text-secondary">
-                  Trusted Isle of Man dealers with fresh stock and active profiles.
-                </p>
-              </div>
-              <Link
-                href="/search?sellerType=dealer"
-                className="shrink-0 text-sm text-text-trust transition-colors hover:text-neon-blue-400"
-              >
-                View all dealers
-              </Link>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-              {dealers.map((dealer) => (
-                <div
-                  key={dealer.id}
-                  className="flex h-full flex-col rounded-2xl border border-border bg-black/20 p-4"
-                >
-                  <div className="mb-4 flex items-center gap-3">
-                    {dealer.logoUrl ? (
-                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-graphite-800">
-                        <Image
-                          src={dealer.logoUrl}
-                          alt={`${dealer.name} logo`}
-                          fill
-                          className="object-cover"
-                          sizes="56px"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neon-blue-500/20 bg-neon-blue-500/10 text-lg font-bold text-neon-blue-400">
-                        {dealer.name.charAt(0)}
-                      </div>
-                    )}
-                    <h3 className="font-semibold text-text-primary">{dealer.name}</h3>
-                  </div>
-                  <p className="mt-2 line-clamp-4 text-sm leading-6 text-text-secondary">
-                    {dealer.bio ?? "Trusted Isle of Man dealer."}
-                  </p>
-                  <div className="mt-auto pt-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-metallic-500">
-                      {dealer._count.listings} live listings
-                    </p>
-                    <Link
-                      href={`/dealers/${dealer.slug}`}
-                      className="mt-3 inline-flex items-center text-sm text-text-trust transition-colors hover:text-neon-blue-400"
-                    >
-                      Visit profile
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <DealerSpotlights dealers={dealers} />
 
           <div className="rounded-[28px] border border-neon-blue-500/20 bg-[radial-gradient(circle_at_top,rgba(51,181,255,0.16),transparent_35%),linear-gradient(145deg,rgba(11,16,21,0.98),rgba(16,21,28,0.98))] p-6 text-left sm:p-8 sm:text-center lg:flex lg:flex-col lg:justify-center lg:text-left">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-neon-red-500">

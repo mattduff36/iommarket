@@ -132,6 +132,9 @@ export async function adminRefundSubscriptionPayment(
     where: { id: parsed.data.subscriptionId },
   });
   if (!sub) return { error: "Subscription not found" };
+  if (sub.source === "ADMIN_GRANT") {
+    return { error: "Free admin grants do not have payments to refund." };
+  }
 
   try {
     const providerSubscriptionId =
@@ -191,6 +194,9 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
 
   const sub = await db.subscription.findUnique({ where: { id: parsed.data.subscriptionId } });
   if (!sub) return { error: "Subscription not found" };
+  if (sub.source === "ADMIN_GRANT") {
+    return { error: "Manage free admin grants from the dealer access controls." };
+  }
   if (sub.status === "CANCELLED") return { error: "Subscription already cancelled" };
 
   try {

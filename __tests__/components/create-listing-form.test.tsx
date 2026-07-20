@@ -159,7 +159,7 @@ const categories = [
   },
 ];
 
-const regions = [{ id: "iom", name: "Douglas" }];
+const regions = [{ id: "iom", name: "IOM Central" }];
 
 describe("CreateListingForm registration lookup", () => {
   beforeEach(() => {

@@ -5,16 +5,24 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { provisionDealerProfile } from "@/lib/dealers/access";
+import {
+  grantAdminDealerAccess,
+  revokeAdminDealerAccess,
+} from "@/lib/dealers/entitlement";
 import { captureException } from "@/lib/monitoring";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   listUsersSchema,
   setUserRoleSchema,
+  grantDealerAccessSchema,
+  revokeDealerAccessSchema,
   setUserDisabledSchema,
   deleteUserSchema,
   setUserRegionSchema,
   type ListUsersInput,
   type SetUserRoleInput,
+  type GrantDealerAccessInput,
+  type RevokeDealerAccessInput,
   type SetUserDisabledInput,
   type DeleteUserInput,
   type SetUserRegionInput,
@@ -112,29 +120,43 @@ export async function setUserRole(input: SetUserRoleInput) {
   const parsed = setUserRoleSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
-  const { userId, role } = parsed.data;
+  const { userId, role, grantDurationDays } = parsed.data;
 
   if (userId === admin.id) return { error: "Cannot change your own role" };
 
   try {
-    const user = await updateUserRole(userId, role);
-    if (!user) return { error: "User not found" };
+    const result = await updateUserRole({
+      userId,
+      role,
+      grantDurationDays,
+      adminId: admin.id,
+    });
+    if (result.kind === "not-found") return { error: "User not found" };
+    if (result.kind === "duration-required") {
+      return {
+        error: {
+          grantDurationDays: [
+            "Choose a valid free dealer access duration before promoting this account.",
+          ],
+        },
+      };
+    }
 
     await logAdminAction({
       adminId: admin.id,
       action: "SET_USER_ROLE",
       entityType: "User",
       entityId: userId,
-      details: { newRole: role },
+      details: {
+        newRole: role,
+        grantDurationDays: result.grantDurationDays,
+        dealerAccessSource: result.accessSource,
+        dealerAccessEndsAt: result.accessEndsAt?.toISOString() ?? null,
+      },
     });
 
-    revalidatePath("/admin/users");
-    revalidatePath(`/admin/users/${userId}`);
-    revalidatePath("/admin/dealers");
-    revalidatePath("/dealer/dashboard");
-    revalidatePath("/dealer/profile");
-    revalidatePath("/account");
-    return { data: user };
+    revalidateDealerAccessPaths(userId);
+    return { data: result.user };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -149,7 +171,27 @@ export async function setUserRole(input: SetUserRoleInput) {
   }
 }
 
-async function updateUserRole(userId: string, role: SetUserRoleInput["role"]) {
+interface UpdateUserRoleInput {
+  userId: string;
+  role: SetUserRoleInput["role"];
+  grantDurationDays?: number;
+  adminId: string;
+}
+
+type UpdateUserRoleResult =
+  | { kind: "not-found" }
+  | { kind: "duration-required" }
+  | {
+      kind: "updated";
+      user: { id: string; role: SetUserRoleInput["role"] };
+      grantDurationDays: number | null;
+      accessSource: "PAYMENT" | "ADMIN_GRANT" | null;
+      accessEndsAt: Date | null;
+    };
+
+async function updateUserRole(
+  input: UpdateUserRoleInput
+): Promise<UpdateUserRoleResult> {
   let lastError: unknown;
 
   for (
@@ -161,19 +203,52 @@ async function updateUserRole(userId: string, role: SetUserRoleInput["role"]) {
       return await db.$transaction(
         async (tx) => {
           const targetUser = await tx.user.findUnique({
-            where: { id: userId },
-            select: { id: true, name: true, email: true },
+            where: { id: input.userId },
+            select: { id: true, name: true, email: true, role: true },
           });
-          if (!targetUser) return null;
+          if (!targetUser) return { kind: "not-found" };
 
-          if (role === "DEALER") {
-            await provisionDealerProfile(tx, targetUser);
+          if (
+            input.role === "DEALER" &&
+            targetUser.role !== "DEALER" &&
+            !input.grantDurationDays
+          ) {
+            return { kind: "duration-required" };
           }
 
-          return tx.user.update({
-            where: { id: userId },
-            data: { role },
+          const dealerProfile =
+            input.role === "DEALER"
+              ? await provisionDealerProfile(tx, targetUser)
+              : null;
+          const grantResult =
+            dealerProfile && input.grantDurationDays
+              ? await grantAdminDealerAccess(tx, {
+                  dealerId: dealerProfile.id,
+                  adminId: input.adminId,
+                  durationDays: input.grantDurationDays,
+                })
+              : null;
+          const user = await tx.user.update({
+            where: { id: input.userId },
+            data: { role: input.role },
           });
+          const accessEndsAt =
+            grantResult?.kind === "paid-access-preserved"
+              ? null
+              : grantResult?.subscription.grantEndsAt ?? null;
+
+          return {
+            kind: "updated",
+            user: { id: user.id, role: user.role },
+            grantDurationDays: input.grantDurationDays ?? null,
+            accessSource:
+              grantResult?.kind === "paid-access-preserved"
+                ? "PAYMENT"
+                : grantResult
+                  ? "ADMIN_GRANT"
+                  : null,
+            accessEndsAt,
+          };
         },
         { isolationLevel: "Serializable" }
       );
@@ -184,6 +259,188 @@ async function updateUserRole(userId: string, role: SetUserRoleInput["role"]) {
   }
 
   throw lastError;
+}
+
+export async function grantDealerAccess(input: GrantDealerAccessInput) {
+  const admin = await requireRole("ADMIN");
+  const parsed = grantDealerAccessSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  try {
+    const result = await runDealerGrantTransaction({
+      userId: parsed.data.userId,
+      durationDays: parsed.data.durationDays,
+      adminId: admin.id,
+    });
+    if (result.kind === "not-found") return { error: "User not found" };
+    if (result.kind === "not-dealer") {
+      return { error: "Only dealer-role accounts can receive dealer access." };
+    }
+
+    await logAdminAction({
+      adminId: admin.id,
+      action:
+        result.grant.kind === "extended"
+          ? "EXTEND_DEALER_ADMIN_GRANT"
+          : "GRANT_DEALER_ADMIN_ACCESS",
+      entityType: "Subscription",
+      entityId: result.grant.subscription.id,
+      details: {
+        userId: parsed.data.userId,
+        dealerId: result.dealerId,
+        source:
+          result.grant.kind === "paid-access-preserved"
+            ? "PAYMENT"
+            : "ADMIN_GRANT",
+        durationDays: parsed.data.durationDays,
+        endsAt:
+          result.grant.kind === "paid-access-preserved"
+            ? null
+            : result.grant.subscription.grantEndsAt?.toISOString() ?? null,
+      },
+    });
+
+    revalidateDealerAccessPaths(parsed.data.userId);
+    return {
+      data: {
+        source:
+          result.grant.kind === "paid-access-preserved"
+            ? "PAYMENT"
+            : "ADMIN_GRANT",
+        endsAt:
+          result.grant.kind === "paid-access-preserved"
+            ? null
+            : result.grant.subscription.grantEndsAt,
+      },
+    };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "grantDealerAccess",
+      route: "/admin/users",
+      requestPath: "/admin/users",
+      userId: admin.id,
+      tags: { userId: parsed.data.userId },
+    });
+    return { error: "Failed to grant dealer access" };
+  }
+}
+
+export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
+  const admin = await requireRole("ADMIN");
+  const parsed = revokeDealerAccessSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  try {
+    const result = await db.$transaction(
+      async (tx) => {
+        const targetUser = await tx.user.findUnique({
+          where: { id: parsed.data.userId },
+          select: {
+            id: true,
+            dealerProfile: { select: { id: true } },
+          },
+        });
+        if (!targetUser) return { kind: "not-found" as const };
+        if (!targetUser.dealerProfile) return { kind: "no-profile" as const };
+
+        const revoked = await revokeAdminDealerAccess(
+          tx,
+          targetUser.dealerProfile.id
+        );
+        return {
+          kind: "revoked" as const,
+          dealerId: targetUser.dealerProfile.id,
+          count: revoked.count,
+        };
+      },
+      { isolationLevel: "Serializable" }
+    );
+    if (result.kind === "not-found") return { error: "User not found" };
+    if (result.kind === "no-profile" || result.count === 0) {
+      return { error: "No active admin grant exists for this dealer." };
+    }
+
+    await logAdminAction({
+      adminId: admin.id,
+      action: "REVOKE_DEALER_ADMIN_GRANT",
+      entityType: "DealerProfile",
+      entityId: result.dealerId,
+      details: { userId: parsed.data.userId, source: "ADMIN_GRANT" },
+    });
+    revalidateDealerAccessPaths(parsed.data.userId);
+    return { data: { success: true } };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "revokeDealerAccess",
+      route: "/admin/users",
+      requestPath: "/admin/users",
+      userId: admin.id,
+      tags: { userId: parsed.data.userId },
+    });
+    return { error: "Failed to revoke dealer access" };
+  }
+}
+
+async function runDealerGrantTransaction(input: {
+  userId: string;
+  durationDays: number;
+  adminId: string;
+}) {
+  let lastError: unknown;
+
+  for (
+    let attempt = 0;
+    attempt < ROLE_CHANGE_TRANSACTION_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      return await db.$transaction(
+        async (tx) => {
+          const targetUser = await tx.user.findUnique({
+            where: { id: input.userId },
+            select: { id: true, name: true, email: true, role: true },
+          });
+          if (!targetUser) return { kind: "not-found" as const };
+          if (targetUser.role !== "DEALER") {
+            return { kind: "not-dealer" as const };
+          }
+
+          const dealerProfile = await provisionDealerProfile(tx, targetUser);
+          const grant = await grantAdminDealerAccess(tx, {
+            dealerId: dealerProfile.id,
+            adminId: input.adminId,
+            durationDays: input.durationDays,
+          });
+          return {
+            kind: "granted" as const,
+            dealerId: dealerProfile.id,
+            grant,
+          };
+        },
+        { isolationLevel: "Serializable" }
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableTransactionError(error)) throw error;
+    }
+  }
+
+  throw lastError;
+}
+
+function revalidateDealerAccessPaths(userId: string) {
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
+  revalidatePath("/admin/dealers");
+  revalidatePath("/sell/dealer");
+  revalidatePath("/dealer/subscribe");
+  revalidatePath("/dealer/dashboard");
+  revalidatePath("/dealer/profile");
+  revalidatePath("/account");
 }
 
 function isRetryableTransactionError(error: unknown) {

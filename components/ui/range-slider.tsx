@@ -3,6 +3,11 @@
 import * as React from "react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/cn";
+import {
+  LOGARITHMIC_POSITION_MAX,
+  logarithmicPositionToValue,
+  valueToLogarithmicPosition,
+} from "@/lib/utils/range-scale";
 
 interface RangeSliderProps {
   label: string;
@@ -13,6 +18,7 @@ interface RangeSliderProps {
   onValueChange: (value: [number, number]) => void;
   onValueCommit?: (value: [number, number]) => void;
   formatValue?: (value: number) => string;
+  scale?: "linear" | "logarithmic";
   className?: string;
 }
 
@@ -25,9 +31,26 @@ function RangeSlider({
   onValueChange,
   onValueCommit,
   formatValue = String,
+  scale = "linear",
   className,
 }: RangeSliderProps) {
   const id = React.useId();
+  const isLogarithmic = scale === "logarithmic";
+  const sliderValue: [number, number] = isLogarithmic
+    ? [
+        valueToLogarithmicPosition(value[0], min, max),
+        valueToLogarithmicPosition(value[1], min, max),
+      ]
+    : value;
+
+  function toExternalRange(sliderRange: number[]): [number, number] {
+    const range = sliderRange as [number, number];
+    if (!isLogarithmic) return range;
+    return [
+      logarithmicPositionToValue(range[0], min, max, step),
+      logarithmicPositionToValue(range[1], min, max, step),
+    ];
+  }
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -41,17 +64,18 @@ function RangeSlider({
       </div>
       <Slider
         aria-labelledby={`${id}-label`}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onValueChange={(v) => onValueChange(v as [number, number])}
+        min={isLogarithmic ? 0 : min}
+        max={isLogarithmic ? LOGARITHMIC_POSITION_MAX : max}
+        step={isLogarithmic ? 1 : step}
+        value={sliderValue}
+        onValueChange={(v) => onValueChange(toExternalRange(v))}
         onValueCommit={
           onValueCommit
-            ? (v) => onValueCommit(v as [number, number])
+            ? (v) => onValueCommit(toExternalRange(v))
             : undefined
         }
         thumbLabels={[`Minimum ${label}`, `Maximum ${label}`]}
+        thumbValueTexts={[formatValue(value[0]), formatValue(value[1])]}
       />
     </div>
   );

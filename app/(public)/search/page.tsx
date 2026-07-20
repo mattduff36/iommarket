@@ -19,6 +19,19 @@ import {
   liveListingWhere,
   liveOrSoldListingWhere,
 } from "@/lib/listings/expiry";
+import {
+  FUEL_CONSUMPTION_MAX,
+  FUEL_CONSUMPTION_MIN,
+  MILEAGE_MAX,
+  MILEAGE_MIN,
+  PRICE_MAX,
+  PRICE_MIN,
+  TAX_MAX,
+  TAX_MIN,
+  YEAR_MIN,
+  getCurrentYear,
+  parseOptionalBoundedInteger,
+} from "@/lib/constants/search-filters";
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -71,13 +84,24 @@ export default async function SearchPage({ searchParams }: Props) {
   const includeSold = sp.includeSold === "true";
   const now = new Date();
   const liveVisibilityWhere = liveListingWhere(now);
-  const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
-  const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
+  const currentYear = getCurrentYear();
+  const minPrice = parseOptionalBoundedInteger(sp.minPrice, PRICE_MIN, PRICE_MAX);
+  const maxPrice = parseOptionalBoundedInteger(sp.maxPrice, PRICE_MIN, PRICE_MAX);
+  const minPricePence = minPrice !== undefined ? minPrice * 100 : undefined;
+  const maxPricePence = maxPrice !== undefined ? maxPrice * 100 : undefined;
   const canApplyBatteryFilters = !fuelTypeFilter || isEvCompatibleFuelType(fuelTypeFilter);
 
   const numericRangeFilters: NumericRangeFilter[] = [
-    { slug: "mileage", min: safeInt(sp.minMileage), max: safeInt(sp.maxMileage) },
-    { slug: "year", min: safeInt(sp.minYear), max: safeInt(sp.maxYear) },
+    {
+      slug: "mileage",
+      min: parseOptionalBoundedInteger(sp.minMileage, MILEAGE_MIN, MILEAGE_MAX),
+      max: parseOptionalBoundedInteger(sp.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+    },
+    {
+      slug: "year",
+      min: parseOptionalBoundedInteger(sp.minYear, YEAR_MIN, currentYear),
+      max: parseOptionalBoundedInteger(sp.maxYear, YEAR_MIN, currentYear),
+    },
     { slug: "engine-size", min: safeInt(sp.minEngineSize), max: safeInt(sp.maxEngineSize) },
     { slug: "engine-power", min: safeInt(sp.minEnginePower), max: safeInt(sp.maxEnginePower) },
     ...(canApplyBatteryFilters
@@ -87,9 +111,25 @@ export default async function SearchPage({ searchParams }: Props) {
         ]
       : []),
     { slug: "acceleration", min: safeInt(sp.minAcceleration), max: safeInt(sp.maxAcceleration) },
-    { slug: "fuel-consumption", min: safeInt(sp.minFuelConsumption), max: safeInt(sp.maxFuelConsumption) },
+    {
+      slug: "fuel-consumption",
+      min: parseOptionalBoundedInteger(
+        sp.minFuelConsumption,
+        FUEL_CONSUMPTION_MIN,
+        FUEL_CONSUMPTION_MAX,
+      ),
+      max: parseOptionalBoundedInteger(
+        sp.maxFuelConsumption,
+        FUEL_CONSUMPTION_MIN,
+        FUEL_CONSUMPTION_MAX,
+      ),
+    },
     { slug: "co2-emissions", min: safeInt(sp.minCo2), max: safeInt(sp.maxCo2) },
-    { slug: "tax-per-year", min: safeInt(sp.minTax), max: safeInt(sp.maxTax) },
+    {
+      slug: "tax-per-year",
+      min: parseOptionalBoundedInteger(sp.minTax, TAX_MIN, TAX_MAX),
+      max: parseOptionalBoundedInteger(sp.maxTax, TAX_MIN, TAX_MAX),
+    },
     { slug: "insurance-group", min: safeInt(sp.minInsuranceGroup), max: safeInt(sp.maxInsuranceGroup) },
     { slug: "boot-space", min: safeInt(sp.minBootSpace), max: safeInt(sp.maxBootSpace) },
     { slug: "doors", min: safeInt(sp.doors), max: safeInt(sp.doors) },
@@ -226,7 +266,7 @@ export default async function SearchPage({ searchParams }: Props) {
     }),
     db.region.findMany({
       where: { active: true },
-      orderBy: { name: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     db.attributeDefinition.findMany({
       where: { slug: "make" },

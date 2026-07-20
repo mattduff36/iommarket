@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { getAdminDealerWhere } from "@/lib/dealers/access";
+import { grantAdminDealerAccess } from "@/lib/dealers/entitlement";
 import {
   createDealerProfileSchema,
   updateDealerProfileSchema,
@@ -55,24 +56,43 @@ export async function createDealerProfile(input: CreateDealerProfileInput) {
   const parsed = createDealerProfileSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
-  const { userId, ...profileData } = parsed.data;
+  const { userId, grantDurationDays, ...profileData } = parsed.data;
 
   const user = await db.user.findUnique({ where: { id: userId }, include: { dealerProfile: true } });
   if (!user) return { error: "User not found" };
   if (user.dealerProfile) return { error: "User already has a dealer profile" };
 
   try {
-    const [profile] = await db.$transaction([
-      db.dealerProfile.create({ data: { userId, ...profileData } }),
-      db.user.update({ where: { id: userId }, data: { role: "DEALER" } }),
-    ]);
+    const profile = await db.$transaction(
+      async (tx) => {
+        const createdProfile = await tx.dealerProfile.create({
+          data: { userId, ...profileData },
+        });
+        await grantAdminDealerAccess(tx, {
+          dealerId: createdProfile.id,
+          adminId: admin.id,
+          durationDays: grantDurationDays,
+        });
+        await tx.user.update({
+          where: { id: userId },
+          data: { role: "DEALER" },
+        });
+        return createdProfile;
+      },
+      { isolationLevel: "Serializable" }
+    );
 
     await logAdminAction({
       adminId: admin.id,
       action: "CREATE_DEALER_PROFILE",
       entityType: "DealerProfile",
       entityId: profile.id,
-      details: { userId, name: profileData.name },
+      details: {
+        userId,
+        name: profileData.name,
+        source: "ADMIN_GRANT",
+        grantDurationDays,
+      },
     });
 
     revalidatePath("/admin/dealers");

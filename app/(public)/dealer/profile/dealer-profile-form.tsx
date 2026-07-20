@@ -6,6 +6,7 @@ import { updateMyDealerProfile } from "@/actions/account";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DealerLogoUpload } from "./dealer-logo-upload";
 
 interface Props {
   initialData: {
@@ -54,7 +55,6 @@ export function DealerProfileForm({ initialData }: Props) {
         bio,
         website,
         phone,
-        logoUrl,
       });
 
       if (result.error) {
@@ -69,8 +69,23 @@ export function DealerProfileForm({ initialData }: Props) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Dealer Profile Details</CardTitle>
+      <CardHeader className="gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <DealerLogoUpload
+            dealerName={name}
+            logoUrl={logoUrl || null}
+            onLogoChange={(nextLogoUrl) => {
+              setLogoUrl(nextLogoUrl ?? "");
+              setError(null);
+            }}
+          />
+          <div>
+            <CardTitle>Dealer Profile Details</CardTitle>
+            <p className="mt-1 text-sm text-text-secondary">
+              Your logo appears on your public profile and dealer listings.
+            </p>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -107,14 +122,6 @@ export function DealerProfileForm({ initialData }: Props) {
             maxLength={30}
           />
 
-          <Input
-            label="Logo URL (optional)"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            placeholder="https://..."
-            maxLength={500}
-          />
-
           <div className="flex flex-col gap-1">
             <label htmlFor="dealer-bio" className="text-sm font-medium text-text-primary">
               Bio (optional)
@@ -132,9 +139,18 @@ export function DealerProfileForm({ initialData }: Props) {
           {error ? <p className="text-sm text-text-error">{error}</p> : null}
           {success ? <p className="text-sm text-neon-blue-400">{success}</p> : null}
 
-          <Button type="submit" loading={isPending}>
-            Save Dealer Profile
-          </Button>
+          <div className="space-y-2">
+            <Button type="submit" loading={isPending}>
+              Save Dealer Profile
+            </Button>
+            <p
+              id="dealer-logo-guidance"
+              className="text-xs leading-5 text-text-secondary md:whitespace-nowrap"
+            >
+              * Dealer logos should be in PNG, JPG, GIF, or WebP format. Square images work
+              best. Maximum 5 MB.
+            </p>
+          </div>
         </form>
       </CardContent>
     </Card>

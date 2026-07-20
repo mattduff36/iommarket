@@ -15,7 +15,7 @@ export async function listRegions() {
   await requireRole("ADMIN");
 
   const regions = await db.region.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       _count: { select: { users: true, listings: true } },
     },

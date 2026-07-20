@@ -9,7 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import { RangeSlider } from "@/components/ui/range-slider";
 import {
   Select,
   SelectContent,
@@ -18,15 +18,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  PRICE_RANGE_OPTIONS,
-  MAX_AGE_OPTIONS,
-  priceRangeToMinMax,
-  minMaxToPriceRange,
-  ageToYearRange,
-  yearRangeToAge,
+  MILEAGE_MAX,
+  MILEAGE_MIN,
+  MILEAGE_STEP,
+  PRICE_MAX,
+  PRICE_MIN,
+  PRICE_STEP,
+  YEAR_MIN,
+  getCurrentYear,
+  parseBoundedRange,
+  parseYearRange,
 } from "@/lib/constants/search-filters";
-
-const MILEAGE_MAX = 150000;
 
 export interface MoreOptionsModalProps {
   open: boolean;
@@ -55,12 +57,6 @@ export interface MoreOptionsModalProps {
   }) => void;
 }
 
-function parseNum(s: string | undefined, fallback: number): number {
-  if (s === undefined || s === "") return fallback;
-  const n = parseInt(s, 10);
-  return Number.isNaN(n) ? fallback : n;
-}
-
 export function MoreOptionsModal({
   open,
   onOpenChange,
@@ -69,17 +65,17 @@ export function MoreOptionsModal({
   initial,
   onApply,
 }: MoreOptionsModalProps) {
+  const currentYear = getCurrentYear();
   const [make, setMake] = React.useState(initial.make ?? "");
   const [model, setModel] = React.useState(initial.model ?? "");
-  const [priceRangeValue, setPriceRangeValue] = React.useState(
-    () => minMaxToPriceRange(initial.minPrice ?? "", initial.maxPrice ?? "") || ""
+  const [priceRange, setPriceRange] = React.useState<[number, number]>(
+    parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX),
   );
-  const [mileageRange, setMileageRange] = React.useState<[number, number]>([
-    parseNum(initial.minMileage, 0),
-    parseNum(initial.maxMileage, MILEAGE_MAX),
-  ]);
-  const [maxAgeValue, setMaxAgeValue] = React.useState(
-    () => yearRangeToAge(initial.minYear ?? "", initial.maxYear ?? "") || ""
+  const [mileageRange, setMileageRange] = React.useState<[number, number]>(
+    parseBoundedRange(initial.minMileage, initial.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+  );
+  const [yearRange, setYearRange] = React.useState<[number, number]>(
+    parseYearRange(initial.minYear, initial.maxYear),
   );
 
   const modelsForMake = make ? (modelsByMake[make] ?? []) : [];
@@ -88,12 +84,13 @@ export function MoreOptionsModal({
     if (open) {
       setMake(initial.make ?? "");
       setModel(initial.model ?? "");
-      setPriceRangeValue(minMaxToPriceRange(initial.minPrice ?? "", initial.maxPrice ?? "") || "");
-      setMileageRange([
-        parseNum(initial.minMileage, 0),
-        parseNum(initial.maxMileage, MILEAGE_MAX),
-      ]);
-      setMaxAgeValue(yearRangeToAge(initial.minYear ?? "", initial.maxYear ?? "") || "");
+      setPriceRange(
+        parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX),
+      );
+      setMileageRange(
+        parseBoundedRange(initial.minMileage, initial.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+      );
+      setYearRange(parseYearRange(initial.minYear, initial.maxYear));
     }
   }, [
     open,
@@ -114,17 +111,15 @@ export function MoreOptionsModal({
   }
 
   function handleApply() {
-    const { minPrice, maxPrice } = priceRangeToMinMax(priceRangeValue);
-    const { minYear, maxYear } = ageToYearRange(maxAgeValue);
     onApply({
       make,
       model,
-      minPrice,
-      maxPrice,
-      minMileage: mileageRange[0] > 0 ? String(mileageRange[0]) : "",
+      minPrice: priceRange[0] > PRICE_MIN ? String(priceRange[0]) : "",
+      maxPrice: priceRange[1] < PRICE_MAX ? String(priceRange[1]) : "",
+      minMileage: mileageRange[0] > MILEAGE_MIN ? String(mileageRange[0]) : "",
       maxMileage: mileageRange[1] < MILEAGE_MAX ? String(mileageRange[1]) : "",
-      minYear,
-      maxYear,
+      minYear: yearRange[0] > YEAR_MIN ? String(yearRange[0]) : "",
+      maxYear: yearRange[1] < currentYear ? String(yearRange[1]) : "",
     });
   }
 
@@ -178,61 +173,36 @@ export function MoreOptionsModal({
             </div>
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-text-primary">
-              Price range
-            </label>
-            <Select
-              value={priceRangeValue || "any"}
-              onValueChange={(v) => setPriceRangeValue(v === "any" ? "" : v)}
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Any" />
-              </SelectTrigger>
-              <SelectContent>
-                {PRICE_RANGE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value || "any"} value={o.value || "any"}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <RangeSlider
+            label="Price Range"
+            min={PRICE_MIN}
+            max={PRICE_MAX}
+            step={PRICE_STEP}
+            value={priceRange}
+            onValueChange={setPriceRange}
+            formatValue={(value) => `£${value.toLocaleString()}`}
+            scale="logarithmic"
+          />
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-text-primary">
-              Mileage &ndash; {mileageRange[0].toLocaleString()} –{" "}
-              {mileageRange[1].toLocaleString()} miles
-            </label>
-            <Slider
-              min={0}
-              max={MILEAGE_MAX}
-              step={5000}
-              value={mileageRange}
-              onValueChange={(v) => setMileageRange(v as [number, number])}
-            />
-          </div>
+          <RangeSlider
+            label="Mileage"
+            min={MILEAGE_MIN}
+            max={MILEAGE_MAX}
+            step={MILEAGE_STEP}
+            value={mileageRange}
+            onValueChange={setMileageRange}
+            formatValue={(value) => `${value.toLocaleString()} mi`}
+          />
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-text-primary">
-              Maximum age
-            </label>
-            <Select
-              value={maxAgeValue || "any"}
-              onValueChange={(v) => setMaxAgeValue(v === "any" ? "" : v)}
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Any" />
-              </SelectTrigger>
-              <SelectContent>
-                {MAX_AGE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value || "any"} value={o.value || "any"}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <RangeSlider
+            label="Year"
+            min={YEAR_MIN}
+            max={currentYear}
+            step={1}
+            value={yearRange}
+            onValueChange={setYearRange}
+            formatValue={String}
+          />
         </div>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

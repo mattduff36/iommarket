@@ -2,6 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { FilterPanel } from "@/components/marketplace/filter-panel";
+import {
+  PRICE_MAX,
+  PRICE_MIN,
+  parseBoundedRange,
+} from "@/lib/constants/search-filters";
 
 interface RegionOption {
   label: string;
@@ -25,10 +30,12 @@ export function CategoryFilters({
 }: Props) {
   const router = useRouter();
 
-  const priceRange: [number, number] = [
-    minPrice ? parseInt(minPrice, 10) : 0,
-    maxPrice ? parseInt(maxPrice, 10) : 100000,
-  ];
+  const priceRange = parseBoundedRange(
+    minPrice,
+    maxPrice,
+    PRICE_MIN,
+    PRICE_MAX,
+  );
 
   function buildUrl(overrides: Record<string, string | undefined>) {
     const params = new URLSearchParams();
@@ -47,8 +54,8 @@ export function CategoryFilters({
   function handlePriceChange(range: [number, number]) {
     router.push(
       buildUrl({
-        minPrice: range[0] > 0 ? String(range[0]) : undefined,
-        maxPrice: range[1] < 100000 ? String(range[1]) : undefined,
+        minPrice: range[0] > PRICE_MIN ? String(range[0]) : undefined,
+        maxPrice: range[1] < PRICE_MAX ? String(range[1]) : undefined,
       })
     );
   }
@@ -61,8 +68,8 @@ export function CategoryFilters({
     <div className="hidden lg:block">
       <FilterPanel
         priceRange={priceRange}
-        priceMin={0}
-        priceMax={100000}
+        priceMin={PRICE_MIN}
+        priceMax={PRICE_MAX}
         onPriceChange={handlePriceChange}
         onReset={handleReset}
       />

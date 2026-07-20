@@ -55,8 +55,14 @@ export default async function AdminDealersPage({ searchParams }: Props) {
         _count: { select: { listings: true, subscriptions: true } },
         subscriptions: {
           where: { status: "ACTIVE" },
-          take: 1,
-          select: { id: true, status: true, currentPeriodEnd: true },
+          select: {
+            id: true,
+            source: true,
+            currentPeriodEnd: true,
+            grantStartsAt: true,
+            grantEndsAt: true,
+            revokedAt: true,
+          },
         },
       },
     }),
@@ -134,44 +140,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
         </TableHeader>
         <TableBody>
           {dealers.map((dealer) => (
-            <TableRow key={dealer.id}>
-              <TableCell>
-                <span className="font-medium text-text-primary">{dealer.name}</span>
-                <p className="text-xs text-text-tertiary">{dealer.slug}</p>
-              </TableCell>
-              <TableCell>
-                <Link
-                  href={`/admin/users/${dealer.user.id}`}
-                  className="text-sm text-neon-blue-400 hover:underline"
-                >
-                  {dealer.user.name ?? dealer.user.email}
-                </Link>
-                {dealer.user.disabledAt && (
-                  <Badge variant="error" className="ml-1">Disabled</Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                <Badge variant={dealer.verified ? "success" : "neutral"}>
-                  {dealer.verified ? "Verified" : "Unverified"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {dealer.subscriptions.length > 0 ? (
-                  <Badge variant="success">Active</Badge>
-                ) : (
-                  <Badge variant="neutral">None</Badge>
-                )}
-              </TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {dealer._count.listings}
-              </TableCell>
-              <TableCell className="text-sm text-text-tertiary">
-                {dealer.createdAt.toLocaleDateString("en-GB")}
-              </TableCell>
-              <TableCell className="min-w-[220px]">
-                <DealerActions dealerId={dealer.id} verified={dealer.verified} />
-              </TableCell>
-            </TableRow>
+            <DealerRow key={dealer.id} dealer={dealer} />
           ))}
           {dealers.length === 0 && (
             <TableRow>
@@ -208,5 +177,106 @@ export default async function AdminDealersPage({ searchParams }: Props) {
         </div>
       )}
     </>
+  );
+}
+
+interface DealerRowProps {
+  dealer: {
+    id: string;
+    name: string;
+    slug: string;
+    verified: boolean;
+    createdAt: Date;
+    user: {
+      id: string;
+      email: string;
+      name: string | null;
+      role: "USER" | "DEALER" | "ADMIN";
+      disabledAt: Date | null;
+    };
+    _count: { listings: number; subscriptions: number };
+    subscriptions: Array<{
+      id: string;
+      source: "PAYMENT" | "ADMIN_GRANT";
+      currentPeriodEnd: Date | null;
+      grantStartsAt: Date | null;
+      grantEndsAt: Date | null;
+      revokedAt: Date | null;
+    }>;
+  };
+}
+
+function DealerRow({ dealer }: DealerRowProps) {
+  const now = new Date();
+  const paidSubscription = dealer.subscriptions.find(
+    (subscription) => subscription.source === "PAYMENT"
+  );
+  const adminGrant = dealer.subscriptions.find(
+    (subscription) =>
+      subscription.source === "ADMIN_GRANT" &&
+      !subscription.revokedAt &&
+      subscription.grantStartsAt !== null &&
+      subscription.grantStartsAt <= now &&
+      subscription.grantEndsAt !== null &&
+      subscription.grantEndsAt > now
+  );
+  const access = paidSubscription ?? adminGrant;
+
+  return (
+    <TableRow>
+              <TableCell>
+                <span className="font-medium text-text-primary">{dealer.name}</span>
+                <p className="text-xs text-text-tertiary">{dealer.slug}</p>
+              </TableCell>
+              <TableCell>
+                <Link
+                  href={`/admin/users/${dealer.user.id}`}
+                  className="text-sm text-neon-blue-400 hover:underline"
+                >
+                  {dealer.user.name ?? dealer.user.email}
+                </Link>
+                {dealer.user.disabledAt && (
+                  <Badge variant="error" className="ml-1">Disabled</Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant={dealer.verified ? "success" : "neutral"}>
+                  {dealer.verified ? "Verified" : "Unverified"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {access ? (
+                  <div className="space-y-1">
+                    <Badge variant="success">
+                      {access.source === "ADMIN_GRANT" ? "Free grant" : "Paid"}
+                    </Badge>
+                    <p className="text-xs text-text-tertiary">
+                      ends{" "}
+                      {(access.source === "ADMIN_GRANT"
+                        ? access.grantEndsAt
+                        : access.currentPeriodEnd
+                      )?.toLocaleDateString("en-GB") ?? "—"}
+                    </p>
+                  </div>
+                ) : (
+                  <Badge variant="neutral">None</Badge>
+                )}
+              </TableCell>
+              <TableCell className="text-sm text-text-secondary">
+                {dealer._count.listings}
+              </TableCell>
+              <TableCell className="text-sm text-text-tertiary">
+                {dealer.createdAt.toLocaleDateString("en-GB")}
+              </TableCell>
+              <TableCell className="min-w-[220px]">
+                <DealerActions
+                  dealerId={dealer.id}
+                  userId={dealer.user.id}
+                  userLabel={dealer.user.name ?? dealer.user.email}
+                  verified={dealer.verified}
+                  canGrantAccess={dealer.user.role === "DEALER"}
+                />
+              </TableCell>
+    </TableRow>
   );
 }

@@ -11,6 +11,19 @@ import {
   isEvCompatibleFuelType,
   parseFuelTypeFilter,
 } from "@/lib/constants/fuel-types";
+import {
+  FUEL_CONSUMPTION_MAX,
+  FUEL_CONSUMPTION_MIN,
+  MILEAGE_MAX,
+  MILEAGE_MIN,
+  PRICE_MAX,
+  PRICE_MIN,
+  TAX_MAX,
+  TAX_MIN,
+  YEAR_MIN,
+  getCurrentYear,
+  parseOptionalBoundedInteger,
+} from "@/lib/constants/search-filters";
 
 function safeInt(v: string | null): number | undefined {
   if (!v) return undefined;
@@ -35,18 +48,25 @@ export async function GET(request: NextRequest) {
 
   const includeSold = sp.get("includeSold") === "true";
   const now = new Date();
-  const minPricePence = sp.get("minPrice")
-    ? Number.parseInt(sp.get("minPrice") ?? "0", 10) * 100
-    : undefined;
-  const maxPricePence = sp.get("maxPrice")
-    ? Number.parseInt(sp.get("maxPrice") ?? "0", 10) * 100
-    : undefined;
+  const currentYear = getCurrentYear();
+  const minPrice = parseOptionalBoundedInteger(sp.get("minPrice"), PRICE_MIN, PRICE_MAX);
+  const maxPrice = parseOptionalBoundedInteger(sp.get("maxPrice"), PRICE_MIN, PRICE_MAX);
+  const minPricePence = minPrice !== undefined ? minPrice * 100 : undefined;
+  const maxPricePence = maxPrice !== undefined ? maxPrice * 100 : undefined;
   const fuelTypeFilter = parseFuelTypeFilter(sp.get("fuelType"));
   const canApplyBatteryFilters = !fuelTypeFilter || isEvCompatibleFuelType(fuelTypeFilter);
 
   const numericRangeFilters: NumericRangeFilter[] = [
-    { slug: "mileage", min: safeInt(sp.get("minMileage")), max: safeInt(sp.get("maxMileage")) },
-    { slug: "year", min: safeInt(sp.get("minYear")), max: safeInt(sp.get("maxYear")) },
+    {
+      slug: "mileage",
+      min: parseOptionalBoundedInteger(sp.get("minMileage"), MILEAGE_MIN, MILEAGE_MAX),
+      max: parseOptionalBoundedInteger(sp.get("maxMileage"), MILEAGE_MIN, MILEAGE_MAX),
+    },
+    {
+      slug: "year",
+      min: parseOptionalBoundedInteger(sp.get("minYear"), YEAR_MIN, currentYear),
+      max: parseOptionalBoundedInteger(sp.get("maxYear"), YEAR_MIN, currentYear),
+    },
     { slug: "engine-size", min: safeInt(sp.get("minEngineSize")), max: safeInt(sp.get("maxEngineSize")) },
     { slug: "engine-power", min: safeInt(sp.get("minEnginePower")), max: safeInt(sp.get("maxEnginePower")) },
     ...(canApplyBatteryFilters
@@ -56,9 +76,25 @@ export async function GET(request: NextRequest) {
         ]
       : []),
     { slug: "acceleration", min: safeInt(sp.get("minAcceleration")), max: safeInt(sp.get("maxAcceleration")) },
-    { slug: "fuel-consumption", min: safeInt(sp.get("minFuelConsumption")), max: safeInt(sp.get("maxFuelConsumption")) },
+    {
+      slug: "fuel-consumption",
+      min: parseOptionalBoundedInteger(
+        sp.get("minFuelConsumption"),
+        FUEL_CONSUMPTION_MIN,
+        FUEL_CONSUMPTION_MAX,
+      ),
+      max: parseOptionalBoundedInteger(
+        sp.get("maxFuelConsumption"),
+        FUEL_CONSUMPTION_MIN,
+        FUEL_CONSUMPTION_MAX,
+      ),
+    },
     { slug: "co2-emissions", min: safeInt(sp.get("minCo2")), max: safeInt(sp.get("maxCo2")) },
-    { slug: "tax-per-year", min: safeInt(sp.get("minTax")), max: safeInt(sp.get("maxTax")) },
+    {
+      slug: "tax-per-year",
+      min: parseOptionalBoundedInteger(sp.get("minTax"), TAX_MIN, TAX_MAX),
+      max: parseOptionalBoundedInteger(sp.get("maxTax"), TAX_MIN, TAX_MAX),
+    },
     { slug: "insurance-group", min: safeInt(sp.get("minInsuranceGroup")), max: safeInt(sp.get("maxInsuranceGroup")) },
     { slug: "boot-space", min: safeInt(sp.get("minBootSpace")), max: safeInt(sp.get("maxBootSpace")) },
     { slug: "doors", min: safeInt(sp.get("doors")), max: safeInt(sp.get("doors")) },

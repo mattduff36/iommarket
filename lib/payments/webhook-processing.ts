@@ -257,6 +257,7 @@ async function upsertDealerSubscription(event: NormalizedProviderWebhookEvent) {
         where: { id: existing.id },
         data: {
           paymentProvider: "RIPPLE",
+          source: "PAYMENT",
           providerSubscriptionId,
           providerPlanId: event.providerPlanId ?? existing.providerPlanId,
           status,
@@ -269,6 +270,7 @@ async function upsertDealerSubscription(event: NormalizedProviderWebhookEvent) {
         data: {
           dealerId,
           paymentProvider: "RIPPLE",
+          source: "PAYMENT",
           providerSubscriptionId,
           providerPlanId: event.providerPlanId,
           status,

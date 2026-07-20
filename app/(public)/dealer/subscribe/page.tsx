@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { DEALER_TIER_LABELS } from "@/lib/config/dealer-tiers";
 import { getDealerPlanPricePence, getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
@@ -60,11 +60,8 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
   const dealerProfile = user.dealerProfile;
 
   if (dealerProfile) {
-    const activeSubscription = await db.subscription.findFirst({
-      where: { dealerId: dealerProfile.id, status: "ACTIVE" },
-      select: { id: true },
-    });
-    if (activeSubscription) {
+    const entitlement = await getCurrentDealerEntitlement(user);
+    if (entitlement) {
       redirect("/dealer/dashboard");
     }
   }

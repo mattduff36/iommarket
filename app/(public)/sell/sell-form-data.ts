@@ -12,7 +12,7 @@ export async function getSellFormData() {
     }),
     db.region.findMany({
       where: { active: true },
-      orderBy: { name: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     db.listingAttributeValue.findMany({
       where: {

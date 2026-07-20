@@ -13,6 +13,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
+import {
+  MILEAGE_MAX,
+  MILEAGE_MIN,
+  MILEAGE_STEP,
+  PRICE_MAX,
+  PRICE_MIN,
+  PRICE_STEP,
+  YEAR_MIN,
+  getCurrentYear,
+} from "@/lib/constants/search-filters";
+import {
+  LOGARITHMIC_POSITION_MAX,
+  logarithmicPositionToValue,
+  valueToLogarithmicPosition,
+} from "@/lib/utils/range-scale";
 
 /* ------------------------------------------------------------------ */
 /*  Filter section (collapsible)                                      */
@@ -100,17 +115,17 @@ function FilterPanel({
   categories = [],
   selectedCategories = [],
   onCategoryChange,
-  priceRange = [0, 10000],
-  priceMin = 0,
-  priceMax = 10000,
+  priceRange = [PRICE_MIN, PRICE_MAX],
+  priceMin = PRICE_MIN,
+  priceMax = PRICE_MAX,
   onPriceChange,
   mileageRange,
-  mileageMin = 0,
-  mileageMax = 150000,
+  mileageMin = MILEAGE_MIN,
+  mileageMax = MILEAGE_MAX,
   onMileageChange,
   yearRange,
-  yearMin = 2000,
-  yearMax = new Date().getFullYear() + 1,
+  yearMin = YEAR_MIN,
+  yearMax = getCurrentYear(),
   onYearChange,
   makes = [],
   models = [],
@@ -125,10 +140,29 @@ function FilterPanel({
   className,
   ...props
 }: FilterPanelProps) {
+  const isPriceLogarithmic = priceMin > 0;
+  const priceSliderValue = isPriceLogarithmic
+    ? priceRange.map((value) =>
+        valueToLogarithmicPosition(value, priceMin, priceMax),
+      )
+    : priceRange;
+
   function toggleValue(current: string[], value: string): string[] {
     return current.includes(value)
       ? current.filter((v) => v !== value)
       : [...current, value];
+  }
+
+  function handlePriceSliderChange(values: number[]): void {
+    if (!isPriceLogarithmic) {
+      onPriceChange?.(values as [number, number]);
+      return;
+    }
+
+    onPriceChange?.([
+      logarithmicPositionToValue(values[0], priceMin, priceMax, PRICE_STEP),
+      logarithmicPositionToValue(values[1], priceMin, priceMax, PRICE_STEP),
+    ]);
   }
 
   const hasActiveFilters =
@@ -183,11 +217,16 @@ function FilterPanel({
       {/* Price Range */}
       <FilterSection title="Price Range">
         <Slider
-          min={priceMin}
-          max={priceMax}
-          step={50}
-          value={priceRange}
-          onValueChange={(v) => onPriceChange?.(v as [number, number])}
+          min={isPriceLogarithmic ? 0 : priceMin}
+          max={isPriceLogarithmic ? LOGARITHMIC_POSITION_MAX : priceMax}
+          step={isPriceLogarithmic ? 1 : PRICE_STEP}
+          value={priceSliderValue}
+          onValueChange={handlePriceSliderChange}
+          thumbLabels={["Minimum Price Range", "Maximum Price Range"]}
+          thumbValueTexts={[
+            `£${priceRange[0].toLocaleString()}`,
+            `£${priceRange[1].toLocaleString()}`,
+          ]}
         />
         <div className="flex items-center justify-between text-xs text-text-secondary">
           <span>£{priceRange[0].toLocaleString()}</span>
@@ -201,7 +240,7 @@ function FilterPanel({
           <Slider
             min={mileageMin}
             max={mileageMax}
-            step={5000}
+            step={MILEAGE_STEP}
             value={mileageRange}
             onValueChange={(v) => onMileageChange(v as [number, number])}
           />

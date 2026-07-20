@@ -159,6 +159,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               <TableHead>Dealer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Period End</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Provider Ref</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Created</TableHead>
@@ -173,7 +174,13 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   <Badge variant={SUB_STATUS_VARIANT[sub.status] ?? "neutral"}>{sub.status}</Badge>
                 </TableCell>
                 <TableCell className="text-sm text-text-secondary">
-                  {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}
+                  {(sub.source === "ADMIN_GRANT"
+                    ? sub.grantEndsAt
+                    : sub.currentPeriodEnd
+                  )?.toLocaleDateString("en-GB") ?? "—"}
+                </TableCell>
+                <TableCell className="text-xs text-text-tertiary">
+                  {sub.source === "ADMIN_GRANT" ? "Free admin grant" : "Paid"}
                 </TableCell>
                 <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
                   {getSubscriptionDisplayId(sub)}
@@ -185,25 +192,29 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   {sub.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <CancelSubButton
-                      subscriptionId={sub.id}
-                      status={sub.status}
-                      enabled={capabilities.supportsInAppSubscriptionCancellation}
-                      providerPortalUrl={providerPortalUrl}
-                    />
-                    <RefundSubPaymentButton
-                      subscriptionId={sub.id}
-                      enabled={capabilities.supportsInAppRefunds}
-                      providerPortalUrl={providerPortalUrl}
-                    />
-                  </div>
+                  {sub.source === "PAYMENT" ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <CancelSubButton
+                        subscriptionId={sub.id}
+                        status={sub.status}
+                        enabled={capabilities.supportsInAppSubscriptionCancellation}
+                        providerPortalUrl={providerPortalUrl}
+                      />
+                      <RefundSubPaymentButton
+                        subscriptionId={sub.id}
+                        enabled={capabilities.supportsInAppRefunds}
+                        providerPortalUrl={providerPortalUrl}
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xs text-text-tertiary">Manage in Dealers</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
             {subscriptions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-text-tertiary py-8">No subscriptions found.</TableCell>
+                <TableCell colSpan={8} className="text-center text-text-tertiary py-8">No subscriptions found.</TableCell>
               </TableRow>
             )}
           </TableBody>

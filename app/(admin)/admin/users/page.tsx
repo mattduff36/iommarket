@@ -195,6 +195,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   userId={user.id}
                   currentRole={user.role}
                   isDisabled={!!user.disabledAt}
+                  userLabel={user.name ?? user.email}
                 />
               </TableCell>
             </TableRow>

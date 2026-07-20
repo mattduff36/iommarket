@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
+import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { Button } from "@/components/ui/button";
 import { DealerProfileForm } from "./dealer-profile-form";
 
@@ -11,6 +12,7 @@ export default async function DealerProfileManagePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-up?next=/dealer/profile");
   if (!hasDealerDashboardAccess(user)) redirect("/pricing");
+  if (!(await getCurrentDealerEntitlement(user))) redirect("/dealer/subscribe");
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">

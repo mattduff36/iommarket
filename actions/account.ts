@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { hasDealerDashboardAccess } from "@/lib/dealers/access";
+import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   deactivateMyAccountSchema,
@@ -56,8 +58,11 @@ export async function updateMyProfile(input: UpdateMyProfileInput) {
 
 export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput) {
   const user = await requireAuth();
-  if (!user.dealerProfile) {
-    return { error: "Dealer profile not found" };
+  if (!hasDealerDashboardAccess(user)) {
+    return { error: "Not authorized to update a dealer profile" };
+  }
+  if (!(await getCurrentDealerEntitlement(user))) {
+    return { error: "Active dealer access is required to update a dealer profile" };
   }
 
   const parsed = updateDealerSelfProfileSchema.safeParse(input);
@@ -88,7 +93,6 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
         bio: data.bio || null,
         website: data.website || null,
         phone: data.phone || null,
-        logoUrl: data.logoUrl || null,
       },
     });
 

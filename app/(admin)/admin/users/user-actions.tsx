@@ -8,13 +8,21 @@ import {
   AdminActionButton,
   AdminSegmentedControl,
 } from "@/components/admin/admin-action-controls";
-import { deleteUser, setUserRole, setUserDisabled } from "@/actions/admin/users";
+import {
+  deleteUser,
+  revokeDealerAccess,
+  setUserRole,
+  setUserDisabled,
+} from "@/actions/admin/users";
 import type { UserRole } from "@prisma/client";
+import { DealerAccessDialog } from "./dealer-access-dialog";
 
 interface UserActionsProps {
   userId: string;
   currentRole: UserRole;
   isDisabled: boolean;
+  userLabel?: string;
+  hasActiveAdminGrant?: boolean;
   redirectOnDelete?: string;
 }
 
@@ -22,13 +30,24 @@ export function UserActions({
   userId,
   currentRole,
   isDisabled,
+  userLabel = "this account",
+  hasActiveAdminGrant = false,
   redirectOnDelete,
 }: UserActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [isDealerAccessDialogOpen, setIsDealerAccessDialogOpen] = useState(false);
+  const [isRevokeConfirmationVisible, setIsRevokeConfirmationVisible] =
+    useState(false);
 
   function handleRoleChange(role: UserRole) {
+    if (role === "DEALER" && currentRole !== "DEALER") {
+      setError(null);
+      setIsDealerAccessDialogOpen(true);
+      return;
+    }
+
     setError(null);
     startTransition(async () => {
       const result = await setUserRole({ userId, role });
@@ -37,6 +56,24 @@ export function UserActions({
       } else {
         router.refresh();
       }
+    });
+  }
+
+  function handleRevokeDealerAccess() {
+    setError(null);
+    startTransition(async () => {
+      const result = await revokeDealerAccess({ userId });
+      if (result.error) {
+        setError(
+          typeof result.error === "string"
+            ? result.error
+            : "Failed to revoke free dealer access"
+        );
+        return;
+      }
+
+      setIsRevokeConfirmationVisible(false);
+      router.refresh();
     });
   }
 
@@ -98,9 +135,56 @@ export function UserActions({
           Delete
         </AdminActionButton>
 
+        {currentRole === "DEALER" ? (
+          <AdminActionButton
+            onClick={() => setIsDealerAccessDialogOpen(true)}
+            disabled={isPending}
+            tone="success"
+          >
+            {hasActiveAdminGrant ? "Extend free access" : "Grant free access"}
+          </AdminActionButton>
+        ) : null}
+
+        {currentRole === "DEALER" && hasActiveAdminGrant ? (
+          !isRevokeConfirmationVisible ? (
+            <AdminActionButton
+              onClick={() => setIsRevokeConfirmationVisible(true)}
+              disabled={isPending}
+              tone="danger"
+            >
+              Revoke free access
+            </AdminActionButton>
+          ) : (
+            <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
+              <span className="px-1 text-xs text-text-error">Revoke access?</span>
+              <AdminActionButton
+                onClick={handleRevokeDealerAccess}
+                disabled={isPending}
+                tone="danger"
+              >
+                Confirm
+              </AdminActionButton>
+              <AdminActionButton
+                onClick={() => setIsRevokeConfirmationVisible(false)}
+                disabled={isPending}
+              >
+                Cancel
+              </AdminActionButton>
+            </AdminActionBar>
+          )
+        ) : null}
+
         {isDisabled && <Badge variant="error">Disabled</Badge>}
       </AdminActionBar>
       {error && <p className="text-xs text-text-error">{error}</p>}
+      <DealerAccessDialog
+        userId={userId}
+        userLabel={userLabel}
+        mode={currentRole === "DEALER" ? "grant" : "promote"}
+        open={isDealerAccessDialogOpen}
+        onOpenChange={setIsDealerAccessDialogOpen}
+        onCompleted={() => router.refresh()}
+      />
     </div>
   );
 }

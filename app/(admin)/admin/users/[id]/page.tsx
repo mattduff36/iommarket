@@ -19,6 +19,7 @@ import {
   getProviderLabel,
   getSubscriptionDisplayId,
 } from "@/lib/payments/records";
+import { getAdminGrantState } from "@/lib/dealers/entitlement";
 
 export const metadata: Metadata = { title: "User Detail | Admin" };
 
@@ -63,6 +64,17 @@ export default async function AdminUserDetailPage({ params }: Props) {
 
   if (!user) notFound();
 
+  const adminGrant = user.dealerProfile
+    ? await db.subscription.findFirst({
+        where: {
+          dealerId: user.dealerProfile.id,
+          source: "ADMIN_GRANT",
+        },
+        orderBy: { updatedAt: "desc" },
+      })
+    : null;
+  const adminGrantState = getAdminGrantState(adminGrant);
+
   const recentListings = await db.listing.findMany({
     where: { userId: id },
     orderBy: { createdAt: "desc" },
@@ -91,6 +103,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
           userId={user.id}
           currentRole={user.role}
           isDisabled={!!user.disabledAt}
+          userLabel={user.name ?? user.email}
+          hasActiveAdminGrant={adminGrantState === "ACTIVE"}
           redirectOnDelete="/admin/users"
         />
       </div>
@@ -203,6 +217,19 @@ export default async function AdminUserDetailPage({ params }: Props) {
               <span className="text-text-secondary w-32">Dealer Listings:</span>
               <span className="text-text-primary">{user.dealerProfile._count.listings}</span>
             </div>
+            <div className="flex gap-2">
+              <span className="text-text-secondary w-32">Admin grant:</span>
+              <span className="text-text-primary">
+                {adminGrantState === "NONE"
+                  ? "None"
+                  : `${adminGrantState.charAt(0)}${adminGrantState
+                      .slice(1)
+                      .toLowerCase()}`}
+                {adminGrant?.grantEndsAt
+                  ? ` · ends ${adminGrant.grantEndsAt.toLocaleString("en-GB")}`
+                  : ""}
+              </span>
+            </div>
             {user.dealerProfile.phone && (
               <div className="flex gap-2">
                 <span className="text-text-secondary w-32">Phone:</span>
@@ -227,7 +254,11 @@ export default async function AdminUserDetailPage({ params }: Props) {
                     </Badge>
                     <span>ends {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}</span>
                     <span className="text-text-tertiary font-mono">{getSubscriptionDisplayId(sub)}</span>
-                    <span className="text-text-tertiary">{getProviderLabel(sub.paymentProvider)}</span>
+                    <span className="text-text-tertiary">
+                      {sub.source === "ADMIN_GRANT"
+                        ? "Admin grant"
+                        : getProviderLabel(sub.paymentProvider)}
+                    </span>
                   </div>
                 ))}
               </div>

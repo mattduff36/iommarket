@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { getDealerListingCap } from "@/lib/config/dealer-tiers";
+import {
+  getDealerEntitlement,
+  getCurrentDealerEntitlement,
+  hasDealerAccountAccess,
+} from "@/lib/dealers/entitlement";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
   createListingSchema,
@@ -38,19 +43,14 @@ import { claimFreeListingSlot } from "@/lib/config/marketplace";
 export async function createListing(input: CreateListingInput) {
   const user = await requireAuth();
 
-  if (user.role === "DEALER") {
-    if (!user.dealerProfile) {
-      return { error: "A dealer profile is required to post listings." };
-    }
-    const activeSub = await db.subscription.findFirst({
-      where: {
-        dealerId: user.dealerProfile.id,
-        status: "ACTIVE",
-      },
-      select: { id: true },
-    });
-    if (!activeSub) {
-      return { error: "Active dealer subscription required to post listings." };
+  if (user.role === "DEALER" && !user.dealerProfile) {
+    return { error: "A dealer profile is required to post listings." };
+  }
+
+  if (hasDealerAccountAccess(user)) {
+    const entitlement = await getCurrentDealerEntitlement(user);
+    if (!entitlement) {
+      return { error: "Active dealer access is required to post listings." };
     }
 
     const listingCap = getDealerListingCap(user.dealerProfile.tier);
@@ -294,6 +294,7 @@ export async function submitListingForReview(listingId: string) {
     where: { id: listingId },
     include: {
       images: { select: { id: true } },
+      dealer: { select: { tier: true } },
     },
   });
   if (!listing) return { error: "Listing not found" };
@@ -305,6 +306,18 @@ export async function submitListingForReview(listingId: string) {
       error:
         "Please confirm the vehicle is not stolen and has no outstanding finance before submitting.",
     };
+  }
+
+  if (listing.dealerId && listing.dealer) {
+    const entitlement = await getDealerEntitlement(
+      listing.dealerId,
+      listing.dealer.tier
+    );
+    if (!entitlement) {
+      return {
+        error: "Active dealer access is required before submitting dealer listings.",
+      };
+    }
   }
 
   if (!listing.dealerId) {

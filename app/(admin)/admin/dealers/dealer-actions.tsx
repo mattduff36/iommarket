@@ -7,17 +7,28 @@ import {
   AdminActionButton,
 } from "@/components/admin/admin-action-controls";
 import { verifyDealer, downgradeDealerToUser } from "@/actions/admin/dealers";
+import { DealerAccessDialog } from "../users/dealer-access-dialog";
 
 interface DealerActionsProps {
   dealerId: string;
+  userId: string;
+  userLabel: string;
   verified: boolean;
+  canGrantAccess: boolean;
 }
 
-export function DealerActions({ dealerId, verified }: DealerActionsProps) {
+export function DealerActions({
+  dealerId,
+  userId,
+  userLabel,
+  verified,
+  canGrantAccess,
+}: DealerActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isDealerAccessDialogOpen, setIsDealerAccessDialogOpen] = useState(false);
 
   function handleVerify() {
     setError(null);
@@ -55,6 +66,16 @@ export function DealerActions({ dealerId, verified }: DealerActionsProps) {
           {verified ? "Unverify" : "Verify"}
         </AdminActionButton>
 
+        {canGrantAccess ? (
+          <AdminActionButton
+            onClick={() => setIsDealerAccessDialogOpen(true)}
+            disabled={isPending}
+            tone="success"
+          >
+            Grant free access
+          </AdminActionButton>
+        ) : null}
+
         {!showConfirm ? (
           <AdminActionButton
             onClick={() => setShowConfirm(true)}
@@ -84,6 +105,14 @@ export function DealerActions({ dealerId, verified }: DealerActionsProps) {
       </AdminActionBar>
 
       {error && <p className="text-xs text-text-error">{error}</p>}
+      <DealerAccessDialog
+        userId={userId}
+        userLabel={userLabel}
+        mode="grant"
+        open={isDealerAccessDialogOpen}
+        onOpenChange={setIsDealerAccessDialogOpen}
+        onCompleted={() => router.refresh()}
+      />
     </div>
   );
 }

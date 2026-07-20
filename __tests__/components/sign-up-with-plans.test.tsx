@@ -1,6 +1,6 @@
 import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignUpWithPlans } from "@/components/auth/sign-up-with-plans";
 
 const refreshMock = vi.fn();

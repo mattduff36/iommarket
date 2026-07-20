@@ -21,3 +21,9 @@ export function getSubscriptionDisplayId(subscription: {
 export function getProviderLabel(value: string | null | undefined): string {
   return value ?? "STRIPE";
 }
+
+export function isPaidSubscriptionRecord(subscription: {
+  source: "PAYMENT" | "ADMIN_GRANT";
+}) {
+  return subscription.source === "PAYMENT";
+}

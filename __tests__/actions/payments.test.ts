@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalSupportUrl = process.env.RIPPLE_LISTING_SUPPORT_URL;
 const originalNodeEnv = process.env.NODE_ENV;
+const mutableEnvironment = process.env as Record<string, string | undefined>;
 
 const {
   requireAuthMock,
@@ -138,11 +139,11 @@ describe("payForListing", () => {
     }
 
     if (originalNodeEnv === undefined) {
-      delete process.env.NODE_ENV;
+      delete mutableEnvironment.NODE_ENV;
       return;
     }
 
-    process.env.NODE_ENV = originalNodeEnv;
+    mutableEnvironment.NODE_ENV = originalNodeEnv;
   });
 
   it("skips optional support checkout for free private sellers when no support URL is configured", async () => {
@@ -229,7 +230,7 @@ describe("createDealerSubscription", () => {
 describe("demo payment actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NODE_ENV = "production";
+    mutableEnvironment.NODE_ENV = "production";
     getMarketplacePricingMock.mockResolvedValue({
       privateListingPence: 749,
       featuredUpgradePence: 875,

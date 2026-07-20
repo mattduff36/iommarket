@@ -41,6 +41,35 @@ export function getAdminDealerWhere(): Prisma.DealerProfileWhereInput {
   };
 }
 
+export function getPublicDealerWhere(
+  now = new Date()
+): Prisma.DealerProfileWhereInput {
+  return {
+    verified: true,
+    subscriptions: {
+      some: {
+        status: "ACTIVE",
+        OR: [
+          { source: "PAYMENT" },
+          {
+            source: "ADMIN_GRANT",
+            revokedAt: null,
+            grantStartsAt: { lte: now },
+            grantEndsAt: { gt: now },
+          },
+        ],
+      },
+    },
+    user: {
+      role: {
+        in: DEALER_ACCOUNT_ROLES,
+      },
+      disabledAt: null,
+      deletedAt: null,
+    },
+  };
+}
+
 export async function provisionDealerProfile(
   tx: Prisma.TransactionClient,
   user: DealerProfileDefaultsSubject

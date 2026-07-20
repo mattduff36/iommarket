@@ -11,7 +11,7 @@ export default async function AccountProfilePage() {
 
   const regions = await db.region.findMany({
     where: { active: true },
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     select: { id: true, name: true },
   });
 
