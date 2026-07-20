@@ -186,22 +186,22 @@ describe("CreateListingForm registration lookup", () => {
   it("uses private and dealer photo limits in the upload step", () => {
     function completeDetailsStep() {
       fireEvent.click(screen.getByRole("button", { name: "Cars" }));
-      fireEvent.change(screen.getByLabelText("Title"), {
+      fireEvent.change(screen.getByLabelText(/^Title/), {
         target: { value: "2019 BMW 320d M Sport" },
       });
       fireEvent.change(screen.getByLabelText(/Description/i), {
         target: { value: "A clean example with good history and recent servicing." },
       });
-      fireEvent.change(screen.getByLabelText("Price (£)"), {
+      fireEvent.change(screen.getByLabelText(/^Price \(£\)/), {
         target: { value: "15000" },
       });
-      fireEvent.change(screen.getByLabelText("Region"), {
+      fireEvent.change(screen.getByLabelText(/^Region/), {
         target: { value: "iom" },
       });
       fireEvent.change(screen.getByLabelText(/Make/i), {
         target: { value: "BMW" },
       });
-      fireEvent.change(screen.getByLabelText("Manual model fallback"), {
+      fireEvent.change(screen.getByLabelText(/^Manual model fallback/), {
         target: { value: "320d M Sport" },
       });
       fireEvent.change(screen.getByLabelText(/Year/i), {
@@ -314,12 +314,12 @@ describe("CreateListingForm registration lookup", () => {
     await screen.findByText(/Auto-filled/i);
 
     expect((screen.getByLabelText(/Make/i) as HTMLSelectElement).value).toBe("Mercedes-Benz");
-    expect((screen.getByLabelText("Manual model fallback") as HTMLInputElement).value).toBe("A 200 AMG LINE");
+    expect((screen.getByLabelText(/^Manual model fallback/) as HTMLInputElement).value).toBe("A 200 AMG LINE");
     expect((screen.getByLabelText(/Year/i) as HTMLInputElement).value).toBe("2020");
     expect((screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement).value).toBe("Petrol");
     expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Grey");
     expect((screen.getByLabelText(/Mileage/i) as HTMLInputElement).value).toBe("");
-    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe(
       "2020 Mercedes-Benz A 200 AMG LINE"
     );
   });
@@ -341,7 +341,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lookup Vehicle" }));
 
     await screen.findByText("Vehicle not found for that registration");
-    expect((screen.getByLabelText("Manual model fallback") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText(/^Manual model fallback/) as HTMLInputElement).value).toBe("");
   });
 
   it("auto-selects category from lookup result when category is unset", async () => {
@@ -406,8 +406,8 @@ describe("CreateListingForm registration lookup", () => {
         .getAttribute("aria-pressed")
     ).toBe("true");
     expect((screen.getByLabelText(/Make/i) as HTMLSelectElement).value).toBe("Honda");
-    expect((screen.getByLabelText("Manual model fallback") as HTMLInputElement).value).toBe("CBR600RR");
-    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/^Manual model fallback/) as HTMLInputElement).value).toBe("CBR600RR");
+    expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe(
       "2019 Honda CBR600RR"
     );
   });
@@ -431,22 +431,22 @@ describe("CreateListingForm registration lookup", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cars" }));
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText(/^Title/), {
       target: { value: "2019 BMW 320d M Sport" },
     });
-    fireEvent.change(screen.getByLabelText("Description"), {
+    fireEvent.change(screen.getByLabelText(/^Description/), {
       target: { value: "A well-kept BMW with full history and plenty of specification." },
     });
-    fireEvent.change(screen.getByLabelText("Price (£)"), {
+    fireEvent.change(screen.getByLabelText(/^Price \(£\)/), {
       target: { value: "15000" },
     });
-    fireEvent.change(screen.getByLabelText("Region"), {
+    fireEvent.change(screen.getByLabelText(/^Region/), {
       target: { value: "iom" },
     });
     fireEvent.change(screen.getByLabelText(/Make/i), {
       target: { value: "BMW" },
     });
-    fireEvent.change(screen.getByLabelText("Manual model fallback"), {
+    fireEvent.change(screen.getByLabelText(/^Manual model fallback/), {
       target: { value: "320d M Sport" },
     });
     fireEvent.change(screen.getByLabelText(/Year/i), {
@@ -528,11 +528,11 @@ describe("CreateListingForm registration lookup", () => {
       />
     );
 
-    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe(
       "2017 Audi A3 Sport"
     );
-    expect((screen.getByLabelText("Price (£)") as HTMLInputElement).value).toBe("11250");
-    expect((screen.getByLabelText("Region") as HTMLSelectElement).value).toBe("iom");
+    expect((screen.getByLabelText(/^Price \(£\)/) as HTMLInputElement).value).toBe("11250");
+    expect((screen.getByLabelText(/^Region/) as HTMLSelectElement).value).toBe("iom");
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -595,22 +595,22 @@ describe("CreateListingForm registration lookup", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cars" }));
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText(/^Title/), {
       target: { value: "2018 Audi A4 S line" },
     });
-    fireEvent.change(screen.getByLabelText("Description"), {
+    fireEvent.change(screen.getByLabelText(/^Description/), {
       target: { value: "Clean example with full history and a tidy interior for testing." },
     });
-    fireEvent.change(screen.getByLabelText("Price (£)"), {
+    fireEvent.change(screen.getByLabelText(/^Price \(£\)/), {
       target: { value: "12000" },
     });
-    fireEvent.change(screen.getByLabelText("Region"), {
+    fireEvent.change(screen.getByLabelText(/^Region/), {
       target: { value: "iom" },
     });
     fireEvent.change(screen.getByLabelText(/Make/i), {
       target: { value: "Audi" },
     });
-    fireEvent.change(screen.getByLabelText("Manual model fallback"), {
+    fireEvent.change(screen.getByLabelText(/^Manual model fallback/), {
       target: { value: "A4 S line" },
     });
     fireEvent.change(screen.getByLabelText(/Year/i), {

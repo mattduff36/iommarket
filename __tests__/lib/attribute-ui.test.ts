@@ -138,6 +138,7 @@ describe("validateListingAttributes", () => {
       attributes: [
         { attributeDefinitionId: makeDef.id, value: "BMW" },
         { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
         { attributeDefinitionId: fuelTypeDef.id, value: "Petrol" },
         { attributeDefinitionId: batteryRangeDef.id, value: "300" },
         { attributeDefinitionId: locationDef.id, value: "UK" },
@@ -148,6 +149,7 @@ describe("validateListingAttributes", () => {
     expect(result.sanitizedAttributes).toEqual([
       { attributeDefinitionId: makeDef.id, value: "BMW" },
       { attributeDefinitionId: modelDef.id, value: "320d" },
+      { attributeDefinitionId: mileageDef.id, value: "45000" },
       { attributeDefinitionId: fuelTypeDef.id, value: "Petrol" },
     ]);
   });
