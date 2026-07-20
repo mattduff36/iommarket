@@ -42,7 +42,7 @@ export function RenewListingButton({
         onClick={onRenew}
         disabled={isPending}
       >
-        Renew Listing
+        Renew listing (payment required)
       </Button>
       {error ? <p className="text-xs text-text-error">{error}</p> : null}
     </div>

@@ -8,6 +8,7 @@ import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { CreateListingForm } from "../create-listing-form";
+import { FreeListingWelcomeDialog } from "../free-listing-welcome-dialog";
 import { getSellFormData } from "../sell-form-data";
 
 export const metadata: Metadata = {
@@ -46,6 +47,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+      {isFreeForUser ? <FreeListingWelcomeDialog /> : null}
       <h1 className="text-3xl font-bold text-text-primary mb-2">
         {initialDraft ? "Continue Editing Your Draft" : "Create a Private Listing"}
       </h1>

@@ -6,6 +6,7 @@ import {
   formatPricePence,
   calculateExpiryDate,
   LISTING_FEES,
+  LISTING_DURATION_DAYS,
 } from "@/lib/listing-status";
 
 describe("isValidTransition", () => {
@@ -111,11 +112,15 @@ describe("formatPricePence", () => {
 });
 
 describe("calculateExpiryDate", () => {
-  it("returns a date 30 days in the future", () => {
+  it("returns a date 60 days in the future", () => {
     const now = new Date("2025-01-01T00:00:00Z");
     const expiry = calculateExpiryDate(now);
-    const expected = new Date("2025-01-31T00:00:00Z");
+    const expected = new Date("2025-03-02T00:00:00Z");
     expect(expiry.getTime()).toBe(expected.getTime());
+  });
+
+  it("uses the 60-day listing duration", () => {
+    expect(LISTING_DURATION_DAYS).toBe(60);
   });
 
   it("returns a Date object", () => {

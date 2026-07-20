@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { getNumberSetting, getStringSetting, SETTING_KEYS } from "./site-settings";
 
 const DEFAULT_LISTING_FEE_PENCE = 499;
@@ -90,36 +91,9 @@ export async function getFreeLaunchSlotsTotal(): Promise<number> {
   return getNumberSetting(SETTING_KEYS.FREE_LAUNCH_SLOTS_TOTAL, DEFAULT_FREE_LAUNCH_SLOTS);
 }
 
-/**
- * Count of unique users who have claimed a free private seller listing.
- * A "free" listing = private seller (dealerId null), approved through moderation
- * (APPROVED / LIVE / SOLD / EXPIRED), and has no successful Payment.
- * PENDING and DRAFT listings don't count — the slot is only consumed once
- * an admin has approved the listing.
- */
+/** Count of durable claims for the free private-listing launch offer. */
 export async function getFreeLaunchSlotsUsed(): Promise<number> {
-  const paidListingIds = await db.payment
-    .findMany({
-      where: { status: "SUCCEEDED", type: "LISTING" },
-      select: { listingId: true },
-    })
-    .then((rows) => new Set(rows.map((r) => r.listingId)));
-
-  const listings = await db.listing.findMany({
-    where: {
-      dealerId: null,
-      status: { in: ["APPROVED", "LIVE", "SOLD", "EXPIRED"] },
-    },
-    select: { userId: true, id: true },
-  });
-
-  const usersWithFreeListing = new Set<string>();
-  for (const l of listings) {
-    if (!paidListingIds.has(l.id)) {
-      usersWithFreeListing.add(l.userId);
-    }
-  }
-  return usersWithFreeListing.size;
+  return db.freeListingClaim.count();
 }
 
 /** Number of free slots remaining (0 when all claimed) */
@@ -131,45 +105,109 @@ export async function getFreeLaunchSlotsRemaining(): Promise<number> {
   return Math.max(0, total - used);
 }
 
-/**
- * True if the user has already claimed a free slot — meaning they have a free
- * private seller listing that is at least submitted (PENDING or later).
- * We check all non-DRAFT statuses here so the user can't submit multiple free
- * listings while one is awaiting moderation.
- */
 export async function hasUserClaimedFreeSlot(userId: string): Promise<boolean> {
-  const paidListingIds = await db.payment
-    .findMany({
-      where: { status: "SUCCEEDED", type: "LISTING" },
-      select: { listingId: true },
-    })
-    .then((rows) => new Set(rows.map((r) => r.listingId)));
-
-  const userListings = await db.listing.findMany({
-    where: {
-      userId,
-      dealerId: null,
-      status: { not: "DRAFT" },
-    },
+  const claim = await db.freeListingClaim.findUnique({
+    where: { userId },
     select: { id: true },
   });
+  return Boolean(claim);
+}
 
-  return userListings.some((l) => !paidListingIds.has(l.id));
+export interface FreeListingEligibility {
+  canClaim: boolean;
+  slotsRemaining: number;
+}
+
+export function isFreeListingEligible({
+  hasClaimed,
+  slotsRemaining,
+}: {
+  hasClaimed: boolean;
+  slotsRemaining: number;
+}): boolean {
+  return !hasClaimed && slotsRemaining > 0;
+}
+
+export async function getFreeListingEligibility(
+  userId: string
+): Promise<FreeListingEligibility> {
+  const [hasClaimed, slotsRemaining] = await Promise.all([
+    hasUserClaimedFreeSlot(userId),
+    getFreeLaunchSlotsRemaining(),
+  ]);
+
+  return {
+    canClaim: isFreeListingEligible({ hasClaimed, slotsRemaining }),
+    slotsRemaining,
+  };
 }
 
 /**
- * True if a private seller listing can be free. A user who has already claimed
- * their free listing is never eligible again, including during a time-based
- * launch window.
+ * Read-only eligibility snapshot for UI and payment routing. Submitting a
+ * listing must use claimFreeListingSlot so the database remains authoritative.
  */
 export async function isPrivateListingFreeForUser(userId: string): Promise<boolean> {
-  const [freeUntil, hasClaimed] = await Promise.all([
-    getLaunchFreeUntilAsync(),
-    hasUserClaimedFreeSlot(userId),
-  ]);
-  if (hasClaimed) return false;
-  if (freeUntil && new Date() <= freeUntil) return true;
+  const eligibility = await getFreeListingEligibility(userId);
+  return eligibility.canClaim;
+}
 
-  const remaining = await getFreeLaunchSlotsRemaining();
-  return remaining > 0;
+type FreeListingClaimResult<T> =
+  | { status: "claimed"; data: T }
+  | { status: "already-claimed" }
+  | { status: "slots-exhausted" };
+
+interface ClaimFreeListingSlotInput<T> {
+  userId: string;
+  listingId: string;
+  onClaim: (transaction: Prisma.TransactionClient) => Promise<T>;
+}
+
+function isTransactionConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+}
+
+/**
+ * Atomically reserves one launch slot and executes the related listing update.
+ * The callback is in the same serializable transaction, so a failed submission
+ * cannot consume a slot and concurrent claims cannot oversubscribe the offer.
+ */
+export async function claimFreeListingSlot<T>({
+  userId,
+  listingId,
+  onClaim,
+}: ClaimFreeListingSlotInput<T>): Promise<FreeListingClaimResult<T>> {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const slotsTotal = await getFreeLaunchSlotsTotal();
+    try {
+      return await db.$transaction(
+        async (transaction) => {
+          const existingClaim = await transaction.freeListingClaim.findUnique({
+            where: { userId },
+            select: { id: true },
+          });
+          if (existingClaim) return { status: "already-claimed" };
+
+          const slotsUsed = await transaction.freeListingClaim.count();
+          const slotsRemaining = Math.max(0, slotsTotal - slotsUsed);
+          if (!isFreeListingEligible({ hasClaimed: false, slotsRemaining })) {
+            return { status: "slots-exhausted" };
+          }
+
+          const data = await onClaim(transaction);
+          await transaction.freeListingClaim.create({
+            data: { userId, listingId },
+          });
+
+          return { status: "claimed", data };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (error) {
+      if (!isTransactionConflict(error) || attempt === maxAttempts) throw error;
+    }
+  }
+
+  throw new Error("Failed to reserve a free listing slot.");
 }

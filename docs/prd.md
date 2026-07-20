@@ -34,7 +34,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
   - photo guidance
   - min 2 / max 20 photos
   - preview before publish
-  - create draft, submit for moderation, live for 30 days when approved
+  - create draft, submit for moderation, live for 60 days when approved
 - Monetisation:
   - first month free for all listings
   - paid private listings after free window
@@ -153,7 +153,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 - Photo constraints: min 2, max 20.
 - Preview step mandatory before publish.
 - Submission creates moderation candidate.
-- Live listings expire at 30 days; renewal flow available.
+- Live listings expire at 60 days; renewal flow available.
 
 ### Dealer
 
@@ -237,7 +237,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 - Search defaults to grid, supports list toggle and infinite scroll.
 - Listing contact works without account and sends transactional emails.
 - Seller wizard enforces 2-20 images and includes preview before publish.
-- Listing lifecycle enforces moderation and 30-day expiry with renewal.
+- Listing lifecycle enforces moderation and 60-day expiry with renewal.
 - Free window pricing rule is configurable and active in logic.
 - Dealer posting is gated by active subscription status.
 - Favourites and saved searches work for authenticated users.
@@ -259,7 +259,7 @@ Build a trusted, hyper-local marketplace for the Isle of Man that starts with **
 
 ### Goals
 - **Monetize quickly**:
-  - Private seller paid listing fee (e.g. **£4.99–£9.99** for **30 days**).
+  - Private seller paid listing fee (e.g. **£4.99–£9.99** for **60 days**).
   - Dealer subscriptions (e.g. **£29.99–£49.99 / month**, unlimited listings).
   - Featured listing upgrade (e.g. **+£5**).
 - **Buyer experience**: fast browse + search + filters tuned to local discovery.

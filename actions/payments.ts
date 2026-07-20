@@ -133,11 +133,15 @@ export async function payForListing(
         error: "Active dealer subscription required before submitting dealer listings.",
       };
     }
+    const isRenewal = Boolean(
+      listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
+    );
     const isFreePrivateSeller =
       !listing.dealerId &&
       (await isPrivateListingFreeForUser(user.id));
     const supportAmountPence = parsed.data.supportAmountPence;
-    const shouldSkipPayment = isDealerWithSub || isFreePrivateSeller;
+    const shouldSkipPayment =
+      isDealerWithSub || (!isRenewal && isFreePrivateSeller);
     if (shouldSkipPayment) {
       if (isFreePrivateSeller && supportAmountPence > 0) {
         // Optional support payments should never block the core listing submission flow.

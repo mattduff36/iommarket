@@ -60,6 +60,7 @@ model User {
   listingViews        ListingView[]
   dealerReviews       DealerReview[]
   listingStatusEvents ListingStatusEvent[]
+  freeListingClaim   FreeListingClaim?
 
   @@index([authUserId])
   @@index([email])
@@ -197,6 +198,7 @@ model Listing {
   favouritedBy    Favourite[]
   views           ListingView[]
   statusEvents    ListingStatusEvent[]
+  freeListingClaim FreeListingClaim?
 
   @@index([categoryId, regionId, status])
   @@index([status])
@@ -223,6 +225,16 @@ model ListingStatusEvent {
   @@index([listingId, createdAt])
   @@index([changedByUserId, createdAt])
   @@index([toStatus, createdAt])
+}
+
+model FreeListingClaim {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  listingId String   @unique
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 }
 
 model ListingImage {

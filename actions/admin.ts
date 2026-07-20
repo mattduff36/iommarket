@@ -13,6 +13,7 @@ import {
   type CreateCategoryInput,
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
+import { calculateExpiryDate } from "@/lib/listing-status";
 import { transitionListingStatus } from "@/lib/listings/status-events";
 import { z } from "zod";
 
@@ -46,7 +47,7 @@ export async function moderateListing(input: ModerateListingInput) {
       additionalData:
         action === "APPROVE"
           ? {
-              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+              expiresAt: calculateExpiryDate(),
             }
           : undefined,
     });

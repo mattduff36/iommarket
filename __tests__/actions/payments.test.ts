@@ -148,6 +148,28 @@ describe("payForListing", () => {
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
+
+  it("requires checkout to renew an expired free listing", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: null,
+      status: "DRAFT",
+      expiresAt: new Date("2025-01-01T00:00:00Z"),
+      title: "Test listing",
+    });
+    createListingCheckoutMock.mockResolvedValue({
+      url: "https://checkout.example.com/listing-renewal",
+    });
+
+    await expect(payForListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+      data: {
+        checkoutUrl: "https://checkout.example.com/listing-renewal",
+      },
+    });
+
+    expect(createListingCheckoutMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe("demo payment actions", () => {

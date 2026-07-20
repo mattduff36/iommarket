@@ -29,7 +29,7 @@ import {
   getListingPhotoLimit,
   getListingPhotoLimitError,
 } from "@/lib/listings/photo-limits";
-import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
+import { claimFreeListingSlot } from "@/lib/config/marketplace";
 
 // ---------------------------------------------------------------------------
 // Create Listing
@@ -306,21 +306,121 @@ export async function submitListingForReview(listingId: string) {
         "Please confirm the vehicle is not stolen and has no outstanding finance before submitting.",
     };
   }
+
   if (!listing.dealerId) {
+    const isRenewal = Boolean(
+      listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
+    );
     const hasSuccessfulPayment = await db.payment.findFirst({
       where: {
         listingId,
         type: "LISTING",
         status: "SUCCEEDED",
+        ...(isRenewal && listing.expiresAt
+          ? { createdAt: { gt: listing.expiresAt } }
+          : {}),
       },
       select: { id: true },
     });
     if (!hasSuccessfulPayment) {
-      const isEligibleForFreeListing = await isPrivateListingFreeForUser(user.id);
-      if (!isEligibleForFreeListing) {
+      if (isRenewal) {
         return {
-          error:
-            "Your one free listing has already been used. Complete payment for this listing to submit it.",
+          error: "Payment is required to renew an expired listing.",
+        };
+      }
+
+      try {
+        const freeClaim = await claimFreeListingSlot({
+          userId: user.id,
+          listingId,
+          onClaim: async (transaction) => {
+            const [currentListing, imageCount, paidListing] = await Promise.all([
+              transaction.listing.findUnique({
+                where: { id: listingId },
+                select: {
+                  dealerId: true,
+                  expiresAt: true,
+                  status: true,
+                  trustDeclarationAccepted: true,
+                  userId: true,
+                },
+              }),
+              transaction.listingImage.count({ where: { listingId } }),
+              transaction.payment.findFirst({
+                where: {
+                  listingId,
+                  type: "LISTING",
+                  status: "SUCCEEDED",
+                },
+                select: { id: true },
+              }),
+            ]);
+
+            if (
+              !currentListing ||
+              currentListing.userId !== user.id ||
+              currentListing.dealerId ||
+              currentListing.status !== "DRAFT" ||
+              !currentListing.trustDeclarationAccepted ||
+              imageCount < 2
+            ) {
+              throw new Error("This listing changed before it could be submitted. Please refresh and try again.");
+            }
+            if (currentListing.expiresAt && currentListing.expiresAt.getTime() <= Date.now()) {
+              throw new Error("Payment is required to renew an expired listing.");
+            }
+            if (paidListing) {
+              throw new Error("A payment was received for this listing. Please refresh and try again.");
+            }
+
+            const updated = await transaction.listing.update({
+              where: { id: listingId },
+              data: { status: "PENDING" },
+            });
+            await transaction.listingStatusEvent.create({
+              data: {
+                listingId,
+                fromStatus: "DRAFT",
+                toStatus: "PENDING",
+                changedByUserId: user.id,
+                source: user.role === "ADMIN" ? "ADMIN" : "USER",
+                notes: "Submitted for moderation with free listing claim",
+              },
+            });
+
+            return updated;
+          },
+        });
+
+        if (freeClaim.status === "already-claimed") {
+          return {
+            error:
+              "Your one free listing has already been used. Complete payment for this listing to submit it.",
+          };
+        }
+        if (freeClaim.status === "slots-exhausted") {
+          return {
+            error:
+              "All free launch listings have now been claimed. Complete payment for this listing to submit it.",
+          };
+        }
+
+        revalidatePath(`/listings/${listingId}`);
+        return { data: freeClaim.data };
+      } catch (err) {
+        await captureException({
+          source: "SERVER",
+          error: err,
+          action: "submitListingForReview",
+          route: `/listings/${listingId}`,
+          requestPath: `/listings/${listingId}`,
+          userId: user.id,
+          userEmail: user.email,
+          tags: { listingId, flow: "free-listing-claim" },
+        });
+        const message = err instanceof Error ? err.message : "Failed to submit listing";
+        return {
+          error: message,
         };
       }
     }

@@ -44,6 +44,8 @@ export const LISTING_FEES = {
   DEALER_MONTHLY: 2999, // £29.99/month
 } as const;
 
+export const LISTING_DURATION_DAYS = 60;
+
 /**
  * Calculate the total fee for a listing with optional featured upgrade.
  */
@@ -68,8 +70,8 @@ export function formatPricePence(pence: number): string {
 }
 
 /**
- * Calculate listing expiry date (30 days from now).
+ * Calculate listing expiry date (60 days from now).
  */
 export function calculateExpiryDate(from: Date = new Date()): Date {
-  return new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return new Date(from.getTime() + LISTING_DURATION_DAYS * 24 * 60 * 60 * 1000);
 }

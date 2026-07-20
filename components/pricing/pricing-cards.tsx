@@ -9,7 +9,7 @@ import {
 import { Check } from "lucide-react";
 
 export const SELLER_FEATURES = [
-  "30-day listing duration",
+  "60-day listing duration",
   "Up to 10 photos",
   "Contact form included",
   "Moderation within 1-2 days",
@@ -38,7 +38,7 @@ export const DEALER_PRO_FEATURES = [
 
 export const FREE_LAUNCH_FEATURES = [
   "One free listing per person",
-  "30-day listing duration",
+  "60-day listing duration",
   "Up to 10 photos",
   "Contact form included",
   "Moderation within 1-2 days",
