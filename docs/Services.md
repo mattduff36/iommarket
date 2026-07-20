@@ -66,9 +66,9 @@
   - `RIPPLE_DEALER_PRO_PLAN_ID`
   - `RIPPLE_WEBHOOK_SECRET`
   - `RIPPLE_DASHBOARD_URL`
-  - `LISTING_FEE_PENCE` (pence; default 499)
   - `LAUNCH_FREE_UNTIL` (ISO timestamp for time-based free window)
   - `FREE_LISTING_WINDOW_DAYS` (default 30)
+- **Pricing**: marketplace amounts are managed in Admin → Site Settings and stored as integer pence in `SiteSetting`. Server actions retrieve them directly before constructing the Ripple checkout URL; environment variables are not a pricing source.
 - **Local**: use Ripple demo/hosted links and a publicly reachable webhook URL.
 - **Staging**: dedicated Ripple hosted links and webhook endpoint.
 - **Production**: live Ripple portal configuration plus monitored webhook retries.

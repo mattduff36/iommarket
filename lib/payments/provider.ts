@@ -439,6 +439,7 @@ export async function createListingCheckout(params: {
 export async function createDealerSubscriptionCheckout(params: {
   dealerId: string;
   tier: DealerTier;
+  amountInPence: number;
   customerEmail: string;
   successUrl: string;
   cancelUrl: string;
@@ -459,7 +460,7 @@ export async function createDealerSubscriptionCheckout(params: {
       customerEmail: params.customerEmail,
       dealerId: params.dealerId,
       tier: params.tier,
-      amountInPence: undefined,
+      amountInPence: params.amountInPence,
       listingTitle: `${params.tier} dealer subscription`,
     }),
   };

@@ -10,6 +10,8 @@ import { HomeVehicleCheck } from "@/components/vehicle-check/home-vehicle-check"
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -27,7 +29,7 @@ export default async function HomePage() {
   await expireStaleLiveListings();
   const liveWhere = liveListingWhere();
   /* Fetch categories and dealer/search datasets */
-  const [categories, regions, makeDefs, modelDefs, dealers, soldCount] = await Promise.all([
+  const [categories, regions, makeDefs, modelDefs, dealers, soldCount, pricing] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
@@ -55,6 +57,7 @@ export default async function HomePage() {
       },
     }),
     db.listing.count({ where: { status: "SOLD" } }),
+    getMarketplacePricing(),
   ]);
 
   const makeIds = makeDefs.map((d) => d.id);
@@ -254,7 +257,7 @@ export default async function HomePage() {
               Ready to Sell Your Vehicle?
             </h2>
             <p className="mt-4 text-base leading-7 text-text-secondary">
-              List from just &pound;4.99 or subscribe as a dealer for unlimited listings with
+              List from just {formatGbpFromPence(pricing.privateListingPence)} or subscribe as a dealer for unlimited listings with
               straightforward pricing.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">

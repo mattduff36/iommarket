@@ -4,6 +4,7 @@
  */
 
 import type { ListingStatus } from "@prisma/client";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 
 /**
  * Valid transitions from each status.
@@ -35,38 +36,13 @@ export function getValidNextStatuses(status: ListingStatus): ListingStatus[] {
   return VALID_TRANSITIONS[status] ?? [];
 }
 
-/**
- * Listing fee constants in pence.
- */
-export const LISTING_FEES = {
-  STANDARD_LISTING: 499, // £4.99
-  FEATURED_UPGRADE: 500, // £5
-  DEALER_MONTHLY: 2999, // £29.99/month
-} as const;
-
 export const LISTING_DURATION_DAYS = 60;
-
-/**
- * Calculate the total fee for a listing with optional featured upgrade.
- */
-export function calculateListingFee(options: {
-  featured?: boolean;
-}): number {
-  let total = LISTING_FEES.STANDARD_LISTING;
-  if (options.featured) {
-    total += LISTING_FEES.FEATURED_UPGRADE;
-  }
-  return total;
-}
 
 /**
  * Format price in pence to a display string.
  */
 export function formatPricePence(pence: number): string {
-  const pounds = pence / 100;
-  return Number.isInteger(pounds)
-    ? `£${pounds.toLocaleString()}`
-    : `£${pounds.toFixed(2)}`;
+  return formatGbpFromPence(pence);
 }
 
 /**

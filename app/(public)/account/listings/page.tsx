@@ -19,6 +19,7 @@ import { MarkSoldButton } from "@/app/(public)/dealer/dashboard/mark-sold-button
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
@@ -88,7 +89,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
     ...(status !== "ALL" ? { status } : {}),
   };
 
-  const [listings, total] = await Promise.all([
+  const [listings, total, pricing] = await Promise.all([
     db.listing.findMany({
       where,
       orderBy: getSortOrder(sort),
@@ -110,6 +111,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
       },
     }),
     db.listing.count({ where }),
+    getMarketplacePricing(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -222,6 +224,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                       (listing.dealerId !== null || listing.payments.length > 0) && (
                       <FeaturedUpgradeButton
                         listingId={listing.id}
+                        featuredUpgradePricePence={pricing.featuredUpgradePence}
                         variant="inline"
                       />
                     )}

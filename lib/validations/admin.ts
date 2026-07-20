@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseGbpInputToPence } from "@/lib/formatting/gbp";
 
 // ---------------------------------------------------------------------------
 // Users
@@ -138,3 +139,32 @@ export const updateSiteSettingSchema = z.object({
   value: z.unknown(),
 });
 export type UpdateSiteSettingInput = z.infer<typeof updateSiteSettingSchema>;
+
+const gbpPriceInputSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a price")
+  .transform((value, context) => {
+    try {
+      return parseGbpInputToPence(value);
+    } catch (error) {
+      context.addIssue({
+        code: "custom",
+        message:
+          error instanceof Error ? error.message : "Enter a valid GBP amount.",
+      });
+      return z.NEVER;
+    }
+  })
+  .pipe(z.number().int().min(1).max(10_000_000));
+
+export const updateMarketplacePricingSchema = z.object({
+  privateListing: gbpPriceInputSchema,
+  featuredUpgrade: gbpPriceInputSchema,
+  dealerStarterMonthly: gbpPriceInputSchema,
+  dealerProMonthly: gbpPriceInputSchema,
+  optionalListingSupport: gbpPriceInputSchema,
+});
+export type UpdateMarketplacePricingInput = z.input<
+  typeof updateMarketplacePricingSchema
+>;

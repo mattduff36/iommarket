@@ -3,6 +3,7 @@ import * as path from "path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { FUEL_TYPE_OPTIONS, isEvCompatibleFuelType } from "../lib/constants/fuel-types";
 
 // Load .env then .env.local so the seed always targets the same DB as the dev server.
 // .env.local values take priority, matching Next.js conventions.
@@ -130,7 +131,7 @@ async function main() {
       dataType: "select",
       required: false,
       sortOrder: 5,
-      options: JSON.stringify(["Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"]),
+      options: JSON.stringify(FUEL_TYPE_OPTIONS),
     },
     {
       name: "Transmission",
@@ -782,7 +783,7 @@ async function main() {
   const vanMakes = ["Ford", "Volkswagen", "Mercedes-Benz", "Renault"] as const;
   const motorhomeMakes = ["Fiat", "Ford", "Volkswagen", "Auto-Trail", "Swift"] as const;
   const colours = ["Black", "White", "Silver", "Grey", "Blue", "Red"] as const;
-  const fuels = ["Petrol", "Diesel", "Electric", "Hybrid"] as const;
+  const fuels = FUEL_TYPE_OPTIONS;
   const transmissions = ["Manual", "Automatic"] as const;
   const iomRegionSlugs = [
     "isle-of-man",
@@ -841,8 +842,8 @@ async function main() {
         : categoryType === "motorhome"
           ? random(14000, 78000)
           : random(4500, 42000);
-    const isElectric = Math.random() < 0.1;
-    const fuel = isElectric ? "Electric" : pick(fuels);
+    const fuel = pick(fuels);
+    const isElectric = isEvCompatibleFuelType(fuel);
     const transmission = pick(transmissions);
     const location = Math.random() < 0.9 ? "Isle of Man" : "UK";
     const regionSlug = location === "UK" ? "uk" : pick(iomRegionSlugs);

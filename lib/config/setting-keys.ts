@@ -1,6 +1,9 @@
 export const SETTING_KEYS = {
   LISTING_FEE_PENCE: "listing_fee_pence",
   FEATURED_FEE_PENCE: "featured_fee_pence",
+  DEALER_STARTER_MONTHLY_PENCE: "dealer_starter_monthly_pence",
+  DEALER_PRO_MONTHLY_PENCE: "dealer_pro_monthly_pence",
+  OPTIONAL_LISTING_SUPPORT_PENCE: "optional_listing_support_pence",
   FREE_LISTING_WINDOW_DAYS: "free_listing_window_days",
   LAUNCH_FREE_UNTIL: "launch_free_until",
   FREE_LAUNCH_SLOTS_TOTAL: "free_launch_slots_total",

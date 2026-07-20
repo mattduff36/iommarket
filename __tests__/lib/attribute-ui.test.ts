@@ -4,6 +4,7 @@ import {
   parseAttributeOptions,
   validateListingAttributes,
 } from "@/lib/listings/attribute-ui";
+import { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
 
 const makeDef = {
   id: "clmake12345678901234567890",
@@ -38,7 +39,7 @@ const fuelTypeDef = {
   slug: "fuel-type",
   dataType: "select",
   required: false,
-  options: JSON.stringify(["Petrol", "Diesel", "Electric", "Plug-in Hybrid"]),
+  options: JSON.stringify(FUEL_TYPE_OPTIONS),
 };
 
 const batteryRangeDef = {
@@ -81,6 +82,11 @@ describe("getAttributeFieldConfig", () => {
   it("hides EV-only fields for petrol vehicles and duplicate location always", () => {
     expect(getAttributeFieldConfig("car", batteryRangeDef, "Petrol")).toBeNull();
     expect(getAttributeFieldConfig("car", locationDef, "Electric")).toBeNull();
+  });
+
+  it("uses the standardized fuel types even before the database migration runs", () => {
+    const config = getAttributeFieldConfig("car", fuelTypeDef, undefined);
+    expect(config?.options).toEqual(FUEL_TYPE_OPTIONS);
   });
 });
 
@@ -129,6 +135,41 @@ describe("validateListingAttributes", () => {
     expect(result.fieldErrors[`attr-${makeDef.id}`]).toEqual([
       "Please choose a make from the list.",
     ]);
+  });
+
+  it.each(["Hybrid", "Plug-in Hybrid"])(
+    "rejects removed generic fuel type %s",
+    (fuelType) => {
+      const result = validateListingAttributes({
+        categorySlug: "car",
+        definitions,
+        attributes: [
+          { attributeDefinitionId: makeDef.id, value: "BMW" },
+          { attributeDefinitionId: modelDef.id, value: "320d" },
+          { attributeDefinitionId: mileageDef.id, value: "45000" },
+          { attributeDefinitionId: fuelTypeDef.id, value: fuelType },
+        ],
+      });
+
+      expect(result.fieldErrors[`attr-${fuelTypeDef.id}`]).toEqual([
+        "Please choose a specific fuel type.",
+      ]);
+    }
+  );
+
+  it.each(FUEL_TYPE_OPTIONS)("accepts standardized fuel type %s", (fuelType) => {
+    const result = validateListingAttributes({
+      categorySlug: "car",
+      definitions,
+      attributes: [
+        { attributeDefinitionId: makeDef.id, value: "BMW" },
+        { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
+        { attributeDefinitionId: fuelTypeDef.id, value: fuelType },
+      ],
+    });
+
+    expect(result.fieldErrors[`attr-${fuelTypeDef.id}`]).toBeUndefined();
   });
 
   it("drops hidden location and EV-only values when fuel type does not support them", () => {

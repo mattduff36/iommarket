@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { getAdminDealerWhere } from "@/lib/dealers/access";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -33,7 +34,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const verifiedFilter = params.verified === "true" ? true : params.verified === "false" ? false : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
-  const where: Prisma.DealerProfileWhereInput = {};
+  const where: Prisma.DealerProfileWhereInput = getAdminDealerWhere();
   if (query) {
     where.OR = [
       { name: { contains: query, mode: "insensitive" } },

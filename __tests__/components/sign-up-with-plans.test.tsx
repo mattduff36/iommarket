@@ -22,6 +22,19 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
+function getPasswordInput(): HTMLInputElement {
+  const input = document.querySelector<HTMLInputElement>('input[type="password"]');
+  if (!input) throw new Error("Expected a password input");
+
+  const label = input.labels?.[0];
+  expect(label?.firstChild?.textContent?.trim()).toBe("Password");
+  expect(
+    label?.querySelector('[aria-hidden="true"]')?.textContent?.trim(),
+  ).toBe("*");
+
+  return input;
+}
+
 describe("SignUpWithPlans", () => {
   const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 
@@ -62,10 +75,10 @@ describe("SignUpWithPlans", () => {
     ).toBeTruthy();
     expect(screen.queryByText(/Choose your plan to create your account/i)).toBeNull();
 
-    fireEvent.change(screen.getByLabelText(/^email$/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Email" }), {
       target: { value: "member@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/^password$/i), {
+    fireEvent.change(getPasswordInput(), {
       target: { value: "strong-password-123" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Create account/i }));
@@ -100,10 +113,10 @@ describe("SignUpWithPlans", () => {
       })
     ).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText(/^email$/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Email" }), {
       target: { value: "dealer@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/^password$/i), {
+    fireEvent.change(getPasswordInput(), {
       target: { value: "strong-password-123" },
     });
     fireEvent.click(

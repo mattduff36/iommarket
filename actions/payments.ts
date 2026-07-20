@@ -17,10 +17,12 @@ import {
   payForListingSchema,
 } from "@/lib/validations/payment";
 import {
-  getFeaturedFeePence,
-  getListingFeePence,
   isPrivateListingFreeForUser,
 } from "@/lib/config/marketplace";
+import {
+  getDealerPlanPricePence,
+  getMarketplacePricing,
+} from "@/lib/config/marketplace-pricing";
 import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
@@ -87,7 +89,7 @@ function toUserPaymentError(message: string) {
 
 export async function payForListing(
   listingId: string,
-  options?: { supportAmountPence?: number }
+  options?: { supportPlatform?: boolean }
 ) {
   const user = await requireAuth();
   const checkoutRate = checkRateLimit(
@@ -102,7 +104,7 @@ export async function payForListing(
 
   const parsed = payForListingSchema.safeParse({
     listingId,
-    supportAmountPence: options?.supportAmountPence ?? 0,
+    supportPlatform: options?.supportPlatform ?? false,
   });
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
@@ -116,6 +118,7 @@ export async function payForListing(
   }
 
   try {
+    const pricing = await getMarketplacePricing();
     const flow = listing.dealerId ? "dealer" : "private";
     const listingReturnTo = `/sell/checkout?listing=${listing.id}&flow=${flow}`;
     const hasActiveDealerSubscription = listing.dealerId
@@ -139,7 +142,9 @@ export async function payForListing(
     const isFreePrivateSeller =
       !listing.dealerId &&
       (await isPrivateListingFreeForUser(user.id));
-    const supportAmountPence = parsed.data.supportAmountPence;
+    const supportAmountPence = parsed.data.supportPlatform
+      ? pricing.optionalListingSupportPence
+      : 0;
     const shouldSkipPayment =
       isDealerWithSub || (!isRenewal && isFreePrivateSeller);
     if (shouldSkipPayment) {
@@ -183,7 +188,7 @@ export async function payForListing(
     const session = await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
-      amountInPence: getListingFeePence(),
+      amountInPence: pricing.privateListingPence,
       checkoutType: "listing_payment",
       supportAmountPence,
       customerEmail: user.email,
@@ -214,7 +219,7 @@ export async function payForListing(
       requestPath: "/sell/checkout",
       userId: user.id,
       userEmail: user.email,
-      tags: { listingId, supportAmountPence: options?.supportAmountPence ?? 0 },
+      tags: { listingId, supportPlatform: options?.supportPlatform ?? false },
     });
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
@@ -252,11 +257,13 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
   }
 
   try {
+    const pricing = await getMarketplacePricing();
     const dashboardReturnTo = "/dealer/dashboard?subscribed=true";
     const pricingReturnTo = "/pricing";
     const session = await createDealerSubscriptionCheckout({
       dealerId: parsed.data.dealerId,
       tier: parsed.data.tier,
+      amountInPence: getDealerPlanPricePence(pricing, parsed.data.tier),
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",
@@ -336,6 +343,7 @@ export async function upgradeFeatured(listingId: string) {
   }
 
   try {
+    const pricing = await getMarketplacePricing();
     const listingReturnTo = `/listings/${listing.id}`;
     const session = await createFeaturedUpgradeCheckout({
       listingId: listing.id,
@@ -353,7 +361,7 @@ export async function upgradeFeatured(listingId: string) {
         listingId: listing.id,
         returnTo: listingReturnTo,
       }),
-      amountInPence: getFeaturedFeePence(),
+      amountInPence: pricing.featuredUpgradePence,
     });
 
     return { data: { checkoutUrl: session.url } };
@@ -413,6 +421,7 @@ export async function simulateDemoListingPaymentOutcome(input: {
     input.outcome === "success" ? "payment.succeeded" : "payment.failed";
 
   try {
+    const pricing = await getMarketplacePricing();
     const simulatedEvent: NormalizedProviderWebhookEvent = {
       id: `demo-webhook-${listing.id}-${input.outcome}`,
       type: eventType,
@@ -424,7 +433,7 @@ export async function simulateDemoListingPaymentOutcome(input: {
       paymentStatus:
         input.outcome === "success" ? "SUCCEEDED" : "DECLINED",
       subscriptionStatus: null,
-      amount: getListingFeePence(),
+      amount: pricing.privateListingPence,
       currency: "gbp",
       currentPeriodEnd: null,
       metadata: {

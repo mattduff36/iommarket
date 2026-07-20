@@ -29,15 +29,15 @@ describe("createDealerSubscriptionSchema", () => {
 });
 
 describe("payForListingSchema", () => {
-  it("accepts optional support amount up to £5", () => {
+  it("accepts an optional support selection without a client amount", () => {
     const result = payForListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-      supportAmountPence: 500,
+      supportPlatform: true,
     });
     expect(result.success).toBe(true);
   });
 
-  it("rejects support amount above £5", () => {
+  it("rejects a client-submitted monetary support amount", () => {
     const result = payForListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       supportAmountPence: 600,

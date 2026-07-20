@@ -6,6 +6,7 @@ import {
   getFreeLaunchSlotsTotal,
   isListingFreeNowAsync,
 } from "@/lib/config/marketplace";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getCurrentUser } from "@/lib/auth";
 import { PricingCards } from "@/components/pricing/pricing-cards";
 
@@ -15,11 +16,12 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingPage() {
-  const [slotsRemaining, slotsTotal, isFreeWindowActive, user] = await Promise.all([
+  const [slotsRemaining, slotsTotal, isFreeWindowActive, user, pricing] = await Promise.all([
     getFreeLaunchSlotsRemaining(),
     getFreeLaunchSlotsTotal(),
     isListingFreeNowAsync(),
     getCurrentUser(),
+    getMarketplacePricing(),
   ]);
   const showFreeOffer = isFreeWindowActive || slotsRemaining > 0;
   const signUpWithNext = (href: string) =>
@@ -28,8 +30,8 @@ export default async function PricingPage() {
     user ? { href, label } : { href: signUpWithNext(href), label: "Sign Up" };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8">
-      <div className="text-center mb-16">
+    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-20 lg:px-8">
+      <div className="mb-10 text-center sm:mb-16">
         <p className="text-sm font-semibold uppercase tracking-widest text-neon-blue-500">
           Pricing
         </p>
@@ -42,6 +44,7 @@ export default async function PricingPage() {
       </div>
 
       <PricingCards
+        pricing={pricing}
         showFreeOffer={showFreeOffer}
         slotsRemaining={slotsRemaining}
         slotsTotal={slotsTotal}

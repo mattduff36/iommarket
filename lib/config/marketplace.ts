@@ -1,20 +1,14 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getNumberSetting, getStringSetting, SETTING_KEYS } from "./site-settings";
+import { getMarketplacePricing } from "./marketplace-pricing";
 
-const DEFAULT_LISTING_FEE_PENCE = 499;
-const DEFAULT_FEATURED_FEE_PENCE = 500;
 const DEFAULT_FREE_WINDOW_DAYS = 30;
 
 function parseIntegerEnv(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? fallback : parsed;
-}
-
-/** Sync version (env only) — kept for backwards compatibility and tests */
-export function getListingFeePence(): number {
-  return parseIntegerEnv(process.env.LISTING_FEE_PENCE, DEFAULT_LISTING_FEE_PENCE);
 }
 
 export function getPrivateListingPaymentLinkUrl(): string {
@@ -25,11 +19,6 @@ export function getPrivateListingPaymentLinkUrl(): string {
     throw new Error("RIPPLE_LISTING_PAYMENT_URL is not set");
   }
   return url;
-}
-
-/** Sync version (env only) */
-export function getFeaturedFeePence(): number {
-  return parseIntegerEnv(process.env.FEATURED_FEE_PENCE, DEFAULT_FEATURED_FEE_PENCE);
 }
 
 export function getLaunchFreeUntil(): Date | null {
@@ -50,15 +39,17 @@ export function isListingFreeNow(now = new Date()): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Async DB-backed variants (check DB first, fall back to env)
+// Async DB-backed pricing
 // ---------------------------------------------------------------------------
 
 export async function getListingFeePenceAsync(): Promise<number> {
-  return getNumberSetting(SETTING_KEYS.LISTING_FEE_PENCE, getListingFeePence());
+  const pricing = await getMarketplacePricing();
+  return pricing.privateListingPence;
 }
 
 export async function getFeaturedFeePenceAsync(): Promise<number> {
-  return getNumberSetting(SETTING_KEYS.FEATURED_FEE_PENCE, getFeaturedFeePence());
+  const pricing = await getMarketplacePricing();
+  return pricing.featuredUpgradePence;
 }
 
 export async function getFreeListingWindowDaysAsync(): Promise<number> {

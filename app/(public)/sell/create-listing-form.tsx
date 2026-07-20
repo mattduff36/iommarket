@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 import {
   getAttributeFieldConfig,
@@ -72,6 +73,7 @@ interface Props {
   modelOptionsByMake?: Record<string, string[]>;
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
+  optionalListingSupportPence?: number;
   cloudinaryUploadPreset?: string | null;
   initialDraft?: EditableDraft | null;
 }
@@ -86,7 +88,11 @@ function ListingFieldLabel({
   return (
     <>
       {label}
-      {required ? <span className="text-text-error"> *</span> : null}
+      {required ? (
+        <span aria-hidden="true" className="text-text-error">
+          {" "}*
+        </span>
+      ) : null}
     </>
   );
 }
@@ -97,6 +103,7 @@ export function CreateListingForm({
   modelOptionsByMake = {},
   mode = "private",
   isFreeForUser = false,
+  optionalListingSupportPence = 0,
   cloudinaryUploadPreset = null,
   initialDraft = null,
 }: Props) {
@@ -489,8 +496,7 @@ export function CreateListingForm({
         }
 
         const payResult = await payForListing(listingId, {
-          supportAmountPence:
-            mode === "private" && supportPlatform ? 500 : 0,
+          supportPlatform: mode === "private" && supportPlatform,
         });
         if (payResult.error) {
           setError(
@@ -554,7 +560,7 @@ export function CreateListingForm({
                   Category
                 </h3>
                 <input type="hidden" name="categoryId" value={selectedCategoryId} />
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {categories.map((category) => {
                     const isSelected = category.id === selectedCategoryId;
                     const meta = CATEGORY_TILE_META[category.slug];
@@ -777,12 +783,12 @@ export function CreateListingForm({
                 className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
                 label="I confirm this vehicle is not stolen and has no outstanding finance"
               />
-              {mode === "private" && (
+              {mode === "private" && optionalListingSupportPence > 0 && (
                 <Checkbox
                   checked={supportPlatform}
                   onCheckedChange={(checked) => setSupportPlatform(checked === true)}
                   className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
-                  label="Optional: add £5 to support the platform"
+                  label={`Optional: add ${formatGbpFromPence(optionalListingSupportPence)} to support the platform`}
                 />
               )}
           </div>

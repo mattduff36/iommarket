@@ -23,7 +23,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             className="text-sm font-medium text-text-primary"
           >
             {label}
-            {props.required ? <span className="text-text-error"> *</span> : null}
+            {props.required ? (
+              <span aria-hidden="true" className="text-text-error">
+                {" "}*
+              </span>
+            ) : null}
           </label>
         )}
         <input

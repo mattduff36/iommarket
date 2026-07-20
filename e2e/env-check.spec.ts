@@ -325,7 +325,7 @@ test.describe("[Payments] Configuration", () => {
     await page.goto("/pricing", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /pricing/i })).toBeVisible({ timeout: 30_000 });
 
-    // Private seller fee: £4.99 (hardcoded in pricing page UI)
+    // Bootstrap values from the DB-backed marketplace pricing settings.
     await expect(page.getByText("£4.99").first()).toBeVisible();
 
     // Dealer tier prices

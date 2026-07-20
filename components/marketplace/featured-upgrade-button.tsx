@@ -8,14 +8,17 @@ import {
   useRippleDemoCheckout,
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { Star } from "lucide-react";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 
 interface FeaturedUpgradeButtonProps {
   listingId: string;
+  featuredUpgradePricePence: number;
   variant?: "card" | "inline";
 }
 
 export function FeaturedUpgradeButton({
   listingId,
+  featuredUpgradePricePence,
   variant = "card",
 }: FeaturedUpgradeButtonProps) {
   const [isPending, startTransition] = useTransition();
@@ -80,7 +83,7 @@ export function FeaturedUpgradeButton({
         </p>
         <p className="text-sm text-text-secondary mt-0.5">
           Get more visibility with a promoted position in search results and on
-          the homepage. One-time fee of £5.
+          the homepage. One-time fee of {formatGbpFromPence(featuredUpgradePricePence)}.
         </p>
       </div>
       <Button
@@ -91,7 +94,7 @@ export function FeaturedUpgradeButton({
         className="shrink-0"
       >
         <Star className="h-3.5 w-3.5" />
-        Upgrade — £5
+        Upgrade — {formatGbpFromPence(featuredUpgradePricePence)}
       </Button>
       {error && (
         <p className="text-sm text-text-energy w-full" role="alert">

@@ -4,10 +4,14 @@ import type { Metadata } from "next";
 import {
   DEALER_PRO_FEATURES,
   DEALER_STARTER_FEATURES,
-  SELLER_FEATURES,
+  getSellerFeatures,
 } from "@/components/pricing/pricing-cards";
 import { RippleDemoShowcase, type RippleDemoFlow } from "@/components/payments/ripple-demo-showcase";
-import { getFeaturedFeePence, getListingFeePence } from "@/lib/config/marketplace";
+import {
+  getDealerPlanPricePence,
+  getMarketplacePricing,
+} from "@/lib/config/marketplace-pricing";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
   createDealerSubscriptionCheckout,
   createFeaturedUpgradeCheckout,
@@ -30,14 +34,6 @@ interface Props {
     return?: "success" | "cancel";
     flow?: string;
   }>;
-}
-
-function formatPounds(pence: number) {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-    minimumFractionDigits: 2,
-  }).format(pence / 100);
 }
 
 function buildReturnUrl(kind: "success" | "cancel", flow: string) {
@@ -63,8 +59,9 @@ function getReturnBanner(
 
 export default async function DemoPaymentsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const listingFee = getListingFeePence();
-  const featuredFee = getFeaturedFeePence();
+  const pricing = await getMarketplacePricing();
+  const listingFee = pricing.privateListingPence;
+  const featuredFee = pricing.featuredUpgradePence;
   const providerName = getPaymentProviderName();
   const portalUrl = getPaymentProviderPortalUrl();
   const capabilities = getPaymentProviderCapabilities();
@@ -92,6 +89,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
       createDealerSubscriptionCheckout({
         dealerId: "demo-dealer-preview",
         tier: "STARTER",
+        amountInPence: getDealerPlanPricePence(pricing, "STARTER"),
         customerEmail: "dealer-preview@iomarket.im",
         successUrl: buildReturnUrl("success", "dealer-starter"),
         cancelUrl: buildReturnUrl("cancel", "dealer-starter"),
@@ -99,6 +97,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
       createDealerSubscriptionCheckout({
         dealerId: "demo-dealer-preview",
         tier: "PRO",
+        amountInPence: getDealerPlanPricePence(pricing, "PRO"),
         customerEmail: "dealer-preview@iomarket.im",
         successUrl: buildReturnUrl("success", "dealer-pro"),
         cancelUrl: buildReturnUrl("cancel", "dealer-pro"),
@@ -110,10 +109,10 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
       id: "listing",
       eyebrow: "Flow 1",
       title: "Private Listing Fee",
-      price: `${formatPounds(listingFee)} / listing`,
+      price: `${formatGbpFromPence(listingFee)} / listing`,
       description:
         "Shows the hosted payment step a private seller sees after creating a listing draft in iomarket.",
-      highlights: SELLER_FEATURES.slice(0, 4),
+      highlights: getSellerFeatures(pricing).slice(0, 4),
       actions: [
         {
           id: "listing-payment",
@@ -128,7 +127,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
       id: "featured",
       eyebrow: "Flow 2",
       title: "Featured Upgrade",
-      price: `${formatPounds(featuredFee)} one-off`,
+      price: `${formatGbpFromPence(featuredFee)} one-off`,
       description:
         "Demonstrates the upsell path from a live listing into Ripple's hosted featured upgrade payment page.",
       highlights: [
@@ -150,7 +149,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
       id: "dealer",
       eyebrow: "Flow 3",
       title: "Dealer Subscription",
-      price: "Starter + Pro tiers",
+      price: `Starter ${formatGbpFromPence(pricing.dealerStarterMonthlyPence)} / month · Pro ${formatGbpFromPence(pricing.dealerProMonthlyPence)} / month`,
       description:
         "Shows the dealer subscription journey using Ripple-hosted signup pages instead of an on-site billing form.",
       highlights: [

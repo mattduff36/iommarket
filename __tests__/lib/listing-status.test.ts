@@ -2,10 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   isValidTransition,
   getValidNextStatuses,
-  calculateListingFee,
   formatPricePence,
   calculateExpiryDate,
-  LISTING_FEES,
   LISTING_DURATION_DAYS,
 } from "@/lib/listing-status";
 
@@ -77,29 +75,9 @@ describe("getValidNextStatuses", () => {
   });
 });
 
-describe("calculateListingFee", () => {
-  it("returns standard fee for basic listing", () => {
-    expect(calculateListingFee({})).toBe(LISTING_FEES.STANDARD_LISTING);
-  });
-
-  it("returns standard + featured fee for featured listing", () => {
-    expect(calculateListingFee({ featured: true })).toBe(
-      LISTING_FEES.STANDARD_LISTING + LISTING_FEES.FEATURED_UPGRADE
-    );
-  });
-
-  it("returns 499 pence (£4.99) for standard listing", () => {
-    expect(calculateListingFee({})).toBe(499);
-  });
-
-  it("returns 999 pence (£9.99) for featured listing", () => {
-    expect(calculateListingFee({ featured: true })).toBe(999);
-  });
-});
-
 describe("formatPricePence", () => {
-  it("formats whole pound amounts without decimals", () => {
-    expect(formatPricePence(1500000)).toBe("£15,000");
+  it("formats whole pound amounts with GBP precision", () => {
+    expect(formatPricePence(1500000)).toBe("£15,000.00");
   });
 
   it("formats pence amounts with two decimals", () => {
@@ -107,7 +85,7 @@ describe("formatPricePence", () => {
   });
 
   it("formats zero", () => {
-    expect(formatPricePence(0)).toBe("£0");
+    expect(formatPricePence(0)).toBe("£0.00");
   });
 });
 
@@ -126,19 +104,5 @@ describe("calculateExpiryDate", () => {
   it("returns a Date object", () => {
     const result = calculateExpiryDate();
     expect(result).toBeInstanceOf(Date);
-  });
-});
-
-describe("LISTING_FEES constants", () => {
-  it("has correct standard listing fee", () => {
-    expect(LISTING_FEES.STANDARD_LISTING).toBe(499);
-  });
-
-  it("has correct featured upgrade fee", () => {
-    expect(LISTING_FEES.FEATURED_UPGRADE).toBe(500);
-  });
-
-  it("has correct dealer monthly fee", () => {
-    expect(LISTING_FEES.DEALER_MONTHLY).toBe(2999);
   });
 });

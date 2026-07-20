@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mapVehicleResultToListingAttributes } from "@/lib/listings/vehicle-autofill";
+import { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
 
 function buildResult(
@@ -32,7 +33,7 @@ describe("mapVehicleResultToListingAttributes", () => {
       name: "Fuel Type",
       dataType: "select",
       required: false,
-      options: JSON.stringify(["Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"]),
+      options: JSON.stringify(FUEL_TYPE_OPTIONS),
     },
     {
       id: "colour",
@@ -185,4 +186,77 @@ describe("mapVehicleResultToListingAttributes", () => {
     expect(result.values).toEqual({});
     expect(result.appliedAttributeIds).toEqual([]);
   });
+
+  it("maps only unambiguous hybrid lookup values", () => {
+    const result = mapVehicleResultToListingAttributes({
+      definitions,
+      result: buildResult({
+        vehicle: {
+          registrationNumber: "AB12CDE",
+          displayRegistrationNumber: "AB12 CDE",
+          lookupPath: "uk",
+          make: null,
+          model: null,
+          colour: null,
+          fuelType: "DIESEL PLUG-IN HYBRID",
+          taxStatus: null,
+          taxDueDate: null,
+          motStatus: null,
+          motExpiryDate: null,
+          yearOfManufacture: null,
+          engineSizeCc: null,
+          co2Emissions: null,
+          monthOfFirstRegistration: null,
+          wheelPlan: null,
+          euroStatus: null,
+          category: null,
+          previousUkRegistration: null,
+          dateOfFirstRegistrationIom: null,
+          roadTax12Month: null,
+          roadTax6Month: null,
+          firstUsedDate: null,
+        },
+      }),
+    });
+
+    expect(result.values.fuel).toBe("Diesel Plug-in Hybrid");
+  });
+
+  it.each(["HYBRID", "PHEV", "MHEV"])(
+    "does not infer a fuel source for ambiguous lookup value %s",
+    (fuelType) => {
+      const result = mapVehicleResultToListingAttributes({
+        definitions,
+        result: buildResult({
+          vehicle: {
+            registrationNumber: "AB12CDE",
+            displayRegistrationNumber: "AB12 CDE",
+            lookupPath: "uk",
+            make: null,
+            model: null,
+            colour: null,
+            fuelType,
+            taxStatus: null,
+            taxDueDate: null,
+            motStatus: null,
+            motExpiryDate: null,
+            yearOfManufacture: null,
+            engineSizeCc: null,
+            co2Emissions: null,
+            monthOfFirstRegistration: null,
+            wheelPlan: null,
+            euroStatus: null,
+            category: null,
+            previousUkRegistration: null,
+            dateOfFirstRegistrationIom: null,
+            roadTax12Month: null,
+            roadTax6Month: null,
+            firstUsedDate: null,
+          },
+        }),
+      });
+
+      expect(result.values.fuel).toBeUndefined();
+    }
+  );
 });

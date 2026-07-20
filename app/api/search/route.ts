@@ -6,15 +6,16 @@ import {
   liveOrSoldListingWhere,
 } from "@/lib/listings/expiry";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
+import {
+  getFuelTypeFilterValues,
+  isEvCompatibleFuelType,
+  parseFuelTypeFilter,
+} from "@/lib/constants/fuel-types";
 
 function safeInt(v: string | null): number | undefined {
   if (!v) return undefined;
   const n = Number.parseInt(v, 10);
   return Number.isNaN(n) ? undefined : n;
-}
-
-function isEvCompatibleFuelType(value: string | null): boolean {
-  return value === "Electric" || value === "Plug-in Hybrid";
 }
 
 interface NumericRangeFilter {
@@ -40,8 +41,8 @@ export async function GET(request: NextRequest) {
   const maxPricePence = sp.get("maxPrice")
     ? Number.parseInt(sp.get("maxPrice") ?? "0", 10) * 100
     : undefined;
-  const fuelType = sp.get("fuelType");
-  const canApplyBatteryFilters = !fuelType || isEvCompatibleFuelType(fuelType);
+  const fuelTypeFilter = parseFuelTypeFilter(sp.get("fuelType"));
+  const canApplyBatteryFilters = !fuelTypeFilter || isEvCompatibleFuelType(fuelTypeFilter);
 
   const numericRangeFilters: NumericRangeFilter[] = [
     { slug: "mileage", min: safeInt(sp.get("minMileage")), max: safeInt(sp.get("maxMileage")) },
@@ -93,14 +94,23 @@ export async function GET(request: NextRequest) {
     listingIdsFromAttributes = result.map((row) => row.id);
   }
 
-  const exactAttrFilters: Array<{ slug: string; value: string | null }> = [
-    { slug: "fuel-type", value: sp.get("fuelType") },
-    { slug: "transmission", value: sp.get("transmission") },
-    { slug: "body-type", value: sp.get("bodyType") },
-    { slug: "colour", value: sp.get("colour") },
-    { slug: "drive-type", value: sp.get("driveType") },
-    { slug: "location", value: sp.get("location") },
-  ].filter((entry) => Boolean(entry.value));
+  const exactAttrFilters: Array<{ slug: string; values: readonly string[] }> = [
+    ...(fuelTypeFilter
+      ? [{
+          slug: "fuel-type",
+          values: getFuelTypeFilterValues(fuelTypeFilter),
+        }]
+      : []),
+    ...[
+      { slug: "transmission", value: sp.get("transmission") },
+      { slug: "body-type", value: sp.get("bodyType") },
+      { slug: "colour", value: sp.get("colour") },
+      { slug: "drive-type", value: sp.get("driveType") },
+      { slug: "location", value: sp.get("location") },
+    ]
+      .filter((entry): entry is { slug: string; value: string } => Boolean(entry.value))
+      .map((entry) => ({ slug: entry.slug, values: [entry.value] })),
+  ];
 
   const make = sp.get("make");
   const model = sp.get("model");
@@ -130,7 +140,10 @@ export async function GET(request: NextRequest) {
       attributeValues: {
         some: {
           attributeDefinition: { slug: entry.slug },
-          value: { equals: entry.value ?? "", mode: "insensitive" as const },
+          value:
+            entry.values.length === 1
+              ? { equals: entry.values[0], mode: "insensitive" as const }
+              : { in: [...entry.values] },
         },
       },
     })),

@@ -1,4 +1,9 @@
 import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
+import {
+  FUEL_TYPE_OPTIONS,
+  fuelTypeSchema,
+  isEvCompatibleFuelType,
+} from "@/lib/constants/fuel-types";
 
 export interface ListingAttributeDefinitionLike {
   id: string;
@@ -26,7 +31,6 @@ export interface ListingAttributeFieldConfig {
 }
 
 const VEHICLE_CATEGORY_SLUGS = new Set(["car", "van", "motorbike", "motorhome"]);
-const EV_COMPATIBLE_FUELS = new Set(["Electric", "Plug-in Hybrid"]);
 const EV_ONLY_ATTRIBUTE_SLUGS = new Set(["battery-range", "charging-time"]);
 const ELECTRIC_ONLY_HIDDEN_ATTRIBUTE_SLUGS = new Set([
   "engine-size",
@@ -79,7 +83,7 @@ export function isAttributeVisible(
   }
 
   if (EV_ONLY_ATTRIBUTE_SLUGS.has(attributeSlug)) {
-    return Boolean(fuelType && EV_COMPATIBLE_FUELS.has(fuelType));
+    return isEvCompatibleFuelType(fuelType);
   }
 
   if (fuelType === "Electric" && ELECTRIC_ONLY_HIDDEN_ATTRIBUTE_SLUGS.has(attributeSlug)) {
@@ -111,6 +115,14 @@ export function getAttributeFieldConfig(
       control: "model-select",
       placeholder: "e.g. 320d M Sport",
       helperText: "Choose a known model or enter it manually if it is missing.",
+    };
+  }
+
+  if (isVehicleCategorySlug(categorySlug) && attribute.slug === "fuel-type") {
+    return {
+      control: "select",
+      options: [...FUEL_TYPE_OPTIONS],
+      helperText: "Choose the vehicle's specific fuel type.",
     };
   }
 
@@ -324,6 +336,10 @@ function validateAttributeValue(
   value: string,
   options: string[] | undefined
 ): string | null {
+  if (definition.slug === "fuel-type" && !fuelTypeSchema.safeParse(value).success) {
+    return "Please choose a specific fuel type.";
+  }
+
   if (definition.slug === "make" && !STATIC_VEHICLE_MAKES.includes(value)) {
     return "Please choose a make from the list.";
   }

@@ -3,6 +3,8 @@
  * URL/search still use minPrice, maxPrice, minYear, maxYear.
  */
 
+export { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
+
 export const BODY_TYPE_OPTIONS = [
   "Hatchback", "Saloon", "SUV", "Estate", "Coupe",
   "Convertible", "MPV", "Pickup",
@@ -11,10 +13,6 @@ export const BODY_TYPE_OPTIONS = [
 export const COLOUR_OPTIONS = [
   "Black", "White", "Silver", "Grey", "Blue", "Red",
   "Green", "Yellow", "Orange", "Brown", "Gold", "Bronze", "Other",
-] as const;
-
-export const FUEL_TYPE_OPTIONS = [
-  "Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid",
 ] as const;
 
 export const TRANSMISSION_OPTIONS = ["Manual", "Automatic"] as const;

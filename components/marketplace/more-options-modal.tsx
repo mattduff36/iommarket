@@ -135,7 +135,7 @@ export function MoreOptionsModal({
           <DialogTitle>More options</DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-text-primary">
                 Make

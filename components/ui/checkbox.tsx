@@ -35,7 +35,11 @@ const Checkbox = React.forwardRef<
           className="text-sm text-text-primary cursor-pointer select-none leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
           {label}
-          {props.required ? <span className="text-text-error"> *</span> : null}
+          {props.required ? (
+            <span aria-hidden="true" className="text-text-error">
+              {" "}*
+            </span>
+          ) : null}
         </label>
       )}
     </div>

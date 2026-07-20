@@ -6,13 +6,8 @@ export const createCheckoutSchema = z.object({
 
 export const payForListingSchema = z.object({
   listingId: z.string().cuid("Invalid listing ID"),
-  supportAmountPence: z
-    .number()
-    .int("Support amount must be a whole number in pence")
-    .min(0, "Support amount cannot be negative")
-    .max(500, "Support amount cannot exceed £5")
-    .default(0),
-});
+  supportPlatform: z.boolean().default(false),
+}).strict();
 
 export const createDealerSubscriptionSchema = z.object({
   dealerId: z.string().cuid("Invalid dealer ID"),

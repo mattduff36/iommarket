@@ -7,12 +7,13 @@ const {
   requireAuthMock,
   isPrivateListingFreeForUserMock,
   createListingCheckoutMock,
+  createDealerSubscriptionCheckoutMock,
   processProviderWebhookEventMock,
   captureExceptionMock,
   checkRateLimitMock,
   makeRateLimitKeyMock,
-  getListingFeePenceMock,
-  getFeaturedFeePenceMock,
+  getMarketplacePricingMock,
+  getDealerPlanPricePenceMock,
   isDemoListingCheckoutConfiguredMock,
   isDemoDealerSubscriptionCheckoutConfiguredMock,
   revalidatePathMock,
@@ -21,12 +22,13 @@ const {
   requireAuthMock: vi.fn(),
   isPrivateListingFreeForUserMock: vi.fn(),
   createListingCheckoutMock: vi.fn(),
+  createDealerSubscriptionCheckoutMock: vi.fn(),
   processProviderWebhookEventMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   checkRateLimitMock: vi.fn(),
   makeRateLimitKeyMock: vi.fn(),
-  getListingFeePenceMock: vi.fn(),
-  getFeaturedFeePenceMock: vi.fn(),
+  getMarketplacePricingMock: vi.fn(),
+  getDealerPlanPricePenceMock: vi.fn(),
   isDemoListingCheckoutConfiguredMock: vi.fn(),
   isDemoDealerSubscriptionCheckoutConfiguredMock: vi.fn(),
   revalidatePathMock: vi.fn(),
@@ -52,9 +54,12 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/config/marketplace", () => ({
-  getListingFeePence: getListingFeePenceMock,
-  getFeaturedFeePence: getFeaturedFeePenceMock,
   isPrivateListingFreeForUser: isPrivateListingFreeForUserMock,
+}));
+
+vi.mock("@/lib/config/marketplace-pricing", () => ({
+  getMarketplacePricing: getMarketplacePricingMock,
+  getDealerPlanPricePence: getDealerPlanPricePenceMock,
 }));
 
 vi.mock("@/lib/monitoring", () => ({
@@ -82,6 +87,7 @@ vi.mock("@/lib/payments/provider", async () => {
   return {
     ...actual,
     createListingCheckout: createListingCheckoutMock,
+    createDealerSubscriptionCheckout: createDealerSubscriptionCheckoutMock,
     isDemoListingCheckoutConfigured: isDemoListingCheckoutConfiguredMock,
     isDemoDealerSubscriptionCheckoutConfigured:
       isDemoDealerSubscriptionCheckoutConfiguredMock,
@@ -89,6 +95,7 @@ vi.mock("@/lib/payments/provider", async () => {
 });
 
 import {
+  createDealerSubscription,
   payForListing,
   simulateDemoDealerSubscriptionOutcome,
   simulateDemoListingPaymentOutcome,
@@ -107,8 +114,13 @@ describe("payForListing", () => {
     checkRateLimitMock.mockReturnValue({ allowed: true });
     makeRateLimitKeyMock.mockReturnValue("checkout-listing:user_123");
     isPrivateListingFreeForUserMock.mockResolvedValue(true);
-    getListingFeePenceMock.mockReturnValue(499);
-    getFeaturedFeePenceMock.mockReturnValue(500);
+    getMarketplacePricingMock.mockResolvedValue({
+      privateListingPence: 749,
+      featuredUpgradePence: 875,
+      dealerStarterMonthlyPence: 3999,
+      dealerProMonthlyPence: 5999,
+      optionalListingSupportPence: 500,
+    });
     mockDb.listing.findUnique.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",
       userId: "user_123",
@@ -135,7 +147,7 @@ describe("payForListing", () => {
 
   it("skips optional support checkout for free private sellers when no support URL is configured", async () => {
     const result = await payForListing("caaaaaaaaaaaaaaaaaaaaaaaa", {
-      supportAmountPence: 200,
+      supportPlatform: true,
     });
 
     expect(result).toEqual({
@@ -169,6 +181,48 @@ describe("payForListing", () => {
     });
 
     expect(createListingCheckoutMock).toHaveBeenCalledOnce();
+    expect(createListingCheckoutMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amountInPence: 749 }),
+    );
+  });
+});
+
+describe("createDealerSubscription", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      dealerProfile: { id: "caaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    checkRateLimitMock.mockReturnValue({ allowed: true });
+    makeRateLimitKeyMock.mockReturnValue("checkout-dealer-subscription:user_123");
+    getMarketplacePricingMock.mockResolvedValue({
+      privateListingPence: 499,
+      featuredUpgradePence: 500,
+      dealerStarterMonthlyPence: 3999,
+      dealerProMonthlyPence: 5999,
+      optionalListingSupportPence: 500,
+    });
+    createDealerSubscriptionCheckoutMock.mockResolvedValue({
+      url: "https://checkout.example.com/dealer-pro",
+    });
+    getDealerPlanPricePenceMock.mockImplementation(
+      (pricing, tier) =>
+        tier === "PRO"
+          ? pricing.dealerProMonthlyPence
+          : pricing.dealerStarterMonthlyPence,
+    );
+  });
+
+  it("uses the server-managed dealer amount when creating checkout", async () => {
+    await expect(createDealerSubscription("PRO")).resolves.toEqual({
+      data: { checkoutUrl: "https://checkout.example.com/dealer-pro" },
+    });
+
+    expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tier: "PRO", amountInPence: 5999 }),
+    );
   });
 });
 
@@ -176,7 +230,13 @@ describe("demo payment actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.NODE_ENV = "production";
-    getListingFeePenceMock.mockReturnValue(499);
+    getMarketplacePricingMock.mockResolvedValue({
+      privateListingPence: 749,
+      featuredUpgradePence: 875,
+      dealerStarterMonthlyPence: 3999,
+      dealerProMonthlyPence: 5999,
+      optionalListingSupportPence: 500,
+    });
   });
 
   it("blocks demo listing payment simulation when live checkout is configured", async () => {

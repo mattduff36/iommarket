@@ -33,7 +33,7 @@ describe("getSetting", () => {
     expect(result).toBe(999);
   });
 
-  it("caches results and does not re-query within TTL", async () => {
+  it("reads settings on every call for cross-instance consistency", async () => {
     mockFindMany.mockResolvedValue([
       { key: "test_key", value: "cached_value", updatedAt: new Date() },
     ]);
@@ -41,10 +41,10 @@ describe("getSetting", () => {
     await getSetting("test_key", "default");
     await getSetting("test_key", "default");
 
-    expect(mockFindMany).toHaveBeenCalledTimes(1);
+    expect(mockFindMany).toHaveBeenCalledTimes(2);
   });
 
-  it("invalidateSettingsCache forces a re-query", async () => {
+  it("invalidateSettingsCache preserves the direct-read contract", async () => {
     mockFindMany.mockResolvedValue([]);
     await getSetting("key", "v1");
 

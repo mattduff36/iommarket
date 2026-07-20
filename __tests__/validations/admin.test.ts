@@ -14,6 +14,7 @@ import {
   refundSubscriptionPaymentSchema,
   cancelSubscriptionSchema,
   upsertContentPageSchema,
+  updateMarketplacePricingSchema,
   updateSiteSettingSchema,
 } from "@/lib/validations/admin";
 
@@ -256,4 +257,40 @@ describe("updateSiteSettingSchema", () => {
     const result = updateSiteSettingSchema.safeParse({ key: "", value: 1 });
     expect(result.success).toBe(false);
   });
+});
+
+describe("updateMarketplacePricingSchema", () => {
+  const validPrices = {
+    privateListing: "4.99",
+    featuredUpgrade: "5",
+    dealerStarterMonthly: "29.99",
+    dealerProMonthly: "49.99",
+    optionalListingSupport: "5.00",
+  };
+
+  it("converts valid GBP input to integer pence", () => {
+    const result = updateMarketplacePricingSchema.safeParse(validPrices);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        privateListing: 499,
+        featuredUpgrade: 500,
+        dealerStarterMonthly: 2999,
+        dealerProMonthly: 4999,
+        optionalListingSupport: 500,
+      });
+    }
+  });
+
+  it.each(["-1", "NaN", "4.999", "£5", ""])(
+    "rejects malformed or unsafe GBP price %s",
+    (privateListing) => {
+      expect(
+        updateMarketplacePricingSchema.safeParse({
+          ...validPrices,
+          privateListing,
+        }).success,
+      ).toBe(false);
+    },
+  );
 });

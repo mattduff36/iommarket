@@ -2,29 +2,17 @@ import { db } from "@/lib/db";
 
 export { SETTING_KEYS } from "./setting-keys";
 
-let cachedSettings: Map<string, unknown> | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 60_000;
-
 async function loadSettings(): Promise<Map<string, unknown>> {
-  const now = Date.now();
-  if (cachedSettings && now - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedSettings;
-  }
-
   const rows = await db.siteSetting.findMany();
   const map = new Map<string, unknown>();
   for (const row of rows) {
     map.set(row.key, row.value);
   }
-  cachedSettings = map;
-  cacheTimestamp = now;
   return map;
 }
 
 export function invalidateSettingsCache() {
-  cachedSettings = null;
-  cacheTimestamp = 0;
+  // Settings are read directly so changes are consistent across server instances.
 }
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {

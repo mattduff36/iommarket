@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
+import { getAdminDealerWhere } from "@/lib/dealers/access";
 import {
   createDealerProfileSchema,
   updateDealerProfileSchema,
@@ -20,7 +21,7 @@ export async function listDealers(input: { query?: string; verified?: boolean; p
   const page = Math.max(1, input.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 25));
 
-  const where: Prisma.DealerProfileWhereInput = {};
+  const where: Prisma.DealerProfileWhereInput = getAdminDealerWhere();
 
   if (query) {
     where.OR = [
@@ -149,14 +150,10 @@ export async function downgradeDealerToUser(dealerId: string) {
   if (!profile) return { error: "Dealer profile not found" };
 
   try {
-    await db.$transaction([
-      db.listing.updateMany({
-        where: { dealerId },
-        data: { dealerId: null },
-      }),
-      db.dealerProfile.delete({ where: { id: dealerId } }),
-      db.user.update({ where: { id: profile.userId }, data: { role: "USER" } }),
-    ]);
+    await db.user.update({
+      where: { id: profile.userId },
+      data: { role: "USER" },
+    });
 
     await logAdminAction({
       adminId: admin.id,
@@ -168,6 +165,9 @@ export async function downgradeDealerToUser(dealerId: string) {
 
     revalidatePath("/admin/dealers");
     revalidatePath("/admin/users");
+    revalidatePath("/dealer/dashboard");
+    revalidatePath("/dealer/profile");
+    revalidatePath("/account");
     return { data: { success: true } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to downgrade dealer";

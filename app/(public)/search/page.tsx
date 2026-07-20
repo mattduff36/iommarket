@@ -10,6 +10,11 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { type SearchParams } from "@/lib/search/search-url";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
+  getFuelTypeFilterValues,
+  isEvCompatibleFuelType,
+  parseFuelTypeFilter,
+} from "@/lib/constants/fuel-types";
+import {
   expireStaleLiveListings,
   liveListingWhere,
   liveOrSoldListingWhere,
@@ -47,10 +52,6 @@ function safeInt(v: string | undefined): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-function isEvCompatibleFuelType(value: string | undefined): boolean {
-  return value === "Electric" || value === "Plug-in Hybrid";
-}
-
 interface NumericRangeFilter {
   slug: string;
   min?: number;
@@ -65,13 +66,14 @@ export default async function SearchPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
   const sort = parseSearchSort(sp.sort);
+  const fuelTypeFilter = parseFuelTypeFilter(sp.fuelType);
 
   const includeSold = sp.includeSold === "true";
   const now = new Date();
   const liveVisibilityWhere = liveListingWhere(now);
   const minPricePence = sp.minPrice ? parseInt(sp.minPrice, 10) * 100 : undefined;
   const maxPricePence = sp.maxPrice ? parseInt(sp.maxPrice, 10) * 100 : undefined;
-  const canApplyBatteryFilters = !sp.fuelType || isEvCompatibleFuelType(sp.fuelType);
+  const canApplyBatteryFilters = !fuelTypeFilter || isEvCompatibleFuelType(fuelTypeFilter);
 
   const numericRangeFilters: NumericRangeFilter[] = [
     { slug: "mileage", min: safeInt(sp.minMileage), max: safeInt(sp.maxMileage) },
@@ -123,13 +125,18 @@ export default async function SearchPage({ searchParams }: Props) {
     listingIdsFromAttributes = result.map((r) => r.id);
   }
 
-  const exactAttrFilters: Array<{ slug: string; value: string }> = [];
-  if (sp.fuelType) exactAttrFilters.push({ slug: "fuel-type", value: sp.fuelType });
-  if (sp.transmission) exactAttrFilters.push({ slug: "transmission", value: sp.transmission });
-  if (sp.bodyType) exactAttrFilters.push({ slug: "body-type", value: sp.bodyType });
-  if (sp.colour) exactAttrFilters.push({ slug: "colour", value: sp.colour });
-  if (sp.driveType) exactAttrFilters.push({ slug: "drive-type", value: sp.driveType });
-  if (sp.location) exactAttrFilters.push({ slug: "location", value: sp.location });
+  const exactAttrFilters: Array<{ slug: string; values: readonly string[] }> = [];
+  if (fuelTypeFilter) {
+    exactAttrFilters.push({
+      slug: "fuel-type",
+      values: getFuelTypeFilterValues(fuelTypeFilter),
+    });
+  }
+  if (sp.transmission) exactAttrFilters.push({ slug: "transmission", values: [sp.transmission] });
+  if (sp.bodyType) exactAttrFilters.push({ slug: "body-type", values: [sp.bodyType] });
+  if (sp.colour) exactAttrFilters.push({ slug: "colour", values: [sp.colour] });
+  if (sp.driveType) exactAttrFilters.push({ slug: "drive-type", values: [sp.driveType] });
+  if (sp.location) exactAttrFilters.push({ slug: "location", values: [sp.location] });
 
   const attrAndClauses = [
     ...(sp.make
@@ -156,7 +163,10 @@ export default async function SearchPage({ searchParams }: Props) {
       attributeValues: {
         some: {
           attributeDefinition: { slug: f.slug },
-          value: { equals: f.value, mode: "insensitive" as const },
+          value:
+            f.values.length === 1
+              ? { equals: f.values[0], mode: "insensitive" as const }
+              : { in: [...f.values] },
         },
       },
     })),
@@ -294,7 +304,7 @@ export default async function SearchPage({ searchParams }: Props) {
     minYear: sp.minYear, maxYear: sp.maxYear,
     bodyType: sp.bodyType, colour: sp.colour,
     doors: sp.doors, seats: sp.seats,
-    fuelType: sp.fuelType, transmission: sp.transmission,
+    fuelType: fuelTypeFilter, transmission: sp.transmission,
     driveType: sp.driveType, sellerType: sp.sellerType, location: sp.location,
     includeSold: sp.includeSold,
     sort: sp.sort, featured: sp.featured,

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const redirectMock = vi.fn((path: string) => {
@@ -8,6 +8,7 @@ const redirectMock = vi.fn((path: string) => {
 const getCurrentUserMock = vi.fn();
 const getSellFormDataMock = vi.fn();
 const isPrivateListingFreeForUserMock = vi.fn();
+const getMarketplacePricingMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => redirectMock(path),
@@ -19,6 +20,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/config/marketplace", () => ({
   isPrivateListingFreeForUser: isPrivateListingFreeForUserMock,
+}));
+
+vi.mock("@/lib/config/marketplace-pricing", () => ({
+  getMarketplacePricing: getMarketplacePricingMock,
 }));
 
 vi.mock("@/app/(public)/sell/sell-form-data", () => ({
@@ -44,6 +49,7 @@ vi.mock("@/app/(public)/sell/create-listing-form", () => ({
 describe("SellPrivatePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     getCurrentUserMock.mockResolvedValue({
       id: "user-1",
       role: "USER",
@@ -54,6 +60,9 @@ describe("SellPrivatePage", () => {
       modelOptionsByMake: {},
     });
     isPrivateListingFreeForUserMock.mockResolvedValue(true);
+    getMarketplacePricingMock.mockResolvedValue({
+      optionalListingSupportPence: 500,
+    });
   });
 
   it("renders the private listing form page", async () => {
@@ -62,6 +71,17 @@ describe("SellPrivatePage", () => {
     );
 
     render(await SellPrivatePage({}));
+
+    const welcomeDialog = await screen.findByRole("dialog", {
+      name: "This listing is free!",
+    });
+    expect(welcomeDialog).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start my free listing" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
 
     expect(screen.getByRole("heading", { name: /Private Listing/i })).toBeTruthy();
     const form = screen.getByTestId("create-listing-form");

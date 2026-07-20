@@ -24,6 +24,7 @@ import { RenewListingButton } from "@/components/marketplace/renew-listing-butto
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { ListingImageGallery } from "./listing-image-gallery";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import {
   expireStaleLiveListings,
   isListingEffectivelyExpired,
@@ -187,6 +188,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           select: { id: true },
         })
       ));
+  const featuredUpgradePricePence = canUpgradeToFeatured
+    ? (await getMarketplacePricing()).featuredUpgradePence
+    : null;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const shareUrl = `${appUrl}/listings/${listing.id}`;
@@ -432,7 +436,10 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       {isOwner && listing.status === "LIVE" && (
         <div className="mt-8 space-y-4">
           {canUpgradeToFeatured && (
-            <FeaturedUpgradeButton listingId={listing.id} />
+            <FeaturedUpgradeButton
+              listingId={listing.id}
+              featuredUpgradePricePence={featuredUpgradePricePence!}
+            />
           )}
           {canUpgradeToFeatured &&
             process.env.NODE_ENV !== "production" && (

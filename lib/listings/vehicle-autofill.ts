@@ -1,4 +1,5 @@
 import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
+import { fuelTypeSchema } from "@/lib/constants/fuel-types";
 import {
   parseAttributeOptions,
   type ListingAttributeDefinitionLike,
@@ -23,11 +24,11 @@ const FUEL_ALIASES: Record<string, string> = {
   ELECTRIC: "Electric",
   EV: "Electric",
   GASOLINE: "Petrol",
-  HYBRID: "Hybrid",
-  MHEV: "Hybrid",
   PETROL: "Petrol",
-  PHEV: "Plug-in Hybrid",
-  PLUGINHYBRID: "Plug-in Hybrid",
+  PETROLHYBRID: "Petrol Hybrid",
+  DIESELHYBRID: "Diesel Hybrid",
+  PETROLPLUGINHYBRID: "Petrol Plug-in Hybrid",
+  DIESELPLUGINHYBRID: "Diesel Plug-in Hybrid",
 };
 
 const COLOUR_ALIASES: Record<string, string> = {
@@ -97,11 +98,14 @@ function normalizeFuelType(
   if (!compact) return null;
 
   const canonical = FUEL_ALIASES[compact] ?? rawValue.trim();
+  const parsedFuelType = fuelTypeSchema.safeParse(canonical);
+  if (!parsedFuelType.success) return null;
+
   if (options.length === 0) {
-    return canonical;
+    return parsedFuelType.data;
   }
 
-  return matchOption(canonical, options);
+  return matchOption(parsedFuelType.data, options);
 }
 
 function normalizeColour(rawValue: string | null, options: string[]): string | null {

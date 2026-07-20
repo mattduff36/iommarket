@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,13 +25,16 @@ import {
   yearRangeToAgeRange,
   BODY_TYPE_OPTIONS,
   COLOUR_OPTIONS,
-  FUEL_TYPE_OPTIONS,
   TRANSMISSION_OPTIONS,
   DRIVE_TYPE_OPTIONS,
   SELLER_TYPE_OPTIONS,
   DOORS_OPTIONS,
   SEATS_OPTIONS,
 } from "@/lib/constants/search-filters";
+import {
+  FUEL_TYPE_FILTER_OPTIONS,
+  isEvCompatibleFuelType,
+} from "@/lib/constants/fuel-types";
 
 interface FilterOption {
   label: string;
@@ -71,10 +75,6 @@ const TAX_MAX = 600;
 const INSURANCE_GROUP_MAX = 50;
 const BOOT_SPACE_MAX = 1500;
 const LOCATION_OPTIONS = ["Isle of Man", "UK"] as const;
-
-function isEvCompatibleFuelType(value: string): boolean {
-  return value === "Electric" || value === "Plug-in Hybrid";
-}
 
 function parseNum(s: string | undefined, fallback: number): number {
   if (!s) return fallback;
@@ -288,13 +288,21 @@ export function AdvancedSearchModal({
           <SelectTrigger className={selectTriggerClass}>
             <SelectValue placeholder="Any" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[calc(100vw-2rem)]">
             <SelectItem value="any">Any</SelectItem>
             {options.map((opt) => {
               const val = typeof opt === "string" ? opt : opt.value;
               const lbl = typeof opt === "string" ? opt : opt.label;
               if (!val) return null;
-              return <SelectItem key={val} value={val}>{lbl}</SelectItem>;
+              return (
+                <SelectItem
+                  key={val}
+                  value={val}
+                  className="whitespace-normal break-words leading-snug"
+                >
+                  {lbl}
+                </SelectItem>
+              );
             })}
           </SelectContent>
         </Select>
@@ -307,13 +315,16 @@ export function AdvancedSearchModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Advanced Search</DialogTitle>
+          <DialogDescription className="sr-only">
+            Refine vehicle listings by vehicle details, price, mileage, and other specifications.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* --- Vehicle --- */}
           <section>
             <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Vehicle</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium text-text-secondary">Make</label>
                 <Select
@@ -361,7 +372,7 @@ export function AdvancedSearchModal({
               <SelectField label="Doors" value={doors} onChange={setDoors} options={DOORS_OPTIONS.map((d) => String(d))} />
               <SelectField label="Seats" value={seats} onChange={setSeats} options={SEATS_OPTIONS.map((s) => String(s))} />
               <SelectField label="Gearbox" value={transmission} onChange={setTransmission} options={TRANSMISSION_OPTIONS} />
-              <SelectField label="Fuel Type" value={fuelType} onChange={handleFuelTypeChange} options={FUEL_TYPE_OPTIONS} />
+              <SelectField label="Fuel Type" value={fuelType} onChange={handleFuelTypeChange} options={FUEL_TYPE_FILTER_OPTIONS} />
               <SelectField label="Drive Type" value={driveType} onChange={setDriveType} options={DRIVE_TYPE_OPTIONS} />
               <SelectField label="Seller Type" value={sellerType} onChange={setSellerType} options={SELLER_TYPE_OPTIONS} />
               <SelectField label="Market" value={location} onChange={setLocation} options={LOCATION_OPTIONS} />

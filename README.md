@@ -151,11 +151,15 @@ See `docs/payments/ripple-migration.md` for the current provider assumptions, ev
 
 ### Featured Upgrade
 
-Live listings can be upgraded to "Featured" status for +£5 via a separate Ripple hosted payment flow.
+Live listings can be upgraded to "Featured" through a separate Ripple hosted payment flow. The amount is managed in Admin → Site Settings and is passed to Ripple in integer pence.
 
 ### Dealer Subscriptions
 
 Create Ripple starter and pro plans in the portal and set their IDs as `RIPPLE_DEALER_STARTER_PLAN_ID` and `RIPPLE_DEALER_PRO_PLAN_ID`.
+
+### Marketplace pricing
+
+Private listing, renewal, featured upgrade, dealer subscription, and optional support amounts are managed in Admin → Site Settings. Values are stored as integer pence in `SiteSetting`; the pricing bootstrap migration preserves any existing administrator overrides.
 
 ## Cloudinary Setup
 

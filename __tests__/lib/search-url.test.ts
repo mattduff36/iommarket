@@ -26,6 +26,14 @@ describe("buildSearchUrl", () => {
     expect(url).toBe("/search?location=Isle+of+Man");
   });
 
+  it("serializes long plug-in fuel filters safely", () => {
+    const url = buildSearchUrl(
+      { fuelType: "Diesel Plug-in Hybrid" },
+      {}
+    );
+    expect(url).toBe("/search?fuelType=Diesel+Plug-in+Hybrid");
+  });
+
   it("supports sort and featured parameters", () => {
     const url = buildSearchUrl(
       { featured: "true", sort: "price_low" },

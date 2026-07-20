@@ -39,7 +39,6 @@ vi.mock("@/lib/config/site-settings", () => ({
 import {
   claimFreeListingSlot,
   getFreeLaunchSlotsTotal,
-  getListingFeePence,
   getPrivateListingPaymentLinkUrl,
   getLaunchFreeUntil,
   isPrivateListingFreeForUser,
@@ -49,7 +48,6 @@ import {
 describe("marketplace config", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.LISTING_FEE_PENCE;
     delete process.env.RIPPLE_LISTING_PAYMENT_URL;
     delete process.env.LAUNCH_FREE_UNTIL;
     getNumberSettingMock.mockImplementation(async (_key: string, fallback: number) => fallback);
@@ -60,15 +58,6 @@ describe("marketplace config", () => {
     mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
     mockDb.freeListingClaim.create.mockResolvedValue({ id: "claim_1" });
     mockDb.$transaction.mockImplementation(async (callback) => callback(mockDb));
-  });
-
-  it("uses default listing fee when env is unset", () => {
-    expect(getListingFeePence()).toBe(499);
-  });
-
-  it("parses listing fee from env", () => {
-    process.env.LISTING_FEE_PENCE = "750";
-    expect(getListingFeePence()).toBe(750);
   });
 
   it("reads the private listing Ripple payment link from env", () => {

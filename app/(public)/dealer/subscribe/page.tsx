@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DEALER_TIER_LABELS } from "@/lib/config/dealer-tiers";
+import { getDealerPlanPricePence, getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { SubscribeForm } from "./subscribe-form";
 
 export const metadata: Metadata = {
@@ -14,7 +16,6 @@ export const metadata: Metadata = {
 
 const TIER_DETAILS = {
   STARTER: {
-    price: "£29.99",
     features: [
       "Up to 30 active listings",
       "Dedicated dealer profile page",
@@ -25,7 +26,6 @@ const TIER_DETAILS = {
     ],
   },
   PRO: {
-    price: "£49.99",
     features: [
       "Up to 100 active listings",
       "All Starter features",
@@ -49,7 +49,10 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
       : "STARTER";
   const intendedSubscribePath = `/dealer/subscribe?tier=${tier}`;
 
-  const user = await getCurrentUser();
+  const [user, pricing] = await Promise.all([
+    getCurrentUser(),
+    getMarketplacePricing(),
+  ]);
   if (!user) {
     redirect(`/sign-up?next=${encodeURIComponent(intendedSubscribePath)}`);
   }
@@ -68,6 +71,7 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
 
   const tierLabel = DEALER_TIER_LABELS[tier];
   const details = TIER_DETAILS[tier];
+  const tierPrice = formatGbpFromPence(getDealerPlanPricePence(pricing, tier));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
@@ -76,14 +80,14 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
           Dealer {tierLabel} Plan
         </h1>
         <p className="mt-2 text-text-secondary">
-          {details.price}/month &middot; Cancel anytime
+          {tierPrice}/month &middot; Cancel anytime
         </p>
       </div>
 
       <SubscribeForm
         tier={tier}
         tierLabel={tierLabel}
-        tierPrice={details.price}
+        tierPrice={tierPrice}
         features={details.features}
         hasDealerProfile={Boolean(dealerProfile)}
       />

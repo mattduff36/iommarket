@@ -13,6 +13,7 @@ import {
   payForListing,
   simulateDemoListingPaymentOutcome,
 } from "@/actions/payments";
+import { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
 
 const pushMock = vi.fn();
 
@@ -84,7 +85,7 @@ const categories = [
         slug: "fuel-type",
         dataType: "select",
         required: false,
-        options: JSON.stringify(["Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"]),
+        options: JSON.stringify(FUEL_TYPE_OPTIONS),
       },
       {
         id: "colour",
@@ -127,7 +128,7 @@ const categories = [
         slug: "fuel-type",
         dataType: "select",
         required: false,
-        options: JSON.stringify(["Petrol", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"]),
+        options: JSON.stringify(FUEL_TYPE_OPTIONS),
       },
       {
         id: "bike-colour",
@@ -237,6 +238,17 @@ describe("CreateListingForm registration lookup", () => {
     for (const marker of screen.getAllByText("*")) {
       expect(marker.classList.contains("text-text-error")).toBe(true);
     }
+  });
+
+  it("offers the standardized fuel types in listing creation order", () => {
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+
+    const fuelTypeSelect = screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement;
+    expect(Array.from(fuelTypeSelect.options).slice(1).map((option) => option.value)).toEqual(
+      FUEL_TYPE_OPTIONS
+    );
   });
 
   it("auto-fills supported vehicle fields from lookup results", async () => {

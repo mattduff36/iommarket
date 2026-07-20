@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
+import { provisionDealerProfile } from "@/lib/dealers/access";
 import { captureException } from "@/lib/monitoring";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
@@ -19,6 +20,8 @@ import {
   type SetUserRegionInput,
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
+
+const ROLE_CHANGE_TRANSACTION_ATTEMPTS = 3;
 
 export async function listUsers(input: ListUsersInput) {
   await requireRole("ADMIN");
@@ -114,10 +117,8 @@ export async function setUserRole(input: SetUserRoleInput) {
   if (userId === admin.id) return { error: "Cannot change your own role" };
 
   try {
-    const user = await db.user.update({
-      where: { id: userId },
-      data: { role },
-    });
+    const user = await updateUserRole(userId, role);
+    if (!user) return { error: "User not found" };
 
     await logAdminAction({
       adminId: admin.id,
@@ -129,6 +130,10 @@ export async function setUserRole(input: SetUserRoleInput) {
 
     revalidatePath("/admin/users");
     revalidatePath(`/admin/users/${userId}`);
+    revalidatePath("/admin/dealers");
+    revalidatePath("/dealer/dashboard");
+    revalidatePath("/dealer/profile");
+    revalidatePath("/account");
     return { data: user };
   } catch (err) {
     await captureException({
@@ -140,9 +145,52 @@ export async function setUserRole(input: SetUserRoleInput) {
       userId: admin.id,
       tags: { userId, role },
     });
-    const message = err instanceof Error ? err.message : "Failed to update role";
-    return { error: message };
+    return { error: "Failed to update role" };
   }
+}
+
+async function updateUserRole(userId: string, role: SetUserRoleInput["role"]) {
+  let lastError: unknown;
+
+  for (
+    let attempt = 0;
+    attempt < ROLE_CHANGE_TRANSACTION_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      return await db.$transaction(
+        async (tx) => {
+          const targetUser = await tx.user.findUnique({
+            where: { id: userId },
+            select: { id: true, name: true, email: true },
+          });
+          if (!targetUser) return null;
+
+          if (role === "DEALER") {
+            await provisionDealerProfile(tx, targetUser);
+          }
+
+          return tx.user.update({
+            where: { id: userId },
+            data: { role },
+          });
+        },
+        { isolationLevel: "Serializable" }
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableTransactionError(error)) throw error;
+    }
+  }
+
+  throw lastError;
+}
+
+function isRetryableTransactionError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.message.includes("P2002") || error.message.includes("P2034"))
+  );
 }
 
 export async function setUserDisabled(input: SetUserDisabledInput) {
