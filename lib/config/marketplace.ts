@@ -83,7 +83,7 @@ export async function isListingFreeNowAsync(now = new Date()): Promise<boolean> 
 // Free launch slots (first N private sellers get free listing)
 // ---------------------------------------------------------------------------
 
-const DEFAULT_FREE_LAUNCH_SLOTS = 100;
+const DEFAULT_FREE_LAUNCH_SLOTS = 200;
 
 /** Total number of free launch slots (configurable via SiteSetting) */
 export async function getFreeLaunchSlotsTotal(): Promise<number> {
@@ -158,16 +158,18 @@ export async function hasUserClaimedFreeSlot(userId: string): Promise<boolean> {
 }
 
 /**
- * True if a private seller listing can be free: slots remaining and user hasn't claimed yet.
- * Also true if time-based free window (LAUNCH_FREE_UNTIL) is active (backwards compat).
+ * True if a private seller listing can be free. A user who has already claimed
+ * their free listing is never eligible again, including during a time-based
+ * launch window.
  */
 export async function isPrivateListingFreeForUser(userId: string): Promise<boolean> {
-  const freeUntil = await getLaunchFreeUntilAsync();
-  if (freeUntil && new Date() <= freeUntil) return true;
-
-  const [remaining, hasClaimed] = await Promise.all([
-    getFreeLaunchSlotsRemaining(),
+  const [freeUntil, hasClaimed] = await Promise.all([
+    getLaunchFreeUntilAsync(),
     hasUserClaimedFreeSlot(userId),
   ]);
-  return remaining > 0 && !hasClaimed;
+  if (hasClaimed) return false;
+  if (freeUntil && new Date() <= freeUntil) return true;
+
+  const remaining = await getFreeLaunchSlotsRemaining();
+  return remaining > 0;
 }

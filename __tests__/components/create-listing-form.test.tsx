@@ -207,6 +207,9 @@ describe("CreateListingForm registration lookup", () => {
       fireEvent.change(screen.getByLabelText(/Year/i), {
         target: { value: "2019" },
       });
+      fireEvent.change(screen.getByLabelText(/Mileage/i), {
+        target: { value: "45000" },
+      });
       fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     }
 
@@ -223,6 +226,17 @@ describe("CreateListingForm registration lookup", () => {
     completeDetailsStep();
 
     expect(screen.getByTestId("mock-image-upload").getAttribute("data-max-images")).toBe("20");
+  });
+
+  it("marks vehicle mileage as required", () => {
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+
+    expect((screen.getByLabelText(/Mileage/i) as HTMLInputElement).required).toBe(true);
+    for (const marker of screen.getAllByText("*")) {
+      expect(marker.classList.contains("text-text-error")).toBe(true);
+    }
   });
 
   it("auto-fills supported vehicle fields from lookup results", async () => {
@@ -438,6 +452,9 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.change(screen.getByLabelText(/Year/i), {
       target: { value: "2019" },
     });
+    fireEvent.change(screen.getByLabelText(/Mileage/i), {
+      target: { value: "45000" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
@@ -505,6 +522,7 @@ describe("CreateListingForm registration lookup", () => {
             { attributeDefinitionId: "make", value: "Audi" },
             { attributeDefinitionId: "model", value: "A3 Sport" },
             { attributeDefinitionId: "year", value: "2017" },
+            { attributeDefinitionId: "mileage", value: "65000" },
           ],
         }}
       />
@@ -533,6 +551,7 @@ describe("CreateListingForm registration lookup", () => {
           { attributeDefinitionId: "make", value: "Audi" },
           { attributeDefinitionId: "model", value: "A3 Sport" },
           { attributeDefinitionId: "year", value: "2017" },
+          { attributeDefinitionId: "mileage", value: "65000" },
         ],
       });
     });
@@ -596,6 +615,9 @@ describe("CreateListingForm registration lookup", () => {
     });
     fireEvent.change(screen.getByLabelText(/Year/i), {
       target: { value: "2018" },
+    });
+    fireEvent.change(screen.getByLabelText(/Mileage/i), {
+      target: { value: "45000" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));

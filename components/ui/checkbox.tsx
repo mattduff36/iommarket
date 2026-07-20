@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 
 const Checkbox = React.forwardRef<
   React.ComponentRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> & { label?: string }
+  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> & { label?: React.ReactNode }
 >(({ className, label, id, ...props }, ref) => {
   const checkboxId = id || React.useId();
 
@@ -35,6 +35,7 @@ const Checkbox = React.forwardRef<
           className="text-sm text-text-primary cursor-pointer select-none leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
           {label}
+          {props.required ? <span className="text-text-error"> *</span> : null}
         </label>
       )}
     </div>

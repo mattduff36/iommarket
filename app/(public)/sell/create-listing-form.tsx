@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 import {
   getAttributeFieldConfig,
+  isListingAttributeRequired,
   validateListingAttributes,
 } from "@/lib/listings/attribute-ui";
 import { mapVehicleResultToListingAttributes } from "@/lib/listings/vehicle-autofill";
@@ -73,6 +74,21 @@ interface Props {
   isFreeForUser?: boolean;
   cloudinaryUploadPreset?: string | null;
   initialDraft?: EditableDraft | null;
+}
+
+function ListingFieldLabel({
+  label,
+  required = false,
+}: {
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <>
+      {label}
+      {required ? <span className="text-text-error"> *</span> : null}
+    </>
+  );
 }
 
 export function CreateListingForm({
@@ -648,7 +664,7 @@ export function CreateListingForm({
                   htmlFor="description"
                   className="text-sm font-medium text-text-primary"
                 >
-                  Description
+                  <ListingFieldLabel label="Description" required />
                 </label>
                 <textarea
                   id="description"
@@ -691,7 +707,7 @@ export function CreateListingForm({
                   htmlFor="regionId"
                   className="text-sm font-medium text-text-primary"
                 >
-                  Region
+                  <ListingFieldLabel label="Region" required />
                 </label>
                 <select
                   id="regionId"
@@ -780,18 +796,18 @@ export function CreateListingForm({
               {visibleAttributes.map(({ attr, config }) => {
                 const fieldName = `attr-${attr.id}`;
                 const fieldError = getFieldError(fieldName);
-                const label = `${attr.name}${attr.required ? " *" : ""}`;
+                const isRequired = isListingAttributeRequired(selectedCategory.slug, attr);
 
                 if (config.control === "select") {
                   return (
                     <div key={attr.id} className="flex flex-col gap-1">
                       <label htmlFor={fieldName} className="text-sm font-medium text-text-primary">
-                        {label}
+                        <ListingFieldLabel label={attr.name} required={isRequired} />
                       </label>
                       <select
                         id={fieldName}
                         name={fieldName}
-                        required={isDetailsStep && attr.required}
+                        required={isDetailsStep && isRequired}
                         value={attributeValues[attr.id] ?? ""}
                         onChange={(e) => handleAttributeChange(attr, e.target.value)}
                         aria-invalid={fieldError ? true : undefined}
@@ -828,7 +844,7 @@ export function CreateListingForm({
                     <div key={attr.id} className="space-y-3">
                       <div className="flex flex-col gap-1">
                         <label htmlFor={`${fieldName}-select`} className="text-sm font-medium text-text-primary">
-                          {label}
+                          <ListingFieldLabel label={attr.name} required={isRequired} />
                         </label>
                         <select
                           id={`${fieldName}-select`}
@@ -858,7 +874,7 @@ export function CreateListingForm({
                         id={fieldName}
                         label="Manual model fallback"
                         name={fieldName}
-                        required={isDetailsStep && attr.required}
+                        required={isDetailsStep && isRequired}
                         value={currentModel}
                         onChange={(e) => handleAttributeChange(attr, e.target.value)}
                         maxLength={80}
@@ -880,7 +896,8 @@ export function CreateListingForm({
                         onCheckedChange={(checked) =>
                           handleAttributeChange(attr, checked === true ? "true" : "")
                         }
-                        label={label}
+                        required={isDetailsStep && isRequired}
+                        label={attr.name}
                       />
                       {fieldError ? (
                         <p id={`${fieldName}-error`} className="text-xs text-text-energy">
@@ -895,9 +912,9 @@ export function CreateListingForm({
                   <Input
                     key={attr.id}
                     id={fieldName}
-                    label={label}
+                    label={attr.name}
                     name={fieldName}
-                    required={isDetailsStep && attr.required}
+                    required={isDetailsStep && isRequired}
                     type={config.control === "number" ? "number" : "text"}
                     value={attributeValues[attr.id] ?? ""}
                     onChange={(e) => handleAttributeChange(attr, e.target.value)}

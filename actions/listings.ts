@@ -29,6 +29,7 @@ import {
   getListingPhotoLimit,
   getListingPhotoLimitError,
 } from "@/lib/listings/photo-limits";
+import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
 
 // ---------------------------------------------------------------------------
 // Create Listing
@@ -304,6 +305,25 @@ export async function submitListingForReview(listingId: string) {
       error:
         "Please confirm the vehicle is not stolen and has no outstanding finance before submitting.",
     };
+  }
+  if (!listing.dealerId) {
+    const hasSuccessfulPayment = await db.payment.findFirst({
+      where: {
+        listingId,
+        type: "LISTING",
+        status: "SUCCEEDED",
+      },
+      select: { id: true },
+    });
+    if (!hasSuccessfulPayment) {
+      const isEligibleForFreeListing = await isPrivateListingFreeForUser(user.id);
+      if (!isEligibleForFreeListing) {
+        return {
+          error:
+            "Your one free listing has already been used. Complete payment for this listing to submit it.",
+        };
+      }
+    }
   }
 
   try {

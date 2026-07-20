@@ -123,7 +123,7 @@ async function main() {
     { name: "Make", slug: "make", dataType: "text", required: true, sortOrder: 1 },
     { name: "Model", slug: "model", dataType: "text", required: true, sortOrder: 2 },
     { name: "Year", slug: "year", dataType: "number", required: true, sortOrder: 3 },
-    { name: "Mileage", slug: "mileage", dataType: "number", required: false, sortOrder: 4 },
+    { name: "Mileage", slug: "mileage", dataType: "number", required: true, sortOrder: 4 },
     {
       name: "Fuel Type",
       slug: "fuel-type",

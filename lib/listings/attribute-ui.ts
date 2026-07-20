@@ -40,6 +40,16 @@ export function isVehicleCategorySlug(categorySlug: string | undefined): boolean
   return Boolean(categorySlug && VEHICLE_CATEGORY_SLUGS.has(categorySlug));
 }
 
+export function isListingAttributeRequired(
+  categorySlug: string | undefined,
+  attribute: Pick<ListingAttributeDefinitionLike, "required" | "slug">
+): boolean {
+  return (
+    attribute.required ||
+    (isVehicleCategorySlug(categorySlug) && attribute.slug === "mileage")
+  );
+}
+
 export function parseAttributeOptions(options: string | null): string[] {
   if (!options) return [];
 
@@ -288,7 +298,7 @@ export function validateListingAttributes(params: {
     }
 
     if (!rawValue) {
-      if (definition.required) {
+      if (isListingAttributeRequired(params.categorySlug, definition)) {
         fieldErrors[fieldName] = [`${definition.name} is required.`];
       }
       continue;

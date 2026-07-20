@@ -23,6 +23,15 @@ const modelDef = {
   options: null,
 };
 
+const mileageDef = {
+  id: "clmileage12345678901234567",
+  name: "Mileage",
+  slug: "mileage",
+  dataType: "number",
+  required: false,
+  options: null,
+};
+
 const fuelTypeDef = {
   id: "clfuel12345678901234567890",
   name: "Fuel Type",
@@ -76,7 +85,14 @@ describe("getAttributeFieldConfig", () => {
 });
 
 describe("validateListingAttributes", () => {
-  const definitions = [makeDef, modelDef, fuelTypeDef, batteryRangeDef, locationDef];
+  const definitions = [
+    makeDef,
+    modelDef,
+    mileageDef,
+    fuelTypeDef,
+    batteryRangeDef,
+    locationDef,
+  ];
 
   it("requires missing required vehicle attributes", () => {
     const result = validateListingAttributes({
@@ -87,6 +103,17 @@ describe("validateListingAttributes", () => {
 
     expect(result.fieldErrors[`attr-${makeDef.id}`]).toEqual(["Make is required."]);
     expect(result.fieldErrors[`attr-${modelDef.id}`]).toEqual(["Model is required."]);
+    expect(result.fieldErrors[`attr-${mileageDef.id}`]).toEqual(["Mileage is required."]);
+  });
+
+  it("does not require mileage for non-vehicle categories", () => {
+    const result = validateListingAttributes({
+      categorySlug: "furniture",
+      definitions: [mileageDef],
+      attributes: [],
+    });
+
+    expect(result.fieldErrors).toEqual({});
   });
 
   it("rejects makes outside the curated list", () => {
