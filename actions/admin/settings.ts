@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
-import { invalidateSettingsCache } from "@/lib/config/site-settings";
+import { invalidateSettingsCache, SETTING_KEYS } from "@/lib/config/site-settings";
 import {
   isMarketplacePriceSettingKey,
   MARKETPLACE_PRICING,
@@ -32,6 +32,9 @@ export async function updateSiteSetting(input: UpdateSiteSettingInput) {
   const { key, value } = parsed.data;
   if (isMarketplacePriceSettingKey(key)) {
     return { error: "Marketplace prices must be updated through the pricing form." };
+  }
+  if (key === SETTING_KEYS.ADMIN_CHECKLIST) {
+    return { error: "Checklist items must be updated through the checklist page." };
   }
 
   try {
@@ -136,6 +139,9 @@ export async function deleteSiteSetting(key: string) {
   if (!key) return { error: "Missing key" };
   if (isMarketplacePriceSettingKey(key)) {
     return { error: "Marketplace prices must be updated through the pricing form." };
+  }
+  if (key === SETTING_KEYS.ADMIN_CHECKLIST) {
+    return { error: "Checklist items must be updated through the checklist page." };
   }
 
   try {

@@ -155,6 +155,28 @@ export const updateSiteSettingSchema = z.object({
 });
 export type UpdateSiteSettingInput = z.infer<typeof updateSiteSettingSchema>;
 
+const isoDateTimeSchema = z
+  .string()
+  .min(1)
+  .max(40)
+  .refine((value) => !Number.isNaN(Date.parse(value)), "Invalid date");
+
+export const checklistItemSchema = z.object({
+  id: z.string().min(1).max(80),
+  title: z.string().trim().min(1).max(500),
+  notes: z.string().max(5000).default(""),
+  label: z.string().trim().max(40).nullable().default(null),
+  done: z.boolean(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type ChecklistItemInput = z.infer<typeof checklistItemSchema>;
+
+export const saveChecklistSchema = z.object({
+  items: z.array(checklistItemSchema).max(200),
+});
+export type SaveChecklistInput = z.infer<typeof saveChecklistSchema>;
+
 const gbpPriceInputSchema = z
   .string()
   .trim()

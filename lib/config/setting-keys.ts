@@ -11,4 +11,5 @@ export const SETTING_KEYS = {
   MONITORING_ALERT_WEBHOOK_URL: "monitoring_alert_webhook_url",
   MONITORING_ALERT_MIN_SEVERITY: "monitoring_alert_min_severity",
   MONITORING_ALERT_COOLDOWN_MINUTES: "monitoring_alert_cooldown_minutes",
+  ADMIN_CHECKLIST: "admin_checklist",
 } as const;

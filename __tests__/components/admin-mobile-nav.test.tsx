@@ -26,6 +26,11 @@ describe("AdminMobileNav", () => {
     );
     expect(within(navigationRegion).getByRole("link", { name: "Settings" }))
       .not.toBeNull();
+    expect(
+      within(navigationRegion)
+        .getByRole("link", { name: "Checklist" })
+        .getAttribute("href"),
+    ).toBe("/admin/checklist");
   });
 
   it("returns focus to the menu trigger and can reopen", async () => {

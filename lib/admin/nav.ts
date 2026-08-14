@@ -15,6 +15,7 @@ import {
   BarChart3,
   Mail,
   Bug,
+  ListTodo,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Reports", href: "/admin/reports", icon: ShieldAlert, group: "operations" },
   { label: "Reviews", href: "/admin/reviews", icon: Star, group: "operations" },
   { label: "Waitlist", href: "/admin/waitlist", icon: Mail, group: "operations" },
+  { label: "Checklist", href: "/admin/checklist", icon: ListTodo, group: "operations" },
   { label: "Payments", href: "/admin/payments", icon: CreditCard, group: "operations" },
   { label: "Revenue", href: "/admin/revenue", icon: DollarSign, group: "operations" },
   { label: "Pages", href: "/admin/pages", icon: FileText, group: "content" },
