@@ -140,7 +140,7 @@ export default async function DealerProfilePage({ params }: Props) {
             <h1 className="text-2xl font-bold text-text-primary font-heading sm:text-3xl">
               {dealer.name}
             </h1>
-            {isSubscribed && <Badge variant="success">Verified Dealer</Badge>}
+            {dealer.verified && <Badge variant="success">Verified Dealer</Badge>}
           </div>
 
           {dealer.bio && (
