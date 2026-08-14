@@ -53,6 +53,7 @@ describe("PricingCards", () => {
     for (const link of planLinks) {
       expect(link.querySelector("a, button")).toBeNull();
     }
+    expect(screen.getByText("Claim Your Free Listing").className).toContain("h-9");
     expect(screen.getByText("£39.99")).toBeTruthy();
     expect(screen.getByText("£59.99")).toBeTruthy();
   });
