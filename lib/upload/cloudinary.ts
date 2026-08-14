@@ -1,9 +1,7 @@
-/**
- * Cloudinary upload configuration and helpers.
- *
- * Client-side uploads use the CldUploadWidget from next-cloudinary.
- * This module provides server-side helpers for deletion and configuration.
- */
+import { createHash } from "node:crypto";
+import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
+
+export { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 
 export function getCloudinaryConfig() {
   return {
@@ -19,17 +17,134 @@ export function getCloudinaryUploadPreset() {
     "";
 }
 
-/**
- * Delete an image from Cloudinary by public ID.
- */
-export async function deleteImage(publicId: string): Promise<void> {
-  const config = getCloudinaryConfig();
-  const timestamp = Math.round(Date.now() / 1000);
+export function signCloudinaryDeliveryPath(path: string, apiSecret: string) {
+  const signature = createHash("sha1")
+    .update(`${path}${apiSecret}`)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  return signature.slice(0, 8);
+}
 
-  // Build signature string (requires crypto on server)
-  const { createHash } = await import("node:crypto");
-  const signatureString = `public_id=${publicId}&timestamp=${timestamp}${config.apiSecret}`;
-  const signature = createHash("sha1").update(signatureString).digest("hex");
+export function signPrivateCloudinaryUrl(url: string) {
+  const config = getCloudinaryConfig();
+  const marker = "/image/private/";
+  const index = url.indexOf(marker);
+  if (!config.apiSecret || index < 0) return url;
+  const path = url.slice(index + marker.length);
+  const signature = signCloudinaryDeliveryPath(path, config.apiSecret);
+  return `${url.slice(0, index + marker.length)}s--${signature}--/${path}`;
+}
+
+export function signCloudinaryParams(
+  params: Record<string, string | number>,
+  apiSecret: string,
+) {
+  const signatureBase = Object.keys(params)
+    .filter((key) => params[key] !== undefined && params[key] !== "")
+    .sort()
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+
+  return createHash("sha256").update(`${signatureBase}${apiSecret}`).digest("hex");
+}
+
+export interface CloudinaryResource {
+  assetId: string;
+  publicId: string;
+  version: string;
+  width: number;
+  height: number;
+  format: string;
+  bytes: number;
+  resourceType: string;
+  type: string;
+  folder?: string;
+}
+
+interface CloudinaryResourcePayload {
+  asset_id?: string;
+  public_id?: string;
+  version?: string | number;
+  width?: number;
+  height?: number;
+  format?: string;
+  bytes?: number;
+  resource_type?: string;
+  type?: string;
+  folder?: string;
+  error?: { message?: string };
+}
+
+function requireCloudinaryConfig() {
+  const config = getCloudinaryConfig();
+  if (!config.cloudName || !config.apiKey || !config.apiSecret) {
+    throw new Error("Cloudinary is not configured.");
+  }
+  return config;
+}
+
+function basicAuthHeader(apiKey: string, apiSecret: string) {
+  return `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString("base64")}`;
+}
+
+function parseCloudinaryResource(payload: CloudinaryResourcePayload): CloudinaryResource {
+  if (!payload.asset_id || !payload.public_id || payload.version == null) {
+    throw new Error(payload.error?.message ?? "Cloudinary did not return a complete resource.");
+  }
+
+  return {
+    assetId: payload.asset_id,
+    publicId: payload.public_id,
+    version: String(payload.version),
+    width: Number(payload.width ?? 0),
+    height: Number(payload.height ?? 0),
+    format: String(payload.format ?? ""),
+    bytes: Number(payload.bytes ?? 0),
+    resourceType: payload.resource_type ?? "image",
+    type: payload.type ?? IMAGE_CONSTRAINTS.deliveryType,
+    folder: payload.folder,
+  };
+}
+
+export async function getCloudinaryResource({
+  publicId,
+  deliveryType = IMAGE_CONSTRAINTS.deliveryType,
+}: {
+  publicId: string;
+  deliveryType?: string;
+}): Promise<CloudinaryResource> {
+  const config = requireCloudinaryConfig();
+  const encodedPublicId = encodeURIComponent(publicId);
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${config.cloudName}/resources/image/${deliveryType}/${encodedPublicId}`,
+    {
+      headers: {
+        Authorization: basicAuthHeader(config.apiKey, config.apiSecret),
+      },
+      cache: "no-store",
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as CloudinaryResourcePayload | null;
+  if (!response.ok || !payload) {
+    throw new Error(payload?.error?.message ?? `Failed to load Cloudinary resource: ${response.status}`);
+  }
+  return parseCloudinaryResource(payload);
+}
+
+export async function deleteImage(
+  publicId: string,
+  deliveryType: string = IMAGE_CONSTRAINTS.deliveryType,
+): Promise<void> {
+  const config = requireCloudinaryConfig();
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = {
+    public_id: publicId,
+    timestamp,
+    type: deliveryType,
+  };
+  const signature = signCloudinaryParams(params, config.apiSecret);
 
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${config.cloudName}/image/destroy`,
@@ -39,10 +154,11 @@ export async function deleteImage(publicId: string): Promise<void> {
       body: new URLSearchParams({
         public_id: publicId,
         timestamp: String(timestamp),
+        type: deliveryType,
         api_key: config.apiKey,
         signature,
       }).toString(),
-    }
+    },
   );
 
   if (!response.ok) {
@@ -50,22 +166,34 @@ export async function deleteImage(publicId: string): Promise<void> {
   }
 }
 
-/**
- * Max image dimensions and file size for listing photos.
- */
-export const IMAGE_CONSTRAINTS = {
-  maxFileSizeBytes: 10 * 1024 * 1024, // 10MB
-  maxWidth: 2400,
-  maxHeight: 2400,
-  allowedFormats: ["jpg", "jpeg", "png", "webp"],
-  folder: "iommarket/listings",
-} as const;
+export function createSignedListingUpload({
+  publicId,
+  timestamp = Math.round(Date.now() / 1000),
+}: {
+  publicId: string;
+  timestamp?: number;
+}) {
+  const config = requireCloudinaryConfig();
+  const params = {
+    image_metadata: "false",
+    overwrite: "false",
+    public_id: publicId,
+    timestamp,
+    transformation: "fl_force_strip",
+    type: IMAGE_CONSTRAINTS.deliveryType,
+  };
+  const signature = signCloudinaryParams(params, config.apiSecret);
 
-export const LISTING_IMAGE_TARGET = {
-  width: 1600,
-  height: 1000,
-  aspectRatio: 16 / 10,
-  aspectRatioLabel: "16:10",
-  outputMimeType: "image/webp",
-  outputQuality: 0.9,
-} as const;
+  return {
+    cloudName: config.cloudName,
+    apiKey: config.apiKey,
+    timestamp,
+    signature,
+    publicId,
+    type: IMAGE_CONSTRAINTS.deliveryType,
+    transformation: params.transformation,
+    imageMetadata: false,
+    overwrite: false,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`,
+  };
+}

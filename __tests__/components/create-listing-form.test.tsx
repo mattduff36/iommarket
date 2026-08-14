@@ -4,8 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateListingForm } from "@/app/(public)/sell/create-listing-form";
 import {
   createListing,
-  replaceListingImages,
-  saveListingImages,
+  syncListingImages,
   submitListingForReview,
   updateListing,
 } from "@/actions/listings";
@@ -23,8 +22,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/actions/listings", () => ({
   createListing: vi.fn(),
-  replaceListingImages: vi.fn(),
-  saveListingImages: vi.fn(),
+  syncListingImages: vi.fn(),
   submitListingForReview: vi.fn(),
   updateListing: vi.fn(),
 }));
@@ -40,7 +38,13 @@ vi.mock("@/components/marketplace/image-upload", () => ({
     maxImages,
   }: {
     onImagesChange: (
-      images: Array<{ url: string; publicId: string; order: number }>
+      images: Array<{
+        url: string;
+        publicId: string;
+        order: number;
+        uploadIntentId: string;
+        provider: "CLOUDINARY";
+      }>
     ) => void;
     maxImages: number;
   }) => (
@@ -54,11 +58,15 @@ vi.mock("@/components/marketplace/image-upload", () => ({
             url: "https://example.com/image-1.jpg",
             publicId: "image-1",
             order: 0,
+            uploadIntentId: "intent-1",
+            provider: "CLOUDINARY",
           },
           {
             url: "https://example.com/image-2.jpg",
             publicId: "image-2",
             order: 1,
+            uploadIntentId: "intent-2",
+            provider: "CLOUDINARY",
           },
         ])
       }
@@ -166,8 +174,7 @@ describe("CreateListingForm registration lookup", () => {
     fetchMock.mockReset();
     pushMock.mockReset();
     vi.mocked(createListing).mockReset();
-    vi.mocked(replaceListingImages).mockReset();
-    vi.mocked(saveListingImages).mockReset();
+    vi.mocked(syncListingImages).mockReset();
     vi.mocked(submitListingForReview).mockReset();
     vi.mocked(updateListing).mockReset();
     vi.mocked(payForListing).mockReset();
@@ -428,9 +435,9 @@ describe("CreateListingForm registration lookup", () => {
     vi.mocked(createListing).mockResolvedValue({
       data: { id: "listing-123" },
     } as Awaited<ReturnType<typeof createListing>>);
-    vi.mocked(saveListingImages).mockResolvedValue({
-      data: { count: 0 },
-    } as Awaited<ReturnType<typeof saveListingImages>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
     vi.mocked(submitListingForReview).mockResolvedValue({
       data: null,
     } as unknown as Awaited<ReturnType<typeof submitListingForReview>>);
@@ -497,9 +504,9 @@ describe("CreateListingForm registration lookup", () => {
     vi.mocked(updateListing).mockResolvedValue({
       data: { id: "draft-123" },
     } as Awaited<ReturnType<typeof updateListing>>);
-    vi.mocked(replaceListingImages).mockResolvedValue({
-      data: { count: 2 },
-    } as Awaited<ReturnType<typeof replaceListingImages>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 4 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
     vi.mocked(payForListing).mockResolvedValue({
       data: { checkoutUrl: "https://checkout.example/pay/draft-123" },
     } as Awaited<ReturnType<typeof payForListing>>);
@@ -518,16 +525,39 @@ describe("CreateListingForm registration lookup", () => {
           regionId: "iom",
           trustDeclarationAccepted: true,
           featured: false,
+          photoRevision: 3,
           images: [
             {
+              id: "img-1",
               url: "https://example.com/existing-1.jpg",
               publicId: "existing-1",
               order: 0,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
             },
             {
+              id: "img-2",
               url: "https://example.com/existing-2.jpg",
               publicId: "existing-2",
               order: 1,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
             },
           ],
           attributes: [
@@ -569,18 +599,27 @@ describe("CreateListingForm registration lookup", () => {
     });
 
     expect(createListing).not.toHaveBeenCalled();
-    expect(replaceListingImages).toHaveBeenCalledWith("draft-123", [
-      {
-        url: "https://example.com/existing-1.jpg",
-        publicId: "existing-1",
-        order: 0,
-      },
-      {
-        url: "https://example.com/existing-2.jpg",
-        publicId: "existing-2",
-        order: 1,
-      },
-    ]);
+    expect(syncListingImages).toHaveBeenCalledWith(
+      "draft-123",
+      expect.objectContaining({
+        basePhotoRevision: 3,
+        mutationId: expect.any(String),
+        photos: [
+          {
+            imageId: "img-1",
+            uploadIntentId: undefined,
+            focalX: null,
+            focalY: null,
+          },
+          {
+            imageId: "img-2",
+            uploadIntentId: undefined,
+            focalX: null,
+            focalY: null,
+          },
+        ],
+      }),
+    );
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith(
@@ -593,9 +632,9 @@ describe("CreateListingForm registration lookup", () => {
     vi.mocked(createListing).mockResolvedValue({
       data: { id: "listing-456" },
     } as Awaited<ReturnType<typeof createListing>>);
-    vi.mocked(saveListingImages).mockResolvedValue({
-      data: { count: 0 },
-    } as Awaited<ReturnType<typeof saveListingImages>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
     vi.mocked(payForListing).mockResolvedValue({
       data: {
         checkoutUrl: "https://portal.startyourripple.co.uk/card/demo-gym/checkout-123",

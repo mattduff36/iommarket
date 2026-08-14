@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Dialog,
@@ -10,15 +9,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ListingPhoto } from "@/components/marketplace/listing-photo";
 import { cn } from "@/lib/cn";
-
-interface ListingGalleryImage {
-  id: string;
-  url: string;
-}
+import type { ListingPhotoSource } from "@/lib/images/photo";
 
 interface ListingImageGalleryProps {
-  images: ListingGalleryImage[];
+  images: ListingPhotoSource[];
   title: string;
   isSold: boolean;
 }
@@ -80,16 +76,17 @@ export function ListingImageGallery({
             className="group relative block aspect-[16/10] w-full overflow-hidden rounded-lg bg-graphite-800 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             aria-label={`Open image gallery for ${title}`}
           >
-            <Image
-              src={activeImage.url}
+            <ListingPhoto
+              photo={activeImage}
+              frame="gallery"
               alt={title}
-              fill
-              className={cn(
-                "object-cover transition duration-300 group-hover:scale-[1.015]",
-                isSold && "brightness-75"
-              )}
+              fillContainer
               priority
               sizes="(max-width: 768px) 100vw, 66vw"
+              imageClassName={cn(
+                "transition duration-300 group-hover:scale-[1.015]",
+                isSold && "brightness-75"
+              )}
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
               Tap to view all photos
@@ -130,7 +127,7 @@ export function ListingImageGallery({
 
               return (
                 <button
-                  key={image.id}
+                  key={image.id ?? image.publicId ?? index}
                   type="button"
                   onClick={() => showImage(index)}
                   className={cn(
@@ -143,11 +140,11 @@ export function ListingImageGallery({
                   aria-label={`Show image ${index + 1} of ${images.length}`}
                   aria-current={isActive ? "true" : undefined}
                 >
-                  <Image
-                    src={image.url}
+                  <ListingPhoto
+                    photo={image}
+                    frame="thumb"
                     alt={`${title} image ${index + 1}`}
-                    fill
-                    className="object-cover"
+                    fillContainer
                     sizes="(max-width: 768px) 50vw, 16vw"
                   />
                   <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -173,11 +170,12 @@ export function ListingImageGallery({
 
           <div className="flex h-full flex-col">
             <div className="relative min-h-0 flex-1">
-              <Image
-                src={activeImage.url}
+              <ListingPhoto
+                photo={activeImage}
+                frame="gallery"
+                variant="contain"
+                fillContainer
                 alt={`${title} image ${activeIndex + 1}`}
-                fill
-                className="object-contain"
                 sizes="100vw"
                 priority
               />
@@ -223,7 +221,7 @@ export function ListingImageGallery({
 
                     return (
                       <button
-                        key={image.id}
+                        key={image.id ?? image.publicId ?? index}
                         type="button"
                         onClick={() => showImage(index)}
                         className={cn(
@@ -234,11 +232,11 @@ export function ListingImageGallery({
                         aria-label={`Show image ${index + 1}`}
                         aria-current={isActive ? "true" : undefined}
                       >
-                        <Image
-                          src={image.url}
+                        <ListingPhoto
+                          photo={image}
+                          frame="thumb"
                           alt={`${title} thumbnail ${index + 1}`}
-                          fill
-                          className="object-cover"
+                          fillContainer
                           sizes="112px"
                         />
                       </button>

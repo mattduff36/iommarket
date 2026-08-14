@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import {
   expireStaleLiveListings,
   liveOrSoldListingWhere,
@@ -222,7 +223,7 @@ export async function GET(request: NextRequest) {
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        images: { take: 1, orderBy: { order: "asc" } },
+        images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
         category: true,
         region: true,
       },
@@ -254,7 +255,7 @@ export async function GET(request: NextRequest) {
       featured: listing.featured,
       isFavourite: favouriteListingIds.has(listing.id),
       sold: listing.status === "SOLD",
-      imageSrc: listing.images[0]?.url,
+      photo: toListingPhotoSource(listing.images[0]),
       categoryName: listing.category.name,
       regionName: listing.region.name,
     })),

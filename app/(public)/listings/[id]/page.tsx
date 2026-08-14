@@ -26,6 +26,9 @@ import { RenewListingButton } from "@/components/marketplace/renew-listing-butto
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { ListingImageGallery } from "./listing-image-gallery";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
+import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
+import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import {
   expireStaleLiveListings,
@@ -46,11 +49,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: true,
       description: true,
       price: true,
-      images: { take: 1, orderBy: { order: "asc" }, select: { url: true } },
+      images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
   if (!listing) return {};
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const primaryPhoto = toListingPhotoSource(listing.images[0]);
+  const socialImage = primaryPhoto
+    ? signPrivateCloudinaryUrl(buildSocialImageUrl(primaryPhoto))
+    : undefined;
   return {
     title: listing.title,
     description: listing.description.slice(0, 160),
@@ -58,13 +65,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: listing.title,
       description: listing.description.slice(0, 160),
       url: `${appUrl}/listings/${id}`,
-      images: listing.images[0]?.url ? [{ url: listing.images[0].url }] : undefined,
+      images: socialImage ? [{ url: socialImage, width: 1200, height: 630 }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
       title: listing.title,
       description: listing.description.slice(0, 160),
-      images: listing.images[0]?.url ? [listing.images[0].url] : undefined,
+      images: socialImage ? [socialImage] : undefined,
     },
     alternates: {
       canonical: `${appUrl}/listings/${id}`,
@@ -82,7 +89,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   const listing = await db.listing.findUnique({
     where: { id },
     include: {
-      images: { orderBy: { order: "asc" } },
+      images: { orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
       user: { select: { name: true, email: true } },
@@ -172,7 +179,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
     take: 4,
     include: {
-      images: { take: 1, orderBy: { order: "asc" } },
+      images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
     },
@@ -248,10 +255,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         {/* Left: images + details */}
         <div className="lg:col-span-2 space-y-8">
           <ListingImageGallery
-            images={listing.images.map((image) => ({
-              id: image.id,
-              url: image.url,
-            }))}
+            images={listing.images
+              .map((image) => toListingPhotoSource(image))
+              .filter((image): image is NonNullable<typeof image> => Boolean(image))}
             title={listing.title}
             isSold={isSold}
           />
@@ -487,7 +493,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 key={item.id}
                 title={item.title}
                 price={item.price / 100}
-                imageSrc={item.images[0]?.url}
+                photo={toListingPhotoSource(item.images[0])}
                 location={item.region.name}
                 meta={item.category.name}
                 featured={item.featured}
@@ -508,7 +514,21 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             "@type": "Product",
             name: listing.title,
             description: listing.description.slice(0, 500),
-            image: listing.images.map((i) => i.url),
+            image: listing.images
+              .map((image, index) => {
+                const photo = toListingPhotoSource(image);
+                if (!photo) return null;
+                return index === 0
+                  ? signPrivateCloudinaryUrl(buildSocialImageUrl(photo))
+                  : signPrivateCloudinaryUrl(
+                      buildListingPhotoUrl(photo, {
+                        width: 1200,
+                        mode: "fit",
+                        frame: "gallery",
+                      }),
+                    );
+              })
+              .filter((url): url is string => Boolean(url)),
             offers: {
               "@type": "Offer",
               price: price,

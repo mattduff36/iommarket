@@ -5,6 +5,7 @@ import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import type { ListingPhotoSource } from "@/lib/images/photo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
@@ -12,7 +13,7 @@ export interface FeaturedListingsCarouselItem {
   id: string;
   title: string;
   price: number;
-  imageSrc?: string;
+  photo?: ListingPhotoSource;
   location?: string;
   meta?: string;
   href: string;
@@ -226,7 +227,7 @@ export function FeaturedListingsCarousel({
                   <ListingCard
                     title={listing.title}
                     price={listing.price}
-                    imageSrc={listing.imageSrc}
+                    photo={listing.photo}
                     location={listing.location}
                     meta={listing.meta}
                     featured

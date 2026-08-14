@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 
 export default async function FavouritesPage() {
   const user = await getCurrentUser();
@@ -16,7 +17,7 @@ export default async function FavouritesPage() {
     include: {
       listing: {
         include: {
-          images: { take: 1, orderBy: { order: "asc" } },
+          images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
           category: true,
           region: true,
         },
@@ -40,7 +41,7 @@ export default async function FavouritesPage() {
               key={id}
               title={listing.title}
               price={listing.price / 100}
-              imageSrc={listing.images[0]?.url}
+              photo={toListingPhotoSource(listing.images[0])}
               location={listing.region.name}
               meta={listing.category.name}
               featured={listing.featured}

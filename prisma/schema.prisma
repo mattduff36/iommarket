@@ -61,6 +61,7 @@ model User {
   dealerReviews       DealerReview[]
   listingStatusEvents ListingStatusEvent[]
   freeListingClaim   FreeListingClaim?
+  listingImageUploadIntents ListingImageUploadIntent[]
 
   @@index([authUserId])
   @@index([email])
@@ -185,6 +186,9 @@ model Listing {
   soldAt      DateTime?
   trustDeclarationAccepted   Boolean  @default(false)
   trustDeclarationAcceptedAt DateTime?
+  photoRevision              Int      @default(0)
+  lastPhotoMutationId        String?  @unique
+  lastPhotoMutationHash      String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -193,8 +197,9 @@ model Listing {
   category Category       @relation(fields: [categoryId], references: [id])
   region   Region         @relation(fields: [regionId], references: [id])
 
-  images          ListingImage[]
-  attributeValues ListingAttributeValue[]
+  images             ListingImage[]
+  imageUploadIntents ListingImageUploadIntent[]
+  attributeValues    ListingAttributeValue[]
   payments        Payment[]
   reports         Report[]
   favouritedBy    Favourite[]
@@ -239,16 +244,89 @@ model FreeListingClaim {
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 }
 
+enum ListingImageProvider {
+  CLOUDINARY
+  EXTERNAL
+}
+
+enum ListingImageUploadIntentStatus {
+  ISSUED
+  VERIFIED
+  CONSUMED
+  REJECTED
+  EXPIRED
+}
+
+enum ListingImageCleanupJobStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model ListingImage {
-  id        String @id @default(cuid())
-  listingId String
-  url       String
-  publicId  String // Cloudinary public ID
-  order     Int    @default(0)
+  id             String                @id @default(cuid())
+  listingId      String
+  url            String
+  publicId       String
+  order          Int                   @default(0)
+  provider       ListingImageProvider  @default(CLOUDINARY)
+  assetId        String?
+  version        String?
+  width          Int?
+  height         Int?
+  format         String?
+  bytes          Int?
+  uploadIntentId String?               @unique
+  focalX         Float?
+  focalY         Float?
 
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing      Listing                   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  uploadIntent ListingImageUploadIntent? @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)
 
+  @@unique([listingId, order])
+  @@unique([provider, publicId])
   @@index([listingId])
+}
+
+model ListingImageUploadIntent {
+  id           String                         @id @default(cuid())
+  userId       String
+  listingId    String?
+  publicId     String                         @unique
+  folder       String
+  status       ListingImageUploadIntentStatus @default(ISSUED)
+  expiresAt    DateTime
+  assetId      String?
+  version      String?
+  width        Int?
+  height       Int?
+  format       String?
+  bytes        Int?
+  deliveryType String                         @default("private")
+  createdAt    DateTime                       @default(now())
+  updatedAt    DateTime                       @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  image   ListingImage?
+
+  @@index([userId, status])
+  @@index([expiresAt, status])
+}
+
+model ListingImageCleanupJob {
+  id           String                       @id @default(cuid())
+  publicId     String
+  deliveryType String                       @default("private")
+  reason       String
+  status       ListingImageCleanupJobStatus @default(PENDING)
+  attempts     Int                          @default(0)
+  lastError    String?
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+  completedAt  DateTime?
+
+  @@index([status, createdAt])
 }
 
 model ListingAttributeValue {

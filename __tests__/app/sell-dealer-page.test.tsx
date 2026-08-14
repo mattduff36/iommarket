@@ -35,10 +35,6 @@ vi.mock("@/lib/listings/editable-draft", () => ({
   getEditableDraft: getEditableDraftMock,
 }));
 
-vi.mock("@/lib/upload/cloudinary", () => ({
-  getCloudinaryUploadPreset: () => "preset",
-}));
-
 vi.mock("@/app/(public)/sell/sell-form-data", () => ({
   getSellFormData: getSellFormDataMock,
 }));

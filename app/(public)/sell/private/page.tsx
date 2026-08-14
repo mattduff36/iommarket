@@ -7,7 +7,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
-import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { CreateListingForm } from "../create-listing-form";
 import { FreeListingWelcomeDialog } from "../free-listing-welcome-dialog";
 import { getSellFormData } from "../sell-form-data";
@@ -45,8 +44,6 @@ export default async function SellPrivatePage({ searchParams }: Props) {
   if (draftId && !initialDraft) {
     redirect("/account/listings?status=DRAFT");
   }
-  const cloudinaryUploadPreset = getCloudinaryUploadPreset();
-
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       {isFreeForUser ? <FreeListingWelcomeDialog /> : null}
@@ -73,7 +70,6 @@ export default async function SellPrivatePage({ searchParams }: Props) {
         mode="private"
         isFreeForUser={isFreeForUser}
         optionalListingSupportPence={pricing.optionalListingSupportPence}
-        cloudinaryUploadPreset={cloudinaryUploadPreset}
         initialDraft={initialDraft}
       />
     </div>

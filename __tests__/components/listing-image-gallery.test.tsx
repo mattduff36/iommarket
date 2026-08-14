@@ -19,9 +19,30 @@ vi.mock("next/image", () => ({
 }));
 
 const images = [
-  { id: "image-1", url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/one.webp" },
-  { id: "image-2", url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/two.webp" },
-  { id: "image-3", url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/three.webp" },
+  {
+    id: "image-1",
+    url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/one.webp",
+    publicId: "demo/one",
+    provider: "EXTERNAL" as const,
+    width: 1600,
+    height: 1000,
+  },
+  {
+    id: "image-2",
+    url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/two.webp",
+    publicId: "demo/two",
+    provider: "EXTERNAL" as const,
+    width: 900,
+    height: 1600,
+  },
+  {
+    id: "image-3",
+    url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/three.webp",
+    publicId: "demo/three",
+    provider: "EXTERNAL" as const,
+    width: 1600,
+    height: 1200,
+  },
 ];
 
 describe("ListingImageGallery", () => {

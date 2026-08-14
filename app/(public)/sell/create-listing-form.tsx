@@ -4,8 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createListing,
-  replaceListingImages,
-  saveListingImages,
+  syncListingImages,
   submitListingForReview,
   updateListing,
 } from "@/actions/listings";
@@ -74,7 +73,6 @@ interface Props {
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
   optionalListingSupportPence?: number;
-  cloudinaryUploadPreset?: string | null;
   initialDraft?: EditableDraft | null;
 }
 
@@ -104,7 +102,6 @@ export function CreateListingForm({
   mode = "private",
   isFreeForUser = false,
   optionalListingSupportPence = 0,
-  cloudinaryUploadPreset = null,
   initialDraft = null,
 }: Props) {
   const router = useRouter();
@@ -127,7 +124,10 @@ export function CreateListingForm({
         []
     )
   );
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(initialDraft?.images ?? []);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(
+    () => initialDraft?.images.map(toUploadedImage) ?? [],
+  );
+  const [photoRevision, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
   const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
   const [supportPlatform, setSupportPlatform] = useState(false);
@@ -481,10 +481,17 @@ export function CreateListingForm({
       if (result.data) {
         const listingId = initialDraft?.id ?? result.data.id;
         setPendingListingId(listingId);
-        if (uploadedImages.length > 0) {
-          const saveResult = isEditingDraft
-            ? await replaceListingImages(listingId, uploadedImages)
-            : await saveListingImages(listingId, uploadedImages);
+        if (isEditingDraft || uploadedImages.length > 0) {
+          const saveResult = await syncListingImages(listingId, {
+            photos: uploadedImages.map((image) => ({
+              imageId: image.id,
+              uploadIntentId: image.id ? undefined : image.uploadIntentId,
+              focalX: image.focalX,
+              focalY: image.focalY,
+            })),
+            basePhotoRevision: photoRevision,
+            mutationId: createPhotoMutationId(),
+          });
           if (saveResult?.error) {
             setError(
               typeof saveResult.error === "string"
@@ -492,6 +499,9 @@ export function CreateListingForm({
                 : "Failed to save images. Please try again."
             );
             return;
+          }
+          if (saveResult.data?.photoRevision != null) {
+            setPhotoRevision(saveResult.data.photoRevision);
           }
         }
 
@@ -749,7 +759,6 @@ export function CreateListingForm({
               <ImageUpload
                 images={uploadedImages}
                 onImagesChange={setUploadedImages}
-                uploadPreset={cloudinaryUploadPreset}
                 maxImages={maxImages}
               />
           </div>
@@ -987,4 +996,18 @@ export function CreateListingForm({
       />
     </>
   );
+}
+
+function toUploadedImage(image: EditableDraft["images"][number]): UploadedImage {
+  return {
+    ...image,
+    uploadIntentId: image.uploadIntentId ?? image.id,
+    provider: image.provider,
+  };
+}
+
+function createPhotoMutationId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

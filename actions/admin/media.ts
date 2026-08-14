@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
-import { deleteImage } from "@/lib/upload/cloudinary";
+import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
+
+const ORDER_SHIFT = 10_000;
 
 export async function listImages(input: { filter?: string; page?: number; pageSize?: number }) {
   await requireRole("ADMIN");
@@ -13,10 +16,10 @@ export async function listImages(input: { filter?: string; page?: number; pageSi
   const page = Math.max(1, input.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 30));
 
-  const where = filter === "orphan"
+  const where: Prisma.ListingImageWhereInput = filter === "orphan"
     ? {
         listing: {
-          status: { in: ["TAKEN_DOWN" as const, "EXPIRED" as const] },
+          status: { in: ["TAKEN_DOWN", "EXPIRED"] },
         },
       }
     : {};
@@ -51,17 +54,69 @@ export async function adminDeleteImage(imageId: string) {
   const admin = await requireRole("ADMIN");
   if (!imageId) return { error: "Missing imageId" };
 
-  const image = await db.listingImage.findUnique({ where: { id: imageId } });
-  if (!image) return { error: "Image not found" };
-
   try {
-    await deleteImage(image.publicId);
-  } catch {
-    // Cloudinary delete may fail if image already gone; proceed with DB cleanup
-  }
+    const image = await db.$transaction(async (tx) => {
+      const current = await tx.listingImage.findUnique({
+        where: { id: imageId },
+        select: {
+          id: true,
+          listingId: true,
+          publicId: true,
+          provider: true,
+        },
+      });
+      if (!current) {
+        throw new Error("Image not found");
+      }
 
-  try {
-    await db.listingImage.delete({ where: { id: imageId } });
+      const locked = await tx.listing.updateMany({
+        where: { id: current.listingId, status: { notIn: ["LIVE", "SOLD"] } },
+        data: { photoRevision: { increment: 1 } },
+      });
+      if (locked.count !== 1) {
+        throw new Error("Take the listing down before deleting images from a live or sold listing.");
+      }
+
+      await tx.listingImage.delete({ where: { id: imageId } });
+
+      const remaining = await tx.listingImage.findMany({
+        where: { listingId: current.listingId },
+        orderBy: { order: "asc" },
+      });
+      if (remaining.length > 0) {
+        await Promise.all(
+          remaining.map((item) =>
+            tx.listingImage.update({
+              where: { id: item.id },
+              data: { order: item.order + ORDER_SHIFT },
+            }),
+          ),
+        );
+        await Promise.all(
+          remaining.map((item, order) =>
+            tx.listingImage.update({
+              where: { id: item.id },
+              data: { order },
+            }),
+          ),
+        );
+      }
+
+      if (
+        current.provider === "CLOUDINARY" &&
+        current.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)
+      ) {
+        await tx.listingImageCleanupJob.create({
+          data: {
+            publicId: current.publicId,
+            deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+            reason: "admin-deleted",
+          },
+        });
+      }
+
+      return current;
+    });
 
     await logAdminAction({
       adminId: admin.id,

@@ -8,6 +8,7 @@ import { ListingResultsClient } from "@/components/marketplace/search/listing-re
 import { SaveSearchButton } from "@/components/marketplace/save-search-button";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { type SearchParams } from "@/lib/search/search-url";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
   getFuelTypeFilterValues,
@@ -251,7 +252,7 @@ export default async function SearchPage({ searchParams }: Props) {
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        images: { take: 1, orderBy: { order: "asc" } },
+        images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
         category: true,
         region: true,
       },
@@ -408,7 +409,7 @@ export default async function SearchPage({ searchParams }: Props) {
             featured: listing.featured,
             isFavourite: favouriteListingIds.has(listing.id),
             sold: listing.status === "SOLD",
-            imageSrc: listing.images[0]?.url,
+            photo: toListingPhotoSource(listing.images[0]),
             categoryName: listing.category.name,
             regionName: listing.region.name,
           }))}

@@ -11,6 +11,7 @@ import { DealerSpotlights } from "@/components/dealers/dealer-spotlights";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
@@ -111,7 +112,7 @@ export default async function HomePage() {
   const featuredListings = await db.listing.findMany({
     where: { ...liveWhere, featured: true },
     include: {
-      images: { take: 1, orderBy: { order: "asc" } },
+      images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
     },
@@ -121,7 +122,7 @@ export default async function HomePage() {
     id: listing.id,
     title: listing.title,
     price: listing.price / 100,
-    imageSrc: listing.images[0]?.url,
+    photo: toListingPhotoSource(listing.images[0]),
     location: listing.region.name,
     meta: listing.category.name,
     href: `/listings/${listing.id}`,

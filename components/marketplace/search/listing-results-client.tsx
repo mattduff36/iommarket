@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { BrandedSpinner } from "@/components/ui/branded-spinner";
 import { cn } from "@/lib/cn";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
+import type { ListingPhotoSource } from "@/lib/images/photo";
 import { SEARCH_SORT_OPTIONS, parseSearchSort } from "@/lib/search/search-order";
 
 interface ListingItem {
@@ -16,7 +17,7 @@ interface ListingItem {
   featured: boolean;
   isFavourite?: boolean;
   sold?: boolean;
-  imageSrc?: string;
+  photo?: ListingPhotoSource;
   categoryName: string;
   regionName: string;
 }
@@ -166,7 +167,7 @@ export function ListingResultsClient({
             <ListingCard
               title={listing.title}
               price={listing.price / 100}
-              imageSrc={listing.imageSrc}
+              photo={listing.photo}
               location={listing.regionName}
               meta={listing.categoryName}
               featured={listing.featured}

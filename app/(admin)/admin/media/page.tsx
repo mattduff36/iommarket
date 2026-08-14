@@ -1,10 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+import { ListingPhoto } from "@/components/marketplace/listing-photo";
+import { toListingPhotoSource } from "@/lib/images/photo";
 import {
   CARD_OVERLAY_CONTROL_CLASS,
   CardOverlayLink,
@@ -97,11 +98,11 @@ export default async function AdminMediaPage({ searchParams }: Props) {
               label={img.listing.title}
             />
             <div className="relative aspect-square bg-graphite-800">
-              <Image
-                src={img.url}
+              <ListingPhoto
+                photo={toListingPhotoSource(img)!}
+                frame="admin"
                 alt={img.listing.title}
-                fill
-                className="object-cover"
+                fillContainer
                 sizes="(max-width: 768px) 50vw, 200px"
               />
             </div>

@@ -440,6 +440,10 @@ async function main() {
         url: data.imageUrl,
         publicId: `demo/${listing.id}`,
         order: 0,
+        provider: "EXTERNAL",
+        width: 800,
+        height: 600,
+        format: "jpg",
       },
     });
 

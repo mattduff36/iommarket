@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,11 +8,14 @@ import {
   CardOverlayLink,
 } from "@/components/ui/card-overlay-link";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
+import { ListingPhoto } from "@/components/marketplace/listing-photo";
+import { toListingPhotoSource, type ListingPhotoSource } from "@/lib/images/photo";
 
 export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   title: string;
   price: number;
   currency?: string;
+  photo?: ListingPhotoSource;
   imageSrc?: string;
   imageAlt?: string;
   imageSizes?: string;
@@ -40,6 +42,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
       title,
       price,
       currency = "£",
+      photo,
       imageSrc,
       imageAlt,
       imageSizes,
@@ -78,16 +81,24 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
         {href ? <CardOverlayLink href={href} label={title} /> : null}
         {/* Image container with overlay gradient */}
         <div className="pointer-events-none relative aspect-[4/3] w-full overflow-hidden bg-graphite-800">
-          {imageSrc ? (
-            <Image
-              src={imageSrc}
+          {photo || imageSrc ? (
+            <ListingPhoto
+              photo={
+                photo ??
+                toListingPhotoSource({
+                  url: imageSrc!,
+                  publicId: "demo/legacy",
+                  provider: "EXTERNAL",
+                })!
+              }
+              frame="card"
+              fillContainer
               alt={imageAlt ?? title}
-              fill
-              className={`object-cover transition-transform duration-fast group-hover:scale-[1.02]${sold ? " brightness-75" : ""}`}
               sizes={
                 imageSizes ??
                 "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               }
+              imageClassName={`transition-transform duration-fast group-hover:scale-[1.02]${sold ? " brightness-75" : ""}`}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-metallic-500">

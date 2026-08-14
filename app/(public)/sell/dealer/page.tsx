@@ -7,7 +7,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
-import { getCloudinaryUploadPreset } from "@/lib/upload/cloudinary";
 import { Button } from "@/components/ui/button";
 import { CreateListingForm } from "../create-listing-form";
 import { getSellFormData } from "../sell-form-data";
@@ -110,7 +109,6 @@ export default async function SellDealerPage({ searchParams }: Props) {
   }
 
   const { categories, regions, modelOptionsByMake } = await getSellFormData();
-  const cloudinaryUploadPreset = getCloudinaryUploadPreset();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -128,7 +126,6 @@ export default async function SellDealerPage({ searchParams }: Props) {
         regions={regions}
         modelOptionsByMake={modelOptionsByMake}
         mode="dealer"
-        cloudinaryUploadPreset={cloudinaryUploadPreset}
         initialDraft={initialDraft}
       />
     </div>

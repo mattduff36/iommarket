@@ -29,11 +29,12 @@ import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import {
   transitionListingStatus,
 } from "@/lib/listings/status-events";
-import { getCloudinaryConfig, IMAGE_CONSTRAINTS } from "@/lib/upload/cloudinary";
+import { expireAbandonedListingImageIntents, processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import {
-  getListingPhotoLimit,
-  getListingPhotoLimitError,
-} from "@/lib/listings/photo-limits";
+  syncListingImagesForUser,
+  type ListingPhotoMutationItem,
+  type SyncListingImagesInput,
+} from "@/lib/listings/photo-mutation";
 import { claimFreeListingSlot } from "@/lib/config/marketplace";
 
 // ---------------------------------------------------------------------------
@@ -690,184 +691,59 @@ export async function markListingAsSold(listingId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Upload Listing Images (save records after Cloudinary upload)
+// Sync listing photos (ordered set, revision-checked)
 // ---------------------------------------------------------------------------
 
-interface ValidatedListingImage {
-  url: string;
-  publicId: string;
-  order: number;
-}
+export async function syncListingImages(
+  listingId: string,
+  input: SyncListingImagesInput,
+) {
+  const user = await requireAuth();
 
-function validateListingImages(
-  images: Array<{ url: string; publicId: string; order: number }>,
-  maxImages: number
-): { images: ValidatedListingImage[]; error?: undefined } | { images: []; error: string } {
-  if (images.length > maxImages) return { images: [], error: getListingPhotoLimitError(maxImages) };
-
-  const seenPublicIds = new Set<string>();
-  const normalizedImages: ValidatedListingImage[] = [];
-
-  for (const [index, image] of images.entries()) {
-    const url = image.url.trim();
-    const publicId = image.publicId.trim();
-
-    if (!url || !publicId) {
-      return { images: [], error: "Each image must include a Cloudinary URL and public ID." };
-    }
-
-    if (seenPublicIds.has(publicId)) {
-      return { images: [], error: "Duplicate images are not allowed." };
-    }
-
-    if (!isListingCloudinaryPublicId(publicId) || !isListingCloudinaryUrl(url, publicId)) {
-      return { images: [], error: "Only listing images uploaded to Cloudinary can be saved." };
-    }
-
-    seenPublicIds.add(publicId);
-    normalizedImages.push({
-      url,
-      publicId,
-      order: index,
-    });
-  }
-
-  return { images: normalizedImages };
-}
-
-function isListingCloudinaryPublicId(publicId: string) {
-  if (!publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)) return false;
-  if (publicId.includes("..") || /\s/.test(publicId)) return false;
-  return /^[a-zA-Z0-9/_\-.]+$/.test(publicId);
-}
-
-function isListingCloudinaryUrl(url: string, publicId: string) {
   try {
-    const parsedUrl = new URL(url);
-    const cloudName = getCloudinaryConfig().cloudName;
-    const hasExpectedCloudName =
-      !cloudName || parsedUrl.pathname.startsWith(`/${cloudName}/image/upload/`);
-    const encodedPublicId = publicId
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/");
+    const result = await syncListingImagesForUser({
+      listingId,
+      userId: user.id,
+      isAdmin: user.role === "ADMIN",
+      input,
+    });
+    if (result.error) return result;
 
-    return (
-      parsedUrl.protocol === "https:" &&
-      parsedUrl.hostname === "res.cloudinary.com" &&
-      hasExpectedCloudName &&
-      parsedUrl.pathname.includes("/image/upload/") &&
-      parsedUrl.pathname.includes(`/${IMAGE_CONSTRAINTS.folder}/`) &&
-      parsedUrl.pathname.includes(`/${encodedPublicId}.`)
-    );
-  } catch {
-    return false;
+    await expireAbandonedListingImageIntents();
+    await processListingImageCleanupJobs();
+
+    revalidatePath(`/listings/${listingId}`);
+    revalidatePath("/account/listings");
+    revalidatePath("/dealer/dashboard");
+    return result;
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "syncListingImages",
+      route: `/listings/${listingId}`,
+      requestPath: `/listings/${listingId}`,
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId, imageCount: input.photos.length },
+    });
+    const message = err instanceof Error ? err.message : "Failed to update images";
+    return { error: message };
   }
 }
 
 export async function saveListingImages(
   listingId: string,
-  images: Array<{ url: string; publicId: string; order: number }>
+  photos: ListingPhotoMutationItem[],
+  input: Omit<SyncListingImagesInput, "photos">,
 ) {
-  const user = await requireAuth();
-
-  const listing = await db.listing.findUnique({ where: { id: listingId } });
-  if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id && user.role !== "ADMIN") {
-    return { error: "Not authorized" };
-  }
-  const maxImages = getListingPhotoLimit({
-    isDealer: listing.dealerId !== null,
-    isFeatured: listing.featured,
-  });
-  const imageValidation = validateListingImages(images, maxImages);
-  if (imageValidation.error) return { error: imageValidation.error };
-
-  try {
-    const existingCount = await db.listingImage.count({ where: { listingId } });
-    if (existingCount + imageValidation.images.length > maxImages) {
-      return { error: getListingPhotoLimitError(maxImages) };
-    }
-    const created = await db.listingImage.createMany({
-      data: imageValidation.images.map((img) => ({
-        listingId,
-        url: img.url,
-        publicId: img.publicId,
-        order: img.order,
-      })),
-    });
-
-    revalidatePath(`/listings/${listingId}`);
-    return { data: created };
-  } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
-      action: "saveListingImages",
-      route: `/listings/${listingId}`,
-      requestPath: `/listings/${listingId}`,
-      userId: user.id,
-      userEmail: user.email,
-      tags: { listingId, imageCount: images.length },
-    });
-    const message = err instanceof Error ? err.message : "Failed to save images";
-    return { error: message };
-  }
+  return syncListingImages(listingId, { ...input, photos });
 }
 
 export async function replaceListingImages(
   listingId: string,
-  images: Array<{ url: string; publicId: string; order: number }>
+  photos: ListingPhotoMutationItem[],
+  input: Omit<SyncListingImagesInput, "photos">,
 ) {
-  const user = await requireAuth();
-
-  const listing = await db.listing.findUnique({ where: { id: listingId } });
-  if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id && user.role !== "ADMIN") {
-    return { error: "Not authorized" };
-  }
-  const maxImages = getListingPhotoLimit({
-    isDealer: listing.dealerId !== null,
-    isFeatured: listing.featured,
-  });
-  const imageValidation = validateListingImages(images, maxImages);
-  if (imageValidation.error) return { error: imageValidation.error };
-  if (imageValidation.images.length > maxImages) {
-    return { error: getListingPhotoLimitError(maxImages) };
-  }
-
-  try {
-    await db.$transaction(async (tx) => {
-      await tx.listingImage.deleteMany({ where: { listingId } });
-
-      if (imageValidation.images.length > 0) {
-        await tx.listingImage.createMany({
-          data: imageValidation.images.map((image) => ({
-            listingId,
-            url: image.url,
-            publicId: image.publicId,
-            order: image.order,
-          })),
-        });
-      }
-    });
-
-    revalidatePath(`/listings/${listingId}`);
-    revalidatePath("/account/listings");
-    revalidatePath("/dealer/dashboard");
-    return { data: { count: imageValidation.images.length } };
-  } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
-      action: "replaceListingImages",
-      route: `/listings/${listingId}`,
-      requestPath: `/listings/${listingId}`,
-      userId: user.id,
-      userEmail: user.email,
-      tags: { listingId, imageCount: images.length },
-    });
-    const message = err instanceof Error ? err.message : "Failed to update images";
-    return { error: message };
-  }
+  return syncListingImages(listingId, { ...input, photos });
 }

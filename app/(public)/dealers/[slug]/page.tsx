@@ -15,6 +15,7 @@ import { Globe, Phone, Calendar } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getDealerEntitlement } from "@/lib/dealers/entitlement";
 
 interface Props {
@@ -50,7 +51,7 @@ export default async function DealerProfilePage({ params }: Props) {
         where: liveWhere,
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
         include: {
-          images: { take: 1, orderBy: { order: "asc" } },
+          images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
           category: true,
           region: true,
         },
@@ -295,7 +296,7 @@ export default async function DealerProfilePage({ params }: Props) {
               key={listing.id}
               title={listing.title}
               price={listing.price / 100}
-              imageSrc={listing.images[0]?.url}
+              photo={toListingPhotoSource(listing.images[0])}
               location={listing.region.name}
               meta={listing.category.name}
               featured={listing.featured}
