@@ -9,6 +9,8 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DealerLogo } from "@/components/dealers/dealer-logo";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
+import { cn } from "@/lib/cn";
 import { Globe, Phone, Calendar } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
@@ -212,17 +214,24 @@ export default async function DealerProfilePage({ params }: Props) {
       </div>
 
       {isProfileOwner ? (
-        <div className="mb-8 rounded-lg border border-border bg-surface p-4">
+        <Link
+          href="/dealer/profile"
+          aria-label="Manage dealer profile"
+          className={cn(
+            "mb-8 block rounded-lg border border-border bg-surface p-4",
+            NAVIGABLE_CARD_LINK_CLASS,
+          )}
+        >
           <p className="text-sm font-medium text-text-primary">
             Profile completion: {profileCompletionPercent}%
           </p>
           <p className="mt-1 text-sm text-text-secondary">
             Add more profile details to improve trust with buyers.
           </p>
-          <Link href="/dealer/profile" className="mt-2 inline-block text-sm text-text-trust hover:underline">
+          <span aria-hidden="true" className="mt-2 inline-block text-sm text-text-trust">
             Manage dealer profile
-          </Link>
-        </div>
+          </span>
+        </Link>
       ) : null}
 
       {/* Listings */}

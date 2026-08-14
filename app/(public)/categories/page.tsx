@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { Bike, BusFront, Car, Tag, Truck } from "lucide-react";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
+import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = {
   title: "Categories",
@@ -60,7 +62,10 @@ export default async function CategoriesPage() {
             <Link
               key={cat.id}
               href={`/search?category=${cat.slug}`}
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]"
+              className={cn(
+                "group relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]",
+                NAVIGABLE_CARD_LINK_CLASS,
+              )}
               style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }}
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />

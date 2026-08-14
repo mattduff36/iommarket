@@ -38,10 +38,11 @@ describe("DealerSpotlights", () => {
       "href",
       "/dealers",
     );
-    expect(screen.getAllByRole("article")).toHaveLength(dealers.length);
-    expect(screen.getAllByRole("link", { name: /Visit .* profile/ })).toHaveLength(
-      dealers.length,
-    );
+    const profileLinks = screen.getAllByRole("link", { name: /Visit .* profile/ });
+    expect(profileLinks).toHaveLength(dealers.length);
+    for (const link of profileLinks) {
+      expect(link.querySelector("a, button")).toBeNull();
+    }
     expect(screen.getByRole("region", { name: "Dealer spotlights" })).toBeTruthy();
   });
 });
@@ -50,14 +51,14 @@ describe("DealerDirectory", () => {
   it("renders every eligible dealer with reachable profile links", () => {
     render(<DealerDirectory dealers={dealers} />);
 
-    expect(screen.getAllByRole("article")).toHaveLength(dealers.length);
-    expect(screen.getByRole("link", { name: "Visit Alpha Autos profile" })).toHaveAttribute(
-      "href",
-      "/dealers/alpha-autos",
-    );
-    expect(screen.getByRole("link", { name: "Visit Beta Motors profile" })).toHaveAttribute(
-      "href",
-      "/dealers/beta-motors",
+    const alpha = screen.getByRole("link", { name: "Visit Alpha Autos profile" });
+    const beta = screen.getByRole("link", { name: "Visit Beta Motors profile" });
+    expect(alpha).toHaveAttribute("href", "/dealers/alpha-autos");
+    expect(beta).toHaveAttribute("href", "/dealers/beta-motors");
+    expect(alpha.querySelector("a, button")).toBeNull();
+    expect(beta.querySelector("a, button")).toBeNull();
+    expect(screen.getAllByRole("link", { name: /Visit .* profile/ })).toHaveLength(
+      dealers.length,
     );
   });
 

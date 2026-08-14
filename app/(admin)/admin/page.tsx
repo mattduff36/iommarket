@@ -6,7 +6,9 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
 import {
   ClipboardList,
   Clock,
@@ -397,7 +399,10 @@ export default async function AdminDashboardPage() {
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/admin/listings"
-          className="group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-neon-blue-500/30 hover:bg-surface-elevated transition-all"
+          className={cn(
+            "group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-neon-blue-500/30 hover:bg-surface-elevated transition-all",
+            NAVIGABLE_CARD_LINK_CLASS,
+          )}
         >
           <div className="rounded-md bg-neon-blue-500/10 p-2">
             <Clock className="h-4 w-4 text-neon-blue-400" />
@@ -411,7 +416,10 @@ export default async function AdminDashboardPage() {
 
         <Link
           href="/admin/dealers"
-          className="group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-emerald-500/30 hover:bg-surface-elevated transition-all"
+          className={cn(
+            "group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-emerald-500/30 hover:bg-surface-elevated transition-all",
+            NAVIGABLE_CARD_LINK_CLASS,
+          )}
         >
           <div className="rounded-md bg-emerald-500/10 p-2">
             <Store className="h-4 w-4 text-emerald-500" />
@@ -425,9 +433,13 @@ export default async function AdminDashboardPage() {
 
         <Link
           href="/admin/reports"
-          className={`group flex items-center gap-3 rounded-lg border bg-surface p-4 hover:bg-surface-elevated transition-all ${
-            openReports > 0 ? "border-neon-red-500/20 hover:border-neon-red-500/40" : "border-border hover:border-border"
-          }`}
+          className={cn(
+            "group flex items-center gap-3 rounded-lg border bg-surface p-4 hover:bg-surface-elevated transition-all",
+            openReports > 0
+              ? "border-neon-red-500/20 hover:border-neon-red-500/40"
+              : "border-border hover:border-border",
+            NAVIGABLE_CARD_LINK_CLASS,
+          )}
         >
           <div className={`rounded-md p-2 ${openReports > 0 ? "bg-neon-red-500/10" : "bg-surface-elevated"}`}>
             <AlertTriangle className={`h-4 w-4 ${openReports > 0 ? "text-neon-red-400" : "text-text-tertiary"}`} />
@@ -441,7 +453,10 @@ export default async function AdminDashboardPage() {
 
         <Link
           href="/admin/analytics"
-          className="group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-premium-gold-500/30 hover:bg-surface-elevated transition-all"
+          className={cn(
+            "group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-premium-gold-500/30 hover:bg-surface-elevated transition-all",
+            NAVIGABLE_CARD_LINK_CLASS,
+          )}
         >
           <div className="rounded-md bg-premium-gold-500/10 p-2">
             <Eye className="h-4 w-4 text-premium-gold-400" />

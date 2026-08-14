@@ -40,9 +40,19 @@ describe("PricingCards", () => {
     expect(screen.getAllByRole("list")).toHaveLength(4);
     expect(screen.getAllByRole("listitem")).toHaveLength(featureCount);
     expect(screen.getAllByText("60-day listing duration")).toHaveLength(2);
-    expect(
-      screen.getByRole("link", { name: "Claim Your Free Listing" }).getAttribute("href"),
-    ).toBe("/sell/private");
+    const planLinks = [
+      screen.getByRole("link", { name: "Claim Your Free Listing" }),
+      screen.getByRole("link", { name: "List an Item" }),
+      screen.getByRole("link", { name: "Choose Starter" }),
+      screen.getByRole("link", { name: "Choose Pro" }),
+    ];
+    expect(planLinks[0].getAttribute("href")).toBe("/sell/private");
+    expect(planLinks[1].getAttribute("href")).toBe("/sell/private");
+    expect(planLinks[2].getAttribute("href")).toBe("/dealer/subscribe?tier=STARTER");
+    expect(planLinks[3].getAttribute("href")).toBe("/dealer/subscribe?tier=PRO");
+    for (const link of planLinks) {
+      expect(link.querySelector("a, button")).toBeNull();
+    }
     expect(screen.getByText("£39.99")).toBeTruthy();
     expect(screen.getByText("£59.99")).toBeTruthy();
   });

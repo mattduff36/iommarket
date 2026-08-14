@@ -1,9 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+import {
+  CARD_OVERLAY_CONTROL_CLASS,
+  CardOverlayLink,
+} from "@/components/ui/card-overlay-link";
 import { ReviewActions } from "./review-actions";
 
 export const metadata: Metadata = { title: "Dealer Reviews" };
@@ -37,15 +40,14 @@ export default async function AdminReviewsPage() {
       <h1 className="text-2xl font-bold text-text-primary mb-6">Dealer Reviews</h1>
       <div className="space-y-4">
         {reviews.map((review) => (
-          <div key={review.id} className="rounded-lg border border-border p-4 bg-surface">
+          <div key={review.id} className="relative rounded-lg border border-border p-4 bg-surface">
+            <CardOverlayLink
+              href={`/dealers/${review.dealer.slug}`}
+              label={review.dealer.name}
+            />
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <Link
-                  href={`/dealers/${review.dealer.slug}`}
-                  className="font-medium text-text-primary hover:underline"
-                >
-                  {review.dealer.name}
-                </Link>
+                <p className="font-medium text-text-primary">{review.dealer.name}</p>
                 <p className="text-xs text-text-secondary mt-1">
                   {review.reviewerType === "REGISTERED"
                     ? `Registered user${review.reviewer?.email ? ` (${review.reviewer.email})` : ""}`
@@ -69,7 +71,7 @@ export default async function AdminReviewsPage() {
               <p className="mt-3 text-sm text-text-tertiary italic">No written comment</p>
             )}
 
-            <div className="mt-3 max-w-md">
+            <div className={`mt-3 max-w-md ${CARD_OVERLAY_CONTROL_CLASS}`}>
               <ReviewActions
                 reviewId={review.id}
                 currentStatus={review.status}

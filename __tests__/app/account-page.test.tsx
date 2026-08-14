@@ -82,9 +82,47 @@ describe("AccountDashboardPage", () => {
     expect(screen.getAllByRole("heading", { name: /Saved listings/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: /Saved searches/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: /Trusted dealer reviews/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open saved listings" }).getAttribute("href")).toBe(
+      "/account/favourites",
+    );
+    expect(screen.getByRole("link", { name: "Open saved searches" }).getAttribute("href")).toBe(
+      "/account/saved-searches",
+    );
+    expect(screen.getByRole("link", { name: "Browse dealer profiles" }).getAttribute("href")).toBe(
+      "/",
+    );
+    expect(
+      screen.getByRole("link", { name: "Open saved listings" }).querySelector("a, button"),
+    ).toBeNull();
     expect(screen.getByRole("link", { name: /Start selling privately/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /View listing history/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Become a dealer/i }).closest("a")).toBeNull();
     expect(screen.getByRole("heading", { name: /Become a dealer/i })).toBeTruthy();
     expect(getSellLandingPathMock).toHaveBeenCalledWith("USER");
+  });
+
+  it("makes recent listing rows a single destination without nested anchors", async () => {
+    dbMock.listing.groupBy.mockResolvedValue([
+      { status: "LIVE", _count: { _all: 1 } },
+    ]);
+    dbMock.listing.findMany.mockResolvedValue([
+      {
+        id: "listing-1",
+        title: "Island Hatchback",
+        status: "LIVE",
+        createdAt: new Date("2026-01-02"),
+        price: 450000,
+      },
+    ]);
+
+    const { default: AccountDashboardPage } = await import("@/app/(public)/account/page");
+
+    render(await AccountDashboardPage());
+
+    const rowLink = screen.getByRole("link", { name: "View Island Hatchback" });
+    expect(rowLink.getAttribute("href")).toBe("/listings/listing-1");
+    expect(rowLink.querySelector("a, button")).toBeNull();
+    expect(screen.queryByRole("link", { name: /^View$/ })).toBeNull();
   });
 
   it("shows admin shortcuts instead of dealer tools for admin accounts", async () => {

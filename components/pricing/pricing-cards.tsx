@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import type { VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/cn";
 import { Check } from "lucide-react";
 import type { MarketplacePricing } from "@/lib/config/marketplace-pricing-definitions";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
@@ -122,33 +124,42 @@ function PricingCard({
   highlightClassName,
 }: PricingCardProps) {
   return (
-    <Card
-      className={`relative flex w-full flex-col gap-6 p-4 shadow-high md:flex-row md:items-center md:gap-8 ${accentClassName} ${highlightClassName ?? ""}`}
+    <Link
+      href={cta.href}
+      aria-label={cta.label}
+      className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
     >
-      {badge && (
-        <span className={`absolute right-0 top-0 rounded-bl-lg px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${badgeClassName}`}>
-          {badge}
-        </span>
-      )}
-      <div className={`flex min-w-0 flex-col items-start gap-1 md:w-60 md:shrink-0 ${badge ? "pr-24 md:pr-0" : ""}`}>
-        <CardTitle className="text-lg">{title}</CardTitle>
-        <CardDescription className="text-left">{description}</CardDescription>
-        <div className="mt-2">
-          <span className="text-2xl font-bold text-text-primary">{price}</span>
-          <span className="text-text-secondary text-xs"> / {billingPeriod}</span>
+      <Card
+        className={`relative flex w-full flex-col gap-6 p-4 shadow-high md:flex-row md:items-center md:gap-8 ${accentClassName} ${highlightClassName ?? ""}`}
+      >
+        {badge && (
+          <span className={`absolute right-0 top-0 rounded-bl-lg px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${badgeClassName}`}>
+            {badge}
+          </span>
+        )}
+        <div className={`flex min-w-0 flex-col items-start gap-1 md:w-60 md:shrink-0 ${badge ? "pr-24 md:pr-0" : ""}`}>
+          <CardTitle className="text-lg">{title}</CardTitle>
+          <CardDescription className="text-left">{description}</CardDescription>
+          <div className="mt-2">
+            <span className="text-2xl font-bold text-text-primary">{price}</span>
+            <span className="text-text-secondary text-xs"> / {billingPeriod}</span>
+          </div>
+          <span
+            aria-hidden="true"
+            className={cn(buttonVariants({ variant: buttonVariant, size: "sm" }), "mt-3")}
+          >
+            {cta.label}
+          </span>
         </div>
-        <Button asChild variant={buttonVariant} size="sm" className="mt-3">
-          <Link href={cta.href}>{cta.label}</Link>
-        </Button>
-      </div>
-      <CardContent className="w-full min-w-0 flex-1 p-0">
-        <FeatureList
-          features={features}
-          iconClassName={iconClassName}
-          iconColorClassName={iconColorClassName}
-        />
-      </CardContent>
-    </Card>
+        <CardContent className="w-full min-w-0 flex-1 p-0">
+          <FeatureList
+            features={features}
+            iconClassName={iconClassName}
+            iconColorClassName={iconColorClassName}
+          />
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 

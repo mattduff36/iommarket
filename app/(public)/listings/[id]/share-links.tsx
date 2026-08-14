@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy, Share2 } from "lucide-react";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 interface ShareLinksProps {
   url: string;
@@ -37,7 +39,10 @@ export function ShareLinks({ url, title, text }: ShareLinksProps) {
   return (
     <div className="space-y-4">
       <a
-        className="group flex items-center gap-3 rounded-xl border border-[#1877F2]/30 bg-[#1877F2]/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-[#1877F2]/70 hover:bg-[#1877F2]/20"
+        className={cn(
+          "group flex items-center gap-3 rounded-xl border border-[#1877F2]/30 bg-[#1877F2]/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-[#1877F2]/70 hover:bg-[#1877F2]/20",
+          NAVIGABLE_CARD_LINK_CLASS,
+        )}
         href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`}
         target="_blank"
         rel="noreferrer"
@@ -46,7 +51,10 @@ export function ShareLinks({ url, title, text }: ShareLinksProps) {
         <span>Share on Facebook</span>
       </a>
       <a
-        className="group flex items-center gap-3 rounded-xl border border-white/20 bg-white/[0.08] px-4 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/[0.12]"
+        className={cn(
+          "group flex items-center gap-3 rounded-xl border border-white/20 bg-white/[0.08] px-4 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/[0.12]",
+          NAVIGABLE_CARD_LINK_CLASS,
+        )}
         href={`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`}
         target="_blank"
         rel="noreferrer"

@@ -539,6 +539,9 @@ export default function UIDemoPage() {
               meta="Listed 2 days ago"
               badge="Featured"
               featured
+              href="/categories"
+              listingId="uidemo-rolex"
+              showFavourite
             />
             <ListingCard
               title="Victorian Oak Writing Desk"

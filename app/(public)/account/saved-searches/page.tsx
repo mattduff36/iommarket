@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
+import {
+  CARD_OVERLAY_CONTROL_CLASS,
+  CardOverlayLink,
+} from "@/components/ui/card-overlay-link";
 import { DeleteSavedSearchButton } from "./delete-saved-search-button";
 
 export default async function SavedSearchesPage() {
@@ -33,8 +37,9 @@ export default async function SavedSearchesPage() {
             return (
               <div
                 key={saved.id}
-                className="rounded-lg border border-border bg-surface p-4 flex items-center justify-between gap-3"
+                className="relative flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4"
               >
+                <CardOverlayLink href={href} label={`Open ${saved.name}`} />
                 <div>
                   <p className="font-medium text-text-primary">{saved.name}</p>
                   <p className="text-xs text-text-secondary">
@@ -42,13 +47,12 @@ export default async function SavedSearchesPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Link
-                    href={href}
-                    className="text-sm text-text-trust hover:underline"
-                  >
+                  <span aria-hidden="true" className="text-sm text-text-trust">
                     Open
-                  </Link>
-                  <DeleteSavedSearchButton savedSearchId={saved.id} />
+                  </span>
+                  <div className={CARD_OVERLAY_CONTROL_CLASS}>
+                    <DeleteSavedSearchButton savedSearchId={saved.id} />
+                  </div>
                 </div>
               </div>
             );

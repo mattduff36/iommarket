@@ -4,6 +4,10 @@ import * as React from "react";
 import Image from "next/image";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
+import {
+  CARD_OVERLAY_CONTROL_CLASS,
+  CardOverlayLink,
+} from "@/components/ui/card-overlay-link";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 
 export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
@@ -65,13 +69,15 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
           "border border-border bg-surface",
           "transition-all duration-fast ease-fast",
           "hover:border-metallic-400 hover:-translate-y-0.5 hover:shadow-high",
+          href && "cursor-pointer",
           featured && "ring-2 ring-neon-blue-500",
           className,
         )}
         {...props}
       >
+        {href ? <CardOverlayLink href={href} label={title} /> : null}
         {/* Image container with overlay gradient */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-graphite-800">
+        <div className="pointer-events-none relative aspect-[4/3] w-full overflow-hidden bg-graphite-800">
           {imageSrc ? (
             <Image
               src={imageSrc}
@@ -91,7 +97,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
             </div>
           )}
           {/* Bottom gradient overlay */}
-          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
           {sold && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <span className="rotate-[-15deg] text-lg sm:text-xl font-black tracking-widest text-white opacity-95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] border-4 border-white px-3 py-1 rounded-sm">
@@ -110,7 +116,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
             </div>
           )}
           {showFavourite && listingId && !sold && (
-            <div className="absolute top-3 right-3 z-10">
+            <div className={cn("pointer-events-auto absolute top-3 right-3", CARD_OVERLAY_CONTROL_CLASS)}>
               <FavouriteToggle
                 listingId={listingId}
                 initialIsFavourite={initialIsFavourite}
@@ -121,19 +127,12 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
         </div>
 
         {/* Content */}
-        <div className="flex flex-1 flex-col items-center gap-1.5 sm:gap-2 px-2.5 py-3 sm:px-4 sm:py-5">
+        <div className="pointer-events-none flex flex-1 flex-col items-center gap-1.5 sm:gap-2 px-2.5 py-3 sm:px-4 sm:py-5">
           <h3
             id={titleId}
             className="text-sm sm:text-base font-semibold text-text-primary text-center line-clamp-2 leading-snug"
           >
-            {href ? (
-              <a href={href} className="hover:text-text-trust focus:outline-none">
-                <span className="absolute inset-0" aria-hidden="true" />
-                {title}
-              </a>
-            ) : (
-              title
-            )}
+            {title}
           </h3>
 
           <span className="text-base sm:text-lg font-extrabold text-text-energy">

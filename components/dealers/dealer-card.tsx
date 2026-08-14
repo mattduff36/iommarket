@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { DealerLogo } from "@/components/dealers/dealer-logo";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
 import type { DealerSpotlight } from "@/lib/dealers/spotlights";
+import Link from "next/link";
 
 interface DealerCardProps {
   dealer: DealerSpotlight;
@@ -11,9 +12,12 @@ interface DealerCardProps {
 
 export function DealerCard({ dealer, className }: DealerCardProps) {
   return (
-    <article
+    <Link
+      href={`/dealers/${dealer.slug}`}
+      aria-label={`Visit ${dealer.name} profile`}
       className={cn(
         "group flex h-full min-w-0 flex-col rounded-2xl border border-border bg-black/20 p-4 transition-colors hover:border-neon-blue-500/40",
+        NAVIGABLE_CARD_LINK_CLASS,
         className,
       )}
     >
@@ -37,15 +41,14 @@ export function DealerCard({ dealer, className }: DealerCardProps) {
           {dealer._count.listings} live{" "}
           {dealer._count.listings === 1 ? "listing" : "listings"}
         </p>
-        <Link
-          href={`/dealers/${dealer.slug}`}
-          aria-label={`Visit ${dealer.name} profile`}
-          className="mt-3 inline-flex items-center gap-1 text-sm text-text-trust transition-colors group-hover:text-neon-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-400"
+        <span
+          aria-hidden="true"
+          className="mt-3 inline-flex items-center gap-1 text-sm text-text-trust transition-colors group-hover:text-neon-blue-400"
         >
           Visit profile
           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
-        </Link>
+        </span>
       </div>
-    </article>
+    </Link>
   );
 }

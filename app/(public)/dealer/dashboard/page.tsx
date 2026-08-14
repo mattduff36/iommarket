@@ -8,8 +8,10 @@ import { db } from "@/lib/db";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
+import { cn } from "@/lib/cn";
 import {
   Table,
   TableHeader,
@@ -276,41 +278,59 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
       </Card>
 
       <div className="mb-8 grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Profile Completion</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-neon-blue-500">
-              {profileCompletionPercent}%
-            </p>
-            <p className="mt-1 text-sm text-text-secondary">
-              Complete your dealer profile to build trust and improve conversion.
-            </p>
-            <Button asChild variant="ghost" size="sm" className="mt-3">
-              <Link href="/dealer/profile">Update Dealer Profile</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <Link
+          href="/dealer/profile"
+          aria-label="Update Dealer Profile"
+          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
+        >
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Profile Completion</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-neon-blue-500">
+                {profileCompletionPercent}%
+              </p>
+              <p className="mt-1 text-sm text-text-secondary">
+                Complete your dealer profile to build trust and improve conversion.
+              </p>
+              <span
+                aria-hidden="true"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-3")}
+              >
+                Update Dealer Profile
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Review Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-premium-gold-500 flex items-center gap-2">
-              <Star className="h-5 w-5" />
-              {averageRating ?? "—"}
-            </p>
-            <p className="mt-1 text-sm text-text-secondary">
-              {reviewStats._count._all} approved review
-              {reviewStats._count._all === 1 ? "" : "s"}
-            </p>
-            <Button asChild variant="ghost" size="sm" className="mt-3">
-              <Link href={`/dealers/${user.dealerProfile.slug}`}>View Public Reviews</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <Link
+          href={`/dealers/${user.dealerProfile.slug}`}
+          aria-label="View Public Reviews"
+          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
+        >
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Review Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-premium-gold-500 flex items-center gap-2">
+                <Star className="h-5 w-5" />
+                {averageRating ?? "—"}
+              </p>
+              <p className="mt-1 text-sm text-text-secondary">
+                {reviewStats._count._all} approved review
+                {reviewStats._count._all === 1 ? "" : "s"}
+              </p>
+              <span
+                aria-hidden="true"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-3")}
+              >
+                View Public Reviews
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <Card className="mb-6">

@@ -9,6 +9,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
+import { cn } from "@/lib/cn";
 import { MapPin, Calendar, Tag, AlertTriangle, Star } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { ContactSellerForm } from "./contact-form";
@@ -338,23 +340,23 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 {listing.dealer?.name ?? listing.user.name ?? "Anonymous"}
               </p>
               {listing.dealer && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated/60 px-3 py-2">
+                <Link
+                  href={`/dealers/${listing.dealer.slug}`}
+                  aria-label="View dealer profile"
+                  className={cn(
+                    "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated/60 px-3 py-2",
+                    NAVIGABLE_CARD_LINK_CLASS,
+                  )}
+                >
                   {listing.dealer.verified ? (
                     <Badge variant="success" className="shrink-0">
                       Verified dealer
                     </Badge>
                   ) : null}
-                  <Button
-                    asChild
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs font-semibold"
-                  >
-                    <Link href={`/dealers/${listing.dealer.slug}`}>
-                      View dealer profile
-                    </Link>
-                  </Button>
-                </div>
+                  <span aria-hidden="true" className="text-xs font-semibold text-text-trust">
+                    View dealer profile
+                  </span>
+                </Link>
               )}
               {listing.dealer?.phone && (
                 <p className="text-sm text-text-secondary">

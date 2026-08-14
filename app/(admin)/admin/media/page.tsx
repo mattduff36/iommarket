@@ -5,6 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+import {
+  CARD_OVERLAY_CONTROL_CLASS,
+  CardOverlayLink,
+} from "@/components/ui/card-overlay-link";
 import { DeleteImageButton } from "./delete-image-button";
 import type { Prisma } from "@prisma/client";
 
@@ -87,7 +91,11 @@ export default async function AdminMediaPage({ searchParams }: Props) {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {images.map((img) => (
-          <div key={img.id} className="rounded-lg border border-border bg-surface overflow-hidden">
+          <div key={img.id} className="relative overflow-hidden rounded-lg border border-border bg-surface">
+            <CardOverlayLink
+              href={`/listings/${img.listing.id}`}
+              label={img.listing.title}
+            />
             <div className="relative aspect-square bg-graphite-800">
               <Image
                 src={img.url}
@@ -98,12 +106,7 @@ export default async function AdminMediaPage({ searchParams }: Props) {
               />
             </div>
             <div className="p-2 space-y-1">
-              <Link
-                href={`/listings/${img.listing.id}`}
-                className="text-xs text-text-primary hover:underline line-clamp-1"
-              >
-                {img.listing.title}
-              </Link>
+              <p className="line-clamp-1 text-xs text-text-primary">{img.listing.title}</p>
               <div className="flex items-center gap-1">
                 <Badge variant={STATUS_BADGE[img.listing.status] ?? "neutral"} className="text-[10px]">
                   {img.listing.status}
@@ -112,7 +115,9 @@ export default async function AdminMediaPage({ searchParams }: Props) {
               <p className="text-[10px] text-text-tertiary truncate">
                 {img.listing.dealer?.name ?? img.listing.user.email}
               </p>
-              <DeleteImageButton imageId={img.id} />
+              <div className={CARD_OVERLAY_CONTROL_CLASS}>
+                <DeleteImageButton imageId={img.id} />
+              </div>
             </div>
           </div>
         ))}

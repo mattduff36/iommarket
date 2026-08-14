@@ -2,7 +2,9 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/lib/cn";
 import type {
   VehicleCheckResult,
   VehicleMileageSummary,
@@ -563,9 +565,16 @@ export function VehicleCheckResultPanel({
           {result.auctionHistory ? (
             <div className="grid gap-4 md:grid-cols-2">
               {result.auctionHistory.entries.map((entry) => (
-                <div
+                <Link
                   key={`${entry.lotUrl}-${entry.lotNumber ?? "lot"}`}
-                  className="rounded-xl border border-border bg-canvas/45 p-4"
+                  href={entry.lotUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open lot details for ${entry.saleTitle}`}
+                  className={cn(
+                    "block rounded-xl border border-border bg-canvas/45 p-4",
+                    NAVIGABLE_CARD_LINK_CLASS,
+                  )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -585,15 +594,13 @@ export function VehicleCheckResultPanel({
                     <span>{formatDate(entry.saleDate)}</span>
                     <span>{formatCurrency(entry.hammerPrice)}</span>
                   </div>
-                  <Link
-                    href={entry.lotUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-text-trust hover:underline"
+                  <span
+                    aria-hidden="true"
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-text-trust"
                   >
                     Open lot details <ExternalLink className="h-4 w-4" />
-                  </Link>
-                </div>
+                  </span>
+                </Link>
               ))}
             </div>
           ) : (

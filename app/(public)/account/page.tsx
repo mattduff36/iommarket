@@ -7,8 +7,13 @@ import { db } from "@/lib/db";
 import { getSellLandingPath } from "@/lib/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  CardOverlayLink,
+  NAVIGABLE_CARD_LINK_CLASS,
+} from "@/components/ui/card-overlay-link";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { cn } from "@/lib/cn";
 
 const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
@@ -136,52 +141,76 @@ export default async function AccountDashboardPage() {
       </div>
 
       <div className="mb-8 grid gap-6 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Saved listings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-text-secondary">
-              Keep the vehicles you are tracking in one place and jump back in when you are
-              ready.
-            </p>
-            <p className="text-2xl font-bold text-neon-blue-500">{favouritesCount}</p>
-            <Button asChild size="sm">
-              <Link href="/account/favourites">Open saved listings</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <Link
+          href="/account/favourites"
+          aria-label="Open saved listings"
+          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>Saved listings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-text-secondary">
+                Keep the vehicles you are tracking in one place and jump back in when you are
+                ready.
+              </p>
+              <p className="text-2xl font-bold text-neon-blue-500">{favouritesCount}</p>
+              <span aria-hidden="true" className={cn(buttonVariants({ size: "sm" }))}>
+                Open saved listings
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Saved searches</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-text-secondary">
-              Re-run your favourite filters in one click and keep tabs on fresh inventory.
-            </p>
-            <p className="text-2xl font-bold text-premium-gold-500">{savedSearchCount}</p>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/account/saved-searches">Open saved searches</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <Link
+          href="/account/saved-searches"
+          aria-label="Open saved searches"
+          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>Saved searches</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-text-secondary">
+                Re-run your favourite filters in one click and keep tabs on fresh inventory.
+              </p>
+              <p className="text-2xl font-bold text-premium-gold-500">{savedSearchCount}</p>
+              <span
+                aria-hidden="true"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+              >
+                Open saved searches
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Trusted dealer reviews</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-text-secondary">
-              Signed-in members can leave named dealer reviews to help other buyers make
-              informed decisions.
-            </p>
-            <p className="text-2xl font-bold text-emerald-500">{reviewCount}</p>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/">Browse dealer profiles</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <Link
+          href="/"
+          aria-label="Browse dealer profiles"
+          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>Trusted dealer reviews</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-text-secondary">
+                Signed-in members can leave named dealer reviews to help other buyers make
+                informed decisions.
+              </p>
+              <p className="text-2xl font-bold text-emerald-500">{reviewCount}</p>
+              <span
+                aria-hidden="true"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+              >
+                Browse dealer profiles
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="mb-8 grid gap-6 lg:grid-cols-2">
@@ -321,8 +350,12 @@ export default async function AccountDashboardPage() {
                   recentListings.map((listing) => (
                     <div
                       key={listing.id}
-                      className="flex items-center justify-between rounded-md border border-border p-3"
+                      className="relative flex items-center justify-between rounded-md border border-border p-3"
                     >
+                      <CardOverlayLink
+                        href={`/listings/${listing.id}`}
+                        label={`View ${listing.title}`}
+                      />
                       <div className="min-w-0">
                         <p className="truncate font-medium text-text-primary">{listing.title}</p>
                         <p className="text-xs text-text-secondary">
@@ -332,12 +365,9 @@ export default async function AccountDashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="neutral">{listing.status}</Badge>
-                        <Link
-                          href={`/listings/${listing.id}`}
-                          className="text-sm text-text-trust hover:underline"
-                        >
+                        <span aria-hidden="true" className="text-sm text-text-trust">
                           View
-                        </Link>
+                        </span>
                       </div>
                     </div>
                   ))
