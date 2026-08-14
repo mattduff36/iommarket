@@ -4,10 +4,13 @@ import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { Plus, StickyNote, Trash2 } from "lucide-react";
 import { saveChecklist } from "@/actions/admin/checklist";
 import {
+  CHECKLIST_ASSIGNEES,
   createChecklistItem,
   remainingChecklistCount,
   sortChecklistItems,
+  type ChecklistAssignee,
   type ChecklistItem,
+  type ChecklistLabel,
 } from "@/lib/admin/checklist";
 import { AdminActionButton } from "@/components/admin/admin-action-controls";
 import { Badge } from "@/components/ui/badge";
@@ -19,10 +22,9 @@ interface ChecklistBoardProps {
   initialItems: ChecklistItem[];
 }
 
-function labelVariant(label: string | null) {
+function labelVariant(label: ChecklistLabel) {
   if (label === "DM") return "info" as const;
   if (label === "MD") return "premium" as const;
-  if (label === "Future") return "neutral" as const;
   return "neutral" as const;
 }
 
@@ -30,6 +32,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
   const [items, setItems] = useState(initialItems);
   const [hideCompleted, setHideCompleted] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [newAssignees, setNewAssignees] = useState<ChecklistAssignee[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -115,9 +118,23 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
     event.preventDefault();
     const title = newTitle.trim();
     if (!title) return;
-    const nextItems = [...items, createChecklistItem({ title })];
+    const nextItems = [
+      ...items,
+      createChecklistItem({ title, labels: newAssignees }),
+    ];
     setNewTitle("");
     updateItems(nextItems);
+  }
+
+  function toggleNewAssignee(assignee: ChecklistAssignee, checked: boolean) {
+    setNewAssignees((current) => {
+      if (checked) {
+        return CHECKLIST_ASSIGNEES.filter(
+          (item) => item === assignee || current.includes(item),
+        );
+      }
+      return current.filter((item) => item !== assignee);
+    });
   }
 
   return (
@@ -178,11 +195,11 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                           item.done && "text-text-secondary line-through",
                         )}
                       />
-                      {item.label ? (
-                        <Badge variant={labelVariant(item.label)}>
-                          {item.label}
+                      {item.labels.map((label) => (
+                        <Badge key={label} variant={labelVariant(label)}>
+                          {label}
                         </Badge>
-                      ) : null}
+                      ))}
                     </div>
                     {expanded ? (
                       <textarea
@@ -240,25 +257,41 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
 
       <form
         onSubmit={handleAdd}
-        className="flex items-end gap-2 border-t border-border p-4"
+        className="space-y-3 border-t border-border p-4"
       >
-        <div className="flex-1">
-          <Input
-            value={newTitle}
-            onChange={(event) => setNewTitle(event.target.value)}
-            placeholder="New item"
-            aria-label="New checklist item"
-            maxLength={500}
-          />
+        <Input
+          value={newTitle}
+          onChange={(event) => setNewTitle(event.target.value)}
+          placeholder="New item"
+          aria-label="New checklist item"
+          maxLength={500}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <fieldset className="flex items-center gap-4">
+            <legend className="text-xs font-medium text-text-secondary">
+              Assign
+            </legend>
+            {CHECKLIST_ASSIGNEES.map((assignee) => (
+              <Checkbox
+                key={assignee}
+                label={assignee}
+                checked={newAssignees.includes(assignee)}
+                onCheckedChange={(checked) =>
+                  toggleNewAssignee(assignee, checked === true)
+                }
+                aria-label={`Assign to ${assignee}`}
+              />
+            ))}
+          </fieldset>
+          <AdminActionButton
+            type="submit"
+            tone="primary"
+            disabled={isPending || newTitle.trim().length === 0}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add item
+          </AdminActionButton>
         </div>
-        <AdminActionButton
-          type="submit"
-          tone="primary"
-          disabled={isPending || newTitle.trim().length === 0}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add item
-        </AdminActionButton>
       </form>
 
       {error ? (

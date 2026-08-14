@@ -9,6 +9,7 @@ import { captureException } from "@/lib/monitoring";
 import {
   CHECKLIST_SETTING_KEY,
   createDefaultChecklistItems,
+  normalizeChecklistLabels,
   remainingChecklistCount,
   resolveChecklistItems,
   type ChecklistItem,
@@ -57,7 +58,10 @@ export async function saveChecklist(input: SaveChecklistInput) {
   const parsed = saveChecklistSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
-  const items: ChecklistItem[] = parsed.data.items;
+  const items: ChecklistItem[] = parsed.data.items.map((item) => ({
+    ...item,
+    labels: normalizeChecklistLabels(item.labels),
+  }));
 
   try {
     await db.siteSetting.upsert({

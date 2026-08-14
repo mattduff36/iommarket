@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createChecklistItem,
   createDefaultChecklistItems,
+  normalizeChecklistLabels,
   remainingChecklistCount,
   resolveChecklistItems,
   sortChecklistItems,
@@ -23,9 +24,9 @@ describe("createDefaultChecklistItems", () => {
       "Auction (commission), scrap / parts",
     ]);
     expect(items.every((item) => item.done === false)).toBe(true);
-    expect(items.filter((item) => item.label === "DM")).toHaveLength(3);
-    expect(items.some((item) => item.label === "MD")).toBe(true);
-    expect(items.some((item) => item.label === "Future")).toBe(true);
+    expect(items.filter((item) => item.labels.includes("DM"))).toHaveLength(3);
+    expect(items.some((item) => item.labels.includes("MD"))).toBe(true);
+    expect(items.some((item) => item.labels.includes("Future"))).toBe(true);
   });
 });
 
@@ -54,6 +55,27 @@ describe("resolveChecklistItems", () => {
     ]);
 
     expect(resolved).toEqual([valid]);
+  });
+
+  it("migrates a legacy single label into labels", () => {
+    const legacy = {
+      ...createChecklistItem({ id: "legacy", title: "Legacy item" }, NOW),
+      labels: undefined,
+      label: "DM",
+    };
+
+    expect(resolveChecklistItems([legacy])).toEqual([
+      expect.objectContaining({
+        id: "legacy",
+        labels: ["DM"],
+      }),
+    ]);
+  });
+});
+
+describe("normalizeChecklistLabels", () => {
+  it("keeps DM and MD together in a stable order", () => {
+    expect(normalizeChecklistLabels(["MD", "DM", "DM"])).toEqual(["DM", "MD"]);
   });
 });
 

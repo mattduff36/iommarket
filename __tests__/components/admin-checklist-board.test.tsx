@@ -28,7 +28,7 @@ function renderBoard() {
             id: "seed-website-terms",
             title: "Website T&Cs — avoid being an agent",
             notes: "Draft terms and conditions for the website.",
-            label: "DM",
+            labels: ["DM"],
           },
           new Date(NOW.getTime() + 1),
         ),
@@ -77,6 +77,29 @@ describe("ChecklistBoard", () => {
           expect.objectContaining({
             title: "Follow up with insurers",
             done: false,
+            labels: [],
+          }),
+        ]),
+      });
+    });
+  });
+
+  it("assigns both DM and MD when both are selected", async () => {
+    renderBoard();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Assign to DM" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Assign to MD" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "New checklist item" }), {
+      target: { value: "Shared follow-up" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+
+    await waitFor(() => {
+      expect(saveChecklistMock).toHaveBeenCalledWith({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            title: "Shared follow-up",
+            labels: ["DM", "MD"],
           }),
         ]),
       });

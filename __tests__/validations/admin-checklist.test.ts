@@ -19,6 +19,21 @@ describe("saveChecklistSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts an item assigned to both DM and MD", () => {
+    const result = saveChecklistSchema.safeParse({
+      items: [
+        createChecklistItem(
+          { title: "Shared task", labels: ["MD", "DM"] },
+          NOW,
+        ),
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.items[0]?.labels).toEqual(["DM", "MD"]);
+    }
+  });
+
   it("rejects more than 200 items", () => {
     const items = Array.from({ length: 201 }, (_, index) =>
       createChecklistItem({ title: `Item ${index}` }, NOW),

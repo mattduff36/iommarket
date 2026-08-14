@@ -165,7 +165,7 @@ export const checklistItemSchema = z.object({
   id: z.string().min(1).max(80),
   title: z.string().trim().min(1).max(500),
   notes: z.string().max(5000).default(""),
-  label: z.string().trim().max(40).nullable().default(null),
+  labels: z.array(z.enum(["DM", "MD", "Future"])).max(3).default([]),
   done: z.boolean(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
