@@ -1,0 +1,82 @@
+{
+"metadata": {
+"original_width_px": 1079,
+"original_height_px": 342,
+"aspect_ratio": "3:1",
+"dominant_art_style": "Glossy 3D Vector Logo",
+"overall_mood": "Dynamic and commercial"
+},
+"color_palette": {
+"dominant_colors_hex": ["#E60000", "#FFFFFF", "#0066CC", "#CCCCCC", "#000000", "#999999"],
+"accent_colors_hex": ["#FF3333", "#3399FF"],
+"gradient_directions": [
+"Vertical metallic gradients on main text (white to light grey)",
+"Curved sweeping gradients on swoosh graphics (dark to light red/blue)"
+]
+},
+"lighting": {
+"key_light": "Top-down synthetic + cool + hard",
+"fill_light": "Front center + 1:2 ratio",
+"rim_back_light": "absent",
+"ambient_light_color": "#FFFFFF",
+"shadow_hardness": "soft",
+"global_contrast": "high"
+},
+"composition": {
+"rule_of_thirds": "Graphic on left third, text spans center and right",
+"leading_lines": "Horizontal swooshes and speed lines drive eye left to right",
+"symmetry": "none",
+"negative_space_usage": "Surrounds the logo tightly, drawing focus to the vibrant center",
+"depth_layers": ["foreground", "midground", "background"]
+},
+"camera": {
+"focal_length_equivalent": "50mm",
+"aperture_visual_effect": "deep DOF",
+"lens_type": "prime",
+"camera_angle": "eye-level",
+"distance_to_main_subject": "close-up"
+},
+"subjects": [
+{
+"id": 1,
+"type": "logo",
+"gender_appearance": "",
+"age_appearance": "",
+"ethnicity_appearance": "",
+"pose": "static horizontal lockup",
+"clothing": "",
+"expression": "",
+"position_in_frame_x_percent": 50,
+"position_in_frame_y_percent": 50,
+"relative_size_percent_of_frame": 85,
+"detailed_visual_description": "Dynamic tech logo. Left side features overlapping, 3D-glossy swooshes in red, blue, and silver forming an abstract 'e' or orbital shape with horizontal speed lines. Center text 'iTrader' in italicized, metallic silver-white font with black outlines. Right side text '.im' in glossy red. Bottom features thin tagline."
+}
+],
+"background": {
+"type": "studio",
+"detailed_description": "Pure white or transparent canvas emphasizing the floating graphic elements.",
+"visible_text_elements": [
+"iTrader + metallic silver italic + center",
+".im + glossy red italic + right",
+"BUY • SELL • UPGRADE + thin grey + bottom center"
+],
+"environmental_details": "None, pure graphic environment"
+},
+"post_processing": {
+"film_grain": "none",
+"vignette": "none",
+"color_grading": "cinematic vibrant",
+"sharpness": "high",
+"chromatic_aberration": "absent"
+},
+"micro_details": [
+"Bright specular highlight pings on the upper curves of the red swoosh",
+"Fading red and grey horizontal speed trails extending from the main graphic",
+"Red circular bullet points separating words in the bottom tagline",
+"Website design pack specs embedded here: Vector SVGs and PNGs at 1x/2x/3x resolutions, full color for light backgrounds, inverted white text for dark backgrounds"
+],
+"recommended_generators": ["Flux Pro", "Midjourney v6", "Ideogram v2", "SD3", "Leonardo", "Nano-Pro"],
+"exact_prompt_for_nano_pro": "Glossy 3D vector logo on white, left abstract swoosh in red blue silver with speed lines, text 'iTrader' in metallic silver with black outline, text '.im' in red, tagline 'BUY • SELL • UPGRADE' below.",
+"exact_prompt_for_flux": "A dynamic 3D glossy web logo featuring red and blue sweeping curves on the left, the text 'iTrader' in silver metallic gradient font, '.im' in red, tagline 'BUY • SELL • UPGRADE'.",
+"exact_prompt_for_midjourney": "Commercial vector logo design, glossy 3D sweeping swoosh in red and blue, metallic silver typography 'iTrader.im', tagline 'BUY • SELL • UPGRADE', white background, high contrast --ar 3:1 --stylize 250"
+}
