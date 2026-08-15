@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getSellLandingPath } from "@/lib/navigation";
 import { AdminListingChoiceModal } from "./admin-listing-choice-modal";
 
@@ -12,8 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function SellPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up?next=/sell");
+  const user = await requireAcceptedUser("/sell");
   const sellLandingPath = getSellLandingPath(user.role);
   if (sellLandingPath) redirect(sellLandingPath);
 

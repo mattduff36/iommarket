@@ -14,12 +14,8 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/lib/supabase/client", () => ({
-  createSupabaseBrowserClient: () => ({
-    auth: {
-      signUp: signUpMock,
-    },
-  }),
+vi.mock("@/actions/auth/sign-up", () => ({
+  signUpWithPolicyAcceptance: (...args: unknown[]) => signUpMock(...args),
 }));
 
 function getPasswordInput(): HTMLInputElement {
@@ -35,6 +31,11 @@ function getPasswordInput(): HTMLInputElement {
   return input;
 }
 
+async function completeRequiredAcknowledgements() {
+  fireEvent.click(screen.getByLabelText(/I confirm I am 18 or over/i));
+  fireEvent.click(screen.getByLabelText(/I acknowledge the/i));
+}
+
 describe("SignUpWithPlans", () => {
   const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 
@@ -43,15 +44,7 @@ describe("SignUpWithPlans", () => {
     signUpMock.mockReset();
     nextPath = null;
     process.env.NEXT_PUBLIC_APP_URL = "https://iomarket.test";
-
-    signUpMock.mockResolvedValue({
-      data: {
-        user: {
-          identities: [{}],
-        },
-      },
-      error: null,
-    });
+    signUpMock.mockResolvedValue({ data: { email: "member@example.com" } });
   });
 
   afterAll(() => {
@@ -81,6 +74,7 @@ describe("SignUpWithPlans", () => {
     fireEvent.change(getPasswordInput(), {
       target: { value: "strong-password-123" },
     });
+    await completeRequiredAcknowledgements();
     fireEvent.click(screen.getByRole("button", { name: /Create account/i }));
 
     await waitFor(() => expect(signUpMock).toHaveBeenCalledTimes(1));
@@ -88,14 +82,14 @@ describe("SignUpWithPlans", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: "member@example.com",
       password: "strong-password-123",
-      options: {
-        data: {},
-        emailRedirectTo: "https://iomarket.test/auth/callback?next=%2Faccount",
-      },
+      name: "",
+      nextPath: "/account",
+      ageAttested: true,
+      policiesAccepted: true,
     });
   });
 
-  it("preserves dealer continuation paths and metadata when signup starts from dealer subscribe", async () => {
+  it("preserves dealer continuation paths when signup starts from dealer subscribe", async () => {
     nextPath = "/dealer/subscribe?tier=PRO";
 
     render(
@@ -119,6 +113,7 @@ describe("SignUpWithPlans", () => {
     fireEvent.change(getPasswordInput(), {
       target: { value: "strong-password-123" },
     });
+    await completeRequiredAcknowledgements();
     fireEvent.click(
       screen.getByRole("button", {
         name: /Create account and continue to Dealer Pro/i,
@@ -130,13 +125,10 @@ describe("SignUpWithPlans", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: "dealer@example.com",
       password: "strong-password-123",
-      options: {
-        data: {
-          dealer_tier_intent: "PRO",
-        },
-        emailRedirectTo:
-          "https://iomarket.test/auth/callback?next=%2Fdealer%2Fsubscribe%3Ftier%3DPRO",
-      },
+      name: "",
+      nextPath: "/dealer/subscribe?tier=PRO",
+      ageAttested: true,
+      policiesAccepted: true,
     });
   });
 });

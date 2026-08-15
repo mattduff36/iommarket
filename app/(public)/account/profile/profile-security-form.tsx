@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useCallback } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateMyProfile, deactivateMyAccount } from "@/actions/account";
@@ -8,7 +8,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, FileX, UserX, LogOut, CheckCircle } from "lucide-react";
 
 interface RegionOption {
   id: string;
@@ -28,142 +27,28 @@ interface Props {
   regions: RegionOption[];
 }
 
-const DELETION_STEPS = [
-  { id: "listings", label: "Taking down active listings", icon: FileX },
-  { id: "profile", label: "Removing profile data", icon: UserX },
-  { id: "auth", label: "Deleting authentication credentials", icon: Shield },
-  { id: "signout", label: "Signing out of all sessions", icon: LogOut },
-  { id: "done", label: "Account deleted", icon: CheckCircle },
-] as const;
-
-function DeletionProgressOverlay({
+function DeletionRequestedNotice({
   onComplete,
 }: {
   onComplete: () => void;
 }) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [progress, setProgress] = useState(0);
-
-  const stepCount = DELETION_STEPS.length;
-
-  const advanceSteps = useCallback(() => {
-    const stepDuration = 1200;
-    const tickInterval = 30;
-    const ticksPerStep = stepDuration / tickInterval;
-    let tick = 0;
-
-    const interval = setInterval(() => {
-      tick++;
-      const totalTicks = stepCount * ticksPerStep;
-      const currentProgress = Math.min((tick / totalTicks) * 100, 100);
-      setProgress(currentProgress);
-
-      const step = Math.min(Math.floor(tick / ticksPerStep), stepCount - 1);
-      setCurrentStep(step);
-
-      if (tick >= totalTicks) {
-        clearInterval(interval);
-        setTimeout(onComplete, 800);
-      }
-    }, tickInterval);
-
-    return () => clearInterval(interval);
-  }, [stepCount, onComplete]);
-
-  useEffect(() => {
-    return advanceSteps();
-  }, [advanceSteps]);
-
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-canvas/95 backdrop-blur-sm">
       <div className="w-full max-w-md px-6">
-        <div className="text-center mb-8">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-neon-red-500/10">
-            <Shield className="h-8 w-8 text-neon-red-500 animate-pulse" />
-          </div>
+        <div className="rounded-lg border border-border bg-surface p-6">
           <h2 className="text-xl font-bold text-text-primary font-heading">
-            Deleting Your Account
+            Deletion request received
           </h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Please wait while we securely remove your data...
+          <p className="mt-3 text-sm text-text-secondary">
+            Your account is now disabled and any live listings have been taken
+            down. Remaining identifiers, login credentials, and eligible media
+            are removed in a second queued step. Financial, fraud, and audit
+            records are kept where the law requires.
           </p>
+          <Button className="mt-5 w-full" onClick={onComplete}>
+            Sign out
+          </Button>
         </div>
-
-        <div className="mb-6">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-elevated">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-neon-red-500 to-neon-red-400 transition-all duration-150 ease-linear"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="mt-2 text-right text-xs text-text-secondary tabular-nums">
-            {Math.round(progress)}%
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {DELETION_STEPS.map((step, index) => {
-            const Icon = step.icon;
-            const isActive = index === currentStep;
-            const isComplete = index < currentStep;
-            const isPending = index > currentStep;
-
-            return (
-              <div
-                key={step.id}
-                className={`flex items-center gap-3 rounded-lg border px-4 py-3 transition-all duration-300 ${
-                  isActive
-                    ? "border-neon-red-500/50 bg-neon-red-500/5 shadow-sm"
-                    : isComplete
-                      ? "border-neon-blue-500/30 bg-neon-blue-500/5"
-                      : "border-border/50 bg-surface/50 opacity-40"
-                }`}
-              >
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
-                    isActive
-                      ? "bg-neon-red-500/20"
-                      : isComplete
-                        ? "bg-neon-blue-500/20"
-                        : "bg-surface-elevated"
-                  }`}
-                >
-                  {isComplete ? (
-                    <CheckCircle className="h-4 w-4 text-neon-blue-500" />
-                  ) : (
-                    <Icon
-                      className={`h-4 w-4 transition-colors duration-300 ${
-                        isActive
-                          ? "text-neon-red-500 animate-pulse"
-                          : "text-text-secondary"
-                      }`}
-                    />
-                  )}
-                </div>
-                <span
-                  className={`text-sm font-medium transition-colors duration-300 ${
-                    isActive
-                      ? "text-text-primary"
-                      : isComplete
-                        ? "text-neon-blue-500"
-                        : isPending
-                          ? "text-text-tertiary"
-                          : "text-text-secondary"
-                  }`}
-                >
-                  {step.label}
-                  {isComplete && (
-                    <span className="ml-2 text-xs text-neon-blue-500">Done</span>
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="mt-6 text-center text-xs text-text-tertiary">
-          You&apos;ll be redirected to the home page shortly.
-        </p>
       </div>
     </div>
   );
@@ -301,7 +186,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
   }
 
   if (showDeletionProgress) {
-    return <DeletionProgressOverlay onComplete={handleDeletionComplete} />;
+    return <DeletionRequestedNotice onComplete={handleDeletionComplete} />;
   }
 
   return (
@@ -477,7 +362,10 @@ export function ProfileSecurityForm({ user, regions }: Props) {
         <CardContent>
           <form onSubmit={handleAccountDeletion} className="space-y-3">
             <p className="text-sm text-text-secondary">
-              This deactivates your account and takes down active listings. Type{" "}
+              This is a two-step request. First we disable your account and take
+              down live listings. A later queued step removes login credentials,
+              profile identifiers, and eligible media. Payments, subscriptions,
+              and audit records are kept. Type{" "}
               <span className="font-semibold text-text-primary">DELETE MY ACCOUNT</span> to confirm.
             </p>
             <Input

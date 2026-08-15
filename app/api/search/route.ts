@@ -226,6 +226,13 @@ export async function GET(request: NextRequest) {
         images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
         category: true,
         region: true,
+        attributeValues: {
+          where: { attributeDefinition: { slug: "write-off-category" } },
+          select: {
+            value: true,
+            attributeDefinition: { select: { slug: true } },
+          },
+        },
       },
     }),
     db.listing.count({ where }),
@@ -258,6 +265,7 @@ export async function GET(request: NextRequest) {
       photo: toListingPhotoSource(listing.images[0]),
       categoryName: listing.category.name,
       regionName: listing.region.name,
+      writeOffCategory: listing.attributeValues[0]?.value ?? null,
     })),
   });
 }

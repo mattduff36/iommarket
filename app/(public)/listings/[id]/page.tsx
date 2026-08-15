@@ -42,6 +42,8 @@ import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reas
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
 import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
+import { isDisclosedWriteOff, writeOffFromAttributeValues } from "@/lib/listings/write-off-category";
+import { buildViewerHash } from "@/lib/privacy/viewer-hash";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -123,6 +125,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   if (!listing) notFound();
 
+  const writeOffCategory = writeOffFromAttributeValues(listing.attributeValues);
   const isExpired = isListingEffectivelyExpired({
     status: listing.status,
     expiresAt: listing.expiresAt,
@@ -165,32 +168,38 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       reqHeaders.get("x-real-ip") ??
       "unknown";
-    const rawAnonKey = `anon:${ip}:${listing.id}`;
-    const viewerHash = currentUser?.id ?? rawAnonKey;
-
-    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentView = await db.listingView.findFirst({
-      where: {
-        listingId: listing.id,
-        viewerHash,
-        createdAt: { gte: windowStart },
-      },
-      select: { id: true },
+    const hashed = buildViewerHash({
+      listingId: listing.id,
+      userId: currentUser?.id,
+      ip,
     });
 
-    if (!recentView) {
-      await db.listing.update({
-        where: { id: listing.id },
-        data: {
-          viewCount: { increment: 1 },
-          views: {
-            create: {
-              viewerId: currentUser?.id,
-              viewerHash,
+    if (hashed) {
+      const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentView = await db.listingView.findFirst({
+        where: {
+          listingId: listing.id,
+          viewerHash: hashed.viewerHash,
+          createdAt: { gte: windowStart },
+        },
+        select: { id: true },
+      });
+
+      if (!recentView) {
+        await db.listing.update({
+          where: { id: listing.id },
+          data: {
+            viewCount: { increment: 1 },
+            views: {
+              create: {
+                viewerId: currentUser?.id,
+                viewerHash: hashed.viewerHash,
+                viewerHashVersion: hashed.viewerHashVersion,
+              },
             },
           },
-        },
-      });
+        });
+      }
     }
   }
 
@@ -240,6 +249,13 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
+      attributeValues: {
+        where: { attributeDefinition: { slug: "write-off-category" } },
+        select: {
+          value: true,
+          attributeDefinition: { select: { slug: true } },
+        },
+      },
     },
   });
 
@@ -365,7 +381,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           <span className="inline-flex items-center justify-center rounded-full bg-emerald-500 text-white font-bold text-xs px-2.5 py-0.5 shrink-0">
             SOLD
           </span>
-          This vehicle has been sold through itrader.im.
+          This vehicle has been advertised on itrader.im.
           {listing.soldAt && (
             <span className="text-text-secondary">
               Sold {listing.soldAt.toLocaleDateString("en-GB")}
@@ -410,6 +426,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 Listed {listing.createdAt.toLocaleDateString("en-GB")}
               </Badge>
               <Badge variant="neutral">{listing.viewCount + (isVisible ? 1 : 0)} views</Badge>
+              {isDisclosedWriteOff(writeOffCategory) ? (
+                <Badge variant="energy">{writeOffCategory} write-off</Badge>
+              ) : null}
             </div>
 
             <div className="mt-8">
@@ -629,6 +648,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 meta={item.category.name}
                 featured={item.featured}
                 badge={item.featured ? "Featured" : undefined}
+                writeOffCategory={item.attributeValues[0]?.value ?? null}
                 href={`/listings/${item.id}`}
               />
             ))}

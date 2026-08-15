@@ -192,6 +192,14 @@ async function main() {
       required: false,
       sortOrder: 22,
     },
+    {
+      name: "Insurance write-off category",
+      slug: "write-off-category",
+      dataType: "select",
+      required: false,
+      sortOrder: 22.5,
+      options: JSON.stringify(["None", "Category N", "Category S"]),
+    },
     { name: "Boot Space", slug: "boot-space", dataType: "number", required: false, sortOrder: 23 },
   ];
 

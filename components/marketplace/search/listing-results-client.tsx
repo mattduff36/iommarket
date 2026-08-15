@@ -20,6 +20,7 @@ interface ListingItem {
   photo?: ListingPhotoSource;
   categoryName: string;
   regionName: string;
+  writeOffCategory?: string | null;
 }
 
 interface Props {
@@ -173,6 +174,7 @@ export function ListingResultsClient({
               featured={listing.featured}
               sold={listing.sold}
               badge={listing.featured ? "Featured" : undefined}
+              writeOffCategory={listing.writeOffCategory}
               href={`/listings/${listing.id}`}
               listingId={listing.id}
               showFavourite={enableFavourites}

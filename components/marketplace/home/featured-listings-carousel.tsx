@@ -17,6 +17,7 @@ export interface FeaturedListingsCarouselItem {
   location?: string;
   meta?: string;
   href: string;
+  writeOffCategory?: string | null;
 }
 
 interface FeaturedListingsCarouselProps {
@@ -232,6 +233,7 @@ export function FeaturedListingsCarousel({
                     meta={listing.meta}
                     featured
                     badge="Featured"
+                    writeOffCategory={listing.writeOffCategory}
                     href={listing.href}
                     className="h-full border-white/10 bg-surface/95"
                     imageSizes="(max-width: 640px) 85vw, (max-width: 1024px) 60vw, 44vw"

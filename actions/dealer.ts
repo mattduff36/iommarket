@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { z } from "zod";
 
 const selfServiceDealerProfileSchema = z.object({
@@ -28,7 +28,7 @@ function slugify(value: string) {
 export async function createSelfServiceDealerProfile(
   input: SelfServiceDealerProfileInput
 ) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   if (user.dealerProfile) {
     return { data: user.dealerProfile };

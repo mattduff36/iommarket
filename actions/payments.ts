@@ -2,14 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
   createListingCheckout,
   createDealerSubscriptionCheckout,
   createFeaturedUpgradeCheckout,
   isDemoDealerSubscriptionCheckoutConfigured,
   isDemoListingCheckoutConfigured,
-  isOptionalSupportCheckoutConfigured,
 } from "@/lib/payments/provider";
 import {
   createCheckoutSchema,
@@ -97,11 +96,8 @@ function toUserPaymentError(message: string) {
 // Pay for Listing (creates hosted payment session)
 // ---------------------------------------------------------------------------
 
-export async function payForListing(
-  listingId: string,
-  options?: { supportPlatform?: boolean }
-) {
-  const user = await requireAuth();
+export async function payForListing(listingId: string) {
+  const user = await requireAcceptedAuth();
   const checkoutRate = checkRateLimit(
     makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
     { windowMs: 5 * 60_000, maxRequests: 5 }
@@ -112,10 +108,7 @@ export async function payForListing(
     };
   }
 
-  const parsed = payForListingSchema.safeParse({
-    listingId,
-    supportPlatform: options?.supportPlatform ?? false,
-  });
+  const parsed = payForListingSchema.safeParse({ listingId });
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
@@ -167,43 +160,9 @@ export async function payForListing(
     const isFreePrivateSeller =
       !listing.dealerId &&
       (await isPrivateListingFreeForUser(user.id));
-    const supportAmountPence = parsed.data.supportPlatform
-      ? pricing.optionalListingSupportPence
-      : 0;
     const shouldSkipPayment =
       hasDealerAccess || (!isRenewal && isFreePrivateSeller);
     if (shouldSkipPayment) {
-      if (isFreePrivateSeller && supportAmountPence > 0) {
-        // Optional support payments should never block the core listing submission flow.
-        if (!isOptionalSupportCheckoutConfigured()) {
-          return { data: { checkoutUrl: null, skippedPayment: true } };
-        }
-
-        const supportSession = await createListingCheckout({
-          listingId: listing.id,
-          listingTitle: listing.title,
-          amountInPence: supportAmountPence,
-          checkoutType: "listing_support",
-          customerEmail: user.email,
-          successUrl: buildHostedReturnUrl({
-            status: "success",
-            context: "listing",
-            listingId: listing.id,
-            flow,
-            returnTo: listingReturnTo,
-          }),
-          cancelUrl: buildHostedReturnUrl({
-            status: "cancel",
-            context: "listing",
-            listingId: listing.id,
-            flow,
-            returnTo: listingReturnTo,
-          }),
-          idempotencyKey: `listing-support-${listing.id}-${Date.now()}`,
-        });
-        return { data: { checkoutUrl: supportSession.url, skippedPayment: true } };
-      }
-
       // Do NOT update status here. The caller must still invoke submitListingForReview
       // so that server-side image validation (≥ 2 photos) is enforced before the
       // listing enters the moderation queue.
@@ -215,7 +174,6 @@ export async function payForListing(
       listingTitle: listing.title,
       amountInPence: pricing.privateListingPence,
       checkoutType: "listing_payment",
-      supportAmountPence,
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",
@@ -244,7 +202,7 @@ export async function payForListing(
       requestPath: "/sell/checkout",
       userId: user.id,
       userEmail: user.email,
-      tags: { listingId, supportPlatform: options?.supportPlatform ?? false },
+      tags: { listingId },
     });
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
@@ -256,8 +214,11 @@ export async function payForListing(
 // Create Dealer Subscription (creates hosted payment session)
 // ---------------------------------------------------------------------------
 
-export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTER") {
-  const user = await requireAuth();
+export async function createDealerSubscription(input: {
+  tier?: "STARTER" | "PRO";
+  acceptedDealerTerms: boolean;
+}) {
+  const user = await requireAcceptedAuth();
   const subscriptionRate = checkRateLimit(
     makeRateLimitKey("checkout-dealer-subscription", user.id),
     { windowMs: 10 * 60_000, maxRequests: 4 }
@@ -275,11 +236,19 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
 
   const parsed = createDealerSubscriptionSchema.safeParse({
     dealerId: user.dealerProfile.id,
-    tier,
+    tier: input.tier ?? "STARTER",
+    acceptedDealerTerms: input.acceptedDealerTerms,
   });
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
+
+  const { recordAcceptance } = await import("@/lib/policy/acceptance");
+  await recordAcceptance(db, {
+    userId: user.id,
+    acceptanceType: "DEALER_BUNDLE",
+    source: "SUBSCRIBE",
+  });
 
   try {
     const pricing = await getMarketplacePricing();
@@ -312,7 +281,7 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
       requestPath: "/dealer/subscribe",
       userId: user.id,
       userEmail: user.email,
-      tags: { tier },
+      tags: { tier: parsed.data.tier },
     });
     const message =
       err instanceof Error ? err.message : "Failed to create subscription";
@@ -325,7 +294,7 @@ export async function createDealerSubscription(tier: "STARTER" | "PRO" = "STARTE
 // ---------------------------------------------------------------------------
 
 export async function upgradeFeatured(listingId: string) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
   const featuredRate = checkRateLimit(
     makeRateLimitKey("checkout-featured-upgrade", `${user.id}:${listingId}`),
     { windowMs: 5 * 60_000, maxRequests: 5 }
@@ -422,7 +391,7 @@ export async function simulateDemoListingPaymentOutcome(input: {
   if (unavailableError) {
     return { error: unavailableError };
   }
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const listing = await db.listing.findUnique({
     where: { id: input.listingId },
@@ -535,7 +504,7 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
   if (unavailableError) {
     return { error: unavailableError };
   }
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   if (!user.dealerProfile) {
     return { error: "You must have a dealer profile before simulating subscription payment." };

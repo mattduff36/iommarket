@@ -146,7 +146,15 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   >
                     Ripple portal
                   </a>{" "}
-                  for refunds and cancellations.
+                  for refunds and cancellations. Customer-facing rules are in the{" "}
+                  <Link href="/refunds" className="font-medium text-text-primary underline">
+                    Refund Policy
+                  </Link>
+                  . Dealer cancellation requests are in{" "}
+                  <Link href="/admin/cancellations" className="font-medium text-text-primary underline">
+                    Cancellations
+                  </Link>
+                  .
                 </>
               ) : null}
             </>

@@ -54,6 +54,13 @@ export default async function DealerProfilePage({ params }: Props) {
           images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
           category: true,
           region: true,
+          attributeValues: {
+            where: { attributeDefinition: { slug: "write-off-category" } },
+            select: {
+              value: true,
+              attributeDefinition: { select: { slug: true } },
+            },
+          },
         },
       },
       user: {
@@ -277,7 +284,16 @@ export default async function DealerProfilePage({ params }: Props) {
         <div className="rounded-lg border border-border bg-surface p-5">
           <h3 className="text-base font-semibold text-text-primary">Leave a Review</h3>
           <p className="mt-1 text-xs text-text-secondary">
-            Every review is moderated before it appears publicly.
+            Every review is moderated before it appears publicly. Reviews may be
+            removed under our{" "}
+            <Link href="/acceptable-use" className="text-text-trust hover:underline">
+              Acceptable Use Policy
+            </Link>
+            . Read how we handle review data in our{" "}
+            <Link href="/privacy" className="text-text-trust hover:underline">
+              Privacy Policy
+            </Link>
+            .
           </p>
           <div className="mt-4">
             <DealerReviewForm dealerId={dealer.id} canComment={Boolean(currentUser)} />
@@ -301,6 +317,7 @@ export default async function DealerProfilePage({ params }: Props) {
               meta={listing.category.name}
               featured={listing.featured}
               badge={listing.featured ? "Featured" : undefined}
+              writeOffCategory={listing.attributeValues[0]?.value ?? null}
               href={`/listings/${listing.id}`}
             />
           ))}

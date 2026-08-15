@@ -3,38 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { signUpWithPolicyAcceptance } from "@/actions/auth/sign-up";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Check, ChevronRight, Heart, Search, ShieldCheck, Star } from "lucide-react";
 
 function getSafeNextPath(nextPath: string | null | undefined): string {
   if (!nextPath) return "/";
   if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return "/";
   return nextPath;
-}
-
-function getDealerTierFromNextPath(nextPath: string): "STARTER" | "PRO" | null {
-  if (!nextPath.startsWith("/dealer/subscribe")) return null;
-  const query = nextPath.split("?")[1] ?? "";
-  const tier = new URLSearchParams(query).get("tier");
-  if (tier === "PRO") return "PRO";
-  if (tier === "STARTER") return "STARTER";
-  return null;
-}
-
-function buildAuthCallbackUrl(nextPath: string): string {
-  const fallbackOrigin =
-    typeof window !== "undefined" ? window.location.origin : "";
-  const appUrl = (
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    fallbackOrigin ||
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
-
-  return `${appUrl}/auth/callback?next=${encodeURIComponent(
-    getSafeNextPath(nextPath),
-  )}`;
 }
 
 interface SignUpWithPlansProps {
@@ -65,6 +43,8 @@ export function SignUpWithPlans({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [ageAttested, setAgeAttested] = useState(false);
+  const [policiesAccepted, setPoliciesAccepted] = useState(false);
 
   const isDealerSignup = dealerTierIntent !== null;
   const isPrivateSellerIntent =
@@ -108,28 +88,19 @@ export function SignUpWithPlans({
     setLoading(true);
 
     try {
-      const supabase = createSupabaseBrowserClient();
-      const dealerTierIntent = getDealerTierFromNextPath(safeNextPath);
-      const { data, error: err } = await supabase.auth.signUp({
+      const result = await signUpWithPolicyAcceptance({
         email,
         password,
-        options: {
-          data: {
-            ...(name ? { full_name: name } : {}),
-            ...(dealerTierIntent
-              ? { dealer_tier_intent: dealerTierIntent }
-              : {}),
-          },
-          emailRedirectTo: buildAuthCallbackUrl(safeNextPath),
-        },
+        name,
+        nextPath: safeNextPath,
+        ageAttested,
+        policiesAccepted,
       });
-      if (err) {
-        setError(err.message);
-        return;
-      }
-      if (data.user && data.user.identities?.length === 0) {
+      if (result.error) {
         setError(
-          "An account with this email already exists. Please sign in instead.",
+          typeof result.error === "string"
+            ? result.error
+            : Object.values(result.error).flat()[0] ?? "Unable to create account.",
         );
         return;
       }
@@ -208,6 +179,34 @@ export function SignUpWithPlans({
             autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+          />
+          <Checkbox
+            checked={ageAttested}
+            onCheckedChange={(value) => setAgeAttested(value === true)}
+            required
+            label="I confirm I am 18 or over."
+          />
+          <Checkbox
+            checked={policiesAccepted}
+            onCheckedChange={(value) => setPoliciesAccepted(value === true)}
+            required
+            label={
+              <span>
+                I acknowledge the{" "}
+                <Link href="/terms" className="text-text-trust hover:underline">
+                  Terms
+                </Link>
+                ,{" "}
+                <Link href="/acceptable-use" className="text-text-trust hover:underline">
+                  Acceptable Use Policy
+                </Link>
+                , and{" "}
+                <Link href="/privacy" className="text-text-trust hover:underline">
+                  Privacy Policy
+                </Link>
+                . Cookie choices remain separate.
+              </span>
+            }
           />
           {error && (
             <p className="text-sm text-text-energy" role="alert">

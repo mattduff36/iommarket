@@ -4,14 +4,21 @@ export const createCheckoutSchema = z.object({
   listingId: z.string().cuid("Invalid listing ID"),
 });
 
-export const payForListingSchema = z.object({
-  listingId: z.string().cuid("Invalid listing ID"),
-  supportPlatform: z.boolean().default(false),
-}).strict();
+export const payForListingSchema = z
+  .object({
+    listingId: z.string().cuid("Invalid listing ID"),
+  })
+  .strict();
 
 export const createDealerSubscriptionSchema = z.object({
   dealerId: z.string().cuid("Invalid dealer ID"),
   tier: z.enum(["STARTER", "PRO"]).default("STARTER"),
+  acceptedDealerTerms: z
+    .boolean()
+    .refine(
+      (value) => value === true,
+      "Please accept the Dealer Terms, Acceptable Use Policy, and Refund Policy.",
+    ),
 });
 
 export type CreateCheckoutInput = z.infer<typeof createCheckoutSchema>;

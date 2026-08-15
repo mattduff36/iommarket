@@ -96,4 +96,17 @@ describe("ListingCard", () => {
     expect(primaryLink).toHaveFocus();
     expect(primaryLink.className).toContain("ring-inset");
   });
+
+  it("shows a prominent Category N/S write-off badge POL-LIST-001", () => {
+    render(
+      <ListingCard
+        title={listing.title}
+        price={listing.price}
+        href={listing.href}
+        writeOffCategory="Category N"
+      />,
+    );
+
+    expect(screen.getByText("Category N write-off")).toBeTruthy();
+  });
 });

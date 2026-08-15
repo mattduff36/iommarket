@@ -16,7 +16,7 @@ const createdSubscriptionIds: string[] = [];
 const createdDealerProfileIds: string[] = [];
 
 async function dismissCookieBanner(page: Page): Promise<void> {
-  const acceptButton = page.getByRole("button", { name: /^accept$/i });
+  const acceptButton = page.getByRole("button", { name: /accept all|^accept$/i });
   if (await acceptButton.isVisible({ timeout: 2_000 }).catch(() => false)) {
     await acceptButton.click();
   }

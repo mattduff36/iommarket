@@ -1,17 +1,17 @@
 import Link from "next/link";
 import Image from "next/image";
 import { FOOTER_NAV_ITEMS } from "@/lib/navigation";
+import { CookiePreferencesButton } from "@/components/layout/cookie-banner";
+import { COMPANY, getDataControllerReference } from "@/lib/policy/company";
 
 export function SiteFooter() {
-  const dataControllerReference =
-    process.env.NEXT_PUBLIC_IOM_DATA_CONTROLLER_REF ?? "Pending publication";
+  const dataControllerReference = getDataControllerReference();
+  const year = new Date().getFullYear();
 
   return (
     <footer className="bg-graphite-950">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        {/* Top row */}
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
-          {/* Brand */}
           <div>
             <Link href="/" className="inline-flex items-center">
               <Image
@@ -28,7 +28,6 @@ export function SiteFooter() {
             </p>
           </div>
 
-          {/* Nav links */}
           <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Footer">
             {FOOTER_NAV_ITEMS.map((item) => (
               <Link
@@ -42,17 +41,29 @@ export function SiteFooter() {
           </nav>
         </div>
 
-        {/* Divider + copyright */}
-        <div className="mt-10 border-t border-border pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs text-metallic-500">
-              &copy; {new Date().getFullYear()} itrader.im. All rights reserved.
-            </p>
-            <p className="text-xs text-metallic-500">
-              Isle of Man Data Controller Registration Ref: {dataControllerReference}
-            </p>
-          </div>
-          <p className="text-xs text-metallic-500">Created with care on the Isle of Man</p>
+        <div className="mt-10 border-t border-border pt-6 space-y-3">
+          <p className="text-xs text-metallic-500">
+            &copy; {year} {COMPANY.legalName}. All rights reserved.
+          </p>
+          <p className="text-xs text-metallic-500">
+            Trading as {COMPANY.tradingAs}. Company number {COMPANY.companyNumber}.
+            Registered office: {COMPANY.registeredOffice}. Email:{" "}
+            <a
+              href={`mailto:${COMPANY.email}`}
+              className="hover:text-text-primary"
+            >
+              {COMPANY.email}
+            </a>
+            .
+          </p>
+          <p className="text-xs text-metallic-500">
+            Isle of Man Data Controller Registration Ref: {dataControllerReference}
+          </p>
+          <p className="text-xs text-metallic-500">
+            Created with care on the Isle of Man.{" "}
+            <CookiePreferencesButton className="underline hover:text-text-primary" />
+            .
+          </p>
         </div>
       </div>
     </footer>

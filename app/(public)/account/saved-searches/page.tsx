@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
 import {
@@ -12,8 +12,7 @@ import {
 import { DeleteSavedSearchButton } from "./delete-saved-search-button";
 
 export default async function SavedSearchesPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up");
+  const user = await requireAcceptedUser("/account/saved-searches");
 
   const savedSearches = await db.savedSearch.findMany({
     where: { userId: user.id },

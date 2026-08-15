@@ -66,6 +66,11 @@ model User {
   monitoringIssueStatusEvents MonitoringIssueStatusEvent[]
   freeListingClaim   FreeListingClaim?
   listingImageUploadIntents ListingImageUploadIntent[]
+  policyAcceptances PolicyAcceptance[]
+  cancellationRequestsRequested DealerCancellationRequest[] @relation("CancellationRequestedBy")
+  cancellationRequestsProcessed DealerCancellationRequest[] @relation("CancellationProcessedBy")
+  cancellationRequestEvents DealerCancellationRequestEvent[]
+  accountDeletionJob AccountDeletionJob?
 
   @@index([authUserId])
   @@index([email])
@@ -89,6 +94,7 @@ model DealerProfile {
   listings      Listing[]
   subscriptions Subscription[]
   reviews       DealerReview[]
+  cancellationRequests DealerCancellationRequest[]
 
   @@index([slug])
 }
@@ -261,6 +267,7 @@ model Listing {
   lastPhotoMutationId        String?  @unique
   lastPhotoMutationHash      String?
   lifecycleRevision          Int      @default(0)
+  retentionPurgedAt DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -607,6 +614,7 @@ model Subscription {
 
   dealer  DealerProfile         @relation(fields: [dealerId], references: [id], onDelete: Cascade)
   charges SubscriptionCharge[]
+  cancellationRequests DealerCancellationRequest[]
 
   @@index([dealerId])
   @@index([dealerId, source, status, grantEndsAt])
@@ -678,6 +686,7 @@ model Report {
   reasonCode    ReportReasonCode?
   status        ReportStatus     @default(OPEN)
   adminNotes    String?
+  closedAt      DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -701,6 +710,7 @@ model DealerReview {
   status            DealerReviewStatus @default(PENDING)
   adminNotes        String?
   moderatedAt       DateTime?
+  removedAt         DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -762,6 +772,7 @@ model ListingView {
   listingId  String
   viewerId   String?
   viewerHash String
+  viewerHashVersion Int @default(1)
   createdAt  DateTime @default(now())
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -779,6 +790,9 @@ model WaitlistUser {
   deletedAt        DateTime?
   deletedByAdminId String?
   deletionReason   String?
+  marketingConsentAt DateTime?
+  marketingPolicyVersion String?
+  marketingWithdrawnAt DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -977,4 +991,144 @@ model SiteSetting {
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+// ---------------------------------------------------------------------------
+// Policy acceptance, cancellation, deletion, and retention
+// ---------------------------------------------------------------------------
+
+enum PolicyAcceptanceType {
+  AGE_18
+  ACCOUNT_BUNDLE
+  LISTING_BUNDLE
+  DEALER_BUNDLE
+  PRIVACY_NOTICE
+}
+
+enum PolicyAcceptanceSource {
+  SIGNUP
+  GATE
+  LISTING
+  SUBSCRIBE
+}
+
+model PolicyAcceptance {
+  id             String                 @id @default(cuid())
+  userId         String
+  acceptanceType PolicyAcceptanceType
+  bundleVersion  String
+  policyVersions Json
+  source         PolicyAcceptanceSource
+  createdAt      DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, acceptanceType, bundleVersion])
+  @@index([userId, acceptanceType])
+}
+
+enum CancellationRequestStatus {
+  REQUESTED
+  ACKNOWLEDGED
+  RECONCILED
+  COMPLETED
+  REJECTED
+}
+
+model DealerCancellationRequest {
+  id                 String                    @id @default(cuid())
+  dealerId           String
+  subscriptionId     String
+  requestedByUserId  String
+  status             CancellationRequestStatus @default(REQUESTED)
+  idempotencyKey     String                    @unique
+  requestedAt        DateTime                  @default(now())
+  periodEndAt        DateTime
+  processedAt        DateTime?
+  processedByAdminId String?
+  notes              String?
+  lastError          String?
+
+  dealer        DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  subscription  Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  requestedBy   User          @relation("CancellationRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  processedBy   User?         @relation("CancellationProcessedBy", fields: [processedByAdminId], references: [id], onDelete: Restrict)
+  events        DealerCancellationRequestEvent[]
+
+  @@index([dealerId, status])
+  @@index([subscriptionId, status])
+}
+
+model DealerCancellationRequestEvent {
+  id          String                    @id @default(cuid())
+  requestId   String
+  fromStatus  CancellationRequestStatus?
+  toStatus    CancellationRequestStatus
+  actorUserId String?
+  source      String
+  metadata    Json?
+  createdAt   DateTime                  @default(now())
+
+  request DealerCancellationRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  actor   User?                     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+}
+
+enum AccountDeletionJobStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AccountDeletionPhase {
+  REQUESTED
+  AUTH
+  MEDIA
+  ANONYMISE
+  COMPLETED
+}
+
+model AccountDeletionJob {
+  id             String                   @id @default(cuid())
+  userId         String                   @unique
+  status         AccountDeletionJobStatus @default(REQUESTED)
+  phase          AccountDeletionPhase     @default(REQUESTED)
+  attempts       Int                      @default(0)
+  lastError      String?
+  lockedAt       DateTime?
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  nextAttemptAt  DateTime?
+  requestedAt    DateTime                 @default(now())
+  completedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+}
+
+model RetentionLegalHold {
+  id         String    @id @default(cuid())
+  entityType String
+  entityId   String
+  reason     String
+  createdAt  DateTime  @default(now())
+  releasedAt DateTime?
+
+  @@index([entityType, entityId])
+}
+
+model RetentionRun {
+  id           String   @id @default(cuid())
+  mode         String
+  entityTypes  Json
+  status       String
+  counts       Json?
+  sampleIds    Json?
+  error        String?
+  startedAt    DateTime @default(now())
+  completedAt  DateTime?
 }

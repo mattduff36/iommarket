@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LISTING_DECLARATION_ERROR } from "@/lib/listings/write-off-category";
 
 export const createListingSchema = z.object({
   title: z
@@ -21,10 +22,7 @@ export const createListingSchema = z.object({
   regionId: z.string().cuid("Invalid region"),
   trustDeclarationAccepted: z
     .boolean()
-    .refine(
-      (value) => value,
-      "You must confirm the vehicle is not stolen and has no outstanding finance"
-    ),
+    .refine((value) => value, LISTING_DECLARATION_ERROR),
   attributes: z
     .array(
       z.object({

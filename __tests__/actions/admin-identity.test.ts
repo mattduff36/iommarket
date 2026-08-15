@@ -16,6 +16,10 @@ const {
     user: {
       update: vi.fn(),
     },
+    accountDeletionJob: {
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+    },
   },
 }));
 
@@ -52,12 +56,15 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
         user: {
           update: mockDb.user.update,
         },
+        accountDeletionJob: mockDb.accountDeletionJob,
       }),
     );
     mockDb.user.update.mockResolvedValue({
       id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       deletedAt: null,
     });
+    mockDb.accountDeletionJob.findUnique.mockResolvedValue(null);
+    mockDb.accountDeletionJob.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it("rejects unauthorized callers", async () => {
@@ -83,5 +90,40 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
       }),
       expect.anything(),
     );
+    expect(mockDb.accountDeletionJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("cancels a restorable deletion job before restoring POL-PRIV-001", async () => {
+    mockDb.accountDeletionJob.findUnique.mockResolvedValue({
+      id: "job-1",
+      status: "REQUESTED",
+    });
+    const { restoreUser } = await import("@/actions/admin/users");
+    await expect(
+      restoreUser({ userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+    ).resolves.toEqual({
+      data: expect.objectContaining({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+    });
+    expect(mockDb.accountDeletionJob.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "job-1",
+        status: { in: ["REQUESTED", "FAILED"] },
+      },
+      data: expect.objectContaining({ status: "CANCELLED" }),
+    });
+  });
+
+  it("refuses restore after a completed deletion job POL-PRIV-001", async () => {
+    mockDb.accountDeletionJob.findUnique.mockResolvedValue({
+      status: "COMPLETED",
+    });
+    const { restoreUser } = await import("@/actions/admin/users");
+    await expect(
+      restoreUser({ userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+    ).resolves.toEqual({
+      error:
+        "This account has a processing or completed deletion job and cannot be restored.",
+    });
+    expect(mockDb.user.update).not.toHaveBeenCalled();
   });
 });

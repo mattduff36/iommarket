@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { Metadata } from "next";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
+import { CookieBanner } from "@/components/layout/cookie-banner";
 import { WaitlistForm } from "@/components/waitlist/waitlist-form";
 
 export const metadata: Metadata = {
@@ -81,14 +82,20 @@ export default function HoldingPage() {
 
       <footer className="relative z-10 border-t border-border/30 px-4 py-4">
         <p className="mx-auto max-w-3xl text-center text-[11px] leading-relaxed text-text-tertiary">
-          By providing your email address, you consent to receive marketing communications
-          from iTrader.im about our upcoming vehicle marketplace. You can unsubscribe at any
-          time. We will not share your data with third parties. View our{" "}
+          Launch updates are sent only if you give explicit marketing consent. You can
+          unsubscribe or request removal at any time. We use processors such as our email
+          and hosting providers to operate the waitlist; we do not sell your data for
+          independent third-party marketing. View our{" "}
           <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-text-secondary">
             Privacy Policy
+          </a>
+          {" "}and{" "}
+          <a href="/cookies" target="_blank" rel="noopener noreferrer" className="underline hover:text-text-secondary">
+            Cookie Policy
           </a>.
         </p>
       </footer>
+      <CookieBanner />
     </div>
   );
 }

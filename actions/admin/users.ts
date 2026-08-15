@@ -604,6 +604,10 @@ export async function deleteUser(input: DeleteUserInput) {
         },
         tx,
       );
+      const { enqueueAccountDeletionJob } = await import(
+        "@/lib/privacy/account-deletion"
+      );
+      await enqueueAccountDeletionJob(tx, userId);
       return disabledListings.notifications;
     });
 
@@ -647,6 +651,10 @@ export async function restoreUser(input: RestoreUserInput) {
 
   try {
     const user = await db.$transaction(async (tx) => {
+      const { cancelRestorableDeletionJob } = await import(
+        "@/lib/privacy/account-deletion"
+      );
+      await cancelRestorableDeletionJob(tx, parsed.data.userId);
       const restored = await tx.user.update({
         where: { id: parsed.data.userId },
         data: {

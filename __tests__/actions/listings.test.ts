@@ -13,14 +13,23 @@ const {
     listing: {
       findUnique: vi.fn(),
     },
+    listingAttributeValue: {
+      findFirst: vi.fn(),
+    },
+    listingRevisionAttributeValue: {
+      findFirst: vi.fn(),
+    },
+    policyAcceptance: {
+      upsert: vi.fn(),
+    },
     payment: {
       findFirst: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/auth", () => ({
-  requireAuth: requireAuthMock,
+vi.mock("@/lib/policy/gate", () => ({
+  requireAcceptedAuth: requireAuthMock,
 }));
 
 vi.mock("@/lib/config/marketplace", () => ({
@@ -53,6 +62,9 @@ describe("submitListingForReview", () => {
       images: [{ id: "image_1" }, { id: "image_2" }],
     });
     mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
+    mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
+    mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acc_1" });
     claimFreeListingSlotMock.mockResolvedValue({ status: "already-claimed" });
   });
 
@@ -91,5 +103,26 @@ describe("submitListingForReview", () => {
 
     expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
     expect(transitionListingStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects submit without a write-off declaration when enforcement is on POL-LIST-001", async () => {
+    const previous = process.env.POLICY_ENFORCE_LISTING_NS;
+    process.env.POLICY_ENFORCE_LISTING_NS = "true";
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
+
+    try {
+      const { submitListingForReview } = await import("@/actions/listings");
+      await expect(submitListingForReview("listing_123")).resolves.toEqual({
+        error:
+          "Choose None, Category N, or Category S before submitting this listing.",
+      });
+      expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_LISTING_NS;
+      } else {
+        process.env.POLICY_ENFORCE_LISTING_NS = previous;
+      }
+    }
   });
 });

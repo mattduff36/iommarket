@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
@@ -32,6 +32,8 @@ import {
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { getPolicyFlags } from "@/lib/policy/flags";
+import { CancellationRequestCard } from "./cancellation-request-card";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -83,8 +85,7 @@ interface Props {
 
 export default async function DealerDashboardPage({ searchParams }: Props) {
   await expireStaleLiveListings();
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up");
+  const user = await requireAcceptedUser("/dealer/dashboard");
   if (!hasDealerDashboardAccess(user)) redirect("/dealer/subscribe");
   const entitlement = await getCurrentDealerEntitlement(user);
   if (!entitlement) redirect("/dealer/subscribe");
@@ -108,7 +109,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     ...(status !== "ALL" ? { status } : {}),
   };
 
-  const [listings, totalFiltered, allStatusGroups, reviewStats, pricing] = await Promise.all([
+  const [listings, totalFiltered, allStatusGroups, reviewStats, pricing, openCancellation] = await Promise.all([
     db.listing.findMany({
       where: listingWhere,
       orderBy: getSortOrder(sort),
@@ -135,6 +136,13 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
       _count: { _all: true },
     }),
     getMarketplacePricing(),
+    db.dealerCancellationRequest.findFirst({
+      where: {
+        dealerId: user.dealerProfile.id,
+        status: { in: ["REQUESTED", "ACKNOWLEDGED", "RECONCILED"] },
+      },
+      orderBy: { requestedAt: "desc" },
+    }),
   ]);
 
   const counts = Object.fromEntries(
@@ -277,6 +285,14 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {entitlement.source === "PAYMENT" ? (
+        <CancellationRequestCard
+          enabled={getPolicyFlags().enableCancellationRequests}
+          periodEndAt={openCancellation?.periodEndAt ?? entitlement.endsAt}
+          existingStatus={openCancellation?.status ?? null}
+        />
+      ) : null}
 
       <div className="mb-8 grid gap-4 md:grid-cols-2">
         <Link

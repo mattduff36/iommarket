@@ -57,7 +57,15 @@ describe("SubscribeForm demo checkout flow", () => {
       />
     );
 
+    fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
     fireEvent.click(screen.getByRole("button", { name: /subscribe/i }));
+
+    await waitFor(() => {
+      expect(createDealerSubscription).toHaveBeenCalledWith({
+        tier: "STARTER",
+        acceptedDealerTerms: true,
+      });
+    });
 
     await screen.findByText("Preview the Ripple hosted payment journey");
     expect(
@@ -90,6 +98,7 @@ describe("SubscribeForm demo checkout flow", () => {
       />
     );
 
+    fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
     fireEvent.click(screen.getByRole("button", { name: /subscribe/i }));
     await screen.findByText("Preview the Ripple hosted payment journey");
 

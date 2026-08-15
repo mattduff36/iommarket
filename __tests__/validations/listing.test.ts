@@ -4,6 +4,7 @@ import {
   reportListingSchema,
   moderateListingSchema,
   takeDownFromReportSchema,
+  contactSellerSchema,
 } from "@/lib/validations/listing";
 
 describe("createListingSchema", () => {
@@ -78,6 +79,14 @@ describe("createListingSchema", () => {
       );
       expect(result.data.attributes[0]?.value).toBe("BMW");
     }
+  });
+
+  it("requires the expanded listing declarations POL-LIST-001", () => {
+    const result = createListingSchema.safeParse({
+      ...validInput,
+      trustDeclarationAccepted: false,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects NaN prices", () => {
@@ -161,5 +170,37 @@ describe("moderateListingSchema", () => {
       action: "INVALID",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("public abuse safeguards POL-ABUSE-001", () => {
+  it("rejects contact-seller honeypot submissions", () => {
+    const result = contactSellerSchema.safeParse({
+      listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      name: "Buyer",
+      email: "buyer@example.com",
+      message: "Is this vehicle still available today?",
+      website: "https://spam.example",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires a coded report reason and enough detail", () => {
+    expect(
+      reportListingSchema.safeParse({
+        listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        reporterEmail: "buyer@example.com",
+        reasonCode: "FRAUD",
+        reason: "This listing appears to be a scam with fake photos",
+      }).success,
+    ).toBe(true);
+    expect(
+      reportListingSchema.safeParse({
+        listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        reporterEmail: "buyer@example.com",
+        reasonCode: "FRAUD",
+        reason: "Bad",
+      }).success,
+    ).toBe(false);
   });
 });

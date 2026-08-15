@@ -130,6 +130,10 @@ export default async function AdminListingsPage({
     user: { select: { name: true, email: true } },
     category: { select: { name: true } },
     region: { select: { name: true } },
+    attributeValues: {
+      where: { attributeDefinition: { slug: "write-off-category" } },
+      select: { value: true },
+    },
     _count: { select: { reports: true } },
     revisions: {
       where: { status: "PENDING" as const },
@@ -206,6 +210,12 @@ export default async function AdminListingsPage({
                 <TableCell className="max-w-[200px] p-0 font-medium">
                   <ListingReviewLink href={reviewHref} className="truncate font-medium">
                     {listing.title}
+                    {listing.attributeValues[0]?.value === "Category N" ||
+                    listing.attributeValues[0]?.value === "Category S" ? (
+                      <Badge variant="energy" className="ml-2">
+                        {listing.attributeValues[0].value}
+                      </Badge>
+                    ) : null}
                   </ListingReviewLink>
                 </TableCell>
                 <TableCell className="p-0 text-text-secondary">

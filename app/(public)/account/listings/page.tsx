@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,8 +73,7 @@ interface Props {
 
 export default async function AccountListingsPage({ searchParams }: Props) {
   await expireStaleLiveListings();
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up?next=/account/listings");
+  const user = await requireAcceptedUser("/account/listings");
 
   const params = searchParams ? await searchParams : {};
   const status = STATUS_FILTERS.includes(params.status as StatusFilter)

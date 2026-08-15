@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { joinWaitlist } from "@/actions/waitlist";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { WaitlistInterest } from "@/lib/validations/waitlist";
 
 const INTEREST_OPTIONS: Array<{ id: WaitlistInterest; label: string }> = [
@@ -18,9 +19,11 @@ export function WaitlistForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string[];
     interests?: string[];
+    marketingConsent?: string[];
   }>({});
 
   const interestsSelected = useMemo(() => new Set(interests), [interests]);
@@ -42,6 +45,7 @@ export function WaitlistForm() {
       email,
       interests,
       source: "coming_soon_page",
+      marketingConsent,
     });
 
     setIsSubmitting(false);
@@ -57,6 +61,7 @@ export function WaitlistForm() {
     setSubmitted(true);
     setEmail("");
     setInterests([]);
+    setMarketingConsent(false);
   }
 
   if (submitted) {
@@ -110,6 +115,18 @@ export function WaitlistForm() {
         ) : null}
       </fieldset>
 
+      <Checkbox
+        checked={marketingConsent}
+        onCheckedChange={(value) => setMarketingConsent(value === true)}
+        label="I want launch updates from iTrader.im. I can unsubscribe or request removal at any time."
+      />
+      {fieldErrors.marketingConsent?.[0] ? (
+        <p className="text-xs text-text-energy">{fieldErrors.marketingConsent[0]}</p>
+      ) : null}
+      <p className="text-xs leading-relaxed text-text-tertiary">
+        To unsubscribe or remove your details, email hello@itrader.im or use the
+        unsubscribe link in any launch email.
+      </p>
       {error ? <p className="text-xs text-text-error">{error}</p> : null}
 
       <div className="mt-5 flex justify-center">

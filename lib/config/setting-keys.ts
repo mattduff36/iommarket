@@ -12,4 +12,5 @@ export const SETTING_KEYS = {
   MONITORING_ALERT_MIN_SEVERITY: "monitoring_alert_min_severity",
   MONITORING_ALERT_COOLDOWN_MINUTES: "monitoring_alert_cooldown_minutes",
   ADMIN_CHECKLIST: "admin_checklist",
+  WAITLIST_CAMPAIGN_CLOSED_AT: "waitlist_campaign_closed_at",
 } as const;

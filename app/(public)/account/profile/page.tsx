@@ -1,13 +1,11 @@
 export const dynamic = "force-dynamic";
 
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { ProfileSecurityForm } from "./profile-security-form";
 
 export default async function AccountProfilePage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up?next=/account/profile");
+  const user = await requireAcceptedUser("/account/profile");
 
   const regions = await db.region.findMany({
     where: { active: true },

@@ -15,6 +15,9 @@ export const joinWaitlistSchema = z.object({
     .min(1, "Select at least one interest")
     .transform((items) => Array.from(new Set(items))),
   source: z.string().trim().min(1).max(120).default("coming_soon_page"),
+  marketingConsent: z
+    .boolean()
+    .refine((value) => value, "Marketing consent is required to join the waitlist"),
 });
 
 export type JoinWaitlistInput = z.infer<typeof joinWaitlistSchema>;

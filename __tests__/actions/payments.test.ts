@@ -46,6 +46,9 @@ const {
     freeListingClaim: {
       findUnique: vi.fn(),
     },
+    policyAcceptance: {
+      upsert: vi.fn(),
+    },
   },
 }));
 
@@ -53,8 +56,8 @@ vi.mock("@/lib/db", () => ({
   db: mockDb,
 }));
 
-vi.mock("@/lib/auth", () => ({
-  requireAuth: requireAuthMock,
+vi.mock("@/lib/policy/gate", () => ({
+  requireAcceptedAuth: requireAuthMock,
 }));
 
 vi.mock("@/lib/config/marketplace", () => ({
@@ -149,10 +152,8 @@ describe("payForListing", () => {
     mutableEnvironment.NODE_ENV = originalNodeEnv;
   });
 
-  it("skips optional support checkout for free private sellers when no support URL is configured", async () => {
-    const result = await payForListing("caaaaaaaaaaaaaaaaaaaaaaaa", {
-      supportPlatform: true,
-    });
+  it("never opens a new support checkout POL-PAY-001", async () => {
+    const result = await payForListing("caaaaaaaaaaaaaaaaaaaaaaaa");
 
     expect(result).toEqual({
       data: {
@@ -256,16 +257,37 @@ describe("createDealerSubscription", () => {
           ? pricing.dealerProMonthlyPence
           : pricing.dealerStarterMonthlyPence,
     );
+    mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acc_1" });
   });
 
-  it("uses the server-managed dealer amount when creating checkout", async () => {
-    await expect(createDealerSubscription("PRO")).resolves.toEqual({
+  it("uses the server-managed dealer amount when creating checkout POL-PAY-001-A", async () => {
+    await expect(
+      createDealerSubscription({
+        tier: "PRO",
+        acceptedDealerTerms: true,
+      }),
+    ).resolves.toEqual({
       data: { checkoutUrl: "https://checkout.example.com/dealer-pro" },
     });
 
     expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(
       expect.objectContaining({ tier: "PRO", amountInPence: 5999 }),
     );
+    expect(mockDb.policyAcceptance.upsert).toHaveBeenCalled();
+  });
+
+  it("does not record acceptance or open checkout without acknowledgement POL-ACC-001-A", async () => {
+    await expect(
+      createDealerSubscription({
+        tier: "PRO",
+        acceptedDealerTerms: false,
+      }),
+    ).resolves.toEqual({
+      error: expect.anything(),
+    });
+
+    expect(createDealerSubscriptionCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
   });
 });
 
@@ -330,6 +352,24 @@ describe("demo payment actions", () => {
 
     expect(requireAuthMock).not.toHaveBeenCalled();
     expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
+  });
+
+  it("does not record policy acceptance from the demo emulator POL-PAY-001-A", async () => {
+    mutableEnvironment.NODE_ENV = "development";
+    isDemoDealerSubscriptionCheckoutConfiguredMock.mockReturnValue(true);
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      dealerProfile: { id: "caaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    processProviderWebhookEventMock.mockResolvedValue({});
+
+    await simulateDemoDealerSubscriptionOutcome({
+      tier: "STARTER",
+      outcome: "success",
+    });
+
+    expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
   });
 
   it("blocks demo dealer subscription simulation in production even if demo checkout is active", async () => {

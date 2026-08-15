@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/dev/auth") return true;
-  if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo") || pathname.startsWith("/vehicle-check") || pathname === "/privacy" || pathname === "/terms" || pathname === "/cookies" || pathname === "/contact" || pathname === "/safety") return true;
+  if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo") || pathname.startsWith("/vehicle-check") || pathname === "/privacy" || pathname === "/terms" || pathname === "/cookies" || pathname === "/dealer-terms" || pathname === "/private-seller-terms" || pathname === "/acceptable-use" || pathname === "/refunds" || pathname === "/contact" || pathname === "/safety") return true;
   return false;
 }
 
@@ -50,6 +50,10 @@ export default async function middleware(request: NextRequest) {
     pathname === "/privacy" ||
     pathname === "/terms" ||
     pathname === "/cookies" ||
+    pathname === "/dealer-terms" ||
+    pathname === "/private-seller-terms" ||
+    pathname === "/acceptable-use" ||
+    pathname === "/refunds" ||
     pathname === "/contact" ||
     pathname === "/safety";
 

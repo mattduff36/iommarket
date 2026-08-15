@@ -280,9 +280,26 @@ export async function submitRevision(input: {
       throw new ListingLifecycleError("At least 2 photos are required");
     }
     if (!revision.trustDeclarationAccepted) {
-      throw new ListingLifecycleError(
-        "Please confirm the vehicle is not stolen and has no outstanding finance before submitting.",
+      const { LISTING_DECLARATION_ERROR } = await import(
+        "@/lib/listings/write-off-category"
       );
+      throw new ListingLifecycleError(LISTING_DECLARATION_ERROR);
+    }
+    const { getPolicyFlags } = await import("@/lib/policy/flags");
+    if (getPolicyFlags().enforceListingNs) {
+      const writeOff = await tx.listingRevisionAttributeValue.findFirst({
+        where: {
+          revisionId: revision.id,
+          attributeDefinition: { slug: "write-off-category" },
+        },
+        select: { value: true },
+      });
+      const { isWriteOffCategoryValue, WRITE_OFF_SUBMIT_ERROR } = await import(
+        "@/lib/listings/write-off-category"
+      );
+      if (!isWriteOffCategoryValue(writeOff?.value)) {
+        throw new ListingLifecycleError(WRITE_OFF_SUBMIT_ERROR);
+      }
     }
 
     const submitted = await tx.listingRevision.updateMany({

@@ -6,6 +6,7 @@ describe("joinWaitlistSchema", () => {
     const result = joinWaitlistSchema.safeParse({
       email: "driver@example.com",
       interests: ["BUYING_CARS", "DEALER"],
+      marketingConsent: true,
     });
 
     expect(result.success).toBe(true);
@@ -15,6 +16,7 @@ describe("joinWaitlistSchema", () => {
     const result = joinWaitlistSchema.safeParse({
       email: "invalid-email",
       interests: ["BUYING_CARS"],
+      marketingConsent: true,
     });
 
     expect(result.success).toBe(false);
@@ -24,6 +26,17 @@ describe("joinWaitlistSchema", () => {
     const result = joinWaitlistSchema.safeParse({
       email: "driver@example.com",
       interests: [],
+      marketingConsent: true,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("POL-MKT-001 rejects waitlist joins without explicit marketing consent", () => {
+    const result = joinWaitlistSchema.safeParse({
+      email: "driver@example.com",
+      interests: ["BUYING_CARS"],
+      marketingConsent: false,
     });
 
     expect(result.success).toBe(false);

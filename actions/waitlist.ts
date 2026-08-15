@@ -13,6 +13,7 @@ import {
   sendWaitlistAdminNotificationEmail,
   sendWaitlistConfirmationEmail,
 } from "@/lib/email/resend";
+import { COMPANY } from "@/lib/policy/company";
 
 const WAITLIST_INTEREST_LABELS: Record<WaitlistInterest, string> = {
   BUYING_CARS: "Buying cars",
@@ -48,6 +49,9 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
         email: parsed.data.email,
         interests,
         source: parsed.data.source,
+        marketingConsentAt: new Date(),
+        marketingPolicyVersion: COMPANY.policyVersion,
+        marketingWithdrawnAt: null,
       },
       update: {
         interests,
@@ -55,6 +59,9 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
         deletedAt: null,
         deletedByAdminId: null,
         deletionReason: null,
+        marketingConsentAt: new Date(),
+        marketingPolicyVersion: COMPANY.policyVersion,
+        marketingWithdrawnAt: null,
       },
     });
 
@@ -99,6 +106,7 @@ export async function deleteWaitlistUser(id: string) {
           deletedAt: new Date(),
           deletedByAdminId: admin.id,
           deletionReason: "Removed by admin",
+          marketingWithdrawnAt: new Date(),
         },
       });
       await logAdminAction(

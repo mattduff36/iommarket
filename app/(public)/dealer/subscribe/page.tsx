@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { DEALER_TIER_LABELS } from "@/lib/config/dealer-tiers";
 import { getDealerPlanPricePence, getMarketplacePricing } from "@/lib/config/marketplace-pricing";
@@ -50,12 +50,9 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
   const intendedSubscribePath = `/dealer/subscribe?tier=${tier}`;
 
   const [user, pricing] = await Promise.all([
-    getCurrentUser(),
+    requireAcceptedUser(intendedSubscribePath),
     getMarketplacePricing(),
   ]);
-  if (!user) {
-    redirect(`/sign-up?next=${encodeURIComponent(intendedSubscribePath)}`);
-  }
 
   const dealerProfile = user.dealerProfile;
 

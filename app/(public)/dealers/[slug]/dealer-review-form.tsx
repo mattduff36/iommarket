@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { submitDealerReview } from "@/actions/dealer-reviews";
 import { Button } from "@/components/ui/button";
 
@@ -82,6 +83,18 @@ export function DealerReviewForm({ dealerId, canComment }: Props) {
           Sign in to add a named written comment. Anonymous reviews can submit a star rating only.
         </p>
       )}
+
+      <p className="text-xs text-text-secondary">
+        Reviews are moderated and may be removed if they breach our{" "}
+        <Link href="/acceptable-use" className="text-text-trust hover:underline">
+          Acceptable Use Policy
+        </Link>
+        . Do not include personal data you do not want published. See our{" "}
+        <Link href="/privacy" className="text-text-trust hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
 
       {error ? <p className="text-sm text-text-error">{error}</p> : null}
       {success ? <p className="text-sm text-emerald-500">{success}</p> : null}

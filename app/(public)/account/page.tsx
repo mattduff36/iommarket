@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { getSellLandingPath } from "@/lib/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -20,8 +19,7 @@ const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
 export default async function AccountDashboardPage() {
   await expireStaleLiveListings();
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up?next=/account");
+  const user = await requireAcceptedUser("/account");
 
   const [
     statusGroups,

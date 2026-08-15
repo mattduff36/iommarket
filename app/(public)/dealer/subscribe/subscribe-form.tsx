@@ -18,6 +18,7 @@ import {
 } from "@/actions/payments";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface SubscribeFormProps {
   tier: "STARTER" | "PRO";
@@ -47,6 +48,7 @@ export function SubscribeForm({
   const [notice, setNotice] = useState<string | null>(null);
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
+  const [acceptedDealerTerms, setAcceptedDealerTerms] = useState(false);
 
   function handleCreateProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -74,8 +76,15 @@ export function SubscribeForm({
     setError(null);
     setNotice(null);
     setDemoOutcomeError(null);
+    if (!acceptedDealerTerms) {
+      setError("Please accept the Dealer Terms, Acceptable Use Policy, and Refund Policy.");
+      return;
+    }
     startTransition(async () => {
-      const result = await createDealerSubscription(tier);
+      const result = await createDealerSubscription({
+        tier,
+        acceptedDealerTerms: true,
+      });
       if (result.error) {
         const msg =
           typeof result.error === "string"
@@ -223,10 +232,31 @@ export function SubscribeForm({
                 {notice}
               </p>
             )}
+            <Checkbox
+              checked={acceptedDealerTerms}
+              onCheckedChange={(checked) => setAcceptedDealerTerms(checked === true)}
+              label={
+                <>
+                  I accept the{" "}
+                  <Link href="/dealer-terms" className="text-text-trust hover:underline">
+                    Dealer Terms
+                  </Link>
+                  ,{" "}
+                  <Link href="/acceptable-use" className="text-text-trust hover:underline">
+                    Acceptable Use Policy
+                  </Link>
+                  , and{" "}
+                  <Link href="/refunds" className="text-text-trust hover:underline">
+                    Refund Policy
+                  </Link>
+                </>
+              }
+            />
             <Button
               onClick={handleSubscribe}
-              className="w-full"
+              className="w-full mt-4"
               loading={isPending}
+              disabled={!acceptedDealerTerms}
             >
               Subscribe &mdash; {tierPrice}/month
             </Button>

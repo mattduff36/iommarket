@@ -115,6 +115,13 @@ export default async function HomePage() {
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
+      attributeValues: {
+        where: { attributeDefinition: { slug: "write-off-category" } },
+        select: {
+          value: true,
+          attributeDefinition: { select: { slug: true } },
+        },
+      },
     },
   });
 
@@ -126,6 +133,7 @@ export default async function HomePage() {
     location: listing.region.name,
     meta: listing.category.name,
     href: `/listings/${listing.id}`,
+    writeOffCategory: listing.attributeValues[0]?.value ?? null,
   }));
 
   return (
@@ -228,7 +236,7 @@ export default async function HomePage() {
             </span>
             <p className="text-sm text-text-secondary">
               <span className="font-bold text-text-primary text-base">{soldCount.toLocaleString()}</span>{" "}
-              vehicle{soldCount !== 1 ? "s" : ""} sold through itrader.im
+              vehicle{soldCount !== 1 ? "s" : ""} advertised on itrader.im
             </p>
           </div>
         </section>

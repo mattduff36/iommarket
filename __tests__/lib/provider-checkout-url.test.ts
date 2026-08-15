@@ -39,6 +39,19 @@ describe("RIP-PRICE-001 fixed Ripple checkout URLs", () => {
     ).toBe("listing-1");
   });
 
+  it("rejects new listing support checkout POL-PAY-001", async () => {
+    await expect(
+      createListingCheckout({
+        listingId: "listing-1",
+        listingTitle: "Test",
+        amountInPence: 500,
+        checkoutType: "listing_support",
+        successUrl: "https://example.com/success",
+        cancelUrl: "https://example.com/cancel",
+      }),
+    ).rejects.toThrow("RIPPLE_LISTING_SUPPORT_URL");
+  });
+
   it("rejects checkout amount drift", async () => {
     await expect(
       createFeaturedUpgradeCheckout({

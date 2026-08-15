@@ -24,6 +24,7 @@ const {
       createMany: vi.fn(),
     },
     listingRevisionAttributeValue: {
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       deleteMany: vi.fn(),
       createMany: vi.fn(),
@@ -76,6 +77,7 @@ describe("listing revisions ALR-REV-001", () => {
       expiresAt: new Date(Date.now() + 60_000),
       lifecycleRevision: 2,
     });
+    mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
   });
 
   it("creates a draft revision while the live listing stays public ALR-REV-001", async () => {
@@ -469,5 +471,46 @@ describe("listing revisions ALR-REV-001", () => {
       }),
     );
     expect(dispatchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a live revision submit without a write-off declaration POL-LIST-001", async () => {
+    const previous = process.env.POLICY_ENFORCE_LISTING_NS;
+    process.env.POLICY_ENFORCE_LISTING_NS = "true";
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing-1",
+      userId: "user-1",
+      status: "LIVE",
+      lifecycleRevision: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+      images: [{ id: "img-1" }, { id: "img-2" }],
+    });
+    mockDb.listingRevision.findFirst.mockResolvedValue({
+      id: "rev-1",
+      status: "DRAFT",
+      version: 2,
+      trustDeclarationAccepted: true,
+      images: [{ id: "img-1" }, { id: "img-2" }],
+    });
+    mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
+
+    try {
+      await expect(
+        submitRevision({
+          listingId: "listing-1",
+          userId: "user-1",
+          expectedListingRevision: 1,
+          expectedVersion: 2,
+        }),
+      ).rejects.toThrow(
+        "Choose None, Category N, or Category S before submitting this listing.",
+      );
+      expect(mockDb.listingRevision.updateMany).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_LISTING_NS;
+      } else {
+        process.env.POLICY_ENFORCE_LISTING_NS = previous;
+      }
+    }
   });
 });

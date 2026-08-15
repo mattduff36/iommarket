@@ -32,8 +32,8 @@ vi.mock("next/navigation", () => ({
   redirect: (path: string) => redirectMock(path),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getCurrentUser: getCurrentUserMock,
+vi.mock("@/lib/policy/gate", () => ({
+  requireAcceptedUser: getCurrentUserMock,
 }));
 
 vi.mock("@/lib/navigation", () => ({

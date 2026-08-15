@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
@@ -60,8 +60,7 @@ interface Props {
 }
 
 export default async function SellDealerPage({ searchParams }: Props) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up?next=/sell/dealer");
+  const user = await requireAcceptedUser("/sell/dealer");
   if (user.role === "USER") redirect("/sell/private");
   let dealerProfile = user.dealerProfile;
   const params = searchParams ? await searchParams : {};

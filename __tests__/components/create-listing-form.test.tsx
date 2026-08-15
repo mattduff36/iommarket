@@ -480,7 +480,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(
-        "I confirm this vehicle is not stolen and has no outstanding finance"
+        /I confirm I have authority to advertise this vehicle/
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
@@ -676,7 +676,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(
-        "I confirm this vehicle is not stolen and has no outstanding finance"
+        /I confirm I have authority to advertise this vehicle/
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));

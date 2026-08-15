@@ -487,6 +487,10 @@ async function cancelByProviderSubscriptionId(
     where: { id: existing.id },
     data: { status: "CANCELLED", cancelAtPeriodEnd: false },
   });
+  const { reconcileCancellationForSubscription } = await import(
+    "@/lib/policy/cancellation"
+  );
+  await reconcileCancellationForSubscription(existing.id, "WEBHOOK");
   return true;
 }
 
@@ -524,6 +528,16 @@ export async function handleSubscriptionPausedOrCancelled(
       client
     );
   });
+  if (lifecycle === "CANCELLED") {
+    const { reconcileCancellationForSubscription } = await import(
+      "@/lib/policy/cancellation"
+    );
+    const resolved = await resolveDealer(event, product);
+    const existing = await findSubscription(resolved);
+    if (existing) {
+      await reconcileCancellationForSubscription(existing.id, "WEBHOOK");
+    }
+  }
 }
 
 export async function handleSubscriptionResumed(

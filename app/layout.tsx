@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Orbitron } from "next/font/google";
 import { ThemeProvider } from "@once-ui-system/core";
-import { Analytics } from "@vercel/analytics/next";
 import { ClientErrorListener } from "@/components/monitoring/client-error-listener";
+import { ConsentedAnalytics } from "@/components/layout/consented-analytics";
 import "./globals.css";
 
 const inter = Inter({
@@ -62,7 +62,7 @@ export default function RootLayout({
         <ThemeProvider theme="dark" brand="blue" accent="indigo">
           {children}
           <ClientErrorListener />
-          <Analytics />
+          <ConsentedAnalytics />
         </ThemeProvider>
       </body>
     </html>

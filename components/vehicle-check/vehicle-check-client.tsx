@@ -194,6 +194,12 @@ export function VehicleCheckClient({
                 Run a live check against DVLA, MOT history, gov.im, and external
                 auction references, then export a clean report in one place.
               </p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
+                Vehicle Check results come from third-party sources and are
+                provided for information only. itrader.im does not warrant their
+                completeness or accuracy. Always verify details independently
+                before buying or selling.
+              </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-white/8 bg-white/4 p-4">

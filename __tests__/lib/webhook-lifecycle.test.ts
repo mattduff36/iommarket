@@ -22,7 +22,12 @@ vi.mock("@/lib/db", () => ({
     },
     subscription: {
       findFirst: subscriptionFindFirst,
+      findUnique: vi.fn().mockResolvedValue(null),
       update: subscriptionUpdate,
+    },
+    dealerCancellationRequest: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn().mockResolvedValue(null),
     },
   },
 }));

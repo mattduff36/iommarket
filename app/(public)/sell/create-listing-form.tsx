@@ -20,8 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
+import { LISTING_DECLARATION_LABEL } from "@/lib/listings/write-off-category";
 import {
   getAttributeFieldConfig,
   isListingAttributeRequired,
@@ -72,7 +72,6 @@ interface Props {
   modelOptionsByMake?: Record<string, string[]>;
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
-  optionalListingSupportPence?: number;
   initialDraft?: EditableDraft | null;
 }
 
@@ -101,7 +100,6 @@ export function CreateListingForm({
   modelOptionsByMake = {},
   mode = "private",
   isFreeForUser = false,
-  optionalListingSupportPence = 0,
   initialDraft = null,
 }: Props) {
   const router = useRouter();
@@ -133,7 +131,6 @@ export function CreateListingForm({
   const [photoRevision, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
   const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
-  const [supportPlatform, setSupportPlatform] = useState(false);
   const [registrationInput, setRegistrationInput] = useState("");
   const [lookupPending, setLookupPending] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -514,9 +511,7 @@ export function CreateListingForm({
 
         const payResult = skipCheckout
           ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
-          : await payForListing(listingId, {
-              supportPlatform: mode === "private" && supportPlatform,
-            });
+          : await payForListing(listingId);
         if (payResult.error) {
           setError(
             typeof payResult.error === "string"
@@ -800,7 +795,9 @@ export function CreateListingForm({
                   trustConfirmationMissing ? "text-text-energy" : "text-text-secondary"
                 }`}
               >
-                Please confirm the vehicle is not stolen and has no outstanding finance.
+                Please confirm ownership or authority, accuracy, photo rights,
+                prohibited-vehicle rules, Category N/S disclosure, and that the
+                vehicle is not stolen and has no outstanding finance.
               </p>
               <Checkbox
                 checked={trustConfirmed}
@@ -812,16 +809,8 @@ export function CreateListingForm({
                   }
                 }}
                 className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
-                label="I confirm this vehicle is not stolen and has no outstanding finance"
+                label={LISTING_DECLARATION_LABEL}
               />
-              {mode === "private" && optionalListingSupportPence > 0 && (
-                <Checkbox
-                  checked={supportPlatform}
-                  onCheckedChange={(checked) => setSupportPlatform(checked === true)}
-                  className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
-                  label={`Optional: add ${formatGbpFromPence(optionalListingSupportPence)} to support the platform`}
-                />
-              )}
           </div>
 
           {/* Dynamic category attributes */}

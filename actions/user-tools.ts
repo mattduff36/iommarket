@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAuth } from "@/lib/auth";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 import { z } from "zod";
@@ -20,7 +20,7 @@ const deleteSavedSearchSchema = z.object({
 });
 
 export async function toggleFavourite(input: { listingId: string }) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
   const parsed = toggleFavouriteSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -67,7 +67,7 @@ export async function saveSearch(input: {
   name: string;
   queryParamsJson: Record<string, string>;
 }) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
   const parsed = saveSearchSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -83,7 +83,7 @@ export async function saveSearch(input: {
 }
 
 export async function deleteSavedSearch(input: { savedSearchId: string }) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
   const parsed = deleteSavedSearchSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 

@@ -37,7 +37,10 @@ const ELECTRIC_ONLY_HIDDEN_ATTRIBUTE_SLUGS = new Set([
   "fuel-consumption",
   "co2-emissions",
 ]);
-const ALWAYS_HIDDEN_ATTRIBUTE_SLUGS = new Set(["location"]);
+const ALWAYS_HIDDEN_ATTRIBUTE_SLUGS = new Set([
+  "location",
+  "previously-written-off",
+]);
 const STATIC_VEHICLE_MAKES = getMakesWithDb([]);
 
 export function isVehicleCategorySlug(categorySlug: string | undefined): boolean {
@@ -123,6 +126,15 @@ export function getAttributeFieldConfig(
       control: "select",
       options: [...FUEL_TYPE_OPTIONS],
       helperText: "Choose the vehicle's specific fuel type.",
+    };
+  }
+
+  if (isVehicleCategorySlug(categorySlug) && attribute.slug === "write-off-category") {
+    return {
+      control: "select",
+      options: parseAttributeOptions(attribute.options),
+      helperText:
+        "Category N and Category S are permitted only with prominent disclosure. Choose None if the vehicle is not a Category N or S write-off.",
     };
   }
 

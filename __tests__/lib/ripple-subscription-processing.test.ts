@@ -29,9 +29,14 @@ const {
   const db: Record<string, unknown> = {
     subscription: {
       findFirst: subscriptionFindFirst,
+      findUnique: vi.fn().mockResolvedValue(null),
       create: subscriptionCreate,
       findMany: subscriptionFindMany,
       update: subscriptionUpdate,
+    },
+    dealerCancellationRequest: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn().mockResolvedValue(null),
     },
     subscriptionCharge: {
       create: subscriptionChargeCreate,

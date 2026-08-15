@@ -1,3 +1,5 @@
+import { assertPolicyFlagsValid } from "@/lib/policy/flags";
+
 /**
  * Next.js instrumentation hook – runs once when the server starts,
  * before any request handling or module evaluation.
@@ -7,4 +9,6 @@
  * changing Node's process-wide policy would also weaken payment, auth, email,
  * and every other outbound HTTPS request.
  */
-export function register() {}
+export function register() {
+  assertPolicyFlagsValid();
+}

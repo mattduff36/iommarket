@@ -36,11 +36,6 @@ const PRICE_FIELDS = [
     label: MARKETPLACE_PRICING.dealerProMonthly.label,
     period: "Monthly subscription",
   },
-  {
-    name: "optionalListingSupport",
-    label: MARKETPLACE_PRICING.optionalListingSupport.label,
-    period: "One-time optional add-on",
-  },
 ] as const;
 
 export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
@@ -57,7 +52,9 @@ export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
       featuredUpgrade: String(formData.get("featuredUpgrade") ?? ""),
       dealerStarterMonthly: String(formData.get("dealerStarterMonthly") ?? ""),
       dealerProMonthly: String(formData.get("dealerProMonthly") ?? ""),
-      optionalListingSupport: String(formData.get("optionalListingSupport") ?? ""),
+      optionalListingSupport: formatGbpInputFromPence(
+        pricing.optionalListingSupportPence,
+      ),
     };
 
     startTransition(async () => {
@@ -81,7 +78,6 @@ export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
     featuredUpgrade: pricing.featuredUpgradePence,
     dealerStarterMonthly: pricing.dealerStarterMonthlyPence,
     dealerProMonthly: pricing.dealerProMonthlyPence,
-    optionalListingSupport: pricing.optionalListingSupportPence,
   };
 
   return (

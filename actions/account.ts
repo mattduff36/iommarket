@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/lib/validations/account";
 
 export async function updateMyProfile(input: UpdateMyProfileInput) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const parsed = updateMyProfileSchema.safeParse(input);
   if (!parsed.success) {
@@ -56,7 +56,7 @@ export async function updateMyProfile(input: UpdateMyProfileInput) {
 }
 
 export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
   if (!hasDealerDashboardAccess(user)) {
     return { error: "Not authorized to update a dealer profile" };
   }
@@ -107,7 +107,7 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
 }
 
 export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const parsed = deactivateMyAccountSchema.safeParse(input);
   if (!parsed.success) {
@@ -137,6 +137,10 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
           disabledReason: "Account deleted by user",
         },
       });
+      const { enqueueAccountDeletionJob } = await import(
+        "@/lib/privacy/account-deletion"
+      );
+      await enqueueAccountDeletionJob(tx, user.id);
       return disabled.notifications;
     });
 

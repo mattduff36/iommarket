@@ -23,6 +23,7 @@ export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   meta?: string;
   featured?: boolean;
   badge?: string;
+  writeOffCategory?: string | null;
   sold?: boolean;
   href?: string;
   listingId?: string;
@@ -50,6 +51,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
     meta,
     featured = false,
     badge,
+    writeOffCategory,
     sold = false,
     href,
     listingId,
@@ -155,6 +157,11 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
               {[location, meta].filter(Boolean).join(" · ")}
             </p>
           )}
+          {writeOffCategory === "Category N" || writeOffCategory === "Category S" ? (
+            <Badge variant="energy" className="mt-1">
+              {writeOffCategory} write-off
+            </Badge>
+          ) : null}
         </div>
       </article>
     );

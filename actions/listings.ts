@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import {
   getDealerEntitlement,
@@ -52,7 +52,7 @@ import { claimFreeListingSlot } from "@/lib/config/marketplace";
 // ---------------------------------------------------------------------------
 
 export async function createListing(input: CreateListingInput) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   if (user.role === "DEALER" && !user.dealerProfile) {
     return { error: "A dealer profile is required to post listings." };
@@ -185,7 +185,7 @@ export async function createListing(input: CreateListingInput) {
 // ---------------------------------------------------------------------------
 
 export async function updateListing(input: unknown) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const parsed = updateListingSchema.safeParse(input);
   if (!parsed.success) {
@@ -333,7 +333,7 @@ export async function updateListing(input: unknown) {
 // ---------------------------------------------------------------------------
 
 export async function submitListingForReview(listingId: string) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -344,6 +344,44 @@ export async function submitListingForReview(listingId: string) {
   });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  const { getPolicyFlags } = await import("@/lib/policy/flags");
+  if (getPolicyFlags().enforceListingNs) {
+    const { isWriteOffCategoryValue, WRITE_OFF_SUBMIT_ERROR } = await import(
+      "@/lib/listings/write-off-category"
+    );
+    const writeOff =
+      listing.status === "LIVE"
+        ? await db.listingRevisionAttributeValue.findFirst({
+            where: {
+              revision: { listingId, status: { in: ["DRAFT", "PENDING"] } },
+              attributeDefinition: { slug: "write-off-category" },
+            },
+            select: { value: true },
+          })
+        : await db.listingAttributeValue.findFirst({
+            where: {
+              listingId,
+              attributeDefinition: { slug: "write-off-category" },
+            },
+            select: { value: true },
+          });
+    if (!isWriteOffCategoryValue(writeOff?.value)) {
+      return { error: WRITE_OFF_SUBMIT_ERROR };
+    }
+  }
+  const { recordAcceptance, requireBundleAcceptance } = await import(
+    "@/lib/policy/acceptance"
+  );
+  if (listing.dealerId) {
+    const dealerGate = await requireBundleAcceptance(user.id, "DEALER_BUNDLE");
+    if (!dealerGate.ok) return { error: dealerGate.error };
+  } else {
+    await recordAcceptance(db, {
+      userId: user.id,
+      acceptanceType: "LISTING_BUNDLE",
+      source: "LISTING",
+    });
+  }
   if (listing.status === "LIVE") {
     try {
       const openRevision = await getOpenRevision(listingId);
@@ -373,10 +411,10 @@ export async function submitListingForReview(listingId: string) {
   }
   if (listing.images.length < 2) return { error: "At least 2 photos are required" };
   if (!listing.trustDeclarationAccepted) {
-    return {
-      error:
-        "Please confirm the vehicle is not stolen and has no outstanding finance before submitting.",
-    };
+    const { LISTING_DECLARATION_ERROR } = await import(
+      "@/lib/listings/write-off-category"
+    );
+    return { error: LISTING_DECLARATION_ERROR };
   }
 
   if (listing.dealerId && listing.dealer) {
@@ -565,7 +603,7 @@ export async function submitListingForReview(listingId: string) {
 // ---------------------------------------------------------------------------
 
 export async function renewListing(listingId: string) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
@@ -766,7 +804,7 @@ export async function contactSeller(input: ContactSellerInput) {
 // ---------------------------------------------------------------------------
 
 export async function markListingAsSold(listingId: string) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
@@ -814,7 +852,7 @@ export async function syncListingImages(
   listingId: string,
   input: SyncListingImagesInput,
 ) {
-  const user = await requireAuth();
+  const user = await requireAcceptedAuth();
 
   try {
     const result = await syncListingImagesForUser({

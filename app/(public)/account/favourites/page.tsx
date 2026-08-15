@@ -2,15 +2,14 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 
 export default async function FavouritesPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up");
+  const user = await requireAcceptedUser("/account/favourites");
 
   const favourites = await db.favourite.findMany({
     where: { userId: user.id },
@@ -21,6 +20,13 @@ export default async function FavouritesPage() {
           images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
           category: true,
           region: true,
+          attributeValues: {
+            where: { attributeDefinition: { slug: "write-off-category" } },
+            select: {
+              value: true,
+              attributeDefinition: { select: { slug: true } },
+            },
+          },
         },
       },
     },
@@ -52,6 +58,7 @@ export default async function FavouritesPage() {
                 meta={listing.category.name}
                 featured={listing.featured}
                 badge={available ? (listing.featured ? "Featured" : undefined) : "Unavailable"}
+                writeOffCategory={listing.attributeValues[0]?.value ?? null}
                 href={available ? `/listings/${listing.id}` : undefined}
               />
             );

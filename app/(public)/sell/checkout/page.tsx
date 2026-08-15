@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,7 @@ interface Props {
 }
 
 export default async function SellCheckoutPage({ searchParams }: Props) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/sign-up?next=/sell");
+  const user = await requireAcceptedUser("/sell");
 
   const sp = await searchParams;
   if (!sp.listing) {

@@ -27,7 +27,8 @@ export async function getCurrentUser() {
     const synced = await syncUser(
       authUser.id,
       authUser.email ?? "",
-      authUser.user_metadata?.full_name as string | undefined
+      authUser.user_metadata?.full_name as string | undefined,
+      authUser.app_metadata?.policy_acceptance
     );
     return db.user.findUnique({
       where: { id: synced.id },
@@ -51,13 +52,23 @@ export async function getCurrentUser() {
 export async function syncUser(
   authUserId: string,
   email: string,
-  name?: string
+  name?: string,
+  policyAcceptanceReceipt?: unknown
 ) {
   try {
-    return await db.user.upsert({
-      where: { authUserId },
-      update: { email, name },
-      create: { authUserId, email, name, role: "USER" },
+    return await db.$transaction(async (tx) => {
+      const user = await tx.user.upsert({
+        where: { authUserId },
+        update: { email, name },
+        create: { authUserId, email, name, role: "USER" },
+      });
+      if (policyAcceptanceReceipt) {
+        const { importSignupAcceptances } = await import(
+          "@/lib/policy/acceptance"
+        );
+        await importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
+      }
+      return user;
     });
   } catch (err) {
     const isUniqueViolation =
@@ -71,10 +82,19 @@ export async function syncUser(
           where: { id: existing.id },
           data: { email: `deleted-${existing.id}@deleted.local` },
         });
-        return db.user.upsert({
-          where: { authUserId },
-          update: { email, name },
-          create: { authUserId, email, name, role: "USER" },
+        return db.$transaction(async (tx) => {
+          const user = await tx.user.upsert({
+            where: { authUserId },
+            update: { email, name },
+            create: { authUserId, email, name, role: "USER" },
+          });
+          if (policyAcceptanceReceipt) {
+            const { importSignupAcceptances } = await import(
+              "@/lib/policy/acceptance"
+            );
+            await importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
+          }
+          return user;
         });
       }
     }
