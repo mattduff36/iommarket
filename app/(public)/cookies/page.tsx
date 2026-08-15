@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { getPublishedPage } from "@/lib/cms/get-page";
 import { MarkdownRenderer } from "@/components/cms/markdown-renderer";
 
+export const dynamic = "force-dynamic";
+
 const FALLBACK_CONTENT = `We use essential cookies to maintain secure sessions and core marketplace functionality. Optional analytics cookies may be enabled in production.
 
 You can update your browser cookie settings at any time. Blocking essential cookies may affect site functionality.`;

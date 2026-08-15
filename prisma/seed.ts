@@ -5,6 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { FUEL_TYPE_OPTIONS, isEvCompatibleFuelType } from "../lib/constants/fuel-types";
 import { MARKETPLACE_REGIONS } from "../lib/constants/regions";
+import { assertSeedAllowed } from "../lib/ops/safety";
 
 // Load .env then .env.local so the seed always targets the same DB as the dev server.
 // .env.local values take priority, matching Next.js conventions.
@@ -54,11 +55,17 @@ const prisma = new PrismaClient({ adapter });
  * attribute definitions, users, dealers, and vehicle-only LIVE listings.
  */
 async function main() {
+  assertSeedAllowed();
+
   console.log("Seeding itrader.im database (vehicle-only)...\n");
 
   // ---------------------------------------------------------------------------
   // Clear existing placeholder data (listings and related)
   // ---------------------------------------------------------------------------
+  await prisma.dealerReviewModerationEvent.deleteMany({});
+  await prisma.dealerReview.deleteMany({});
+  await prisma.listingStatusEvent.deleteMany({});
+  await prisma.adminAuditLog.deleteMany({});
   await prisma.payment.deleteMany({});
   await prisma.listingImage.deleteMany({});
   await prisma.listingAttributeValue.deleteMany({});
@@ -941,7 +948,6 @@ async function main() {
 
   console.log(`  Created ${17 + generatedCount} listings (${16 + generatedCount} LIVE vehicles, 1 PENDING)`);
   console.log("\nSeed completed successfully!");
-  console.log("Admin login: admin@itrader.im (demo_admin_001)");
 }
 
 main()

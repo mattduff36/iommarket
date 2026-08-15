@@ -170,9 +170,17 @@ export async function downgradeDealerToUser(dealerId: string) {
   if (!profile) return { error: "Dealer profile not found" };
 
   try {
-    await db.user.update({
-      where: { id: profile.userId },
-      data: { role: "USER" },
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: profile.userId },
+        data: { role: "USER" },
+      });
+      const { revokeAdminDealerAccess } = await import("@/lib/dealers/entitlement");
+      await revokeAdminDealerAccess(tx, dealerId);
+      await tx.subscription.updateMany({
+        where: { dealerId, status: "ACTIVE", source: "PAYMENT" },
+        data: { cancelAtPeriodEnd: true },
+      });
     });
 
     await logAdminAction({

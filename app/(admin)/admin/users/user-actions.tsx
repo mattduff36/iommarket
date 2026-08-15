@@ -10,6 +10,7 @@ import {
 } from "@/components/admin/admin-action-controls";
 import {
   deleteUser,
+  restoreUser,
   revokeDealerAccess,
   setUserRole,
   setUserDisabled,
@@ -21,6 +22,7 @@ interface UserActionsProps {
   userId: string;
   currentRole: UserRole;
   isDisabled: boolean;
+  isDeleted?: boolean;
   userLabel?: string;
   hasActiveAdminGrant?: boolean;
   redirectOnDelete?: string;
@@ -30,6 +32,7 @@ export function UserActions({
   userId,
   currentRole,
   isDisabled,
+  isDeleted = false,
   userLabel = "this account",
   hasActiveAdminGrant = false,
   redirectOnDelete,
@@ -80,7 +83,12 @@ export function UserActions({
   function handleToggleDisabled() {
     setError(null);
     startTransition(async () => {
-      const result = await setUserDisabled({ userId, disabled: !isDisabled });
+      const result = await setUserDisabled({
+        userId,
+        disabled: !isDisabled,
+        reasonCode: isDisabled ? undefined : "POLICY",
+        reason: isDisabled ? undefined : "Disabled by admin",
+      });
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed to update status");
       } else {
@@ -90,7 +98,7 @@ export function UserActions({
   }
 
   function handleDelete() {
-    if (!confirm("Delete this account permanently? This cannot be undone.")) return;
+    if (!confirm("Soft-delete this account? Listings stay in the archive and can be restored.")) return;
 
     setError(null);
     startTransition(async () => {
@@ -131,9 +139,33 @@ export function UserActions({
           {isDisabled ? "Enable" : "Disable"}
         </AdminActionButton>
 
-        <AdminActionButton onClick={handleDelete} disabled={isPending} tone="danger">
-          Delete
-        </AdminActionButton>
+        {isDeleted ? (
+          <AdminActionButton
+            onClick={() => {
+              setError(null);
+              startTransition(async () => {
+                const result = await restoreUser({ userId });
+                if (result.error) {
+                  setError(
+                    typeof result.error === "string"
+                      ? result.error
+                      : "Failed to restore user",
+                  );
+                } else {
+                  router.refresh();
+                }
+              });
+            }}
+            disabled={isPending}
+            tone="success"
+          >
+            Restore
+          </AdminActionButton>
+        ) : (
+          <AdminActionButton onClick={handleDelete} disabled={isPending} tone="danger">
+            Delete
+          </AdminActionButton>
+        )}
 
         {currentRole === "DEALER" ? (
           <AdminActionButton

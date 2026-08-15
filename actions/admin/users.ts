@@ -10,7 +10,6 @@ import {
   revokeAdminDealerAccess,
 } from "@/lib/dealers/entitlement";
 import { captureException } from "@/lib/monitoring";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   listUsersSchema,
   setUserRoleSchema,
@@ -18,6 +17,7 @@ import {
   revokeDealerAccessSchema,
   setUserDisabledSchema,
   deleteUserSchema,
+  restoreUserSchema,
   setUserRegionSchema,
   type ListUsersInput,
   type SetUserRoleInput,
@@ -25,6 +25,7 @@ import {
   type RevokeDealerAccessInput,
   type SetUserDisabledInput,
   type DeleteUserInput,
+  type RestoreUserInput,
   type SetUserRegionInput,
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
@@ -228,6 +229,20 @@ async function updateUserRole(
                   durationDays: input.grantDurationDays,
                 })
               : null;
+          if (input.role === "USER" && targetUser.role === "DEALER") {
+            const dealer = await tx.dealerProfile.findUnique({
+              where: { userId: input.userId },
+              select: { id: true },
+            });
+            if (dealer) {
+              await revokeAdminDealerAccess(tx, dealer.id);
+              await tx.subscription.updateMany({
+                where: { dealerId: dealer.id, status: "ACTIVE", source: "PAYMENT" },
+                data: { cancelAtPeriodEnd: true },
+              });
+            }
+          }
+
           const user = await tx.user.update({
             where: { id: input.userId },
             data: { role: input.role },
@@ -456,25 +471,46 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
   const parsed = setUserDisabledSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
-  const { userId, disabled, reason } = parsed.data;
+  const { userId, disabled, reason, reasonCode } = parsed.data;
 
   if (userId === admin.id) return { error: "Cannot disable your own account" };
 
   try {
-    const user = await db.user.update({
-      where: { id: userId },
-      data: {
-        disabledAt: disabled ? new Date() : null,
-        disabledReason: disabled ? (reason ?? "Disabled by admin") : null,
-      },
-    });
+    const user = await db.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          disabledAt: disabled ? new Date() : null,
+          disabledReason: disabled ? (reason ?? "Disabled by admin") : null,
+          disabledReasonCode: disabled ? reasonCode ?? null : null,
+        },
+      });
 
-    await logAdminAction({
-      adminId: admin.id,
-      action: disabled ? "DISABLE_USER" : "ENABLE_USER",
-      entityType: "User",
-      entityId: userId,
-      details: { reason },
+      if (disabled) {
+        const { applyAccountDisableToListings } = await import(
+          "@/lib/listings/account-disable"
+        );
+        await applyAccountDisableToListings({
+          tx,
+          userId,
+          actor: { id: admin.id, role: "ADMIN" },
+          source: "ADMIN",
+          notes: reason ?? "Account disabled by admin",
+        });
+      }
+
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: disabled ? "DISABLE_USER" : "ENABLE_USER",
+          entityType: "User",
+          entityId: userId,
+          details: { reason, reasonCode },
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     revalidatePath("/admin/users");
@@ -501,7 +537,7 @@ export async function deleteUser(input: DeleteUserInput) {
   const parsed = deleteUserSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
-  const { userId } = parsed.data;
+  const { userId, reason } = parsed.data;
 
   if (userId === admin.id) return { error: "Cannot delete your own account" };
 
@@ -517,69 +553,42 @@ export async function deleteUser(input: DeleteUserInput) {
   if (!user) return { error: "User not found" };
 
   try {
-    const deletedListingIds = await db.$transaction(async (tx) => {
-      const listings = await tx.listing.findMany({
-        where: {
-          OR: [
-            { userId },
-            ...(user.dealerProfile ? [{ dealerId: user.dealerProfile.id }] : []),
-          ],
-        },
-        select: { id: true },
+    await db.$transaction(async (tx) => {
+      const { applyAccountDisableToListings } = await import(
+        "@/lib/listings/account-disable"
+      );
+      await applyAccountDisableToListings({
+        tx,
+        userId,
+        actor: { id: admin.id, role: "ADMIN" },
+        source: "ADMIN",
+        notes: reason ?? "Account soft-deleted by admin",
       });
 
-      const listingIds = listings.map((listing) => listing.id);
-
-      if (listingIds.length > 0) {
-        await tx.payment.deleteMany({
-          where: { listingId: { in: listingIds } },
-        });
-
-        await tx.report.deleteMany({
-          where: { listingId: { in: listingIds } },
-        });
-
-        await tx.listing.deleteMany({
-          where: { id: { in: listingIds } },
-        });
-      }
-
-      await tx.report.updateMany({
-        where: { reporterId: userId },
-        data: { reporterId: null },
-      });
-
-      await tx.user.delete({
+      await tx.user.update({
         where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+          deletionRequestedAt: new Date(),
+          deletionReason: reason ?? "Deleted by admin",
+          disabledAt: new Date(),
+          disabledReason: reason ?? "Deleted by admin",
+        },
       });
 
-      return listingIds;
-    });
-
-    try {
-      const supabaseAdmin = createSupabaseAdminClient();
-      await supabaseAdmin.auth.admin.deleteUser(user.authUserId);
-    } catch (authErr) {
-      await captureException({
-        source: "SERVER",
-        error: authErr,
-        action: "deleteUser.supabaseAuthCleanup",
-        route: "/admin/users",
-        requestPath: "/admin/users",
-        userId: admin.id,
-        tags: { deletedUserId: userId },
-      });
-    }
-
-    await logAdminAction({
-      adminId: admin.id,
-      action: "DELETE_USER",
-      entityType: "User",
-      entityId: userId,
-      details: {
-        dealerProfileId: user.dealerProfile?.id ?? null,
-        deletedListingCount: deletedListingIds.length,
-      },
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "SOFT_DELETE_USER",
+          entityType: "User",
+          entityId: userId,
+          details: {
+            dealerProfileId: user.dealerProfile?.id ?? null,
+            reason: reason ?? null,
+          },
+        },
+        tx,
+      );
     });
 
     revalidatePath("/admin/users");
@@ -599,6 +608,48 @@ export async function deleteUser(input: DeleteUserInput) {
       tags: { userId },
     });
     const message = err instanceof Error ? err.message : "Failed to delete user";
+    return { error: message };
+  }
+}
+
+export async function restoreUser(input: RestoreUserInput) {
+  const admin = await requireRole("ADMIN");
+  const parsed = restoreUserSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+  if (parsed.data.userId === admin.id) {
+    return { error: "Cannot restore your own account from this action." };
+  }
+
+  try {
+    const user = await db.$transaction(async (tx) => {
+      const restored = await tx.user.update({
+        where: { id: parsed.data.userId },
+        data: {
+          deletedAt: null,
+          deletionRequestedAt: null,
+          deletionReason: null,
+          disabledAt: null,
+          disabledReason: null,
+          disabledReasonCode: null,
+        },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "RESTORE_USER",
+          entityType: "User",
+          entityId: restored.id,
+        },
+        tx,
+      );
+      return restored;
+    });
+
+    revalidatePath("/admin/users");
+    revalidatePath(`/admin/users/${user.id}`);
+    return { data: user };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to restore user";
     return { error: message };
   }
 }

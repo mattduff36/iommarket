@@ -14,11 +14,29 @@ export const createDealerReviewSchema = z.object({
     .default(""),
 });
 
-export const moderateDealerReviewSchema = z.object({
-  reviewId: z.string().cuid("Invalid review ID"),
-  status: z.enum(["PENDING", "APPROVED", "REJECTED", "HIDDEN"]),
-  adminNotes: z.string().max(2000, "Admin notes are too long").optional(),
-});
+export const moderateDealerReviewSchema = z
+  .object({
+    reviewId: z.string().cuid("Invalid review ID"),
+    status: z.enum(["PENDING", "APPROVED", "REJECTED", "HIDDEN"]),
+    reasonCode: z.enum(["POLICY", "ABUSE", "SPAM", "OFF_TOPIC", "OTHER"]).optional(),
+    adminNotes: z.string().max(2000, "Admin notes are too long").optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status !== "APPROVED" && !value.reasonCode) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reasonCode"],
+        message: "A reason is required.",
+      });
+    }
+    if (value.reasonCode === "OTHER" && !value.adminNotes?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["adminNotes"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
 
 export type CreateDealerReviewInput = z.infer<typeof createDealerReviewSchema>;
 export type ModerateDealerReviewInput = z.infer<typeof moderateDealerReviewSchema>;

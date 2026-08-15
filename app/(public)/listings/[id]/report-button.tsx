@@ -25,6 +25,14 @@ export function ReportButton({ listingId }: Props) {
     const result = await reportListing({
       listingId,
       reporterEmail: formData.get("email") as string,
+      reasonCode: formData.get("reasonCode") as
+        | "FRAUD"
+        | "PROHIBITED"
+        | "MISLEADING"
+        | "DUPLICATE"
+        | "POLICY"
+        | "SAFETY"
+        | "OTHER",
       reason: formData.get("reason") as string,
     });
 
@@ -64,6 +72,26 @@ export function ReportButton({ listingId }: Props) {
             required
             placeholder="you@example.com"
           />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="reasonCode" className="text-sm font-medium text-text-primary">
+              Category
+            </label>
+            <select
+              id="reasonCode"
+              name="reasonCode"
+              required
+              className="flex h-10 w-full rounded-sm border border-border bg-surface-elevated px-3 text-sm"
+              defaultValue="FRAUD"
+            >
+              <option value="FRAUD">Fraud or scam</option>
+              <option value="PROHIBITED">Prohibited item</option>
+              <option value="MISLEADING">Misleading</option>
+              <option value="DUPLICATE">Duplicate</option>
+              <option value="POLICY">Policy</option>
+              <option value="SAFETY">Safety</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="reason" className="text-sm font-medium text-text-primary">
               Reason

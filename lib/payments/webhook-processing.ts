@@ -113,6 +113,8 @@ async function submitPaidListingForReview(
       id: true,
       status: true,
       trustDeclarationAccepted: true,
+      lifecycleRevision: true,
+      userId: true,
     },
   });
 
@@ -143,12 +145,25 @@ async function submitPaidListingForReview(
     imageCount >= 2 &&
     listing.trustDeclarationAccepted
   ) {
+    let expectedRevision = listing.lifecycleRevision;
+    if (listing.status === "EXPIRED") {
+      await transitionListingStatus({
+        listingId,
+        action: "RENEW",
+        expectedRevision,
+        actor: { id: listing.userId, role: "USER" },
+        source: "USER",
+        notes: "Listing renewed after payment",
+      });
+      expectedRevision += 1;
+    }
     await transitionListingStatus({
       listingId,
-      toStatus: "PENDING",
-      changedByUserId: null,
+      action: "SUBMIT",
+      expectedRevision,
+      actor: { id: listing.userId, role: "USER" },
       source: "PAYMENT",
-      notes: "Listing fee paid via Ripple - submitted for moderation",
+      notes: "Listing fee paid - submitted for moderation",
     });
     return;
   }
@@ -193,19 +208,69 @@ async function handleFailedPayment(event: NormalizedProviderWebhookEvent) {
   await createOrUpdatePayment(event, "FAILED");
 }
 
+async function findSubscriptionForRefund(event: NormalizedProviderWebhookEvent) {
+  if (event.providerSubscriptionId) {
+    const byProviderId = await db.subscription.findFirst({
+      where: { providerSubscriptionId: event.providerSubscriptionId },
+    });
+    if (byProviderId) return byProviderId;
+  }
+
+  if (
+    event.metadata.checkoutType === "dealer_subscription" &&
+    event.metadata.dealerId
+  ) {
+    return db.subscription.findFirst({
+      where: {
+        dealerId: event.metadata.dealerId,
+        source: "PAYMENT",
+        status: { in: ["ACTIVE", "PAST_DUE", "INCOMPLETE"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  return null;
+}
+
 async function handleRefundedPayment(event: NormalizedProviderWebhookEvent) {
   const existing = await findPaymentByProviderEvent(event);
-  if (!existing) {
+  if (existing) {
+    await db.payment.update({
+      where: { id: existing.id },
+      data: {
+        status: "REFUNDED",
+        refundedAt: new Date(),
+        refundReason: existing.refundReason ?? null,
+      },
+    });
+    return;
+  }
+
+  const subscription = await findSubscriptionForRefund(event);
+  if (subscription) {
+    await db.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        cancelAtPeriodEnd: true,
+        ...(event.currentPeriodEnd
+          ? { currentPeriodEnd: event.currentPeriodEnd }
+          : {}),
+      },
+    });
     await captureBusinessEvent({
       source: "WEBHOOK",
       severity: "MEDIUM",
-      title: "Refund webhook with no matching payment",
-      message: "Provider refund webhook did not match a local payment record.",
+      title: "Subscription refund reconciled without local payment",
+      message:
+        "Provider refund webhook matched a dealer subscription and scheduled entitlement end.",
       action: "handleRefundedPayment",
       route: "/api/webhooks/payments",
       requestPath: "/api/webhooks/payments",
       tags: {
         eventId: event.id,
+        subscriptionId: subscription.id,
+        providerSubscriptionId: event.providerSubscriptionId,
         providerPaymentId: event.providerPaymentId,
         providerReference: event.providerReference,
       },
@@ -213,9 +278,19 @@ async function handleRefundedPayment(event: NormalizedProviderWebhookEvent) {
     return;
   }
 
-  await db.payment.update({
-    where: { id: existing.id },
-    data: { status: "REFUNDED" },
+  await captureBusinessEvent({
+    source: "WEBHOOK",
+    severity: "MEDIUM",
+    title: "Refund webhook with no matching payment",
+    message: "Provider refund webhook did not match a local payment record.",
+    action: "handleRefundedPayment",
+    route: "/api/webhooks/payments",
+    requestPath: "/api/webhooks/payments",
+    tags: {
+      eventId: event.id,
+      providerPaymentId: event.providerPaymentId,
+      providerReference: event.providerReference,
+    },
   });
 }
 
@@ -264,6 +339,10 @@ async function upsertDealerSubscription(event: NormalizedProviderWebhookEvent) {
           ...(event.currentPeriodEnd
             ? { currentPeriodEnd: event.currentPeriodEnd }
             : {}),
+          cancelAtPeriodEnd:
+            status === "CANCELLED"
+              ? false
+              : (event.cancelAtPeriodEnd ?? existing.cancelAtPeriodEnd),
         },
       })
     : await db.subscription.create({
@@ -275,6 +354,7 @@ async function upsertDealerSubscription(event: NormalizedProviderWebhookEvent) {
           providerPlanId: event.providerPlanId,
           status,
           currentPeriodEnd: event.currentPeriodEnd,
+          cancelAtPeriodEnd: event.cancelAtPeriodEnd ?? false,
         },
       });
 
@@ -323,7 +403,7 @@ async function cancelDealerSubscription(event: NormalizedProviderWebhookEvent) {
 
   await db.subscription.update({
     where: { id: existing.id },
-    data: { status: "CANCELLED" },
+    data: { status: "CANCELLED", cancelAtPeriodEnd: false },
   });
 }
 

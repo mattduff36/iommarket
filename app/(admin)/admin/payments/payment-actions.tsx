@@ -25,6 +25,10 @@ export function RefundButton({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [reason, setReason] = useState<
+    "DUPLICATE" | "REQUESTED_BY_CUSTOMER" | "FRAUD" | "SERVICE_NOT_PROVIDED" | "OTHER"
+  >("REQUESTED_BY_CUSTOMER");
+  const [notes, setNotes] = useState("");
 
   if (status !== "SUCCEEDED") return null;
   if (!enabled) {
@@ -45,7 +49,11 @@ export function RefundButton({
   function handleRefund() {
     setError(null);
     startTransition(async () => {
-      const result = await adminRefundPayment({ paymentId });
+      const result = await adminRefundPayment({
+        paymentId,
+        reason,
+        notes: notes.trim() || undefined,
+      });
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed");
       } else {
@@ -67,12 +75,41 @@ export function RefundButton({
         </AdminActionButton>
       ) : (
         <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
-          <span className="px-1 text-xs text-text-error">Refund?</span>
+          <select
+            aria-label="Refund reason"
+            value={reason}
+            onChange={(event) =>
+              setReason(
+                event.target.value as
+                  | "DUPLICATE"
+                  | "REQUESTED_BY_CUSTOMER"
+                  | "FRAUD"
+                  | "SERVICE_NOT_PROVIDED"
+                  | "OTHER",
+              )
+            }
+            className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
+          >
+            <option value="REQUESTED_BY_CUSTOMER">Customer request</option>
+            <option value="DUPLICATE">Duplicate</option>
+            <option value="FRAUD">Fraud</option>
+            <option value="SERVICE_NOT_PROVIDED">Service not provided</option>
+            <option value="OTHER">Other</option>
+          </select>
+          {reason === "OTHER" ? (
+            <input
+              aria-label="Refund notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Notes required"
+              className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
+            />
+          ) : null}
           <AdminActionButton onClick={handleRefund} disabled={isPending} tone="danger">
-            Yes
+            Confirm refund
           </AdminActionButton>
           <AdminActionButton onClick={() => setShowConfirm(false)} disabled={isPending}>
-            No
+            Cancel
           </AdminActionButton>
         </AdminActionBar>
       )}

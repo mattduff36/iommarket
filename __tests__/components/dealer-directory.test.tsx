@@ -18,6 +18,7 @@ const dealers = [
     slug: "alpha-autos",
     bio: "Island dealer",
     logoUrl: null,
+    verified: true,
     _count: { listings: 2 },
   },
   {
@@ -26,6 +27,7 @@ const dealers = [
     slug: "beta-motors",
     bio: null,
     logoUrl: "https://example.com/logo.png",
+    verified: false,
     _count: { listings: 0 },
   },
 ];
@@ -60,6 +62,8 @@ describe("DealerDirectory", () => {
     expect(screen.getAllByRole("link", { name: /Visit .* profile/ })).toHaveLength(
       dealers.length,
     );
+    expect(screen.getByText("Verified Dealer")).toBeInTheDocument();
+    expect(screen.getAllByText("Verified Dealer")).toHaveLength(1);
   });
 
   it("shows a polished empty state", () => {

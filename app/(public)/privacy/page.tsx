@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { getPublishedPage } from "@/lib/cms/get-page";
 import { MarkdownRenderer } from "@/components/cms/markdown-renderer";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   const page = await getPublishedPage("privacy");
   return {

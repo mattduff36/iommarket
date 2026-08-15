@@ -37,9 +37,14 @@ let lastExpirySweepAt = 0;
 const EXPIRY_SWEEP_INTERVAL_MS = 60_000;
 const EXPIRY_SWEEP_BATCH_SIZE = 200;
 
-export async function expireStaleLiveListings(): Promise<number> {
+export async function expireStaleLiveListings(options?: {
+  force?: boolean;
+}): Promise<number> {
   const nowMs = Date.now();
-  if (nowMs - lastExpirySweepAt < EXPIRY_SWEEP_INTERVAL_MS) {
+  if (
+    !options?.force &&
+    nowMs - lastExpirySweepAt < EXPIRY_SWEEP_INTERVAL_MS
+  ) {
     return 0;
   }
   lastExpirySweepAt = nowMs;
@@ -49,7 +54,7 @@ export async function expireStaleLiveListings(): Promise<number> {
       status: "LIVE",
       expiresAt: { lte: new Date(nowMs) },
     },
-    select: { id: true },
+    select: { id: true, lifecycleRevision: true },
     orderBy: { expiresAt: "asc" },
     take: EXPIRY_SWEEP_BATCH_SIZE,
   });
@@ -59,8 +64,9 @@ export async function expireStaleLiveListings(): Promise<number> {
     try {
       await transitionListingStatus({
         listingId: listing.id,
-        toStatus: "EXPIRED",
-        changedByUserId: null,
+        action: "EXPIRE",
+        expectedRevision: listing.lifecycleRevision,
+        actor: { id: null, role: "SYSTEM" },
         source: "SYSTEM",
         notes: "Listing expired automatically after expiry date",
       });

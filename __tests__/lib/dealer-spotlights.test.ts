@@ -30,6 +30,7 @@ describe("getDealerSpotlightQuery", () => {
         slug: true,
         bio: true,
         logoUrl: true,
+        verified: true,
         _count: {
           select: {
             listings: { where: liveListingWhere },
@@ -43,21 +44,38 @@ describe("getDealerSpotlightQuery", () => {
 });
 
 describe("getDealerDirectoryQuery", () => {
-  it("uses the public eligibility filter without capping results", () => {
+  it("includes every active subscribed dealer regardless of verification", () => {
     const query = getDealerDirectoryQuery({
       status: "LIVE",
     });
 
     expect(query).toMatchObject({
       where: {
-        verified: true,
+        subscriptions: {
+          some: {
+            OR: [
+              {
+                source: "PAYMENT",
+                status: "ACTIVE",
+              },
+              {
+                source: "ADMIN_GRANT",
+                status: "ACTIVE",
+              },
+            ],
+          },
+        },
         user: {
           role: { in: ["DEALER", "ADMIN"] },
           disabledAt: null,
           deletedAt: null,
         },
       },
+      select: {
+        verified: true,
+      },
     });
+    expect(query.where).not.toHaveProperty("verified");
     expect(query).not.toHaveProperty("take");
     expect(query).not.toHaveProperty("skip");
   });

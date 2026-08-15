@@ -41,6 +41,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Revenue", href: "/admin/revenue", icon: DollarSign, group: "operations" },
   { label: "Pages", href: "/admin/pages", icon: FileText, group: "content" },
   { label: "Media", href: "/admin/media", icon: Image, group: "content" },
+  { label: "Audit", href: "/admin/audit", icon: FileText, group: "insights" },
   { label: "Analytics", href: "/admin/analytics", icon: BarChart3, group: "insights" },
   { label: "Monitoring", href: "/admin/monitoring", icon: Bug, group: "insights" },
   { label: "Settings", href: "/admin/settings", icon: Settings, group: "insights" },

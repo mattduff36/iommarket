@@ -29,15 +29,32 @@ export async function setMonitoringIssueStatus(input: {
   const now = new Date();
 
   try {
-    const issue = await db.monitoringIssue.update({
-      where: { id: issueId },
-      data: {
-        status,
-        mutedUntil:
-          status === "MUTED" ? new Date(now.getTime() + (mutedHours ?? 24) * 60 * 60 * 1000) : null,
-        resolvedAt: status === "RESOLVED" ? now : null,
-        assigneeAdminId: admin.id,
-      },
+    const issue = await db.$transaction(async (tx) => {
+      const existing = await tx.monitoringIssue.findUnique({
+        where: { id: issueId },
+        select: { status: true },
+      });
+      const updated = await tx.monitoringIssue.update({
+        where: { id: issueId },
+        data: {
+          status,
+          mutedUntil:
+            status === "MUTED"
+              ? new Date(now.getTime() + (mutedHours ?? 24) * 60 * 60 * 1000)
+              : null,
+          resolvedAt: status === "RESOLVED" ? now : null,
+          assigneeAdminId: admin.id,
+        },
+      });
+      await tx.monitoringIssueStatusEvent.create({
+        data: {
+          issueId,
+          fromStatus: existing?.status,
+          toStatus: status,
+          changedByUserId: admin.id,
+        },
+      });
+      return updated;
     });
 
     await logAdminAction({

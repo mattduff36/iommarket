@@ -52,6 +52,9 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
       update: {
         interests,
         source: parsed.data.source,
+        deletedAt: null,
+        deletedByAdminId: null,
+        deletionReason: null,
       },
     });
 
@@ -81,14 +84,33 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
 }
 
 export async function deleteWaitlistUser(id: string) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
 
   if (!id || typeof id !== "string") {
     return { error: "Invalid ID." };
   }
 
   try {
-    await db.waitlistUser.delete({ where: { id } });
+    const { logAdminAction } = await import("@/lib/admin/audit");
+    await db.$transaction(async (tx) => {
+      await tx.waitlistUser.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          deletedByAdminId: admin.id,
+          deletionReason: "Removed by admin",
+        },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "SOFT_DELETE_WAITLIST_USER",
+          entityType: "WaitlistUser",
+          entityId: id,
+        },
+        tx,
+      );
+    });
     revalidatePath("/admin/waitlist");
     return { success: true };
   } catch (err) {
@@ -98,5 +120,32 @@ export async function deleteWaitlistUser(id: string) {
           ? "Entry not found."
           : "Failed to delete entry. Please try again.",
     };
+  }
+}
+
+export async function restoreWaitlistUser(id: string) {
+  const admin = await requireRole("ADMIN");
+  if (!id) return { error: "Invalid ID." };
+  try {
+    const { logAdminAction } = await import("@/lib/admin/audit");
+    await db.$transaction(async (tx) => {
+      await tx.waitlistUser.update({
+        where: { id },
+        data: { deletedAt: null, deletedByAdminId: null, deletionReason: null },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "RESTORE_WAITLIST_USER",
+          entityType: "WaitlistUser",
+          entityId: id,
+        },
+        tx,
+      );
+    });
+    revalidatePath("/admin/waitlist");
+    return { success: true };
+  } catch {
+    return { error: "Failed to restore entry." };
   }
 }

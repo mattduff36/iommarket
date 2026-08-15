@@ -8,6 +8,8 @@ import {
   CardOverlayLink,
 } from "@/components/ui/card-overlay-link";
 import { ReviewActions } from "./review-actions";
+import { AdminPager } from "@/components/admin/admin-pager";
+import { adminTotalPages, parseAdminPage } from "@/lib/admin/query";
 
 export const metadata: Metadata = { title: "Dealer Reviews" };
 
@@ -25,19 +27,47 @@ function stars(rating: number) {
   return "★".repeat(rating) + "☆".repeat(Math.max(0, 5 - rating));
 }
 
-export default async function AdminReviewsPage() {
-  const reviews = await db.dealerReview.findMany({
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 200,
-    include: {
-      dealer: { select: { id: true, name: true, slug: true } },
-      reviewer: { select: { email: true } },
-    },
-  });
+export default async function AdminReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; page?: string }>;
+}) {
+  const params = await searchParams;
+  const status = params.status ?? "PENDING";
+  const page = parseAdminPage(params.page);
+  const where = status === "ALL" ? {} : { status: status as "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN" };
+  const [reviews, total] = await Promise.all([
+    db.dealerReview.findMany({
+      where,
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      skip: (page - 1) * 25,
+      take: 25,
+      include: {
+        dealer: { select: { id: true, name: true, slug: true } },
+        reviewer: { select: { email: true } },
+      },
+    }),
+    db.dealerReview.count({ where }),
+  ]);
+  const totalPages = adminTotalPages(total, 25);
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-text-primary mb-6">Dealer Reviews</h1>
+      <p className="mb-4 text-sm text-text-secondary">
+        REJECTED never publishes. HIDDEN withdraws a previously approved review.
+      </p>
+      <div className="mb-4 flex flex-wrap gap-2 text-sm">
+        {["PENDING", "APPROVED", "REJECTED", "HIDDEN", "ALL"].map((value) => (
+          <a
+            key={value}
+            href={`/admin/reviews?status=${value}`}
+            className={value === status ? "text-text-primary" : "text-text-secondary"}
+          >
+            {value}
+          </a>
+        ))}
+      </div>
       <div className="space-y-4">
         {reviews.map((review) => (
           <div key={review.id} className="relative rounded-lg border border-border p-4 bg-surface">
@@ -85,6 +115,11 @@ export default async function AdminReviewsPage() {
           <p className="text-sm text-text-secondary">No dealer reviews submitted yet.</p>
         ) : null}
       </div>
+      <AdminPager
+        page={page}
+        totalPages={totalPages}
+        hrefForPage={(nextPage) => `/admin/reviews?status=${status}&page=${nextPage}`}
+      />
     </div>
   );
 }

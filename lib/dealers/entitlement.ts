@@ -10,6 +10,7 @@ interface DealerSubscriptionRecord {
   id: string;
   source: SubscriptionSource;
   status: SubscriptionStatus;
+  cancelAtPeriodEnd?: boolean;
   currentPeriodEnd: Date | null;
   grantStartsAt: Date | null;
   grantEndsAt: Date | null;
@@ -70,12 +71,36 @@ export function getAdminGrantState(
   return "ACTIVE";
 }
 
+export function isPaidSubscriptionEntitled(
+  subscription: Pick<
+    DealerSubscriptionRecord,
+    "status" | "cancelAtPeriodEnd" | "currentPeriodEnd"
+  >,
+  now = new Date()
+) {
+  if (subscription.status !== "ACTIVE") return false;
+  if (!subscription.cancelAtPeriodEnd) return true;
+  return (
+    subscription.currentPeriodEnd !== null && subscription.currentPeriodEnd > now
+  );
+}
+
+export function getPaidSubscriptionEntitlementWhere(
+  now = new Date()
+): Prisma.SubscriptionWhereInput {
+  return {
+    source: "PAYMENT",
+    status: "ACTIVE",
+    OR: [{ cancelAtPeriodEnd: false }, { currentPeriodEnd: { gt: now } }],
+  };
+}
+
 export function isActiveDealerSubscription(
   subscription: DealerSubscriptionRecord,
   now = new Date()
 ) {
   if (subscription.source === "PAYMENT") {
-    return subscription.status === "ACTIVE";
+    return isPaidSubscriptionEntitled(subscription, now);
   }
 
   return getAdminGrantState(subscription, now) === "ACTIVE";
@@ -90,8 +115,7 @@ export async function getDealerEntitlement(
     db.subscription.findFirst({
       where: {
         dealerId,
-        source: "PAYMENT",
-        status: "ACTIVE",
+        ...getPaidSubscriptionEntitlementWhere(now),
       },
       select: { id: true, source: true, currentPeriodEnd: true },
     }),
@@ -143,8 +167,7 @@ export async function grantAdminDealerAccess(
   const paidSubscription = await tx.subscription.findFirst({
     where: {
       dealerId: input.dealerId,
-      source: "PAYMENT",
-      status: "ACTIVE",
+      ...getPaidSubscriptionEntitlementWhere(now),
     },
     select: { id: true },
   });

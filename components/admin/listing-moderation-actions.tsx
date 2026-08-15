@@ -8,44 +8,72 @@ import {
   AdminActionBar,
   AdminActionButton,
 } from "@/components/admin/admin-action-controls";
+import { ModerationReasonDialog } from "@/components/admin/moderation-reason-dialog";
+import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reasons";
 import { cn } from "@/lib/cn";
+import type { ListingModerationReason } from "@prisma/client";
 
 interface ListingModerationActionsProps {
   listingId: string;
   currentStatus: string;
   featured: boolean;
+  lifecycleRevision: number;
+  canReinstateLive?: boolean;
   variant?: "inline" | "floating";
   className?: string;
 }
+
+const REASON_OPTIONS = Object.entries(LISTING_MODERATION_REASON_LABELS)
+  .filter(([value]) => value !== "ACCOUNT_DISABLED")
+  .map(([value, label]) => ({ value, label }));
 
 export function ListingModerationActions({
   listingId,
   currentStatus,
   featured,
+  lifecycleRevision,
+  canReinstateLive = false,
   variant = "inline",
   className,
 }: ListingModerationActionsProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<
+    "REJECT" | "TAKE_DOWN" | "REINSTATE_LIVE" | "RETURN_TO_DRAFT" | null
+  >(null);
   const router = useRouter();
 
-  const canApprove = currentStatus === "PENDING" || currentStatus === "DRAFT";
+  const canApprove = currentStatus === "PENDING";
   const canReject = currentStatus === "PENDING";
   const canTakeDown = currentStatus === "LIVE" || currentStatus === "APPROVED";
-  const canFeature = currentStatus === "LIVE" || currentStatus === "APPROVED";
-  const hasActions = canApprove || canReject || canTakeDown || canFeature;
+  const canRestore = currentStatus === "TAKEN_DOWN" || currentStatus === "REJECTED";
+  const canFeature = currentStatus === "LIVE";
+  const hasActions = canApprove || canReject || canTakeDown || canRestore || canFeature;
 
   if (!hasActions) return null;
 
-  function handleAction(action: "APPROVE" | "REJECT" | "TAKE_DOWN") {
+  function runAction(
+    action: "APPROVE" | "REJECT" | "TAKE_DOWN" | "REINSTATE_LIVE" | "RETURN_TO_DRAFT",
+    reasonCode?: string,
+    adminNotes?: string,
+  ) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await moderateListing({ listingId, action });
+        const result = await moderateListing({
+          listingId,
+          action,
+          expectedRevision: lifecycleRevision,
+          reasonCode: reasonCode as ListingModerationReason | undefined,
+          adminNotes,
+        });
         if (result?.error) {
-          setError(typeof result.error === "string" ? result.error : "Moderation failed");
+          setError(
+            typeof result.error === "string" ? result.error : "Moderation failed",
+          );
           return;
         }
+        setDialog(null);
         router.refresh();
       } catch {
         setError("Moderation failed");
@@ -74,7 +102,7 @@ export function ListingModerationActions({
       className={cn(
         variant === "floating"
           ? "fixed right-4 top-24 z-50 w-[calc(100vw-2rem)] max-w-sm rounded-lg border border-neon-blue-500/40 bg-graphite-950/95 p-3 shadow-2xl shadow-neon-blue-500/10 backdrop-blur-md sm:right-6 sm:w-auto"
-          : "flex gap-1",
+          : "flex flex-col gap-1",
         className,
       )}
       aria-label="Listing moderation actions"
@@ -99,7 +127,7 @@ export function ListingModerationActions({
         {canApprove ? (
           <AdminActionButton
             tone="success"
-            onClick={() => handleAction("APPROVE")}
+            onClick={() => runAction("APPROVE")}
             disabled={isPending}
           >
             Approve
@@ -108,7 +136,7 @@ export function ListingModerationActions({
         {canReject ? (
           <AdminActionButton
             tone="danger"
-            onClick={() => handleAction("REJECT")}
+            onClick={() => setDialog("REJECT")}
             disabled={isPending}
           >
             Reject
@@ -117,10 +145,27 @@ export function ListingModerationActions({
         {canTakeDown ? (
           <AdminActionButton
             tone="danger"
-            onClick={() => handleAction("TAKE_DOWN")}
+            onClick={() => setDialog("TAKE_DOWN")}
             disabled={isPending}
           >
             Take Down
+          </AdminActionButton>
+        ) : null}
+        {canRestore && currentStatus === "TAKEN_DOWN" && canReinstateLive ? (
+          <AdminActionButton
+            tone="success"
+            onClick={() => setDialog("REINSTATE_LIVE")}
+            disabled={isPending}
+          >
+            Reinstate live
+          </AdminActionButton>
+        ) : null}
+        {canRestore ? (
+          <AdminActionButton
+            onClick={() => setDialog("RETURN_TO_DRAFT")}
+            disabled={isPending}
+          >
+            Return to draft
           </AdminActionButton>
         ) : null}
         {canFeature ? (
@@ -133,6 +178,19 @@ export function ListingModerationActions({
           </AdminActionButton>
         ) : null}
       </AdminActionBar>
+
+      {dialog ? (
+        <ModerationReasonDialog
+          title={`Confirm ${dialog.replaceAll("_", " ").toLowerCase()}`}
+          confirmLabel="Confirm"
+          reasons={REASON_OPTIONS}
+          pending={isPending}
+          onCancel={() => setDialog(null)}
+          onConfirm={({ reasonCode, notes }) =>
+            runAction(dialog, reasonCode, notes)
+          }
+        />
+      ) : null}
 
       {error ? (
         <p className="mt-2 text-xs text-neon-red-400" role="alert">

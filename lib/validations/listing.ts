@@ -44,9 +44,20 @@ export const renewListingSchema = z.object({
   listingId: z.string().cuid(),
 });
 
+export const REPORT_REASON_CODES = [
+  "FRAUD",
+  "PROHIBITED",
+  "MISLEADING",
+  "DUPLICATE",
+  "POLICY",
+  "SAFETY",
+  "OTHER",
+] as const;
+
 export const reportListingSchema = z.object({
   listingId: z.string().cuid(),
   reporterEmail: z.string().email("Valid email required"),
+  reasonCode: z.enum(REPORT_REASON_CODES),
   reason: z
     .string()
     .min(10, "Please provide more detail")
@@ -64,14 +75,80 @@ export const contactSellerSchema = z.object({
   website: z.string().max(0).optional().default(""),
 });
 
-export const moderateListingSchema = z.object({
-  listingId: z.string().cuid(),
-  action: z.enum(["APPROVE", "REJECT", "TAKE_DOWN"]),
-  adminNotes: z.string().max(2000).optional(),
-});
+export const LISTING_MODERATION_ACTIONS = [
+  "APPROVE",
+  "REJECT",
+  "TAKE_DOWN",
+  "REINSTATE_LIVE",
+  "RETURN_TO_DRAFT",
+] as const;
+
+export const moderateListingSchema = z
+  .object({
+    listingId: z.string().cuid(),
+    action: z.enum(LISTING_MODERATION_ACTIONS),
+    expectedRevision: z.number().int().min(0),
+    reasonCode: z
+      .enum([
+        "FRAUD",
+        "PROHIBITED",
+        "MISLEADING",
+        "DUPLICATE",
+        "POLICY",
+        "SAFETY",
+        "ACCOUNT_DISABLED",
+        "OTHER",
+      ])
+      .optional(),
+    adminNotes: z.string().max(2000).optional(),
+    reportId: z.string().cuid().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const needsReason = value.action !== "APPROVE";
+    if (needsReason && !value.reasonCode) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reasonCode"],
+        message: "A reason is required.",
+      });
+    }
+    if (value.reasonCode === "OTHER" && !value.adminNotes?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["adminNotes"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
+
+export const takeDownFromReportSchema = z
+  .object({
+    reportId: z.string().cuid(),
+    expectedRevision: z.number().int().min(0),
+    reasonCode: z.enum([
+      "FRAUD",
+      "PROHIBITED",
+      "MISLEADING",
+      "DUPLICATE",
+      "POLICY",
+      "SAFETY",
+      "OTHER",
+    ]),
+    adminNotes: z.string().max(2000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reasonCode === "OTHER" && !value.adminNotes?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["adminNotes"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
 
 export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type UpdateListingInput = z.infer<typeof updateListingSchema>;
 export type ReportListingInput = z.infer<typeof reportListingSchema>;
 export type ModerateListingInput = z.infer<typeof moderateListingSchema>;
+export type TakeDownFromReportInput = z.infer<typeof takeDownFromReportSchema>;
 export type ContactSellerInput = z.infer<typeof contactSellerSchema>;

@@ -16,6 +16,14 @@ import { Badge } from "@/components/ui/badge";
 import { ModerationActions } from "./moderation-actions";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { cn } from "@/lib/cn";
+import {
+  ADMIN_LISTING_PAGE_SIZE,
+  ADMIN_LISTING_STATUS_FILTERS,
+  adminTotalPages,
+  buildAdminListingArchiveWhere,
+  parseAdminPage,
+} from "@/lib/admin/query";
+import { AdminPager } from "@/components/admin/admin-pager";
 
 export const metadata: Metadata = { title: "Moderate Listings" };
 
@@ -26,6 +34,7 @@ const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error"
   LIVE: "success",
   EXPIRED: "neutral",
   TAKEN_DOWN: "error",
+  REJECTED: "error",
   SOLD: "premium",
 };
 
@@ -52,27 +61,88 @@ function ListingReviewLink({ href, children, className }: ListingReviewLinkProps
   );
 }
 
-export default async function AdminListingsPage() {
+export default async function AdminListingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
+}) {
   await expireStaleLiveListings();
-  const listings = await db.listing.findMany({
-    orderBy: [
-      { status: "asc" },
-      { createdAt: "desc" },
-    ],
-    take: 50,
-    include: {
-      user: { select: { name: true, email: true } },
-      category: { select: { name: true } },
-      region: { select: { name: true } },
-      _count: { select: { reports: true } },
-    },
-  });
+  const params = await searchParams;
+  const status = ADMIN_LISTING_STATUS_FILTERS.includes(
+    params.status as (typeof ADMIN_LISTING_STATUS_FILTERS)[number],
+  )
+    ? (params.status as (typeof ADMIN_LISTING_STATUS_FILTERS)[number])
+    : "PENDING";
+  const query = params.q?.trim() ?? "";
+  const page = parseAdminPage(params.page);
+  const where = buildAdminListingArchiveWhere({ status, query });
+
+  const [listings, total] = await Promise.all([
+    db.listing.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }],
+      skip: (page - 1) * ADMIN_LISTING_PAGE_SIZE,
+      take: ADMIN_LISTING_PAGE_SIZE,
+      include: {
+        user: { select: { name: true, email: true } },
+        category: { select: { name: true } },
+        region: { select: { name: true } },
+        _count: { select: { reports: true } },
+        statusEvents: {
+          where: { OR: [{ fromStatus: "LIVE" }, { toStatus: "LIVE" }] },
+          take: 1,
+          select: { id: true },
+        },
+      },
+    }),
+    db.listing.count({ where }),
+  ]);
+  const totalPages = adminTotalPages(total, ADMIN_LISTING_PAGE_SIZE);
+
+  function href(overrides: Record<string, string | undefined>) {
+    const next = new URLSearchParams();
+    const merged = {
+      status,
+      q: query || undefined,
+      page: String(page),
+      ...overrides,
+    };
+    for (const [key, value] of Object.entries(merged)) {
+      if (value) next.set(key, value);
+    }
+    return `/admin/listings?${next.toString()}`;
+  }
 
   return (
     <>
       <h1 className="text-2xl font-bold text-text-primary mb-6">
         Listing Moderation
       </h1>
+      <form className="mb-4 flex flex-wrap gap-2" method="get">
+        <input
+          name="q"
+          defaultValue={query}
+          placeholder="Search title or seller"
+          className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
+        />
+        <select
+          name="status"
+          defaultValue={status}
+          className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
+        >
+          {ADMIN_LISTING_STATUS_FILTERS.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="h-9 rounded-md border border-border px-3 text-sm"
+        >
+          Filter
+        </button>
+      </form>
 
       <Table>
         <TableHeader>
@@ -133,6 +203,13 @@ export default async function AdminListingsPage() {
                     listingId={listing.id}
                     currentStatus={listing.status}
                     featured={listing.featured}
+                    lifecycleRevision={listing.lifecycleRevision}
+                    canReinstateLive={
+                      listing.status === "TAKEN_DOWN" &&
+                      listing.expiresAt !== null &&
+                      listing.expiresAt.getTime() > Date.now() &&
+                      listing.statusEvents.length > 0
+                    }
                   />
                 </TableCell>
               </TableRow>
@@ -146,6 +223,11 @@ export default async function AdminListingsPage() {
           No listings to moderate.
         </p>
       )}
+      <AdminPager
+        page={page}
+        totalPages={totalPages}
+        hrefForPage={(nextPage) => href({ page: String(nextPage) })}
+      />
     </>
   );
 }

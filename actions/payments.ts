@@ -437,6 +437,7 @@ export async function simulateDemoListingPaymentOutcome(input: {
       amount: pricing.privateListingPence,
       currency: "gbp",
       currentPeriodEnd: null,
+      cancelAtPeriodEnd: null,
       metadata: {
         checkoutType: "listing_payment",
         listingId: listing.id,
@@ -531,6 +532,7 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
         input.outcome === "success"
           ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
           : null,
+      cancelAtPeriodEnd: null,
       metadata: {
         checkoutType: "dealer_subscription",
         listingId: null,

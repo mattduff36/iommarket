@@ -92,7 +92,12 @@ describe("CardOverlayLink", () => {
       <div className="relative">
         <CardOverlayLink href="/listings/listing-1" label="Reported listing" />
         <div className={CARD_OVERLAY_CONTROL_CLASS}>
-          <ReportActions reportId="rep-1" currentStatus="OPEN" />
+          <ReportActions
+            reportId="rep-1"
+            currentStatus="OPEN"
+            listingStatus="LIVE"
+            expectedRevision={0}
+          />
         </div>
       </div>,
     );

@@ -13,12 +13,14 @@ import {
 } from "@/components/ui/table";
 import { CopyEmailButton } from "./copy-email-button";
 import { DeleteWaitlistButton } from "./delete-waitlist-button";
+import { RestoreWaitlistButton } from "./restore-waitlist-button";
 
 export const metadata: Metadata = { title: "Waitlist | Admin" };
 
 interface Props {
   searchParams: Promise<{
     q?: string;
+    deleted?: string;
   }>;
 }
 
@@ -28,6 +30,7 @@ type WaitlistRow = {
   interests: unknown;
   source: string;
   createdAt: Date;
+  deletedAt: Date | null;
 };
 
 function parseInterests(value: unknown): string[] {
@@ -51,15 +54,19 @@ function formatInterestLabel(interest: string): string {
 export default async function AdminWaitlistPage({ searchParams }: Props) {
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
+  const showDeleted = params.deleted === "1";
 
-  const where = query
-    ? {
-        email: {
-          contains: query,
-          mode: "insensitive" as const,
-        },
-      }
-    : undefined;
+  const where = {
+    deletedAt: showDeleted ? { not: null } : null,
+    ...(query
+      ? {
+          email: {
+            contains: query,
+            mode: "insensitive" as const,
+          },
+        }
+      : {}),
+  };
 
   const waitlistUsers: WaitlistRow[] = await db.waitlistUser.findMany({
     where,
@@ -71,6 +78,7 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
       interests: true,
       source: true,
       createdAt: true,
+      deletedAt: true,
     },
   });
 
@@ -99,6 +107,7 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
             placeholder="Search by email..."
             className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
           />
+          {showDeleted ? <input type="hidden" name="deleted" value="1" /> : null}
           <button
             type="submit"
             className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border"
@@ -106,6 +115,12 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
             Search
           </button>
         </form>
+        <Link
+          href={showDeleted ? "/admin/waitlist" : "/admin/waitlist?deleted=1"}
+          className="text-sm text-text-secondary hover:text-text-primary"
+        >
+          {showDeleted ? "Active entries" : "Deleted entries"}
+        </Link>
         <span className="ml-auto text-xs text-text-tertiary">
           {waitlistUsers.length} {waitlistUsers.length === 1 ? "entry" : "entries"}
         </span>
@@ -137,7 +152,11 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
                 <TableCell>
                   <span className="inline-flex items-center gap-1">
                     <CopyEmailButton email={user.email} />
-                    <DeleteWaitlistButton id={user.id} email={user.email} />
+                    {user.deletedAt ? (
+                      <RestoreWaitlistButton id={user.id} />
+                    ) : (
+                      <DeleteWaitlistButton id={user.id} email={user.email} />
+                    )}
                   </span>
                 </TableCell>
               </TableRow>

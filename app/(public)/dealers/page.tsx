@@ -16,7 +16,7 @@ import {
 export const metadata: Metadata = {
   title: "Isle of Man Dealers",
   description:
-    "Browse approved Isle of Man vehicle dealers and visit their profiles on itrader.im.",
+    "Browse active Isle of Man vehicle dealers and visit their profiles on itrader.im.",
 };
 
 export default async function DealersPage() {
@@ -38,8 +38,9 @@ export default async function DealersPage() {
           Isle of Man Dealers
         </h1>
         <p className="mt-4 text-base leading-7 text-text-secondary">
-          Explore approved local dealers, their latest stock, and public
-          profiles. Dealers are listed alphabetically.
+          Explore active local dealers, their latest stock, and public profiles.
+          Admin-verified businesses are clearly marked. Dealers are listed
+          alphabetically.
         </p>
         <p className="mt-3 text-sm text-metallic-400">
           {sortedDealers.length}{" "}

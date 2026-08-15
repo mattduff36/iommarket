@@ -92,20 +92,26 @@ The payment bridge normalizes provider payloads into local outcomes:
 
 - `payment.refunded`
   - mark matching local `Payment` as `REFUNDED`
+  - never invent a refund reason; keep any locally stored reason
+  - if no payment row exists but the event identifies a dealer subscription,
+    set `cancelAtPeriodEnd` (and `currentPeriodEnd` when present) so paid
+    entitlement ends when the remaining period is gone
 
 ### Dealer subscriptions
 
 - `subscription.created`
   - upsert local `Subscription`
   - set dealer tier from webhook metadata or provider plan ID
+  - persist `cancelAtPeriodEnd` when the payload includes it
   - ensure linked user role is `DEALER`
 
 - `subscription.updated`
-  - sync local status and period end
+  - sync local status, period end, and `cancelAtPeriodEnd`
   - keep dealer tier aligned with plan mapping
 
 - `subscription.cancelled`
   - mark local `Subscription` as `CANCELLED`
+  - clear `cancelAtPeriodEnd`
 
 ## Provider Metadata Expectations
 
@@ -183,6 +189,17 @@ Legacy Stripe columns remain in place as nullable fields for historical lookups 
    - listing payments still move listings to `PENDING`
    - featured payments still mark listings as featured
 12. Remove remaining Stripe credentials and operational access once the reconciliation window closes.
+
+Public Ripple/StartYourRipple materials do not publish a stable webhook schema.
+Normalization therefore accepts the aliases already used by this integration
+(`cancel_at_period_end`, `cancelAtPeriodEnd`, `subscription_id`,
+`current_period_end`, and the merchant metadata fields above). A live
+non-production capture is still required before treating those field names as
+provider-confirmed.
+
+Paid dealer visibility uses `cancelAtPeriodEnd` plus `currentPeriodEnd`:
+scheduled cancellation keeps access until period end; a refund with no remaining
+paid period ends public entitlement immediately.
 
 ## Residual Risk
 

@@ -100,6 +100,7 @@ describe("setUserDisabledSchema", () => {
     const result = setUserDisabledSchema.safeParse({
       userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       disabled: true,
+      reasonCode: "ABUSE",
       reason: "Spam account",
     });
     expect(result.success).toBe(true);
@@ -109,6 +110,7 @@ describe("setUserDisabledSchema", () => {
     const result = setUserDisabledSchema.safeParse({
       userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       disabled: true,
+      reasonCode: "ABUSE",
       reason: "x".repeat(501),
     });
     expect(result.success).toBe(false);
@@ -254,6 +256,7 @@ describe("refundPaymentSchema", () => {
   it("accepts valid cuid", () => {
     const result = refundPaymentSchema.safeParse({
       paymentId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      reason: "REQUESTED_BY_CUSTOMER",
     });
     expect(result.success).toBe(true);
   });
@@ -263,6 +266,7 @@ describe("refundSubscriptionPaymentSchema", () => {
   it("accepts valid cuid", () => {
     const result = refundSubscriptionPaymentSchema.safeParse({
       subscriptionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      reason: "REQUESTED_BY_CUSTOMER",
     });
     expect(result.success).toBe(true);
   });
@@ -272,11 +276,20 @@ describe("cancelSubscriptionSchema", () => {
   it("defaults immediately to false", () => {
     const result = cancelSubscriptionSchema.safeParse({
       subscriptionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      reason: "REQUESTED_BY_CUSTOMER",
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.immediately).toBe(false);
     }
+  });
+
+  it("requires notes when the reason is Other ALR-PAY-001", () => {
+    const result = cancelSubscriptionSchema.safeParse({
+      subscriptionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      reason: "OTHER",
+    });
+    expect(result.success).toBe(false);
   });
 });
 
