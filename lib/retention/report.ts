@@ -23,9 +23,37 @@ const WAITLIST_ANONYMISE_DAYS = 30;
 const WAITLIST_DELETE_MONTHS = 24;
 
 function monthsAgo(months: number, now: Date) {
-  const date = new Date(now);
-  date.setMonth(date.getMonth() - months);
-  return date;
+  return addCalendarMonths(now, -months);
+}
+
+export function addCalendarMonths(date: Date, months: number) {
+  const next = new Date(date);
+  const day = next.getDate();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, lastDay));
+  return next;
+}
+
+export function isWaitlistAnonymiseWindowOpen(
+  campaignClosedAt: Date,
+  now: Date,
+) {
+  return (
+    now.getTime() >=
+    campaignClosedAt.getTime() + WAITLIST_ANONYMISE_DAYS * DAY_MS
+  );
+}
+
+export function isWaitlistDeleteWindowOpen(
+  campaignClosedAt: Date,
+  now: Date,
+) {
+  return (
+    now.getTime() >=
+    addCalendarMonths(campaignClosedAt, WAITLIST_DELETE_MONTHS).getTime()
+  );
 }
 
 async function heldIds(entityType: string) {
@@ -95,7 +123,7 @@ export async function collectRetentionCandidates(now = new Date()) {
       take: 500,
     }),
     campaignClosedAt &&
-    now.getTime() >= campaignClosedAt.getTime() + WAITLIST_ANONYMISE_DAYS * DAY_MS
+    isWaitlistAnonymiseWindowOpen(campaignClosedAt, now)
       ? db.waitlistUser.findMany({
           where: { deletedAt: null },
           select: { id: true, email: true, createdAt: true },
@@ -105,9 +133,7 @@ export async function collectRetentionCandidates(now = new Date()) {
   ]);
 
   const waitlistDeleteCutoff =
-    campaignClosedAt &&
-    now.getTime() >=
-      campaignClosedAt.getTime() + WAITLIST_DELETE_MONTHS * 30 * DAY_MS
+    campaignClosedAt && isWaitlistDeleteWindowOpen(campaignClosedAt, now)
       ? now
       : null;
 
