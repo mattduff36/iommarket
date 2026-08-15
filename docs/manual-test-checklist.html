@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IOM Market — Manual test checklist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --graphite-950: #050505;
+      --graphite-900: #0A0A0B;
+      --graphite-800: #121214;
+      --graphite-700: #1C1C1E;
+      --graphite-600: #2C2C2E;
+      --metal-300: #C7C7CC;
+      --metal-400: #8E8E93;
+      --white: #FFFFFF;
+      --blue: #0085FF;
+      --blue-400: #33A3FF;
+      --red: #FF1F1F;
+      --gold: #C5A059;
+      --gold-400: #F2D086;
+      --border: #1C1C1E;
+      --glass: rgba(20, 20, 22, 0.82);
+      --font-heading: "Orbitron", sans-serif;
+      --font-body: "Inter", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(0, 133, 255, 0.12), transparent 55%),
+        radial-gradient(800px 400px at 100% 0%, rgba(197, 160, 89, 0.08), transparent 50%),
+        var(--graphite-950);
+      color: var(--white);
+      font-family: var(--font-body);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 80px;
+    }
+
+    header.mast {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+
+    .kicker {
+      font-family: var(--font-heading);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--blue-400);
+      margin: 0 0 10px;
+    }
+
+    h1 {
+      font-family: var(--font-heading);
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 800;
+      font-style: italic;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+
+    .lede {
+      margin: 0;
+      max-width: 62ch;
+      color: var(--metal-400);
+      font-size: 15px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(110px, 1fr));
+      gap: 10px;
+      min-width: 280px;
+    }
+
+    .stat {
+      background: var(--graphite-800);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .stat b {
+      display: block;
+      font-family: var(--font-heading);
+      font-size: 22px;
+      font-style: italic;
+      letter-spacing: -0.03em;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 2px;
+      color: var(--metal-400);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .stat.warn b { color: var(--gold-400); }
+    .stat.ok b { color: #7CFF9A; }
+
+    .panel {
+      background: var(--graphite-900);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+
+    .panel h2,
+    .section h2 {
+      font-family: var(--font-heading);
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 12px;
+      color: var(--metal-300);
+    }
+
+    .panel ol {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--metal-300);
+      font-size: 14px;
+    }
+
+    .panel li + li { margin-top: 8px; }
+
+    .notice {
+      border-left: 3px solid var(--gold);
+      background: rgba(197, 160, 89, 0.08);
+    }
+
+    .notice p,
+    .accounts p {
+      margin: 0;
+      color: var(--metal-300);
+      font-size: 14px;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 12px 0 16px;
+      margin-bottom: 8px;
+      background: linear-gradient(var(--graphite-950) 70%, transparent);
+    }
+
+    button.chip,
+    .chip {
+      appearance: none;
+      border: 1px solid var(--graphite-600);
+      background: var(--graphite-800);
+      color: var(--metal-300);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font: 600 12px/1 var(--font-body);
+      letter-spacing: 0.02em;
+      cursor: pointer;
+    }
+
+    button.chip[aria-pressed="true"] {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: var(--white);
+    }
+
+    button.ghost {
+      margin-left: auto;
+      background: transparent;
+    }
+
+    .count {
+      color: var(--metal-400);
+      font-size: 12px;
+      margin-left: 4px;
+    }
+
+    .section {
+      margin: 28px 0 0;
+    }
+
+    .section h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      color: var(--white);
+      font-size: 15px;
+      letter-spacing: 0.08em;
+    }
+
+    .section h2 em {
+      font-style: normal;
+      color: var(--metal-400);
+      font-family: var(--font-body);
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: none;
+      font-weight: 500;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--graphite-900);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .table th {
+      text-align: left;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--metal-400);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--graphite-800);
+    }
+
+    .table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    .table tr:last-child td { border-bottom: 0; }
+    .table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.015); }
+    .table tbody tr:hover { background: rgba(0, 133, 255, 0.06); }
+    .table tbody tr.done td.check { color: var(--metal-400); text-decoration: line-through; }
+
+    .pri {
+      display: inline-block;
+      min-width: 32px;
+      text-align: center;
+      font-family: var(--font-heading);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      padding: 3px 6px;
+      border-radius: 4px;
+      background: var(--graphite-700);
+    }
+
+    .pri.P0 { color: var(--red); background: rgba(255, 31, 31, 0.12); }
+    .pri.P1 { color: var(--gold-400); background: rgba(197, 160, 89, 0.12); }
+    .pri.P2 { color: var(--metal-400); }
+
+    .where {
+      color: var(--blue-400);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    label.box {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
+    footer.note {
+      margin-top: 36px;
+      color: var(--metal-400);
+      font-size: 13px;
+    }
+
+    footer.note strong { color: var(--metal-300); }
+
+    @media (max-width: 720px) {
+      header.mast { grid-template-columns: 1fr; }
+      .stats { min-width: 0; }
+      .where { display: block; margin-bottom: 4px; }
+      .table th:nth-child(3),
+      .table td:nth-child(3) { display: none; }
+      button.ghost { margin-left: 0; }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        color: #111;
+      }
+      .toolbar, .stats, button.ghost { display: none !important; }
+      .wrap { width: auto; padding: 0; }
+      .panel, .table, .stat {
+        background: #fff;
+        border-color: #ccc;
+        break-inside: avoid;
+      }
+      h1, h2, .kicker, .pri, .where, .lede, .panel p, .panel ol, .panel li, td, th, footer.note {
+        color: #111 !important;
+      }
+      .table tbody tr.done td.check { color: #555; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <p class="kicker">IOM Market · QA docket · 15 Aug 2026</p>
+        <h1>Manual test checklist</h1>
+        <p class="lede">
+          Everything that landed in adaptive listing photos and admin lifecycle / recoverability.
+          Ticks are saved in this browser. Default view is P0 smoke.
+        </p>
+      </div>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <section class="panel accounts">
+      <h2>Accounts you need</h2>
+      <p>Admin, a private seller, and a second user for reports and reviews. A dealer account is needed for dealer listings, dealer reviews, and downgrade. Use throwaway listings — several checks take listings down or disable accounts.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Suggested order</h2>
+      <ol>
+        <li>Seller photos on <code>/sell/private</code>: upload mixed shapes, reorder, set primary, save, then check home, search, and the listing page.</li>
+        <li>Submit that listing and work <code>/admin/listings</code>: ALL default, instant status filter, PENDING at the top, approve / reject / take down / restore.</li>
+        <li>As another user: report the live listing, favourite it, then confirm 404s and owner-visible reasons after take-down.</li>
+        <li>Operations: <code>/admin/reports</code>, <code>/admin/reviews</code>, <code>/admin/users</code>, then payments, categories, pages, waitlist, and <code>/admin/audit</code>.</li>
+      </ol>
+    </section>
+
+    <section class="panel notice">
+      <h2>Known gaps</h2>
+      <p>Playwright journeys for both workstreams were written but not run against a safe database. HEIC depends on Cloudinary. Ripple webhooks are unit-tested only.</p>
+    </section>
+
+    <div class="toolbar" role="toolbar" aria-label="Checklist filters">
+      <button class="chip" data-stream="all" aria-pressed="true">All work</button>
+      <button class="chip" data-stream="photos" aria-pressed="false">Listing photos</button>
+      <button class="chip" data-stream="admin" aria-pressed="false">Admin lifecycle</button>
+      <button class="chip" data-priority="all" aria-pressed="false">All priorities</button>
+      <button class="chip" data-priority="P0" aria-pressed="true">P0 smoke</button>
+      <button class="chip" data-priority="P1" aria-pressed="false">P1</button>
+      <button class="chip" data-priority="P2" aria-pressed="false">P2</button>
+      <button class="chip" id="hideDone" aria-pressed="false">Hide checked</button>
+      <button class="chip ghost" id="reset">Reset checks</button>
+      <span class="count" id="visibleCount"></span>
+    </div>
+
+    <main id="list"></main>
+
+    <footer class="note">
+      <p><strong>Listing take-down / reject reasons:</strong> Fraud or scam, Prohibited item, Misleading or inaccurate, Duplicate listing, Policy violation, Safety concern, Other (notes required). Account disabled is system-only and should not appear in the admin dropdown.</p>
+    </footer>
+  </div>
+
+  <script>
+    const ITEMS = [
+      { id: "photo-upload-no-crop", stream: "photos", priority: "P0", area: "Upload", where: "/sell/private or /sell/dealer", check: "Create a listing. There is no mandatory 16:10 crop dialog." },
+      { id: "photo-upload-landscape", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "A landscape JPG uploads and previews." },
+      { id: "photo-upload-portrait", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "A portrait photo uploads. Preview shows the full image with blurred edges, not a hard crop." },
+      { id: "photo-upload-png-webp", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "PNG and WebP both upload." },
+      { id: "photo-upload-heic", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "An iPhone HEIC/HEIF uploads and decodes (needs Cloudinary HEIC support)." },
+      { id: "photo-upload-reject-size", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "A file over 10MB is rejected." },
+      { id: "photo-upload-reject-tiny", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "An image below 800px on the long edge or 480px on the short edge is rejected." },
+      { id: "photo-upload-logos", stream: "photos", priority: "P1", area: "Upload", where: "Dealer profile / avatar", check: "Dealer logos and avatars are unchanged (still their own square/logo flow)." },
+      { id: "photo-order-batch", stream: "photos", priority: "P0", area: "Order and primary", where: "Sell form", check: "Drop several photos at once. After the batch finishes they stay in file-selection order." },
+      { id: "photo-order-drag", stream: "photos", priority: "P0", area: "Order and primary", where: "Sell form", check: "Drag another photo into first place. It becomes the primary image." },
+      { id: "photo-order-make-primary", stream: "photos", priority: "P0", area: "Order and primary", where: "Sell form", check: "Make primary on a later photo moves it to first." },
+      { id: "photo-order-move-buttons", stream: "photos", priority: "P0", area: "Order and primary", where: "Sell form", check: "Move previous and Move next change the order." },
+      { id: "photo-order-persist", stream: "photos", priority: "P0", area: "Order and primary", where: "Save draft, then reload edit", check: "Order, primary, and each photo identity survive save and reload." },
+      { id: "photo-order-cards", stream: "photos", priority: "P0", area: "Order and primary", where: "Home, /search, listing cards", check: "Card image is the first (primary) photo." },
+      { id: "photo-order-gallery", stream: "photos", priority: "P0", area: "Order and primary", where: "Listing detail", check: "Gallery order matches the saved order." },
+      { id: "photo-order-other-surfaces", stream: "photos", priority: "P0", area: "Order and primary", where: "Favourites, dealer stock, similar listings", check: "All of these use the same primary photo." },
+      { id: "photo-display-card-portrait", stream: "photos", priority: "P0", area: "Display", where: "Home / search cards (4:3)", check: "Portrait or square: full photo over blurred edges." },
+      { id: "photo-display-card-nearmatch", stream: "photos", priority: "P0", area: "Display", where: "Home / search cards (4:3)", check: "Near-landscape (for example 3:2): modest crop, subject stays in frame." },
+      { id: "photo-display-gallery", stream: "photos", priority: "P0", area: "Display", where: "Listing gallery (16:10)", check: "Same 80% rule: crop if close to the frame, blur-pad if not." },
+      { id: "photo-display-lightbox", stream: "photos", priority: "P0", area: "Display", where: "Listing lightbox", check: "Full image, contained on black, not cropped." },
+      { id: "photo-display-admin-media", stream: "photos", priority: "P1", area: "Display", where: "/admin/media", check: "Square thumbs use the same fit policy." },
+      { id: "photo-display-samples", stream: "photos", priority: "P1", area: "Display", where: "Existing sample listings", check: "Unsplash / external images still render. Missing metadata never crops." },
+      { id: "photo-focal-dialog", stream: "photos", priority: "P1", area: "Focal point", where: "Sell form → Adjust focus", check: "Dialog has Automatic plus a draggable target, with 4:3 and 16:10 previews." },
+      { id: "photo-focal-reset", stream: "photos", priority: "P1", area: "Focal point", where: "Adjust focus", check: "Reset to Automatic clears the seller override." },
+      { id: "photo-focal-persist", stream: "photos", priority: "P1", area: "Focal point", where: "Save, reorder, reload", check: "Focal choice survives and does not rewrite the source file." },
+      { id: "photo-lock-live", stream: "photos", priority: "P1", area: "Photo locks", where: "LIVE listing edit", check: "Cannot add, reorder, or delete photos while the listing is LIVE." },
+      { id: "photo-lock-sold", stream: "photos", priority: "P1", area: "Photo locks", where: "SOLD listing", check: "Photos stay locked after sold." },
+      { id: "photo-edit-draft-expired", stream: "photos", priority: "P1", area: "Photo locks", where: "DRAFT or EXPIRED", check: "Photos can still be changed." },
+      { id: "photo-admin-delete-live", stream: "photos", priority: "P1", area: "Photo locks", where: "/admin/media", check: "Admin cannot delete images on LIVE or SOLD listings." },
+      { id: "photo-a11y-keyboard", stream: "photos", priority: "P2", area: "Photo edges", where: "Sell form", check: "Keyboard reordering works and focus is kept." },
+      { id: "photo-a11y-mobile", stream: "photos", priority: "P2", area: "Photo edges", where: "Phone", check: "Touch drag works; Make primary / Move buttons still work as fallback." },
+      { id: "photo-concurrency", stream: "photos", priority: "P2", area: "Photo edges", where: "Two browser tabs", check: "A stale save after another reorder is rejected, not silently overwritten." },
+      { id: "photo-remove", stream: "photos", priority: "P1", area: "Photo edges", where: "Sell form", check: "Remove a photo and save. It stays gone after reload." },
+      { id: "photo-og", stream: "photos", priority: "P2", area: "Photo edges", where: "Listing share / Open Graph", check: "Primary becomes a 1200×630 JPEG composite, not a CSS-only crop." },
+      { id: "admin-listings-default-all", stream: "admin", priority: "P0", area: "Listings queue", where: "/admin/listings", check: "Default status filter is ALL." },
+      { id: "admin-listings-instant-filter", stream: "admin", priority: "P0", area: "Listings queue", where: "/admin/listings", check: "Changing the status dropdown applies immediately without clicking Filter." },
+      { id: "admin-listings-pending-first", stream: "admin", priority: "P0", area: "Listings queue", where: "/admin/listings with ALL", check: "PENDING rows are at the top, then everything else." },
+      { id: "admin-listings-taken-down", stream: "admin", priority: "P0", area: "Listings queue", where: "/admin/listings → TAKEN_DOWN", check: "Taken-down listings have a complete archive (not hidden after 50 rows)." },
+      { id: "admin-listings-rejected", stream: "admin", priority: "P0", area: "Listings queue", where: "/admin/listings → REJECTED", check: "Pre-live rejections appear here, not mixed into TAKEN_DOWN." },
+      { id: "admin-listings-search", stream: "admin", priority: "P0", area: "Listings queue", where: "/admin/listings", check: "Search finds listings by title or seller email." },
+      { id: "admin-listings-pager", stream: "admin", priority: "P1", area: "Listings queue", where: "/admin/listings", check: "Pagination works at 25 per page." },
+      { id: "admin-approve", stream: "admin", priority: "P0", area: "Moderate listings", where: "Pending listing", check: "Approve → LIVE. It appears publicly and gets an expiry (~60 days)." },
+      { id: "admin-reject-reason", stream: "admin", priority: "P0", area: "Moderate listings", where: "Pending listing", check: "Reject requires a reason dropdown. OTHER requires notes. Status becomes REJECTED." },
+      { id: "admin-takedown-reason", stream: "admin", priority: "P0", area: "Moderate listings", where: "Live listing", check: "Take down requires a reason. Status becomes TAKEN_DOWN. Featured is cleared." },
+      { id: "admin-reinstate", stream: "admin", priority: "P0", area: "Moderate listings", where: "Taken-down listing that was previously LIVE and not expired", check: "Reinstate live is offered and returns it to public search." },
+      { id: "admin-return-draft-takedown", stream: "admin", priority: "P0", area: "Moderate listings", where: "Taken-down listing that cannot be reinstated", check: "Only Return to draft is offered." },
+      { id: "admin-return-draft-rejected", stream: "admin", priority: "P0", area: "Moderate listings", where: "Rejected listing", check: "Return to draft. Seller can edit and resubmit." },
+      { id: "admin-reason-codes", stream: "admin", priority: "P1", area: "Moderate listings", where: "Reason dialog", check: "Reasons: Fraud, Prohibited, Misleading, Duplicate, Policy, Safety, Other." },
+      { id: "vis-public-404", stream: "admin", priority: "P0", area: "Visibility", where: "Incognito or another user", check: "DRAFT, PENDING, REJECTED, TAKEN_DOWN, and EXPIRED URLs 404, including social metadata." },
+      { id: "vis-sold-public", stream: "admin", priority: "P0", area: "Visibility", where: "Sold listing", check: "SOLD stays publicly viewable as sold." },
+      { id: "vis-owner-reason", stream: "admin", priority: "P0", area: "Visibility", where: "Owner account", check: "Owner can open their moderated listing and see the public reason, not internal admin notes." },
+      { id: "vis-admin-preview", stream: "admin", priority: "P0", area: "Visibility", where: "Admin listing link", check: "Admin can open the listing with review actions (including ?adminReview=1)." },
+      { id: "vis-favourites", stream: "admin", priority: "P1", area: "Visibility", where: "/account/favourites", check: "Unavailable listings are badged. The link is only clickable when the listing is viewable." },
+      { id: "reports-vs-reviews", stream: "admin", priority: "P0", area: "Reports", where: "Admin sidebar", check: "Reports are listing fraud reports. Dealer reviews are Operations → Reviews." },
+      { id: "reports-default-open", stream: "admin", priority: "P0", area: "Reports", where: "/admin/reports", check: "Defaults to OPEN. Filters: OPEN, REVIEWED, ACTIONED, DISMISSED, ALL. Paginated." },
+      { id: "reports-notes", stream: "admin", priority: "P0", area: "Reports", where: "/admin/reports", check: "Saved admin notes still show after refresh." },
+      { id: "reports-takedown-actioned", stream: "admin", priority: "P0", area: "Reports", where: "Open report on a LIVE listing", check: "Take down and mark actioned: listing becomes TAKEN_DOWN and the report becomes ACTIONED together." },
+      { id: "reports-sold-expired", stream: "admin", priority: "P1", area: "Reports", where: "Report on SOLD or EXPIRED", check: "Marking the report actioned does not change that listing status." },
+      { id: "reports-public-reason", stream: "admin", priority: "P0", area: "Reports", where: "Live listing as another user", check: "Report form has a reason dropdown plus optional detail." },
+      { id: "reviews-location", stream: "admin", priority: "P0", area: "Dealer reviews", where: "/admin/reviews", check: "Pending dealer reviews are under Operations → Reviews." },
+      { id: "reviews-pending-public", stream: "admin", priority: "P0", area: "Dealer reviews", where: "Dealer public page", check: "A new review starts PENDING and is not public until APPROVED." },
+      { id: "reviews-reject-hide", stream: "admin", priority: "P0", area: "Dealer reviews", where: "/admin/reviews", check: "REJECTED never publishes. HIDDEN withdraws a previously approved review. The page explains this." },
+      { id: "reviews-reason", stream: "admin", priority: "P1", area: "Dealer reviews", where: "/admin/reviews", check: "Adverse actions need a reason. History is kept if the reviewer resubmits." },
+      { id: "reviews-filters", stream: "admin", priority: "P1", area: "Dealer reviews", where: "/admin/reviews", check: "Filters PENDING / APPROVED / REJECTED / HIDDEN / ALL, plus pagination." },
+      { id: "users-disable", stream: "admin", priority: "P0", area: "Users and dealers", where: "/admin/users", check: "Disable takes LIVE listings down and rejects PENDING. The seller is no longer a live seller." },
+      { id: "users-soft-delete", stream: "admin", priority: "P0", area: "Users and dealers", where: "/admin/users", check: "Delete is soft-delete. Confirm mentions restore. Payments, reports, listings, and audit stay." },
+      { id: "users-restore", stream: "admin", priority: "P0", area: "Users and dealers", where: "/admin/users → Deleted only", check: "Restore clears deletion and the account works again." },
+      { id: "users-badges-filters", stream: "admin", priority: "P1", area: "Users and dealers", where: "/admin/users", check: "Disabled only and Deleted only filters, plus badges, work." },
+      { id: "users-dealer-downgrade", stream: "admin", priority: "P1", area: "Users and dealers", where: "/admin/dealers or user detail", check: "Downgrade confirm stays open until success or error. Entitlements cancel / revoke." },
+      { id: "pay-cancel-period", stream: "admin", priority: "P1", area: "Payments", where: "/admin/payments", check: "Cancel at period end is stored. Dealer access continues until the paid period ends." },
+      { id: "pay-refund-reason", stream: "admin", priority: "P1", area: "Payments", where: "/admin/payments", check: "Refund requires a reason (OTHER needs notes). Local record updates. Access follows any remaining period." },
+      { id: "tax-inactive-create", stream: "admin", priority: "P1", area: "Taxonomy and content", where: "/sell", check: "Cannot create a listing in an inactive category or region." },
+      { id: "tax-deactivate-warn", stream: "admin", priority: "P1", area: "Taxonomy and content", where: "/admin/categories or /admin/regions", check: "Deactivate warns with the live-listing count. Existing LIVE listings stay live." },
+      { id: "waitlist-soft", stream: "admin", priority: "P1", area: "Taxonomy and content", where: "/admin/waitlist", check: "Delete is reversible. Restore appears on the deleted view. The action is in /admin/audit." },
+      { id: "cms-unpublish", stream: "admin", priority: "P1", area: "Taxonomy and content", where: "/admin/pages", check: "Unpublish removes the public page." },
+      { id: "cms-soft-delete", stream: "admin", priority: "P1", area: "Taxonomy and content", where: "/admin/pages", check: "Delete is soft. Restore works. The public slug 404s while deleted." },
+      { id: "cms-live-media", stream: "admin", priority: "P1", area: "Taxonomy and content", where: "/admin/media", check: "Cannot delete images that belong to LIVE or SOLD listings." },
+      { id: "audit-viewer", stream: "admin", priority: "P1", area: "Audit and ops", where: "/admin/audit", check: "Listing, report, review, user, taxonomy, waitlist, CMS, and payment actions appear with actor and entity." },
+      { id: "mon-mute", stream: "admin", priority: "P2", area: "Audit and ops", where: "/admin/monitoring", check: "An expired mute shows as open again without a manual reopen." },
+      { id: "ops-expiry", stream: "admin", priority: "P1", area: "Audit and ops", where: "Public search and /admin/listings", check: "A LIVE listing past expiresAt is no longer treated as live after the page-load sweep." },
+      { id: "seller-sold-renew", stream: "admin", priority: "P2", area: "Audit and ops", where: "Owner account", check: "Mark sold on LIVE. Renew on EXPIRED returns the listing to draft." },
+      { id: "concurrent-moderate", stream: "admin", priority: "P2", area: "Audit and ops", where: "Two admin tabs", check: "The second action with a stale revision fails cleanly." },
+      { id: "self-deactivate", stream: "admin", priority: "P2", area: "Audit and ops", where: "Account settings", check: "Self-deactivate is soft. Listings are taken down. It is not a hard wipe." }
+    ];
+
+    const KEY = "iommarket-manual-test-checks";
+    const state = {
+      stream: "all",
+      priority: "P0",
+      hideDone: false,
+      done: JSON.parse(localStorage.getItem(KEY) || "{}")
+    };
+
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => [...document.querySelectorAll(sel)];
+
+    function save() {
+      localStorage.setItem(KEY, JSON.stringify(state.done));
+    }
+
+    function count(items) {
+      return items.filter((item) => state.done[item.id]).length;
+    }
+
+    function visibleItems() {
+      return ITEMS.filter((item) => {
+        if (state.stream !== "all" && item.stream !== state.stream) return false;
+        if (state.priority !== "all" && item.priority !== state.priority) return false;
+        if (state.hideDone && state.done[item.id]) return false;
+        return true;
+      });
+    }
+
+    function renderStats() {
+      const photos = ITEMS.filter((i) => i.stream === "photos");
+      const admin = ITEMS.filter((i) => i.stream === "admin");
+      const p0 = ITEMS.filter((i) => i.priority === "P0");
+      const p0Done = count(p0);
+      $("#stats").innerHTML = `
+        <div class="stat"><b>${count(ITEMS)}/${ITEMS.length}</b><span>Checked overall</span></div>
+        <div class="stat ${p0Done === p0.length ? "ok" : "warn"}"><b>${p0Done}/${p0.length}</b><span>P0 smoke</span></div>
+        <div class="stat"><b>${count(photos)}/${photos.length}</b><span>Listing photos</span></div>
+        <div class="stat"><b>${count(admin)}/${admin.length}</b><span>Admin lifecycle</span></div>
+      `;
+    }
+
+    function renderList() {
+      const items = visibleItems();
+      const areas = [...new Set(items.map((i) => i.area))];
+      $("#visibleCount").textContent = `Showing ${items.length} of ${ITEMS.length}`;
+      $("#list").innerHTML = areas.map((area) => {
+        const rows = items.filter((i) => i.area === area);
+        return `
+          <section class="section">
+            <h2>${area} <em>${rows.length}</em></h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width:44px"></th>
+                  <th style="width:56px">Pri</th>
+                  <th style="width:28%">Where</th>
+                  <th>Check</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map((item) => `
+                  <tr class="${state.done[item.id] ? "done" : ""}">
+                    <td>
+                      <label class="box">
+                        <input type="checkbox" data-id="${item.id}" ${state.done[item.id] ? "checked" : ""} />
+                      </label>
+                    </td>
+                    <td><span class="pri ${item.priority}">${item.priority}</span></td>
+                    <td class="where">${item.where}</td>
+                    <td class="check">${item.check}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </section>
+        `;
+      }).join("");
+    }
+
+    function render() {
+      renderStats();
+      renderList();
+    }
+
+    document.querySelector(".toolbar").addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      if (button.id === "reset") {
+        state.done = {};
+        save();
+        render();
+        return;
+      }
+      if (button.id === "hideDone") {
+        state.hideDone = !state.hideDone;
+        button.setAttribute("aria-pressed", String(state.hideDone));
+        render();
+        return;
+      }
+      if (button.dataset.stream) {
+        state.stream = button.dataset.stream;
+        $$("[data-stream]").forEach((el) => el.setAttribute("aria-pressed", String(el.dataset.stream === state.stream)));
+        render();
+      }
+      if (button.dataset.priority) {
+        state.priority = button.dataset.priority;
+        $$("[data-priority]").forEach((el) => el.setAttribute("aria-pressed", String(el.dataset.priority === state.priority)));
+        render();
+      }
+    });
+
+    $("#list").addEventListener("change", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || !input.dataset.id) return;
+      state.done[input.dataset.id] = input.checked;
+      save();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
