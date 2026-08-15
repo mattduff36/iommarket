@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
   Table,
@@ -18,12 +19,14 @@ import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { cn } from "@/lib/cn";
 import {
   ADMIN_LISTING_PAGE_SIZE,
-  ADMIN_LISTING_STATUS_FILTERS,
   adminTotalPages,
   buildAdminListingArchiveWhere,
+  parseAdminListingStatus,
   parseAdminPage,
+  splitPendingFirstPage,
 } from "@/lib/admin/query";
 import { AdminPager } from "@/components/admin/admin-pager";
+import { AdminListingFilters } from "@/components/admin/admin-listing-filters";
 
 export const metadata: Metadata = { title: "Moderate Listings" };
 
@@ -42,6 +45,47 @@ interface ListingReviewLinkProps {
   href: string;
   children: ReactNode;
   className?: string;
+}
+
+async function loadAllListingsPendingFirst(input: {
+  where: Prisma.ListingWhereInput;
+  page: number;
+  include: Prisma.ListingInclude;
+  orderBy: Prisma.ListingOrderByWithRelationInput[];
+}) {
+  const pendingWhere = { ...input.where, status: "PENDING" as const };
+  const restWhere = { ...input.where, status: { not: "PENDING" as const } };
+  const [pendingCount, total] = await Promise.all([
+    db.listing.count({ where: pendingWhere }),
+    db.listing.count({ where: input.where }),
+  ]);
+  const split = splitPendingFirstPage({
+    page: input.page,
+    pageSize: ADMIN_LISTING_PAGE_SIZE,
+    pendingCount,
+  });
+  const [pending, rest] = await Promise.all([
+    split.pending.take > 0
+      ? db.listing.findMany({
+          where: pendingWhere,
+          orderBy: input.orderBy,
+          skip: split.pending.skip,
+          take: split.pending.take,
+          include: input.include,
+        })
+      : [],
+    split.rest.take > 0
+      ? db.listing.findMany({
+          where: restWhere,
+          orderBy: input.orderBy,
+          skip: split.rest.skip,
+          take: split.rest.take,
+          include: input.include,
+        })
+      : [],
+  ]);
+
+  return [[...pending, ...rest], total] as const;
 }
 
 function ListingReviewLink({ href, children, className }: ListingReviewLinkProps) {
@@ -68,35 +112,41 @@ export default async function AdminListingsPage({
 }) {
   await expireStaleLiveListings();
   const params = await searchParams;
-  const status = ADMIN_LISTING_STATUS_FILTERS.includes(
-    params.status as (typeof ADMIN_LISTING_STATUS_FILTERS)[number],
-  )
-    ? (params.status as (typeof ADMIN_LISTING_STATUS_FILTERS)[number])
-    : "PENDING";
+  const status = parseAdminListingStatus(params.status);
   const query = params.q?.trim() ?? "";
   const page = parseAdminPage(params.page);
   const where = buildAdminListingArchiveWhere({ status, query });
+  const listingInclude = {
+    user: { select: { name: true, email: true } },
+    category: { select: { name: true } },
+    region: { select: { name: true } },
+    _count: { select: { reports: true } },
+    statusEvents: {
+      where: { OR: [{ fromStatus: "LIVE" as const }, { toStatus: "LIVE" as const }] },
+      take: 1,
+      select: { id: true },
+    },
+  };
+  const listingOrderBy = [{ createdAt: "desc" as const }];
 
-  const [listings, total] = await Promise.all([
-    db.listing.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }],
-      skip: (page - 1) * ADMIN_LISTING_PAGE_SIZE,
-      take: ADMIN_LISTING_PAGE_SIZE,
-      include: {
-        user: { select: { name: true, email: true } },
-        category: { select: { name: true } },
-        region: { select: { name: true } },
-        _count: { select: { reports: true } },
-        statusEvents: {
-          where: { OR: [{ fromStatus: "LIVE" }, { toStatus: "LIVE" }] },
-          take: 1,
-          select: { id: true },
-        },
-      },
-    }),
-    db.listing.count({ where }),
-  ]);
+  const [listings, total] =
+    status === "ALL"
+      ? await loadAllListingsPendingFirst({
+          where,
+          page,
+          include: listingInclude,
+          orderBy: listingOrderBy,
+        })
+      : await Promise.all([
+          db.listing.findMany({
+            where,
+            orderBy: listingOrderBy,
+            skip: (page - 1) * ADMIN_LISTING_PAGE_SIZE,
+            take: ADMIN_LISTING_PAGE_SIZE,
+            include: listingInclude,
+          }),
+          db.listing.count({ where }),
+        ]);
   const totalPages = adminTotalPages(total, ADMIN_LISTING_PAGE_SIZE);
 
   function href(overrides: Record<string, string | undefined>) {
@@ -118,31 +168,7 @@ export default async function AdminListingsPage({
       <h1 className="text-2xl font-bold text-text-primary mb-6">
         Listing Moderation
       </h1>
-      <form className="mb-4 flex flex-wrap gap-2" method="get">
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="Search title or seller"
-          className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
-        />
-        <select
-          name="status"
-          defaultValue={status}
-          className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
-        >
-          {ADMIN_LISTING_STATUS_FILTERS.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="h-9 rounded-md border border-border px-3 text-sm"
-        >
-          Filter
-        </button>
-      </form>
+      <AdminListingFilters query={query} status={status} />
 
       <Table>
         <TableHeader>
