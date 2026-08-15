@@ -1,0 +1,29 @@
+import type { ListingStatus } from "@prisma/client";
+import { isListingEffectivelyExpired } from "@/lib/listings/expiry";
+
+export const PUBLIC_LISTING_STATUSES: readonly ListingStatus[] = ["LIVE", "SOLD"];
+
+export function isListingPubliclyVisible(input: {
+  status: ListingStatus;
+  expiresAt: Date | null;
+}) {
+  if (input.status === "SOLD") return true;
+  if (input.status !== "LIVE") return false;
+  return !isListingEffectivelyExpired(input);
+}
+
+export function canViewListing(input: {
+  status: ListingStatus;
+  expiresAt: Date | null;
+  listingUserId: string;
+  viewer?: { id: string; role: string } | null;
+}) {
+  if (isListingPubliclyVisible(input)) return true;
+  if (!input.viewer) return false;
+  if (input.viewer.role === "ADMIN") return true;
+  return input.viewer.id === input.listingUserId;
+}
+
+export function isListingEditable(status: ListingStatus) {
+  return status === "DRAFT" || status === "EXPIRED";
+}

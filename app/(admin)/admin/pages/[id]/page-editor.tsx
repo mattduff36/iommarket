@@ -9,7 +9,7 @@ import {
   AdminActionTextarea,
 } from "@/components/admin/admin-action-controls";
 import { Input } from "@/components/ui/input";
-import { upsertContentPage, deleteContentPage } from "@/actions/admin/pages";
+import { upsertContentPage, deleteContentPage, restoreContentPage } from "@/actions/admin/pages";
 
 interface PageEditorProps {
   page?: {
@@ -20,6 +20,7 @@ interface PageEditorProps {
     metaTitle: string | null;
     metaDescription: string | null;
     status: "DRAFT" | "PUBLISHED";
+    deletedAt?: Date | null;
   };
 }
 
@@ -49,6 +50,19 @@ export function PageEditor({ page }: PageEditorProps) {
         setError(typeof result.error === "string" ? result.error : "Validation error");
       } else {
         router.push("/admin/pages");
+        router.refresh();
+      }
+    });
+  }
+
+  function handleRestore() {
+    if (!page) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await restoreContentPage(page.id);
+      if (result.error) {
+        setError(typeof result.error === "string" ? result.error : "Failed");
+      } else {
         router.refresh();
       }
     });
@@ -137,7 +151,13 @@ export function PageEditor({ page }: PageEditorProps) {
           {page ? "Save Changes" : "Create Page"}
         </AdminActionButton>
 
-        {page && (
+        {page && page.deletedAt ? (
+          <AdminActionButton onClick={handleRestore} disabled={isPending} tone="primary">
+            Restore
+          </AdminActionButton>
+        ) : null}
+
+        {page && !page.deletedAt && (
           <>
             {!showDelete ? (
               <AdminActionButton

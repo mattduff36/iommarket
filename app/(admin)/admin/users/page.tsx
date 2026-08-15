@@ -51,6 +51,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   if (roleFilter) where.role = roleFilter;
   if (disabledFilter === true) where.disabledAt = { not: null };
   if (disabledFilter === false) where.disabledAt = null;
+  if (params.disabled === "deleted") where.deletedAt = { not: null };
 
   const [users, total] = await Promise.all([
     db.user.findMany({
@@ -129,6 +130,19 @@ export default async function AdminUsersPage({ searchParams }: Props) {
         >
           Disabled only
         </Link>
+        <Link
+          href={buildUrl({
+            disabled: params.disabled === "deleted" ? undefined : "deleted",
+            page: "1",
+          })}
+          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
+            params.disabled === "deleted"
+              ? "bg-surface-elevated text-text-primary border-border"
+              : "text-text-secondary border-transparent hover:bg-surface-elevated"
+          }`}
+        >
+          Deleted only
+        </Link>
 
         <span className="text-xs text-text-tertiary ml-auto">{total} users</span>
       </div>
@@ -157,6 +171,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   {user.name ?? "—"}
                 </Link>
                 <p className="text-xs text-text-tertiary">{user.email}</p>
+                {user.deletedAt ? (
+                  <Badge variant="error">Deleted</Badge>
+                ) : user.disabledAt ? (
+                  <Badge variant="warning">Disabled</Badge>
+                ) : null}
                 {user.disabledAt && (
                   <Badge variant="error" className="mt-1">Disabled</Badge>
                 )}
@@ -195,6 +214,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   userId={user.id}
                   currentRole={user.role}
                   isDisabled={!!user.disabledAt}
+                  isDeleted={!!user.deletedAt}
                   userLabel={user.name ?? user.email}
                 />
               </TableCell>

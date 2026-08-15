@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { db } from "../lib/db";
+import { cleanupE2EListings } from "./helpers/cleanup";
 import { ADMIN_USER } from "./fixtures/test-users";
 
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? ADMIN_USER.email;
@@ -81,12 +82,7 @@ async function createListingForE2E(params: {
 test.afterEach(async () => {
   if (createdListingIds.length === 0) return;
 
-  await db.report.deleteMany({
-    where: { listingId: { in: createdListingIds } },
-  });
-  await db.listing.deleteMany({
-    where: { id: { in: createdListingIds } },
-  });
+  await cleanupE2EListings(createdListingIds);
   createdListingIds.length = 0;
 });
 
@@ -150,6 +146,7 @@ test.describe("Critical launch funnels", () => {
     });
     await expect(submitReportButton).toBeVisible({ timeout: 20_000 });
     await page.getByLabel(/your email/i).last().fill(reporterEmail);
+    await page.getByLabel(/category/i).last().selectOption("FRAUD");
     await page.getByLabel(/reason/i).last().fill(
       "Suspicious listing details for e2e validation workflow."
     );
@@ -169,5 +166,37 @@ test.describe("Critical launch funnels", () => {
         });
       })
       .toBe(1);
+  });
+
+  test("admin moderation: take down a live listing with a required reason ALR-E2E-001", async ({
+    page,
+  }) => {
+    const listing = await createListingForE2E({
+      status: "LIVE",
+      titleSuffix: "Admin Takedown",
+    });
+
+    await signInAsAdmin(page);
+    await page.goto(`/listings/${listing.id}?adminReview=1`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page.getByRole("heading", { name: listing.title })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await page.getByRole("button", { name: /take down/i }).click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10_000 });
+    await page.getByLabel(/^reason$/i).selectOption("FRAUD");
+    await page.getByRole("button", { name: /^confirm$/i }).click();
+
+    await expect
+      .poll(async () => {
+        const current = await db.listing.findUnique({
+          where: { id: listing.id },
+          select: { status: true },
+        });
+        return current?.status ?? null;
+      })
+      .toBe("TAKEN_DOWN");
   });
 });

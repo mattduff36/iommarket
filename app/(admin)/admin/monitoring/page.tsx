@@ -59,6 +59,8 @@ interface Props {
 }
 
 export default async function AdminMonitoringPage({ searchParams }: Props) {
+  const { expireMutedMonitoringIssues } = await import("@/lib/monitoring/mute-expiry");
+  await expireMutedMonitoringIssues();
   const params = searchParams ? await searchParams : {};
   const status = STATUS_OPTIONS.includes(params.status as (typeof STATUS_OPTIONS)[number])
     ? (params.status as (typeof STATUS_OPTIONS)[number])

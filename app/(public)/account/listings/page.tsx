@@ -31,6 +31,7 @@ const STATUS_FILTERS = [
   "SOLD",
   "EXPIRED",
   "TAKEN_DOWN",
+  "REJECTED",
 ] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];

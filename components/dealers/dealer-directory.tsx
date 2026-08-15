@@ -22,7 +22,7 @@ export function DealerDirectory({ dealers }: DealerDirectoryProps) {
           No dealers are currently listed
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-secondary">
-          Approved dealer profiles will appear here when they become available.
+          Active dealer profiles will appear here when they become available.
         </p>
         <Link
           href="/search"

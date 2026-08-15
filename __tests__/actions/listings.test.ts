@@ -48,6 +48,7 @@ describe("submitListingForReview", () => {
       userId: "user_123",
       dealerId: null,
       status: "DRAFT",
+      lifecycleRevision: 0,
       trustDeclarationAccepted: true,
       images: [{ id: "image_1" }, { id: "image_2" }],
     });
@@ -79,6 +80,7 @@ describe("submitListingForReview", () => {
       userId: "user_123",
       dealerId: null,
       status: "DRAFT",
+      lifecycleRevision: 0,
       expiresAt: new Date("2025-01-01T00:00:00Z"),
       trustDeclarationAccepted: true,
       images: [{ id: "image_1" }, { id: "image_2" }],

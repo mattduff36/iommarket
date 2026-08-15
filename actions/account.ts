@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   deactivateMyAccountSchema,
   updateDealerSelfProfileSchema,
@@ -117,31 +116,16 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
 
   try {
     await db.$transaction(async (tx) => {
-      const activeListings = await tx.listing.findMany({
-        where: {
-          userId: user.id,
-          status: { in: ["DRAFT", "PENDING", "APPROVED", "LIVE"] },
-        },
-        select: { id: true, status: true },
+      const { applyAccountDisableToListings } = await import(
+        "@/lib/listings/account-disable"
+      );
+      await applyAccountDisableToListings({
+        tx,
+        userId: user.id,
+        actor: { id: user.id, role: "USER" },
+        source: "USER",
+        notes: "Account deletion requested",
       });
-
-      for (const listing of activeListings) {
-        await tx.listing.update({
-          where: { id: listing.id },
-          data: { status: "TAKEN_DOWN" },
-        });
-
-        await tx.listingStatusEvent.create({
-          data: {
-            listingId: listing.id,
-            fromStatus: listing.status,
-            toStatus: "TAKEN_DOWN",
-            changedByUserId: user.id,
-            source: "USER",
-            notes: "Account deletion requested",
-          },
-        });
-      }
 
       await tx.user.update({
         where: { id: user.id },
@@ -154,14 +138,6 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
         },
       });
     });
-
-    try {
-      const supabaseAdmin = createSupabaseAdminClient();
-      await supabaseAdmin.auth.admin.deleteUser(user.authUserId);
-    } catch {
-      // Non-fatal: DB records are already soft-deleted so the user is locked out
-      // even if the Supabase Auth deletion fails (e.g. missing service role key).
-    }
 
     revalidatePath("/");
     revalidatePath("/account");

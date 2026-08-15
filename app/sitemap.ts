@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 
+export const dynamic = "force-dynamic";
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await expireStaleLiveListings();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";

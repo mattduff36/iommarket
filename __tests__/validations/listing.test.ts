@@ -3,6 +3,7 @@ import {
   createListingSchema,
   reportListingSchema,
   moderateListingSchema,
+  takeDownFromReportSchema,
 } from "@/lib/validations/listing";
 
 describe("createListingSchema", () => {
@@ -90,6 +91,7 @@ describe("reportListingSchema", () => {
     const result = reportListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       reporterEmail: "test@example.com",
+      reasonCode: "FRAUD",
       reason: "This listing appears to be a scam with fake photos",
     });
     expect(result.success).toBe(true);
@@ -99,6 +101,7 @@ describe("reportListingSchema", () => {
     const result = reportListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       reporterEmail: "not-an-email",
+      reasonCode: "FRAUD",
       reason: "This listing appears to be a scam with fake photos",
     });
     expect(result.success).toBe(false);
@@ -108,6 +111,7 @@ describe("reportListingSchema", () => {
     const result = reportListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       reporterEmail: "test@example.com",
+      reasonCode: "FRAUD",
       reason: "Bad",
     });
     expect(result.success).toBe(false);
@@ -119,8 +123,27 @@ describe("moderateListingSchema", () => {
     const result = moderateListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       action: "APPROVE",
+      expectedRevision: 0,
     });
     expect(result.success).toBe(true);
+  });
+
+  it("requires a reason for take-down", () => {
+    const result = moderateListingSchema.safeParse({
+      listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      action: "TAKE_DOWN",
+      expectedRevision: 1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires notes when take-down from report uses Other ALR-RPT-001", () => {
+    const result = takeDownFromReportSchema.safeParse({
+      reportId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      expectedRevision: 1,
+      reasonCode: "OTHER",
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects invalid action", () => {

@@ -45,6 +45,7 @@ model User {
   regionId       String?
   disabledAt     DateTime?
   disabledReason String?
+  disabledReasonCode UserDisableReason?
   deletedAt      DateTime?
   deletionReason String?
   deletionRequestedAt DateTime?
@@ -60,6 +61,8 @@ model User {
   listingViews        ListingView[]
   dealerReviews       DealerReview[]
   listingStatusEvents ListingStatusEvent[]
+  dealerReviewModerationEvents DealerReviewModerationEvent[]
+  monitoringIssueStatusEvents MonitoringIssueStatusEvent[]
   freeListingClaim   FreeListingClaim?
   listingImageUploadIntents ListingImageUploadIntent[]
 
@@ -160,6 +163,67 @@ enum ListingStatus {
   EXPIRED
   TAKEN_DOWN
   SOLD
+  REJECTED
+}
+
+enum ListingLifecycleAction {
+  SUBMIT
+  APPROVE
+  REJECT
+  TAKE_DOWN
+  EXPIRE
+  MARK_SOLD
+  RENEW
+  REINSTATE_LIVE
+  RETURN_TO_DRAFT
+  ACCOUNT_DISABLE
+  ACCOUNT_DISABLE_PENDING
+  SYSTEM_BACKFILL
+}
+
+enum ListingModerationReason {
+  FRAUD
+  PROHIBITED
+  MISLEADING
+  DUPLICATE
+  POLICY
+  SAFETY
+  ACCOUNT_DISABLED
+  OTHER
+}
+
+enum ReportReasonCode {
+  FRAUD
+  PROHIBITED
+  MISLEADING
+  DUPLICATE
+  POLICY
+  SAFETY
+  OTHER
+}
+
+enum UserDisableReason {
+  POLICY
+  FRAUD
+  ABUSE
+  CHARGEBACK
+  OTHER
+}
+
+enum RefundReason {
+  DUPLICATE
+  REQUESTED_BY_CUSTOMER
+  FRAUD
+  SERVICE_NOT_PROVIDED
+  OTHER
+}
+
+enum DealerReviewModerationReason {
+  POLICY
+  ABUSE
+  SPAM
+  OFF_TOPIC
+  OTHER
 }
 
 enum ListingStatusEventSource {
@@ -189,6 +253,7 @@ model Listing {
   photoRevision              Int      @default(0)
   lastPhotoMutationId        String?  @unique
   lastPhotoMutationHash      String?
+  lifecycleRevision          Int      @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -223,15 +288,20 @@ model ListingStatusEvent {
   toStatus        ListingStatus
   changedByUserId String?
   source          ListingStatusEventSource
+  action          ListingLifecycleAction?
+  reasonCode      ListingModerationReason?
+  reportId        String?
   notes           String?
   createdAt       DateTime                 @default(now())
 
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   changedBy User?   @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  report    Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
   @@index([listingId, createdAt])
   @@index([changedByUserId, createdAt])
   @@index([toStatus, createdAt])
+  @@index([reportId])
 }
 
 model FreeListingClaim {
@@ -383,6 +453,8 @@ model Payment {
   type              PaymentType     @default(LISTING)
   status            PaymentStatus   @default(PENDING)
   idempotencyKey    String?         @unique
+  refundReason      RefundReason?
+  refundedAt        DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -417,6 +489,7 @@ model Subscription {
   grantEndsAt            DateTime?
   grantedByAdminId       String?
   revokedAt              DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
@@ -441,18 +514,20 @@ enum ReportStatus {
 }
 
 model Report {
-  id            String       @id @default(cuid())
+  id            String           @id @default(cuid())
   listingId     String
   reporterId    String?
   reporterEmail String
   reason        String
-  status        ReportStatus @default(OPEN)
+  reasonCode    ReportReasonCode?
+  status        ReportStatus     @default(OPEN)
   adminNotes    String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
-  listing  Listing @relation(fields: [listingId], references: [id])
-  reporter User?   @relation(fields: [reporterId], references: [id])
+  listing      Listing              @relation(fields: [listingId], references: [id])
+  reporter     User?                @relation(fields: [reporterId], references: [id])
+  statusEvents ListingStatusEvent[]
 
   @@index([listingId])
   @@index([status])
@@ -475,11 +550,28 @@ model DealerReview {
 
   dealer   DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
   reviewer User?         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  moderationEvents DealerReviewModerationEvent[]
 
   @@unique([dealerId, reviewerUserId])
   @@unique([dealerId, reviewerDeviceId])
   @@index([dealerId, status, createdAt])
   @@index([status, createdAt])
+}
+
+model DealerReviewModerationEvent {
+  id              String                         @id @default(cuid())
+  reviewId        String
+  fromStatus      DealerReviewStatus?
+  toStatus        DealerReviewStatus
+  reasonCode      DealerReviewModerationReason?
+  adminNotes      String?
+  changedByUserId String?
+  createdAt       DateTime                       @default(now())
+
+  review    DealerReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  changedBy User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([reviewId, createdAt])
 }
 
 model Favourite {
@@ -524,15 +616,19 @@ model ListingView {
 }
 
 model WaitlistUser {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  interests Json
-  source    String   @default("coming_soon_page")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  interests        Json
+  source           String    @default("coming_soon_page")
+  deletedAt        DateTime?
+  deletedByAdminId String?
+  deletionReason   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([email])
   @@index([createdAt])
+  @@index([deletedAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -597,10 +693,26 @@ model MonitoringIssue {
 
   events           MonitoringEvent[]
   alertDeliveries  MonitoringAlertDelivery[]
+  statusEvents     MonitoringIssueStatusEvent[]
 
   @@index([status, severity, lastSeenAt])
   @@index([source, lastSeenAt])
   @@index([createdAt])
+}
+
+model MonitoringIssueStatusEvent {
+  id              String                @id @default(cuid())
+  issueId         String
+  fromStatus      MonitoringIssueStatus?
+  toStatus        MonitoringIssueStatus
+  changedByUserId String?
+  notes           String?
+  createdAt       DateTime              @default(now())
+
+  issue     MonitoringIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  changedBy User?           @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([issueId, createdAt])
 }
 
 model MonitoringEvent {
@@ -691,6 +803,7 @@ model ContentPage {
   metaDescription String?
   status          ContentPageStatus @default(DRAFT)
   publishedAt     DateTime?
+  deletedAt       DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 

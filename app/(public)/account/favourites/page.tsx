@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
+import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 
 export default async function FavouritesPage() {
   const user = await getCurrentUser();
@@ -36,19 +37,25 @@ export default async function FavouritesPage() {
 
       {favourites.length > 0 ? (
         <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-          {favourites.map(({ id, listing }) => (
-            <ListingCard
-              key={id}
-              title={listing.title}
-              price={listing.price / 100}
-              photo={toListingPhotoSource(listing.images[0])}
-              location={listing.region.name}
-              meta={listing.category.name}
-              featured={listing.featured}
-              badge={listing.featured ? "Featured" : undefined}
-              href={`/listings/${listing.id}`}
-            />
-          ))}
+          {favourites.map(({ id, listing }) => {
+            const available = isListingPubliclyVisible({
+              status: listing.status,
+              expiresAt: listing.expiresAt,
+            });
+            return (
+              <ListingCard
+                key={id}
+                title={listing.title}
+                price={listing.price / 100}
+                photo={toListingPhotoSource(listing.images[0])}
+                location={listing.region.name}
+                meta={listing.category.name}
+                featured={listing.featured}
+                badge={available ? (listing.featured ? "Featured" : undefined) : "Unavailable"}
+                href={available ? `/listings/${listing.id}` : undefined}
+              />
+            );
+          })}
         </div>
       ) : (
         <p className="mt-8 text-sm text-text-secondary">

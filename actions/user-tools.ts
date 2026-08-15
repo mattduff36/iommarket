@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 import { z } from "zod";
 
 const toggleFavouriteSchema = z.object({
@@ -31,6 +32,20 @@ export async function toggleFavourite(input: { listingId: string }) {
       },
     },
   });
+
+  const listing = await db.listing.findUnique({
+    where: { id: parsed.data.listingId },
+    select: { status: true, expiresAt: true },
+  });
+  if (
+    !listing ||
+    !isListingPubliclyVisible({
+      status: listing.status,
+      expiresAt: listing.expiresAt,
+    })
+  ) {
+    return { error: "Listing unavailable" };
+  }
 
   if (existing) {
     await db.favourite.delete({ where: { id: existing.id } });

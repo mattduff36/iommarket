@@ -9,10 +9,11 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { isDevBypassAllowed } from "@/lib/ops/safety";
 
 function assertDevMode() {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Dev bypass actions are not available in production.");
+  if (!isDevBypassAllowed()) {
+    throw new Error("Dev bypass actions are not available.");
   }
 }
 

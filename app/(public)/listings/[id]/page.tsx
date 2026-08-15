@@ -26,15 +26,20 @@ import { RenewListingButton } from "@/components/marketplace/renew-listing-butto
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { ListingImageGallery } from "./listing-image-gallery";
-import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
-import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
-import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import {
   expireStaleLiveListings,
   isListingEffectivelyExpired,
   liveListingWhere,
 } from "@/lib/listings/expiry";
+import {
+  canViewListing,
+  isListingPubliclyVisible,
+} from "@/lib/listings/visibility";
+import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reasons";
+import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
+import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
+import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -43,16 +48,30 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  const currentUser = await getCurrentUser();
   const listing = await db.listing.findUnique({
     where: { id },
     select: {
       title: true,
       description: true,
       price: true,
+      status: true,
+      expiresAt: true,
+      userId: true,
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
   if (!listing) return {};
+  if (
+    !canViewListing({
+      status: listing.status,
+      expiresAt: listing.expiresAt,
+      listingUserId: listing.userId,
+      viewer: currentUser,
+    })
+  ) {
+    return { title: "Listing unavailable" };
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const primaryPhoto = toListingPhotoSource(listing.images[0]);
   const socialImage = primaryPhoto
@@ -106,13 +125,20 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     status: listing.status,
     expiresAt: listing.expiresAt,
   });
-  const isTakenDown = listing.status === "TAKEN_DOWN";
+  const isTakenDown = listing.status === "TAKEN_DOWN" || listing.status === "REJECTED";
   const isSold = listing.status === "SOLD";
   const isAdminUser = currentUser?.role === "ADMIN";
   const showAdminReviewActions = isAdminUser && sp.adminReview === "1";
-  const isVisible =
-    (!isExpired && (listing.status === "LIVE" || listing.status === "APPROVED")) ||
-    isSold;
+  const isVisible = isListingPubliclyVisible({
+    status: listing.status,
+    expiresAt: listing.expiresAt,
+  });
+  const canView = canViewListing({
+    status: listing.status,
+    expiresAt: listing.expiresAt,
+    listingUserId: listing.userId,
+    viewer: currentUser,
+  });
   const isFavourite = currentUser
     ? Boolean(
         await db.favourite.findUnique({
@@ -162,7 +188,18 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     }
   }
 
-  if (isTakenDown && !isAdminUser) notFound();
+  if (!canView) notFound();
+
+  const latestModeration = isTakenDown
+    ? await db.listingStatusEvent.findFirst({
+        where: {
+          listingId: listing.id,
+          action: { in: ["REJECT", "TAKE_DOWN", "ACCOUNT_DISABLE", "ACCOUNT_DISABLE_PENDING"] },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { reasonCode: true, action: true },
+      })
+    : null;
 
   const price = listing.price / 100;
   const formattedPrice = Number.isInteger(price)
@@ -212,6 +249,21 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           listingId={listing.id}
           currentStatus={listing.status}
           featured={listing.featured}
+          lifecycleRevision={listing.lifecycleRevision}
+          canReinstateLive={
+            listing.status === "TAKEN_DOWN" &&
+            listing.expiresAt !== null &&
+            listing.expiresAt.getTime() > Date.now() &&
+            Boolean(
+              await db.listingStatusEvent.findFirst({
+                where: {
+                  listingId: listing.id,
+                  OR: [{ fromStatus: "LIVE" }, { toStatus: "LIVE" }],
+                },
+                select: { id: true },
+              }),
+            )
+          }
           variant="floating"
         />
       ) : null}
@@ -227,6 +279,16 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
           <Star className="h-4 w-4 shrink-0" />
           Featured upgrade successful! Your listing will now appear in promoted positions.
+        </div>
+      )}
+
+      {isTakenDown && (
+        <div className="mb-8 flex items-center gap-2 rounded-lg bg-neon-red-500/10 px-5 py-4 text-sm text-neon-red-400 border border-neon-red-500/30">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          This listing is not publicly visible.
+          {latestModeration?.reasonCode
+            ? ` Reason: ${LISTING_MODERATION_REASON_LABELS[latestModeration.reasonCode]}.`
+            : ""}
         </div>
       )}
 

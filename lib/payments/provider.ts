@@ -46,6 +46,7 @@ export interface NormalizedProviderWebhookEvent {
   amount: number | null;
   currency: string | null;
   currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean | null;
   metadata: {
     checkoutType: PaymentCheckoutType | null;
     listingId: string | null;
@@ -209,6 +210,16 @@ function parseDate(value: unknown): Date | null {
   if (typeof value === "string" && value.trim()) {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+
+function parseBooleanFlag(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "0") return false;
   }
   return null;
 }
@@ -660,6 +671,12 @@ export function normalizeProviderWebhookEvent(
       data.renews_at
     )
   );
+  const cancelAtPeriodEnd = parseBooleanFlag(
+    data.cancelAtPeriodEnd ??
+      data.cancel_at_period_end ??
+      data.cancelAtEnd ??
+      data.cancel_at_end
+  );
 
   return {
     id: firstString(envelope.id, envelope.uuid, data.id, data.uuid, providerReference) ?? crypto.randomUUID(),
@@ -680,6 +697,7 @@ export function normalizeProviderWebhookEvent(
     amount,
     currency,
     currentPeriodEnd,
+    cancelAtPeriodEnd,
     metadata: {
       checkoutType,
       listingId,

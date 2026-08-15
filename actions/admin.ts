@@ -5,15 +5,18 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import {
   moderateListingSchema,
+  takeDownFromReportSchema,
   type ModerateListingInput,
+  type TakeDownFromReportInput,
 } from "@/lib/validations/listing";
+import { logAdminAction } from "@/lib/admin/audit";
+import { liveListingWhere } from "@/lib/listings/expiry";
 import {
   createCategorySchema,
   createAttributeDefinitionSchema,
   type CreateCategoryInput,
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
-import { calculateExpiryDate } from "@/lib/listing-status";
 import { transitionListingStatus } from "@/lib/listings/status-events";
 import { z } from "zod";
 
@@ -29,27 +32,19 @@ export async function moderateListing(input: ModerateListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const { listingId, action, adminNotes } = parsed.data;
-
-  const statusMap = {
-    APPROVE: "LIVE" as const,
-    REJECT: "TAKEN_DOWN" as const,
-    TAKE_DOWN: "TAKEN_DOWN" as const,
-  };
+  const { listingId, action, adminNotes, expectedRevision, reasonCode, reportId } =
+    parsed.data;
 
   try {
     const listing = await transitionListingStatus({
       listingId,
-      toStatus: statusMap[action],
-      changedByUserId: admin.id,
+      action,
+      expectedRevision,
+      actor: { id: admin.id, role: "ADMIN" },
       source: "ADMIN",
       notes: adminNotes,
-      additionalData:
-        action === "APPROVE"
-          ? {
-              expiresAt: calculateExpiryDate(),
-            }
-          : undefined,
+      reasonCode,
+      reportId,
     });
 
     revalidatePath("/admin/listings");
@@ -68,7 +63,7 @@ export async function moderateListing(input: ModerateListingInput) {
 // ---------------------------------------------------------------------------
 
 export async function createCategory(input: CreateCategoryInput) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
 
   const parsed = createCategorySchema.safeParse(input);
   if (!parsed.success) {
@@ -77,6 +72,12 @@ export async function createCategory(input: CreateCategoryInput) {
 
   try {
     const category = await db.category.create({ data: parsed.data });
+    await logAdminAction({
+      adminId: admin.id,
+      action: "CREATE_CATEGORY",
+      entityType: "Category",
+      entityId: category.id,
+    });
     revalidatePath("/admin/categories");
     return { data: category };
   } catch (err) {
@@ -128,7 +129,7 @@ export async function getAdminStats() {
   ] = await Promise.all([
     db.listing.count(),
     db.listing.count({ where: { status: "PENDING" } }),
-    db.listing.count({ where: { status: "LIVE" } }),
+    db.listing.count({ where: liveListingWhere() }),
     db.dealerProfile.count(),
     db.report.count({ where: { status: "OPEN" } }),
     db.payment.count({
@@ -160,19 +161,42 @@ export async function updateReportStatus(input: {
   status: "OPEN" | "REVIEWED" | "ACTIONED" | "DISMISSED";
   adminNotes?: string;
 }) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   const parsed = updateReportSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    const report = await db.report.update({
-      where: { id: parsed.data.reportId },
-      data: {
-        status: parsed.data.status,
-        adminNotes: parsed.data.adminNotes,
-      },
+    const report = await db.$transaction(async (tx) => {
+      const existing = await tx.report.findUnique({
+        where: { id: parsed.data.reportId },
+        select: { id: true, status: true, listingId: true },
+      });
+      if (!existing) throw new Error("Report not found");
+
+      const updated = await tx.report.update({
+        where: { id: parsed.data.reportId },
+        data: {
+          status: parsed.data.status,
+          adminNotes: parsed.data.adminNotes,
+        },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "UPDATE_REPORT_STATUS",
+          entityType: "Report",
+          entityId: updated.id,
+          details: {
+            fromStatus: existing.status,
+            toStatus: updated.status,
+            listingId: existing.listingId,
+          },
+        },
+        tx,
+      );
+      return updated;
     });
     revalidatePath("/admin/reports");
     return { data: report };
@@ -183,15 +207,109 @@ export async function updateReportStatus(input: {
   }
 }
 
+export async function takeDownListingFromReport(input: TakeDownFromReportInput) {
+  const admin = await requireRole("ADMIN");
+  const parsed = takeDownFromReportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    const report = await db.report.findUnique({
+      where: { id: parsed.data.reportId },
+      include: { listing: { select: { id: true, status: true, lifecycleRevision: true } } },
+    });
+    if (!report) return { error: "Report not found" };
+
+    const canModerate =
+      report.listing.status === "LIVE" ||
+      report.listing.status === "APPROVED" ||
+      report.listing.status === "PENDING";
+    const alreadyModerated =
+      report.listing.status === "TAKEN_DOWN" || report.listing.status === "REJECTED";
+    if (!canModerate && !alreadyModerated) {
+      return { error: "This listing cannot be taken down from its current status." };
+    }
+
+    await db.$transaction(async (tx) => {
+      if (report.listing.status === "LIVE" || report.listing.status === "APPROVED") {
+        await transitionListingStatus(
+          {
+            listingId: report.listingId,
+            action: "TAKE_DOWN",
+            expectedRevision: parsed.data.expectedRevision,
+            actor: { id: admin.id, role: "ADMIN" },
+            source: "ADMIN",
+            reasonCode: parsed.data.reasonCode,
+            notes: parsed.data.adminNotes,
+            reportId: report.id,
+          },
+          tx,
+        );
+      } else if (report.listing.status === "PENDING") {
+        await transitionListingStatus(
+          {
+            listingId: report.listingId,
+            action: "REJECT",
+            expectedRevision: parsed.data.expectedRevision,
+            actor: { id: admin.id, role: "ADMIN" },
+            source: "ADMIN",
+            reasonCode: parsed.data.reasonCode,
+            notes: parsed.data.adminNotes,
+            reportId: report.id,
+          },
+          tx,
+        );
+      }
+
+      await tx.report.update({
+        where: { id: report.id },
+        data: {
+          status: "ACTIONED",
+          adminNotes: parsed.data.adminNotes,
+        },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "TAKE_DOWN_FROM_REPORT",
+          entityType: "Report",
+          entityId: report.id,
+          details: {
+            listingId: report.listingId,
+            reasonCode: parsed.data.reasonCode,
+          },
+        },
+        tx,
+      );
+    });
+
+    revalidatePath("/admin/reports");
+    revalidatePath("/admin/listings");
+    revalidatePath(`/listings/${report.listingId}`);
+    return { data: { actioned: true } };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to take down listing from report";
+    return { error: message };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Delete Attribute Definition
 // ---------------------------------------------------------------------------
 
 export async function deleteAttributeDefinition(id: string) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   if (!id) return { error: "Missing id" };
   try {
     await db.attributeDefinition.delete({ where: { id } });
+    await logAdminAction({
+      adminId: admin.id,
+      action: "DELETE_ATTRIBUTE",
+      entityType: "AttributeDefinition",
+      entityId: id,
+    });
     revalidatePath("/admin/categories");
     return { data: { deleted: true } };
   } catch (err) {
@@ -205,13 +323,23 @@ export async function deleteAttributeDefinition(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function toggleCategoryActive(id: string, active: boolean) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   if (!id) return { error: "Missing id" };
   try {
+    const listingCount = await db.listing.count({
+      where: { categoryId: id, ...liveListingWhere() },
+    });
     const category = await db.category.update({ where: { id }, data: { active } });
+    await logAdminAction({
+      adminId: admin.id,
+      action: "TOGGLE_CATEGORY_ACTIVE",
+      entityType: "Category",
+      entityId: id,
+      details: { active, liveListingCount: listingCount },
+    });
     revalidatePath("/admin/categories");
     revalidatePath("/");
-    return { data: category };
+    return { data: { ...category, liveListingCount: listingCount } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update category";
     return { error: message };
@@ -223,7 +351,7 @@ export async function toggleCategoryActive(id: string, active: boolean) {
 // ---------------------------------------------------------------------------
 
 export async function deleteCategory(id: string) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   if (!id) return { error: "Missing id" };
   const listingCount = await db.listing.count({ where: { categoryId: id } });
   if (listingCount > 0) {
@@ -231,6 +359,12 @@ export async function deleteCategory(id: string) {
   }
   try {
     await db.category.delete({ where: { id } });
+    await logAdminAction({
+      adminId: admin.id,
+      action: "DELETE_CATEGORY",
+      entityType: "Category",
+      entityId: id,
+    });
     revalidatePath("/admin/categories");
     return { data: { deleted: true } };
   } catch (err) {
@@ -252,7 +386,7 @@ export async function setListingFeatured(input: {
   listingId: string;
   featured: boolean;
 }) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   const parsed = toggleFeatureSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -260,6 +394,13 @@ export async function setListingFeatured(input: {
     const listing = await db.listing.update({
       where: { id: parsed.data.listingId },
       data: { featured: parsed.data.featured },
+    });
+    await logAdminAction({
+      adminId: admin.id,
+      action: "SET_LISTING_FEATURED",
+      entityType: "Listing",
+      entityId: listing.id,
+      details: { featured: parsed.data.featured },
     });
     revalidatePath("/admin/listings");
     revalidatePath(`/listings/${parsed.data.listingId}`);

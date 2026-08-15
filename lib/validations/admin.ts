@@ -33,17 +33,42 @@ export const revokeDealerAccessSchema = z.object({
 });
 export type RevokeDealerAccessInput = z.infer<typeof revokeDealerAccessSchema>;
 
-export const setUserDisabledSchema = z.object({
-  userId: z.string().cuid(),
-  disabled: z.boolean(),
-  reason: z.string().max(500).optional(),
-});
+export const setUserDisabledSchema = z
+  .object({
+    userId: z.string().cuid(),
+    disabled: z.boolean(),
+    reasonCode: z.enum(["POLICY", "FRAUD", "ABUSE", "CHARGEBACK", "OTHER"]).optional(),
+    reason: z.string().max(500).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.disabled) return;
+    if (!value.reasonCode) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reasonCode"],
+        message: "A reason is required.",
+      });
+    }
+    if (value.reasonCode === "OTHER" && !value.reason?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
 export type SetUserDisabledInput = z.infer<typeof setUserDisabledSchema>;
 
 export const deleteUserSchema = z.object({
   userId: z.string().cuid(),
+  reason: z.string().max(500).optional(),
 });
 export type DeleteUserInput = z.infer<typeof deleteUserSchema>;
+
+export const restoreUserSchema = z.object({
+  userId: z.string().cuid(),
+});
+export type RestoreUserInput = z.infer<typeof restoreUserSchema>;
 
 export const setUserRegionSchema = z.object({
   userId: z.string().cuid(),
@@ -112,22 +137,75 @@ export const searchPaymentsSchema = z.object({
 });
 export type SearchPaymentsInput = z.infer<typeof searchPaymentsSchema>;
 
-export const refundPaymentSchema = z.object({
-  paymentId: z.string().cuid(),
-});
+export const refundPaymentSchema = z
+  .object({
+    paymentId: z.string().cuid(),
+    reason: z.enum([
+      "DUPLICATE",
+      "REQUESTED_BY_CUSTOMER",
+      "FRAUD",
+      "SERVICE_NOT_PROVIDED",
+      "OTHER",
+    ]),
+    notes: z.string().max(2000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reason === "OTHER" && !value.notes?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["notes"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
 export type RefundPaymentInput = z.infer<typeof refundPaymentSchema>;
 
-export const refundSubscriptionPaymentSchema = z.object({
-  subscriptionId: z.string().cuid(),
-});
+export const refundSubscriptionPaymentSchema = z
+  .object({
+    subscriptionId: z.string().cuid(),
+    reason: z.enum([
+      "DUPLICATE",
+      "REQUESTED_BY_CUSTOMER",
+      "FRAUD",
+      "SERVICE_NOT_PROVIDED",
+      "OTHER",
+    ]),
+    notes: z.string().max(2000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reason === "OTHER" && !value.notes?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["notes"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
 export type RefundSubscriptionPaymentInput = z.infer<
   typeof refundSubscriptionPaymentSchema
 >;
 
-export const cancelSubscriptionSchema = z.object({
-  subscriptionId: z.string().cuid(),
-  immediately: z.boolean().default(false),
-});
+export const cancelSubscriptionSchema = z
+  .object({
+    subscriptionId: z.string().cuid(),
+    immediately: z.boolean().default(false),
+    reason: z.enum([
+      "REQUESTED_BY_CUSTOMER",
+      "FRAUD",
+      "SERVICE_NOT_PROVIDED",
+      "OTHER",
+    ]),
+    notes: z.string().max(2000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reason === "OTHER" && !value.notes?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["notes"],
+        message: "Notes are required when the reason is Other.",
+      });
+    }
+  });
 export type CancelSubscriptionInput = z.infer<typeof cancelSubscriptionSchema>;
 
 // ---------------------------------------------------------------------------

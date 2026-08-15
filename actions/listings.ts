@@ -30,6 +30,7 @@ import {
   transitionListingStatus,
 } from "@/lib/listings/status-events";
 import { expireAbandonedListingImageIntents, processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
+import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 import {
   syncListingImagesForUser,
   type ListingPhotoMutationItem,
@@ -85,7 +86,7 @@ export async function createListing(input: CreateListingInput) {
 
   const { attributes, trustDeclarationAccepted, ...data } = parsed.data;
   const category = await db.category.findUnique({
-    where: { id: data.categoryId },
+    where: { id: data.categoryId, active: true },
     select: {
       slug: true,
       attributeDefinitions: {
@@ -101,7 +102,15 @@ export async function createListing(input: CreateListingInput) {
     },
   });
   if (!category) {
-    return { error: { categoryId: ["Invalid category."] } };
+    return { error: { categoryId: ["Invalid or inactive category."] } };
+  }
+
+  const region = await db.region.findUnique({
+    where: { id: data.regionId, active: true },
+    select: { id: true },
+  });
+  if (!region) {
+    return { error: { regionId: ["Invalid or inactive region."] } };
   }
 
   const attributeValidation = validateListingAttributes({
@@ -182,12 +191,16 @@ export async function updateListing(input: unknown) {
       id: true,
       userId: true,
       categoryId: true,
+      status: true,
       trustDeclarationAcceptedAt: true,
     },
   });
   if (!existing) return { error: "Listing not found" };
   if (existing.userId !== user.id && user.role !== "ADMIN") {
     return { error: "Not authorized to edit this listing" };
+  }
+  if (existing.status !== "DRAFT" && existing.status !== "EXPIRED") {
+    return { error: "This listing cannot be edited in its current status." };
   }
 
   let sanitizedAttributes:
@@ -232,13 +245,9 @@ export async function updateListing(input: unknown) {
   }
 
   try {
-    const listing = await transitionListingStatus({
-      listingId: id,
-      toStatus: "DRAFT",
-      changedByUserId: user.id,
-      source: user.role === "ADMIN" ? "ADMIN" : "USER",
-      notes: "Listing edited and reset for moderation",
-      additionalData: {
+    const listing = await db.listing.update({
+      where: { id },
+      data: {
         ...data,
         ...(data.trustDeclarationAccepted !== undefined
           ? {
@@ -357,6 +366,7 @@ export async function submitListingForReview(listingId: string) {
                   status: true,
                   trustDeclarationAccepted: true,
                   userId: true,
+                  lifecycleRevision: true,
                 },
               }),
               transaction.listingImage.count({ where: { listingId } }),
@@ -387,20 +397,20 @@ export async function submitListingForReview(listingId: string) {
               throw new Error("A payment was received for this listing. Please refresh and try again.");
             }
 
-            const updated = await transaction.listing.update({
-              where: { id: listingId },
-              data: { status: "PENDING" },
-            });
-            await transaction.listingStatusEvent.create({
-              data: {
+            const updated = await transitionListingStatus(
+              {
                 listingId,
-                fromStatus: "DRAFT",
-                toStatus: "PENDING",
-                changedByUserId: user.id,
-                source: user.role === "ADMIN" ? "ADMIN" : "USER",
+                action: "SUBMIT",
+                expectedRevision: currentListing.lifecycleRevision,
+                actor: {
+                  id: user.id,
+                  role: user.role === "ADMIN" ? "ADMIN" : "USER",
+                },
+                source: "USER",
                 notes: "Submitted for moderation with free listing claim",
               },
-            });
+              transaction,
+            );
 
             return updated;
           },
@@ -443,9 +453,10 @@ export async function submitListingForReview(listingId: string) {
   try {
     const updated = await transitionListingStatus({
       listingId,
-      toStatus: "PENDING",
-      changedByUserId: user.id,
-      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      action: "SUBMIT",
+      expectedRevision: listing.lifecycleRevision,
+      actor: { id: user.id, role: user.role === "ADMIN" ? "ADMIN" : "USER" },
+      source: "USER",
       notes: "Submitted for moderation",
     });
 
@@ -484,9 +495,10 @@ export async function renewListing(listingId: string) {
   try {
     const updated = await transitionListingStatus({
       listingId,
-      toStatus: "DRAFT",
-      changedByUserId: user.id,
-      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      action: "RENEW",
+      expectedRevision: listing.lifecycleRevision,
+      actor: { id: user.id, role: "USER" },
+      source: "USER",
       notes: "Listing renewed",
     });
 
@@ -526,19 +538,31 @@ export async function reportListing(input: ReportListingInput) {
     return { error: "Too many reports. Please try again later." };
   }
 
+  const targetListing = await db.listing.findUnique({
+    where: { id: parsed.data.listingId },
+    select: { id: true, title: true, status: true, expiresAt: true },
+  });
+  if (
+    !targetListing ||
+    !isListingPubliclyVisible({
+      status: targetListing.status,
+      expiresAt: targetListing.expiresAt,
+    })
+  ) {
+    return { error: "Listing unavailable" };
+  }
+
   try {
     const report = await db.report.create({
       data: {
         listingId: parsed.data.listingId,
         reporterEmail: parsed.data.reporterEmail,
         reason: parsed.data.reason,
+        reasonCode: parsed.data.reasonCode,
       },
     });
 
-    const listing = await db.listing.findUnique({
-      where: { id: parsed.data.listingId },
-      select: { title: true },
-    });
+    const listing = targetListing;
     if (listing) {
       try {
         await sendReportNotificationEmail({
@@ -610,7 +634,13 @@ export async function contactSeller(input: ContactSellerInput) {
       user: { select: { email: true } },
     },
   });
-  if (!listing || (listing.status !== "LIVE" && listing.status !== "APPROVED")) {
+  if (
+    !listing ||
+    !isListingPubliclyVisible({
+      status: listing.status,
+      expiresAt: listing.expiresAt,
+    })
+  ) {
     return { error: "Listing unavailable" };
   }
 
@@ -654,7 +684,7 @@ export async function markListingAsSold(listingId: string) {
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id && user.role !== "ADMIN") {
+  if (listing.userId !== user.id) {
     return { error: "Not authorized" };
   }
   if (listing.status !== "LIVE") {
@@ -664,11 +694,11 @@ export async function markListingAsSold(listingId: string) {
   try {
     const updated = await transitionListingStatus({
       listingId,
-      toStatus: "SOLD",
-      changedByUserId: user.id,
-      source: user.role === "ADMIN" ? "ADMIN" : "USER",
+      action: "MARK_SOLD",
+      expectedRevision: listing.lifecycleRevision,
+      actor: { id: user.id, role: "USER" },
+      source: "USER",
       notes: "Marked as sold",
-      additionalData: { soldAt: new Date() },
     });
 
     revalidatePath(`/listings/${listingId}`);

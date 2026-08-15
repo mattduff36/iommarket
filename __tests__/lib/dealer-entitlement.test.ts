@@ -14,7 +14,9 @@ import {
   getAdminGrantState,
   getCurrentDealerEntitlement,
   getDealerEntitlement,
+  getPaidSubscriptionEntitlementWhere,
   grantAdminDealerAccess,
+  isPaidSubscriptionEntitled,
 } from "@/lib/dealers/entitlement";
 
 const NOW = new Date("2026-07-20T20:00:00.000Z");
@@ -47,6 +49,13 @@ describe("dealer entitlement", () => {
       tier: "STARTER",
       endsAt: new Date("2026-08-19T20:00:00.000Z"),
     });
+    expect(mockDb.subscription.findFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        dealerId: "dealer-1",
+        ...getPaidSubscriptionEntitlementWhere(NOW),
+      },
+      select: { id: true, source: true, currentPeriodEnd: true },
+    });
     expect(mockDb.subscription.findFirst).toHaveBeenLastCalledWith({
       where: {
         dealerId: "dealer-1",
@@ -58,6 +67,32 @@ describe("dealer entitlement", () => {
       },
       select: { id: true, source: true, grantEndsAt: true },
     });
+  });
+
+  it("keeps paid access until period end after cancel-at-period-end", () => {
+    expect(
+      isPaidSubscriptionEntitled(
+        {
+          status: "ACTIVE",
+          cancelAtPeriodEnd: true,
+          currentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
+        },
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it("ends paid access when a refund has no remaining paid period", () => {
+    expect(
+      isPaidSubscriptionEntitled(
+        {
+          status: "ACTIVE",
+          cancelAtPeriodEnd: true,
+          currentPeriodEnd: null,
+        },
+        NOW,
+      ),
+    ).toBe(false);
   });
 
   it("blocks expired grants without a scheduled status update", async () => {

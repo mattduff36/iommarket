@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/listing-image-cleanup",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/listing-expiry",
+      "schedule": "0 * * * *"
     }
   ]
 }

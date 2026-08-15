@@ -11,7 +11,10 @@ import {
 
 export async function listContentPages() {
   await requireRole("ADMIN");
-  const pages = await db.contentPage.findMany({ orderBy: { updatedAt: "desc" } });
+  const pages = await db.contentPage.findMany({
+    where: { deletedAt: null },
+    orderBy: { updatedAt: "desc" },
+  });
   return { data: pages };
 }
 
@@ -29,14 +32,24 @@ export async function upsertContentPage(input: UpsertContentPageInput) {
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const { id, ...data } = parsed.data;
-  const publishedAt = data.status === "PUBLISHED" ? new Date() : undefined;
+  const publishedAt = data.status === "PUBLISHED" ? new Date() : null;
 
   try {
     let page;
     if (id) {
+      const existing = await db.contentPage.findUnique({
+        where: { id },
+        select: { publishedAt: true },
+      });
       page = await db.contentPage.update({
         where: { id },
-        data: { ...data, publishedAt },
+        data: {
+          ...data,
+          publishedAt:
+            data.status === "PUBLISHED"
+              ? existing?.publishedAt ?? new Date()
+              : null,
+        },
       });
     } else {
       page = await db.contentPage.create({
@@ -66,20 +79,56 @@ export async function deleteContentPage(id: string) {
   if (!id) return { error: "Missing id" };
 
   try {
-    const page = await db.contentPage.delete({ where: { id } });
-
-    await logAdminAction({
-      adminId: admin.id,
-      action: "DELETE_CONTENT_PAGE",
-      entityType: "ContentPage",
-      entityId: id,
-      details: { slug: page.slug },
+    const page = await db.$transaction(async (tx) => {
+      const updated = await tx.contentPage.update({
+        where: { id },
+        data: { deletedAt: new Date(), status: "DRAFT", publishedAt: null },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "SOFT_DELETE_CONTENT_PAGE",
+          entityType: "ContentPage",
+          entityId: id,
+          details: { slug: updated.slug },
+        },
+        tx,
+      );
+      return updated;
     });
 
     revalidatePath("/admin/pages");
     return { data: { deleted: true } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to delete page";
+    return { error: message };
+  }
+}
+
+export async function restoreContentPage(id: string) {
+  const admin = await requireRole("ADMIN");
+  if (!id) return { error: "Missing id" };
+  try {
+    const page = await db.$transaction(async (tx) => {
+      const restored = await tx.contentPage.update({
+        where: { id },
+        data: { deletedAt: null },
+      });
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "RESTORE_CONTENT_PAGE",
+          entityType: "ContentPage",
+          entityId: id,
+        },
+        tx,
+      );
+      return restored;
+    });
+    revalidatePath("/admin/pages");
+    return { data: page };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to restore page";
     return { error: message };
   }
 }

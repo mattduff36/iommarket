@@ -16,6 +16,7 @@ interface Props {
 
 export function ReviewActions({ reviewId, currentStatus, currentAdminNotes }: Props) {
   const [status, setStatus] = useState(currentStatus);
+  const [reasonCode, setReasonCode] = useState("");
   const [adminNotes, setAdminNotes] = useState(currentAdminNotes ?? "");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,9 @@ export function ReviewActions({ reviewId, currentStatus, currentAdminNotes }: Pr
       const result = await moderateDealerReview({
         reviewId,
         status,
+        reasonCode: reasonCode
+          ? (reasonCode as "POLICY" | "ABUSE" | "SPAM" | "OFF_TOPIC" | "OTHER")
+          : undefined,
         adminNotes: adminNotes || undefined,
       });
       if (result.error) {
@@ -54,6 +58,18 @@ export function ReviewActions({ reviewId, currentStatus, currentAdminNotes }: Pr
           <option value="APPROVED">APPROVED</option>
           <option value="REJECTED">REJECTED</option>
           <option value="HIDDEN">HIDDEN</option>
+        </AdminActionSelect>
+        <AdminActionSelect
+          value={reasonCode}
+          onChange={(event) => setReasonCode(event.target.value)}
+          aria-label="Review reason"
+        >
+          <option value="">Reason</option>
+          <option value="POLICY">POLICY</option>
+          <option value="ABUSE">ABUSE</option>
+          <option value="SPAM">SPAM</option>
+          <option value="OFF_TOPIC">OFF_TOPIC</option>
+          <option value="OTHER">OTHER</option>
         </AdminActionSelect>
         <AdminActionButton disabled={isPending} onClick={save} tone="primary">
           Save

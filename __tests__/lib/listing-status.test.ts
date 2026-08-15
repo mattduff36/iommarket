@@ -16,8 +16,8 @@ describe("isValidTransition", () => {
     expect(isValidTransition("PENDING", "LIVE")).toBe(true);
   });
 
-  it("allows PENDING → TAKEN_DOWN (rejection)", () => {
-    expect(isValidTransition("PENDING", "TAKEN_DOWN")).toBe(true);
+  it("allows PENDING → REJECTED (rejection)", () => {
+    expect(isValidTransition("PENDING", "REJECTED")).toBe(true);
   });
 
   it("allows LIVE → EXPIRED", () => {
@@ -50,9 +50,9 @@ describe("isValidTransition", () => {
     expect(isValidTransition("LIVE", "DRAFT")).toBe(false);
   });
 
-  it("disallows TAKEN_DOWN → anything", () => {
-    expect(isValidTransition("TAKEN_DOWN", "DRAFT")).toBe(false);
-    expect(isValidTransition("TAKEN_DOWN", "LIVE")).toBe(false);
+  it("allows TAKEN_DOWN restore paths only", () => {
+    expect(isValidTransition("TAKEN_DOWN", "DRAFT")).toBe(true);
+    expect(isValidTransition("TAKEN_DOWN", "LIVE")).toBe(true);
     expect(isValidTransition("TAKEN_DOWN", "PENDING")).toBe(false);
   });
 
@@ -66,12 +66,12 @@ describe("getValidNextStatuses", () => {
     expect(getValidNextStatuses("DRAFT")).toEqual(["PENDING"]);
   });
 
-  it("returns LIVE and TAKEN_DOWN for PENDING", () => {
-    expect(getValidNextStatuses("PENDING")).toEqual(["LIVE", "TAKEN_DOWN"]);
+  it("returns LIVE and REJECTED for PENDING", () => {
+    expect(getValidNextStatuses("PENDING")).toEqual(["LIVE", "REJECTED"]);
   });
 
-  it("returns empty array for TAKEN_DOWN", () => {
-    expect(getValidNextStatuses("TAKEN_DOWN")).toEqual([]);
+  it("returns restore targets for TAKEN_DOWN", () => {
+    expect(getValidNextStatuses("TAKEN_DOWN")).toEqual(["LIVE", "DRAFT"]);
   });
 });
 

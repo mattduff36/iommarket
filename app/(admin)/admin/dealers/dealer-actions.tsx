@@ -48,11 +48,11 @@ export function DealerActions({
       const result = await downgradeDealerToUser(dealerId);
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed");
-      } else {
-        router.refresh();
+        return;
       }
+      setShowConfirm(false);
+      router.refresh();
     });
-    setShowConfirm(false);
   }
 
   return (

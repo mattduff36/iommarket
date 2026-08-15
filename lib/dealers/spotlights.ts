@@ -7,6 +7,7 @@ export interface DealerSpotlight {
   slug: string;
   bio: string | null;
   logoUrl: string | null;
+  verified: boolean;
   _count: {
     listings: number;
   };
@@ -15,20 +16,38 @@ export interface DealerSpotlight {
 /**
  * Returns dealers that can safely be promoted on a public page.
  *
- * Verification is the existing admin approval signal. The owner checks keep
- * suspended, deleted, and demoted accounts out even if their profile remains.
+ * Verification is the existing admin approval signal used for homepage
+ * promotion. The owner checks keep suspended, deleted, and demoted accounts
+ * out even if their profile remains.
  */
 export function getDealerSpotlightQuery(
   liveListingWhere: Prisma.ListingWhereInput,
 ) {
+  return getDealerCardQuery(liveListingWhere, {
+    ...getPublicDealerWhere(),
+    verified: true,
+  });
+}
+
+export function getDealerDirectoryQuery(
+  liveListingWhere: Prisma.ListingWhereInput,
+) {
+  return getDealerCardQuery(liveListingWhere, getPublicDealerWhere());
+}
+
+function getDealerCardQuery(
+  liveListingWhere: Prisma.ListingWhereInput,
+  where: Prisma.DealerProfileWhereInput,
+) {
   return {
-    where: getPublicDealerWhere(),
+    where,
     select: {
       id: true,
       name: true,
       slug: true,
       bio: true,
       logoUrl: true,
+      verified: true,
       _count: {
         select: {
           listings: { where: liveListingWhere },
@@ -36,12 +55,6 @@ export function getDealerSpotlightQuery(
       },
     },
   } satisfies Prisma.DealerProfileFindManyArgs;
-}
-
-export function getDealerDirectoryQuery(
-  liveListingWhere: Prisma.ListingWhereInput,
-) {
-  return getDealerSpotlightQuery(liveListingWhere);
 }
 
 export function sortDealersAlphabetically<

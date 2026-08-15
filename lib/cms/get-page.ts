@@ -6,6 +6,6 @@ import { db } from "@/lib/db";
  */
 export async function getPublishedPage(slug: string) {
   return db.contentPage.findFirst({
-    where: { slug, status: "PUBLISHED" },
+    where: { slug, status: "PUBLISHED", deletedAt: null },
   });
 }

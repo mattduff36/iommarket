@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import { DealerLogo } from "@/components/dealers/dealer-logo";
+import { Badge } from "@/components/ui/badge";
 import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
 import type { DealerSpotlight } from "@/lib/dealers/spotlights";
@@ -27,9 +28,16 @@ export function DealerCard({ dealer, className }: DealerCardProps) {
           dealerName={dealer.name}
           className="h-14 w-14 rounded-xl border border-white/10 bg-graphite-800 text-lg"
         />
-        <h3 className="min-w-0 text-base font-semibold text-text-primary">
-          {dealer.name}
-        </h3>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-text-primary">
+            {dealer.name}
+          </h3>
+          {dealer.verified ? (
+            <Badge variant="success" className="mt-2">
+              Verified Dealer
+            </Badge>
+          ) : null}
+        </div>
       </div>
 
       <p className="mt-4 line-clamp-4 text-sm leading-6 text-text-secondary">

@@ -83,7 +83,11 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
 
     await db.payment.update({
       where: { id: payment.id },
-      data: { status: "REFUNDED" },
+      data: {
+        status: "REFUNDED",
+        refundReason: parsed.data.reason,
+        refundedAt: new Date(),
+      },
     });
 
     await logAdminAction({
@@ -95,6 +99,8 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
         paymentProvider: payment.paymentProvider,
         providerPaymentId: getPaymentDisplayId(payment),
         amount: payment.amount,
+        reason: parsed.data.reason,
+        notes: parsed.data.notes ?? null,
       },
     });
 
@@ -149,6 +155,14 @@ export async function adminRefundSubscriptionPayment(
 
     await refundProviderPayment(latestPaid.paymentIntentId);
 
+    await db.subscription.update({
+      where: { id: sub.id },
+      data: {
+        status: parsed.data.reason === "FRAUD" ? "CANCELLED" : sub.status,
+        cancelAtPeriodEnd: true,
+      },
+    });
+
     await logAdminAction({
       adminId: admin.id,
       action: "REFUND_SUBSCRIPTION_PAYMENT",
@@ -161,6 +175,8 @@ export async function adminRefundSubscriptionPayment(
         providerPaymentId: latestPaid.paymentIntentId,
         amount: latestPaid.amountPaid,
         currency: latestPaid.currency,
+        reason: parsed.data.reason,
+        notes: parsed.data.notes ?? null,
       },
     });
 
@@ -207,12 +223,12 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
     }
     await cancelProviderSubscription(providerSubscriptionId, parsed.data.immediately);
 
-    if (parsed.data.immediately) {
-      await db.subscription.update({
-        where: { id: sub.id },
-        data: { status: "CANCELLED" },
-      });
-    }
+    await db.subscription.update({
+      where: { id: sub.id },
+      data: parsed.data.immediately
+        ? { status: "CANCELLED", cancelAtPeriodEnd: false }
+        : { cancelAtPeriodEnd: true },
+    });
 
     await logAdminAction({
       adminId: admin.id,
@@ -223,6 +239,8 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
         paymentProvider: sub.paymentProvider,
         providerSubscriptionId: getSubscriptionDisplayId(sub),
         immediately: parsed.data.immediately,
+        reason: parsed.data.reason,
+        notes: parsed.data.notes ?? null,
       },
     });
 

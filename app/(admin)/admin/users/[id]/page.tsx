@@ -94,7 +94,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
         <h1 className="text-2xl font-bold text-text-primary">
           {user.name ?? user.email}
         </h1>
-        {user.disabledAt && <Badge variant="error">Disabled</Badge>}
+        {user.deletedAt && <Badge variant="error">Deleted</Badge>}
+        {user.disabledAt && !user.deletedAt && <Badge variant="error">Disabled</Badge>}
       </div>
 
       {/* Actions */}
@@ -103,6 +104,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
           userId={user.id}
           currentRole={user.role}
           isDisabled={!!user.disabledAt}
+          isDeleted={!!user.deletedAt}
           userLabel={user.name ?? user.email}
           hasActiveAdminGrant={adminGrantState === "ACTIVE"}
           redirectOnDelete="/admin/users"

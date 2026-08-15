@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
+import { liveListingWhere } from "@/lib/listings/expiry";
 import {
   createRegionSchema,
   updateRegionSchema,
@@ -81,6 +82,9 @@ export async function toggleRegionActive(id: string, active: boolean) {
   if (!id) return { error: "Missing id" };
 
   try {
+    const liveListingCount = await db.listing.count({
+      where: { regionId: id, ...liveListingWhere() },
+    });
     const region = await db.region.update({ where: { id }, data: { active } });
 
     await logAdminAction({
@@ -88,6 +92,7 @@ export async function toggleRegionActive(id: string, active: boolean) {
       action: active ? "ENABLE_REGION" : "DISABLE_REGION",
       entityType: "Region",
       entityId: id,
+      details: { liveListingCount },
     });
 
     revalidatePath("/admin/regions");

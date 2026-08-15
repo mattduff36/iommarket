@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { getPublishedPage } from "@/lib/cms/get-page";
 import { MarkdownRenderer } from "@/components/cms/markdown-renderer";
 
+export const dynamic = "force-dynamic";
+
 const FALLBACK_CONTENT = `iTrader.im provides a marketplace platform for users to list and discover vehicles on the Isle of Man. You are responsible for the accuracy of your listing and communications.
 
 Listings may be moderated and removed if they breach our trust and safety standards. Payments for paid products are processed by Ripple.

@@ -30,6 +30,7 @@ export async function GET() {
   await requireRole("ADMIN");
 
   const rows = await db.waitlistUser.findMany({
+    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       email: true,

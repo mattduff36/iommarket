@@ -1,4 +1,5 @@
 import type { Prisma, UserRole } from "@prisma/client";
+import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 
 interface DealerAccessSubject {
   role: UserRole;
@@ -45,14 +46,13 @@ export function getPublicDealerWhere(
   now = new Date()
 ): Prisma.DealerProfileWhereInput {
   return {
-    verified: true,
     subscriptions: {
       some: {
-        status: "ACTIVE",
         OR: [
-          { source: "PAYMENT" },
+          getPaidSubscriptionEntitlementWhere(now),
           {
             source: "ADMIN_GRANT",
+            status: "ACTIVE",
             revokedAt: null,
             grantStartsAt: { lte: now },
             grantEndsAt: { gt: now },

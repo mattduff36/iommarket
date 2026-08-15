@@ -51,7 +51,6 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
           reviewerName: currentUser.name?.trim() || null,
           reviewerDeviceId: null,
           status: "PENDING",
-          adminNotes: null,
           moderatedAt: null,
         },
         create: {
@@ -89,7 +88,6 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
         reviewerName: null,
         comment: null,
         status: "PENDING",
-        adminNotes: null,
         moderatedAt: null,
       },
       create: {
@@ -111,23 +109,60 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
 }
 
 export async function moderateDealerReview(input: ModerateDealerReviewInput) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   const parsed = moderateDealerReviewSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    const review = await db.dealerReview.update({
-      where: { id: parsed.data.reviewId },
-      data: {
-        status: parsed.data.status,
-        adminNotes: parsed.data.adminNotes?.trim() || null,
-        moderatedAt: new Date(),
-      },
-      include: {
-        dealer: { select: { slug: true } },
-      },
+    const review = await db.$transaction(async (tx) => {
+      const existing = await tx.dealerReview.findUnique({
+        where: { id: parsed.data.reviewId },
+        include: { dealer: { select: { slug: true } } },
+      });
+      if (!existing) throw new Error("Review not found");
+
+      const updated = await tx.dealerReview.update({
+        where: { id: parsed.data.reviewId },
+        data: {
+          status: parsed.data.status,
+          adminNotes: parsed.data.adminNotes?.trim() || null,
+          moderatedAt: new Date(),
+        },
+        include: {
+          dealer: { select: { slug: true } },
+        },
+      });
+
+      await tx.dealerReviewModerationEvent.create({
+        data: {
+          reviewId: existing.id,
+          fromStatus: existing.status,
+          toStatus: parsed.data.status,
+          reasonCode: parsed.data.reasonCode,
+          adminNotes: parsed.data.adminNotes?.trim() || null,
+          changedByUserId: admin.id,
+        },
+      });
+
+      const { logAdminAction } = await import("@/lib/admin/audit");
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: "MODERATE_DEALER_REVIEW",
+          entityType: "DealerReview",
+          entityId: existing.id,
+          details: {
+            fromStatus: existing.status,
+            toStatus: parsed.data.status,
+            reasonCode: parsed.data.reasonCode ?? null,
+          },
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     revalidatePath(`/dealers/${review.dealer.slug}`);
