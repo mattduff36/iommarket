@@ -139,20 +139,49 @@ export async function verifyDealer(dealerId: string, verified: boolean) {
   if (!dealerId) return { error: "Missing dealerId" };
 
   try {
-    const profile = await db.dealerProfile.update({
-      where: { id: dealerId },
-      data: { verified },
+    const result = await db.$transaction(async (tx) => {
+      const existing = await tx.dealerProfile.findUnique({
+        where: { id: dealerId },
+        include: { user: { select: { email: true } } },
+      });
+      if (!existing) throw new Error("Dealer not found");
+
+      const profile = await tx.dealerProfile.update({
+        where: { id: dealerId },
+        data: { verified },
+      });
+
+      await logAdminAction(
+        {
+          adminId: admin.id,
+          action: verified ? "VERIFY_DEALER" : "UNVERIFY_DEALER",
+          entityType: "DealerProfile",
+          entityId: dealerId,
+        },
+        tx,
+      );
+
+      return {
+        profile,
+        changed: existing.verified !== verified,
+        email: existing.user.email,
+        name: existing.name,
+      };
     });
 
-    await logAdminAction({
-      adminId: admin.id,
-      action: verified ? "VERIFY_DEALER" : "UNVERIFY_DEALER",
-      entityType: "DealerProfile",
-      entityId: dealerId,
-    });
+    if (result.changed) {
+      const { sendDealerVerificationEmail } = await import(
+        "@/lib/email/dealer-notifications"
+      );
+      await sendDealerVerificationEmail({
+        to: result.email,
+        dealerName: result.name,
+        verified,
+      });
+    }
 
     revalidatePath("/admin/dealers");
-    return { data: profile };
+    return { data: result.profile };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update verification";
     return { error: message };

@@ -26,6 +26,10 @@ vi.mock("@/lib/listings/status-events", () => ({
   transitionListingStatus: transitionListingStatusMock,
 }));
 
+vi.mock("@/lib/email/listing-notifications", () => ({
+  dispatchListingNotifications: vi.fn(),
+}));
+
 vi.mock("@/lib/admin/audit", () => ({
   logAdminAction: logAdminActionMock,
 }));
@@ -53,6 +57,10 @@ describe("takeDownListingFromReport ALR-RPT-001 ALR-RPT-002", () => {
       listing: { id: "cllistingxxxxxxxxxxxxxxxxxx", status: "LIVE", lifecycleRevision: 3 },
     });
     reportUpdate.mockResolvedValue({ status: "ACTIONED" });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "cllistingxxxxxxxxxxxxxxxxxx", status: "TAKEN_DOWN" },
+      notification: { eventId: "evt-1" },
+    });
     transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
         report: { update: reportUpdate },

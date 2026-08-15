@@ -3,6 +3,7 @@ import type { ListingStatus, Prisma } from "@prisma/client";
 export const ADMIN_LISTING_STATUS_FILTERS = [
   "ALL",
   "PENDING",
+  "PENDING_EDITS",
   "LIVE",
   "TAKEN_DOWN",
   "REJECTED",
@@ -54,7 +55,18 @@ export function buildAdminListingArchiveWhere(input: {
   query: string;
 }): Prisma.ListingWhereInput {
   return {
-    ...(input.status !== "ALL" ? { status: input.status as ListingStatus } : {}),
+    ...(input.status === "PENDING_EDITS"
+      ? { revisions: { some: { status: "PENDING" as const } } }
+      : input.status === "PENDING"
+        ? {
+            OR: [
+              { status: "PENDING" as const },
+              { revisions: { some: { status: "PENDING" as const } } },
+            ],
+          }
+      : input.status !== "ALL"
+        ? { status: input.status as ListingStatus }
+        : {}),
     ...(input.query
       ? {
           OR: [

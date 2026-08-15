@@ -18,6 +18,8 @@ import {
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
 import { transitionListingStatus } from "@/lib/listings/status-events";
+import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
+import { approveRevision, rejectRevision } from "@/lib/listings/revisions";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -32,11 +34,52 @@ export async function moderateListing(input: ModerateListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const { listingId, action, adminNotes, expectedRevision, reasonCode, reportId } =
-    parsed.data;
+  const {
+    listingId,
+    action,
+    adminNotes,
+    expectedRevision,
+    expectedRevisionVersion,
+    reasonCode,
+    reportId,
+  } = parsed.data;
 
   try {
-    const listing = await transitionListingStatus({
+    if (action === "APPROVE_REVISION") {
+      if (expectedRevisionVersion == null) {
+        return { error: "A revision version is required." };
+      }
+      const result = await approveRevision({
+        listingId,
+        adminId: admin.id,
+        expectedListingRevision: expectedRevision,
+        expectedVersion: expectedRevisionVersion,
+      });
+      revalidatePath("/admin/listings");
+      revalidatePath(`/listings/${listingId}`);
+      revalidatePath("/");
+      return { data: result.listing };
+    }
+    if (action === "REJECT_REVISION") {
+      if (!reasonCode) return { error: "A reason is required." };
+      if (expectedRevisionVersion == null) {
+        return { error: "A revision version is required." };
+      }
+      const result = await rejectRevision({
+        listingId,
+        adminId: admin.id,
+        expectedListingRevision: expectedRevision,
+        expectedVersion: expectedRevisionVersion,
+        reasonCode,
+        notes: adminNotes,
+      });
+      revalidatePath("/admin/listings");
+      revalidatePath(`/listings/${listingId}`);
+      revalidatePath("/");
+      return { data: result.listing };
+    }
+
+    const result = await transitionListingStatus({
       listingId,
       action,
       expectedRevision,
@@ -50,7 +93,7 @@ export async function moderateListing(input: ModerateListingInput) {
     revalidatePath("/admin/listings");
     revalidatePath(`/listings/${listingId}`);
     revalidatePath("/");
-    return { data: listing };
+    return { data: result.listing };
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to moderate listing";
@@ -128,7 +171,14 @@ export async function getAdminStats() {
     recentPayments,
   ] = await Promise.all([
     db.listing.count(),
-    db.listing.count({ where: { status: "PENDING" } }),
+    db.listing.count({
+      where: {
+        OR: [
+          { status: "PENDING" },
+          { revisions: { some: { status: "PENDING" } } },
+        ],
+      },
+    }),
     db.listing.count({ where: liveListingWhere() }),
     db.dealerProfile.count(),
     db.report.count({ where: { status: "OPEN" } }),
@@ -231,9 +281,10 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
       return { error: "This listing cannot be taken down from its current status." };
     }
 
-    await db.$transaction(async (tx) => {
+    const notifications = await db.$transaction(async (tx) => {
+      const collected = [];
       if (report.listing.status === "LIVE" || report.listing.status === "APPROVED") {
-        await transitionListingStatus(
+        const result = await transitionListingStatus(
           {
             listingId: report.listingId,
             action: "TAKE_DOWN",
@@ -246,8 +297,9 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
           },
           tx,
         );
+        collected.push(result.notification);
       } else if (report.listing.status === "PENDING") {
-        await transitionListingStatus(
+        const result = await transitionListingStatus(
           {
             listingId: report.listingId,
             action: "REJECT",
@@ -260,6 +312,7 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
           },
           tx,
         );
+        collected.push(result.notification);
       }
 
       await tx.report.update({
@@ -282,7 +335,14 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
         },
         tx,
       );
+      return collected;
     });
+
+    try {
+      await dispatchListingNotifications(notifications);
+    } catch {
+      // Email is best-effort after the report take-down commit.
+    }
 
     revalidatePath("/admin/reports");
     revalidatePath("/admin/listings");

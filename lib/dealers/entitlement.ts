@@ -79,7 +79,6 @@ export function isPaidSubscriptionEntitled(
   now = new Date()
 ) {
   if (subscription.status !== "ACTIVE") return false;
-  if (!subscription.cancelAtPeriodEnd) return true;
   return (
     subscription.currentPeriodEnd !== null && subscription.currentPeriodEnd > now
   );
@@ -91,7 +90,7 @@ export function getPaidSubscriptionEntitlementWhere(
   return {
     source: "PAYMENT",
     status: "ACTIVE",
-    OR: [{ cancelAtPeriodEnd: false }, { currentPeriodEnd: { gt: now } }],
+    currentPeriodEnd: { gt: now },
   };
 }
 

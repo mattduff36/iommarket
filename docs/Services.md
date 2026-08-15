@@ -57,21 +57,20 @@
   - featured upsell one-time checkout
   - webhook-driven status sync + idempotency
 - **Env vars**:
+  - `RIPPLE_CLIENT_ID`
   - `RIPPLE_LISTING_PAYMENT_URL`
-  - `RIPPLE_LISTING_SUPPORT_URL`
   - `RIPPLE_FEATURED_PAYMENT_URL`
   - `RIPPLE_DEALER_STARTER_URL`
   - `RIPPLE_DEALER_PRO_URL`
-  - `RIPPLE_DEALER_STARTER_PLAN_ID`
-  - `RIPPLE_DEALER_PRO_PLAN_ID`
   - `RIPPLE_WEBHOOK_SECRET`
+  - `RIPPLE_REFERENCE_SECRET`
+  - `RIPPLE_LIVE_CHECKOUT_ENABLED`
   - `RIPPLE_DASHBOARD_URL`
   - `LAUNCH_FREE_UNTIL` (ISO timestamp for time-based free window)
   - `FREE_LISTING_WINDOW_DAYS` (default 30)
-- **Pricing**: marketplace amounts are managed in Admin → Site Settings and stored as integer pence in `SiteSetting`. Server actions retrieve them directly before constructing the Ripple checkout URL; environment variables are not a pricing source.
-- **Local**: use Ripple demo/hosted links and a publicly reachable webhook URL.
-- **Staging**: dedicated Ripple hosted links and webhook endpoint.
-- **Production**: live Ripple portal configuration plus monitored webhook retries.
+- **Pricing**: Admin Site Settings must match the four fixed Ripple link prices (£4.99, £5.00, £29.99, £49.99). Checkout and fulfillment fail closed on drift.
+- **Local**: use the four `/pay/{code}` links and a reachable webhook URL. Keep live checkout disabled unless testing with the kill switch.
+- **Staging / production**: same fixed links, `X-Ripple-Signature` verification, inbox retry cron, and daily portal reconciliation because Ripple does not retry.
 
 ## Email
 
@@ -149,7 +148,7 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 
 ### 2. Ripple
 - **Webhook secret**: rotate it from the Ripple portal/onboarding contact and update `RIPPLE_WEBHOOK_SECRET` in Vercel and local env files.
-- **Hosted payment URLs / plan IDs**: update `RIPPLE_*` URLs and plan IDs whenever Ripple regenerates or replaces them.
+- **Hosted payment URLs / reference secret**: update the four `RIPPLE_*_URL` values and `RIPPLE_REFERENCE_SECRET` whenever Ripple regenerates a link or the reference secret is rotated. There are no plan IDs.
 
 ### 3. Cloudinary
 - **API secret**: Cloudinary Console → Settings → Access Keys → Generate new key pair. Update `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`.

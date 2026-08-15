@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  paymentFindFirst,
+  paymentFindMany,
   paymentUpdate,
   subscriptionFindFirst,
   subscriptionUpdate,
   captureBusinessEvent,
 } = vi.hoisted(() => ({
-  paymentFindFirst: vi.fn(),
+  paymentFindMany: vi.fn(),
   paymentUpdate: vi.fn(),
   subscriptionFindFirst: vi.fn(),
   subscriptionUpdate: vi.fn(),
@@ -17,7 +17,7 @@ const {
 vi.mock("@/lib/db", () => ({
   db: {
     payment: {
-      findFirst: paymentFindFirst,
+      findMany: paymentFindMany,
       update: paymentUpdate,
     },
     subscription: {
@@ -55,6 +55,14 @@ function baseEvent(
     currency: "GBP",
     currentPeriodEnd: null,
     cancelAtPeriodEnd: null,
+    eventTimestamp: new Date("2026-08-15T10:00:00.000Z"),
+    clientId: "codelabplatfdcf3a8",
+    customerEmail: null,
+    linkCode: null,
+    packageName: null,
+    recurring: false,
+    linkType: "one-off",
+    fingerprint: "evt-1",
     metadata: {
       checkoutType: "listing_payment",
       listingId: "listing-1",
@@ -72,10 +80,12 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
   });
 
   it("marks matching payments refunded with a retained reason", async () => {
-    paymentFindFirst.mockResolvedValue({
-      id: "local-pay",
-      refundReason: "FRAUD",
-    });
+    paymentFindMany.mockResolvedValue([
+      {
+        id: "local-pay",
+        refundReason: "FRAUD",
+      },
+    ]);
 
     await processProviderWebhookEvent(baseEvent({ type: "payment.refunded" }));
 
@@ -89,7 +99,7 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
   });
 
   it("is idempotent when the refund webhook has no local payment", async () => {
-    paymentFindFirst.mockResolvedValue(null);
+    paymentFindMany.mockResolvedValue([]);
     subscriptionFindFirst.mockResolvedValue(null);
     await processProviderWebhookEvent(baseEvent({ type: "payment.refunded" }));
     expect(paymentUpdate).not.toHaveBeenCalled();
@@ -102,7 +112,7 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
   });
 
   it("schedules entitlement end for unmatched subscription refunds", async () => {
-    paymentFindFirst.mockResolvedValue(null);
+    paymentFindMany.mockResolvedValue([]);
     subscriptionFindFirst.mockResolvedValue({ id: "sub-1" });
 
     await processProviderWebhookEvent(

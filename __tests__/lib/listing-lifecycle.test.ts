@@ -18,6 +18,10 @@ describe("listing lifecycle matrix ALR-LST-001", () => {
     expect(canTransitionAction("TAKE_DOWN", "LIVE")).toBe(true);
     expect(canTransitionAction("REINSTATE_LIVE", "TAKEN_DOWN")).toBe(true);
     expect(canTransitionAction("RETURN_TO_DRAFT", "REJECTED")).toBe(true);
+    expect(canTransitionAction("SUBMIT", "TAKEN_DOWN")).toBe(true);
+    expect(canTransitionAction("SUBMIT", "REJECTED")).toBe(true);
+    expect(canTransitionAction("SUBMIT_REVISION", "LIVE")).toBe(true);
+    expect(getActionTargetStatus("SUBMIT_REVISION")).toBe("LIVE");
     expect(Object.keys(LIFECYCLE_ACTION_TRANSITIONS)).toContain("ACCOUNT_DISABLE");
   });
 

@@ -19,6 +19,8 @@ interface ListingModerationActionsProps {
   featured: boolean;
   lifecycleRevision: number;
   canReinstateLive?: boolean;
+  hasPendingRevision?: boolean;
+  pendingRevisionVersion?: number;
   variant?: "inline" | "floating";
   className?: string;
 }
@@ -33,27 +35,48 @@ export function ListingModerationActions({
   featured,
   lifecycleRevision,
   canReinstateLive = false,
+  hasPendingRevision = false,
+  pendingRevisionVersion,
   variant = "inline",
   className,
 }: ListingModerationActionsProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<
-    "REJECT" | "TAKE_DOWN" | "REINSTATE_LIVE" | "RETURN_TO_DRAFT" | null
+    | "REJECT"
+    | "TAKE_DOWN"
+    | "REINSTATE_LIVE"
+    | "RETURN_TO_DRAFT"
+    | "REJECT_REVISION"
+    | null
   >(null);
   const router = useRouter();
 
   const canApprove = currentStatus === "PENDING";
   const canReject = currentStatus === "PENDING";
+  const canApproveRevision = currentStatus === "LIVE" && hasPendingRevision;
   const canTakeDown = currentStatus === "LIVE" || currentStatus === "APPROVED";
   const canRestore = currentStatus === "TAKEN_DOWN" || currentStatus === "REJECTED";
   const canFeature = currentStatus === "LIVE";
-  const hasActions = canApprove || canReject || canTakeDown || canRestore || canFeature;
+  const hasActions =
+    canApprove ||
+    canReject ||
+    canApproveRevision ||
+    canTakeDown ||
+    canRestore ||
+    canFeature;
 
   if (!hasActions) return null;
 
   function runAction(
-    action: "APPROVE" | "REJECT" | "TAKE_DOWN" | "REINSTATE_LIVE" | "RETURN_TO_DRAFT",
+    action:
+      | "APPROVE"
+      | "REJECT"
+      | "TAKE_DOWN"
+      | "REINSTATE_LIVE"
+      | "RETURN_TO_DRAFT"
+      | "APPROVE_REVISION"
+      | "REJECT_REVISION",
     reasonCode?: string,
     adminNotes?: string,
   ) {
@@ -64,6 +87,7 @@ export function ListingModerationActions({
           listingId,
           action,
           expectedRevision: lifecycleRevision,
+          expectedRevisionVersion: pendingRevisionVersion,
           reasonCode: reasonCode as ListingModerationReason | undefined,
           adminNotes,
         });
@@ -131,6 +155,24 @@ export function ListingModerationActions({
             disabled={isPending}
           >
             Approve
+          </AdminActionButton>
+        ) : null}
+        {canApproveRevision ? (
+          <AdminActionButton
+            tone="success"
+            onClick={() => runAction("APPROVE_REVISION")}
+            disabled={isPending}
+          >
+            Approve edits
+          </AdminActionButton>
+        ) : null}
+        {canApproveRevision ? (
+          <AdminActionButton
+            tone="danger"
+            onClick={() => setDialog("REJECT_REVISION")}
+            disabled={isPending}
+          >
+            Reject edits
           </AdminActionButton>
         ) : null}
         {canReject ? (

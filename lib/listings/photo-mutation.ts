@@ -92,9 +92,37 @@ export async function syncListingImagesForUser({
     },
   });
   if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== userId && !isAdmin) return { error: "Not authorized" };
-  if (listing.status !== "DRAFT" && listing.status !== "EXPIRED") {
-    return { error: "Photos can only be changed while the listing is a draft or expired." };
+  if (listing.userId !== userId) return { error: "Not authorized" };
+  if (listing.status === "LIVE") {
+    const { getOpenRevision, getOrCreateDraftRevision } = await import(
+      "@/lib/listings/revisions"
+    );
+    const { syncRevisionImagesForUser } = await import("@/lib/listings/revision-photos");
+    const revision =
+      (await getOpenRevision(listingId)) ??
+      (await getOrCreateDraftRevision({ listingId, userId }));
+    if (revision.status !== "DRAFT") {
+      return { error: "Photos can only be changed while the revision is a draft." };
+    }
+    const currentListing = await db.listing.findUniqueOrThrow({
+      where: { id: listingId },
+      select: { lifecycleRevision: true },
+    });
+    return syncRevisionImagesForUser({
+      listingId,
+      userId,
+      revisionId: revision.id,
+      expectedListingRevision: currentListing.lifecycleRevision,
+      photos: input,
+    });
+  }
+  if (
+    listing.status !== "DRAFT" &&
+    listing.status !== "EXPIRED" &&
+    listing.status !== "TAKEN_DOWN" &&
+    listing.status !== "REJECTED"
+  ) {
+    return { error: "Photos can only be changed while the listing is editable." };
   }
 
   if (listing.lastPhotoMutationId === input.mutationId) {
@@ -143,8 +171,13 @@ export async function syncListingImagesForUser({
       if (!currentListing) {
         throw new Error("Listing not found");
       }
-      if (currentListing.status !== "DRAFT" && currentListing.status !== "EXPIRED") {
-        throw new Error("Photos can only be changed while the listing is a draft or expired.");
+      if (
+        currentListing.status !== "DRAFT" &&
+        currentListing.status !== "EXPIRED" &&
+        currentListing.status !== "TAKEN_DOWN" &&
+        currentListing.status !== "REJECTED"
+      ) {
+        throw new Error("Photos can only be changed while the listing is editable.");
       }
       if (currentListing.photoRevision !== input.basePhotoRevision) {
         throw new PhotoRevisionConflictError(currentListing.photoRevision);
@@ -294,7 +327,7 @@ export async function syncListingImagesForUser({
         where: {
           id: listingId,
           photoRevision: input.basePhotoRevision,
-          status: { in: ["DRAFT", "EXPIRED"] },
+          status: { in: ["DRAFT", "EXPIRED", "TAKEN_DOWN", "REJECTED"] },
         },
         data: {
           photoRevision: { increment: 1 },
@@ -310,8 +343,13 @@ export async function syncListingImagesForUser({
         if (!latest) {
           throw new Error("Listing not found");
         }
-        if (latest.status !== "DRAFT" && latest.status !== "EXPIRED") {
-          throw new Error("Photos can only be changed while the listing is a draft or expired.");
+        if (
+          latest.status !== "DRAFT" &&
+          latest.status !== "EXPIRED" &&
+          latest.status !== "TAKEN_DOWN" &&
+          latest.status !== "REJECTED"
+        ) {
+          throw new Error("Photos can only be changed while the listing is editable.");
         }
         throw new PhotoRevisionConflictError(latest.photoRevision);
       }

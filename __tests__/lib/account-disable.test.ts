@@ -16,6 +16,10 @@ describe("account disable listings ALR-IDN-001", () => {
   });
 
   it("takes down live listings and rejects pending ones without deleting records", async () => {
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "x" },
+      notification: null,
+    });
     const tx = {
       listing: {
         findMany: vi.fn().mockResolvedValue([
@@ -33,7 +37,7 @@ describe("account disable listings ALR-IDN-001", () => {
         source: "ADMIN",
         notes: "Account disabled",
       }),
-    ).resolves.toBe(2);
+    ).resolves.toEqual({ count: 2, notifications: [] });
 
     expect(transitionListingStatusMock).toHaveBeenCalledWith(
       expect.objectContaining({

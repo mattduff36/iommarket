@@ -146,6 +146,15 @@ describe("moderateListingSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("requires a revision version when approving edits", () => {
+    const result = moderateListingSchema.safeParse({
+      listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      action: "APPROVE_REVISION",
+      expectedRevision: 2,
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects invalid action", () => {
     const result = moderateListingSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",

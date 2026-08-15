@@ -115,11 +115,11 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
   }
 
   try {
-    await db.$transaction(async (tx) => {
+    const notifications = await db.$transaction(async (tx) => {
       const { applyAccountDisableToListings } = await import(
         "@/lib/listings/account-disable"
       );
-      await applyAccountDisableToListings({
+      const disabled = await applyAccountDisableToListings({
         tx,
         userId: user.id,
         actor: { id: user.id, role: "USER" },
@@ -137,7 +137,17 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
           disabledReason: "Account deleted by user",
         },
       });
+      return disabled.notifications;
     });
+
+    const { dispatchListingNotifications } = await import(
+      "@/lib/email/listing-notifications"
+    );
+    try {
+      await dispatchListingNotifications(notifications);
+    } catch {
+      // Email is best-effort after the account-disable commit.
+    }
 
     revalidatePath("/");
     revalidatePath("/account");

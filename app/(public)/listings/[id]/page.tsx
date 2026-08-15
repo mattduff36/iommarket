@@ -24,6 +24,7 @@ import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
+import { PendingRevisionReview } from "@/components/admin/pending-revision-review";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { ListingImageGallery } from "./listing-image-gallery";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
@@ -33,6 +34,7 @@ import {
   liveListingWhere,
 } from "@/lib/listings/expiry";
 import {
+  canInspectPendingRevision,
   canViewListing,
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
@@ -128,7 +130,11 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   const isTakenDown = listing.status === "TAKEN_DOWN" || listing.status === "REJECTED";
   const isSold = listing.status === "SOLD";
   const isAdminUser = currentUser?.role === "ADMIN";
-  const showAdminReviewActions = isAdminUser && sp.adminReview === "1";
+  const showAdminReviewActions = canInspectPendingRevision({
+    status: listing.status,
+    reviewRequested: sp.adminReview === "1",
+    viewer: currentUser,
+  });
   const isVisible = isListingPubliclyVisible({
     status: listing.status,
     expiresAt: listing.expiresAt,
@@ -189,6 +195,21 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   }
 
   if (!canView) notFound();
+
+  const pendingRevision =
+    showAdminReviewActions
+      ? await db.listingRevision.findFirst({
+          where: { listingId: listing.id, status: "PENDING" },
+          include: {
+            category: { select: { name: true } },
+            region: { select: { name: true } },
+            images: { orderBy: { order: "asc" }, select: listingPhotoSelect },
+            attributeValues: {
+              include: { attributeDefinition: { select: { name: true } } },
+            },
+          },
+        })
+      : null;
 
   const latestModeration = isTakenDown
     ? await db.listingStatusEvent.findFirst({
@@ -264,6 +285,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               }),
             )
           }
+          hasPendingRevision={Boolean(pendingRevision)}
+          pendingRevisionVersion={pendingRevision?.version}
           variant="floating"
         />
       ) : null}
@@ -274,6 +297,44 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           { label: listing.title },
         ]}
       />
+
+      {showAdminReviewActions && pendingRevision ? (
+        <PendingRevisionReview
+          live={{
+            title: listing.title,
+            description: listing.description,
+            price: listing.price,
+            categoryName: listing.category.name,
+            regionName: listing.region.name,
+            attributes: listing.attributeValues.map((value) => ({
+              name: value.attributeDefinition.name,
+              value: value.value,
+            })),
+            imagePublicIds: listing.images.map((image) => image.publicId),
+          }}
+          proposed={{
+            title: pendingRevision.title,
+            description: pendingRevision.description,
+            price: pendingRevision.price,
+            categoryName: pendingRevision.category.name,
+            regionName: pendingRevision.region.name,
+            attributes: pendingRevision.attributeValues.map((value) => ({
+              name: value.attributeDefinition.name,
+              value: value.value,
+            })),
+            imagePublicIds: pendingRevision.images.map((image) => image.publicId),
+          }}
+          proposedPhotos={pendingRevision.images
+            .map((image) => toListingPhotoSource(image))
+            .filter((image): image is NonNullable<typeof image> => Boolean(image))}
+        />
+      ) : null}
+
+      {isOwner && listing.status === "LIVE" ? (
+        <div className="mb-8 rounded-lg border border-neon-blue-500/30 bg-neon-blue-500/10 px-5 py-4 text-sm text-neon-blue-400">
+          You can edit this live listing. Submitted changes stay private until they are approved.
+        </div>
+      ) : null}
 
       {justUpgraded && (
         <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
@@ -529,7 +590,11 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           />
         </div>
       )}
-      {isOwner && listing.status === "DRAFT" && (
+      {isOwner &&
+        (listing.status === "DRAFT" ||
+          listing.status === "LIVE" ||
+          listing.status === "TAKEN_DOWN" ||
+          listing.status === "REJECTED") && (
         <div className="mt-8">
           <Button asChild>
             <Link
@@ -538,7 +603,11 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 dealerId: listing.dealerId,
               })}
             >
-              Continue editing draft
+              {listing.status === "DRAFT"
+                ? "Continue editing draft"
+                : listing.status === "LIVE"
+                  ? "Edit listing"
+                  : "Edit and resubmit"}
             </Link>
           </Button>
         </div>

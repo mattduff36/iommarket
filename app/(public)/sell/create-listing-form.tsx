@@ -109,6 +109,9 @@ export function CreateListingForm({
     useRippleDemoCheckout();
   const formRef = useRef<HTMLFormElement>(null);
   const isEditingDraft = Boolean(initialDraft);
+  const editMode = initialDraft?.editMode ?? (isEditingDraft ? "draft" : undefined);
+  const skipCheckout = editMode === "revision" || editMode === "resubmit";
+  const revisionLocked = Boolean(initialDraft?.revisionPending);
   const [isPending, startTransition] = useTransition();
   const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -422,6 +425,10 @@ export function CreateListingForm({
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+    if (revisionLocked) {
+      setError("Your changes are awaiting review and cannot be edited yet.");
+      return;
+    }
 
     const form = new FormData(e.currentTarget);
     if (!trustConfirmed) {
@@ -505,9 +512,11 @@ export function CreateListingForm({
           }
         }
 
-        const payResult = await payForListing(listingId, {
-          supportPlatform: mode === "private" && supportPlatform,
-        });
+        const payResult = skipCheckout
+          ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
+          : await payForListing(listingId, {
+              supportPlatform: mode === "private" && supportPlatform,
+            });
         if (payResult.error) {
           setError(
             typeof payResult.error === "string"
@@ -559,10 +568,23 @@ export function CreateListingForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            {isEditingDraft ? `Continue Editing - Step ${step} of 3` : `Create Listing - Step ${step} of 3`}
+            {editMode === "revision"
+              ? `Edit live listing - Step ${step} of 3`
+              : editMode === "resubmit"
+                ? `Edit and resubmit - Step ${step} of 3`
+                : isEditingDraft
+                  ? `Continue Editing - Step ${step} of 3`
+                  : `Create Listing - Step ${step} of 3`}
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {editMode === "revision" ? (
+            <p className="mb-4 text-sm text-text-secondary">
+              {revisionLocked
+                ? "Your changes are awaiting review. The current live listing stays public."
+                : "The current live listing stays public until these changes are approved."}
+            </p>
+          ) : null}
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <div className={isDetailsStep ? "space-y-6" : "hidden"}>
               <div className="space-y-3 rounded-lg border border-border p-4">
@@ -964,9 +986,13 @@ export function CreateListingForm({
               </Button>
             ) : (
               <Button type="submit" size="lg" className="w-full" loading={isPending}>
-                {mode === "dealer" || isFreeForUser
-                  ? "Submit Listing"
-                  : "Continue to Checkout"}
+                {editMode === "revision"
+                  ? "Submit changes for review"
+                  : editMode === "resubmit"
+                    ? "Resubmit for review"
+                    : mode === "dealer" || isFreeForUser
+                      ? "Submit Listing"
+                      : "Continue to Checkout"}
               </Button>
             )}
           </div>

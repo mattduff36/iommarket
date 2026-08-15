@@ -1,33 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  normalizeProviderWebhookEvent,
-  type NormalizedProviderWebhookEvent,
-  verifyProviderWebhookSignature,
-} from "@/lib/payments/provider";
-import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { captureException } from "@/lib/monitoring";
+import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
+import { ingestVerifiedRippleWebhook } from "@/lib/payments/ripple-inbox";
+import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
+import { verifyProviderWebhookSignature } from "@/lib/payments/provider";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
 
   try {
     verifyProviderWebhookSignature(body, req.headers);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Invalid webhook";
-    return NextResponse.json({ error: message }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
   }
 
-  let event: NormalizedProviderWebhookEvent;
+  let parsed: ReturnType<typeof parseRippleWebhookEnvelope>;
   try {
-    event = normalizeProviderWebhookEvent(JSON.parse(body));
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Webhook payload could not be parsed";
-    return NextResponse.json({ error: message }, { status: 400 });
+    parsed = parseRippleWebhookEnvelope(JSON.parse(body));
+  } catch {
+    return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
   }
 
   try {
-    await processProviderWebhookEvent(event);
+    await ingestVerifiedRippleWebhook({
+      rawBody: body,
+      event: parsed.event,
+      minimized: parsed.minimized,
+      customerEmailNorm: parsed.customerEmailNorm,
+    });
     return NextResponse.json({ received: true });
   } catch (err) {
     await captureException({
@@ -38,9 +38,10 @@ export async function POST(req: NextRequest) {
       action: "paymentsWebhookPost",
       route: "/api/webhooks/payments",
       requestPath: "/api/webhooks/payments",
-      tags: { eventType: event.type, eventId: event.id, rawType: event.rawType },
+      tags: buildRippleSafeTags({
+        eventType: parsed.event.rawType,
+      }),
     });
-    const message = err instanceof Error ? err.message : "Webhook handler error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ received: true });
   }
 }

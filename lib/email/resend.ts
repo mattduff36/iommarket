@@ -1,16 +1,9 @@
-import { Resend } from "resend";
-
-function getResendClient(): Resend | null {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
-  return new Resend(apiKey);
-}
-
-function getFromEmail(): string {
-  return process.env.RESEND_FROM_EMAIL ?? "iTrader <no-reply@example.com>";
-}
+import {
+  escapeHtml,
+  getFromEmail,
+  getResendClient,
+  parseEmailRecipients,
+} from "@/lib/email/client";
 
 export async function sendSellerContactEmail(params: {
   sellerEmail: string;
@@ -223,23 +216,6 @@ export async function sendMonitoringAlertEmail(params: {
     subject: params.subject,
     text: params.text,
   });
-}
-
-function parseEmailRecipients(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((email) => email.trim())
-    .filter((email) => email.length > 0);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 export async function sendWaitlistConfirmationEmail(params: {

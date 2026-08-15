@@ -17,6 +17,7 @@ import {
   simulateDemoDealerSubscriptionOutcome,
 } from "@/actions/payments";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
+import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
 
 interface SubscribeFormProps {
   tier: "STARTER" | "PRO";
@@ -45,6 +46,7 @@ export function SubscribeForm({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
+  const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
 
   function handleCreateProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -84,9 +86,14 @@ export function SubscribeForm({
       }
       if (result.data?.checkoutUrl) {
         openCheckout(result.data.checkoutUrl);
+        setIsAwaitingPayment(true);
         if (isRippleDemoCheckoutUrl(result.data.checkoutUrl)) {
           setNotice(
             "Demo checkout is ready in the modal below. Use the temporary outcome buttons after previewing the hosted tab."
+          );
+        } else {
+          setNotice(
+            "Ripple checkout is open in another tab. Keep this page open so we can confirm your subscription."
           );
         }
       }
@@ -223,6 +230,12 @@ export function SubscribeForm({
             >
               Subscribe &mdash; {tierPrice}/month
             </Button>
+            <div className="mt-4">
+              <PaymentAwaitingStatus
+                isAwaitingPayment={isAwaitingPayment}
+                message="This page checks for subscription confirmation automatically. Ripple does not redirect back after payment."
+              />
+            </div>
           </CardContent>
         </Card>
       )}

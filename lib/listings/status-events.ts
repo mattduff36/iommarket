@@ -1,4 +1,5 @@
 import type {
+  Listing,
   ListingLifecycleAction,
   ListingModerationReason,
   ListingStatus,
@@ -16,8 +17,14 @@ import {
   type LifecycleActorRole,
 } from "@/lib/listings/lifecycle";
 import { validateModerationReason } from "@/lib/listings/moderation-reasons";
+import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
+import { discardOpenRevisions } from "@/lib/listings/revision-discard";
+import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 
 type DbClient = Prisma.TransactionClient | typeof db;
+
+const ACTIONS_THAT_DISCARD_REVISIONS: ReadonlySet<ListingLifecycleAction> =
+  new Set(["TAKE_DOWN", "EXPIRE", "MARK_SOLD", "ACCOUNT_DISABLE"]);
 
 export class ListingLifecycleError extends Error {
   constructor(message: string) {
@@ -38,6 +45,11 @@ export interface TransitionListingStatusInput {
   now?: Date;
 }
 
+export interface ListingTransitionResult {
+  listing: Listing;
+  notification: ListingNotificationIntent | null;
+}
+
 interface CreateListingStatusEventInput {
   listingId: string;
   fromStatus?: ListingStatus | null;
@@ -53,9 +65,13 @@ interface CreateListingStatusEventInput {
 function effectsForAction(
   action: ListingLifecycleAction,
   now: Date,
+  existing: { expiresAt: Date | null },
 ): Prisma.ListingUpdateInput {
   switch (action) {
     case "APPROVE":
+      if (existing.expiresAt && existing.expiresAt.getTime() > now.getTime()) {
+        return {};
+      }
       return { expiresAt: calculateExpiryDate(now) };
     case "REJECT":
     case "TAKE_DOWN":
@@ -91,10 +107,21 @@ export async function createListingStatusEvent(
   });
 }
 
+async function hasPriorLiveStatus(client: DbClient, listingId: string) {
+  const priorLive = await client.listingStatusEvent.findFirst({
+    where: {
+      listingId,
+      OR: [{ fromStatus: "LIVE" }, { toStatus: "LIVE" }],
+    },
+    select: { id: true },
+  });
+  return Boolean(priorLive);
+}
+
 async function runTransition(
   client: DbClient,
   input: TransitionListingStatusInput,
-) {
+): Promise<ListingTransitionResult> {
   const now = input.now ?? new Date();
   const existing = await client.listing.findUnique({
     where: { id: input.listingId },
@@ -157,19 +184,12 @@ async function runTransition(
   }
 
   if (input.action === "REINSTATE_LIVE") {
-    const priorLive = await client.listingStatusEvent.findFirst({
-      where: {
-        listingId: existing.id,
-        OR: [{ fromStatus: "LIVE" }, { toStatus: "LIVE" }],
-      },
-      select: { id: true },
-    });
     if (
       !canReinstateLive({
         status: existing.status,
         expiresAt: existing.expiresAt,
         now,
-        hasPriorLive: Boolean(priorLive),
+        hasPriorLive: await hasPriorLiveStatus(client, existing.id),
       })
     ) {
       throw new ListingLifecycleError(
@@ -178,8 +198,32 @@ async function runTransition(
     }
   }
 
+  if (input.action === "RENEW" && existing.status === "TAKEN_DOWN") {
+    if (!existing.expiresAt || existing.expiresAt.getTime() > now.getTime()) {
+      throw new ListingLifecycleError(
+        "Only expired taken-down listings can be renewed.",
+      );
+    }
+  }
+
+  if (
+    input.action === "SUBMIT" &&
+    (existing.status === "TAKEN_DOWN" || existing.status === "REJECTED")
+  ) {
+    const priorLive = await hasPriorLiveStatus(client, existing.id);
+    if (
+      priorLive &&
+      existing.expiresAt !== null &&
+      existing.expiresAt.getTime() <= now.getTime()
+    ) {
+      throw new ListingLifecycleError(
+        "This listing has expired. Renew it before resubmitting.",
+      );
+    }
+  }
+
   const toStatus = getActionTargetStatus(input.action);
-  const effects = effectsForAction(input.action, now);
+  const effects = effectsForAction(input.action, now, existing);
   const updated = await client.listing.updateMany({
     where: {
       id: existing.id,
@@ -199,7 +243,7 @@ async function runTransition(
     );
   }
 
-  await createListingStatusEvent(
+  const event = await createListingStatusEvent(
     {
       listingId: existing.id,
       fromStatus: existing.status,
@@ -213,6 +257,10 @@ async function runTransition(
     },
     client,
   );
+
+  if (ACTIONS_THAT_DISCARD_REVISIONS.has(input.action)) {
+    await discardOpenRevisions(client, existing.id, now);
+  }
 
   if (input.actor.role === "ADMIN" && input.actor.id) {
     await client.adminAuditLog.create({
@@ -232,16 +280,36 @@ async function runTransition(
     });
   }
 
-  return client.listing.findUniqueOrThrow({ where: { id: existing.id } });
+  const listing = await client.listing.findUniqueOrThrow({
+    where: { id: existing.id },
+  });
+
+  return {
+    listing,
+    notification: {
+      eventId: event.id,
+      listingId: existing.id,
+      action: input.action,
+      fromStatus: existing.status,
+      toStatus,
+      reasonCode: input.reasonCode ?? null,
+    },
+  };
 }
 
 export async function transitionListingStatus(
   input: TransitionListingStatusInput,
   client?: DbClient,
-) {
+): Promise<ListingTransitionResult> {
   if (client) {
     return runTransition(client, input);
   }
 
-  return db.$transaction((tx) => runTransition(tx, input));
+  const result = await db.$transaction((tx) => runTransition(tx, input));
+  try {
+    await dispatchListingNotifications([result.notification]);
+  } catch {
+    // Email is best-effort and must not fail a committed transition.
+  }
+  return result;
 }

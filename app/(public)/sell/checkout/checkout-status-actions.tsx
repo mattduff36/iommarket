@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { usePaymentConfirmationPoll } from "@/components/payments/payment-awaiting-status";
 
 interface CheckoutStatusActionsProps {
   isAwaitingPayment: boolean;
@@ -13,47 +14,22 @@ export function CheckoutStatusActions({
 }: CheckoutStatusActionsProps) {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
-
-  function handleRefresh() {
-    startTransition(() => {
-      router.refresh();
-    });
-  }
-
-  useEffect(() => {
-    if (!isAwaitingPayment) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      router.refresh();
-    }, 5000);
-
-    function handleStorage(event: StorageEvent) {
-      if (event.key !== "iomarket-payment-return") {
-        return;
-      }
-
-      router.refresh();
-    }
-
-    window.addEventListener("storage", handleStorage);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, [isAwaitingPayment, router]);
+  usePaymentConfirmationPoll(isAwaitingPayment);
 
   return (
     <div className="space-y-2">
-      <Button variant="ghost" onClick={handleRefresh} loading={isRefreshing}>
+      <Button
+        variant="ghost"
+        onClick={() => startTransition(() => router.refresh())}
+        loading={isRefreshing}
+      >
         Refresh payment status
       </Button>
       {isAwaitingPayment ? (
         <p className="text-xs text-text-tertiary">
           This page checks for payment confirmation automatically every few
-          seconds while your hosted checkout is open.
+          seconds while your hosted checkout is open. Ripple does not redirect
+          back here after payment.
         </p>
       ) : null}
     </div>

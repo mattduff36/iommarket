@@ -92,7 +92,7 @@
 
 ### Dependencies
 
-- Ripple hosted payment links, plan IDs, and webhook secrets configured in staging.
+- Ripple hosted payment links, webhook secrets, and checkout kill switch configured in staging.
 
 ### Risks
 

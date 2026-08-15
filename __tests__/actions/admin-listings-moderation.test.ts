@@ -41,7 +41,10 @@ describe("moderateListing ALR-LST-003 ALR-IDN-002", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireRoleMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
-    transitionListingStatusMock.mockResolvedValue({ id: "listing-1", status: "REJECTED" });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "listing-1", status: "REJECTED" },
+      notification: null,
+    });
   });
 
   it("rejects unauthorized callers", async () => {

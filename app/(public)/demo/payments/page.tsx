@@ -20,6 +20,7 @@ import {
   getPaymentProviderName,
   getPaymentProviderPortalUrl,
 } from "@/lib/payments/provider";
+import { isNonProductionRuntime } from "@/lib/payments/ripple-config";
 
 export const metadata: Metadata = {
   title: "Ripple Payments Demo",
@@ -66,43 +67,46 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
   const portalUrl = getPaymentProviderPortalUrl();
   const capabilities = getPaymentProviderCapabilities();
 
+  const checkoutEnabled = isNonProductionRuntime();
   const [listingCheckout, featuredCheckout, starterCheckout, proCheckout] =
-    await Promise.all([
-      createListingCheckout({
-        listingId: "demo-listing-preview",
-        listingTitle: "2019 BMW 320d M Sport",
-        amountInPence: listingFee,
-        checkoutType: "listing_payment",
-        customerEmail: "preview@iomarket.im",
-        successUrl: buildReturnUrl("success", "listing"),
-        cancelUrl: buildReturnUrl("cancel", "listing"),
-        idempotencyKey: "preview-listing-payment",
-      }),
-      createFeaturedUpgradeCheckout({
-        listingId: "demo-featured-preview",
-        listingTitle: "2019 BMW 320d M Sport",
-        customerEmail: "preview@iomarket.im",
-        amountInPence: featuredFee,
-        successUrl: buildReturnUrl("success", "featured"),
-        cancelUrl: buildReturnUrl("cancel", "featured"),
-      }),
-      createDealerSubscriptionCheckout({
-        dealerId: "demo-dealer-preview",
-        tier: "STARTER",
-        amountInPence: getDealerPlanPricePence(pricing, "STARTER"),
-        customerEmail: "dealer-preview@iomarket.im",
-        successUrl: buildReturnUrl("success", "dealer-starter"),
-        cancelUrl: buildReturnUrl("cancel", "dealer-starter"),
-      }),
-      createDealerSubscriptionCheckout({
-        dealerId: "demo-dealer-preview",
-        tier: "PRO",
-        amountInPence: getDealerPlanPricePence(pricing, "PRO"),
-        customerEmail: "dealer-preview@iomarket.im",
-        successUrl: buildReturnUrl("success", "dealer-pro"),
-        cancelUrl: buildReturnUrl("cancel", "dealer-pro"),
-      }),
-    ]);
+    checkoutEnabled
+      ? await Promise.all([
+          createListingCheckout({
+            listingId: "demo-listing-preview",
+            listingTitle: "2019 BMW 320d M Sport",
+            amountInPence: listingFee,
+            checkoutType: "listing_payment",
+            customerEmail: "preview@iomarket.im",
+            successUrl: buildReturnUrl("success", "listing"),
+            cancelUrl: buildReturnUrl("cancel", "listing"),
+            idempotencyKey: "preview-listing-payment",
+          }),
+          createFeaturedUpgradeCheckout({
+            listingId: "demo-featured-preview",
+            listingTitle: "2019 BMW 320d M Sport",
+            customerEmail: "preview@iomarket.im",
+            amountInPence: featuredFee,
+            successUrl: buildReturnUrl("success", "featured"),
+            cancelUrl: buildReturnUrl("cancel", "featured"),
+          }),
+          createDealerSubscriptionCheckout({
+            dealerId: "demo-dealer-preview",
+            tier: "STARTER",
+            amountInPence: getDealerPlanPricePence(pricing, "STARTER"),
+            customerEmail: "dealer-preview@iomarket.im",
+            successUrl: buildReturnUrl("success", "dealer-starter"),
+            cancelUrl: buildReturnUrl("cancel", "dealer-starter"),
+          }),
+          createDealerSubscriptionCheckout({
+            dealerId: "demo-dealer-preview",
+            tier: "PRO",
+            amountInPence: getDealerPlanPricePence(pricing, "PRO"),
+            customerEmail: "dealer-preview@iomarket.im",
+            successUrl: buildReturnUrl("success", "dealer-pro"),
+            cancelUrl: buildReturnUrl("cancel", "dealer-pro"),
+          }),
+        ]).catch(() => [null, null, null, null])
+      : [null, null, null, null];
 
   const flows: RippleDemoFlow[] = [
     {
@@ -118,7 +122,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
           id: "listing-payment",
           label: "Preview listing checkout",
           checkoutLabel: "listing payment",
-          checkoutUrl: listingCheckout.url,
+          checkoutUrl: listingCheckout?.url ?? "",
           variant: "trust",
         },
       ],
@@ -140,7 +144,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
           id: "featured-upgrade",
           label: "Preview featured checkout",
           checkoutLabel: "featured upgrade",
-          checkoutUrl: featuredCheckout.url,
+          checkoutUrl: featuredCheckout?.url ?? "",
           variant: "premium",
         },
       ],
@@ -163,14 +167,14 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
           id: "dealer-starter",
           label: "Preview Starter",
           checkoutLabel: "dealer starter subscription",
-          checkoutUrl: starterCheckout.url,
+          checkoutUrl: starterCheckout?.url ?? "",
           variant: "trust",
         },
         {
           id: "dealer-pro",
           label: "Preview Pro",
           checkoutLabel: "dealer pro subscription",
-          checkoutUrl: proCheckout.url,
+          checkoutUrl: proCheckout?.url ?? "",
           variant: "energy",
         },
       ],
@@ -189,10 +193,8 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
           Ripple Payments Demo
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-text-secondary sm:text-base">
-          This page lets you walk the client through the three payment journeys
-          that matter most in `iomarket` without creating real listings or using
-          live Ripple credentials. Every action below uses the current demo-mode
-          fallback that will later be swapped for live account-specific values.
+          This page previews the four fixed Ripple payment links. Confirmation
+          is webhook-only; Ripple does not honour success or cancel redirects.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.16em]">

@@ -209,7 +209,10 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                     >
                       View
                     </Link>
-                    {listing.status === "DRAFT" && (
+                    {(listing.status === "DRAFT" ||
+                      listing.status === "LIVE" ||
+                      listing.status === "TAKEN_DOWN" ||
+                      listing.status === "REJECTED") && (
                       <Link
                         href={getDraftEditorHref({
                           listingId: listing.id,
@@ -217,7 +220,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                         })}
                         className="text-sm text-text-trust hover:underline"
                       >
-                        Continue editing
+                        {listing.status === "DRAFT" ? "Continue editing" : "Edit"}
                       </Link>
                     )}
                     {listing.status === "LIVE" &&

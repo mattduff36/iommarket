@@ -53,8 +53,18 @@ async function loadAllListingsPendingFirst(input: {
   include: Prisma.ListingInclude;
   orderBy: Prisma.ListingOrderByWithRelationInput[];
 }) {
-  const pendingWhere = { ...input.where, status: "PENDING" as const };
-  const restWhere = { ...input.where, status: { not: "PENDING" as const } };
+  const pendingWhere = {
+    ...input.where,
+    OR: [
+      { status: "PENDING" as const },
+      { revisions: { some: { status: "PENDING" as const } } },
+    ],
+  };
+  const restWhere = {
+    ...input.where,
+    status: { not: "PENDING" as const },
+    revisions: { none: { status: "PENDING" as const } },
+  };
   const [pendingCount, total] = await Promise.all([
     db.listing.count({ where: pendingWhere }),
     db.listing.count({ where: input.where }),
@@ -121,6 +131,11 @@ export default async function AdminListingsPage({
     category: { select: { name: true } },
     region: { select: { name: true } },
     _count: { select: { reports: true } },
+    revisions: {
+      where: { status: "PENDING" as const },
+      take: 1,
+      select: { id: true, version: true },
+    },
     statusEvents: {
       where: { OR: [{ fromStatus: "LIVE" as const }, { toStatus: "LIVE" as const }] },
       take: 1,
@@ -213,6 +228,11 @@ export default async function AdminListingsPage({
                     <Badge variant={STATUS_VARIANT[listing.status] ?? "neutral"}>
                       {listing.status}
                     </Badge>
+                    {listing.revisions.length > 0 ? (
+                      <Badge variant="warning" className="ml-1">
+                        pending edit
+                      </Badge>
+                    ) : null}
                   </ListingReviewLink>
                 </TableCell>
                 <TableCell className="p-0">
@@ -236,6 +256,8 @@ export default async function AdminListingsPage({
                       listing.expiresAt.getTime() > Date.now() &&
                       listing.statusEvents.length > 0
                     }
+                    hasPendingRevision={listing.revisions.length > 0}
+                    pendingRevisionVersion={listing.revisions[0]?.version}
                   />
                 </TableCell>
               </TableRow>

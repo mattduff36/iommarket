@@ -9,6 +9,7 @@ import {
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { Star } from "lucide-react";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
+import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
 
 interface FeaturedUpgradeButtonProps {
   listingId: string;
@@ -25,6 +26,7 @@ export function FeaturedUpgradeButton({
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
+  const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
 
   function handleUpgrade() {
     setError(null);
@@ -40,6 +42,7 @@ export function FeaturedUpgradeButton({
       }
       if (result.data?.checkoutUrl) {
         openCheckout(result.data.checkoutUrl);
+        setIsAwaitingPayment(true);
       }
     });
   }
@@ -64,6 +67,10 @@ export function FeaturedUpgradeButton({
             {error}
           </p>
         )}
+        <PaymentAwaitingStatus
+          isAwaitingPayment={isAwaitingPayment}
+          message="Checkout is open in another tab. This page will update when Ripple confirms the featured upgrade."
+        />
         <RippleDemoCheckoutDialog
           open={demoDialogOpen}
           onOpenChange={setDemoDialogOpen}
@@ -101,6 +108,10 @@ export function FeaturedUpgradeButton({
           {error}
         </p>
       )}
+      <PaymentAwaitingStatus
+        isAwaitingPayment={isAwaitingPayment}
+        message="Checkout is open in another tab. This page will update when Ripple confirms the featured upgrade."
+      />
       <RippleDemoCheckoutDialog
         open={demoDialogOpen}
         onOpenChange={setDemoDialogOpen}

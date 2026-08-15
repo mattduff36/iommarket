@@ -81,6 +81,8 @@ export const LISTING_MODERATION_ACTIONS = [
   "TAKE_DOWN",
   "REINSTATE_LIVE",
   "RETURN_TO_DRAFT",
+  "APPROVE_REVISION",
+  "REJECT_REVISION",
 ] as const;
 
 export const moderateListingSchema = z
@@ -88,6 +90,7 @@ export const moderateListingSchema = z
     listingId: z.string().cuid(),
     action: z.enum(LISTING_MODERATION_ACTIONS),
     expectedRevision: z.number().int().min(0),
+    expectedRevisionVersion: z.number().int().min(0).optional(),
     reasonCode: z
       .enum([
         "FRAUD",
@@ -104,7 +107,17 @@ export const moderateListingSchema = z
     reportId: z.string().cuid().optional(),
   })
   .superRefine((value, ctx) => {
-    const needsReason = value.action !== "APPROVE";
+    const needsReason = value.action !== "APPROVE" && value.action !== "APPROVE_REVISION";
+    if (
+      (value.action === "APPROVE_REVISION" || value.action === "REJECT_REVISION") &&
+      value.expectedRevisionVersion == null
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expectedRevisionVersion"],
+        message: "A revision version is required.",
+      });
+    }
     if (needsReason && !value.reasonCode) {
       ctx.addIssue({
         code: "custom",

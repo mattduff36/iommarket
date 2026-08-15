@@ -43,6 +43,9 @@ const {
     payment: {
       findFirst: vi.fn(),
     },
+    freeListingClaim: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -162,6 +165,45 @@ describe("payForListing", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
+  it("never opens checkout for a live listing revision ALR-PAY-001", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: null,
+      status: "LIVE",
+      title: "Live listing",
+    });
+
+    await expect(payForListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+      data: {
+        checkoutUrl: null,
+        skippedPayment: true,
+      },
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+  });
+
+  it("skips checkout when a taken-down listing was already paid ALR-RESUB-001", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: null,
+      status: "TAKEN_DOWN",
+      title: "Taken down listing",
+    });
+    mockDb.subscription.findFirst.mockResolvedValue(null);
+    mockDb.payment.findFirst.mockResolvedValue({ id: "pay-1" });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
+
+    await expect(payForListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+      data: {
+        checkoutUrl: null,
+        skippedPayment: true,
+      },
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+  });
+
   it("requires checkout to renew an expired free listing", async () => {
     mockDb.listing.findUnique.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",
@@ -250,25 +292,15 @@ describe("demo payment actions", () => {
         outcome: "success",
       })
     ).resolves.toEqual({
-      error:
-        "Temporary demo payment controls are only available while Ripple demo checkout is active.",
+      error: "Temporary demo payment controls are only available in development.",
     });
 
     expect(requireAuthMock).not.toHaveBeenCalled();
     expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
 
-  it("allows demo listing payment simulation in production when demo checkout is active", async () => {
+  it("blocks demo listing payment simulation in production even if demo checkout is active", async () => {
     isDemoListingCheckoutConfiguredMock.mockReturnValue(true);
-    requireAuthMock.mockResolvedValue({
-      id: "user_123",
-      email: "seller@example.com",
-      role: "USER",
-    });
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "listing_123",
-      userId: "user_123",
-    });
 
     await expect(
       simulateDemoListingPaymentOutcome({
@@ -277,14 +309,11 @@ describe("demo payment actions", () => {
         outcome: "success",
       })
     ).resolves.toEqual({
-      data: {
-        paymentStatus: "SUCCEEDED",
-        nextUrl: "/sell/success?listing=listing_123&flow=private&payment=paid",
-      },
+      error: "Temporary demo payment controls are only available in development.",
     });
 
-    expect(processProviderWebhookEventMock).toHaveBeenCalledOnce();
-    expect(revalidatePathMock).toHaveBeenCalled();
+    expect(requireAuthMock).not.toHaveBeenCalled();
+    expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
 
   it("blocks demo dealer subscription simulation when live checkout is configured", async () => {
@@ -296,24 +325,15 @@ describe("demo payment actions", () => {
         outcome: "success",
       })
     ).resolves.toEqual({
-      error:
-        "Temporary demo payment controls are only available while Ripple demo checkout is active.",
+      error: "Temporary demo payment controls are only available in development.",
     });
 
     expect(requireAuthMock).not.toHaveBeenCalled();
     expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
 
-  it("allows demo dealer subscription simulation in production when demo checkout is active", async () => {
+  it("blocks demo dealer subscription simulation in production even if demo checkout is active", async () => {
     isDemoDealerSubscriptionCheckoutConfiguredMock.mockReturnValue(true);
-    requireAuthMock.mockResolvedValue({
-      id: "user_123",
-      email: "dealer@example.com",
-      role: "USER",
-      dealerProfile: {
-        id: "dealer_123",
-      },
-    });
 
     await expect(
       simulateDemoDealerSubscriptionOutcome({
@@ -321,13 +341,10 @@ describe("demo payment actions", () => {
         outcome: "success",
       })
     ).resolves.toEqual({
-      data: {
-        subscriptionStatus: "ACTIVE",
-        nextUrl: "/dealer/dashboard?subscribed=true",
-      },
+      error: "Temporary demo payment controls are only available in development.",
     });
 
-    expect(processProviderWebhookEventMock).toHaveBeenCalledOnce();
-    expect(revalidatePathMock).toHaveBeenCalled();
+    expect(requireAuthMock).not.toHaveBeenCalled();
+    expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
 });

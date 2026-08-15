@@ -69,6 +69,39 @@ describe("dealer entitlement", () => {
     });
   });
 
+  it("RIP-STATE-001 keeps access immediately before period end and ends it at expiry", () => {
+    expect(
+      isPaidSubscriptionEntitled(
+        {
+          status: "ACTIVE",
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: new Date("2026-07-20T20:00:00.001Z"),
+        },
+        NOW,
+      ),
+    ).toBe(true);
+    expect(
+      isPaidSubscriptionEntitled(
+        {
+          status: "ACTIVE",
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: NOW,
+        },
+        NOW,
+      ),
+    ).toBe(false);
+    expect(
+      isPaidSubscriptionEntitled(
+        {
+          status: "ACTIVE",
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: new Date("2026-07-20T19:59:59.999Z"),
+        },
+        NOW,
+      ),
+    ).toBe(false);
+  });
+
   it("keeps paid access until period end after cancel-at-period-end", () => {
     expect(
       isPaidSubscriptionEntitled(
@@ -80,6 +113,19 @@ describe("dealer entitlement", () => {
         NOW,
       ),
     ).toBe(true);
+  });
+
+  it("ends paid access when an active subscription has no remaining paid period", () => {
+    expect(
+      isPaidSubscriptionEntitled(
+        {
+          status: "ACTIVE",
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: null,
+        },
+        NOW,
+      ),
+    ).toBe(false);
   });
 
   it("ends paid access when a refund has no remaining paid period", () => {

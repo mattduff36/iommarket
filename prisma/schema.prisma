@@ -61,6 +61,7 @@ model User {
   listingViews        ListingView[]
   dealerReviews       DealerReview[]
   listingStatusEvents ListingStatusEvent[]
+  listingRevisionsDecided ListingRevision[] @relation("ListingRevisionDecidedBy")
   dealerReviewModerationEvents DealerReviewModerationEvent[]
   monitoringIssueStatusEvents MonitoringIssueStatusEvent[]
   freeListingClaim   FreeListingClaim?
@@ -106,6 +107,7 @@ model Region {
 
   users    User[]
   listings Listing[]
+  listingRevisions ListingRevision[]
 
   @@index([slug])
   @@index([active, sortOrder])
@@ -129,6 +131,7 @@ model Category {
 
   attributeDefinitions AttributeDefinition[]
   listings             Listing[]
+  listingRevisions     ListingRevision[]
 
   @@index([slug])
   @@index([parentId])
@@ -146,6 +149,7 @@ model AttributeDefinition {
 
   category Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   values   ListingAttributeValue[]
+  revisionValues ListingRevisionAttributeValue[]
 
   @@unique([categoryId, slug])
   @@index([categoryId])
@@ -179,6 +183,9 @@ enum ListingLifecycleAction {
   ACCOUNT_DISABLE
   ACCOUNT_DISABLE_PENDING
   SYSTEM_BACKFILL
+  SUBMIT_REVISION
+  APPROVE_REVISION
+  REJECT_REVISION
 }
 
 enum ListingModerationReason {
@@ -270,6 +277,7 @@ model Listing {
   favouritedBy    Favourite[]
   views           ListingView[]
   statusEvents    ListingStatusEvent[]
+  revisions       ListingRevision[]
   freeListingClaim FreeListingClaim?
 
   @@index([categoryId, regionId, status])
@@ -379,6 +387,7 @@ model ListingImageUploadIntent {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   listing Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
   image   ListingImage?
+  revisionImage ListingRevisionImage?
 
   @@index([userId, status])
   @@index([expiresAt, status])
@@ -412,6 +421,85 @@ model ListingAttributeValue {
   @@index([attributeDefinitionId, value])
 }
 
+enum ListingRevisionStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  DISCARDED
+}
+
+model ListingRevision {
+  id                         String                 @id @default(cuid())
+  listingId                  String
+  title                      String
+  description                String
+  price                      Int
+  categoryId                 String
+  regionId                   String
+  trustDeclarationAccepted   Boolean                @default(false)
+  trustDeclarationAcceptedAt DateTime?
+  status                     ListingRevisionStatus  @default(DRAFT)
+  version                    Int                    @default(0)
+  reasonCode                 ListingModerationReason?
+  notes                      String?
+  submittedAt                DateTime?
+  decidedAt                  DateTime?
+  decidedByUserId            String?
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  category  Category @relation(fields: [categoryId], references: [id])
+  region    Region   @relation(fields: [regionId], references: [id])
+  decidedBy User?    @relation("ListingRevisionDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  images    ListingRevisionImage[]
+  attributeValues ListingRevisionAttributeValue[]
+
+  @@index([listingId, status])
+  @@index([status, submittedAt])
+  @@index([decidedByUserId])
+}
+
+model ListingRevisionImage {
+  id             String               @id @default(cuid())
+  revisionId     String
+  url            String
+  publicId       String
+  order          Int                  @default(0)
+  provider       ListingImageProvider @default(CLOUDINARY)
+  assetId        String?
+  version        String?
+  width          Int?
+  height         Int?
+  format         String?
+  bytes          Int?
+  uploadIntentId String?              @unique
+  focalX         Float?
+  focalY         Float?
+
+  revision     ListingRevision            @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  uploadIntent ListingImageUploadIntent?  @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)
+
+  @@unique([revisionId, order])
+  @@unique([revisionId, provider, publicId])
+  @@index([revisionId])
+  @@index([provider, publicId])
+}
+
+model ListingRevisionAttributeValue {
+  id                    String @id @default(cuid())
+  revisionId            String
+  attributeDefinitionId String
+  value                 String
+
+  revision            ListingRevision     @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, attributeDefinitionId])
+  @@index([attributeDefinitionId, value])
+}
+
 // ---------------------------------------------------------------------------
 // Payments & Subscriptions
 // ---------------------------------------------------------------------------
@@ -442,21 +530,24 @@ enum SubscriptionSource {
 }
 
 model Payment {
-  id                String          @id @default(cuid())
-  listingId         String
-  paymentProvider   PaymentProvider @default(STRIPE)
-  providerPaymentId String?         @unique
-  providerReference String?         @unique
-  stripePaymentId   String?         @unique
-  amount            Int             // in pence
-  currency          String          @default("gbp")
-  type              PaymentType     @default(LISTING)
-  status            PaymentStatus   @default(PENDING)
-  idempotencyKey    String?         @unique
-  refundReason      RefundReason?
-  refundedAt        DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                             String          @id @default(cuid())
+  listingId                      String
+  paymentProvider                PaymentProvider @default(STRIPE)
+  providerPaymentId              String?         @unique
+  providerReference              String?         @unique
+  stripePaymentId                String?         @unique
+  amount                         Int             // in pence
+  currency                       String          @default("gbp")
+  type                           PaymentType     @default(LISTING)
+  status                         PaymentStatus   @default(PENDING)
+  idempotencyKey                 String?         @unique
+  refundReason                   RefundReason?
+  refundedAt                     DateTime?
+  lastProviderEventAt            DateTime?
+  lastProviderEventType          String?
+  lastProviderEventFingerprint   String?
+  createdAt                      DateTime        @default(now())
+  updatedAt                      DateTime        @updatedAt
 
   listing Listing @relation(fields: [listingId], references: [id])
 
@@ -474,32 +565,97 @@ enum SubscriptionStatus {
   INCOMPLETE
 }
 
-model Subscription {
-  id                     String             @id @default(cuid())
-  dealerId               String
-  paymentProvider        PaymentProvider    @default(STRIPE)
-  source                 SubscriptionSource @default(PAYMENT)
-  providerSubscriptionId String?            @unique
-  providerPlanId         String?
-  stripeSubscriptionId   String?            @unique
-  stripePriceId          String?
-  status                 SubscriptionStatus @default(INCOMPLETE)
-  currentPeriodEnd       DateTime?
-  grantStartsAt          DateTime?
-  grantEndsAt            DateTime?
-  grantedByAdminId       String?
-  revokedAt              DateTime?
-  cancelAtPeriodEnd      Boolean            @default(false)
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
+enum SubscriptionProviderLifecycle {
+  NONE
+  CREATED
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
 
-  dealer DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+enum WebhookInboxStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  QUARANTINED
+}
+
+model Subscription {
+  id                             String                         @id @default(cuid())
+  dealerId                       String
+  paymentProvider                PaymentProvider                @default(STRIPE)
+  source                         SubscriptionSource             @default(PAYMENT)
+  providerSubscriptionId         String?                        @unique
+  providerPlanId                 String?
+  stripeSubscriptionId           String?                        @unique
+  stripePriceId                  String?
+  status                         SubscriptionStatus             @default(INCOMPLETE)
+  currentPeriodEnd               DateTime?
+  grantStartsAt                  DateTime?
+  grantEndsAt                    DateTime?
+  grantedByAdminId               String?
+  revokedAt                      DateTime?
+  cancelAtPeriodEnd              Boolean                        @default(false)
+  providerLifecycle              SubscriptionProviderLifecycle  @default(NONE)
+  customerEmailNorm              String?
+  lastProviderEventAt            DateTime?
+  lastProviderEventType          String?
+  lastProviderEventFingerprint   String?
+  createdAt                      DateTime                       @default(now())
+  updatedAt                      DateTime                       @updatedAt
+
+  dealer  DealerProfile         @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  charges SubscriptionCharge[]
 
   @@index([dealerId])
   @@index([dealerId, source, status, grantEndsAt])
   @@index([paymentProvider])
   @@index([providerSubscriptionId])
   @@index([stripeSubscriptionId])
+  @@index([customerEmailNorm, providerPlanId])
+}
+
+model SubscriptionCharge {
+  id               String   @id @default(cuid())
+  subscriptionId   String
+  paymentReference String   @unique
+  amount           Int
+  currency         String   @default("gbp")
+  eventTimestamp   DateTime
+  createdAt        DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+}
+
+model PaymentWebhookInbox {
+  id                String             @id @default(cuid())
+  bodyHash          String             @unique
+  eventType         String
+  eventTimestamp    DateTime
+  clientId          String
+  paymentReference  String?
+  merchantReference String?
+  linkCode          String?
+  packageName       String?
+  customerEmailNorm String?
+  amountPence       Int?
+  currency          String?
+  recurring         Boolean?
+  linkType          String?
+  minimizedPayload  Json
+  status            WebhookInboxStatus @default(PENDING)
+  attemptCount      Int                @default(0)
+  lastErrorCode     String?
+  processedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([eventType, eventTimestamp])
+  @@index([paymentReference])
 }
 
 // ---------------------------------------------------------------------------

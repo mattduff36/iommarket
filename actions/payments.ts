@@ -34,6 +34,9 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 type HostedReturnContext = "listing" | "featured" | "subscription";
 
 function getDemoPaymentUnavailableError(isDemoCheckoutConfigured: boolean) {
+  if (process.env.NODE_ENV === "production") {
+    return "Temporary demo payment controls are only available in development.";
+  }
   if (isDemoCheckoutConfigured) {
     return null;
   }
@@ -81,6 +84,12 @@ function toUserPaymentError(message: string) {
   if (message.includes("RIPPLE_FEATURED_PAYMENT_URL")) {
     return "Featured upgrade checkout is not configured yet. Please contact support.";
   }
+  if (message.includes("RIPPLE_LIVE_CHECKOUT_ENABLED")) {
+    return "Card checkout is not enabled yet. Please try again after payments go live.";
+  }
+  if (message.includes("amount must be")) {
+    return "Checkout pricing does not match the Ripple payment link. Please contact support.";
+  }
   return message;
 }
 
@@ -119,6 +128,21 @@ export async function payForListing(
   });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (listing.status === "LIVE") {
+    return { data: { checkoutUrl: null, skippedPayment: true } };
+  }
+  if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
+    const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
+    const skip = await canSkipListingPayment(db, {
+      listingId: listing.id,
+      userId: user.id,
+      dealerId: listing.dealerId,
+    });
+    if (skip.skip) {
+      return { data: { checkoutUrl: null, skippedPayment: true } };
+    }
+    return { error: "Payment is required before this listing can be resubmitted." };
+  }
   if (listing.status !== "DRAFT" && listing.status !== "EXPIRED") {
     return { error: "This listing cannot be paid for in its current state" };
   }
@@ -419,7 +443,7 @@ export async function simulateDemoListingPaymentOutcome(input: {
   const providerPaymentId = `demo_listing_payment_${listing.id}`;
   const providerReference = `demo-listing-${listing.id}`;
   const eventType =
-    input.outcome === "success" ? "payment.succeeded" : "payment.failed";
+    input.outcome === "success" ? "payment.received" : "payment.failed";
 
   try {
     const pricing = await getMarketplacePricing();
@@ -438,6 +462,14 @@ export async function simulateDemoListingPaymentOutcome(input: {
       currency: "gbp",
       currentPeriodEnd: null,
       cancelAtPeriodEnd: null,
+      eventTimestamp: new Date(),
+      clientId: null,
+      customerEmail: null,
+      linkCode: null,
+      packageName: null,
+      recurring: false,
+      linkType: "one-off",
+      fingerprint: `demo-webhook-${listing.id}-${input.outcome}`,
       metadata: {
         checkoutType: "listing_payment",
         listingId: listing.id,
@@ -533,6 +565,14 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
           ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
           : null,
       cancelAtPeriodEnd: null,
+      eventTimestamp: new Date(),
+      clientId: null,
+      customerEmail: user.email,
+      linkCode: null,
+      packageName: input.tier === "PRO" ? "Dealer Pro subscription" : "Dealer Starter subscription",
+      recurring: true,
+      linkType: "recurring",
+      fingerprint: `demo-webhook-subscription-${user.dealerProfile.id}-${input.outcome}`,
       metadata: {
         checkoutType: "dealer_subscription",
         listingId: null,

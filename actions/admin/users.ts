@@ -476,7 +476,7 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
   if (userId === admin.id) return { error: "Cannot disable your own account" };
 
   try {
-    const user = await db.$transaction(async (tx) => {
+    const { user, notifications } = await db.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { id: userId },
         data: {
@@ -486,17 +486,23 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
         },
       });
 
+      let listingNotifications: Awaited<
+        ReturnType<
+          typeof import("@/lib/listings/account-disable").applyAccountDisableToListings
+        >
+      >["notifications"] = [];
       if (disabled) {
         const { applyAccountDisableToListings } = await import(
           "@/lib/listings/account-disable"
         );
-        await applyAccountDisableToListings({
+        const disabledListings = await applyAccountDisableToListings({
           tx,
           userId,
           actor: { id: admin.id, role: "ADMIN" },
           source: "ADMIN",
           notes: reason ?? "Account disabled by admin",
         });
+        listingNotifications = disabledListings.notifications;
       }
 
       await logAdminAction(
@@ -510,8 +516,17 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
         tx,
       );
 
-      return updated;
+      return { user: updated, notifications: listingNotifications };
     });
+
+    const { dispatchListingNotifications } = await import(
+      "@/lib/email/listing-notifications"
+    );
+    try {
+      await dispatchListingNotifications(notifications);
+    } catch {
+      // Email is best-effort after the account-disable commit.
+    }
 
     revalidatePath("/admin/users");
     revalidatePath(`/admin/users/${userId}`);
@@ -553,11 +568,11 @@ export async function deleteUser(input: DeleteUserInput) {
   if (!user) return { error: "User not found" };
 
   try {
-    await db.$transaction(async (tx) => {
+    const notifications = await db.$transaction(async (tx) => {
       const { applyAccountDisableToListings } = await import(
         "@/lib/listings/account-disable"
       );
-      await applyAccountDisableToListings({
+      const disabledListings = await applyAccountDisableToListings({
         tx,
         userId,
         actor: { id: admin.id, role: "ADMIN" },
@@ -589,7 +604,17 @@ export async function deleteUser(input: DeleteUserInput) {
         },
         tx,
       );
+      return disabledListings.notifications;
     });
+
+    const { dispatchListingNotifications } = await import(
+      "@/lib/email/listing-notifications"
+    );
+    try {
+      await dispatchListingNotifications(notifications);
+    } catch {
+      // Email is best-effort after the account-delete commit.
+    }
 
     revalidatePath("/admin/users");
     revalidatePath(`/admin/users/${userId}`);

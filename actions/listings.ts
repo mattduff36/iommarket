@@ -29,6 +29,15 @@ import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import {
   transitionListingStatus,
 } from "@/lib/listings/status-events";
+import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
+import { canSkipListingPayment } from "@/lib/listings/payment-skip";
+import {
+  getOpenRevision,
+  getOrCreateDraftRevision,
+  submitRevision,
+  updateDraftRevision,
+} from "@/lib/listings/revisions";
+import { isInPlaceEditable, usesPendingRevision } from "@/lib/listings/visibility";
 import { expireAbandonedListingImageIntents, processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 import {
@@ -193,13 +202,14 @@ export async function updateListing(input: unknown) {
       categoryId: true,
       status: true,
       trustDeclarationAcceptedAt: true,
+      lifecycleRevision: true,
     },
   });
   if (!existing) return { error: "Listing not found" };
-  if (existing.userId !== user.id && user.role !== "ADMIN") {
+  if (existing.userId !== user.id) {
     return { error: "Not authorized to edit this listing" };
   }
-  if (existing.status !== "DRAFT" && existing.status !== "EXPIRED") {
+  if (!isInPlaceEditable(existing.status) && !usesPendingRevision(existing.status)) {
     return { error: "This listing cannot be edited in its current status." };
   }
 
@@ -245,32 +255,57 @@ export async function updateListing(input: unknown) {
   }
 
   try {
-    const listing = await db.listing.update({
-      where: { id },
-      data: {
-        ...data,
-        ...(data.trustDeclarationAccepted !== undefined
-          ? {
-              trustDeclarationAcceptedAt: data.trustDeclarationAccepted
-                ? existing.trustDeclarationAcceptedAt ?? new Date()
-                : null,
-            }
-          : {}),
-      },
-    });
-
-    if (attributes !== undefined) {
-      await db.listingAttributeValue.deleteMany({ where: { listingId: id } });
-      if (sanitizedAttributes && sanitizedAttributes.length > 0) {
-        await db.listingAttributeValue.createMany({
-          data: sanitizedAttributes.map((attr) => ({
-            listingId: id,
-            attributeDefinitionId: attr.attributeDefinitionId,
-            value: attr.value,
-          })),
-        });
-      }
+    if (usesPendingRevision(existing.status)) {
+      const open = await getOpenRevision(id);
+      const revision = open ?? (await getOrCreateDraftRevision({ listingId: id, userId: user.id }));
+      const currentListing = await db.listing.findUniqueOrThrow({
+        where: { id },
+        select: { lifecycleRevision: true },
+      });
+      const updatedRevision = await updateDraftRevision({
+        listingId: id,
+        userId: user.id,
+        expectedVersion: revision.version,
+        expectedListingRevision: currentListing.lifecycleRevision,
+        data,
+        attributes: sanitizedAttributes,
+      });
+      revalidatePath(`/listings/${id}`);
+      revalidatePath("/account/listings");
+      revalidatePath("/dealer/dashboard");
+      return { data: { ...updatedRevision, id } };
     }
+
+    const listing = await db.$transaction(async (tx) => {
+      const updated = await tx.listing.update({
+        where: { id },
+        data: {
+          ...data,
+          ...(data.trustDeclarationAccepted !== undefined
+            ? {
+                trustDeclarationAcceptedAt: data.trustDeclarationAccepted
+                  ? existing.trustDeclarationAcceptedAt ?? new Date()
+                  : null,
+              }
+            : {}),
+        },
+      });
+
+      if (attributes !== undefined) {
+        await tx.listingAttributeValue.deleteMany({ where: { listingId: id } });
+        if (sanitizedAttributes && sanitizedAttributes.length > 0) {
+          await tx.listingAttributeValue.createMany({
+            data: sanitizedAttributes.map((attr) => ({
+              listingId: id,
+              attributeDefinitionId: attr.attributeDefinitionId,
+              value: attr.value,
+            })),
+          });
+        }
+      }
+
+      return updated;
+    });
 
     revalidatePath(`/listings/${id}`);
     revalidatePath("/account/listings");
@@ -309,7 +344,33 @@ export async function submitListingForReview(listingId: string) {
   });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
-  if (listing.status !== "DRAFT") return { error: "Listing is not in draft status" };
+  if (listing.status === "LIVE") {
+    try {
+      const openRevision = await getOpenRevision(listingId);
+      if (!openRevision || openRevision.status !== "DRAFT") {
+        return { error: "No draft changes to submit." };
+      }
+      const result = await submitRevision({
+        listingId,
+        userId: user.id,
+        expectedListingRevision: listing.lifecycleRevision,
+        expectedVersion: openRevision.version,
+      });
+      revalidatePath(`/listings/${listingId}`);
+      revalidatePath("/admin/listings");
+      return { data: result.listing };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to submit listing changes";
+      return { error: message };
+    }
+  }
+  if (
+    listing.status !== "DRAFT" &&
+    listing.status !== "TAKEN_DOWN" &&
+    listing.status !== "REJECTED"
+  ) {
+    return { error: "This listing cannot be submitted in its current status." };
+  }
   if (listing.images.length < 2) return { error: "At least 2 photos are required" };
   if (!listing.trustDeclarationAccepted) {
     return {
@@ -330,7 +391,18 @@ export async function submitListingForReview(listingId: string) {
     }
   }
 
-  if (!listing.dealerId) {
+  if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
+    const skip = await canSkipListingPayment(db, {
+      listingId,
+      userId: user.id,
+      dealerId: listing.dealerId,
+    });
+    if (!skip.skip) {
+      return { error: "Payment is required before this listing can be resubmitted." };
+    }
+  }
+
+  if (!listing.dealerId && listing.status === "DRAFT") {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
     );
@@ -429,6 +501,15 @@ export async function submitListingForReview(listingId: string) {
           };
         }
 
+        if (freeClaim.status === "claimed" && freeClaim.data) {
+          try {
+            await dispatchListingNotifications([freeClaim.data.notification]);
+          } catch {
+            // Email is best-effort after the free-claim commit.
+          }
+          revalidatePath(`/listings/${listingId}`);
+          return { data: freeClaim.data.listing };
+        }
         revalidatePath(`/listings/${listingId}`);
         return { data: freeClaim.data };
       } catch (err) {
@@ -461,7 +542,8 @@ export async function submitListingForReview(listingId: string) {
     });
 
     revalidatePath(`/listings/${listingId}`);
-    return { data: updated };
+    revalidatePath("/admin/listings");
+    return { data: updated.listing };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -488,7 +570,11 @@ export async function renewListing(listingId: string) {
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
-  if (listing.status !== "EXPIRED") {
+  const canRenewTakenDown =
+    listing.status === "TAKEN_DOWN" &&
+    listing.expiresAt !== null &&
+    listing.expiresAt.getTime() <= Date.now();
+  if (listing.status !== "EXPIRED" && !canRenewTakenDown) {
     return { error: "Only expired listings can be renewed" };
   }
 
@@ -503,7 +589,7 @@ export async function renewListing(listingId: string) {
     });
 
     revalidatePath(`/listings/${listingId}`);
-    return { data: updated };
+    return { data: updated.listing };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -703,7 +789,7 @@ export async function markListingAsSold(listingId: string) {
 
     revalidatePath(`/listings/${listingId}`);
     revalidatePath("/");
-    return { data: updated };
+    return { data: updated.listing };
   } catch (err) {
     await captureException({
       source: "SERVER",

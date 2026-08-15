@@ -1,5 +1,6 @@
 import type { ListingStatusEventSource, Prisma } from "@prisma/client";
 import { transitionListingStatus } from "@/lib/listings/status-events";
+import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
 import type { LifecycleActorRole } from "@/lib/listings/lifecycle";
 
 export async function applyAccountDisableToListings(input: {
@@ -17,8 +18,9 @@ export async function applyAccountDisableToListings(input: {
     select: { id: true, status: true, lifecycleRevision: true },
   });
 
+  const notifications: ListingNotificationIntent[] = [];
   for (const listing of listings) {
-    await transitionListingStatus(
+    const result = await transitionListingStatus(
       {
         listingId: listing.id,
         action:
@@ -33,7 +35,10 @@ export async function applyAccountDisableToListings(input: {
       },
       input.tx,
     );
+    if (result.notification) {
+      notifications.push(result.notification);
+    }
   }
 
-  return listings.length;
+  return { count: listings.length, notifications };
 }

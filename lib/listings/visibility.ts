@@ -24,6 +24,37 @@ export function canViewListing(input: {
   return input.viewer.id === input.listingUserId;
 }
 
+export function canInspectPendingRevision(input: {
+  status: ListingStatus;
+  reviewRequested: boolean;
+  viewer?: { role: string } | null;
+}) {
+  return (
+    input.status === "LIVE" &&
+    input.reviewRequested &&
+    input.viewer?.role === "ADMIN"
+  );
+}
+
 export function isListingEditable(status: ListingStatus) {
-  return status === "DRAFT" || status === "EXPIRED";
+  return (
+    status === "DRAFT" ||
+    status === "EXPIRED" ||
+    status === "LIVE" ||
+    status === "TAKEN_DOWN" ||
+    status === "REJECTED"
+  );
+}
+
+export function isInPlaceEditable(status: ListingStatus) {
+  return (
+    status === "DRAFT" ||
+    status === "EXPIRED" ||
+    status === "TAKEN_DOWN" ||
+    status === "REJECTED"
+  );
+}
+
+export function usesPendingRevision(status: ListingStatus) {
+  return status === "LIVE";
 }

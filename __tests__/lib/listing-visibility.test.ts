@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canInspectPendingRevision,
   canViewListing,
   isListingEditable,
   isListingPubliclyVisible,
@@ -48,9 +49,43 @@ describe("listing visibility ALR-VIS-001", () => {
     ).toBe(false);
   });
 
-  it("limits photo edits to draft and expired listings", () => {
+  it("allows owner edits for draft expired live taken-down and rejected listings", () => {
     expect(isListingEditable("DRAFT")).toBe(true);
-    expect(isListingEditable("LIVE")).toBe(false);
-    expect(isListingEditable("TAKEN_DOWN")).toBe(false);
+    expect(isListingEditable("LIVE")).toBe(true);
+    expect(isListingEditable("TAKEN_DOWN")).toBe(true);
+    expect(isListingEditable("REJECTED")).toBe(true);
+    expect(isListingEditable("PENDING")).toBe(false);
+    expect(isListingEditable("SOLD")).toBe(false);
+  });
+
+  it("only lets an explicitly requested admin review fetch a live pending revision UI-REV-001", () => {
+    expect(
+      canInspectPendingRevision({
+        status: "LIVE",
+        reviewRequested: true,
+        viewer: { role: "ADMIN" },
+      }),
+    ).toBe(true);
+    expect(
+      canInspectPendingRevision({
+        status: "LIVE",
+        reviewRequested: true,
+        viewer: { role: "USER" },
+      }),
+    ).toBe(false);
+    expect(
+      canInspectPendingRevision({
+        status: "LIVE",
+        reviewRequested: false,
+        viewer: { role: "ADMIN" },
+      }),
+    ).toBe(false);
+    expect(
+      canInspectPendingRevision({
+        status: "TAKEN_DOWN",
+        reviewRequested: true,
+        viewer: { role: "ADMIN" },
+      }),
+    ).toBe(false);
   });
 });

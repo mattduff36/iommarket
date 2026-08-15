@@ -53,7 +53,7 @@ describe("isValidTransition", () => {
   it("allows TAKEN_DOWN restore paths only", () => {
     expect(isValidTransition("TAKEN_DOWN", "DRAFT")).toBe(true);
     expect(isValidTransition("TAKEN_DOWN", "LIVE")).toBe(true);
-    expect(isValidTransition("TAKEN_DOWN", "PENDING")).toBe(false);
+    expect(isValidTransition("TAKEN_DOWN", "PENDING")).toBe(true);
   });
 
   it("disallows EXPIRED → LIVE (must re-pay first)", () => {
@@ -71,7 +71,7 @@ describe("getValidNextStatuses", () => {
   });
 
   it("returns restore targets for TAKEN_DOWN", () => {
-    expect(getValidNextStatuses("TAKEN_DOWN")).toEqual(["LIVE", "DRAFT"]);
+    expect(getValidNextStatuses("TAKEN_DOWN")).toEqual(["LIVE", "DRAFT", "PENDING"]);
   });
 });
 

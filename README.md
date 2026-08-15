@@ -38,14 +38,14 @@ cp .env.example .env
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
-| `RIPPLE_LISTING_PAYMENT_URL` | Ripple hosted payment URL for private listing checkout |
-| `RIPPLE_LISTING_SUPPORT_URL` | Ripple hosted payment URL for optional support payments |
-| `RIPPLE_FEATURED_PAYMENT_URL` | Ripple hosted payment URL for featured upgrades |
-| `RIPPLE_DEALER_STARTER_URL` | Ripple hosted subscription URL for dealer starter |
-| `RIPPLE_DEALER_PRO_URL` | Ripple hosted subscription URL for dealer pro |
-| `RIPPLE_DEALER_STARTER_PLAN_ID` | Ripple plan ID used to map starter subscriptions from webhooks |
-| `RIPPLE_DEALER_PRO_PLAN_ID` | Ripple plan ID used to map pro subscriptions from webhooks |
-| `RIPPLE_WEBHOOK_SECRET` | Ripple webhook signing secret |
+| `RIPPLE_CLIENT_ID` | Ripple merchant client id (`codelabplatfdcf3a8`) |
+| `RIPPLE_LISTING_PAYMENT_URL` | Fixed private listing payment link |
+| `RIPPLE_FEATURED_PAYMENT_URL` | Fixed featured upgrade payment link |
+| `RIPPLE_DEALER_STARTER_URL` | Fixed Dealer Starter recurring payment link |
+| `RIPPLE_DEALER_PRO_URL` | Fixed Dealer Pro recurring payment link |
+| `RIPPLE_WEBHOOK_SECRET` | HMAC-SHA256 webhook signing secret |
+| `RIPPLE_REFERENCE_SECRET` | Separate 256-bit secret for checkout references |
+| `RIPPLE_LIVE_CHECKOUT_ENABLED` | Set to `1` only after Ripple underwriting and `reference` support |
 | `RIPPLE_DASHBOARD_URL` | Ripple portal URL for admin billing operations |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
@@ -54,7 +54,7 @@ cp .env.example .env
 | `NEXT_PUBLIC_APP_URL` | App URL (e.g. `http://localhost:3000`) |
 
 **Note:** Supabase credentials are required for authenticated journeys.
-For local redirect smoke tests without onboarding credentials, the app falls back to public demo URLs from Ripple's `demo-gym` portal for hosted payment pages and the dashboard. A real `RIPPLE_WEBHOOK_SECRET` is still required to test webhook verification.
+Ripple checkout stays disabled until `RIPPLE_LIVE_CHECKOUT_ENABLED=1`. Webhook ingestion does not depend on that flag. Production does not fall back to demo-gym URLs.
 
 ### 3. Database setup
 
@@ -143,23 +143,24 @@ See `docs/payments/ripple-migration.md` for the current provider assumptions, ev
 
 | Event | Action |
 |-------|--------|
-| `payment.succeeded` | Record payment, set listing to PENDING when applicable |
-| `payment.failed` | Mark payment FAILED when linked metadata is present |
-| `payment.refunded` | Mark payment REFUNDED |
-| `subscription.created` / `subscription.updated` | Sync dealer subscription status and tier |
-| `subscription.cancelled` | Mark subscription CANCELLED |
+| `payment.received` | Fulfill a referenced one-off, or initialize a recurring dealer subscription and first charge |
+| `payment.success` | Record one renewal charge and extend the paid period |
+| `payment.failed` | Mark the matched subscription past due without extending access |
+| `subscription.created` | Associate or create incomplete state only; never grant access |
+| `subscription.paused` / `subscription.cancelled` | Keep already-paid access until `currentPeriodEnd` |
+| `subscription.resumed` | Clear the lifecycle hold; restore access only if the paid period remains |
 
 ### Featured Upgrade
 
-Live listings can be upgraded to "Featured" through a separate Ripple hosted payment flow. The amount is managed in Admin → Site Settings and is passed to Ripple in integer pence.
+Live listings can be upgraded to Featured through the fixed £5.00 Ripple payment link. Admin Site Settings must match that amount or checkout and fulfillment fail closed.
 
 ### Dealer Subscriptions
 
-Create Ripple starter and pro plans in the portal and set their IDs as `RIPPLE_DEALER_STARTER_PLAN_ID` and `RIPPLE_DEALER_PRO_PLAN_ID`.
+Use the two fixed recurring payment links: Dealer Starter `8181FAC1359E413E` (£29.99) and Dealer Pro `C5D44F6F18094B94` (£49.99). There are no Ripple plan IDs.
 
 ### Marketplace pricing
 
-Private listing, renewal, featured upgrade, dealer subscription, and optional support amounts are managed in Admin → Site Settings. Values are stored as integer pence in `SiteSetting`; the pricing bootstrap migration preserves any existing administrator overrides.
+Private listing, featured upgrade, and dealer subscription amounts are fixed by the Ripple links. Admin Site Settings must match those four prices. Optional listing support stays disabled until a fifth fixed link exists.
 
 ## Cloudinary Setup
 

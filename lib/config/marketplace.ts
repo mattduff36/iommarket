@@ -12,9 +12,7 @@ function parseIntegerEnv(value: string | undefined, fallback: number): number {
 }
 
 export function getPrivateListingPaymentLinkUrl(): string {
-  const url =
-    process.env.RIPPLE_LISTING_PAYMENT_URL ??
-    "https://portal.startyourripple.co.uk/card/demo-gym/pay-any";
+  const url = process.env.RIPPLE_LISTING_PAYMENT_URL?.trim();
   if (!url) {
     throw new Error("RIPPLE_LISTING_PAYMENT_URL is not set");
   }

@@ -687,4 +687,92 @@ describe("CreateListingForm registration lookup", () => {
     ).toBeTruthy();
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  it("submits live revisions without opening checkout ALR-PAY-001", async () => {
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "live-123" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 4 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(submitListingForReview).mockResolvedValue({
+      data: { id: "live-123" },
+    } as unknown as Awaited<ReturnType<typeof submitListingForReview>>);
+
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        initialDraft={{
+          id: "live-123",
+          title: "2017 Audi A3 Sport",
+          description: "Previously saved live listing with enough detail to remain valid.",
+          price: 11250,
+          categoryId: "car-category",
+          regionId: "iom",
+          trustDeclarationAccepted: true,
+          featured: false,
+          photoRevision: 3,
+          editMode: "revision",
+          images: [
+            {
+              id: "img-1",
+              url: "https://example.com/existing-1.jpg",
+              publicId: "existing-1",
+              order: 0,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
+            },
+            {
+              id: "img-2",
+              url: "https://example.com/existing-2.jpg",
+              publicId: "existing-2",
+              order: 1,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
+            },
+          ],
+          attributes: [
+            { attributeDefinitionId: "make", value: "Audi" },
+            { attributeDefinitionId: "model", value: "A3 Sport" },
+            { attributeDefinitionId: "year", value: "2017" },
+            { attributeDefinitionId: "mileage", value: "65000" },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/The current live listing stays public/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit changes for review" }));
+
+    await waitFor(() => {
+      expect(submitListingForReview).toHaveBeenCalledWith("live-123");
+    });
+    expect(payForListing).not.toHaveBeenCalled();
+    expect(window.open).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith(
+        "/sell/success?listing=live-123&flow=private&payment=skipped"
+      );
+    });
+  });
 });

@@ -1,213 +1,68 @@
 # Ripple Payments Migration
 
-This document records the implemented migration shape for replacing Stripe with Ripple in `iommarket`.
+Verified contract for `iommarket` after Ripple's 15 Aug 2026 confirmation.
 
-## Integration Model
+## Integration model
 
-The app now treats Ripple as the active payment provider and uses a hybrid model:
+- Four fixed-price payment links identify the product via `link_code`.
+- Confirmation is webhook-only. Ripple ignores arbitrary query parameters and does not honour `success_url` / `cancel_url`.
+- A future `reference` query parameter will be echoed as `merchant_reference` on the **initial** payment only.
+- Refunds and cancellations stay portal-managed. Ripple has no refund API and does not retry webhooks.
 
-- `iommarket` remains the source of truth for listing status, featured upgrades, dealer subscription gating, and local reporting.
-- Ripple is assumed to provide the hosted payment experience and signed webhook delivery.
-- Refunds and subscription cancellation are treated as portal-managed operations unless Ripple later exposes stable APIs for them.
+## Payment links
 
-## Current UX Decision
+| Product | Code | Amount |
+| --- | --- | --- |
+| Private listing | `74A7510E33E94821` | £4.99 |
+| Featured upgrade | `1BB714D5DBC446B6` | £5.00 |
+| Dealer Starter monthly | `8181FAC1359E413E` | £29.99 |
+| Dealer Pro monthly | `C5D44F6F18094B94` | £49.99 |
 
-To keep the existing site structure unchanged with the least technical risk, the implementation defaults to **Ripple-hosted checkout** instead of trying to embed an unverified script/widget flow.
+URLs: `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/{code}`
 
-Current flow choices:
+## Environment
 
-- Private listing payment: hosted Ripple payment URL
-- Optional support payment: hosted Ripple payment URL
-- Featured upgrade: hosted Ripple payment URL
-- Dealer starter/pro subscription: hosted Ripple subscription URL
-
-Embed remains a future option if Ripple provides a production-ready script and a stable redirect/webhook contract.
-
-## Required Environment Variables
-
-The new provider boundary expects these values:
-
-- `RIPPLE_LISTING_PAYMENT_URL`
-- `RIPPLE_LISTING_SUPPORT_URL`
-- `RIPPLE_FEATURED_PAYMENT_URL`
-- `RIPPLE_DEALER_STARTER_URL`
-- `RIPPLE_DEALER_PRO_URL`
-- `RIPPLE_DEALER_STARTER_PLAN_ID`
-- `RIPPLE_DEALER_PRO_PLAN_ID`
+- `RIPPLE_CLIENT_ID=codelabplatfdcf3a8`
 - `RIPPLE_WEBHOOK_SECRET`
-- `RIPPLE_DASHBOARD_URL` (recommended)
-- `RIPPLE_EMBED_SCRIPT_URL` (optional, only if embed is later adopted)
+- `RIPPLE_REFERENCE_SECRET` (separate 256-bit secret)
+- `RIPPLE_LIVE_CHECKOUT_ENABLED` (`1` only after underwriting and reference support)
+- The four `RIPPLE_*_URL` values above
+- `RIPPLE_DASHBOARD_URL`
 
-## Public Demo Values Found
+Disabling checkout must never disable webhook ingestion or the retry cron.
 
-The public demo does not expose a reusable live API key or webhook secret, but the raw HTML does expose some non-secret demo values that are useful for redirect smoke tests:
+## Webhooks
 
-- `CLIENT_ID=demo-gym`
-- demo dashboard URL: `https://portal.startyourripple.co.uk/portal/demo-gym/card-portal`
-- demo subscribe URL: `https://portal.startyourripple.co.uk/card/demo-gym/subscribe`
-- demo pay-any URL: `https://portal.startyourripple.co.uk/card/demo-gym/pay-any`
-- demo embed widget URL: `https://portal.startyourripple.co.uk/card/demo-gym/embed-widget`
-- local-only demo starter plan ID fallback: `ripple_demo_gym_starter_monthly`
-- local-only demo pro plan ID fallback: `ripple_demo_gym_pro_monthly`
+Destination: `/api/webhooks/ripple` or `/api/webhooks/payments`.
 
-The app now uses these public demo URLs as safe fallbacks for hosted redirect testing when the corresponding `RIPPLE_*_URL` env vars are not set.
+Signature: header `X-Ripple-Signature`, 64-character lowercase hex HMAC-SHA256 of the exact raw body. No `sha256=` prefix, no timestamp, not Standard Webhooks.
 
-What the demo did **not** expose publicly:
+Envelope: `{ event, client_id, timestamp, data }`.
 
-- a real `RIPPLE_WEBHOOK_SECRET`
-- a real integration API key
-- starter/pro plan IDs for production use
-- checkout/package IDs for direct deep-linking to specific subscription packages
+Events:
 
-## Webhook Endpoint
-
-Configure Ripple to send webhooks to:
-
-- `/api/webhooks/payments`
-
-The handler supports two verification styles:
-
-- `standardwebhooks` headers (`webhook-id`, `webhook-timestamp`, `webhook-signature`)
-- HMAC SHA-256 signatures via `ripple-signature`, `x-ripple-signature`, or `x-signature`
-
-## Event Mapping
-
-The payment bridge normalizes provider payloads into local outcomes:
-
-### One-off payments
-
-- `payment.succeeded` + `metadata.checkoutType=listing_payment`
-  - create/update local `Payment`
-  - transition eligible listing from `DRAFT` or `EXPIRED` to `PENDING`
-
-- `payment.succeeded` + `metadata.checkoutType=listing_support`
-  - create/update local `Payment` as `SUPPORT`
-
-- `payment.succeeded` + `metadata.checkoutType=featured_upgrade`
-  - create/update local `Payment`
-  - set `Listing.featured = true`
-
+- `payment.received` — initial one-off or initial recurring signup
+- `payment.success` — subsequent monthly collection
 - `payment.failed`
-  - create/update local `Payment` with `FAILED`
+- `subscription.created` — associate only, never grant access
+- `subscription.paused` / `subscription.cancelled` / `subscription.resumed`
 
-- `payment.refunded`
-  - mark matching local `Payment` as `REFUNDED`
-  - never invent a refund reason; keep any locally stored reason
-  - if no payment row exists but the event identifies a dealer subscription,
-    set `cancelAtPeriodEnd` (and `currentPeriodEnd` when present) so paid
-    entitlement ends when the remaining period is gone
+Amounts are decimal pounds. `payment_reference` is the only payment id. Renewals and lifecycle events use `customer_email` + `package` and have no `link_code`.
 
-### Dealer subscriptions
+## Local processing rules
 
-- `subscription.created`
-  - upsert local `Subscription`
-  - set dealer tier from webhook metadata or provider plan ID
-  - persist `cancelAtPeriodEnd` when the payload includes it
-  - ensure linked user role is `DEALER`
+- Persist a minimized inbox row before applying business effects. Exact body-hash duplicates are no-ops, and a `PROCESSING` claim prevents concurrent workers from applying the same row.
+- Listing and featured fulfillment require a valid signed `merchant_reference`.
+- Dealer email fallback is allowed only when no reference is present and exactly one active dealer matches.
+- Unknown `link_code` / `package` values are quarantined and never default to Starter.
+- Paid entitlement requires `status=ACTIVE` and `currentPeriodEnd > now`.
+- Failed inbox rows and stale `PENDING` rows are retried by `/api/cron/ripple-webhook-retry`. Disabling checkout never disables this cron.
+- Reconcile daily against the Ripple portal because delivery is best-effort.
 
-- `subscription.updated`
-  - sync local status, period end, and `cancelAtPeriodEnd`
-  - keep dealer tier aligned with plan mapping
+Use [`docs/production-rollout-checklist.md`](../production-rollout-checklist.md)
+for migrate-before-code ordering, disabled-first deployment, live probes,
+acceptance payments, refunds, and rollback.
 
-- `subscription.cancelled`
-  - mark local `Subscription` as `CANCELLED`
-  - clear `cancelAtPeriodEnd`
+## Manual refunds
 
-## Provider Metadata Expectations
-
-The webhook bridge works best when Ripple includes these metadata fields in the event payload or merchant reference context:
-
-- `checkoutType`
-- `listingId`
-- `dealerId`
-- `tier`
-- `merchantReference`
-
-If Ripple cannot emit these values directly, the live setup should add them via Ripple custom fields, portal configuration, or an intermediary integration layer.
-
-## Hosted URL Strategy
-
-When `iommarket` creates a checkout URL, it appends context query parameters that Ripple may choose to consume or echo:
-
-- `merchant_reference`
-- `checkout_type`
-- `listing_id`
-- `dealer_id`
-- `tier`
-- `amount_pence`
-- `email`
-- `success_url`
-- `cancel_url`
-
-These parameters are intended to make the integration forward-compatible with Ripple’s onboarding guidance and to simplify debugging during rollout.
-
-## Admin Operations
-
-The admin UI now assumes:
-
-- local status visibility stays in `iommarket`
-- refunds are handled in Ripple’s portal
-- subscription cancellation is handled in Ripple’s portal
-
-If Ripple later exposes safe APIs for these actions, `lib/payments/provider.ts` is the integration point to extend.
-
-## Data Model Strategy
-
-The Prisma schema now preserves Stripe history while enabling Ripple cutover:
-
-- `Payment.paymentProvider`
-- `Payment.providerPaymentId`
-- `Payment.providerReference`
-- `Subscription.paymentProvider`
-- `Subscription.providerSubscriptionId`
-- `Subscription.providerPlanId`
-
-Legacy Stripe columns remain in place as nullable fields for historical lookups and gradual backfill.
-
-## Live Cutover Checklist
-
-1. Export all active Stripe dealer subscriptions, renewal dates, and customer contact details.
-2. Export historical Stripe payments needed for support and reporting.
-3. Backfill neutral provider fields for all existing Stripe rows.
-4. Create Ripple hosted links/pages for:
-   - private listing fee
-   - optional support payment
-   - featured upgrade
-   - dealer starter subscription
-   - dealer pro subscription
-5. Configure Ripple plan IDs to match:
-   - `RIPPLE_DEALER_STARTER_PLAN_ID`
-   - `RIPPLE_DEALER_PRO_PLAN_ID`
-6. Configure Ripple webhook delivery to `/api/webhooks/payments`.
-7. Verify signed webhook delivery in a non-production environment.
-8. Reconcile a test listing payment, featured upgrade, and dealer subscription end to end.
-9. Freeze Stripe subscription changes during the final migration window.
-10. Recreate active subscriptions in Ripple with preserved dealer tier intent and next billing dates.
-11. Run post-cutover reconciliation:
-   - every active dealer has one active local subscription
-   - provider IDs are stored locally
-   - listing payments still move listings to `PENDING`
-   - featured payments still mark listings as featured
-12. Remove remaining Stripe credentials and operational access once the reconciliation window closes.
-
-Public Ripple/StartYourRipple materials do not publish a stable webhook schema.
-Normalization therefore accepts the aliases already used by this integration
-(`cancel_at_period_end`, `cancelAtPeriodEnd`, `subscription_id`,
-`current_period_end`, and the merchant metadata fields above). A live
-non-production capture is still required before treating those field names as
-provider-confirmed.
-
-Paid dealer visibility uses `cancelAtPeriodEnd` plus `currentPeriodEnd`:
-scheduled cancellation keeps access until period end; a refund with no remaining
-paid period ends public entitlement immediately.
-
-## Residual Risk
-
-The current implementation is production-oriented but still depends on Ripple account-specific onboarding details:
-
-- exact hosted URL formats
-- exact webhook payload shape
-- whether merchant context is echoed back automatically
-- whether refunds/cancellations ever become API-managed
-
-Those are now isolated to provider configuration and the webhook normalization layer instead of being spread across the app.
+Refund and cancel in the Ripple portal, then update local records from admin or the next lifecycle webhook. There is no verified refund event.

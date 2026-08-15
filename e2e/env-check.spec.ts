@@ -351,16 +351,16 @@ test.describe("[Payments] Configuration", () => {
 test.describe("[Payment Webhook] Signature verification", () => {
   const WEBHOOK_ENDPOINT = "/api/webhooks/payments";
   const SAMPLE_PAYLOAD = JSON.stringify({
-    id: "evt_test_env_check",
-    type: "payment.succeeded",
+    event: "payment.received",
+    client_id: process.env.RIPPLE_CLIENT_ID ?? "codelabplatfdcf3a8",
+    timestamp: "2026-08-15T10:15:27.345Z",
     data: {
-      paymentId: "pay_test_env_check",
-      amount: "4.99",
-      currency: "gbp",
-      metadata: {
-        checkoutType: "listing_payment",
-        listingId: "missing_listing",
-      },
+      amount: 4.99,
+      currency: "GBP",
+      payment_reference: "pay_test_env_check",
+      link_code: "74A7510E33E94821",
+      link_type: "one-off",
+      recurring: false,
     },
   });
 
@@ -376,7 +376,7 @@ test.describe("[Payment Webhook] Signature verification", () => {
     const res = await request.post(WEBHOOK_ENDPOINT, {
       headers: {
         "Content-Type": "application/json",
-        "ripple-signature": "sha256=invalidsignature",
+        "x-ripple-signature": "invalidsignature",
       },
       data: SAMPLE_PAYLOAD,
     });
@@ -398,7 +398,7 @@ test.describe("[Payment Webhook] Signature verification", () => {
     const res = await request.post(WEBHOOK_ENDPOINT, {
       headers: {
         "Content-Type": "application/json",
-        "ripple-signature": `sha256=${signature}`,
+        "x-ripple-signature": signature,
       },
       data: SAMPLE_PAYLOAD,
     });

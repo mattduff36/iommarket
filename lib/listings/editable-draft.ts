@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { getOrCreateDraftRevision, getOpenRevision } from "@/lib/listings/revisions";
+import { isInPlaceEditable, usesPendingRevision } from "@/lib/listings/visibility";
 
 export interface EditableDraft {
   id: string;
@@ -10,6 +12,8 @@ export interface EditableDraft {
   trustDeclarationAccepted: boolean;
   featured: boolean;
   photoRevision: number;
+  editMode?: "draft" | "revision" | "resubmit";
+  revisionPending?: boolean;
   images: Array<{
     id: string;
     url: string;
@@ -38,6 +42,27 @@ interface GetEditableDraftInput {
   dealerId: string | null;
 }
 
+function toEditableImages(
+  images: EditableDraft["images"],
+): EditableDraft["images"] {
+  return images.map((image) => ({
+    id: image.id,
+    url: image.url,
+    publicId: image.publicId,
+    order: image.order,
+    provider: image.provider,
+    assetId: image.assetId,
+    version: image.version,
+    width: image.width,
+    height: image.height,
+    format: image.format,
+    bytes: image.bytes,
+    uploadIntentId: image.uploadIntentId,
+    focalX: image.focalX,
+    focalY: image.focalY,
+  }));
+}
+
 export async function getEditableDraft({
   draftId,
   userId,
@@ -48,27 +73,10 @@ export async function getEditableDraft({
       id: draftId,
       userId,
       dealerId,
-      status: "DRAFT",
     },
     include: {
       images: {
         orderBy: { order: "asc" },
-        select: {
-          id: true,
-          url: true,
-          publicId: true,
-          order: true,
-          provider: true,
-          assetId: true,
-          version: true,
-          width: true,
-          height: true,
-          format: true,
-          bytes: true,
-          uploadIntentId: true,
-          focalX: true,
-          focalY: true,
-        },
       },
       attributeValues: {
         select: {
@@ -79,8 +87,33 @@ export async function getEditableDraft({
     },
   });
 
-  if (!listing) {
+  if (!listing) return null;
+  if (!isInPlaceEditable(listing.status) && !usesPendingRevision(listing.status)) {
     return null;
+  }
+
+  if (usesPendingRevision(listing.status)) {
+    const revision =
+      (await getOpenRevision(listing.id)) ??
+      (await getOrCreateDraftRevision({ listingId: listing.id, userId }));
+    return {
+      id: listing.id,
+      title: revision.title,
+      description: revision.description,
+      price: revision.price / 100,
+      categoryId: revision.categoryId,
+      regionId: revision.regionId,
+      trustDeclarationAccepted: revision.trustDeclarationAccepted,
+      featured: listing.featured,
+      photoRevision: revision.version,
+      editMode: "revision",
+      revisionPending: revision.status === "PENDING",
+      images: toEditableImages(revision.images),
+      attributes: revision.attributeValues.map((attribute) => ({
+        attributeDefinitionId: attribute.attributeDefinitionId,
+        value: attribute.value,
+      })),
+    };
   }
 
   return {
@@ -93,22 +126,9 @@ export async function getEditableDraft({
     trustDeclarationAccepted: listing.trustDeclarationAccepted,
     featured: listing.featured,
     photoRevision: listing.photoRevision,
-    images: listing.images.map((image) => ({
-      id: image.id,
-      url: image.url,
-      publicId: image.publicId,
-      order: image.order,
-      provider: image.provider,
-      assetId: image.assetId,
-      version: image.version,
-      width: image.width,
-      height: image.height,
-      format: image.format,
-      bytes: image.bytes,
-      uploadIntentId: image.uploadIntentId,
-      focalX: image.focalX,
-      focalY: image.focalY,
-    })),
+    editMode: listing.status === "DRAFT" || listing.status === "EXPIRED" ? "draft" : "resubmit",
+    revisionPending: false,
+    images: toEditableImages(listing.images),
     attributes: listing.attributeValues.map((attribute) => ({
       attributeDefinitionId: attribute.attributeDefinitionId,
       value: attribute.value,

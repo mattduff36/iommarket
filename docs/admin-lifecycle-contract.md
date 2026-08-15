@@ -14,7 +14,10 @@ Architecture gate 1: BLOCK. This document is the revised contract incorporating 
 
 | Action | From | To | Reason required |
 | --- | --- | --- | --- |
-| SUBMIT | DRAFT | PENDING | no |
+| SUBMIT | DRAFT, TAKEN_DOWN, REJECTED | PENDING | no |
+| SUBMIT_REVISION | LIVE | LIVE | no |
+| APPROVE_REVISION | LIVE | LIVE | no |
+| REJECT_REVISION | LIVE | LIVE | yes |
 | APPROVE | PENDING, APPROVED | LIVE | no |
 | REJECT | PENDING | REJECTED | yes |
 | TAKE_DOWN | LIVE, APPROVED | TAKEN_DOWN | yes |
@@ -37,7 +40,10 @@ Reason codes: `FRAUD`, `PROHIBITED`, `MISLEADING`, `DUPLICATE`, `POLICY`, `SAFET
 - Callers pass `expectedRevision` and intended `action`.
 - Atomic CAS: `updateMany({ id, status: fromStatus, lifecycleRevision })` then increment revision.
 - No arbitrary `additionalData`. Allowed effects only: `expiresAt`, `soldAt`, `featured=false` on takedown/reject.
-- Same-status content edits are not transitions.
+- Same-status content edits of a LIVE listing are stored as a `ListingRevision` and recorded with `SUBMIT_REVISION`, `APPROVE_REVISION`, or `REJECT_REVISION`. Those events keep `fromStatus = toStatus = LIVE` and increment `lifecycleRevision`.
+- Owners may edit `TAKEN_DOWN` and `REJECTED` listings in place and `SUBMIT` them back to `PENDING` without a new charge when a succeeded listing payment, matching free-listing claim, or active dealer entitlement exists.
+- Formerly-live resubmissions preserve remaining `expiresAt`. Expired formerly-live listings must renew before resubmit.
+- Seller emails fire after commit for real status changes. Internal notes are never included.
 - Invalid, stale, or ABA revisions throw and write nothing.
 
 ## Reinstate live
@@ -73,8 +79,8 @@ CAS mutation, `ListingStatusEvent`, optional report linkage, and `AdminAuditLog`
 
 | Action | Allowed actor | Source |
 | --- | --- | --- |
-| SUBMIT | listing owner | USER or PAYMENT |
-| APPROVE, REJECT, TAKE_DOWN, REINSTATE_LIVE, RETURN_TO_DRAFT | ADMIN | ADMIN |
+| SUBMIT, SUBMIT_REVISION | listing owner | USER or PAYMENT |
+| APPROVE, REJECT, TAKE_DOWN, REINSTATE_LIVE, RETURN_TO_DRAFT, APPROVE_REVISION, REJECT_REVISION | ADMIN | ADMIN |
 | EXPIRE | system | SYSTEM |
 | MARK_SOLD, RENEW | listing owner | USER |
 | ACCOUNT_DISABLE, ACCOUNT_DISABLE_PENDING | ADMIN or listing owner (self-deactivate) | ADMIN or USER |

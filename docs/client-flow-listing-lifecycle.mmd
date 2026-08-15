@@ -29,7 +29,12 @@ flowchart TD
   ReviewAction -->|"Current"| Pending
   Pending -->|"Current"| AdminReview
   AdminReview -->|"Current:Approve"| Live
-  AdminReview -->|"Current:RejectOrTakeDown"| Expired
+  AdminReview -->|"Current:Reject"| Rejected[ListingStatusRejected]
+  AdminReview -->|"Current:TakeDown"| TakenDown[ListingStatusTakenDown]
   Live -->|"Current:OwnerMarksSold"| Sold
+  Live -->|"Current:OwnerEdits"| RevisionPending[ListingRevisionPending]
+  RevisionPending -->|"Current:ApproveRevision"| Live
+  TakenDown -->|"Current:OwnerEditsAndResubmits"| Pending
+  Rejected -->|"Current:OwnerEditsAndResubmits"| Pending
 
   RippleCheckout -->|"FutureGap:CancelRedirectPath"| SellCheckoutRoute

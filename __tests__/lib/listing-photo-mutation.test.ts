@@ -285,7 +285,7 @@ describe("listing photo mutation", () => {
         },
       }),
     ).resolves.toEqual({
-      error: "Photos can only be changed while the listing is a draft or expired.",
+      error: "Photos can only be changed while the listing is editable.",
     });
   });
 
