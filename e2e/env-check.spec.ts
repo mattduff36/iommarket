@@ -33,8 +33,8 @@ async function signInAsAdmin(page: Page): Promise<void> {
   await dismissCookieBanner(page);
   await page.waitForLoadState("networkidle");
 
-  const emailInput = page.getByLabel(/^email$/i);
-  const passwordInput = page.getByLabel(/^password$/i);
+  const emailInput = page.getByLabel(/^email/i);
+  const passwordInput = page.getByLabel(/^password/i);
 
   await emailInput.fill(E2E_ADMIN_EMAIL);
   await passwordInput.fill(E2E_ADMIN_PASSWORD);

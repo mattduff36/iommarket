@@ -19,8 +19,8 @@ async function signInAsAdmin(page: Page): Promise<void> {
   await dismissCookieBanner(page);
   await page.waitForLoadState("networkidle");
 
-  await page.getByLabel(/^email$/i).fill(E2E_ADMIN_EMAIL);
-  await page.getByLabel(/^password$/i).fill(E2E_ADMIN_PASSWORD);
+  await page.getByLabel(/^email/i).fill(E2E_ADMIN_EMAIL);
+  await page.getByLabel(/^password/i).fill(E2E_ADMIN_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/admin/, { timeout: 30_000 });
 }
