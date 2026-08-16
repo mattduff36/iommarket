@@ -49,11 +49,7 @@ export default async function AdminDashboardPage() {
     recentPayments,
     totalUsers,
     newUsers7d,
-    totalRegions,
-    views7d,
-    totalFavourites,
     totalRevenuePence,
-    contentPages,
     recentListings,
     recentUsers,
     recentReports,
@@ -85,14 +81,10 @@ export default async function AdminDashboardPage() {
     }),
     db.user.count(),
     db.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-    db.region.count({ where: { active: true } }),
-    db.listingView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-    db.favourite.count(),
     db.payment.aggregate({
       where: { status: "SUCCEEDED" },
       _sum: { amount: true },
     }),
-    db.contentPage.count(),
     db.listing.findMany({
       orderBy: { createdAt: "desc" },
       take: 5,
@@ -192,10 +184,6 @@ export default async function AdminDashboardPage() {
           recentPayments,
           totalDealers,
           verifiedDealers,
-          views7d,
-          totalFavourites,
-          totalRegions,
-          contentPages,
         })}
       />
 

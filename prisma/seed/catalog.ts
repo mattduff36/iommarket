@@ -1,0 +1,118 @@
+import { FUEL_TYPE_OPTIONS } from "../../lib/constants/fuel-types";
+import { MARKETPLACE_REGIONS } from "../../lib/constants/regions";
+
+export const VEHICLE_ATTRIBUTE_DEFS = [
+  { name: "Make", slug: "make", dataType: "text", required: true, sortOrder: 1 },
+  { name: "Model", slug: "model", dataType: "text", required: true, sortOrder: 2 },
+  { name: "Year", slug: "year", dataType: "number", required: true, sortOrder: 3 },
+  { name: "Mileage", slug: "mileage", dataType: "number", required: true, sortOrder: 4 },
+  {
+    name: "Fuel Type",
+    slug: "fuel-type",
+    dataType: "select",
+    required: false,
+    sortOrder: 5,
+    options: JSON.stringify(FUEL_TYPE_OPTIONS),
+  },
+  {
+    name: "Transmission",
+    slug: "transmission",
+    dataType: "select",
+    required: false,
+    sortOrder: 6,
+    options: JSON.stringify(["Manual", "Automatic"]),
+  },
+  {
+    name: "Body Type",
+    slug: "body-type",
+    dataType: "select",
+    required: false,
+    sortOrder: 7,
+    options: JSON.stringify([
+      "Hatchback",
+      "Saloon",
+      "SUV",
+      "Estate",
+      "Coupe",
+      "Convertible",
+      "MPV",
+      "Pickup",
+    ]),
+  },
+  {
+    name: "Colour",
+    slug: "colour",
+    dataType: "select",
+    required: false,
+    sortOrder: 8,
+    options: JSON.stringify([
+      "Black",
+      "White",
+      "Silver",
+      "Grey",
+      "Blue",
+      "Red",
+      "Green",
+      "Yellow",
+      "Orange",
+      "Brown",
+      "Gold",
+      "Bronze",
+      "Other",
+    ]),
+  },
+  { name: "Doors", slug: "doors", dataType: "number", required: false, sortOrder: 9 },
+  { name: "Seats", slug: "seats", dataType: "number", required: false, sortOrder: 10 },
+  { name: "Engine Size", slug: "engine-size", dataType: "number", required: false, sortOrder: 11 },
+  { name: "Engine Power", slug: "engine-power", dataType: "number", required: false, sortOrder: 12 },
+  { name: "Battery Range", slug: "battery-range", dataType: "number", required: false, sortOrder: 13 },
+  { name: "Charging Time", slug: "charging-time", dataType: "number", required: false, sortOrder: 14 },
+  { name: "Acceleration", slug: "acceleration", dataType: "number", required: false, sortOrder: 15 },
+  { name: "Fuel Consumption", slug: "fuel-consumption", dataType: "number", required: false, sortOrder: 16 },
+  { name: "CO2 Emissions", slug: "co2-emissions", dataType: "number", required: false, sortOrder: 17 },
+  { name: "Tax Per Year", slug: "tax-per-year", dataType: "number", required: false, sortOrder: 18 },
+  { name: "Insurance Group", slug: "insurance-group", dataType: "number", required: false, sortOrder: 19 },
+  {
+    name: "Location",
+    slug: "location",
+    dataType: "select",
+    required: false,
+    sortOrder: 20,
+    options: JSON.stringify(["Isle of Man", "UK"]),
+  },
+  {
+    name: "Drive Type",
+    slug: "drive-type",
+    dataType: "select",
+    required: false,
+    sortOrder: 21,
+    options: JSON.stringify(["FWD", "RWD", "4WD", "AWD"]),
+  },
+  {
+    name: "Previously Written Off",
+    slug: "previously-written-off",
+    dataType: "boolean",
+    required: false,
+    sortOrder: 22,
+  },
+  {
+    name: "Insurance write-off category",
+    slug: "write-off-category",
+    dataType: "select",
+    required: false,
+    sortOrder: 22.5,
+    options: JSON.stringify(["None", "Category N", "Category S"]),
+  },
+  { name: "Boot Space", slug: "boot-space", dataType: "number", required: false, sortOrder: 23 },
+] as const;
+
+export const MOTORBIKE_EXCLUDED_ATTRS = ["body-type", "doors", "boot-space"] as const;
+
+export const CATEGORY_DEFS = [
+  { name: "Cars", slug: "car", sortOrder: 1 },
+  { name: "Vans", slug: "van", sortOrder: 2 },
+  { name: "Motorbikes", slug: "motorbike", sortOrder: 3 },
+  { name: "Motorhomes", slug: "motorhome", sortOrder: 4 },
+] as const;
+
+export { MARKETPLACE_REGIONS };

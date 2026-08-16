@@ -44,6 +44,7 @@ export function ListingResultsClient({
   const [items, setItems] = useState<ListingItem[]>(initialListings);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const includeSold = queryParams.includeSold === "true";
   const sort = parseSearchSort(queryParams.sort);
@@ -62,7 +63,7 @@ export function ListingResultsClient({
   }, [initialListings]);
 
   useEffect(() => {
-    if (!hasMore || isLoading) return;
+    if (!hasMore || isLoading || loadError) return;
     const target = loaderRef.current;
     if (!target) return;
 
@@ -82,15 +83,28 @@ export function ListingResultsClient({
   async function loadMore() {
     if (isLoading || !hasMore) return;
     setIsLoading(true);
+    setLoadError(null);
     const nextPage = page + 1;
-    const response = await fetch(`/api/search?${queryString}&page=${nextPage}`, {
-      method: "GET",
-      cache: "no-store",
-    });
-    const data = (await response.json()) as { listings: ListingItem[] };
-    setItems((prev) => [...prev, ...data.listings]);
-    setPage(nextPage);
-    setIsLoading(false);
+    try {
+      const response = await fetch(`/api/search?${queryString}&page=${nextPage}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`Search request failed with status ${response.status}`);
+      }
+      const data = (await response.json()) as { listings?: ListingItem[] };
+      if (!Array.isArray(data.listings)) {
+        throw new Error("Search response did not contain listings");
+      }
+      const listings = data.listings;
+      setItems((prev) => [...prev, ...listings]);
+      setPage(nextPage);
+    } catch {
+      setLoadError("Unable to load more listings. Check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -186,7 +200,14 @@ export function ListingResultsClient({
 
       {hasMore ? (
         <div ref={loaderRef} className="py-6 text-center text-sm text-text-secondary">
-          {isLoading ? (
+          {loadError ? (
+            <div className="flex flex-col items-center gap-3" role="alert">
+              <span>{loadError}</span>
+              <Button type="button" size="sm" variant="ghost" onClick={() => void loadMore()}>
+                Try again
+              </Button>
+            </div>
+          ) : isLoading ? (
             <span className="inline-flex items-center gap-2">
               <BrandedSpinner size="sm" />
               Loading more listings...

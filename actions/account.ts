@@ -13,6 +13,7 @@ import {
   type UpdateDealerSelfProfileInput,
   type UpdateMyProfileInput,
 } from "@/lib/validations/account";
+import { reportHandledException } from "@/lib/monitoring";
 
 export async function updateMyProfile(input: UpdateMyProfileInput) {
   const user = await requireAcceptedAuth();
@@ -49,6 +50,12 @@ export async function updateMyProfile(input: UpdateMyProfileInput) {
     revalidatePath("/account/profile");
     return { data: updated };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "updateMyProfile",
+      route: "/account/profile",
+      userId: user.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to update profile";
     return { error: message };
@@ -100,6 +107,12 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
     revalidatePath(`/dealers/${updated.slug}`);
     return { data: updated };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "updateMyDealerProfile",
+      route: "/dealer/profile",
+      userId: user.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to update dealer profile";
     return { error: message };
@@ -158,6 +171,12 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
     revalidatePath("/search");
     return { data: { success: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deactivateMyAccount",
+      route: "/account",
+      userId: user.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to deactivate account";
     return { error: message };

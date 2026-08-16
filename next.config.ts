@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: projectRoot,
+  },
   outputFileTracingIncludes: {
     "/**": ["./content/policies/**"],
   },
@@ -17,6 +24,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "picsum.photos",
+      },
+      {
+        protocol: "https",
+        hostname: "morrisregister.co.uk",
       },
       {
         protocol: "https",

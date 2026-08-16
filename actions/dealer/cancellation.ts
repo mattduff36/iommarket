@@ -10,6 +10,7 @@ import {
 } from "@/lib/policy/cancellation";
 import { sendCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
 import { requestDealerCancellationSchema } from "@/lib/validations/cancellation";
+import { reportHandledException } from "@/lib/monitoring";
 
 export async function requestDealerCancellation(input: { confirmation: boolean }) {
   const user = await requireAcceptedAuth();
@@ -41,6 +42,12 @@ export async function requestDealerCancellation(input: { confirmation: boolean }
     if (error instanceof CancellationError) {
       return { error: error.message };
     }
+    await reportHandledException({
+      error,
+      action: "requestDealerCancellation",
+      route: "/dealer/dashboard",
+      userId: user.id,
+    });
     const message =
       error instanceof Error ? error.message : "Failed to request cancellation";
     return { error: message };

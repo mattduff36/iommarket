@@ -6,6 +6,7 @@ import {
 } from "@/lib/services/vehicle-check-error";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { vehicleCheckSchema } from "@/lib/validations/vehicle-check";
+import { reportHandledException } from "@/lib/monitoring";
 
 const MAX_BODY_BYTES = 8_000;
 
@@ -69,6 +70,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, result });
   } catch (error) {
     const jsonError = toJsonError(error);
+    if (jsonError.status >= 500) {
+      await reportHandledException({
+        error,
+        action: "vehicleCheck",
+        route: "/api/vehicle-check",
+        requestPath: "/api/vehicle-check",
+        requestMethod: "POST",
+      });
+    }
     return NextResponse.json(
       { error: jsonError.message },
       { status: jsonError.status }

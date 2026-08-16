@@ -4,35 +4,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { MonitoringIssueCard } from "@/components/admin/monitoring-issue-card";
 
 export const metadata: Metadata = { title: "Monitoring | Admin" };
 
 const STATUS_OPTIONS = ["OPEN", "ACKNOWLEDGED", "MUTED", "RESOLVED"] as const;
 const SEVERITY_OPTIONS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const SOURCE_OPTIONS = ["SERVER", "CLIENT", "WEBHOOK", "BUSINESS"] as const;
-
-function statusVariant(status: string): "neutral" | "warning" | "error" | "success" | "info" {
-  if (status === "OPEN") return "warning";
-  if (status === "MUTED") return "neutral";
-  if (status === "ACKNOWLEDGED") return "info";
-  return "success";
-}
-
-function severityVariant(severity: string): "neutral" | "warning" | "error" | "success" | "info" {
-  if (severity === "CRITICAL") return "error";
-  if (severity === "HIGH") return "warning";
-  if (severity === "MEDIUM") return "info";
-  return "neutral";
-}
 
 function buildFilterHref(params: {
   status?: string;
@@ -96,6 +74,15 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
       take: 200,
       include: {
         _count: { select: { events: true } },
+        statusEvents: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            toStatus: true,
+            notes: true,
+            createdAt: true,
+          },
+        },
       },
     }),
     db.monitoringIssue.count({ where: { status: "OPEN" } }),
@@ -177,59 +164,19 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Issue</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Severity</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>Events</TableHead>
-            <TableHead>Last Seen</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {issues.map((issue) => (
-            <TableRow key={issue.id}>
-              <TableCell className="max-w-[420px]">
-                <p className="font-medium text-text-primary truncate">{issue.title}</p>
-                <p className="text-xs text-text-secondary truncate mt-1">
-                  {issue.sampleMessage}
-                </p>
-              </TableCell>
-              <TableCell>
-                <Badge variant={statusVariant(issue.status)}>{issue.status}</Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant={severityVariant(issue.severity)}>{issue.severity}</Badge>
-              </TableCell>
-              <TableCell className="text-sm text-text-secondary">{issue.source}</TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {issue._count.events} ({issue.occurrences} occurrences)
-              </TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {issue.lastSeenAt.toLocaleString("en-GB")}
-              </TableCell>
-              <TableCell>
-                <Link
-                  href={`/admin/monitoring/${issue.id}`}
-                  className="text-sm text-text-trust hover:underline"
-                >
-                  Review
-                </Link>
-              </TableCell>
-            </TableRow>
-          ))}
-          {issues.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center text-sm text-text-secondary">
-                No issues match your current filters.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+      <div className="space-y-3">
+        {issues.map((issue) => (
+          <MonitoringIssueCard key={issue.id} issue={issue} />
+        ))}
+        {issues.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-surface px-6 py-12 text-center">
+            <p className="text-sm font-medium text-text-primary">No matching issues</p>
+            <p className="mt-1 text-sm text-text-secondary">
+              Adjust the current filters to see other monitoring issues.
+            </p>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

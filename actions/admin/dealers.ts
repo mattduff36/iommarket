@@ -13,6 +13,7 @@ import {
   type UpdateDealerProfileInput,
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
+import { reportHandledException } from "@/lib/monitoring";
 
 export async function listDealers(input: { query?: string; verified?: boolean; page?: number; pageSize?: number }) {
   await requireRole("ADMIN");
@@ -99,6 +100,11 @@ export async function createDealerProfile(input: CreateDealerProfileInput) {
     revalidatePath("/admin/users");
     return { data: profile };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "createDealerProfile",
+      route: "/admin/dealers",
+    });
     const message = err instanceof Error ? err.message : "Failed to create dealer profile";
     return { error: message };
   }
@@ -129,6 +135,11 @@ export async function updateDealerProfile(input: UpdateDealerProfileInput) {
     revalidatePath("/admin/dealers");
     return { data: profile };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "updateDealerProfile",
+      route: "/admin/dealers",
+    });
     const message = err instanceof Error ? err.message : "Failed to update dealer profile";
     return { error: message };
   }
@@ -183,6 +194,11 @@ export async function verifyDealer(dealerId: string, verified: boolean) {
     revalidatePath("/admin/dealers");
     return { data: result.profile };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "verifyDealer",
+      route: "/admin/dealers",
+    });
     const message = err instanceof Error ? err.message : "Failed to update verification";
     return { error: message };
   }
@@ -227,6 +243,11 @@ export async function downgradeDealerToUser(dealerId: string) {
     revalidatePath("/account");
     return { data: { success: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "downgradeDealerToUser",
+      route: "/admin/dealers",
+    });
     const message = err instanceof Error ? err.message : "Failed to downgrade dealer";
     return { error: message };
   }

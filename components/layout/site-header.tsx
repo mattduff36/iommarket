@@ -10,6 +10,7 @@ import { Menu, X, Mail, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
+import { isExpectedClientCancellation } from "@/lib/monitoring/console-filter";
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -57,16 +58,24 @@ export function SiteHeader() {
 
     const supabase = createSupabaseBrowserClient();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setAuthState((s) => ({
-        ...s,
-        user: u,
-        loading: false,
-        displayName: u?.email ?? null,
-      }));
-      if (u) fetchMe(u.email);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        const u = session?.user ?? null;
+        setAuthState((s) => ({
+          ...s,
+          user: u,
+          loading: false,
+          displayName: u?.email ?? null,
+        }));
+        if (u) fetchMe(u.email);
+      })
+      .catch((error: unknown) => {
+        setAuthState((s) => ({ ...s, loading: false }));
+        if (!isExpectedClientCancellation(error)) {
+          console.error("Failed to initialise auth session", error);
+        }
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null;
@@ -79,15 +88,13 @@ export function SiteHeader() {
     });
 
     return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (authState.user) {
       fetchMe(authState.user.email);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [authState.user, pathname]);
 
   const { user, role } = authState;
   const accountNavItems = getAccountNavItems(role);

@@ -10,6 +10,7 @@ import {
   type CreateDealerReviewInput,
   type ModerateDealerReviewInput,
 } from "@/lib/validations/dealer-review";
+import { reportHandledException } from "@/lib/monitoring";
 
 function toSafeComment(comment: string | undefined) {
   const trimmed = comment?.trim();
@@ -102,6 +103,11 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
     revalidatePath("/admin/reviews");
     return { data: review };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "submitDealerReview",
+      route: "/dealers",
+    });
     const message =
       err instanceof Error ? err.message : "Failed to submit dealer review";
     return { error: message };
@@ -169,6 +175,12 @@ export async function moderateDealerReview(input: ModerateDealerReviewInput) {
     revalidatePath("/admin/reviews");
     return { data: review };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "moderateDealerReview",
+      route: "/admin/reviews",
+      userId: admin.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to moderate dealer review";
     return { error: message };

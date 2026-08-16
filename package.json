@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 4000",
+    "dev": "next dev --webpack -p 4000",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
@@ -18,7 +18,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "fixerrors": "npx tsx scripts/fixerrors.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

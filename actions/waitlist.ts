@@ -14,6 +14,7 @@ import {
   sendWaitlistConfirmationEmail,
 } from "@/lib/email/resend";
 import { COMPANY } from "@/lib/policy/company";
+import { reportHandledException } from "@/lib/monitoring";
 
 const WAITLIST_INTEREST_LABELS: Record<WaitlistInterest, string> = {
   BUYING_CARS: "Buying cars",
@@ -80,6 +81,11 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
 
     return { data: { id: waitlistUser.id } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "joinWaitlist",
+      route: "/waitlist",
+    });
     // Avoid leaking internal database/runtime details to public users.
     return {
       error:
@@ -122,6 +128,12 @@ export async function deleteWaitlistUser(id: string) {
     revalidatePath("/admin/waitlist");
     return { success: true };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deleteWaitlistUser",
+      route: "/admin/waitlist",
+      userId: admin.id,
+    });
     return {
       error:
         err instanceof Error && err.message.includes("Record to delete does not exist")
@@ -153,7 +165,13 @@ export async function restoreWaitlistUser(id: string) {
     });
     revalidatePath("/admin/waitlist");
     return { success: true };
-  } catch {
+  } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "restoreWaitlistUser",
+      route: "/admin/waitlist",
+      userId: admin.id,
+    });
     return { error: "Failed to restore entry." };
   }
 }

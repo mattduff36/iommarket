@@ -1,31 +1,18 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-
-interface ClientEventPayload {
-  message: string;
-  stack?: string;
-  severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  route?: string;
-  component?: string;
-  tags?: Record<string, unknown>;
-  extra?: Record<string, unknown>;
-}
-
-const MAX_EVENTS_PER_PAGE = 20;
-
-async function sendClientEvent(payload: ClientEventPayload) {
-  try {
-    await fetch("/api/monitoring/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      keepalive: true,
-    });
-  } catch {
-    // Monitoring should never crash the app.
-  }
-}
+import {
+  extractConsoleStack,
+  isExpectedClientCancellation,
+  serializeConsoleArgs,
+  shouldIgnoreConsoleError,
+} from "@/lib/monitoring/console-filter";
+import {
+  createClientEventKey,
+  createClientEventLimiter,
+  sendClientMonitoringEvent,
+  shouldCaptureConsoleErrors,
+} from "@/lib/monitoring/client-ingest";
 
 function stringifyReason(reason: unknown): string {
   if (reason instanceof Error) return reason.message;
@@ -38,27 +25,20 @@ function stringifyReason(reason: unknown): string {
 }
 
 export function ClientErrorListener() {
-  const sentCountRef = useRef(0);
+  const limiterRef = useRef(createClientEventLimiter());
 
   useEffect(() => {
-    function canSend() {
-      if (sentCountRef.current >= MAX_EVENTS_PER_PAGE) return false;
-      sentCountRef.current += 1;
-      return true;
-    }
+    const limiter = limiterRef.current;
 
     function onError(event: ErrorEvent) {
-      if (!canSend()) return;
-
       const message = event.error instanceof Error
         ? event.error.message
         : event.message || "Unhandled client error";
       const stack = event.error instanceof Error ? event.error.stack : undefined;
-
-      void sendClientEvent({
+      const payload = {
         message,
         stack,
-        severity: "HIGH",
+        severity: "HIGH" as const,
         route: window.location.pathname,
         tags: {
           type: "window.onerror",
@@ -66,31 +46,64 @@ export function ClientErrorListener() {
           line: event.lineno,
           col: event.colno,
         },
-      });
+      };
+      if (!limiter.canSend(createClientEventKey(payload))) return;
+      void sendClientMonitoringEvent(payload);
     }
 
     function onUnhandledRejection(event: PromiseRejectionEvent) {
-      if (!canSend()) return;
-
+      if (isExpectedClientCancellation(event.reason)) return;
       const message = stringifyReason(event.reason);
       const stack = event.reason instanceof Error ? event.reason.stack : undefined;
-
-      void sendClientEvent({
+      const payload = {
         message,
         stack,
-        severity: "MEDIUM",
+        severity: "MEDIUM" as const,
         route: window.location.pathname,
         tags: {
           type: "unhandledrejection",
         },
-      });
+      };
+      if (!limiter.canSend(createClientEventKey(payload))) return;
+      void sendClientMonitoringEvent(payload);
     }
 
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onUnhandledRejection);
+
+    const originalConsoleError = console.error;
+    let restoreConsole = () => {};
+
+    if (shouldCaptureConsoleErrors()) {
+      let isLogging = false;
+      console.error = (...args: unknown[]) => {
+        originalConsoleError.apply(console, args);
+        if (isLogging) return;
+        const message = serializeConsoleArgs(args);
+        if (shouldIgnoreConsoleError(message)) return;
+        const payload = {
+          message: `Console Error: ${message}`,
+          stack: extractConsoleStack(args),
+          severity: "MEDIUM" as const,
+          route: window.location.pathname,
+          component: "Console Error",
+          tags: { type: "console.error" },
+        };
+        if (!limiter.canSend(createClientEventKey(payload))) return;
+        isLogging = true;
+        void sendClientMonitoringEvent(payload).finally(() => {
+          isLogging = false;
+        });
+      };
+      restoreConsole = () => {
+        console.error = originalConsoleError;
+      };
+    }
+
     return () => {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
+      restoreConsole();
     };
   }, []);
 

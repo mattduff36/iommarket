@@ -7,6 +7,7 @@ import {
   sendMagicLinkEmail,
   sendInviteEmail,
 } from "@/lib/email/resend";
+import { reportHandledException } from "@/lib/monitoring";
 
 // Supabase sends the secret as "v1,whsec_<base64>" — strip the prefix for standardwebhooks
 const rawSecret = process.env.SUPABASE_AUTH_HOOK_SECRET ?? "";
@@ -125,6 +126,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({});
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "sendAuthEmail",
+      route: "/api/auth/send-email",
+      requestPath: "/api/auth/send-email",
+      requestMethod: "POST",
+    });
     const message = err instanceof Error ? err.message : "Failed to send email";
     return NextResponse.json({ error: message }, { status: 500 });
   }

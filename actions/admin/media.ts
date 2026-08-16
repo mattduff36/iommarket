@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
+import { reportHandledException } from "@/lib/monitoring";
 
 const ORDER_SHIFT = 10_000;
 
@@ -130,6 +131,11 @@ export async function adminDeleteImage(imageId: string) {
     revalidatePath(`/listings/${image.listingId}`);
     return { data: { deleted: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deleteListingImage",
+      route: "/admin/media",
+    });
     const message = err instanceof Error ? err.message : "Failed to delete image";
     return { error: message };
   }

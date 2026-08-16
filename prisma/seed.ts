@@ -1,968 +1,162 @@
-import * as fs from "fs";
-import * as path from "path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-import { FUEL_TYPE_OPTIONS, isEvCompatibleFuelType } from "../lib/constants/fuel-types";
-import { MARKETPLACE_REGIONS } from "../lib/constants/regions";
-import { assertSeedAllowed } from "../lib/ops/safety";
+import { applyMarketplacePlan } from "./seed/apply";
+import { buildMarketplacePlan } from "./seed/dataset";
+import { getSeedConnectionString, loadSeedEnv } from "./seed/env";
+import { assertSeedGuards } from "./seed/guards";
+import { comparePreservedIdentities, isPreservedAuthUserId } from "./seed/preserve";
+import { assertSeedSafety, parseDatabaseHost, redactDatabaseTarget } from "./seed/target";
 
-// Load .env then .env.local so the seed always targets the same DB as the dev server.
-// .env.local values take priority, matching Next.js conventions.
-function loadEnv(file: string, override = false) {
-  if (!fs.existsSync(file)) return;
-  const lines = fs.readFileSync(file, "utf-8").split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
-    if (key && (override || !process.env[key])) process.env[key] = val;
-  }
-}
-loadEnv(path.resolve(process.cwd(), ".env"));
-loadEnv(path.resolve(process.cwd(), ".env.local"), true);
-
-const raw =
-  process.env.POSTGRES_URL_NON_POOLING ??
-  process.env.DATABASE_URL ??
-  "";
-
-// Strip sslmode param – pg v8+ treats sslmode=require as verify-full
-// which clashes with our explicit ssl config below.
-function cleanUrl(s: string): string {
+function cleanUrl(raw: string) {
   try {
-    const u = new URL(s.trim());
-    u.searchParams.delete("sslmode");
-    return u.toString();
+    const parsed = new URL(raw.trim());
+    parsed.searchParams.delete("sslmode");
+    parsed.searchParams.delete("pgbouncer");
+    parsed.searchParams.delete("supa");
+    return parsed.toString();
   } catch {
-    return s.trim();
+    return raw.trim();
   }
 }
 
-const pool = new pg.Pool({
-  connectionString: cleanUrl(raw),
-  ssl: { rejectUnauthorized: false },
-});
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-/**
- * Vehicle-only seed for itrader.im.
- * Clears existing placeholder data, then creates regions, vehicle categories (Cars, Vans, Motorbikes, Motorhomes),
- * attribute definitions, users, dealers, and vehicle-only LIVE listings.
- */
 async function main() {
-  assertSeedAllowed();
-
-  console.log("Seeding itrader.im database (vehicle-only)...\n");
-
-  // ---------------------------------------------------------------------------
-  // Clear existing placeholder data (listings and related)
-  // ---------------------------------------------------------------------------
-  await prisma.dealerReviewModerationEvent.deleteMany({});
-  await prisma.dealerReview.deleteMany({});
-  await prisma.listingStatusEvent.deleteMany({});
-  await prisma.adminAuditLog.deleteMany({});
-  await prisma.payment.deleteMany({});
-  await prisma.listingImage.deleteMany({});
-  await prisma.listingAttributeValue.deleteMany({});
-  await prisma.report.deleteMany({});
-  await prisma.listing.deleteMany({});
-  await prisma.subscription.deleteMany({});
-  await prisma.dealerProfile.deleteMany({});
-  await prisma.user.deleteMany({});
-  await prisma.attributeDefinition.deleteMany({});
-  await prisma.category.deleteMany({});
-  await prisma.region.deleteMany({});
-  console.log("  Cleared existing listings, attribute definitions, categories, users, and dealers");
-
-  // ---------------------------------------------------------------------------
-  // Regions
-  // ---------------------------------------------------------------------------
-  const regionData = MARKETPLACE_REGIONS;
-
-  const regions: Record<string, { id: string }> = {};
-  for (const r of regionData) {
-    const region = await prisma.region.upsert({
-      where: { slug: r.slug },
-      update: { name: r.name, active: true, sortOrder: r.sortOrder },
-      create: {
-        name: r.name,
-        slug: r.slug,
-        active: true,
-        sortOrder: r.sortOrder,
-      },
-    });
-    regions[r.slug] = region;
-  }
-  console.log(`  Created ${regionData.length} regions`);
-
-  // ---------------------------------------------------------------------------
-  // Vehicle-only categories: Cars, Vans, Motorbikes, Motorhomes
-  // ---------------------------------------------------------------------------
-  const car = await prisma.category.create({
-    data: { name: "Cars", slug: "car", sortOrder: 1 },
-  });
-  const van = await prisma.category.create({
-    data: { name: "Vans", slug: "van", sortOrder: 2 },
-  });
-  const motorbike = await prisma.category.create({
-    data: { name: "Motorbikes", slug: "motorbike", sortOrder: 3 },
-  });
-  const motorhome = await prisma.category.create({
-    data: { name: "Motorhomes", slug: "motorhome", sortOrder: 4 },
-  });
-  console.log("  Created 4 vehicle categories (Cars, Vans, Motorbikes, Motorhomes)");
-
-  // ---------------------------------------------------------------------------
-  // Attribute definitions (make, model, year, mileage, fuel-type, transmission)
-  // Shared across Cars, Vans, and Motorhomes for consistent search/filtering.
-  // ---------------------------------------------------------------------------
-  const vehicleAttrDefs = [
-    { name: "Make", slug: "make", dataType: "text", required: true, sortOrder: 1 },
-    { name: "Model", slug: "model", dataType: "text", required: true, sortOrder: 2 },
-    { name: "Year", slug: "year", dataType: "number", required: true, sortOrder: 3 },
-    { name: "Mileage", slug: "mileage", dataType: "number", required: true, sortOrder: 4 },
+  loadSeedEnv();
+  const connectionString = getSeedConnectionString();
+  const databaseHost = parseDatabaseHost(connectionString);
+  const redactedDatabase = redactDatabaseTarget(connectionString);
+  assertSeedSafety(
     {
-      name: "Fuel Type",
-      slug: "fuel-type",
-      dataType: "select",
-      required: false,
-      sortOrder: 5,
-      options: JSON.stringify(FUEL_TYPE_OPTIONS),
+      SEED_ALLOW: process.env.SEED_ALLOW,
+      SEED_TARGET: process.env.SEED_TARGET,
+      SEED_ENV_FILE: process.env.SEED_ENV_FILE,
+      SEED_BACKUP_ID: process.env.SEED_BACKUP_ID,
+      SEED_CONFIRM_DB: process.env.SEED_CONFIRM_DB,
+      SEED_WRITERS_PAUSED: process.env.SEED_WRITERS_PAUSED,
     },
-    {
-      name: "Transmission",
-      slug: "transmission",
-      dataType: "select",
-      required: false,
-      sortOrder: 6,
-      options: JSON.stringify(["Manual", "Automatic"]),
-    },
-    {
-      name: "Body Type",
-      slug: "body-type",
-      dataType: "select",
-      required: false,
-      sortOrder: 7,
-      options: JSON.stringify(["Hatchback", "Saloon", "SUV", "Estate", "Coupe", "Convertible", "MPV", "Pickup"]),
-    },
-    {
-      name: "Colour",
-      slug: "colour",
-      dataType: "select",
-      required: false,
-      sortOrder: 8,
-      options: JSON.stringify(["Black", "White", "Silver", "Grey", "Blue", "Red", "Green", "Yellow", "Orange", "Brown", "Gold", "Bronze", "Other"]),
-    },
-    { name: "Doors", slug: "doors", dataType: "number", required: false, sortOrder: 9 },
-    { name: "Seats", slug: "seats", dataType: "number", required: false, sortOrder: 10 },
-    { name: "Engine Size", slug: "engine-size", dataType: "number", required: false, sortOrder: 11 },
-    { name: "Engine Power", slug: "engine-power", dataType: "number", required: false, sortOrder: 12 },
-    { name: "Battery Range", slug: "battery-range", dataType: "number", required: false, sortOrder: 13 },
-    { name: "Charging Time", slug: "charging-time", dataType: "number", required: false, sortOrder: 14 },
-    { name: "Acceleration", slug: "acceleration", dataType: "number", required: false, sortOrder: 15 },
-    { name: "Fuel Consumption", slug: "fuel-consumption", dataType: "number", required: false, sortOrder: 16 },
-    { name: "CO2 Emissions", slug: "co2-emissions", dataType: "number", required: false, sortOrder: 17 },
-    { name: "Tax Per Year", slug: "tax-per-year", dataType: "number", required: false, sortOrder: 18 },
-    { name: "Insurance Group", slug: "insurance-group", dataType: "number", required: false, sortOrder: 19 },
-    {
-      name: "Location",
-      slug: "location",
-      dataType: "select",
-      required: false,
-      sortOrder: 20,
-      options: JSON.stringify(["Isle of Man", "UK"]),
-    },
-    {
-      name: "Drive Type",
-      slug: "drive-type",
-      dataType: "select",
-      required: false,
-      sortOrder: 21,
-      options: JSON.stringify(["FWD", "RWD", "4WD", "AWD"]),
-    },
-    {
-      name: "Previously Written Off",
-      slug: "previously-written-off",
-      dataType: "boolean",
-      required: false,
-      sortOrder: 22,
-    },
-    {
-      name: "Insurance write-off category",
-      slug: "write-off-category",
-      dataType: "select",
-      required: false,
-      sortOrder: 22.5,
-      options: JSON.stringify(["None", "Category N", "Category S"]),
-    },
-    { name: "Boot Space", slug: "boot-space", dataType: "number", required: false, sortOrder: 23 },
-  ];
-
-  const motorbikeAttrDefs = vehicleAttrDefs.filter(
-    (a) => !["body-type", "doors", "boot-space"].includes(a.slug),
+    { databaseHost, redactedDatabase },
   );
 
-  const carAttrs: Record<string, { id: string }> = {};
-  for (const attr of vehicleAttrDefs) {
-    const created = await prisma.attributeDefinition.create({
-      data: {
-        categoryId: car.id,
-        name: attr.name,
-        slug: attr.slug,
-        dataType: attr.dataType,
-        required: attr.required,
-        sortOrder: attr.sortOrder,
-        options: (attr as { options?: string }).options ?? null,
-      },
-    });
-    carAttrs[attr.slug] = created;
+  if (!connectionString) {
+    throw new Error("No database URL found for seed.");
   }
 
-  const vanAttrs: Record<string, { id: string }> = {};
-  for (const attr of vehicleAttrDefs) {
-    const created = await prisma.attributeDefinition.create({
-      data: {
-        categoryId: van.id,
-        name: attr.name,
-        slug: attr.slug,
-        dataType: attr.dataType,
-        required: attr.required,
-        sortOrder: attr.sortOrder,
-        options: (attr as { options?: string }).options ?? null,
-      },
+  const pool = new pg.Pool({
+    connectionString: cleanUrl(connectionString),
+    ssl: { rejectUnauthorized: false },
+  });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+
+  try {
+    const [users, holds, inbox, deletionJobs] = await Promise.all([
+      prisma.user.findMany({
+        select: {
+          id: true,
+          authUserId: true,
+          email: true,
+          name: true,
+          role: true,
+          dealerProfile: {
+            select: { id: true, slug: true, name: true, tier: true, verified: true },
+          },
+        },
+      }),
+      prisma.retentionLegalHold.findMany({
+        where: { releasedAt: null },
+        select: { entityType: true, releasedAt: true },
+      }),
+      prisma.paymentWebhookInbox.findMany({
+        select: { status: true },
+      }),
+      prisma.accountDeletionJob.findMany({
+        select: { userId: true, status: true },
+      }),
+    ]);
+
+    const preservedUsers = users.filter((user) =>
+      isPreservedAuthUserId(user.authUserId),
+    );
+    const preservedIdentities = preservedUsers.map((user) => ({
+      id: user.id,
+      authUserId: user.authUserId,
+      email: user.email,
+      role: user.role,
+    }));
+
+    assertSeedGuards({
+      holds,
+      inboxStatuses: inbox.map((row) => row.status),
+      preservedDeletionJobs: deletionJobs.filter((job) =>
+        preservedIdentities.some((user) => user.id === job.userId),
+      ),
     });
-    vanAttrs[attr.slug] = created;
+
+    console.log(
+      `Preflight: ${preservedIdentities.length} preserved logins, ${users.length} users total.`,
+    );
+    for (const user of preservedIdentities) {
+      console.log(`  keep ${user.role} ${user.email}`);
+    }
+
+    const now = new Date();
+    const plan = buildMarketplacePlan({
+      preservedDealers: preservedUsers
+        .filter((user) => user.dealerProfile)
+        .map((user) => ({
+          userId: user.id,
+          dealerId: user.dealerProfile!.id,
+          slug: user.dealerProfile!.slug,
+          name: user.dealerProfile!.name,
+          tier: user.dealerProfile!.tier,
+          verified: user.dealerProfile!.verified,
+        })),
+      preservedUsers: preservedUsers.map((user) => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      })),
+      now,
+    });
+
+    await prisma.$transaction(
+      async (tx) => {
+        await applyMarketplacePlan(tx, {
+          plan,
+          preservedIdentities,
+          now,
+        });
+        const identities = await tx.user.findMany({
+          where: { id: { in: preservedIdentities.map((row) => row.id) } },
+          select: { id: true, authUserId: true, email: true, role: true },
+        });
+        comparePreservedIdentities(preservedIdentities, identities);
+      },
+      { timeout: 300_000, maxWait: 20_000 },
+    );
+
+    const after = await prisma.user.findMany({
+      where: { id: { in: preservedIdentities.map((row) => row.id) } },
+      select: { id: true, authUserId: true, email: true, role: true },
+    });
+    comparePreservedIdentities(preservedIdentities, after);
+
+    const [live, sold, expired, dealers] = await Promise.all([
+      prisma.listing.count({ where: { status: "LIVE" } }),
+      prisma.listing.count({ where: { status: "SOLD" } }),
+      prisma.listing.count({ where: { status: "EXPIRED" } }),
+      prisma.dealerProfile.count(),
+    ]);
+    console.log(
+      `Seed ${plan.version} complete: ${dealers} dealers, ${live} live, ${sold} sold, ${expired} expired.`,
+    );
+  } finally {
+    await prisma.$disconnect();
+    await pool.end();
   }
-
-  const motorbikeAttrs: Record<string, { id: string }> = {};
-  for (const attr of motorbikeAttrDefs) {
-    const created = await prisma.attributeDefinition.create({
-      data: {
-        categoryId: motorbike.id,
-        name: attr.name,
-        slug: attr.slug,
-        dataType: attr.dataType,
-        required: attr.required,
-        sortOrder: attr.sortOrder,
-        options: (attr as { options?: string }).options ?? null,
-      },
-    });
-    motorbikeAttrs[attr.slug] = created;
-  }
-
-  const motorhomeAttrs: Record<string, { id: string }> = {};
-  for (const attr of vehicleAttrDefs) {
-    const created = await prisma.attributeDefinition.create({
-      data: {
-        categoryId: motorhome.id,
-        name: attr.name,
-        slug: attr.slug,
-        dataType: attr.dataType,
-        required: attr.required,
-        sortOrder: attr.sortOrder,
-        options: (attr as { options?: string }).options ?? null,
-      },
-    });
-    motorhomeAttrs[attr.slug] = created;
-  }
-  console.log(
-    `  Created ${vehicleAttrDefs.length} attribute definitions for Cars/Vans/Motorhomes, ${motorbikeAttrDefs.length} for Motorbikes`,
-  );
-
-  // ---------------------------------------------------------------------------
-  // Demo users (authUserId = placeholder UUIDs; not real Supabase Auth users)
-  // ---------------------------------------------------------------------------
-  const demoUsers = [
-    { authUserId: "00000000-0000-0000-0000-000000000001", email: "john.quayle@example.im", name: "John Quayle", role: "USER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000002", email: "sarah.craine@example.im", name: "Sarah Craine", role: "USER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000003", email: "mark.kelly@example.im", name: "Mark Kelly", role: "USER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000004", email: "emma.corlett@example.im", name: "Emma Corlett", role: "USER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000005", email: "info@manxmotors.im", name: "Manx Motors Ltd", role: "DEALER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000006", email: "info@ramseymotors.im", name: "Ramsey Motor Company", role: "DEALER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000007", email: "sales@douglasauto.im", name: "Douglas Auto Exchange", role: "DEALER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000008", email: "david.shimmin@example.im", name: "David Shimmin", role: "USER" as const },
-    { authUserId: "00000000-0000-0000-0000-000000000009", email: "fiona.clague@example.im", name: "Fiona Clague", role: "USER" as const },
-    { authUserId: "00000000-0000-0000-0000-00000000000a", email: "admin@itrader.im", name: "itrader.im Admin", role: "ADMIN" as const },
-  ];
-
-  const users: Record<string, { id: string }> = {};
-  for (const u of demoUsers) {
-    const user = await prisma.user.upsert({
-      where: { authUserId: u.authUserId },
-      update: {},
-      create: {
-        authUserId: u.authUserId,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        regionId: regions["iom-central"].id,
-      },
-    });
-    users[u.authUserId] = user;
-  }
-  const dealer001 = "00000000-0000-0000-0000-000000000005";
-  const dealer002 = "00000000-0000-0000-0000-000000000006";
-  const dealer003 = "00000000-0000-0000-0000-000000000007";
-  const user001 = "00000000-0000-0000-0000-000000000001";
-  const user002 = "00000000-0000-0000-0000-000000000002";
-  const user003 = "00000000-0000-0000-0000-000000000003";
-  const user004 = "00000000-0000-0000-0000-000000000004";
-  const user005 = "00000000-0000-0000-0000-000000000008";
-  console.log(`  Created ${demoUsers.length} users`);
-
-  // ---------------------------------------------------------------------------
-  // Dealer profiles
-  // ---------------------------------------------------------------------------
-  const manxMotors = await prisma.dealerProfile.upsert({
-    where: { slug: "manx-motors" },
-    update: {},
-    create: {
-      userId: users[dealer001].id,
-      name: "Manx Motors Ltd",
-      slug: "manx-motors",
-      bio: "The Isle of Man's premier used car dealership. We've been serving the island for over 15 years with quality pre-owned vehicles, full service history checks, and honest pricing. Visit our showroom on Peel Road, Douglas.",
-      website: "https://manxmotors.example.im",
-      phone: "01624 612345",
-      verified: true,
-    },
-  });
-
-  const ramseyMotors = await prisma.dealerProfile.upsert({
-    where: { slug: "ramsey-motors" },
-    update: {},
-    create: {
-      userId: users[dealer002].id,
-      name: "Ramsey Motor Company",
-      slug: "ramsey-motors",
-      bio: "Family-run pre-owned car dealership based in Ramsey, serving the north of the island since 2001. We specialise in quality used cars and light vans, with part-exchange welcome and flexible finance options available.",
-      website: "https://ramseymotors.example.im",
-      phone: "01624 813456",
-      verified: true,
-    },
-  });
-
-  const douglasAuto = await prisma.dealerProfile.upsert({
-    where: { slug: "douglas-auto" },
-    update: {},
-    create: {
-      userId: users[dealer003].id,
-      name: "Douglas Auto Exchange",
-      slug: "douglas-auto",
-      bio: "Douglas-based used vehicle specialist offering cars, vans, and 4x4s across all budgets. HPI-checked stock, same-day test drives, and competitive part-exchange valuations. Find us on Peel Road.",
-      website: "https://douglasauto.example.im",
-      phone: "01624 671234",
-      verified: true,
-    },
-  });
-
-  console.log("  Created 3 dealer profiles");
-
-  // Dealer subscriptions (active)
-  for (const dealer of [manxMotors, ramseyMotors, douglasAuto]) {
-    const demoSubscriptionId = `ripple_demo_sub_${dealer.slug}`;
-    await prisma.subscription.upsert({
-      where: { providerSubscriptionId: demoSubscriptionId },
-      update: {},
-      create: {
-        dealerId: dealer.id,
-        paymentProvider: "RIPPLE",
-        providerSubscriptionId: demoSubscriptionId,
-        providerPlanId: "ripple_demo_gym_starter_monthly",
-        status: "ACTIVE",
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
-    });
-  }
-  console.log("  Created 3 dealer subscriptions");
-
-  // ---------------------------------------------------------------------------
-  // Placeholder images (Unsplash – vehicles only)
-  // ---------------------------------------------------------------------------
-  const IMG = {
-    // Cars
-    bmw3: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&h=600&fit=crop",
-    audi: "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&h=600&fit=crop",
-    vw: "https://images.unsplash.com/photo-1583267746897-2cf415887172?w=800&h=600&fit=crop",
-    mini: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&h=600&fit=crop",
-    landrover: "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?w=800&h=600&fit=crop",
-    tesla: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&h=600&fit=crop",
-    ford: "https://images.unsplash.com/photo-1551830820-330a71b99659?w=800&h=600&fit=crop",
-    merc: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&h=600&fit=crop",
-    porsche: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&h=600&fit=crop",
-    // Vans
-    van1: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&h=600&fit=crop",
-    van2: "https://images.unsplash.com/photo-1625047509168-a7026f36de04?w=800&h=600&fit=crop",
-    van3: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&h=600&fit=crop",
-    // Motorbikes
-    bike1: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&h=600&fit=crop",
-    bike2: "https://images.unsplash.com/photo-1609630875171-b1321377ee65?w=800&h=600&fit=crop",
-    bike3: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&h=600&fit=crop",
-  };
-
-  // ---------------------------------------------------------------------------
-  // Listings
-  // ---------------------------------------------------------------------------
-
-  const placeholderExpiryDate = new Date("2026-12-31T23:59:59.000Z");
-
-  // Helper to create a listing + image + optional attributes
-  async function createListing(data: {
-    userId: string;
-    dealerId?: string;
-    categoryId: string;
-    regionSlug: string;
-    title: string;
-    description: string;
-    price: number; // in pounds
-    featured?: boolean;
-    imageUrl: string;
-    attributes?: Array<{ attrId: string; value: string }>;
-    daysAgo?: number;
-  }) {
-    const createdAt = new Date(Date.now() - (data.daysAgo ?? 0) * 24 * 60 * 60 * 1000);
-    const listing = await prisma.listing.create({
-      data: {
-        userId: data.userId,
-        dealerId: data.dealerId ?? null,
-        categoryId: data.categoryId,
-        regionId: regions[data.regionSlug].id,
-        title: data.title,
-        description: data.description,
-        price: Math.round(data.price * 100), // convert pounds to pence
-        status: "LIVE",
-        featured: data.featured ?? false,
-        expiresAt: placeholderExpiryDate,
-        createdAt,
-        attributeValues: data.attributes
-          ? {
-              create: data.attributes.map((a) => ({
-                attributeDefinitionId: a.attrId,
-                value: a.value,
-              })),
-            }
-          : undefined,
-      },
-    });
-
-    await prisma.listingImage.create({
-      data: {
-        listingId: listing.id,
-        url: data.imageUrl,
-        publicId: `demo/${listing.id}`,
-        order: 0,
-        provider: "EXTERNAL",
-        width: 800,
-        height: 600,
-        format: "jpg",
-      },
-    });
-
-    // Create a corresponding payment record
-    const demoPaymentId = `ripple_demo_pay_${listing.id}`;
-    await prisma.payment.create({
-      data: {
-        listingId: listing.id,
-        paymentProvider: "RIPPLE",
-        providerPaymentId: demoPaymentId,
-        providerReference: `ripple_demo_ref_${listing.id}`,
-        amount: 499,
-        currency: "gbp",
-        status: "SUCCEEDED",
-        idempotencyKey: `ripple_demo_ref_${listing.id}`,
-      },
-    });
-
-    return listing;
-  }
-
-  // --- CARS (10 listings) ---
-
-  await createListing({
-    userId: users[dealer001].id,
-    dealerId: manxMotors.id,
-    categoryId: car.id,
-    regionSlug: "iom-east",
-    title: "2021 BMW 320d M Sport – Immaculate Condition",
-    description: "One owner from new, full BMW service history. This stunning 320d M Sport comes in Mineral Grey with black Dakota leather interior. Features include M Sport suspension, professional navigation, Harman Kardon sound system, and rear parking camera. MOT until March 2027. Excellent condition throughout – must be seen.",
-    price: 24995,
-    featured: true,
-    imageUrl: IMG.bmw3,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "BMW" },
-      { attrId: carAttrs["model"].id, value: "320d M Sport" },
-      { attrId: carAttrs["year"].id, value: "2021" },
-      { attrId: carAttrs["mileage"].id, value: "34200" },
-      { attrId: carAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: carAttrs["transmission"].id, value: "Automatic" },
-    ],
-    daysAgo: 2,
-  });
-
-  await createListing({
-    userId: users[dealer001].id,
-    dealerId: manxMotors.id,
-    categoryId: car.id,
-    regionSlug: "iom-east",
-    title: "2020 Audi A4 35 TFSI S Line – Low Miles",
-    description: "Beautiful Audi A4 S Line in Navarra Blue. Features virtual cockpit, LED headlights, 3-zone climate control, and Audi smartphone interface. Only 28,000 miles. Two keys, full Audi service history. Finance available.",
-    price: 22450,
-    featured: true,
-    imageUrl: IMG.audi,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Audi" },
-      { attrId: carAttrs["model"].id, value: "A4 35 TFSI S Line" },
-      { attrId: carAttrs["year"].id, value: "2020" },
-      { attrId: carAttrs["mileage"].id, value: "28100" },
-      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: carAttrs["transmission"].id, value: "Automatic" },
-    ],
-    daysAgo: 3,
-  });
-
-  await createListing({
-    userId: users[user001].id,
-    categoryId: car.id,
-    regionSlug: "iom-north",
-    title: "2018 VW Golf 1.5 TSI Match – Great Runner",
-    description: "Reliable family hatchback in very good condition. Glacier White, cloth seats, touchscreen infotainment with Apple CarPlay. 4 new tyres fitted recently. Selling as upgrading to something larger. Any inspection welcome.",
-    price: 12750,
-    imageUrl: IMG.vw,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Volkswagen" },
-      { attrId: carAttrs["model"].id, value: "Golf 1.5 TSI Match" },
-      { attrId: carAttrs["year"].id, value: "2018" },
-      { attrId: carAttrs["mileage"].id, value: "52300" },
-      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: carAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 5,
-  });
-
-  await createListing({
-    userId: users[dealer001].id,
-    dealerId: manxMotors.id,
-    categoryId: car.id,
-    regionSlug: "iom-east",
-    title: "2022 Tesla Model 3 Long Range – Island Perfect",
-    description: "Stunning Pearl White Tesla Model 3 Long Range AWD. Over 300 miles range, autopilot, premium interior with heated seats front and rear. Perfect for island driving – charge at home overnight. Low road tax. Full Tesla warranty remaining.",
-    price: 33995,
-    featured: true,
-    imageUrl: IMG.tesla,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Tesla" },
-      { attrId: carAttrs["model"].id, value: "Model 3 Long Range" },
-      { attrId: carAttrs["year"].id, value: "2022" },
-      { attrId: carAttrs["mileage"].id, value: "18500" },
-      { attrId: carAttrs["fuel-type"].id, value: "Electric" },
-      { attrId: carAttrs["transmission"].id, value: "Automatic" },
-    ],
-    daysAgo: 1,
-  });
-
-  await createListing({
-    userId: users[user002].id,
-    categoryId: car.id,
-    regionSlug: "iom-west",
-    title: "2017 MINI Cooper S 3-Door – Fun Island Car",
-    description: "Chili Red MINI Cooper S with John Cooper Works bodykit. Heated seats, satellite navigation, Harman Kardon speakers. Fast and fun but also economical. Genuine reason for sale – emigrating. Priced to sell quickly.",
-    price: 11500,
-    imageUrl: IMG.mini,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "MINI" },
-      { attrId: carAttrs["model"].id, value: "Cooper S" },
-      { attrId: carAttrs["year"].id, value: "2017" },
-      { attrId: carAttrs["mileage"].id, value: "45600" },
-      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: carAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 7,
-  });
-
-  await createListing({
-    userId: users[dealer001].id,
-    dealerId: manxMotors.id,
-    categoryId: car.id,
-    regionSlug: "iom-east",
-    title: "2019 Land Rover Discovery Sport HSE – 7 Seater",
-    description: "Versatile 7-seat SUV in Corris Grey. HSE spec includes leather, panoramic roof, touchscreen pro nav, 360-degree parking aid. Ideal for island families. Full Land Rover service history, cam belt done at 60k.",
-    price: 28750,
-    imageUrl: IMG.landrover,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Land Rover" },
-      { attrId: carAttrs["model"].id, value: "Discovery Sport HSE" },
-      { attrId: carAttrs["year"].id, value: "2019" },
-      { attrId: carAttrs["mileage"].id, value: "61200" },
-      { attrId: carAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: carAttrs["transmission"].id, value: "Automatic" },
-    ],
-    daysAgo: 4,
-  });
-
-  await createListing({
-    userId: users[user003].id,
-    categoryId: car.id,
-    regionSlug: "iom-south",
-    title: "2015 Ford Fiesta 1.0 EcoBoost Zetec – First Car Special",
-    description: "Perfect first car or runabout. Well maintained, MOT until October. Metallic blue, Bluetooth, air con, electric windows. Cheap to run and insure. Slight dent on rear quarter – reflected in price.",
-    price: 5995,
-    imageUrl: IMG.ford,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Ford" },
-      { attrId: carAttrs["model"].id, value: "Fiesta 1.0 EcoBoost Zetec" },
-      { attrId: carAttrs["year"].id, value: "2015" },
-      { attrId: carAttrs["mileage"].id, value: "78400" },
-      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: carAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 10,
-  });
-
-  await createListing({
-    userId: users[dealer001].id,
-    dealerId: manxMotors.id,
-    categoryId: car.id,
-    regionSlug: "iom-east",
-    title: "2023 Mercedes-Benz A-Class A200 AMG Line – Nearly New",
-    description: "Delivery miles only on this stunning Cosmos Black A-Class. AMG Line styling, MBUX infotainment with touchscreen, LED high performance headlights, ambient lighting, reversing camera. Manufacturer warranty until 2026.",
-    price: 29995,
-    imageUrl: IMG.merc,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Mercedes-Benz" },
-      { attrId: carAttrs["model"].id, value: "A200 AMG Line" },
-      { attrId: carAttrs["year"].id, value: "2023" },
-      { attrId: carAttrs["mileage"].id, value: "3200" },
-      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: carAttrs["transmission"].id, value: "Automatic" },
-    ],
-    daysAgo: 1,
-  });
-
-  await createListing({
-    userId: users[user005].id,
-    categoryId: car.id,
-    regionSlug: "iom-east",
-    title: "2016 Porsche Cayman 718 – Weekend Toy",
-    description: "Guards Red 718 Cayman with extended leather in Black. Sport Chrono package, PASM sport suspension, BOSE surround sound. Garaged, only used on dry days. HPI clear. A true driver's car for someone who appreciates the finer things.",
-    price: 38500,
-    featured: true,
-    imageUrl: IMG.porsche,
-    attributes: [
-      { attrId: carAttrs["make"].id, value: "Porsche" },
-      { attrId: carAttrs["model"].id, value: "718 Cayman" },
-      { attrId: carAttrs["year"].id, value: "2016" },
-      { attrId: carAttrs["mileage"].id, value: "22100" },
-      { attrId: carAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: carAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 3,
-  });
-
-  // --- VANS (3 listings) ---
-
-  await createListing({
-    userId: users[dealer001].id,
-    dealerId: manxMotors.id,
-    categoryId: van.id,
-    regionSlug: "iom-east",
-    title: "2020 Ford Transit Custom 2.0 TDCi 290 L2 – Low Miles",
-    description: "Ideal for trades or delivery. 290 L2 in Frozen White, 125,000 miles with full service history. Ply-lined, bulkhead, side loading door. MOT until next year. Ready for work.",
-    price: 18500,
-    featured: true,
-    imageUrl: IMG.van1,
-    attributes: [
-      { attrId: vanAttrs["make"].id, value: "Ford" },
-      { attrId: vanAttrs["model"].id, value: "Transit Custom 290 L2" },
-      { attrId: vanAttrs["year"].id, value: "2020" },
-      { attrId: vanAttrs["mileage"].id, value: "125000" },
-      { attrId: vanAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: vanAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 4,
-  });
-
-  await createListing({
-    userId: users[user001].id,
-    categoryId: van.id,
-    regionSlug: "iom-north",
-    title: "2018 Mercedes-Benz Vito Tourer 111 – 8 Seater",
-    description: "Spacious people carrier or family van. 111 CDI in obsidian black, leather trim, dual sliding doors. Full service history. Selling due to downsizing.",
-    price: 21995,
-    imageUrl: IMG.van2,
-    attributes: [
-      { attrId: vanAttrs["make"].id, value: "Mercedes-Benz" },
-      { attrId: vanAttrs["model"].id, value: "Vito Tourer 111" },
-      { attrId: vanAttrs["year"].id, value: "2018" },
-      { attrId: vanAttrs["mileage"].id, value: "89000" },
-      { attrId: vanAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: vanAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 6,
-  });
-
-  await createListing({
-    userId: users[user003].id,
-    categoryId: van.id,
-    regionSlug: "iom-west",
-    title: "2016 Volkswagen Caddy Maxi 2.0 TDI – Tidy Runner",
-    description: "Compact van, great for island deliveries. Maxi load length, tailgate, tow bar prep. Well maintained, no rust. Genuine reason for sale.",
-    price: 11500,
-    imageUrl: IMG.van3,
-    attributes: [
-      { attrId: vanAttrs["make"].id, value: "Volkswagen" },
-      { attrId: vanAttrs["model"].id, value: "Caddy Maxi" },
-      { attrId: vanAttrs["year"].id, value: "2016" },
-      { attrId: vanAttrs["mileage"].id, value: "142000" },
-      { attrId: vanAttrs["fuel-type"].id, value: "Diesel" },
-      { attrId: vanAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 9,
-  });
-
-  // --- MOTORBIKES (3 listings) ---
-
-  await createListing({
-    userId: users[user002].id,
-    categoryId: motorbike.id,
-    regionSlug: "iom-east",
-    title: "2021 Triumph Street Triple RS – Immaculate",
-    description: "765cc triple, quickshifter, Öhlins suspension. Only 4,200 miles. Full Triumph service history. Perfect for TT roads. Two keys, paddock stand included.",
-    price: 7995,
-    featured: true,
-    imageUrl: IMG.bike1,
-    attributes: [
-      { attrId: motorbikeAttrs["make"].id, value: "Triumph" },
-      { attrId: motorbikeAttrs["model"].id, value: "Street Triple RS" },
-      { attrId: motorbikeAttrs["year"].id, value: "2021" },
-      { attrId: motorbikeAttrs["mileage"].id, value: "4200" },
-      { attrId: motorbikeAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: motorbikeAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 2,
-  });
-
-  await createListing({
-    userId: users[user005].id,
-    categoryId: motorbike.id,
-    regionSlug: "iom-east",
-    title: "2019 Honda CB650R – Neo Sports Café",
-    description: "Stunning CB650R in Grand Prix Red. 649cc inline-four, slipper clutch, LED lights. Low miles, one owner. HPI clear. Ideal for commuting and weekend blasts.",
-    price: 5495,
-    imageUrl: IMG.bike2,
-    attributes: [
-      { attrId: motorbikeAttrs["make"].id, value: "Honda" },
-      { attrId: motorbikeAttrs["model"].id, value: "CB650R" },
-      { attrId: motorbikeAttrs["year"].id, value: "2019" },
-      { attrId: motorbikeAttrs["mileage"].id, value: "11200" },
-      { attrId: motorbikeAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: motorbikeAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 5,
-  });
-
-  await createListing({
-    userId: users[user004].id,
-    categoryId: motorbike.id,
-    regionSlug: "iom-south",
-    title: "2020 Yamaha MT-07 – A2 Compliant",
-    description: "Popular MT-07 in Ice Fluo. 689cc twin, great for A2 licence holders. Full exhaust, tail tidy. Service history. Reluctant sale – moving abroad.",
-    price: 5750,
-    imageUrl: IMG.bike3,
-    attributes: [
-      { attrId: motorbikeAttrs["make"].id, value: "Yamaha" },
-      { attrId: motorbikeAttrs["model"].id, value: "MT-07" },
-      { attrId: motorbikeAttrs["year"].id, value: "2020" },
-      { attrId: motorbikeAttrs["mileage"].id, value: "9800" },
-      { attrId: motorbikeAttrs["fuel-type"].id, value: "Petrol" },
-      { attrId: motorbikeAttrs["transmission"].id, value: "Manual" },
-    ],
-    daysAgo: 7,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Generated listings (target total: 100-300)
-  // ---------------------------------------------------------------------------
-  const random = (min: number, max: number) =>
-    Math.floor(Math.random() * (max - min + 1)) + min;
-  const pick = <T,>(items: readonly T[]): T =>
-    items[Math.floor(Math.random() * items.length)];
-
-  const carMakes = ["BMW", "Audi", "Volkswagen", "Ford", "Mercedes-Benz", "Tesla", "MINI", "Kia"] as const;
-  const bikeMakes = ["Honda", "Yamaha", "Triumph", "Suzuki", "Kawasaki"] as const;
-  const vanMakes = ["Ford", "Volkswagen", "Mercedes-Benz", "Renault"] as const;
-  const motorhomeMakes = ["Fiat", "Ford", "Volkswagen", "Auto-Trail", "Swift"] as const;
-  const colours = ["Black", "White", "Silver", "Grey", "Blue", "Red"] as const;
-  const fuels = FUEL_TYPE_OPTIONS;
-  const transmissions = ["Manual", "Automatic"] as const;
-  const iomRegionSlugs = [
-    "iom-north",
-    "iom-south",
-    "iom-east",
-    "iom-west",
-    "iom-central",
-  ] as const;
-
-  const generatedCount = 120;
-  for (let i = 0; i < generatedCount; i++) {
-    const categoryRoll = i % 4;
-    const categoryType =
-      categoryRoll === 0
-        ? "car"
-        : categoryRoll === 1
-          ? "van"
-          : categoryRoll === 2
-            ? "motorbike"
-            : "motorhome";
-    const categoryId =
-      categoryType === "car"
-        ? car.id
-        : categoryType === "van"
-          ? van.id
-          : categoryType === "motorbike"
-            ? motorbike.id
-            : motorhome.id;
-    const attrs =
-      categoryType === "car"
-        ? carAttrs
-        : categoryType === "van"
-          ? vanAttrs
-          : categoryType === "motorbike"
-            ? motorbikeAttrs
-            : motorhomeAttrs;
-    const make =
-      categoryType === "car"
-        ? pick(carMakes)
-        : categoryType === "van"
-          ? pick(vanMakes)
-          : categoryType === "motorbike"
-            ? pick(bikeMakes)
-            : pick(motorhomeMakes);
-    const year = random(2012, 2025);
-    const mileage = random(5000, 200000);
-    const price =
-      categoryType === "motorbike"
-        ? random(2500, 12000)
-        : categoryType === "motorhome"
-          ? random(14000, 78000)
-          : random(4500, 42000);
-    const fuel = pick(fuels);
-    const isElectric = isEvCompatibleFuelType(fuel);
-    const transmission = pick(transmissions);
-    const location = Math.random() < 0.9 ? "Isle of Man" : "UK";
-    const regionSlug = location === "UK" ? "uk" : pick(iomRegionSlugs);
-    const writtenOff = Math.random() < 0.07 ? "true" : "false";
-
-    const baseAttributes: Array<{ attrId: string; value: string }> = [
-      { attrId: attrs["make"].id, value: make },
-      { attrId: attrs["model"].id, value: `${make} ${random(1, 9)}${String.fromCharCode(65 + (i % 26))}` },
-      { attrId: attrs["year"].id, value: String(year) },
-      { attrId: attrs["mileage"].id, value: String(mileage) },
-      { attrId: attrs["fuel-type"].id, value: fuel },
-      { attrId: attrs["transmission"].id, value: transmission },
-      { attrId: attrs["colour"].id, value: pick(colours) },
-      { attrId: attrs["tax-per-year"].id, value: String(random(0, 750)) },
-      { attrId: attrs["insurance-group"].id, value: String(random(1, 50)) },
-      { attrId: attrs["location"].id, value: location },
-      { attrId: attrs["previously-written-off"].id, value: writtenOff },
-    ];
-
-    if (attrs["engine-size"]) {
-      baseAttributes.push({ attrId: attrs["engine-size"].id, value: String(random(10, 65)) });
-    }
-    if (attrs["engine-power"]) {
-      baseAttributes.push({ attrId: attrs["engine-power"].id, value: String(random(65, 420)) });
-    }
-    if (attrs["battery-range"] && isElectric) {
-      baseAttributes.push({ attrId: attrs["battery-range"].id, value: String(random(120, 360)) });
-      baseAttributes.push({ attrId: attrs["charging-time"].id, value: String(random(30, 420)) });
-    }
-    if (attrs["acceleration"]) {
-      baseAttributes.push({ attrId: attrs["acceleration"].id, value: String(random(3, 14)) });
-    }
-    if (attrs["fuel-consumption"]) {
-      baseAttributes.push({ attrId: attrs["fuel-consumption"].id, value: String(random(0, 150)) });
-    }
-    if (attrs["co2-emissions"]) {
-      baseAttributes.push({ attrId: attrs["co2-emissions"].id, value: String(random(0, 260)) });
-    }
-    if (attrs["drive-type"]) {
-      baseAttributes.push({ attrId: attrs["drive-type"].id, value: pick(["FWD", "RWD", "4WD", "AWD"] as const) });
-    }
-    if (attrs["doors"] && categoryType !== "motorbike") {
-      baseAttributes.push({ attrId: attrs["doors"].id, value: String(pick([2, 3, 4, 5] as const)) });
-    }
-    if (attrs["seats"]) {
-      const seats =
-        categoryType === "van" || categoryType === "motorhome"
-          ? pick([2, 3, 4, 5, 6, 8] as const)
-          : pick([2, 4, 5, 7] as const);
-      baseAttributes.push({ attrId: attrs["seats"].id, value: String(seats) });
-    }
-    if (attrs["boot-space"] && categoryType !== "motorbike") {
-      baseAttributes.push({ attrId: attrs["boot-space"].id, value: String(random(220, 1400)) });
-    }
-
-    await createListing({
-      userId: i % 5 === 0 ? users[dealer001].id : users[pick([user001, user002, user003, user004, user005] as const)].id,
-      dealerId: i % 5 === 0 ? manxMotors.id : undefined,
-      categoryId,
-      regionSlug,
-      title: `${year} ${make} ${categoryType === "motorbike" ? "Motorbike" : categoryType === "van" ? "Van" : categoryType === "motorhome" ? "Motorhome" : "Vehicle"} - Excellent Condition`,
-      description:
-        "Well maintained and in strong mechanical condition. Full history available, recently serviced, and ready to drive away. Contact for details and viewing.",
-      price,
-      featured: i % 19 === 0,
-      imageUrl:
-        categoryType === "motorbike"
-          ? pick([IMG.bike1, IMG.bike2, IMG.bike3] as const)
-          : categoryType === "van" || categoryType === "motorhome"
-            ? pick([IMG.van1, IMG.van2, IMG.van3] as const)
-            : pick([IMG.bmw3, IMG.audi, IMG.vw, IMG.mini, IMG.landrover, IMG.tesla, IMG.ford, IMG.merc, IMG.porsche] as const),
-      attributes: baseAttributes,
-      daysAgo: random(0, 28),
-    });
-  }
-
-  // --- One PENDING listing for admin demo ---
-  const pendingListing = await prisma.listing.create({
-    data: {
-      userId: users[user004].id,
-      categoryId: car.id,
-      regionId: regions["iom-south"].id,
-      title: "2020 Kia Sportage 1.6 GDi 2 – Family SUV",
-      description: "Well-specced Kia Sportage in good condition. Needs admin approval before going live.",
-      price: 1599000,
-      status: "PENDING",
-      expiresAt: null,
-      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    },
-  });
-  await prisma.payment.create({
-    data: {
-      listingId: pendingListing.id,
-      paymentProvider: "RIPPLE",
-      providerPaymentId: `ripple_demo_pay_pending_${pendingListing.id}`,
-      providerReference: `ripple_demo_ref_pending_${pendingListing.id}`,
-      amount: 499,
-      currency: "gbp",
-      status: "SUCCEEDED",
-      idempotencyKey: `ripple_demo_ref_pending_${pendingListing.id}`,
-    },
-  });
-
-  console.log(`  Created ${17 + generatedCount} listings (${16 + generatedCount} LIVE vehicles, 1 PENDING)`);
-  console.log("\nSeed completed successfully!");
 }
 
-main()
-  .catch((e) => {
-    console.error("Seed failed:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : "Seed failed.");
+  process.exitCode = 1;
+});

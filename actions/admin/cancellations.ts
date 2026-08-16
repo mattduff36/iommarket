@@ -9,6 +9,7 @@ import {
 } from "@/lib/policy/cancellation";
 import { sendCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
 import { staffCancellationActionSchema } from "@/lib/validations/cancellation";
+import { reportHandledException } from "@/lib/monitoring";
 
 const ACTION_TO_STATUS = {
   ACKNOWLEDGE: "ACKNOWLEDGED",
@@ -58,6 +59,11 @@ export async function processDealerCancellationRequest(input: {
     if (error instanceof CancellationError) {
       return { error: error.message };
     }
+    await reportHandledException({
+      error,
+      action: "processDealerCancellationRequest",
+      route: "/admin/cancellations",
+    });
     const message =
       error instanceof Error ? error.message : "Failed to process cancellation";
     return { error: message };

@@ -2,14 +2,11 @@ import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle,
   DollarSign,
-  Eye,
-  FileText,
-  Heart,
-  MapPin,
   Store,
   Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 
 export type AdminDashboardStat = {
   label: string;
@@ -29,10 +26,6 @@ export type AdminDashboardStatsInput = {
   recentPayments: number;
   totalDealers: number;
   verifiedDealers: number;
-  views7d: number;
-  totalFavourites: number;
-  totalRegions: number;
-  contentPages: number;
 };
 
 export function buildAdminDashboardStats(
@@ -69,58 +62,43 @@ export function buildAdminDashboardStats(
       icon: Store,
       iconClassName: "text-neon-blue-400/60",
     },
-    {
-      label: "Views (7d)",
-      value: input.views7d.toLocaleString(),
-      icon: Eye,
-      iconClassName: "text-premium-gold-400/60",
-    },
-    {
-      label: "Favourites",
-      value: input.totalFavourites.toLocaleString(),
-      icon: Heart,
-      iconClassName: "text-neon-red-400/60",
-    },
-    {
-      label: "Regions",
-      value: String(input.totalRegions),
-      icon: MapPin,
-      iconClassName: "text-emerald-500/60",
-    },
-    {
-      label: "CMS Pages",
-      value: String(input.contentPages),
-      icon: FileText,
-      iconClassName: "text-text-tertiary/60",
-    },
   ];
 }
 
 export function AdminDashboardStats({ stats }: { stats: AdminDashboardStat[] }) {
   return (
-    <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
+    <Card className="mb-8">
+      <CardHeader className="border-b border-border pb-4">
+        <CardTitle className="text-base">Marketplace overview</CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-2 p-0 lg:grid-cols-4">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
 
-        return (
-          <Card key={stat.label}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-medium text-text-tertiary">
-                {stat.label}
-              </CardTitle>
-              <Icon className={`h-3.5 w-3.5 ${stat.iconClassName}`} />
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-bold text-text-primary">{stat.value}</p>
+          return (
+            <div
+              key={stat.label}
+              className={cn(
+                "flex flex-col gap-2 p-4",
+                "odd:border-r odd:border-border",
+                index < 2 && "border-b border-border lg:border-b-0",
+                index < stats.length - 1 && "lg:border-r lg:border-border",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-text-tertiary">{stat.label}</p>
+                <Icon className={`h-3.5 w-3.5 ${stat.iconClassName}`} />
+              </div>
+              <p className="text-lg font-bold tabular-nums text-text-primary">{stat.value}</p>
               {stat.hint ? (
                 <p className={`text-[11px] ${stat.hintClassName ?? "text-text-tertiary"}`}>
                   {stat.hint}
                 </p>
               ) : null}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

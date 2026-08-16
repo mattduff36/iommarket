@@ -11,6 +11,7 @@ import {
   type CreateRegionInput,
   type UpdateRegionInput,
 } from "@/lib/validations/admin";
+import { reportHandledException } from "@/lib/monitoring";
 
 export async function listRegions() {
   await requireRole("ADMIN");
@@ -45,6 +46,11 @@ export async function createRegion(input: CreateRegionInput) {
     revalidatePath("/admin/regions");
     return { data: region };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "createRegion",
+      route: "/admin/regions",
+    });
     const message = err instanceof Error ? err.message : "Failed to create region";
     return { error: message };
   }
@@ -72,6 +78,11 @@ export async function updateRegion(input: UpdateRegionInput) {
     revalidatePath("/admin/regions");
     return { data: region };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "updateRegion",
+      route: "/admin/regions",
+    });
     const message = err instanceof Error ? err.message : "Failed to update region";
     return { error: message };
   }
@@ -98,6 +109,11 @@ export async function toggleRegionActive(id: string, active: boolean) {
     revalidatePath("/admin/regions");
     return { data: region };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "toggleRegionActive",
+      route: "/admin/regions",
+    });
     const message = err instanceof Error ? err.message : "Failed to update region";
     return { error: message };
   }
@@ -131,6 +147,11 @@ export async function deleteRegion(id: string) {
     revalidatePath("/admin/regions");
     return { data: { deleted: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deleteRegion",
+      route: "/admin/regions",
+    });
     const message = err instanceof Error ? err.message : "Failed to delete region";
     return { error: message };
   }

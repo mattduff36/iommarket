@@ -1,15 +1,17 @@
-import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
-  ArrowRight,
   Ban,
   Bug,
   Clock,
   Star,
 } from "lucide-react";
-import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { CardOverlayLink } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
+
+export type AdminActionQueueTone = "warning" | "error";
 
 export type AdminActionQueueCounts = {
   listingsAwaitingReview: number;
@@ -25,6 +27,20 @@ export type AdminActionQueueItem = {
   count: number;
   subtitle: string;
   icon: LucideIcon;
+  tone: AdminActionQueueTone;
+};
+
+const TONE_STYLES = {
+  warning: {
+    card: "border-premium-gold-500/30 bg-premium-gold-500/10 hover:border-premium-gold-500/50 hover:bg-premium-gold-500/15",
+    icon: "border-premium-gold-500/25 bg-premium-gold-500/10 text-premium-gold-400",
+    badge: "warning" as const,
+  },
+  error: {
+    card: "border-neon-red-500/30 bg-neon-red-500/10 hover:border-neon-red-500/50 hover:bg-neon-red-500/15",
+    icon: "border-neon-red-500/25 bg-neon-red-500/10 text-neon-red-400",
+    badge: "error" as const,
+  },
 };
 
 export function buildAdminActionQueueItems(
@@ -37,6 +53,7 @@ export function buildAdminActionQueueItems(
       count: counts.listingsAwaitingReview,
       subtitle: "New listings and pending edits",
       icon: Clock,
+      tone: "warning",
     },
     {
       href: "/admin/reports",
@@ -44,6 +61,7 @@ export function buildAdminActionQueueItems(
       count: counts.openReports,
       subtitle: "Need attention",
       icon: AlertTriangle,
+      tone: "error",
     },
     {
       href: "/admin/reviews",
@@ -51,6 +69,7 @@ export function buildAdminActionQueueItems(
       count: counts.pendingReviews,
       subtitle: "Awaiting moderation",
       icon: Star,
+      tone: "warning",
     },
     {
       href: "/admin/cancellations",
@@ -58,6 +77,7 @@ export function buildAdminActionQueueItems(
       count: counts.openCancellations,
       subtitle: "Need staff action",
       icon: Ban,
+      tone: "error",
     },
     {
       href: "/admin/monitoring?status=OPEN",
@@ -65,6 +85,7 @@ export function buildAdminActionQueueItems(
       count: counts.openMonitoringIssues,
       subtitle: "Open issues",
       icon: Bug,
+      tone: "error",
     },
   ];
 }
@@ -75,40 +96,45 @@ export function AdminActionQueue({ items }: { items: AdminActionQueueItem[] }) {
       {items.map((item) => {
         const Icon = item.icon;
         const needsAction = item.count > 0;
+        const tone = TONE_STYLES[item.tone];
 
         return (
-          <Link
+          <Card
             key={item.href}
-            href={item.href}
             className={cn(
-              "group flex items-center gap-3 rounded-lg border bg-surface p-4 transition-all hover:bg-surface-elevated",
-              needsAction
-                ? "border-neon-red-500/20 hover:border-neon-red-500/40"
-                : "border-border hover:border-border",
-              NAVIGABLE_CARD_LINK_CLASS,
+              "group relative min-h-24 transition-colors",
+              needsAction ? tone.card : "border-border hover:bg-surface-elevated",
             )}
           >
-            <div
-              className={cn(
-                "rounded-md p-2",
-                needsAction ? "bg-neon-red-500/10" : "bg-surface-elevated",
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-4 w-4",
-                  needsAction ? "text-neon-red-400" : "text-text-tertiary",
-                )}
-              />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-text-primary">
-                {item.count.toLocaleString()} {item.label}
-              </p>
-              <p className="text-xs text-text-tertiary">{item.subtitle}</p>
-            </div>
-            <ArrowRight className="ml-auto h-4 w-4 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
-          </Link>
+            <CardOverlayLink
+              href={item.href}
+              label={`${item.count.toLocaleString()} ${item.label}`}
+            />
+            <CardContent className="flex h-full flex-col gap-3 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <span
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border",
+                    needsAction
+                      ? tone.icon
+                      : "border-border bg-surface-elevated text-text-tertiary",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <Badge
+                  variant={needsAction ? tone.badge : "neutral"}
+                  className="shrink-0 tabular-nums"
+                >
+                  {needsAction ? item.count.toLocaleString() : "Clear"}
+                </Badge>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text-primary">{item.label}</p>
+                <p className="mt-0.5 text-xs text-text-secondary">{item.subtitle}</p>
+              </div>
+            </CardContent>
+          </Card>
         );
       })}
     </div>

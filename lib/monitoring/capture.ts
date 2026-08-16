@@ -1,13 +1,19 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createMonitoringFingerprint } from "./fingerprint";
-import { redactMonitoringPayload, redactStack } from "./redact";
+import {
+  redactFreeText,
+  redactMonitoringPayload,
+  redactStack,
+  sanitizeRequestPath,
+} from "./redact";
 import { coerceSeverity, maxSeverity } from "./severity";
 import { dispatchMonitoringAlerts } from "./alerts";
 import type {
   CapturedMonitoringEvent,
   CaptureBusinessEventInput,
   CaptureExceptionInput,
+  MonitoringContext,
   MonitoringSeverity,
   MonitoringSource,
 } from "./types";
@@ -53,6 +59,28 @@ function extractErrorPayload(error: unknown): { message: string; stack: string |
 function toJson(value: Record<string, unknown> | undefined): Prisma.InputJsonValue | undefined {
   if (!value) return undefined;
   return value as Prisma.InputJsonValue;
+}
+
+function sanitizeOptional(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : redactFreeText(value);
+}
+
+export function sanitizeMonitoringContext(input: MonitoringContext): MonitoringContext {
+  return {
+    title: sanitizeOptional(input.title),
+    environment: sanitizeOptional(input.environment),
+    route: sanitizeRequestPath(input.route),
+    action: sanitizeOptional(input.action),
+    component: sanitizeOptional(input.component),
+    requestMethod: sanitizeOptional(input.requestMethod),
+    requestPath: sanitizeRequestPath(input.requestPath),
+    requestId: sanitizeOptional(input.requestId),
+    userId: sanitizeOptional(input.userId),
+    userEmail: sanitizeOptional(input.userEmail),
+    ipHash: sanitizeOptional(input.ipHash),
+    tags: redactMonitoringPayload(input.tags),
+    extra: redactMonitoringPayload(input.extra),
+  };
 }
 
 async function persistCapture(
@@ -155,25 +183,27 @@ export async function captureException(
     const payload = extractErrorPayload(input.error);
     const source = input.source;
     const severity = coerceSeverity(input.severity, source);
+    const context = sanitizeMonitoringContext(input);
 
+    const message = redactFreeText(payload.message);
     return persistCapture({
       source,
       severity,
-      title: input.title ?? payload.message.slice(0, 180),
-      message: payload.message,
+      title: context.title ?? message.slice(0, 180),
+      message,
       stack: payload.stack,
-      environment: input.environment ?? process.env.NODE_ENV ?? "unknown",
-      route: input.route,
-      action: input.action,
-      component: input.component,
-      requestMethod: input.requestMethod,
-      requestPath: input.requestPath,
-      requestId: input.requestId,
-      userId: input.userId,
-      userEmail: input.userEmail,
-      ipHash: input.ipHash,
-      tags: redactMonitoringPayload(input.tags),
-      extra: redactMonitoringPayload(input.extra),
+      environment: context.environment ?? process.env.NODE_ENV ?? "unknown",
+      route: context.route,
+      action: context.action,
+      component: context.component,
+      requestMethod: context.requestMethod,
+      requestPath: context.requestPath,
+      requestId: context.requestId,
+      userId: context.userId,
+      userEmail: context.userEmail,
+      ipHash: context.ipHash,
+      tags: context.tags,
+      extra: context.extra,
     });
   } catch {
     return null;
@@ -186,25 +216,27 @@ export async function captureBusinessEvent(
   try {
     const source = input.source ?? "BUSINESS";
     const severity = coerceSeverity(input.severity, source);
+    const context = sanitizeMonitoringContext(input);
 
+    const message = redactFreeText(input.message);
     return persistCapture({
       source,
       severity,
-      title: input.title ?? input.message.slice(0, 180),
-      message: input.message,
+      title: context.title ?? message.slice(0, 180),
+      message,
       stack: null,
-      environment: input.environment ?? process.env.NODE_ENV ?? "unknown",
-      route: input.route,
-      action: input.action,
-      component: input.component,
-      requestMethod: input.requestMethod,
-      requestPath: input.requestPath,
-      requestId: input.requestId,
-      userId: input.userId,
-      userEmail: input.userEmail,
-      ipHash: input.ipHash,
-      tags: redactMonitoringPayload(input.tags),
-      extra: redactMonitoringPayload(input.extra),
+      environment: context.environment ?? process.env.NODE_ENV ?? "unknown",
+      route: context.route,
+      action: context.action,
+      component: context.component,
+      requestMethod: context.requestMethod,
+      requestPath: context.requestPath,
+      requestId: context.requestId,
+      userId: context.userId,
+      userEmail: context.userEmail,
+      ipHash: context.ipHash,
+      tags: context.tags,
+      extra: context.extra,
     });
   } catch {
     return null;

@@ -1,6 +1,7 @@
 export {
   captureBusinessEvent,
   captureException,
+  sanitizeMonitoringContext,
 } from "./capture";
 export {
   dispatchMonitoringAlerts,
@@ -9,8 +10,18 @@ export {
   createMonitoringFingerprint,
 } from "./fingerprint";
 export {
+  isExpectedControlFlowError,
+  isExpectedHandledOutcome,
+  reportHandledException,
+} from "./handled";
+export {
+  reportRequestError,
+} from "./on-request-error";
+export {
+  redactFreeText,
   redactMonitoringPayload,
   redactStack,
+  sanitizeRequestPath,
 } from "./redact";
 export {
   coerceSeverity,

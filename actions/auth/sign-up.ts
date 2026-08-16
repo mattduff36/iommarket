@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { signUpSchema, type SignUpInput } from "@/lib/validations/auth";
+import { reportHandledException } from "@/lib/monitoring";
 
 function getSafeNextPath(nextPath: string) {
   if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return "/account";
@@ -74,6 +75,11 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
 
     return { data: { email: parsed.data.email } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "signUpWithPolicyAcceptance",
+      route: "/sign-up",
+    });
     return {
       error:
         err instanceof Error ? err.message : "Unable to create account right now.",

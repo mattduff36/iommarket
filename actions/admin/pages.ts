@@ -8,6 +8,7 @@ import {
   upsertContentPageSchema,
   type UpsertContentPageInput,
 } from "@/lib/validations/admin";
+import { reportHandledException } from "@/lib/monitoring";
 
 export async function listContentPages() {
   await requireRole("ADMIN");
@@ -69,6 +70,11 @@ export async function upsertContentPage(input: UpsertContentPageInput) {
     revalidatePath(`/${page.slug}`);
     return { data: page };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "upsertContentPage",
+      route: "/admin/pages",
+    });
     const message = err instanceof Error ? err.message : "Failed to save page";
     return { error: message };
   }
@@ -100,6 +106,11 @@ export async function deleteContentPage(id: string) {
     revalidatePath("/admin/pages");
     return { data: { deleted: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deleteContentPage",
+      route: "/admin/pages",
+    });
     const message = err instanceof Error ? err.message : "Failed to delete page";
     return { error: message };
   }
@@ -128,6 +139,11 @@ export async function restoreContentPage(id: string) {
     revalidatePath("/admin/pages");
     return { data: page };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "restoreContentPage",
+      route: "/admin/pages",
+    });
     const message = err instanceof Error ? err.message : "Failed to restore page";
     return { error: message };
   }

@@ -18,6 +18,7 @@ import {
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
 import { transitionListingStatus } from "@/lib/listings/status-events";
+import { reportHandledException } from "@/lib/monitoring";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { approveRevision, rejectRevision } from "@/lib/listings/revisions";
 import { z } from "zod";
@@ -95,6 +96,12 @@ export async function moderateListing(input: ModerateListingInput) {
     revalidatePath("/");
     return { data: result.listing };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "moderateListing",
+      route: "/admin/listings",
+      userId: admin.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to moderate listing";
     return { error: message };
@@ -124,6 +131,12 @@ export async function createCategory(input: CreateCategoryInput) {
     revalidatePath("/admin/categories");
     return { data: category };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "createCategory",
+      route: "/admin/categories",
+      userId: admin.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to create category";
     return { error: message };
@@ -149,6 +162,11 @@ export async function createAttributeDefinition(
     revalidatePath("/admin/categories");
     return { data: attr };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "createAttributeDefinition",
+      route: "/admin/categories",
+    });
     const message =
       err instanceof Error ? err.message : "Failed to create attribute";
     return { error: message };
@@ -251,6 +269,12 @@ export async function updateReportStatus(input: {
     revalidatePath("/admin/reports");
     return { data: report };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "updateReport",
+      route: "/admin/reports",
+      userId: admin.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to update report";
     return { error: message };
@@ -349,6 +373,12 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
     revalidatePath(`/listings/${report.listingId}`);
     return { data: { actioned: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "takeDownListingFromReport",
+      route: "/admin/reports",
+      userId: admin.id,
+    });
     const message =
       err instanceof Error ? err.message : "Failed to take down listing from report";
     return { error: message };
@@ -373,6 +403,12 @@ export async function deleteAttributeDefinition(id: string) {
     revalidatePath("/admin/categories");
     return { data: { deleted: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deleteAttributeDefinition",
+      route: "/admin/categories",
+      userId: admin.id,
+    });
     const message = err instanceof Error ? err.message : "Failed to delete attribute";
     return { error: message };
   }
@@ -401,6 +437,12 @@ export async function toggleCategoryActive(id: string, active: boolean) {
     revalidatePath("/");
     return { data: { ...category, liveListingCount: listingCount } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "toggleCategoryActive",
+      route: "/admin/categories",
+      userId: admin.id,
+    });
     const message = err instanceof Error ? err.message : "Failed to update category";
     return { error: message };
   }
@@ -428,6 +470,12 @@ export async function deleteCategory(id: string) {
     revalidatePath("/admin/categories");
     return { data: { deleted: true } };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "deleteCategory",
+      route: "/admin/categories",
+      userId: admin.id,
+    });
     const message = err instanceof Error ? err.message : "Failed to delete category";
     return { error: message };
   }
@@ -467,6 +515,12 @@ export async function setListingFeatured(input: {
     revalidatePath("/search");
     return { data: listing };
   } catch (err) {
+    await reportHandledException({
+      error: err,
+      action: "setListingFeatured",
+      route: "/admin/listings",
+      userId: admin.id,
+    });
     const message = err instanceof Error ? err.message : "Failed to update listing";
     return { error: message };
   }
