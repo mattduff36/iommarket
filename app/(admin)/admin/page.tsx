@@ -5,24 +5,22 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { OPEN_CANCELLATION_STATUSES } from "@/lib/policy/cancellation";
+import {
+  AdminActionQueue,
+  buildAdminActionQueueItems,
+} from "@/components/admin/admin-action-queue";
+import {
+  AdminDashboardStats,
+  buildAdminDashboardStats,
+} from "@/components/admin/admin-dashboard-stats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/cn";
 import {
   ClipboardList,
-  Clock,
-  CheckCircle,
   Users,
-  AlertTriangle,
-  DollarSign,
-  Store,
-  MapPin,
-  Eye,
-  Heart,
   TrendingUp,
   ArrowRight,
-  FileText,
   CreditCard,
   ShieldAlert,
 } from "lucide-react";
@@ -40,11 +38,14 @@ export default async function AdminDashboardPage() {
 
   const [
     totalListings,
-    pendingListings,
+    listingsAwaitingReview,
     liveListings,
     totalDealers,
     verifiedDealers,
     openReports,
+    pendingReviews,
+    openCancellations,
+    openMonitoringIssues,
     recentPayments,
     totalUsers,
     newUsers7d,
@@ -59,11 +60,23 @@ export default async function AdminDashboardPage() {
     recentPaymentsList,
   ] = await Promise.all([
     db.listing.count(),
-    db.listing.count({ where: { status: "PENDING" } }),
+    db.listing.count({
+      where: {
+        OR: [
+          { status: "PENDING" },
+          { revisions: { some: { status: "PENDING" } } },
+        ],
+      },
+    }),
     db.listing.count({ where: liveWhere }),
     db.dealerProfile.count(),
     db.dealerProfile.count({ where: { verified: true } }),
     db.report.count({ where: { status: "OPEN" } }),
+    db.dealerReview.count({ where: { status: "PENDING" } }),
+    db.dealerCancellationRequest.count({
+      where: { status: { in: [...OPEN_CANCELLATION_STATUSES] } },
+    }),
+    db.monitoringIssue.count({ where: { status: "OPEN" } }),
     db.payment.count({
       where: {
         status: "SUCCEEDED",
@@ -151,7 +164,7 @@ export default async function AdminDashboardPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-          <p className="text-sm text-text-tertiary mt-1">Site overview and recent activity</p>
+          <p className="text-sm text-text-tertiary mt-1">Actions requiring attention, then site overview</p>
         </div>
         <div className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-emerald-500" />
@@ -159,108 +172,32 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Key metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <Card className="border-l-2 border-l-neon-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-text-secondary">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-neon-blue-400" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalUsers.toLocaleString()}</p>
-            <p className="text-xs text-neon-blue-400 mt-1">+{newUsers7d} this week</p>
-          </CardContent>
-        </Card>
+      <AdminActionQueue
+        items={buildAdminActionQueueItems({
+          listingsAwaitingReview,
+          openReports,
+          pendingReviews,
+          openCancellations,
+          openMonitoringIssues,
+        })}
+      />
 
-        <Card className="border-l-2 border-l-emerald-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-text-secondary">Live Listings</CardTitle>
-            <CheckCircle className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{liveListings.toLocaleString()}</p>
-            <p className="text-xs text-text-tertiary mt-1">{totalListings} total</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-2 border-l-premium-gold-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-text-secondary">Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-premium-gold-400" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">&pound;{totalRevenue.toLocaleString()}</p>
-            <p className="text-xs text-text-tertiary mt-1">{recentPayments} payments (30d)</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`border-l-2 ${openReports > 0 ? "border-l-neon-red-500" : "border-l-border"}`}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-text-secondary">Open Reports</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${openReports > 0 ? "text-neon-red-400" : "text-text-tertiary"}`} />
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${openReports > 0 ? "text-neon-red-400" : "text-text-primary"}`}>
-              {openReports}
-            </p>
-            <p className="text-xs text-text-tertiary mt-1">{pendingListings} pending review</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Secondary metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-text-tertiary">Dealers</CardTitle>
-            <Store className="h-3.5 w-3.5 text-neon-blue-400/60" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-bold text-text-primary">{totalDealers}</p>
-            <p className="text-[11px] text-emerald-500">{verifiedDealers} verified</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-text-tertiary">Views (7d)</CardTitle>
-            <Eye className="h-3.5 w-3.5 text-premium-gold-400/60" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-bold text-text-primary">{views7d.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-text-tertiary">Favourites</CardTitle>
-            <Heart className="h-3.5 w-3.5 text-neon-red-400/60" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-bold text-text-primary">{totalFavourites.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-text-tertiary">Regions</CardTitle>
-            <MapPin className="h-3.5 w-3.5 text-emerald-500/60" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-bold text-text-primary">{totalRegions}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-text-tertiary">CMS Pages</CardTitle>
-            <FileText className="h-3.5 w-3.5 text-text-tertiary/60" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-bold text-text-primary">{contentPages}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <AdminDashboardStats
+        stats={buildAdminDashboardStats({
+          totalUsers,
+          newUsers7d,
+          liveListings,
+          totalListings,
+          totalRevenue,
+          recentPayments,
+          totalDealers,
+          verifiedDealers,
+          views7d,
+          totalFavourites,
+          totalRegions,
+          contentPages,
+        })}
+      />
 
       {/* Activity feeds */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -393,80 +330,6 @@ export default async function AdminDashboardPage() {
             )}
           </CardContent>
         </Card>
-      </div>
-
-      {/* Quick links */}
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Link
-          href="/admin/listings"
-          className={cn(
-            "group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-neon-blue-500/30 hover:bg-surface-elevated transition-all",
-            NAVIGABLE_CARD_LINK_CLASS,
-          )}
-        >
-          <div className="rounded-md bg-neon-blue-500/10 p-2">
-            <Clock className="h-4 w-4 text-neon-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-text-primary">{pendingListings} Pending</p>
-            <p className="text-xs text-text-tertiary">Awaiting review</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-text-tertiary ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-        </Link>
-
-        <Link
-          href="/admin/dealers"
-          className={cn(
-            "group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-emerald-500/30 hover:bg-surface-elevated transition-all",
-            NAVIGABLE_CARD_LINK_CLASS,
-          )}
-        >
-          <div className="rounded-md bg-emerald-500/10 p-2">
-            <Store className="h-4 w-4 text-emerald-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-text-primary">{totalDealers} Dealers</p>
-            <p className="text-xs text-text-tertiary">{verifiedDealers} verified</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-text-tertiary ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-        </Link>
-
-        <Link
-          href="/admin/reports"
-          className={cn(
-            "group flex items-center gap-3 rounded-lg border bg-surface p-4 hover:bg-surface-elevated transition-all",
-            openReports > 0
-              ? "border-neon-red-500/20 hover:border-neon-red-500/40"
-              : "border-border hover:border-border",
-            NAVIGABLE_CARD_LINK_CLASS,
-          )}
-        >
-          <div className={`rounded-md p-2 ${openReports > 0 ? "bg-neon-red-500/10" : "bg-surface-elevated"}`}>
-            <AlertTriangle className={`h-4 w-4 ${openReports > 0 ? "text-neon-red-400" : "text-text-tertiary"}`} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-text-primary">{openReports} Reports</p>
-            <p className="text-xs text-text-tertiary">Need attention</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-text-tertiary ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-        </Link>
-
-        <Link
-          href="/admin/analytics"
-          className={cn(
-            "group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-premium-gold-500/30 hover:bg-surface-elevated transition-all",
-            NAVIGABLE_CARD_LINK_CLASS,
-          )}
-        >
-          <div className="rounded-md bg-premium-gold-500/10 p-2">
-            <Eye className="h-4 w-4 text-premium-gold-400" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-text-primary">{views7d.toLocaleString()} Views</p>
-            <p className="text-xs text-text-tertiary">Last 7 days</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-text-tertiary ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-        </Link>
       </div>
     </>
   );

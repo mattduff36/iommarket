@@ -1,6 +1,6 @@
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserMock = vi.fn();
 const getDealerEntitlementMock = vi.fn();
@@ -51,6 +51,10 @@ vi.mock("@/actions/dealer-reviews", () => ({
   submitDealerReview: vi.fn(),
 }));
 
+const { default: DealerProfilePage } = await import(
+  "@/app/(public)/dealers/[slug]/page"
+);
+
 function buildDealer(overrides: { verified: boolean }) {
   return {
     id: "dealer-1",
@@ -74,6 +78,10 @@ function buildDealer(overrides: { verified: boolean }) {
 }
 
 describe("DealerProfilePage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     expireStaleLiveListingsMock.mockResolvedValue(undefined);
@@ -93,9 +101,6 @@ describe("DealerProfilePage", () => {
 
   it("does not show Verified Dealer for a subscribed but unverified dealer", async () => {
     findUniqueMock.mockResolvedValue(buildDealer({ verified: false }));
-    const { default: DealerProfilePage } = await import(
-      "@/app/(public)/dealers/[slug]/page"
-    );
 
     render(
       await DealerProfilePage({
@@ -106,15 +111,12 @@ describe("DealerProfilePage", () => {
     expect(
       screen.getByRole("heading", { name: "Douglas Auto Exchange" }),
     ).toBeTruthy();
-    expect(screen.getByText("Subscription Active")).toBeTruthy();
+    expect(screen.queryByText("Subscription Active")).toBeNull();
     expect(screen.queryByText("Verified Dealer")).toBeNull();
   });
 
   it("shows Verified Dealer only when an admin has verified the dealer", async () => {
     findUniqueMock.mockResolvedValue(buildDealer({ verified: true }));
-    const { default: DealerProfilePage } = await import(
-      "@/app/(public)/dealers/[slug]/page"
-    );
 
     render(
       await DealerProfilePage({
@@ -126,6 +128,6 @@ describe("DealerProfilePage", () => {
       screen.getByRole("heading", { name: "Douglas Auto Exchange" }),
     ).toBeTruthy();
     expect(screen.getByText("Verified Dealer")).toBeTruthy();
-    expect(screen.getByText("Subscription Active")).toBeTruthy();
+    expect(screen.queryByText("Subscription Active")).toBeNull();
   });
 });

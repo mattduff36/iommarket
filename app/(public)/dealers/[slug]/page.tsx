@@ -111,7 +111,6 @@ export default async function DealerProfilePage({ params }: Props) {
     getCurrentUser(),
   ]);
   if (!entitlement) notFound();
-  const isSubscribed = Boolean(entitlement);
   const reviewCount = reviewStats._count._all;
   const averageRating = reviewStats._avg.rating
     ? Number(reviewStats._avg.rating.toFixed(1))
@@ -187,7 +186,6 @@ export default async function DealerProfilePage({ params }: Props) {
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {dealer.phone ? <Badge variant="info">Phone Verified</Badge> : null}
             {dealer.website ? <Badge variant="info">Website Added</Badge> : null}
-            {isSubscribed ? <Badge variant="success">Subscription Active</Badge> : null}
           </div>
         </div>
       </div>
