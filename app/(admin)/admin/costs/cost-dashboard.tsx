@@ -26,16 +26,6 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
     <>
       <h1 className="text-2xl font-bold text-text-primary mb-3">Costs</h1>
 
-      {dashboard.enabled && dashboard.startedAt ? (
-        <p className="mb-6 text-sm text-text-secondary">
-          Ledger start:{" "}
-          {new Date(dashboard.startedAt).toLocaleString("en-GB", {
-            timeZone: "Europe/London",
-          })}
-          . Charges that started before this instant are excluded, not prorated.
-        </p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-3 mb-8">
         <Card>
           <CardHeader className="pb-2">
@@ -46,9 +36,6 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
           <CardContent>
             <p className="text-2xl font-bold text-text-primary">
               {dashboard.projectedTotalLabel}
-            </p>
-            <p className="mt-2 text-sm text-text-secondary">
-              Unsettled ledger rows, including provisional shared hosting.
             </p>
           </CardContent>
         </Card>

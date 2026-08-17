@@ -1,28 +1,16 @@
 import type { CostSyncResult } from "@/lib/costs/sync";
 
-export const COST_PAGE_INTRO =
-  "This page shows the saved project cost ledger. Opening it does not refresh provider charges.";
-
 export const COST_REFRESH_HELP =
-  "Vercel hosting and shared team charges refresh daily at 04:00 UTC, after a verified production deployment, or when the owner refreshes provider costs.";
-
-export const COST_CALCULATION_HELP =
-  "Each imported amount is converted with the service-period business-day USD/GBP rate. Weekends use Friday’s rate.";
-
-export const COST_ALLOCATION_HELP =
-  "Shared Vercel charges are split equally across active production projects. Current-month shared rows stay provisional until that month closes. Development, Other, and external Supabase database costs are recorded manually.";
+  "Use Refresh provider costs to try again.";
 
 export const COST_INVOICE_HELP =
-  "Outstanding invoiceable is the unsettled invoiceable total. It shows £0.00 while an invoice request is pending. Confirmed invoices drop those rows from the live total.";
-
-export const COST_DISABLED_HELP =
-  "Project cost tracking is turned off. Provider charges will not import until it is enabled.";
+  "Use the button below to request an invoice for this amount.";
 
 export const COST_EMPTY_HELP =
-  "No ledger rows have been saved yet. Automatic Vercel charges appear after a successful refresh. Development and Other costs have to be recorded by the owner.";
+  "No costs to show yet. Use Refresh provider costs or Add manual cost to get started.";
 
 export const COST_NON_OWNER_HELP =
-  "Only the configured owner can record manual costs, refresh provider charges, or confirm invoices.";
+  "Ask the configured owner to refresh costs, add manual entries, or request invoices.";
 
 export function interpretManualCostSyncResult(result: {
   error?: unknown;
@@ -87,7 +75,7 @@ export function syncHealthDetail(input: {
     return `The latest refresh failed. ${completed}${quarantine}`;
   }
   if (input.stale && input.status === "NONE") {
-    return `Provider charges have not been imported yet. ${COST_REFRESH_HELP}`;
+    return `No provider costs yet. ${COST_REFRESH_HELP}`;
   }
   if (input.stale) {
     return `The ledger is waiting for a newer refresh. ${completed}${quarantine}`;

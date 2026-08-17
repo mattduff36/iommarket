@@ -1,12 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
-  COST_ALLOCATION_HELP,
-  COST_CALCULATION_HELP,
-  COST_DISABLED_HELP,
   COST_EMPTY_HELP,
   COST_NON_OWNER_HELP,
-  COST_PAGE_INTRO,
 } from "@/lib/costs/copy";
 import type { CostDashboardDto } from "@/lib/costs/dto";
 import { hasSensitiveCostField } from "@/lib/costs/privacy";
@@ -69,16 +65,15 @@ function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto 
 }
 
 describe("admin costs dashboard T5", () => {
-  it("explains timing, formula, and empty state without leaking sensitive fields", () => {
+  it("shows concise usage help without leaking sensitive fields", () => {
     const data = dashboard();
     expect(hasSensitiveCostField(data)).toBe(false);
     render(<CostDashboardView dashboard={data} />);
-    expect(screen.queryByText(COST_PAGE_INTRO)).toBeNull();
-    expect(screen.queryByText(COST_CALCULATION_HELP)).toBeNull();
-    expect(screen.queryByText(COST_ALLOCATION_HELP)).toBeNull();
     expect(screen.getByText(COST_EMPTY_HELP)).not.toBeNull();
     expect(screen.getByText(COST_NON_OWNER_HELP)).not.toBeNull();
     expect(screen.getByText(/No refresh yet/i)).not.toBeNull();
+    expect(screen.queryByText(/Ledger start:/i)).toBeNull();
+    expect(screen.queryByText(/business-day|split equally|provisional shared hosting/i)).toBeNull();
     expect(screen.queryByText(/nativeAmount|fxRate|billedCost/i)).toBeNull();
   });
 
@@ -185,9 +180,9 @@ describe("admin costs dashboard T5", () => {
     expect(screen.queryByText(/nativeAmount|fxRate|billedCost/i)).toBeNull();
   });
 
-  it("explains the disabled gate without promising a billing-period boundary", () => {
+  it("does not show implementation details when costs are disabled", () => {
     render(<CostDashboardView dashboard={dashboard({ enabled: false, startedAt: null })} />);
-    expect(screen.queryByText(COST_DISABLED_HELP)).toBeNull();
+    expect(screen.queryByText(/tracking is turned off|Ledger start:/i)).toBeNull();
     expect(screen.queryByText(/billing-period boundary/i)).toBeNull();
   });
 });
