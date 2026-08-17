@@ -1,32 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { buildDatabasePoolOptions } from "./pool-options";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
-
-function sanitiseConnectionString(raw: string): string {
-  // Trim whitespace / stray newlines that break pg connection strings
-  let url = raw.trim();
-
-  // Strip params that conflict with our explicit Pool options:
-  // - sslmode: pg v8+ treats sslmode=require as verify-full, overriding our
-  //   ssl: { rejectUnauthorized: false } config
-  // - pgbouncer: not a real pg param, just a Prisma hint
-  // - supa: Supabase-internal tracking param
-  try {
-    const parsed = new URL(url);
-    parsed.searchParams.delete("sslmode");
-    parsed.searchParams.delete("pgbouncer");
-    parsed.searchParams.delete("supa");
-    url = parsed.toString();
-  } catch {
-    // Not a valid URL (unlikely), fall through with original
-  }
-
-  return url;
-}
 
 function createPrismaClient(): PrismaClient {
   // Prefer transaction-mode pooler URL (port 6543) for serverless,
@@ -42,14 +21,7 @@ function createPrismaClient(): PrismaClient {
     );
   }
 
-  const connectionString = sanitiseConnectionString(raw);
-
-  const pool = new pg.Pool({
-    connectionString,
-    ssl: { rejectUnauthorized: false },
-    // Keep pool small for serverless – each lambda gets its own pool
-    max: 5,
-  });
+  const pool = new pg.Pool(buildDatabasePoolOptions(raw));
   const adapter = new PrismaPg(pool);
 
   return new PrismaClient({ adapter });

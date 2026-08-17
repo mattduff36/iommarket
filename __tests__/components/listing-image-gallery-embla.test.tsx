@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ListingImageGallery } from "@/app/(public)/listings/[id]/listing-image-gallery";
 
-const { emblaApis, emblaOptions, reducedMotion } = vi.hoisted(() => ({
+const { emblaApis, emblaOptions, reducedMotion, reactRef } = vi.hoisted(() => ({
   emblaApis: [] as Array<{
     selectedScrollSnap: () => number;
     scrollTo: ReturnType<typeof vi.fn>;
@@ -12,11 +12,17 @@ const { emblaApis, emblaOptions, reducedMotion } = vi.hoisted(() => ({
   }>,
   emblaOptions: [] as Array<{ duration?: number; startIndex?: number }>,
   reducedMotion: { value: false },
+  reactRef: { current: null as typeof React | null },
 }));
 
-vi.mock("embla-carousel-react", async () => {
-  const ReactModule = await vi.importActual<typeof import("react")>("react");
+reactRef.current = React;
+
+vi.mock("embla-carousel-react", () => {
   function useEmblaCarouselMock(options: { duration?: number; startIndex?: number }) {
+    const ReactModule = reactRef.current;
+    if (!ReactModule) {
+      throw new Error("React is not available for the Embla test mock");
+    }
     emblaOptions.push(options);
     const [viewportRef] = ReactModule.useState(() => vi.fn());
     const [api] = ReactModule.useState(() => {
@@ -52,7 +58,9 @@ vi.mock("embla-carousel-react", async () => {
     return [viewportRef, api];
   }
   return {
+    __esModule: true,
     default: useEmblaCarouselMock,
+    useEmblaCarousel: useEmblaCarouselMock,
   };
 });
 

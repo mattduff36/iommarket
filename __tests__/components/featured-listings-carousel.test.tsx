@@ -4,21 +4,53 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import useEmblaCarousel from "embla-carousel-react";
 import { FeaturedListingsCarousel } from "@/components/marketplace/home/featured-listings-carousel";
 
-const scrollPrev = vi.fn();
-const scrollNext = vi.fn();
-const scrollTo = vi.fn();
-const on = vi.fn();
-const off = vi.fn();
-const selectedScrollSnap = vi.fn();
-const canScrollPrev = vi.fn();
-const canScrollNext = vi.fn();
-const scrollProgress = vi.fn();
-const scrollSnapList = vi.fn();
-const autoplayPlugin = {
-  stop: vi.fn(),
-  reset: vi.fn(),
-  play: vi.fn(),
-};
+const {
+  scrollPrev,
+  scrollNext,
+  scrollTo,
+  on,
+  off,
+  selectedScrollSnap,
+  canScrollPrev,
+  canScrollNext,
+  scrollProgress,
+  scrollSnapList,
+  useEmblaCarouselMock,
+  autoplayPlugin,
+} = vi.hoisted(() => ({
+  scrollPrev: vi.fn(),
+  scrollNext: vi.fn(),
+  scrollTo: vi.fn(),
+  on: vi.fn(),
+  off: vi.fn(),
+  selectedScrollSnap: vi.fn(),
+  canScrollPrev: vi.fn(),
+  canScrollNext: vi.fn(),
+  scrollProgress: vi.fn(),
+  scrollSnapList: vi.fn(),
+  useEmblaCarouselMock: vi.fn(),
+  autoplayPlugin: {
+    stop: vi.fn(),
+    reset: vi.fn(),
+    play: vi.fn(),
+  },
+}));
+
+useEmblaCarouselMock.mockImplementation(() => [
+  vi.fn(),
+  {
+    scrollPrev,
+    scrollNext,
+    scrollTo,
+    on,
+    off,
+    selectedScrollSnap,
+    canScrollPrev,
+    canScrollNext,
+    scrollProgress,
+    scrollSnapList,
+  },
+]);
 
 function mockMatchMedia(matches: boolean) {
   vi.stubGlobal(
@@ -37,24 +69,13 @@ function mockMatchMedia(matches: boolean) {
 }
 
 vi.mock("embla-carousel-react", () => ({
-  default: vi.fn(() => [
-    vi.fn(),
-    {
-      scrollPrev,
-      scrollNext,
-      scrollTo,
-      on,
-      off,
-      selectedScrollSnap,
-      canScrollPrev,
-      canScrollNext,
-      scrollProgress,
-      scrollSnapList,
-    },
-  ]),
+  __esModule: true,
+  default: useEmblaCarouselMock,
+  useEmblaCarousel: useEmblaCarouselMock,
 }));
 
 vi.mock("embla-carousel-autoplay", () => ({
+  __esModule: true,
   default: vi.fn(() => autoplayPlugin),
 }));
 
