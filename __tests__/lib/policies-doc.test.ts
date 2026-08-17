@@ -6,6 +6,7 @@ import { getAllPolicyDocuments } from "@/lib/policies/loader";
 import {
   LEGAL_NAV_ITEMS,
   LEGAL_ROUTES,
+  POLICY_DEFINITIONS,
   buildBundleVersion,
   isLegalRoute,
 } from "@/lib/policies/registry";
@@ -17,16 +18,13 @@ import {
 } from "@/lib/policy/company";
 
 const PLACEHOLDER_RE = /\[[A-Z0-9 _-]+\]/g;
-const APPROVED_PLACEHOLDERS = new Set(["[Pending Registration Number]"]);
-
 describe("POL-DOC-001 canonical policy corpus", () => {
   const documents = getAllPolicyDocuments();
 
-  it("publishes all seven policies with immutable versions and hashes", () => {
+  it("publishes all policies with per-document versions and hashes", () => {
     expect(documents.map((doc) => doc.slug)).toEqual([...POLICY_SLUGS]);
     for (const doc of documents) {
-      expect(doc.version).toBe(COMPANY.policyVersion);
-      expect(doc.effectiveDate).toBe(COMPANY.policyEffectiveDate);
+      expect(doc.version).toMatch(/^2026-08-\d{2}\.\d+$/);
       expect(doc.markdown.length).toBeGreaterThan(400);
       expect(doc.contentHash).toMatch(/^[a-f0-9]{64}$/);
       expect(doc.markdown).toContain(COMPANY.companyNumber);
@@ -35,7 +33,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
       expect(doc.markdown).toContain("Port Erin");
       expect(doc.markdown).toContain("IM9 6NA");
       expect(doc.markdown).toContain(COMPANY.email);
-      expect(doc.markdown).toContain("14 August 2026");
+      expect(doc.effectiveDate).toMatch(/^(14 August 2026|on launch)$/);
     }
   });
 
@@ -59,28 +57,41 @@ describe("POL-DOC-001 canonical policy corpus", () => {
     );
   });
 
-  it("keeps only the approved pending-registration placeholder", () => {
+  it("contains no unresolved legal placeholders", () => {
     const leftovers = documents.flatMap((doc) =>
-      [...(doc.markdown.match(PLACEHOLDER_RE) ?? [])].filter(
-        (value) => !APPROVED_PLACEHOLDERS.has(value),
-      ),
+      [...(doc.markdown.match(PLACEHOLDER_RE) ?? [])],
     );
     expect(leftovers).toEqual([]);
-    expect(getDataControllerReference({})).toBe(
-      COMPANY.dataControllerRefPlaceholder,
-    );
+    expect(getDataControllerReference({})).toBeNull();
   });
 
   it("builds deterministic bundle versions in registry order", () => {
     expect(buildBundleVersion("AGE_18")).toBe("AGE_18:1");
     expect(buildBundleVersion("ACCOUNT_BUNDLE")).toBe(
-      "ACCOUNT_BUNDLE:privacy=2026-08-14.1|terms=2026-08-14.1|acceptable-use=2026-08-14.1",
+      "ACCOUNT_BUNDLE:privacy=2026-08-17.1|terms=2026-08-17.1|acceptable-use=2026-08-17.1",
     );
     expect(buildBundleVersion("LISTING_BUNDLE")).toBe(
-      "LISTING_BUNDLE:private-seller-terms=2026-08-14.1|acceptable-use=2026-08-14.1|refunds=2026-08-14.1",
+      "LISTING_BUNDLE:private-seller-terms=2026-08-17.1|acceptable-use=2026-08-17.1|refunds=2026-08-14.1",
     );
     expect(buildBundleVersion("DEALER_BUNDLE")).toBe(
-      "DEALER_BUNDLE:dealer-terms=2026-08-14.1|acceptable-use=2026-08-14.1|refunds=2026-08-14.1",
+      "DEALER_BUNDLE:dealer-terms=2026-08-14.1|acceptable-use=2026-08-17.1|refunds=2026-08-14.1",
+    );
+  });
+
+  it("changes only bundles containing the revised policy MD-ARCH-001", () => {
+    const versions = Object.fromEntries(
+      POLICY_SLUGS.map((slug) => [slug, POLICY_DEFINITIONS[slug].version]),
+    ) as Record<(typeof POLICY_SLUGS)[number], string>;
+    const revised = { ...versions, privacy: "privacy-next" };
+
+    expect(buildBundleVersion("ACCOUNT_BUNDLE", revised)).not.toBe(
+      buildBundleVersion("ACCOUNT_BUNDLE", versions),
+    );
+    expect(buildBundleVersion("LISTING_BUNDLE", revised)).toBe(
+      buildBundleVersion("LISTING_BUNDLE", versions),
+    );
+    expect(buildBundleVersion("DEALER_BUNDLE", revised)).toBe(
+      buildBundleVersion("DEALER_BUNDLE", versions),
     );
   });
 
@@ -89,7 +100,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
       expect(FOOTER_NAV_ITEMS.some((item) => item.href === href)).toBe(true);
       expect(isLegalRoute(href)).toBe(true);
     }
-    expect(LEGAL_NAV_ITEMS).toHaveLength(7);
+    expect(LEGAL_NAV_ITEMS).toHaveLength(8);
 
     const sitemap = readFileSync(
       resolve(process.cwd(), "app", "sitemap.ts"),

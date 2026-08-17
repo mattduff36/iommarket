@@ -14,6 +14,7 @@ import {
   createCheckoutSchema,
   createDealerSubscriptionSchema,
   payForListingSchema,
+  type PayForListingInput,
 } from "@/lib/validations/payment";
 import {
   isPrivateListingFreeForUser,
@@ -96,8 +97,13 @@ function toUserPaymentError(message: string) {
 // Pay for Listing (creates hosted payment session)
 // ---------------------------------------------------------------------------
 
-export async function payForListing(listingId: string) {
+export async function payForListing(input: PayForListingInput) {
   const user = await requireAcceptedAuth();
+  const parsed = payForListingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors };
+  }
+  const { listingId, privateSellerTermsAccepted } = parsed.data;
   const checkoutRate = checkRateLimit(
     makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
     { windowMs: 5 * 60_000, maxRequests: 5 }
@@ -106,11 +112,6 @@ export async function payForListing(listingId: string) {
     return {
       error: "Too many checkout attempts. Please wait a few minutes and try again.",
     };
-  }
-
-  const parsed = payForListingSchema.safeParse({ listingId });
-  if (!parsed.success) {
-    return { error: parsed.error.flatten().fieldErrors };
   }
 
   const listing = await db.listing.findUnique({
@@ -141,6 +142,64 @@ export async function payForListing(listingId: string) {
   }
 
   try {
+    if (!listing.dealerId) {
+      const {
+        hasCurrentBundleAcceptance,
+        recordAcceptance,
+      } = await import("@/lib/policy/acceptance");
+      if (privateSellerTermsAccepted === true) {
+        try {
+          await recordAcceptance(db, {
+            userId: user.id,
+            acceptanceType: "LISTING_BUNDLE",
+            source: "LISTING",
+          });
+        } catch {
+          throw new Error(
+            "Unable to record Private Seller Terms acceptance. Please try again.",
+          );
+        }
+      } else {
+        const { getPolicyFlags } = await import("@/lib/policy/flags");
+        if (getPolicyFlags().enforceAcceptance) {
+          let previouslyAccepted: boolean;
+          try {
+            previouslyAccepted = await hasCurrentBundleAcceptance(
+              user.id,
+              "LISTING_BUNDLE",
+            );
+          } catch {
+            throw new Error(
+              "Unable to verify Private Seller Terms acceptance. Please try again.",
+            );
+          }
+          if (!previouslyAccepted) {
+            return {
+              error:
+                "You must accept the Private Seller Terms before opening checkout.",
+            };
+          }
+        }
+      }
+    }
+
+    const isRenewal = Boolean(
+      listing.expiresAt && listing.expiresAt.getTime() <= Date.now(),
+    );
+    if (!isRenewal && listing.status === "DRAFT") {
+      const capturedPayment = await db.payment.findFirst({
+        where: {
+          listingId: listing.id,
+          type: "LISTING",
+          status: "SUCCEEDED",
+        },
+        select: { id: true },
+      });
+      if (capturedPayment) {
+        return { data: { checkoutUrl: null, skippedPayment: true } };
+      }
+    }
+
     const pricing = await getMarketplacePricing();
     const flow = listing.dealerId ? "dealer" : "private";
     const listingReturnTo = `/sell/checkout?listing=${listing.id}&flow=${flow}`;
@@ -154,9 +213,6 @@ export async function payForListing(listingId: string) {
         error: "Active dealer access is required before submitting dealer listings.",
       };
     }
-    const isRenewal = Boolean(
-      listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
-    );
     const isFreePrivateSeller =
       !listing.dealerId &&
       (await isPrivateListingFreeForUser(user.id));

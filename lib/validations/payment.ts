@@ -7,6 +7,7 @@ export const createCheckoutSchema = z.object({
 export const payForListingSchema = z
   .object({
     listingId: z.string().cuid("Invalid listing ID"),
+    privateSellerTermsAccepted: z.literal(true).optional(),
   })
   .strict();
 

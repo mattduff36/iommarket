@@ -1,5 +1,5 @@
 # iTrader.im Acceptable Use Policy
-*Last updated: 14 August 2026*
+*Effective on launch*
 
 ## 1. Purpose
 
@@ -38,7 +38,7 @@ You must not upload or publish pornography, nudity, sexually explicit or excessi
 
 ## 6. Prohibited goods and services
 
-Unless expressly approved by iTrader, the Platform must not be used to advertise vehicle parts, number plates, written-off vehicles, prohibited or unlawful goods or services, stolen property, or goods or services outside categories permitted by iTrader. Permitted categories may evolve as the Platform develops.
+Unless expressly approved by iTrader, the Platform must not be used to advertise vehicle parts, number plates, prohibited or unlawful goods or services, stolen property, or goods or services outside categories permitted by iTrader. Written-off vehicles are prohibited except for the Category N and Category S exception in clause 4.2, where the relevant category must be clearly and prominently disclosed. Permitted categories may evolve as the Platform develops.
 
 
 ## 7. Dealer conduct

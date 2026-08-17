@@ -42,6 +42,14 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    {
+      name: "webkit",
+      use: {
+        ...devices["Desktop Safari"],
+        storageState: "e2e/.auth/storage-state.json",
+      },
+      dependencies: ["setup"],
+    },
   ],
   webServer: {
     command: "npm run dev",

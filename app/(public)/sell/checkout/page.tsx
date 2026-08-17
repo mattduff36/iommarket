@@ -63,7 +63,7 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
     redirect("/sell");
   }
 
-  const flow = sp.flow ?? (listing.dealerId ? "dealer" : "private");
+  const flow = listing.dealerId ? "dealer" : "private";
   const listingPayment = await db.payment.findFirst({
     where: {
       listingId: listing.id,

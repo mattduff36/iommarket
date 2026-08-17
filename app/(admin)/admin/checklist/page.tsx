@@ -2,14 +2,12 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { loadChecklist } from "@/actions/admin/checklist";
-import { createDefaultChecklistItems } from "@/lib/admin/checklist";
 import { ChecklistBoard } from "./checklist-board";
 
 export const metadata: Metadata = { title: "Checklist | Admin" };
 
 export default async function AdminChecklistPage() {
   const result = await loadChecklist();
-  const items = result.data ?? createDefaultChecklistItems();
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -18,10 +16,14 @@ export default async function AdminChecklistPage() {
         Shared admin to-do list. Check items off as they are done, add notes, or
         capture new work. Everyone with admin access sees the same list.
       </p>
-      {result.error ? (
+      {result.error || !result.data ? (
         <p className="mb-4 text-sm text-text-error">{result.error}</p>
-      ) : null}
-      <ChecklistBoard initialItems={items} />
+      ) : (
+        <ChecklistBoard
+          initialItems={result.data.items}
+          initialUpdatedAt={result.data.updatedAt}
+        />
+      )}
     </div>
   );
 }

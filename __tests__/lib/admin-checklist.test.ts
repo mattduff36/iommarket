@@ -4,7 +4,6 @@ import {
   createDefaultChecklistItems,
   normalizeChecklistLabels,
   remainingChecklistCount,
-  resolveChecklistItems,
   sortChecklistItems,
 } from "@/lib/admin/checklist";
 
@@ -27,49 +26,6 @@ describe("createDefaultChecklistItems", () => {
     expect(items.filter((item) => item.labels.includes("DM"))).toHaveLength(3);
     expect(items.some((item) => item.labels.includes("MD"))).toBe(true);
     expect(items.some((item) => item.labels.includes("Future"))).toBe(true);
-  });
-});
-
-describe("resolveChecklistItems", () => {
-  it("returns seeded items when the stored value is missing or invalid", () => {
-    expect(resolveChecklistItems(null).map((item) => item.id)).toEqual(
-      createDefaultChecklistItems().map((item) => item.id),
-    );
-    expect(resolveChecklistItems({ items: [] })).toHaveLength(7);
-  });
-
-  it("keeps a stored empty list instead of re-seeding", () => {
-    expect(resolveChecklistItems([])).toEqual([]);
-  });
-
-  it("keeps valid stored items and drops malformed entries", () => {
-    const valid = createChecklistItem(
-      { id: "keep-me", title: "Keep this" },
-      NOW,
-    );
-
-    const resolved = resolveChecklistItems([
-      valid,
-      { id: "bad" },
-      { ...valid, title: "" },
-    ]);
-
-    expect(resolved).toEqual([valid]);
-  });
-
-  it("migrates a legacy single label into labels", () => {
-    const legacy = {
-      ...createChecklistItem({ id: "legacy", title: "Legacy item" }, NOW),
-      labels: undefined,
-      label: "DM",
-    };
-
-    expect(resolveChecklistItems([legacy])).toEqual([
-      expect.objectContaining({
-        id: "legacy",
-        labels: ["DM"],
-      }),
-    ]);
   });
 });
 

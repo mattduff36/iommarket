@@ -91,6 +91,7 @@ export default async function AdminReportsPage({
                 currentAdminNotes={report.adminNotes}
                 listingStatus={report.listing.status}
                 expectedRevision={report.listing.lifecycleRevision}
+                reportReasonCode={report.reasonCode}
               />
             </div>
           </div>

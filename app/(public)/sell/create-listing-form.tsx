@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   createListing,
@@ -131,6 +132,10 @@ export function CreateListingForm({
   const [photoRevision, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
   const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
+  const [privateSellerTermsAccepted, setPrivateSellerTermsAccepted] =
+    useState(false);
+  const [privateSellerTermsMissing, setPrivateSellerTermsMissing] =
+    useState(false);
   const [registrationInput, setRegistrationInput] = useState("");
   const [lookupPending, setLookupPending] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -433,6 +438,11 @@ export function CreateListingForm({
       return;
     }
     setTrustConfirmationMissing(false);
+    if (mode === "private" && !privateSellerTermsAccepted) {
+      setPrivateSellerTermsMissing(true);
+      return;
+    }
+    setPrivateSellerTermsMissing(false);
 
     const attributes: Array<{ attributeDefinitionId: string; value: string }> = [];
     if (selectedCategory) {
@@ -511,7 +521,11 @@ export function CreateListingForm({
 
         const payResult = skipCheckout
           ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
-          : await payForListing(listingId);
+          : await payForListing({
+              listingId,
+              privateSellerTermsAccepted:
+                mode === "private" ? true : undefined,
+            });
         if (payResult.error) {
           setError(
             typeof payResult.error === "string"
@@ -522,7 +536,11 @@ export function CreateListingForm({
         }
 
         if (payResult.data?.skippedPayment) {
-          const reviewResult = await submitListingForReview(listingId);
+          const reviewResult = await submitListingForReview({
+            listingId,
+            privateSellerTermsAccepted:
+              mode === "private" ? true : undefined,
+          });
           if (reviewResult?.error) {
             setError(
               typeof reviewResult.error === "string"
@@ -811,6 +829,60 @@ export function CreateListingForm({
                 className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
                 label={LISTING_DECLARATION_LABEL}
               />
+              {mode === "private" ? (
+                <div
+                  className={
+                    privateSellerTermsMissing
+                      ? "rounded-md border border-neon-red-500 p-3"
+                      : "rounded-md border border-border p-3"
+                  }
+                >
+                  <Checkbox
+                    checked={privateSellerTermsAccepted}
+                    onCheckedChange={(checked) => {
+                      const accepted = checked === true;
+                      setPrivateSellerTermsAccepted(accepted);
+                      if (accepted) setPrivateSellerTermsMissing(false);
+                    }}
+                    required={step === 3}
+                    label={
+                      <span className="leading-5">
+                        I expressly accept the current{" "}
+                        <Link
+                          href="/private-seller-terms"
+                          target="_blank"
+                          className="text-neon-blue-400 underline"
+                        >
+                          Private Seller Terms
+                        </Link>
+                        ,{" "}
+                        <Link
+                          href="/acceptable-use"
+                          target="_blank"
+                          className="text-neon-blue-400 underline"
+                        >
+                          Acceptable Use Policy
+                        </Link>
+                        , and{" "}
+                        <Link
+                          href="/refunds"
+                          target="_blank"
+                          className="text-neon-blue-400 underline"
+                        >
+                          Refund Policy
+                        </Link>
+                        .
+                      </span>
+                    }
+                  />
+                  {privateSellerTermsMissing ? (
+                    <p className="mt-2 text-xs text-text-error">
+                      Accept the current private seller policies before
+                      continuing.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
           </div>
 
           {/* Dynamic category attributes */}

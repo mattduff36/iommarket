@@ -1,4 +1,4 @@
-import { COMPANY } from "@/lib/policy/company";
+import { getPolicyDefinition } from "@/lib/policies/registry";
 
 export const COOKIE_CONSENT_STORAGE_KEY = "itrader-cookie-consent";
 export const COOKIE_CONSENT_COOKIE_NAME = "itrader-cookie-consent";
@@ -10,7 +10,7 @@ export interface CookieConsentState {
 }
 
 export function currentCookieConsentVersion() {
-  return COMPANY.policyVersion;
+  return getPolicyDefinition("cookies").version;
 }
 
 export function defaultCookieConsent(): CookieConsentState {

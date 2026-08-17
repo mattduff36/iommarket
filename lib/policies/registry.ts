@@ -7,65 +7,75 @@ import {
   type PolicySlug,
 } from "@/lib/policies/types";
 
-const VERSION = COMPANY.policyVersion;
-const EFFECTIVE_DATE = COMPANY.policyEffectiveDate;
+const CURRENT_VERSION = COMPANY.policyVersion;
+const CURRENT_EFFECTIVE_DATE = COMPANY.policyEffectiveDate;
+const LAUNCH_VERSION = "2026-08-17.1";
+const EFFECTIVE_ON_LAUNCH = "on launch";
 
 export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
   privacy: {
     slug: "privacy",
     title: "Privacy Policy",
     route: "/privacy",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: LAUNCH_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "privacy.md",
   },
   cookies: {
     slug: "cookies",
     title: "Cookie Policy",
     route: "/cookies",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: LAUNCH_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "cookies.md",
   },
   terms: {
     slug: "terms",
     title: "Terms and Conditions",
     route: "/terms",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: LAUNCH_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "terms.md",
   },
   "dealer-terms": {
     slug: "dealer-terms",
     title: "Dealer Terms",
     route: "/dealer-terms",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: CURRENT_VERSION,
+    effectiveDate: CURRENT_EFFECTIVE_DATE,
     fileName: "dealer-terms.md",
   },
   "private-seller-terms": {
     slug: "private-seller-terms",
     title: "Private Seller Terms",
     route: "/private-seller-terms",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: LAUNCH_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "private-seller-terms.md",
   },
   "acceptable-use": {
     slug: "acceptable-use",
     title: "Acceptable Use Policy",
     route: "/acceptable-use",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: LAUNCH_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "acceptable-use.md",
   },
   refunds: {
     slug: "refunds",
     title: "Refund Policy",
     route: "/refunds",
-    version: VERSION,
-    effectiveDate: EFFECTIVE_DATE,
+    version: CURRENT_VERSION,
+    effectiveDate: CURRENT_EFFECTIVE_DATE,
     fileName: "refunds.md",
+  },
+  "vehicle-check-terms": {
+    slug: "vehicle-check-terms",
+    title: "Vehicle Check Terms",
+    route: "/vehicle-check-terms",
+    version: LAUNCH_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
+    fileName: "vehicle-check-terms.md",
   },
 };
 

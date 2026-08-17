@@ -8,6 +8,7 @@ const LEGAL_PAGES = [
   { path: "/private-seller-terms", heading: /private seller/i },
   { path: "/acceptable-use", heading: /acceptable use/i },
   { path: "/refunds", heading: /refund/i },
+  { path: "/vehicle-check-terms", heading: /vehicle check terms/i },
 ] as const;
 
 test.describe("Legal policies POL-DOC-001", () => {
@@ -18,7 +19,9 @@ test.describe("Legal policies POL-DOC-001", () => {
       await expect(page.getByRole("heading", { name: pageDef.heading }).first()).toBeVisible({
         timeout: 45_000,
       });
-      await expect(page.getByText("139244C")).toBeVisible();
+      await expect(
+        page.getByText("Company number: 139244C", { exact: true }),
+      ).toBeVisible();
       await expect(page.getByText("hello@itrader.im").first()).toBeVisible();
     });
   }

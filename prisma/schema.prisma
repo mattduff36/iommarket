@@ -305,6 +305,8 @@ model ListingStatusEvent {
   source          ListingStatusEventSource
   action          ListingLifecycleAction?
   reasonCode      ListingModerationReason?
+  moderationSubReason       String?
+  moderationTaxonomyVersion String?
   reportId        String?
   notes           String?
   createdAt       DateTime                 @default(now())
@@ -449,6 +451,8 @@ model ListingRevision {
   status                     ListingRevisionStatus  @default(DRAFT)
   version                    Int                    @default(0)
   reasonCode                 ListingModerationReason?
+  moderationSubReason        String?
+  moderationTaxonomyVersion  String?
   notes                      String?
   submittedAt                DateTime?
   decidedAt                  DateTime?

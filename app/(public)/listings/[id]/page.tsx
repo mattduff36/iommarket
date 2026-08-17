@@ -38,7 +38,7 @@ import {
   canViewListing,
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
-import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reasons";
+import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
 import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
@@ -227,7 +227,12 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           action: { in: ["REJECT", "TAKE_DOWN", "ACCOUNT_DISABLE", "ACCOUNT_DISABLE_PENDING"] },
         },
         orderBy: { createdAt: "desc" },
-        select: { reasonCode: true, action: true },
+        select: {
+          reasonCode: true,
+          moderationSubReason: true,
+          moderationTaxonomyVersion: true,
+          action: true,
+        },
       })
     : null;
 
@@ -364,7 +369,10 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           <AlertTriangle className="h-4 w-4 shrink-0" />
           This listing is not publicly visible.
           {latestModeration?.reasonCode
-            ? ` Reason: ${LISTING_MODERATION_REASON_LABELS[latestModeration.reasonCode]}.`
+            ? ` Reason: ${moderationReasonLabelForHistory(
+                latestModeration.reasonCode,
+                latestModeration.moderationSubReason,
+              )}.`
             : ""}
         </div>
       )}

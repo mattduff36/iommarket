@@ -20,6 +20,11 @@ export interface ChecklistItem {
   updatedAt: string;
 }
 
+export interface ChecklistSnapshot {
+  items: ChecklistItem[];
+  updatedAt: string;
+}
+
 export const DEFAULT_CHECKLIST_SEEDS: Array<{
   id: string;
   title: string;
@@ -145,25 +150,56 @@ function isChecklistItemShape(value: unknown): value is Record<string, unknown> 
   );
 }
 
-export function resolveChecklistItems(value: unknown): ChecklistItem[] {
+function hasValidStoredLabels(item: Record<string, unknown>) {
+  if (item.labels === undefined) {
+    return item.label === undefined || typeof item.label === "string";
+  }
+  return (
+    Array.isArray(item.labels) &&
+    item.labels.every(
+      (label) => typeof label === "string" && KNOWN_LABELS.has(label),
+    )
+  );
+}
+
+export function parseStoredChecklistItems(
+  value: unknown,
+):
+  | { success: true; items: ChecklistItem[] }
+  | { success: false; error: string } {
   if (!Array.isArray(value)) {
-    return createDefaultChecklistItems();
+    return { success: false, error: "Stored checklist is not an array." };
   }
 
-  return value.flatMap((entry) => {
-    if (!isChecklistItemShape(entry)) return [];
-    return [
-      {
-        id: entry.id as string,
-        title: (entry.title as string).trim(),
-        notes: entry.notes as string,
-        labels: normalizeChecklistLabels(entry.labels, entry.label),
-        done: entry.done as boolean,
-        createdAt: entry.createdAt as string,
-        updatedAt: entry.updatedAt as string,
-      },
-    ];
-  });
+  const ids = new Set<string>();
+  const items: ChecklistItem[] = [];
+  for (const entry of value) {
+    if (!isChecklistItemShape(entry) || !hasValidStoredLabels(entry)) {
+      return {
+        success: false,
+        error: "Stored checklist contains a malformed entry.",
+      };
+    }
+    const id = entry.id as string;
+    if (ids.has(id)) {
+      return {
+        success: false,
+        error: "Stored checklist contains duplicate item identifiers.",
+      };
+    }
+    ids.add(id);
+    items.push({
+      id,
+      title: (entry.title as string).trim(),
+      notes: entry.notes as string,
+      labels: normalizeChecklistLabels(entry.labels, entry.label),
+      done: entry.done as boolean,
+      createdAt: entry.createdAt as string,
+      updatedAt: entry.updatedAt as string,
+    });
+  }
+
+  return { success: true, items };
 }
 
 export function sortChecklistItems(items: ChecklistItem[]): ChecklistItem[] {

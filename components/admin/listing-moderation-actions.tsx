@@ -9,7 +9,10 @@ import {
   AdminActionButton,
 } from "@/components/admin/admin-action-controls";
 import { ModerationReasonDialog } from "@/components/admin/moderation-reason-dialog";
-import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reasons";
+import {
+  buildModerationReasonOptions,
+  MODERATION_TAXONOMY_VERSION,
+} from "@/lib/listings/moderation-reasons";
 import { cn } from "@/lib/cn";
 import type { ListingModerationReason } from "@prisma/client";
 
@@ -25,9 +28,9 @@ interface ListingModerationActionsProps {
   className?: string;
 }
 
-const REASON_OPTIONS = Object.entries(LISTING_MODERATION_REASON_LABELS)
-  .filter(([value]) => value !== "ACCOUNT_DISABLED")
-  .map(([value, label]) => ({ value, label }));
+const REASON_OPTIONS = buildModerationReasonOptions({
+  exclude: ["ACCOUNT_DISABLED"],
+});
 
 export function ListingModerationActions({
   listingId,
@@ -79,6 +82,8 @@ export function ListingModerationActions({
       | "REJECT_REVISION",
     reasonCode?: string,
     adminNotes?: string,
+    moderationSubReason?: string,
+    moderationTaxonomyVersion?: typeof MODERATION_TAXONOMY_VERSION,
   ) {
     setError(null);
     startTransition(async () => {
@@ -90,6 +95,8 @@ export function ListingModerationActions({
           expectedRevisionVersion: pendingRevisionVersion,
           reasonCode: reasonCode as ListingModerationReason | undefined,
           adminNotes,
+          moderationSubReason,
+          moderationTaxonomyVersion,
         });
         if (result?.error) {
           setError(
@@ -228,8 +235,19 @@ export function ListingModerationActions({
           reasons={REASON_OPTIONS}
           pending={isPending}
           onCancel={() => setDialog(null)}
-          onConfirm={({ reasonCode, notes }) =>
-            runAction(dialog, reasonCode, notes)
+          onConfirm={({
+            reasonCode,
+            notes,
+            moderationSubReason,
+            moderationTaxonomyVersion,
+          }) =>
+            runAction(
+              dialog,
+              reasonCode,
+              notes,
+              moderationSubReason,
+              moderationTaxonomyVersion,
+            )
           }
         />
       ) : null}

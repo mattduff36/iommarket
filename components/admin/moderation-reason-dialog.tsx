@@ -6,6 +6,17 @@ import {
   AdminActionSelect,
   AdminActionTextarea,
 } from "@/components/admin/admin-action-controls";
+import { MODERATION_TAXONOMY_VERSION } from "@/lib/listings/moderation-reasons";
+
+interface ModerationReasonOption {
+  value: string;
+  label: string;
+  subReasons: Array<{
+    value: string;
+    label: string;
+    clauseRefs: readonly string[];
+  }>;
+}
 
 export function ModerationReasonDialog({
   title,
@@ -14,15 +25,31 @@ export function ModerationReasonDialog({
   onConfirm,
   onCancel,
   pending,
+  initialReasonCode,
 }: {
   title: string;
   confirmLabel: string;
-  reasons: Array<{ value: string; label: string }>;
-  onConfirm: (input: { reasonCode: string; notes: string }) => void;
+  reasons: ModerationReasonOption[];
+  onConfirm: (input: {
+    reasonCode: string;
+    moderationSubReason: string;
+    moderationTaxonomyVersion: typeof MODERATION_TAXONOMY_VERSION;
+    notes: string;
+  }) => void;
   onCancel: () => void;
   pending?: boolean;
+  initialReasonCode?: string | null;
 }) {
-  const [reasonCode, setReasonCode] = useState(reasons[0]?.value ?? "");
+  const initialReason =
+    reasons.find((reason) => reason.value === initialReasonCode) ?? reasons[0];
+  const [reasonCode, setReasonCode] = useState(initialReason?.value ?? "");
+  const selectedReason = reasons.find((reason) => reason.value === reasonCode);
+  const [moderationSubReason, setModerationSubReason] = useState(
+    initialReason?.subReasons[0]?.value ?? "",
+  );
+  const selectedSubReason = selectedReason?.subReasons.find(
+    (reason) => reason.value === moderationSubReason,
+  );
   const [notes, setNotes] = useState("");
 
   return (
@@ -35,8 +62,14 @@ export function ModerationReasonDialog({
       <p className="text-xs font-medium text-text-primary">{title}</p>
       <AdminActionSelect
         value={reasonCode}
-        onChange={(event) => setReasonCode(event.target.value)}
-        aria-label="Reason"
+        onChange={(event) => {
+          const next = reasons.find(
+            (reason) => reason.value === event.target.value,
+          );
+          setReasonCode(event.target.value);
+          setModerationSubReason(next?.subReasons[0]?.value ?? "");
+        }}
+        aria-label="Reason category"
       >
         {reasons.map((reason) => (
           <option key={reason.value} value={reason.value}>
@@ -44,6 +77,22 @@ export function ModerationReasonDialog({
           </option>
         ))}
       </AdminActionSelect>
+      <AdminActionSelect
+        value={moderationSubReason}
+        onChange={(event) => setModerationSubReason(event.target.value)}
+        aria-label="Specific moderation reason"
+      >
+        {selectedReason?.subReasons.map((reason) => (
+          <option key={reason.value} value={reason.value}>
+            {reason.label}
+          </option>
+        ))}
+      </AdminActionSelect>
+      {selectedSubReason ? (
+        <p className="text-xs text-text-secondary">
+          Policy references: {selectedSubReason.clauseRefs.join(", ")}
+        </p>
+      ) : null}
       <AdminActionTextarea
         rows={2}
         value={notes}
@@ -53,8 +102,15 @@ export function ModerationReasonDialog({
       <div className="flex gap-2">
         <AdminActionButton
           tone="danger"
-          disabled={pending}
-          onClick={() => onConfirm({ reasonCode, notes })}
+          onClick={() =>
+            onConfirm({
+              reasonCode,
+              moderationSubReason,
+              moderationTaxonomyVersion: MODERATION_TAXONOMY_VERSION,
+              notes,
+            })
+          }
+          disabled={pending || !reasonCode || !moderationSubReason}
         >
           {confirmLabel}
         </AdminActionButton>

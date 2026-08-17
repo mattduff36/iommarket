@@ -33,7 +33,10 @@ function formatPrice(value: number | null | undefined): string {
   }).format(value);
 }
 
-export function openVehicleCheckPrintWindow(result: VehicleCheckResult) {
+export function openVehicleCheckPrintWindow(
+  result: VehicleCheckResult,
+  policyVersion: string,
+) {
   const printWindow = window.open("", "_blank", "width=1040,height=1200");
   if (!printWindow) return;
 
@@ -157,6 +160,12 @@ export function openVehicleCheckPrintWindow(result: VehicleCheckResult) {
         background: #fff7ed;
         border-color: #fdba74;
       }
+      .disclaimer {
+        background: #eff6ff;
+        border-color: #93c5fd;
+        font-size: 13px;
+        line-height: 1.55;
+      }
       @media print {
         .page {
           padding: 16px;
@@ -244,6 +253,21 @@ export function openVehicleCheckPrintWindow(result: VehicleCheckResult) {
             </section>`
           : ""
       }
+
+      <section class="card full disclaimer">
+        <h2>Vehicle Check disclaimer</h2>
+        <p>
+          Vehicle Check combines third-party and public-source data that may be
+          incomplete, delayed, or inaccurate. It is provided for information
+          only and is not a mechanical, finance, ownership, provenance, safety,
+          or valuation check. Verify all details independently before relying on
+          this report.
+        </p>
+        <p>
+          Vehicle Check Terms version ${escapeHtml(policyVersion)}:
+          ${escapeHtml(`${window.location.origin}/vehicle-check-terms`)}
+        </p>
+      </section>
     </main>
   </body>
 </html>`);

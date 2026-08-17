@@ -1,11 +1,11 @@
 # iTrader.im Private Seller Terms
-*Last updated: 14 August 2026*
+*Effective on launch*
 
 ## 1. About these Terms
 
 These Private Seller Terms apply when an individual uses iTrader.im to advertise a vehicle for private sale. iTrader.im is a trading name of Code Lab Platforms Limited, company number 139244C.
 
-By submitting a Listing, purchasing an advertising service or creating an account to advertise a vehicle, you agree to these Terms, the Acceptable Use Policy and Refund Policy.
+Before submitting a new Listing, resubmitting a rejected or removed Listing, or submitting changes to a live Listing for moderation, you must expressly accept the current version of these Terms, the Acceptable Use Policy and Refund Policy using the acceptance control presented by the Platform. Creating an account or merely continuing to use the Platform is not treated as that acceptance.
 
 
 ## 2. Eligibility
@@ -44,7 +44,7 @@ Sellers may edit Listings where permitted. Edited Listings must return through v
 
 ## 6. Seller declarations
 
-By submitting a Listing, you confirm that:
+By completing the seller declaration and submitting a Listing, you confirm that:
 
 you own the vehicle or have the owner's permission to advertise it;
 

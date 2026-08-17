@@ -42,6 +42,8 @@ export async function moderateListing(input: ModerateListingInput) {
     expectedRevision,
     expectedRevisionVersion,
     reasonCode,
+    moderationSubReason,
+    moderationTaxonomyVersion,
     reportId,
   } = parsed.data;
 
@@ -72,6 +74,8 @@ export async function moderateListing(input: ModerateListingInput) {
         expectedListingRevision: expectedRevision,
         expectedVersion: expectedRevisionVersion,
         reasonCode,
+        moderationSubReason: moderationSubReason!,
+        moderationTaxonomyVersion: moderationTaxonomyVersion!,
         notes: adminNotes,
       });
       revalidatePath("/admin/listings");
@@ -88,6 +92,8 @@ export async function moderateListing(input: ModerateListingInput) {
       source: "ADMIN",
       notes: adminNotes,
       reasonCode,
+      moderationSubReason,
+      moderationTaxonomyVersion,
       reportId,
     });
 
@@ -316,6 +322,9 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
             actor: { id: admin.id, role: "ADMIN" },
             source: "ADMIN",
             reasonCode: parsed.data.reasonCode,
+            moderationSubReason: parsed.data.moderationSubReason,
+            moderationTaxonomyVersion:
+              parsed.data.moderationTaxonomyVersion,
             notes: parsed.data.adminNotes,
             reportId: report.id,
           },
@@ -331,6 +340,9 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
             actor: { id: admin.id, role: "ADMIN" },
             source: "ADMIN",
             reasonCode: parsed.data.reasonCode,
+            moderationSubReason: parsed.data.moderationSubReason,
+            moderationTaxonomyVersion:
+              parsed.data.moderationTaxonomyVersion,
             notes: parsed.data.adminNotes,
             reportId: report.id,
           },
@@ -355,6 +367,9 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
           details: {
             listingId: report.listingId,
             reasonCode: parsed.data.reasonCode,
+            moderationSubReason: parsed.data.moderationSubReason,
+            moderationTaxonomyVersion:
+              parsed.data.moderationTaxonomyVersion,
           },
         },
         tx,

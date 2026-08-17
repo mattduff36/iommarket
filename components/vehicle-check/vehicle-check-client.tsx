@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { openVehicleCheckPrintWindow } from "@/components/vehicle-check/vehicle-check-print";
 import { VehicleCheckResultPanel } from "@/components/vehicle-check/vehicle-check-result-panel";
 import type { VehicleCheckResponse, VehicleCheckResult } from "@/lib/services/vehicle-check-types";
@@ -15,6 +17,13 @@ import {
   formatRegistrationForDisplay,
   isManxRegistration,
 } from "@/lib/utils/registration";
+import {
+  VEHICLE_CHECK_ACK_STORAGE_KEY,
+  buildVehicleCheckAcknowledgement,
+  hasCurrentVehicleCheckAcknowledgement,
+  parseVehicleCheckAcknowledgement,
+  serializeVehicleCheckAcknowledgement,
+} from "@/lib/consent/vehicle-check-acknowledgement";
 import {
   CarFront,
   Gauge,
@@ -26,6 +35,7 @@ import {
 
 interface VehicleCheckClientProps {
   initialRegistration?: string;
+  policyVersion: string;
 }
 
 function extractErrorMessage(payload: unknown): string {
@@ -79,6 +89,7 @@ function LoadingPanel() {
 
 export function VehicleCheckClient({
   initialRegistration,
+  policyVersion,
 }: VehicleCheckClientProps) {
   const router = useRouter();
   const [registration, setRegistration] = useState(
@@ -86,8 +97,22 @@ export function VehicleCheckClient({
   );
   const [result, setResult] = useState<VehicleCheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [termsAcknowledged, setTermsAcknowledged] = useState(false);
   const [isPending, startTransition] = useTransition();
   const autoLookupTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const stored = parseVehicleCheckAcknowledgement(
+        window.localStorage.getItem(VEHICLE_CHECK_ACK_STORAGE_KEY),
+      );
+      setTermsAcknowledged(
+        hasCurrentVehicleCheckAcknowledgement(stored, policyVersion),
+      );
+    } catch {
+      setTermsAcknowledged(false);
+    }
+  }, [policyVersion]);
 
   const updateUrl = useCallback(
     (nextRegistration: string | null) => {
@@ -108,6 +133,12 @@ export function VehicleCheckClient({
 
   const runLookup = useCallback(
     async (submittedRegistration: string, syncUrl = true) => {
+      if (!termsAcknowledged) {
+        setError("Acknowledge the current Vehicle Check Terms before running a lookup.");
+        setResult(null);
+        return;
+      }
+
       const trimmed = submittedRegistration.trim();
       if (!trimmed) {
         setError("Enter a UK or Isle of Man registration");
@@ -146,11 +177,15 @@ export function VehicleCheckClient({
         setError("Vehicle lookup failed. Please try again.");
       }
     },
-    [updateUrl]
+    [termsAcknowledged, updateUrl]
   );
 
   useEffect(() => {
-    if (!initialRegistration || autoLookupTriggeredRef.current) {
+    if (
+      !initialRegistration ||
+      !termsAcknowledged ||
+      autoLookupTriggeredRef.current
+    ) {
       return;
     }
 
@@ -158,7 +193,27 @@ export function VehicleCheckClient({
     startTransition(() => {
       void runLookup(initialRegistration, false);
     });
-  }, [initialRegistration, runLookup]);
+  }, [initialRegistration, runLookup, termsAcknowledged]);
+
+  const handleTermsAcknowledgement = (checked: boolean) => {
+    setTermsAcknowledged(checked);
+    setError(null);
+    try {
+      if (checked) {
+        window.localStorage.setItem(
+          VEHICLE_CHECK_ACK_STORAGE_KEY,
+          serializeVehicleCheckAcknowledgement(
+            buildVehicleCheckAcknowledgement(policyVersion),
+          ),
+        );
+        return;
+      }
+      window.localStorage.removeItem(VEHICLE_CHECK_ACK_STORAGE_KEY);
+    } catch {
+      setTermsAcknowledged(false);
+      setError("Browser storage is unavailable, so the acknowledgement could not be saved.");
+    }
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -274,6 +329,7 @@ export function VehicleCheckClient({
                       size="lg"
                       className="w-full sm:flex-1"
                       loading={isPending}
+                      disabled={!termsAcknowledged}
                       leftIcon={<Search className="h-4 w-4" />}
                     >
                       Run live check
@@ -287,6 +343,32 @@ export function VehicleCheckClient({
                     >
                       Clear
                     </Button>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/4 p-4">
+                    <Checkbox
+                      checked={termsAcknowledged}
+                      onCheckedChange={(checked) =>
+                        handleTermsAcknowledgement(checked === true)
+                      }
+                      required
+                      label={
+                        <span className="leading-5">
+                          I acknowledge the{" "}
+                          <Link
+                            href="/vehicle-check-terms"
+                            target="_blank"
+                            className="text-neon-blue-400 underline"
+                          >
+                            Vehicle Check Terms
+                          </Link>{" "}
+                          and understand that results must be independently verified.
+                        </span>
+                      }
+                    />
+                    <p className="mt-2 text-xs leading-5 text-text-secondary">
+                      Browser-only disclosure for version {policyVersion}. No
+                      registration or result is stored with this acknowledgement.
+                    </p>
                   </div>
                 </form>
 
@@ -336,7 +418,8 @@ export function VehicleCheckClient({
       {!isPending && result ? (
         <VehicleCheckResultPanel
           result={result}
-          onExportPdf={() => openVehicleCheckPrintWindow(result)}
+          policyVersion={policyVersion}
+          onExportPdf={() => openVehicleCheckPrintWindow(result, policyVersion)}
         />
       ) : null}
 

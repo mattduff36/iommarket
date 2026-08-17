@@ -295,9 +295,11 @@ function MotHistoryList({ tests }: { tests: VehicleMotTest[] }) {
 
 export function VehicleCheckResultPanel({
   result,
+  policyVersion,
   onExportPdf,
 }: {
   result: VehicleCheckResult;
+  policyVersion: string;
   onExportPdf: () => void;
 }) {
   const vehicle = result.vehicle;
@@ -632,6 +634,28 @@ export function VehicleCheckResultPanel({
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-neon-blue-500/25 bg-neon-blue-500/6">
+        <CardContent className="p-5 text-sm leading-6 text-text-secondary">
+          <p className="font-semibold text-text-primary">
+            Information only — verify independently
+          </p>
+          <p className="mt-2">
+            Vehicle Check combines third-party and public-source data that may
+            be incomplete, delayed, or inaccurate. It is not a mechanical,
+            finance, ownership, provenance, safety, or valuation check. Review
+            the{" "}
+            <Link
+              href="/vehicle-check-terms"
+              className="text-neon-blue-400 underline"
+            >
+              Vehicle Check Terms
+            </Link>{" "}
+            (version {policyVersion}) and carry out appropriate independent
+            checks before relying on these results.
+          </p>
         </CardContent>
       </Card>
     </div>

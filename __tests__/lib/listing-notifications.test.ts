@@ -47,6 +47,37 @@ describe("listing notification copy ALR-MAIL-001 ALR-MAIL-004", () => {
     expect(buildListingStatusEmail({ action: "SYSTEM_BACKFILL", listingTitle: "x" })).toBeNull();
   });
 
+  it("uses seller-friendly correction and refund advisory copy MD-MOD-003", () => {
+    const email = buildListingStatusEmail({
+      action: "REJECT",
+      listingTitle: "Test van",
+      reasonCode: "PROHIBITED",
+      moderationSubReason: "prohibited.write-off-disclosure",
+      moderationTaxonomyVersion: "2026-08-17.1",
+    });
+
+    expect(email?.text).toContain(
+      "Prohibited write-off or missing Category N/S disclosure",
+    );
+    expect(email?.text).toContain("Correction:");
+    expect(email?.text).toContain("does not trigger a refund or payment action");
+  });
+
+  it("renders retired historical codes across taxonomy version bumps", () => {
+    const email = buildListingStatusEmail({
+      action: "REJECT",
+      listingTitle: "Historical listing",
+      reasonCode: "POLICY",
+      moderationSubReason: "policy.legacy-general",
+      moderationTaxonomyVersion: "2025-01-01.1",
+    });
+
+    expect(email?.text).toContain("Reason: Legacy general policy issue");
+    expect(email?.text).toContain(
+      "This historical decision used an earlier general policy category.",
+    );
+  });
+
   it("notifies admin on submit and revision submit ALR-MAIL-001", () => {
     expect(
       shouldNotifyAdminSubmission({

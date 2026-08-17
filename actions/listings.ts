@@ -15,6 +15,7 @@ import {
   updateListingSchema,
   reportListingSchema,
   contactSellerSchema,
+  submitListingForReviewSchema,
   type CreateListingInput,
   type ContactSellerInput,
   type ReportListingInput,
@@ -332,8 +333,22 @@ export async function updateListing(input: unknown) {
 // Submit for Review (Draft → Pending)
 // ---------------------------------------------------------------------------
 
-export async function submitListingForReview(listingId: string) {
+export async function submitListingForReview(
+  input:
+    | string
+    | {
+        listingId: string;
+        privateSellerTermsAccepted?: true;
+      },
+) {
   const user = await requireAcceptedAuth();
+  const parsedInput = submitListingForReviewSchema.safeParse(
+    typeof input === "string" ? { listingId: input } : input,
+  );
+  if (!parsedInput.success) {
+    return { error: parsedInput.error.flatten().fieldErrors };
+  }
+  const { listingId, privateSellerTermsAccepted } = parsedInput.data;
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -345,7 +360,8 @@ export async function submitListingForReview(listingId: string) {
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
   const { getPolicyFlags } = await import("@/lib/policy/flags");
-  if (getPolicyFlags().enforceListingNs) {
+  const policyFlags = getPolicyFlags();
+  if (policyFlags.enforceListingNs) {
     const { isWriteOffCategoryValue, WRITE_OFF_SUBMIT_ERROR } = await import(
       "@/lib/listings/write-off-category"
     );
@@ -369,18 +385,63 @@ export async function submitListingForReview(listingId: string) {
       return { error: WRITE_OFF_SUBMIT_ERROR };
     }
   }
-  const { recordAcceptance, requireBundleAcceptance } = await import(
-    "@/lib/policy/acceptance"
-  );
+  const {
+    hasCurrentBundleAcceptance,
+    recordAcceptance,
+    requireBundleAcceptance,
+  } = await import("@/lib/policy/acceptance");
   if (listing.dealerId) {
     const dealerGate = await requireBundleAcceptance(user.id, "DEALER_BUNDLE");
     if (!dealerGate.ok) return { error: dealerGate.error };
-  } else {
-    await recordAcceptance(db, {
-      userId: user.id,
-      acceptanceType: "LISTING_BUNDLE",
-      source: "LISTING",
-    });
+  } else if (privateSellerTermsAccepted === true) {
+    try {
+      await recordAcceptance(db, {
+        userId: user.id,
+        acceptanceType: "LISTING_BUNDLE",
+        source: "LISTING",
+      });
+    } catch (err) {
+      await captureException({
+        source: "SERVER",
+        error: err,
+        action: "submitListingForReview",
+        route: "/sell",
+        requestPath: "/sell",
+        userId: user.id,
+        tags: { listingId, acceptanceType: "LISTING_BUNDLE" },
+      });
+      return {
+        error:
+          "Unable to record Private Seller Terms acceptance. Please try again.",
+      };
+    }
+  } else if (policyFlags.enforceAcceptance) {
+    try {
+      const previouslyAccepted = await hasCurrentBundleAcceptance(
+        user.id,
+        "LISTING_BUNDLE",
+      );
+      if (!previouslyAccepted) {
+        return {
+          error:
+            "You must accept the Private Seller Terms before submitting this listing.",
+        };
+      }
+    } catch (err) {
+      await captureException({
+        source: "SERVER",
+        error: err,
+        action: "submitListingForReview",
+        route: "/sell",
+        requestPath: "/sell",
+        userId: user.id,
+        tags: { listingId, acceptanceType: "LISTING_BUNDLE" },
+      });
+      return {
+        error:
+          "Unable to verify Private Seller Terms acceptance. Please try again.",
+      };
+    }
   }
   if (listing.status === "LIVE") {
     try {

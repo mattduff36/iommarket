@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   payForListing,
@@ -8,6 +9,7 @@ import {
 } from "@/actions/payments";
 import { submitListingForReview } from "@/actions/listings";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,
@@ -28,13 +30,19 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
+  const [privateSellerTermsAccepted, setPrivateSellerTermsAccepted] =
+    useState(false);
 
   function handleRetry() {
     setError(null);
     setNotice(null);
     setDemoOutcomeError(null);
     startTransition(async () => {
-      const payResult = await payForListing(listingId);
+      const payResult = await payForListing({
+        listingId,
+        privateSellerTermsAccepted:
+          flow === "private" && privateSellerTermsAccepted ? true : undefined,
+      });
       if (payResult.error) {
         setError(
           typeof payResult.error === "string"
@@ -45,7 +53,11 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
       }
 
       if (payResult.data?.skippedPayment) {
-        const reviewResult = await submitListingForReview(listingId);
+        const reviewResult = await submitListingForReview({
+          listingId,
+          privateSellerTermsAccepted:
+            flow === "private" && privateSellerTermsAccepted ? true : undefined,
+        });
         if (reviewResult?.error) {
           setError(
             typeof reviewResult.error === "string"
@@ -106,7 +118,50 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
 
   return (
     <div className="space-y-3">
-      <Button onClick={handleRetry} loading={isPending}>
+      {flow === "private" ? (
+        <div className="rounded-md border border-border p-3">
+          <Checkbox
+            checked={privateSellerTermsAccepted}
+            onCheckedChange={(checked) =>
+              setPrivateSellerTermsAccepted(checked === true)
+            }
+            label={
+              <span className="leading-5">
+                I expressly accept the current{" "}
+                <Link
+                  href="/private-seller-terms"
+                  target="_blank"
+                  className="text-neon-blue-400 underline"
+                >
+                  Private Seller Terms
+                </Link>
+                ,{" "}
+                <Link
+                  href="/acceptable-use"
+                  target="_blank"
+                  className="text-neon-blue-400 underline"
+                >
+                  Acceptable Use Policy
+                </Link>
+                , and{" "}
+                <Link
+                  href="/refunds"
+                  target="_blank"
+                  className="text-neon-blue-400 underline"
+                >
+                  Refund Policy
+                </Link>
+                .
+              </span>
+            }
+          />
+        </div>
+      ) : null}
+      <Button
+        onClick={handleRetry}
+        loading={isPending}
+        disabled={flow === "private" && !privateSellerTermsAccepted}
+      >
         Open payment in new tab
       </Button>
       {notice ? <p className="text-sm text-text-secondary">{notice}</p> : null}

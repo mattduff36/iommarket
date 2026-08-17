@@ -45,7 +45,7 @@ describe("POST /api/vehicle-check", () => {
     });
   });
 
-  it("returns a successful lookup payload", async () => {
+  it("never requires a browser acknowledgement at the API boundary MD-VEH-002", async () => {
     getVehicleCheckResult.mockResolvedValue({
       normalizedRegistration: "AB12CDE",
       displayRegistration: "AB12 CDE",

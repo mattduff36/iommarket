@@ -40,6 +40,8 @@ export interface TransitionListingStatusInput {
   actor: { id: string | null; role: LifecycleActorRole };
   source: ListingStatusEventSource;
   reasonCode?: ListingModerationReason;
+  moderationSubReason?: string;
+  moderationTaxonomyVersion?: string;
   notes?: string;
   reportId?: string;
   now?: Date;
@@ -59,6 +61,8 @@ interface CreateListingStatusEventInput {
   notes?: string;
   action?: ListingLifecycleAction;
   reasonCode?: ListingModerationReason;
+  moderationSubReason?: string;
+  moderationTaxonomyVersion?: string;
   reportId?: string | null;
 }
 
@@ -102,6 +106,8 @@ export async function createListingStatusEvent(
       notes: input.notes,
       action: input.action,
       reasonCode: input.reasonCode,
+      moderationSubReason: input.moderationSubReason,
+      moderationTaxonomyVersion: input.moderationTaxonomyVersion,
       reportId: input.reportId ?? null,
     },
   });
@@ -164,6 +170,8 @@ async function runTransition(
 
   const reasonError = validateModerationReason({
     reasonCode: input.reasonCode,
+    moderationSubReason: input.moderationSubReason,
+    moderationTaxonomyVersion: input.moderationTaxonomyVersion,
     notes: input.notes,
     required: LIFECYCLE_ACTIONS_REQUIRING_REASON.has(input.action),
   });
@@ -253,6 +261,8 @@ async function runTransition(
       notes: input.notes,
       action: input.action,
       reasonCode: input.reasonCode,
+      moderationSubReason: input.moderationSubReason,
+      moderationTaxonomyVersion: input.moderationTaxonomyVersion,
       reportId: input.reportId,
     },
     client,
@@ -273,6 +283,9 @@ async function runTransition(
           fromStatus: existing.status,
           toStatus,
           reasonCode: input.reasonCode ?? null,
+          moderationSubReason: input.moderationSubReason ?? null,
+          moderationTaxonomyVersion:
+            input.moderationTaxonomyVersion ?? null,
           reportId: input.reportId ?? null,
           revision: input.expectedRevision,
         },
@@ -293,6 +306,9 @@ async function runTransition(
       fromStatus: existing.status,
       toStatus,
       reasonCode: input.reasonCode ?? null,
+      moderationSubReason: input.moderationSubReason ?? null,
+      moderationTaxonomyVersion:
+        input.moderationTaxonomyVersion ?? null,
     },
   };
 }

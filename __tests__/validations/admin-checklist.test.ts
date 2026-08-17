@@ -8,6 +8,7 @@ describe("saveChecklistSchema", () => {
   it("accepts a valid checklist payload", () => {
     const result = saveChecklistSchema.safeParse({
       items: [createChecklistItem({ title: "GDPR advice" }, NOW)],
+      expectedUpdatedAt: NOW.toISOString(),
     });
     expect(result.success).toBe(true);
   });
@@ -15,6 +16,7 @@ describe("saveChecklistSchema", () => {
   it("rejects a blank title", () => {
     const result = saveChecklistSchema.safeParse({
       items: [{ ...createChecklistItem({ title: "Keep" }, NOW), title: "  " }],
+      expectedUpdatedAt: NOW.toISOString(),
     });
     expect(result.success).toBe(false);
   });
@@ -27,6 +29,7 @@ describe("saveChecklistSchema", () => {
           NOW,
         ),
       ],
+      expectedUpdatedAt: NOW.toISOString(),
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -38,7 +41,10 @@ describe("saveChecklistSchema", () => {
     const items = Array.from({ length: 201 }, (_, index) =>
       createChecklistItem({ title: `Item ${index}` }, NOW),
     );
-    const result = saveChecklistSchema.safeParse({ items });
+    const result = saveChecklistSchema.safeParse({
+      items,
+      expectedUpdatedAt: NOW.toISOString(),
+    });
     expect(result.success).toBe(false);
   });
 });

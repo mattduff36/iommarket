@@ -49,6 +49,12 @@ describe("payForListingSchema POL-PAY-001", () => {
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
     });
     expect(result.success).toBe(true);
+    expect(
+      payForListingSchema.safeParse({
+        listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        privateSellerTermsAccepted: true,
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects new support-payment fields", () => {
@@ -62,6 +68,12 @@ describe("payForListingSchema POL-PAY-001", () => {
       payForListingSchema.safeParse({
         listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
         supportAmountPence: 600,
+      }).success,
+    ).toBe(false);
+    expect(
+      payForListingSchema.safeParse({
+        listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        privateSellerTermsAccepted: false,
       }).success,
     ).toBe(false);
   });

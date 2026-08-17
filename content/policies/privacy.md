@@ -1,6 +1,6 @@
 # PRIVACY POLICY
 *iTrader.im — Online Vehicle Marketplace*
-*Last updated: 14 August 2026*
+*Effective on launch*
 
 ## 1. WHO WE ARE
 
@@ -83,7 +83,7 @@ To comply with our legal and regulatory obligations, including tax, accounting, 
 
 **6.1** We retain personal data for as long as necessary to provide the Service to you, and thereafter for as long as necessary to comply with our legal and regulatory obligations, resolve disputes, prevent fraud, and enforce our agreements.
 
-**6.2** Proposed retention periods, which remain subject to Isle of Man counsel and owner approval, are: direct account and profile identifiers on approved deletion; Listing content and images for 24 months after expiry or removal; anonymous and authenticated view events and monitoring events for 90 days; contact messages only for provider delivery retention; reports, moderation records, and dealer-review evidence for 24 months after closure or removal; and financial and legally necessary audit records for at least six years. Waitlist marketing records are stopped immediately on withdrawal or campaign closure, identifiers are anonymised after 30 days, and residual non-identifying evidence is retained for 24 months unless a legal hold applies.
+**6.2** Our retention periods are: direct account and profile identifiers are removed or anonymised on approved deletion; Listing content and images are retained for 24 months after expiry or removal; anonymous and authenticated view events and monitoring events are retained for 90 days; contact messages are retained only under the email provider's delivery-retention arrangements; reports, moderation records, and dealer-review evidence are retained for 24 months after closure or removal; and financial and legally necessary audit records are retained for at least six years. Waitlist marketing use stops immediately on withdrawal or campaign closure, identifiers are anonymised after 30 days, and residual non-identifying evidence is retained for 24 months. A longer period applies where a legal hold, dispute, fraud investigation, or legal obligation requires it.
 
 **6.3** Where personal data is no longer required, we will securely delete or anonymise it.
 

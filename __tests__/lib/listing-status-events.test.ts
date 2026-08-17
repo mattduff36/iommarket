@@ -119,6 +119,8 @@ describe("transitionListingStatus", () => {
       actor: { id: "admin-1", role: "ADMIN" },
       source: "ADMIN",
       reasonCode: "FRAUD",
+      moderationSubReason: "fraud.identity-or-ownership",
+      moderationTaxonomyVersion: "2026-08-17.1",
     });
 
     expect(mockTx.adminAuditLog.create).toHaveBeenCalledWith({
@@ -127,6 +129,13 @@ describe("transitionListingStatus", () => {
         action: "LISTING_REJECT",
         entityType: "Listing",
         entityId: "listing-5",
+      }),
+    });
+    expect(mockTx.listingStatusEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        reasonCode: "FRAUD",
+        moderationSubReason: "fraud.identity-or-ownership",
+        moderationTaxonomyVersion: "2026-08-17.1",
       }),
     });
   });

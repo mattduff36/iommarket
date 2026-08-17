@@ -26,6 +26,7 @@ export const FOOTER_NAV_ITEMS: NavItem[] = [
   { label: "Private Seller Terms", href: "/private-seller-terms" },
   { label: "Acceptable Use", href: "/acceptable-use" },
   { label: "Refunds", href: "/refunds" },
+  { label: "Vehicle Check Terms", href: "/vehicle-check-terms" },
   { label: "Buyer Safety", href: "/safety" },
   { label: "Contact", href: "/contact" },
 ];

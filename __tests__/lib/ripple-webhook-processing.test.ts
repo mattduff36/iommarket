@@ -10,6 +10,7 @@ const {
   listingFindUnique,
   listingUpdateMany,
   listingImageCount,
+  policyAcceptanceFindUnique,
   transitionListingStatus,
   captureBusinessEvent,
   transactionMock,
@@ -21,11 +22,13 @@ const {
   const listingFindUnique = vi.fn();
   const listingUpdateMany = vi.fn();
   const listingImageCount = vi.fn();
+  const policyAcceptanceFindUnique = vi.fn();
   const transactionMock = vi.fn();
   const db: {
     payment: { findMany: typeof paymentFindMany; create: typeof paymentCreate; update: typeof paymentUpdate };
     listing: { findUnique: typeof listingFindUnique; updateMany: typeof listingUpdateMany };
     listingImage: { count: typeof listingImageCount };
+    policyAcceptance: { findUnique: typeof policyAcceptanceFindUnique };
     $transaction: (fn: (tx: unknown) => unknown) => Promise<unknown>;
   } = {
     payment: {
@@ -40,6 +43,9 @@ const {
     listingImage: {
       count: listingImageCount,
     },
+    policyAcceptance: {
+      findUnique: policyAcceptanceFindUnique,
+    },
     $transaction: transactionMock,
   };
   return {
@@ -49,6 +55,7 @@ const {
     listingFindUnique,
     listingUpdateMany,
     listingImageCount,
+    policyAcceptanceFindUnique,
     transitionListingStatus: vi.fn(),
     captureBusinessEvent: vi.fn(),
     transactionMock,
@@ -125,6 +132,7 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
       userId: "user-1",
     });
     listingImageCount.mockResolvedValue(2);
+    policyAcceptanceFindUnique.mockResolvedValue({ id: "acceptance-1" });
     transitionListingStatus.mockResolvedValue({
       listing: { id: "listing-1", status: "PENDING" },
       notification: {
@@ -162,6 +170,32 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     expect(paymentCreate).toHaveBeenCalledOnce();
     expect(paymentUpdate).not.toHaveBeenCalled();
     expect(transitionListingStatus).toHaveBeenCalledOnce();
+  });
+
+  it("records payment but withholds submission without a private receipt", async () => {
+    policyAcceptanceFindUnique.mockResolvedValue(null);
+
+    await processProviderWebhookEvent(listingEvent());
+
+    expect(paymentCreate).toHaveBeenCalledOnce();
+    expect(transitionListingStatus).not.toHaveBeenCalled();
+    expect(captureBusinessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: "HIGH",
+        title: "Paid private listing missing policy acceptance",
+      }),
+    );
+  });
+
+  it("fails the webhook transaction when receipt verification is unavailable", async () => {
+    policyAcceptanceFindUnique.mockRejectedValue(
+      new Error("acceptance lookup unavailable"),
+    );
+
+    await expect(processProviderWebhookEvent(listingEvent())).rejects.toThrow(
+      "acceptance lookup unavailable",
+    );
+    expect(transitionListingStatus).not.toHaveBeenCalled();
   });
 
   it("rejects listing amount drift", async () => {

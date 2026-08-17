@@ -220,6 +220,8 @@ async function writeRevisionEvent(
     action: "SUBMIT_REVISION" | "APPROVE_REVISION" | "REJECT_REVISION";
     actorId: string;
     reasonCode?: ListingModerationReason;
+    moderationSubReason?: string;
+    moderationTaxonomyVersion?: string;
     notes?: string;
   },
 ): Promise<ListingNotificationIntent> {
@@ -232,6 +234,8 @@ async function writeRevisionEvent(
       source: input.action === "SUBMIT_REVISION" ? "USER" : "ADMIN",
       action: input.action,
       reasonCode: input.reasonCode,
+      moderationSubReason: input.moderationSubReason,
+      moderationTaxonomyVersion: input.moderationTaxonomyVersion,
       notes: input.notes,
     },
     client,
@@ -243,6 +247,9 @@ async function writeRevisionEvent(
     fromStatus: "LIVE",
     toStatus: "LIVE",
     reasonCode: input.reasonCode ?? null,
+    moderationSubReason: input.moderationSubReason ?? null,
+    moderationTaxonomyVersion:
+      input.moderationTaxonomyVersion ?? null,
   };
 }
 
@@ -435,10 +442,14 @@ export async function rejectRevision(input: {
   expectedListingRevision: number;
   expectedVersion: number;
   reasonCode: ListingModerationReason;
+  moderationSubReason: string;
+  moderationTaxonomyVersion: string;
   notes?: string;
 }) {
   const reasonError = validateModerationReason({
     reasonCode: input.reasonCode,
+    moderationSubReason: input.moderationSubReason,
+    moderationTaxonomyVersion: input.moderationTaxonomyVersion,
     notes: input.notes,
     required: true,
   });
@@ -464,6 +475,8 @@ export async function rejectRevision(input: {
       data: {
         status: "REJECTED",
         reasonCode: input.reasonCode,
+        moderationSubReason: input.moderationSubReason,
+        moderationTaxonomyVersion: input.moderationTaxonomyVersion,
         notes: input.notes,
         decidedAt: new Date(),
         decidedByUserId: input.adminId,
@@ -481,7 +494,12 @@ export async function rejectRevision(input: {
         action: "LISTING_REJECT_REVISION",
         entityType: "Listing",
         entityId: listing.id,
-        details: { revisionId: revision.id, reasonCode: input.reasonCode },
+        details: {
+          revisionId: revision.id,
+          reasonCode: input.reasonCode,
+          moderationSubReason: input.moderationSubReason,
+          moderationTaxonomyVersion: input.moderationTaxonomyVersion,
+        },
       },
     });
 
@@ -490,6 +508,8 @@ export async function rejectRevision(input: {
       action: "REJECT_REVISION",
       actorId: input.adminId,
       reasonCode: input.reasonCode,
+      moderationSubReason: input.moderationSubReason,
+      moderationTaxonomyVersion: input.moderationTaxonomyVersion,
       notes: input.notes,
     });
     return {

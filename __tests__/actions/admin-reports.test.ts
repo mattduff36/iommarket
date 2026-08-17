@@ -74,6 +74,8 @@ describe("takeDownListingFromReport ALR-RPT-001 ALR-RPT-002", () => {
       reportId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       expectedRevision: 3,
       reasonCode: "FRAUD",
+      moderationSubReason: "fraud.payment-or-phishing",
+      moderationTaxonomyVersion: "2026-08-17.1",
       adminNotes: "Confirmed scam",
     });
 
@@ -84,6 +86,8 @@ describe("takeDownListingFromReport ALR-RPT-001 ALR-RPT-002", () => {
         action: "TAKE_DOWN",
         expectedRevision: 3,
         reasonCode: "FRAUD",
+        moderationSubReason: "fraud.payment-or-phishing",
+        moderationTaxonomyVersion: "2026-08-17.1",
         reportId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       }),
       expect.anything(),
@@ -116,6 +120,8 @@ describe("takeDownListingFromReport ALR-RPT-001 ALR-RPT-002", () => {
       reportId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       expectedRevision: 4,
       reasonCode: "FRAUD",
+      moderationSubReason: "fraud.payment-or-phishing",
+      moderationTaxonomyVersion: "2026-08-17.1",
     });
     expect(transitionListingStatusMock).not.toHaveBeenCalled();
     expect(reportUpdate).toHaveBeenCalled();
@@ -133,6 +139,8 @@ describe("takeDownListingFromReport ALR-RPT-001 ALR-RPT-002", () => {
         reportId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
         expectedRevision: 6,
         reasonCode: "FRAUD",
+        moderationSubReason: "fraud.payment-or-phishing",
+        moderationTaxonomyVersion: "2026-08-17.1",
       }),
     ).resolves.toEqual({
       error: "This listing cannot be taken down from its current status.",

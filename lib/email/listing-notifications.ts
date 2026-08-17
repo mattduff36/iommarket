@@ -2,7 +2,10 @@ import type { ListingLifecycleAction, ListingModerationReason } from "@prisma/cl
 import { db } from "@/lib/db";
 import { getModerationInbox, sendResendEmail } from "@/lib/email/client";
 import { renderBrandedEmail } from "@/lib/email/layout";
-import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reasons";
+import {
+  getModerationSubReason,
+  moderationReasonLabelForHistory,
+} from "@/lib/listings/moderation-reasons";
 import {
   isListingResubmit,
   shouldNotifyAdminSubmission,
@@ -74,22 +77,44 @@ const SELLER_COPY: Record<
   },
 };
 
-function publicReasonLabel(reasonCode: ListingModerationReason | null) {
+function publicReasonLabel(
+  reasonCode: ListingModerationReason | null,
+  moderationSubReason?: string | null,
+  _moderationTaxonomyVersion?: string | null,
+) {
   if (!reasonCode) return null;
-  return LISTING_MODERATION_REASON_LABELS[reasonCode];
+  return moderationReasonLabelForHistory(reasonCode, moderationSubReason);
 }
 
 export function buildListingStatusEmail(input: {
   action: ListingLifecycleAction;
   listingTitle: string;
   reasonCode?: ListingModerationReason | null;
+  moderationSubReason?: string | null;
+  moderationTaxonomyVersion?: string | null;
 }) {
   const copy = SELLER_COPY[input.action];
   if (!copy) return null;
-  const reasonLabel = publicReasonLabel(input.reasonCode ?? null);
+  const reasonLabel = publicReasonLabel(
+    input.reasonCode ?? null,
+    input.moderationSubReason,
+    input.moderationTaxonomyVersion,
+  );
   const bodyLines = [`Listing: ${input.listingTitle}`];
   if (reasonLabel) {
     bodyLines.push(`Reason: ${reasonLabel}`);
+  }
+  const subReason = getModerationSubReason(input.moderationSubReason, {
+    includeRetired: true,
+  });
+  if (subReason && subReason.parent === input.reasonCode) {
+    bodyLines.push(
+      subReason.sellerExplanation,
+      `Correction: ${subReason.correction}`,
+      `Resubmission: ${subReason.resubmit}`,
+      `Appeal: ${subReason.appeal}`,
+      `Refunds: ${subReason.refundAdvisory}`,
+    );
   }
   return {
     subject: `${copy.title}: ${input.listingTitle}`,
@@ -138,6 +163,8 @@ async function sendOneNotification(intent: ListingNotificationIntent) {
       action: intent.action,
       listingTitle: listing.title,
       reasonCode: intent.reasonCode,
+      moderationSubReason: intent.moderationSubReason,
+      moderationTaxonomyVersion: intent.moderationTaxonomyVersion,
     });
     if (sellerEmail && listing.user.email) {
       await sendResendEmail({

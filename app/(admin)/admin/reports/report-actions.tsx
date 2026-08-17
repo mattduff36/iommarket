@@ -8,7 +8,7 @@ import {
   AdminActionTextarea,
 } from "@/components/admin/admin-action-controls";
 import { ModerationReasonDialog } from "@/components/admin/moderation-reason-dialog";
-import { LISTING_MODERATION_REASON_LABELS } from "@/lib/listings/moderation-reasons";
+import { buildModerationReasonOptions } from "@/lib/listings/moderation-reasons";
 
 interface Props {
   reportId: string;
@@ -16,11 +16,12 @@ interface Props {
   currentAdminNotes?: string | null;
   listingStatus: string;
   expectedRevision: number;
+  reportReasonCode?: string | null;
 }
 
-const REASON_OPTIONS = Object.entries(LISTING_MODERATION_REASON_LABELS)
-  .filter(([value]) => value !== "ACCOUNT_DISABLED")
-  .map(([value, label]) => ({ value, label }));
+const REASON_OPTIONS = buildModerationReasonOptions({
+  exclude: ["ACCOUNT_DISABLED"],
+});
 
 export function ReportActions({
   reportId,
@@ -28,6 +29,7 @@ export function ReportActions({
   currentAdminNotes,
   listingStatus,
   expectedRevision,
+  reportReasonCode,
 }: Props) {
   const [status, setStatus] = useState(currentStatus);
   const [notes, setNotes] = useState(currentAdminNotes ?? "");
@@ -94,9 +96,15 @@ export function ReportActions({
           title="Take down listing and mark report actioned"
           confirmLabel="Take down"
           reasons={REASON_OPTIONS}
+          initialReasonCode={reportReasonCode}
           pending={isPending}
           onCancel={() => setShowTakeDown(false)}
-          onConfirm={({ reasonCode, notes: reasonNotes }) => {
+          onConfirm={({
+            reasonCode,
+            notes: reasonNotes,
+            moderationSubReason,
+            moderationTaxonomyVersion,
+          }) => {
             setError(null);
             startTransition(async () => {
               const result = await takeDownListingFromReport({
@@ -111,6 +119,8 @@ export function ReportActions({
                   | "SAFETY"
                   | "OTHER",
                 adminNotes: reasonNotes || notes || undefined,
+                moderationSubReason,
+                moderationTaxonomyVersion,
               });
               if (result.error) {
                 setError(

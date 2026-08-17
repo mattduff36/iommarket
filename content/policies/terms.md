@@ -1,6 +1,6 @@
 # TERMS AND CONDITIONS OF USE
 *iTrader.im — Online Vehicle Marketplace*
-*Last updated: 14 August 2026*
+*Effective on launch*
 iTrader.im is a trading name of Code Lab Platforms Limited.
 
 
@@ -96,6 +96,8 @@ verify the accuracy of any Listing, mileage, registration history, or condition 
 
 **5.4** A Listing that expires may be renewed by the Private Seller purchasing a further advert in accordance with the then-current pricing.
 
+**5.5** Before a Private Seller submits a new Listing, resubmits a rejected or removed Listing, or submits changes to a live Listing for moderation, the Platform asks the Private Seller to expressly accept the current Private Seller Terms, Acceptable Use Policy, and Refund Policy. We record that express acceptance against the version of each document then presented. General use of the Platform is not treated as acceptance of that private-seller policy bundle.
+
 
 ## 6. DEALER SUBSCRIPTIONS AND SERVICES
 
@@ -163,7 +165,7 @@ any product or service unrelated to the sale of a Vehicle, including finance off
 
 **8.4** Where we remove a Listing for a breach of these Terms, we are not obliged to issue a refund of any fee paid in respect of that Listing, without prejudice to clause 12 (Cancellations and Refunds).
 
-**8.5** Vehicle Check information is supplied from third-party vehicle-data services. It is provided for general information only. We do not warrant that Vehicle Check data is complete, current, or accurate, and it does not replace an independent inspection, history check, or professional advice.
+**8.5** Vehicle Check information is supplied from third-party vehicle-data services and is governed by the separate Vehicle Check Terms. It is provided for general information only. We do not warrant that Vehicle Check data is complete, current, or accurate, and it does not replace an independent inspection, history check, or professional advice.
 
 **8.6** Dealer reviews may be submitted by registered or anonymous reviewers, are subject to moderation, and may be approved, rejected, or hidden. Reviews are opinions of the reviewer and are not statements by iTrader. Personal data in reviews is handled in accordance with our Privacy Policy.
 

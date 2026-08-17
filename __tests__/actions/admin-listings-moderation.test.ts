@@ -67,6 +67,8 @@ describe("moderateListing ALR-LST-003 ALR-IDN-002", () => {
       action: "REJECT",
       expectedRevision: 2,
       reasonCode: "FRAUD",
+      moderationSubReason: "fraud.identity-or-ownership",
+      moderationTaxonomyVersion: "2026-08-17.1",
       adminNotes: "Test notes",
     });
     expect(result.data).toBeDefined();
@@ -75,6 +77,8 @@ describe("moderateListing ALR-LST-003 ALR-IDN-002", () => {
         action: "REJECT",
         expectedRevision: 2,
         reasonCode: "FRAUD",
+        moderationSubReason: "fraud.identity-or-ownership",
+        moderationTaxonomyVersion: "2026-08-17.1",
         actor: { id: "admin-1", role: "ADMIN" },
       }),
     );

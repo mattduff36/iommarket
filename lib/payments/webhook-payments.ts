@@ -10,6 +10,7 @@ import { assertRippleAmountMatchesProduct } from "@/lib/payments/ripple-config";
 import { resolveRippleProduct } from "@/lib/payments/ripple-mapping";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import { decideProviderEventApplication } from "@/lib/payments/webhook-ordering";
+import { hasCurrentBundleAcceptance } from "@/lib/policy/acceptance";
 
 type PaymentDb = Prisma.TransactionClient | typeof db;
 
@@ -50,6 +51,7 @@ export async function submitPaidListingForReview(
       trustDeclarationAccepted: true,
       lifecycleRevision: true,
       userId: true,
+      dealerId: true,
     },
   });
 
@@ -59,6 +61,31 @@ export async function submitPaidListingForReview(
       severity: "HIGH",
       title: "Payment webhook references missing listing",
       message: "Provider payment webhook referenced a listing that no longer exists.",
+      action: "submitPaidListingForReview",
+      route: "/api/webhooks/payments",
+      requestPath: "/api/webhooks/payments",
+      tags: buildRippleSafeTags({
+        listingId,
+        eventType: event.rawType,
+      }),
+    });
+    return [];
+  }
+
+  if (
+    !listing.dealerId &&
+    !(await hasCurrentBundleAcceptance(
+      listing.userId,
+      "LISTING_BUNDLE",
+      client,
+    ))
+  ) {
+    await captureBusinessEvent({
+      source: "WEBHOOK",
+      severity: "HIGH",
+      title: "Paid private listing missing policy acceptance",
+      message:
+        "Provider payment succeeded, but moderation submission was withheld because the current private seller policy receipt is missing.",
       action: "submitPaidListingForReview",
       route: "/api/webhooks/payments",
       requestPath: "/api/webhooks/payments",

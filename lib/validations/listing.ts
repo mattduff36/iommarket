@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { LISTING_DECLARATION_ERROR } from "@/lib/listings/write-off-category";
+import {
+  MODERATION_TAXONOMY_VERSION,
+  validateModerationReason,
+} from "@/lib/listings/moderation-reasons";
 
 export const createListingSchema = z.object({
   title: z
@@ -41,6 +45,14 @@ export const updateListingSchema = createListingSchema.partial().extend({
 export const renewListingSchema = z.object({
   listingId: z.string().cuid(),
 });
+
+export const submitListingForReviewSchema = z.object({
+  listingId: z.string().min(1).max(100),
+  privateSellerTermsAccepted: z.literal(true).optional(),
+});
+export type SubmitListingForReviewInput = z.infer<
+  typeof submitListingForReviewSchema
+>;
 
 export const REPORT_REASON_CODES = [
   "FRAUD",
@@ -103,6 +115,10 @@ export const moderateListingSchema = z
       .optional(),
     adminNotes: z.string().max(2000).optional(),
     reportId: z.string().cuid().optional(),
+    moderationSubReason: z.string().min(1).max(120).optional(),
+    moderationTaxonomyVersion: z
+      .literal(MODERATION_TAXONOMY_VERSION)
+      .optional(),
   })
   .superRefine((value, ctx) => {
     const needsReason = value.action !== "APPROVE" && value.action !== "APPROVE_REVISION";
@@ -121,6 +137,34 @@ export const moderateListingSchema = z
         code: "custom",
         path: ["reasonCode"],
         message: "A reason is required.",
+      });
+    }
+    if (needsReason && !value.moderationSubReason) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["moderationSubReason"],
+        message: "A moderation subreason is required.",
+      });
+    }
+    if (needsReason && !value.moderationTaxonomyVersion) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["moderationTaxonomyVersion"],
+        message: "A moderation taxonomy version is required.",
+      });
+    }
+    const taxonomyError = validateModerationReason({
+      reasonCode: value.reasonCode,
+      moderationSubReason: value.moderationSubReason,
+      moderationTaxonomyVersion: value.moderationTaxonomyVersion,
+      notes: value.adminNotes,
+      required: needsReason,
+    });
+    if (taxonomyError) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["moderationSubReason"],
+        message: taxonomyError,
       });
     }
     if (value.reasonCode === "OTHER" && !value.adminNotes?.trim()) {
@@ -146,8 +190,24 @@ export const takeDownFromReportSchema = z
       "OTHER",
     ]),
     adminNotes: z.string().max(2000).optional(),
+    moderationSubReason: z.string().min(1).max(120),
+    moderationTaxonomyVersion: z.literal(MODERATION_TAXONOMY_VERSION),
   })
   .superRefine((value, ctx) => {
+    const taxonomyError = validateModerationReason({
+      reasonCode: value.reasonCode,
+      moderationSubReason: value.moderationSubReason,
+      moderationTaxonomyVersion: value.moderationTaxonomyVersion,
+      notes: value.adminNotes,
+      required: true,
+    });
+    if (taxonomyError) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["moderationSubReason"],
+        message: taxonomyError,
+      });
+    }
     if (value.reasonCode === "OTHER" && !value.adminNotes?.trim()) {
       ctx.addIssue({
         code: "custom",

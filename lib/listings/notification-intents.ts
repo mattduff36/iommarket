@@ -11,6 +11,8 @@ export interface ListingNotificationIntent {
   fromStatus: ListingStatus | null;
   toStatus: ListingStatus;
   reasonCode: ListingModerationReason | null;
+  moderationSubReason?: string | null;
+  moderationTaxonomyVersion?: string | null;
 }
 
 export function shouldNotifySellerStatusChange(intent: ListingNotificationIntent) {

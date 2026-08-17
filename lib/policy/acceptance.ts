@@ -126,8 +126,9 @@ export async function hasCurrentAccountAcceptance(userId: string) {
 export async function hasCurrentBundleAcceptance(
   userId: string,
   acceptanceType: Exclude<PolicyAcceptanceType, "AGE_18">,
+  client: DbClient = db,
 ) {
-  const row = await db.policyAcceptance.findUnique({
+  const row = await client.policyAcceptance.findUnique({
     where: {
       userId_acceptanceType_bundleVersion: {
         userId,

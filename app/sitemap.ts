@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/private-seller-terms",
     "/acceptable-use",
     "/refunds",
+    "/vehicle-check-terms",
     "/safety",
   ];
 

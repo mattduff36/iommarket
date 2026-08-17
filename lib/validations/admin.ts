@@ -252,8 +252,19 @@ export type ChecklistItemInput = z.infer<typeof checklistItemSchema>;
 
 export const saveChecklistSchema = z.object({
   items: z.array(checklistItemSchema).max(200),
+  expectedUpdatedAt: isoDateTimeSchema,
 });
 export type SaveChecklistInput = z.infer<typeof saveChecklistSchema>;
+
+export const updateChecklistCompletionSchema = z.object({
+  itemId: z.string().min(1).max(80),
+  done: z.boolean(),
+  expectedUpdatedAt: isoDateTimeSchema,
+  expectedItemUpdatedAt: isoDateTimeSchema,
+});
+export type UpdateChecklistCompletionInput = z.infer<
+  typeof updateChecklistCompletionSchema
+>;
 
 const gbpPriceInputSchema = z
   .string()

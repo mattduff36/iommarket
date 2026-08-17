@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalSupportUrl = process.env.RIPPLE_LISTING_SUPPORT_URL;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalEnforceAcceptance = process.env.POLICY_ENFORCE_ACCEPTANCE;
 const mutableEnvironment = process.env as Record<string, string | undefined>;
 
 const {
@@ -47,6 +48,7 @@ const {
       findUnique: vi.fn(),
     },
     policyAcceptance: {
+      findUnique: vi.fn(),
       upsert: vi.fn(),
     },
   },
@@ -113,6 +115,7 @@ describe("payForListing", () => {
     vi.clearAllMocks();
 
     delete process.env.RIPPLE_LISTING_SUPPORT_URL;
+    delete process.env.POLICY_ENFORCE_ACCEPTANCE;
 
     requireAuthMock.mockResolvedValue({
       id: "user_123",
@@ -135,6 +138,8 @@ describe("payForListing", () => {
       status: "DRAFT",
       title: "Test listing",
     });
+    mockDb.policyAcceptance.findUnique.mockResolvedValue(null);
+    mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acceptance-1" });
   });
 
   afterEach(() => {
@@ -146,14 +151,21 @@ describe("payForListing", () => {
 
     if (originalNodeEnv === undefined) {
       delete mutableEnvironment.NODE_ENV;
-      return;
+    } else {
+      mutableEnvironment.NODE_ENV = originalNodeEnv;
     }
 
-    mutableEnvironment.NODE_ENV = originalNodeEnv;
+    if (originalEnforceAcceptance === undefined) {
+      delete process.env.POLICY_ENFORCE_ACCEPTANCE;
+    } else {
+      process.env.POLICY_ENFORCE_ACCEPTANCE = originalEnforceAcceptance;
+    }
   });
 
   it("never opens a new support checkout POL-PAY-001", async () => {
-    const result = await payForListing("caaaaaaaaaaaaaaaaaaaaaaaa");
+    const result = await payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+    });
 
     expect(result).toEqual({
       data: {
@@ -162,6 +174,8 @@ describe("payForListing", () => {
       },
     });
     expect(isPrivateListingFreeForUserMock).toHaveBeenCalledWith("user_123");
+    expect(mockDb.policyAcceptance.findUnique).not.toHaveBeenCalled();
+    expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
@@ -175,7 +189,9 @@ describe("payForListing", () => {
       title: "Live listing",
     });
 
-    await expect(payForListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+    await expect(payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+    })).resolves.toEqual({
       data: {
         checkoutUrl: null,
         skippedPayment: true,
@@ -196,12 +212,34 @@ describe("payForListing", () => {
     mockDb.payment.findFirst.mockResolvedValue({ id: "pay-1" });
     mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
 
-    await expect(payForListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+    await expect(payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+    })).resolves.toEqual({
       data: {
         checkoutUrl: null,
         skippedPayment: true,
       },
     });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+  });
+
+  it("does not open a second checkout for a paid draft MD-SELL-004", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.payment.findFirst.mockResolvedValue({ id: "pay-1" });
+
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: {
+        checkoutUrl: null,
+        skippedPayment: true,
+      },
+    });
+
+    expect(mockDb.policyAcceptance.upsert).toHaveBeenCalledOnce();
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
   });
 
@@ -218,16 +256,59 @@ describe("payForListing", () => {
       url: "https://checkout.example.com/listing-renewal",
     });
 
-    await expect(payForListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+    await expect(payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      privateSellerTermsAccepted: true,
+    })).resolves.toEqual({
       data: {
         checkoutUrl: "https://checkout.example.com/listing-renewal",
       },
     });
 
     expect(createListingCheckoutMock).toHaveBeenCalledOnce();
+    expect(mockDb.policyAcceptance.upsert).toHaveBeenCalledOnce();
+    expect(
+      mockDb.policyAcceptance.upsert.mock.invocationCallOrder[0],
+    ).toBeLessThan(createListingCheckoutMock.mock.invocationCallOrder[0]);
     expect(createListingCheckoutMock).toHaveBeenCalledWith(
       expect.objectContaining({ amountInPence: 749 }),
     );
+  });
+
+  it("returns a safe action error when an enforced receipt lookup fails", async () => {
+    process.env.POLICY_ENFORCE_ACCEPTANCE = "true";
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.policyAcceptance.findUnique.mockRejectedValue(
+      new Error("database unavailable"),
+    );
+
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      error:
+        "Unable to verify Private Seller Terms acceptance. Please try again.",
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).toHaveBeenCalled();
+  });
+
+  it("does not create checkout when the explicit receipt cannot be recorded", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.policyAcceptance.upsert.mockRejectedValue(
+      new Error("database unavailable"),
+    );
+
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "Unable to record Private Seller Terms acceptance. Please try again.",
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).toHaveBeenCalled();
   });
 });
 

@@ -6,6 +6,7 @@ export const POLICY_SLUGS = [
   "private-seller-terms",
   "acceptable-use",
   "refunds",
+  "vehicle-check-terms",
 ] as const;
 
 export type PolicySlug = (typeof POLICY_SLUGS)[number];

@@ -6,6 +6,7 @@ import {
   isAnalyticsAllowed,
   parseCookieConsent,
 } from "@/lib/consent/cookie-consent";
+import { getPolicyDefinition } from "@/lib/policies/registry";
 
 describe("POL-COOKIE-001 cookie consent", () => {
   it("defaults analytics off before a decision", () => {
@@ -23,6 +24,12 @@ describe("POL-COOKIE-001 cookie consent", () => {
         version: "stale-version",
       }),
     ).toBe(false);
+  });
+
+  it("binds consent to the cookies policy rather than a global version MD-POL-002", () => {
+    expect(currentCookieConsentVersion()).toBe(
+      getPolicyDefinition("cookies").version,
+    );
   });
 
   it("parses and rejects malformed stored state", () => {

@@ -232,6 +232,8 @@ describe("listing revisions ALR-REV-001", () => {
       expectedListingRevision: 3,
       expectedVersion: 4,
       reasonCode: "MISLEADING",
+      moderationSubReason: "misleading.vehicle-details",
+      moderationTaxonomyVersion: "2026-08-17.1",
     });
 
     expect(result.listing.status).toBe("LIVE");

@@ -56,9 +56,12 @@ export function SiteFooter() {
             </a>
             .
           </p>
-          <p className="text-xs text-metallic-500">
-            Isle of Man Data Controller Registration Ref: {dataControllerReference}
-          </p>
+          {dataControllerReference ? (
+            <p className="text-xs text-metallic-500">
+              Isle of Man Data Controller Registration Ref:{" "}
+              {dataControllerReference}
+            </p>
+          ) : null}
           <p className="text-xs text-metallic-500">
             Created with care on the Isle of Man.{" "}
             <CookiePreferencesButton className="underline hover:text-text-primary" />

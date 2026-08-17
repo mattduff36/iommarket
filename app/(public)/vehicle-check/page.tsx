@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { VehicleCheckClient } from "@/components/vehicle-check/vehicle-check-client";
+import { getPolicyDefinition } from "@/lib/policies/registry";
 
 interface VehicleCheckPageProps {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -19,7 +20,10 @@ export default async function VehicleCheckPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <VehicleCheckClient initialRegistration={initialRegistration} />
+      <VehicleCheckClient
+        initialRegistration={initialRegistration}
+        policyVersion={getPolicyDefinition("vehicle-check-terms").version}
+      />
     </div>
   );
 }

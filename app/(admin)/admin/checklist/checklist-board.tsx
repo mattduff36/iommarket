@@ -2,7 +2,10 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { Plus, StickyNote, Trash2 } from "lucide-react";
-import { saveChecklist } from "@/actions/admin/checklist";
+import {
+  saveChecklist,
+  updateChecklistCompletion,
+} from "@/actions/admin/checklist";
 import {
   CHECKLIST_ASSIGNEES,
   createChecklistItem,
@@ -20,6 +23,7 @@ import { cn } from "@/lib/cn";
 
 interface ChecklistBoardProps {
   initialItems: ChecklistItem[];
+  initialUpdatedAt: string;
 }
 
 function labelVariant(label: ChecklistLabel) {
@@ -28,8 +32,13 @@ function labelVariant(label: ChecklistLabel) {
   return "neutral" as const;
 }
 
-export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
+export function ChecklistBoard({
+  initialItems,
+  initialUpdatedAt,
+}: ChecklistBoardProps) {
   const [items, setItems] = useState(initialItems);
+  const [persistedItems, setPersistedItems] = useState(initialItems);
+  const [snapshotUpdatedAt, setSnapshotUpdatedAt] = useState(initialUpdatedAt);
   const [hideCompleted, setHideCompleted] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAssignees, setNewAssignees] = useState<ChecklistAssignee[]>([]);
@@ -43,32 +52,75 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
     return hideCompleted ? sorted.filter((item) => !item.done) : sorted;
   }, [hideCompleted, items]);
 
-  function persist(nextItems: ChecklistItem[]) {
+  function persist(
+    nextItems: ChecklistItem[],
+    rollbackItems: ChecklistItem[],
+    onError?: () => void,
+  ) {
     setError(null);
     startTransition(async () => {
-      const result = await saveChecklist({ items: nextItems });
+      const result = await saveChecklist({
+        items: nextItems,
+        expectedUpdatedAt: snapshotUpdatedAt,
+      });
       if (result.error) {
+        setItems(rollbackItems);
+        onError?.();
         setError(
           typeof result.error === "string"
             ? result.error
             : "Could not save the checklist.",
         );
+        return;
+      }
+      if (result.data) {
+        setItems(result.data.items);
+        setPersistedItems(result.data.items);
+        setSnapshotUpdatedAt(result.data.updatedAt);
       }
     });
   }
 
-  function updateItems(nextItems: ChecklistItem[]) {
+  function updateItems(nextItems: ChecklistItem[], onError?: () => void) {
+    const rollbackItems = persistedItems;
     setItems(nextItems);
-    persist(nextItems);
+    persist(nextItems, rollbackItems, onError);
   }
 
   function handleToggle(id: string, done: boolean) {
-    const now = new Date().toISOString();
-    updateItems(
+    const current = items.find((item) => item.id === id);
+    if (!current) return;
+    const previousItems = persistedItems;
+    setItems(
       items.map((item) =>
-        item.id === id ? { ...item, done, updatedAt: now } : item,
+        item.id === id
+          ? { ...item, done, updatedAt: new Date().toISOString() }
+          : item,
       ),
     );
+    setError(null);
+    startTransition(async () => {
+      const result = await updateChecklistCompletion({
+        itemId: id,
+        done,
+        expectedUpdatedAt: snapshotUpdatedAt,
+        expectedItemUpdatedAt: current.updatedAt,
+      });
+      if (result.error) {
+        setItems(previousItems);
+        setError(
+          typeof result.error === "string"
+            ? result.error
+            : "Could not update the checklist.",
+        );
+        return;
+      }
+      if (result.data) {
+        setItems(result.data.items);
+        setPersistedItems(result.data.items);
+        setSnapshotUpdatedAt(result.data.updatedAt);
+      }
+    });
   }
 
   function handleTitleChange(id: string, title: string) {
@@ -79,13 +131,20 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
 
   function handleTitleBlur(id: string) {
     const current = items.find((item) => item.id === id);
-    if (!current) return;
+    const baseline = persistedItems.find((item) => item.id === id);
+    if (!current || !baseline) return;
     const title = current.title.trim();
     if (!title) {
+      setItems(persistedItems);
       setError("An item needs a title.");
       return;
     }
-    if (title === current.title) return;
+    if (title === baseline.title) {
+      setItems(
+        items.map((item) => (item.id === id ? { ...item, title } : item)),
+      );
+      return;
+    }
     const nextItems = items.map((item) =>
       item.id === id
         ? { ...item, title, updatedAt: new Date().toISOString() }
@@ -101,6 +160,9 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
   }
 
   function handleNotesBlur(id: string) {
+    const current = items.find((item) => item.id === id);
+    const baseline = persistedItems.find((item) => item.id === id);
+    if (!current || !baseline || current.notes === baseline.notes) return;
     const nextItems = items.map((item) =>
       item.id === id
         ? { ...item, updatedAt: new Date().toISOString() }
@@ -110,7 +172,13 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
   }
 
   function handleDelete(id: string) {
-    updateItems(items.filter((item) => item.id !== id));
+    const wasExpanded = expandedId === id;
+    updateItems(
+      items.filter((item) => item.id !== id),
+      () => {
+        if (wasExpanded) setExpandedId(id);
+      },
+    );
     if (expandedId === id) setExpandedId(null);
   }
 
@@ -123,7 +191,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
       createChecklistItem({ title, labels: newAssignees }),
     ];
     setNewTitle("");
-    updateItems(nextItems);
+    updateItems(nextItems, () => setNewTitle(title));
   }
 
   function toggleNewAssignee(assignee: ChecklistAssignee, checked: boolean) {
@@ -170,6 +238,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                   <div className="pt-1">
                     <Checkbox
                       checked={item.done}
+                      disabled={isPending}
                       onCheckedChange={(checked) =>
                         handleToggle(item.id, checked === true)
                       }
@@ -185,6 +254,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                       <input
                         type="text"
                         value={item.title}
+                        disabled={isPending}
                         onChange={(event) =>
                           handleTitleChange(item.id, event.target.value)
                         }
@@ -204,6 +274,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                     {expanded ? (
                       <textarea
                         value={item.notes}
+                        disabled={isPending}
                         onChange={(event) =>
                           handleNotesChange(item.id, event.target.value)
                         }
@@ -216,6 +287,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                     ) : item.notes ? (
                       <button
                         type="button"
+                        disabled={isPending}
                         onClick={() => setExpandedId(item.id)}
                         className="mt-1 line-clamp-2 w-full text-left text-xs text-text-secondary"
                       >
@@ -226,6 +298,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                   <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
+                      disabled={isPending}
                       onClick={() =>
                         setExpandedId(expanded ? null : item.id)
                       }
@@ -241,6 +314,7 @@ export function ChecklistBoard({ initialItems }: ChecklistBoardProps) {
                     </button>
                     <button
                       type="button"
+                      disabled={isPending}
                       onClick={() => handleDelete(item.id)}
                       aria-label={`Delete ${item.title}`}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-neon-red-500/10 hover:text-neon-red-400"

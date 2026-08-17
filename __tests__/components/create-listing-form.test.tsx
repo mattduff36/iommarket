@@ -483,9 +483,18 @@ describe("CreateListingForm registration lookup", () => {
         /I confirm I have authority to advertise this vehicle/
       )
     );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
 
     await waitFor(() => {
+      expect(payForListing).toHaveBeenCalledWith({
+        listingId: "listing-123",
+        privateSellerTermsAccepted: true,
+      });
       expect(window.open).toHaveBeenCalledWith(
         "https://checkout.example/pay/123",
         "_blank",
@@ -578,6 +587,11 @@ describe("CreateListingForm registration lookup", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
 
     await waitFor(() => {
@@ -679,6 +693,11 @@ describe("CreateListingForm registration lookup", () => {
         /I confirm I have authority to advertise this vehicle/
       )
     );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
 
     await screen.findByText("Preview the Ripple hosted payment journey");
@@ -762,10 +781,18 @@ describe("CreateListingForm registration lookup", () => {
     expect(screen.getByText(/The current live listing stays public/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Submit changes for review" }));
 
     await waitFor(() => {
-      expect(submitListingForReview).toHaveBeenCalledWith("live-123");
+      expect(submitListingForReview).toHaveBeenCalledWith({
+        listingId: "live-123",
+        privateSellerTermsAccepted: true,
+      });
     });
     expect(payForListing).not.toHaveBeenCalled();
     expect(window.open).not.toHaveBeenCalled();
