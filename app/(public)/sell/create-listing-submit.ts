@@ -246,7 +246,15 @@ export async function executeCreateListingSubmit(params: {
     if (typeof result.error === "string") {
       return { kind: "stay", error: result.error };
     }
-    return { kind: "stay", fieldErrors: result.error, step: 1 };
+    return {
+      kind: "stay",
+      error: summarizeListingSubmitFieldErrors(
+        result.error,
+        "Please review the highlighted listing details and try again.",
+      ),
+      fieldErrors: result.error,
+      step: 1,
+    };
   }
 
   if (!result.data) {

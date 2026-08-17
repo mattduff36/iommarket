@@ -146,6 +146,35 @@ describe("validateListingAttributes", () => {
     expect(result.fieldErrors[`attr-${makeDef.id}`]).toBeUndefined();
   });
 
+  it("LST-ATTR-SCOPE-001 sanitizes only server-known attribute definitions", () => {
+    const deterministicWriteOff = {
+      ...writeOffDef,
+      id: "attr_writeoff_cmn3oefbu0001twzjvgysi1k5",
+    };
+    const result = validateListingAttributes({
+      categorySlug: "van",
+      definitions: [deterministicWriteOff],
+      attributes: [
+        {
+          attributeDefinitionId: deterministicWriteOff.id,
+          value: "None",
+        },
+        {
+          attributeDefinitionId: "unknown_but_bounded",
+          value: "Category N",
+        },
+      ],
+    });
+
+    expect(result.fieldErrors).toEqual({});
+    expect(result.sanitizedAttributes).toEqual([
+      {
+        attributeDefinitionId: deterministicWriteOff.id,
+        value: "None",
+      },
+    ]);
+  });
+
   it.each(["Hybrid", "Plug-in Hybrid"])(
     "rejects removed generic fuel type %s",
     (fuelType) => {

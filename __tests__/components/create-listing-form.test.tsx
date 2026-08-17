@@ -1485,6 +1485,37 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
   });
 
+  it("LST-VALIDATION-VISIBLE-001 announces aggregate server errors after returning to step 1", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      error: {
+        attributes: ["A listing detail could not be validated. Please review it."],
+      },
+    } as Awaited<ReturnType<typeof createListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "A listing detail could not be validated. Please review it.",
+    );
+    expect(screen.getByText("Create Listing - Step 1 of 3")).toBeTruthy();
+    expect(syncListingImages).not.toHaveBeenCalled();
+    expect(payForListing).not.toHaveBeenCalled();
+  });
+
   it("LST-WRITEOFF-001 groups write-off after mileage/fuel and marks it required when NS is on", () => {
     render(
       <CreateListingForm

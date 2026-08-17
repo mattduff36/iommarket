@@ -39,7 +39,7 @@ export const createListingSchema = z.object({
   attributes: z
     .array(
       z.object({
-        attributeDefinitionId: z.string().cuid(),
+        attributeDefinitionId: z.string().trim().min(1).max(100),
         value: z.string().trim().min(1, "Value is required"),
       })
     )

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createListingSchema,
+  updateListingSchema,
   reportListingSchema,
   moderateListingSchema,
   takeDownFromReportSchema,
@@ -81,6 +82,67 @@ describe("createListingSchema", () => {
       );
       expect(result.data.attributes[0]?.value).toBe("BMW");
     }
+  });
+
+  it("LST-ATTR-ID-001 accepts bounded opaque attribute IDs in create and update inputs", () => {
+    const deterministicId = "attr_writeoff_cmn3oefbu0001twzjvgysi1k5";
+    const attributes = [
+      {
+        attributeDefinitionId: `  ${deterministicId}  `,
+        value: "None",
+      },
+    ];
+
+    const createResult = createListingSchema.safeParse({
+      ...validInput,
+      attributes,
+    });
+    expect(createResult.success).toBe(true);
+    if (createResult.success) {
+      expect(createResult.data.attributes[0]?.attributeDefinitionId).toBe(
+        deterministicId,
+      );
+    }
+
+    expect(
+      updateListingSchema.safeParse({
+        id: "cllisting123456789012345678",
+        attributes,
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each(["", "   ", "x".repeat(101)])(
+    "LST-ATTR-ID-001 rejects invalid attribute ID %j",
+    (attributeDefinitionId) => {
+      expect(
+        createListingSchema.safeParse({
+          ...validInput,
+          attributes: [{ attributeDefinitionId, value: "None" }],
+        }).success,
+      ).toBe(false);
+    },
+  );
+
+  it("LST-ATTR-ID-001 keeps entity IDs CUID-only", () => {
+    expect(
+      createListingSchema.safeParse({
+        ...validInput,
+        categoryId: "attr_writeoff_cmn3oefbu0001twzjvgysi1k5",
+      }).success,
+    ).toBe(false);
+    expect(
+      createListingSchema.safeParse({
+        ...validInput,
+        regionId: "region_iom",
+      }).success,
+    ).toBe(false);
+    expect(
+      updateListingSchema.safeParse({
+        id: "listing_opaque",
+        attributes: [],
+      }).success,
+    ).toBe(false);
   });
 
   it("requires the expanded listing declarations POL-LIST-001", () => {

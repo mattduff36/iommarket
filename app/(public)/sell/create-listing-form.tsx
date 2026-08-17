@@ -728,7 +728,10 @@ export function CreateListingForm({
           )}
 
           {error ? (
-            <div className="rounded-md border border-border bg-surface-elevated px-3 py-2">
+            <div
+              role="alert"
+              className="rounded-md border border-border bg-surface-elevated px-3 py-2"
+            >
               <p className="text-sm text-text-secondary">{error}</p>
             </div>
           ) : null}
