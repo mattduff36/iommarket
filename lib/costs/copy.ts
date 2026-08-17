@@ -7,7 +7,7 @@ export const COST_REFRESH_HELP =
   "Vercel hosting and shared team charges refresh daily at 04:00 UTC, after a verified production deployment, or when the owner refreshes provider costs.";
 
 export const COST_CALCULATION_HELP =
-  "Each imported amount is converted with the service-period business-day USD/GBP rate. Weekends use Friday’s rate. The displayed GBP total then includes a 20% markup.";
+  "Each imported amount is converted with the service-period business-day USD/GBP rate. Weekends use Friday’s rate.";
 
 export const COST_ALLOCATION_HELP =
   "Shared Vercel charges are split equally across active production projects. Current-month shared rows stay provisional until that month closes. Development, Other, and external Supabase database costs are recorded manually.";

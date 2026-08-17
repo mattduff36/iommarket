@@ -43,5 +43,6 @@ describe("manual cost sync messages T4", () => {
     expect(COST_CALCULATION_HELP).toMatch(/business-day/i);
     expect(COST_CALCULATION_HELP).toMatch(/Friday/i);
     expect(COST_CALCULATION_HELP).not.toMatch(/previous weekday/i);
+    expect(COST_CALCULATION_HELP).not.toMatch(/markup|20%/i);
   });
 });
