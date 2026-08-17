@@ -23,7 +23,12 @@ export interface FxRateRecord {
   effectiveDate: Date;
 }
 
-type FxClient = Pick<Prisma.TransactionClient, "fxRateSnapshot">;
+type FxClient = {
+  fxRateSnapshot: Pick<
+    Prisma.TransactionClient["fxRateSnapshot"],
+    "findFirst" | "upsert"
+  >;
+};
 
 interface FrankfurterResponse {
   date?: string;

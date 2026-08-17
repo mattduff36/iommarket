@@ -11,6 +11,8 @@ export default defineConfig({
     include: ["**/__tests__/**/*.test.{ts,tsx}"],
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    // Temporary deterministic mitigation while shared env/timer state is isolated.
+    maxWorkers: 1,
   },
   resolve: {
     alias: [
