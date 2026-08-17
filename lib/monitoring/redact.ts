@@ -8,7 +8,8 @@ const MAX_STRING_LENGTH = 4000;
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const BEARER_RE = /bearer\s+[a-z0-9._\-+=/~]+/gi;
 const JWT_RE = /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g;
-const AUTH_HEADER_RE = /authorization\s*[:=]\s*[^,\s]+/gi;
+const AUTH_HEADER_RE =
+  /authorization\s*[:=]\s*(?:(?:basic|bearer|token)\s+\S+|digest\s+.+?(?=\s+(?:https?:\/\/|(?:cookie|set-cookie|authorization)\s*[:=])|$)|[^\s,]+)/gi;
 const COOKIE_HEADER_PREFIX_RE = /(?:cookie|set-cookie)\s*[:=]\s*/gi;
 const COOKIE_BLOCK_TERMINATOR_RE = /^(https?:\/\/|authorization\s*[:=]|bearer\s+)/i;
 const COOKIE_PAIR_RE =

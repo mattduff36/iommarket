@@ -42,6 +42,6 @@ export async function POST(req: NextRequest) {
         eventType: parsed.event.rawType,
       }),
     });
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ error: "Webhook ingest failed" }, { status: 500 });
   }
 }

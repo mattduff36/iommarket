@@ -17,7 +17,7 @@ interface DealerSubscriptionRecord {
   revokedAt: Date | null;
 }
 
-interface DealerAccessSubject {
+export interface DealerAccessSubject {
   role: "USER" | "DEALER" | "ADMIN";
   dealerProfile: { id: string; tier: DealerTier } | null;
 }
@@ -47,6 +47,20 @@ export function hasDealerAccountAccess(
   dealerProfile: NonNullable<DealerAccessSubject["dealerProfile"]>;
 } {
   return DEALER_ACCESS_ROLES.has(user.role) && user.dealerProfile !== null;
+}
+
+export function listingHasDealerSellerAccess(
+  user: DealerAccessSubject,
+  listing: { dealerId: string | null }
+): boolean {
+  return listing.dealerId !== null && hasDealerAccountAccess(user);
+}
+
+export function effectiveListingDealerId(
+  user: DealerAccessSubject,
+  listing: { dealerId: string | null }
+): string | null {
+  return listingHasDealerSellerAccess(user, listing) ? listing.dealerId : null;
 }
 
 export function getAdminGrantState(

@@ -9,6 +9,7 @@ import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CreateListingForm } from "../create-listing-form";
 import { FreeListingWelcomeDialog } from "../free-listing-welcome-dialog";
+import { getPolicyFlags } from "@/lib/policy/flags";
 import { getSellFormData } from "../sell-form-data";
 
 export const metadata: Metadata = {
@@ -75,6 +76,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
         mode="private"
         isFreeForUser={isFreeForUser}
         initialDraft={initialDraft}
+        enforceListingNs={getPolicyFlags().enforceListingNs}
       />
     </div>
   );

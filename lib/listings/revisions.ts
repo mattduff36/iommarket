@@ -3,12 +3,14 @@ import type {
   Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import type { DealerAccessSubject } from "@/lib/dealers/entitlement";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { isListingEffectivelyExpired } from "@/lib/listings/expiry";
 import {
   ListingLifecycleError,
   ListingRevisionConflictError,
 } from "@/lib/listings/errors";
+import { detachListingDealerIdIfNeeded } from "@/lib/listings/submit-dealer-access";
 import { createListingStatusEvent } from "@/lib/listings/status-events";
 import { validateModerationReason } from "@/lib/listings/moderation-reasons";
 import {
@@ -257,6 +259,7 @@ export async function submitRevision(input: {
   userId: string;
   expectedListingRevision: number;
   expectedVersion: number;
+  seller?: DealerAccessSubject;
 }) {
   const result = await db.$transaction(async (tx) => {
     const listing = await tx.listing.findUnique({
@@ -269,6 +272,9 @@ export async function submitRevision(input: {
     }
     if (listing.status !== "LIVE" || isListingEffectivelyExpired(listing)) {
       throw new ListingLifecycleError("Only live listings can submit changes for review.");
+    }
+    if (input.seller) {
+      await detachListingDealerIdIfNeeded(tx, listing.id, input.seller, listing);
     }
     if (listing.lifecycleRevision !== input.expectedListingRevision) {
       throw new ListingRevisionConflictError();

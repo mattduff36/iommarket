@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { captureException } from "@/lib/monitoring";
+import { capClientIngestSeverity } from "@/lib/monitoring/severity";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { ingestMonitoringClientEventSchema } from "@/lib/validations/monitoring";
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
   const result = await captureException({
     source: "CLIENT",
     error: err,
-    severity: parsed.data.severity,
+    severity: capClientIngestSeverity(parsed.data.severity),
     route: parsed.data.route,
     requestPath: parsed.data.route,
     component: parsed.data.component,

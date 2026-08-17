@@ -95,6 +95,37 @@ describe("PHOTO-ORPHAN-001 listing photo cleanup", () => {
     });
   });
 
+  it("bounds the expired-intent sweep instead of loading the full table", async () => {
+    intentFindMany.mockResolvedValue([]);
+
+    await expireAbandonedListingImageIntents();
+
+    expect(intentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ["ISSUED", "VERIFIED"] },
+          expiresAt: { lte: expect.any(Date) },
+          image: { is: null },
+        }),
+        orderBy: { expiresAt: "asc" },
+        take: expect.any(Number),
+      }),
+    );
+    const take = intentFindMany.mock.calls[0]?.[0]?.take as number;
+    expect(take).toBeGreaterThan(0);
+    expect(take).toBeLessThanOrEqual(50);
+  });
+
+  it("honors an explicit expire batch limit", async () => {
+    intentFindMany.mockResolvedValue([]);
+
+    await expireAbandonedListingImageIntents(new Date("2026-08-17T20:00:00.000Z"), 7);
+
+    expect(intentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 7 }),
+    );
+  });
+
   it("does not delete an asset if the intent was consumed before expiry committed", async () => {
     intentFindMany.mockResolvedValue([
       {

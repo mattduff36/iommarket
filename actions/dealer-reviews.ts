@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser, requireRole } from "@/lib/auth";
+import { getPublicDealerWhere } from "@/lib/dealers/access";
+import {
+  hasDealerAccountAccess,
+  type DealerAccessSubject,
+} from "@/lib/dealers/entitlement";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { getOrCreateReviewDeviceId } from "@/lib/reviews/device-cookie";
 import {
@@ -65,7 +70,7 @@ function assertResponseEligibility(review: {
 async function getOwnedReview(
   client: DbClient,
   reviewId: string,
-  userId: string,
+  user: DealerAccessSubject & { id: string },
 ) {
   const review = await client.dealerReview.findUnique({
     where: { id: reviewId },
@@ -74,7 +79,10 @@ async function getOwnedReview(
     },
   });
   if (!review) throw new DealerReviewActionError("Review not found");
-  if (review.dealer.userId !== userId) {
+  if (
+    review.dealer.userId !== user.id ||
+    !hasDealerAccountAccess(user)
+  ) {
     throw new DealerReviewActionError("Not authorized for this dealer review.");
   }
   return review;
@@ -107,8 +115,11 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
     return { error: "Too many review updates. Please wait and try again." };
   }
 
-  const dealer = await db.dealerProfile.findUnique({
-    where: { id: parsed.data.dealerId },
+  const dealer = await db.dealerProfile.findFirst({
+    where: {
+      id: parsed.data.dealerId,
+      ...getPublicDealerWhere(),
+    },
     select: { id: true, slug: true },
   });
   if (!dealer) return { error: "Dealer not found" };
@@ -292,7 +303,7 @@ export async function saveDealerReviewResponseDraft(
 
   try {
     const result = await db.$transaction(async (tx) => {
-      const review = await getOwnedReview(tx, parsed.data.reviewId, user.id);
+      const review = await getOwnedReview(tx, parsed.data.reviewId, user);
       assertResponseEligibility(review);
 
       const response = await tx.dealerReviewResponse.upsert({
@@ -415,7 +426,10 @@ export async function submitDealerReviewResponse(
       if (!revision) {
         throw new DealerReviewActionError("Response revision not found");
       }
-      if (revision.response.review.dealer.userId !== user.id) {
+      if (
+        revision.response.review.dealer.userId !== user.id ||
+        !hasDealerAccountAccess(user)
+      ) {
         throw new DealerReviewActionError(
           "Not authorized for this dealer response.",
         );
@@ -638,7 +652,7 @@ export async function openDealerReviewDispute(
 
   try {
     const dispute = await db.$transaction(async (tx) => {
-      const review = await getOwnedReview(tx, parsed.data.reviewId, user.id);
+      const review = await getOwnedReview(tx, parsed.data.reviewId, user);
       if (review.status !== "APPROVED") {
         throw new DealerReviewActionError(
           "Only approved reviews can be disputed.",

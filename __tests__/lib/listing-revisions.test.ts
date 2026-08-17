@@ -11,6 +11,7 @@ const {
     listing: {
       findUnique: vi.fn(),
       findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
       updateMany: vi.fn(),
     },
     listingRevision: {
@@ -473,6 +474,61 @@ describe("listing revisions ALR-REV-001", () => {
       }),
     );
     expect(dispatchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back in-transaction dealer detach when revision submit conflicts", async () => {
+    let rolledBack = false;
+    mockDb.$transaction.mockImplementationOnce(
+      async (callback: (tx: typeof mockDb) => Promise<unknown>) => {
+        try {
+          return await callback(mockDb);
+        } catch (error) {
+          rolledBack = true;
+          throw error;
+        }
+      },
+    );
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing-1",
+      userId: "user-1",
+      dealerId: "dealer-1",
+      status: "LIVE",
+      lifecycleRevision: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+      images: [{ id: "img-1" }, { id: "img-2" }],
+    });
+    mockDb.listingRevision.findFirst.mockResolvedValue({
+      id: "rev-1",
+      status: "DRAFT",
+      version: 2,
+      trustDeclarationAccepted: true,
+      images: [{ id: "img-1" }, { id: "img-2" }],
+    });
+    mockDb.listing.update.mockResolvedValue({ id: "listing-1", dealerId: null });
+    mockDb.listingRevision.updateMany.mockResolvedValue({ count: 0 });
+
+    const { ListingRevisionConflictError } = await import(
+      "@/lib/listings/errors"
+    );
+    await expect(
+      submitRevision({
+        listingId: "listing-1",
+        userId: "user-1",
+        expectedListingRevision: 1,
+        expectedVersion: 2,
+        seller: {
+          role: "USER",
+          dealerProfile: { id: "dealer-1", tier: "STARTER" },
+        },
+      }),
+    ).rejects.toBeInstanceOf(ListingRevisionConflictError);
+
+    expect(mockDb.listing.update).toHaveBeenCalledWith({
+      where: { id: "listing-1" },
+      data: { dealerId: null },
+    });
+    expect(rolledBack).toBe(true);
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 
   it("rejects a live revision submit without a write-off declaration POL-LIST-001", async () => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { issueListingImageUploadIntent } from "@/lib/listings/photo-upload";
 import { captureException } from "@/lib/monitoring";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
@@ -19,9 +19,12 @@ export async function POST(request: NextRequest) {
 
   let user;
   try {
-    user = await requireAuth();
-  } catch {
-    return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+    user = await requireAcceptedAuth();
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Not authorized" },
+      { status: acceptedAuthHttpStatus(error) },
+    );
   }
 
   const rate = checkRateLimit(makeRateLimitKey("listing-image-intent", user.id), {

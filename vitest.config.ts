@@ -18,6 +18,14 @@ export default defineConfig({
     alias: [
       { find: /^vitest$/, replacement: vitestShim },
       { find: "@", replacement: root },
+      {
+        find: /^next\/cache(?:\.js)?$/,
+        replacement: fileURLToPath(new URL("./__tests__/stubs/next-cache.ts", import.meta.url)),
+      },
+      {
+        find: /(?:^|\/)next\/dist\/server\/web\/spec-extension\/revalidate(?:\.js)?$/,
+        replacement: fileURLToPath(new URL("./__tests__/stubs/next-cache.ts", import.meta.url)),
+      },
     ],
   },
 });

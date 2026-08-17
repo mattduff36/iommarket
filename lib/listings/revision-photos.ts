@@ -2,8 +2,9 @@ import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
-import { getListingPhotoLimit, getListingPhotoLimitError } from "@/lib/listings/photo-limits";
+import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
 import {
+  PhotoRevisionConflictError,
   hashPhotoMutation,
   type ListingPhotoMutationItem,
   type SyncListingImagesInput,
@@ -120,6 +121,12 @@ export async function syncRevisionImagesForUser(input: {
       lastPhotoMutationId: true,
       lastPhotoMutationHash: true,
       lifecycleRevision: true,
+      user: {
+        select: {
+          role: true,
+          dealerProfile: { select: { id: true, tier: true } },
+        },
+      },
     },
   });
   if (!listing) return { error: "Listing not found" };
@@ -145,10 +152,25 @@ export async function syncRevisionImagesForUser(input: {
     return { error: "This photo change was already used with different content." };
   }
 
-  const maxImages = getListingPhotoLimit({
-    isDealer: listing.dealerId !== null,
-    isFeatured: listing.featured,
+  const currentRevision = await db.listingRevision.findUnique({
+    where: { id: input.revisionId },
+    select: { version: true, status: true, listingId: true },
   });
+  if (!currentRevision || currentRevision.listingId !== input.listingId) {
+    return { error: "Revision not found" };
+  }
+  if (currentRevision.status !== "DRAFT") {
+    return { error: "Photos can only be changed while the revision is a draft." };
+  }
+  if (currentRevision.version !== input.photos.basePhotoRevision) {
+    return {
+      error: "These photos were updated elsewhere. Reload and try again.",
+      conflict: true,
+      photoRevision: currentRevision.version,
+    };
+  }
+
+  const maxImages = getSellerListingPhotoLimit(listing.user, listing);
   if (input.photos.photos.length > maxImages) {
     return { error: getListingPhotoLimitError(maxImages) };
   }
@@ -166,7 +188,7 @@ export async function syncRevisionImagesForUser(input: {
         throw new Error("Photos can only be changed while the revision is a draft.");
       }
       if (revision.version !== input.photos.basePhotoRevision) {
-        throw new Error("These photos were updated elsewhere. Reload and try again.");
+        throw new PhotoRevisionConflictError(revision.version);
       }
 
       const currentById = new Map(revision.images.map((image) => [image.id, image]));
@@ -284,7 +306,11 @@ export async function syncRevisionImagesForUser(input: {
         data: { version: { increment: 1 } },
       });
       if (bumped.count !== 1) {
-        throw new Error("These photos were updated elsewhere. Reload and try again.");
+        const latest = await tx.listingRevision.findUnique({
+          where: { id: revision.id },
+          select: { version: true },
+        });
+        throw new PhotoRevisionConflictError(latest?.version ?? revision.version);
       }
 
       const listingCas = await tx.listing.updateMany({
@@ -312,6 +338,13 @@ export async function syncRevisionImagesForUser(input: {
       },
     };
   } catch (error) {
+    if (error instanceof PhotoRevisionConflictError) {
+      return {
+        error: error.message,
+        conflict: true,
+        photoRevision: error.photoRevision,
+      };
+    }
     return { error: error instanceof Error ? error.message : "Failed to update images" };
   }
 }

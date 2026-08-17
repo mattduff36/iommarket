@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { normalizeMakeLookupKey } from "@/lib/vehicle-catalogue/make-canonicalization";
 import {
   cleanCatalogueName,
   normalizeCatalogueName,
@@ -45,7 +46,7 @@ interface ParsedModelValue {
 }
 
 function matchMake(makes: VehicleMakeOption[], value: string) {
-  const key = normalizeCatalogueName(value);
+  const key = normalizeMakeLookupKey(value);
   return makes.find((make) => make.normalizedName === key) ?? null;
 }
 

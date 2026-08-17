@@ -1,25 +1,54 @@
 import * as React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { moderateResponseMock, decideDisputeMock, refreshMock } = vi.hoisted(() => ({
-  moderateResponseMock: vi.fn(),
-  decideDisputeMock: vi.fn(),
-  refreshMock: vi.fn(),
-}));
+const { moderateResponseMock, decideDisputeMock, moderateReviewMock, refreshMock } =
+  vi.hoisted(() => ({
+    moderateResponseMock: vi.fn(),
+    decideDisputeMock: vi.fn(),
+    moderateReviewMock: vi.fn(),
+    refreshMock: vi.fn(),
+  }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  useRouter: () => ({
+    refresh: refreshMock,
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+  }),
 }));
 vi.mock("@/actions/dealer-reviews", () => ({
   moderateDealerReviewResponse: moderateResponseMock,
   decideDealerReviewDispute: decideDisputeMock,
+  moderateDealerReview: moderateReviewMock,
 }));
 
+import { ReviewActions } from "@/app/(admin)/admin/reviews/review-actions";
 import {
   ResponseRevisionActions,
   ReviewDisputeActions,
 } from "@/app/(admin)/admin/reviews/response-dispute-actions";
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <AppRouterContext.Provider
+      value={{
+        push: vi.fn(),
+        replace: vi.fn(),
+        refresh: refreshMock,
+        prefetch: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        bfcacheId: "test",
+      }}
+    >
+      {ui}
+    </AppRouterContext.Provider>,
+  );
+}
 
 afterEach(cleanup);
 
@@ -41,6 +70,29 @@ describe("dealer review admin decisions MD-REV-001", () => {
         expectedVersion: 2,
         expectedResponseVersion: 4,
         decision: "APPROVED",
+        reasonCode: undefined,
+        adminNotes: undefined,
+      });
+    });
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it("AUD-REVIEW-001a refreshes review actions after a successful save", async () => {
+    moderateReviewMock.mockResolvedValue({ data: { id: "rev-1" } });
+    render(
+      <ReviewActions
+        reviewId="rev-1"
+        currentVersion={2}
+        currentStatus="PENDING"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(moderateReviewMock).toHaveBeenCalledWith({
+        reviewId: "rev-1",
+        expectedVersion: 2,
+        status: "PENDING",
         reasonCode: undefined,
         adminNotes: undefined,
       });

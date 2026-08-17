@@ -37,6 +37,13 @@ const {
   mockDb: {
     listing: {
       findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    listingAttributeValue: {
+      findFirst: vi.fn(),
+    },
+    listingRevisionAttributeValue: {
+      findFirst: vi.fn(),
     },
     subscription: {
       findFirst: vi.fn(),
@@ -137,9 +144,28 @@ describe("payForListing", () => {
       dealerId: null,
       status: "DRAFT",
       title: "Test listing",
+      category: {
+        slug: "car",
+        attributeDefinitions: [
+          {
+            id: "write-off",
+            slug: "write-off-category",
+            name: "Insurance write-off category",
+            dataType: "select",
+            required: false,
+            options: JSON.stringify(["None", "Category N", "Category S"]),
+          },
+        ],
+      },
     });
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
+    mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
     mockDb.policyAcceptance.findUnique.mockResolvedValue(null);
     mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acceptance-1" });
+    mockDb.listing.update.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      dealerId: null,
+    });
   });
 
   afterEach(() => {
@@ -362,6 +388,125 @@ describe("payForListing", () => {
     });
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).toHaveBeenCalled();
+  });
+
+  it("treats a demoted seller with an active subscription as private at checkout", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "TAKEN_DOWN",
+      title: "Taken down listing",
+      dealer: { tier: "STARTER" },
+    });
+    mockDb.subscription.findFirst.mockResolvedValue({
+      id: "sub-paid",
+      source: "PAYMENT",
+      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+    });
+    mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
+
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      error: "Payment is required before this listing can be resubmitted.",
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.listing.update).toHaveBeenCalledWith({
+      where: { id: "caaaaaaaaaaaaaaaaaaaaaaaa" },
+      data: { dealerId: null },
+    });
+  });
+
+  it("requires private terms and private checkout after dealer demotion", async () => {
+    process.env.POLICY_ENFORCE_ACCEPTANCE = "true";
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "DRAFT",
+      title: "Demoted listing",
+      dealer: { tier: "STARTER" },
+    });
+    mockDb.subscription.findFirst.mockResolvedValue({
+      id: "sub-paid",
+      source: "PAYMENT",
+      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+    });
+    mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
+
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      error:
+        "You must accept the Private Seller Terms before opening checkout.",
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+
+    createListingCheckoutMock.mockResolvedValue({
+      url: "https://checkout.example.com/listing-private",
+    });
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: { checkoutUrl: "https://checkout.example.com/listing-private" },
+    });
+    expect(createListingCheckoutMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        successUrl: expect.stringContaining("flow=private"),
+        cancelUrl: expect.stringContaining("flow=private"),
+      }),
+    );
+    expect(mockDb.listing.update).toHaveBeenCalledWith({
+      where: { id: "caaaaaaaaaaaaaaaaaaaaaaaa" },
+      data: { dealerId: null },
+    });
+  });
+
+  it("AUD-PAY-POL-001 blocks hosted checkout when write-off is not ready", async () => {
+    const previous = process.env.POLICY_ENFORCE_LISTING_NS;
+    process.env.POLICY_ENFORCE_LISTING_NS = "true";
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
+    const { WRITE_OFF_SUBMIT_ERROR } = await import(
+      "@/lib/listings/write-off-category"
+    );
+
+    try {
+      await expect(
+        payForListing({
+          listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+          privateSellerTermsAccepted: true,
+        }),
+      ).resolves.toEqual({
+        error: WRITE_OFF_SUBMIT_ERROR,
+      });
+      expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_LISTING_NS;
+      } else {
+        process.env.POLICY_ENFORCE_LISTING_NS = previous;
+      }
+    }
   });
 });
 

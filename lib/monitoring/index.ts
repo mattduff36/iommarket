@@ -24,6 +24,7 @@ export {
   sanitizeRequestPath,
 } from "./redact";
 export {
+  capClientIngestSeverity,
   coerceSeverity,
   defaultSeverityForSource,
   maxSeverity,

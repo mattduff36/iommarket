@@ -5,6 +5,7 @@ import type {
 } from "@/lib/listings/attribute-ui";
 import type { z } from "zod";
 import type { vehicleCatalogueSelectionSchema } from "@/lib/validations/listing";
+import { normalizeMakeLookupKey } from "./make-canonicalization";
 import { normalizeCatalogueName } from "./normalize";
 
 type VehicleCatalogueSelection = z.infer<typeof vehicleCatalogueSelectionSchema>;
@@ -38,11 +39,11 @@ export async function validateVehicleCatalogueSubmission(params: {
     return errors;
   }
 
-  const canonicalMakeKey = normalizeCatalogueName(selection.canonicalMake ?? "");
+  const canonicalMakeKey = normalizeMakeLookupKey(selection.canonicalMake ?? "");
   if (
     selection.makeMode === "catalogue" &&
     (!canonicalMakeKey ||
-      normalizeCatalogueName(submittedMake) !== canonicalMakeKey)
+      normalizeMakeLookupKey(submittedMake) !== canonicalMakeKey)
   ) {
     errors[`attr-${makeDefinition.id}`] = [
       "The selected make no longer matches the active catalogue.",

@@ -10,6 +10,7 @@ import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { CreateListingForm } from "../create-listing-form";
+import { getPolicyFlags } from "@/lib/policy/flags";
 import { getSellFormData } from "../sell-form-data";
 
 export const metadata: Metadata = {
@@ -141,6 +142,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
         vehicleMakes={vehicleMakes}
         mode="dealer"
         initialDraft={initialDraft}
+        enforceListingNs={getPolicyFlags().enforceListingNs}
       />
     </div>
   );

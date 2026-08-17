@@ -83,7 +83,7 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
         return;
       }
 
-      router.push(`/sell/success?listing=${listingId}&flow=${flow}&payment=skipped`);
+      router.replace(`/sell/success?listing=${listingId}&flow=${flow}&payment=skipped`);
     });
   }
 
@@ -108,7 +108,7 @@ export function RetryCheckoutButton({ listingId, flow }: Props) {
       setDemoDialogOpen(false);
 
       if (result.data?.nextUrl) {
-        router.push(result.data.nextUrl);
+        router.replace(result.data.nextUrl);
         return;
       }
 

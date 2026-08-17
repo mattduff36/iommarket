@@ -43,6 +43,9 @@ export const WRITE_OFF_ATTRIBUTE_INCLUDE = {
 export const WRITE_OFF_SUBMIT_ERROR =
   "Choose None, Category N, or Category S before submitting this listing.";
 
+export const WRITE_OFF_CONFIG_ERROR =
+  "Write-off category is not configured for this vehicle category.";
+
 export const LISTING_DECLARATION_LABEL =
   "I confirm I have authority to advertise this vehicle, the listing is accurate, it is not a prohibited vehicle, I have rights to the photos, any Category N or S write-off is disclosed, and it is not stolen and has no outstanding finance";
 

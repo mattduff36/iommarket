@@ -3,8 +3,8 @@ import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
-import { getListingPhotoLimit, getListingPhotoLimitError } from "@/lib/listings/photo-limits";
-class PhotoRevisionConflictError extends Error {
+import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
+export class PhotoRevisionConflictError extends Error {
   photoRevision: number;
   constructor(photoRevision: number) {
     super("These photos were updated elsewhere. Reload and try again.");
@@ -89,6 +89,12 @@ export async function syncListingImagesForUser({
     where: { id: listingId },
     include: {
       images: true,
+      user: {
+        select: {
+          role: true,
+          dealerProfile: { select: { id: true, tier: true } },
+        },
+      },
     },
   });
   if (!listing) return { error: "Listing not found" };
@@ -146,10 +152,7 @@ export async function syncListingImagesForUser({
     };
   }
 
-  const maxImages = getListingPhotoLimit({
-    isDealer: listing.dealerId !== null,
-    isFeatured: listing.featured,
-  });
+  const maxImages = getSellerListingPhotoLimit(listing.user, listing);
   if (input.photos.length > maxImages) {
     return { error: getListingPhotoLimitError(maxImages) };
   }

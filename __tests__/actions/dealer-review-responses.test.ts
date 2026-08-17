@@ -85,7 +85,11 @@ function approvedReview(comment: string | null = "A written review") {
 describe("dealer review response actions MD-REV-001..005", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAcceptedAuthMock.mockResolvedValue({ id: "dealer-user" });
+    requireAcceptedAuthMock.mockResolvedValue({
+      id: "dealer-user",
+      role: "DEALER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
     requireRoleMock.mockResolvedValue({ id: "admin-user", role: "ADMIN" });
     mockDb.$transaction.mockImplementation(
       async (callback: (tx: typeof mockDb) => unknown) => callback(mockDb),
@@ -138,6 +142,32 @@ describe("dealer review response actions MD-REV-001..005", () => {
       conflict: true,
     });
     expect(mockDb.dealerReviewResponseRevision.create).not.toHaveBeenCalled();
+  });
+
+  it("AUD-REVIEW-001b denies response and dispute after dealer account access is lost", async () => {
+    requireAcceptedAuthMock.mockResolvedValue({
+      id: "dealer-user",
+      role: "USER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+
+    const { saveDealerReviewResponseDraft, openDealerReviewDispute } =
+      await import("@/actions/dealer-reviews");
+
+    const draft = await saveDealerReviewResponseDraft({
+      reviewId,
+      body: "Thank you for taking the time to leave this review.",
+    });
+    expect(draft.error).toContain("Not authorized");
+    expect(mockDb.dealerReviewResponse.upsert).not.toHaveBeenCalled();
+
+    const dispute = await openDealerReviewDispute({
+      reviewId,
+      reasonCode: "OFF_TOPIC",
+      body: "This review concerns a different business and should be assessed.",
+    });
+    expect(dispute.error).toContain("Not authorized");
+    expect(mockDb.dealerReviewDispute.create).not.toHaveBeenCalled();
   });
 
   it("requires an approved nonblank written review for a response", async () => {

@@ -118,6 +118,7 @@ export async function finalizeListingImageUploadIntent({
     format: resource.format,
     bytes: resource.bytes,
     deliveryType: resource.type,
+    expiresAt: new Date(Date.now() + INTENT_TTL_MS),
   };
   const verified = await db.listingImageUploadIntent.updateMany({
     where: { id: intent.id, status: "ISSUED", userId },

@@ -46,7 +46,10 @@ import {
   VEHICLE_CATALOGUE_TRANSACTION_OPTIONS,
 } from "@/lib/vehicle-catalogue/import";
 import { normalizeVehicleIdentity } from "@/lib/vehicle-catalogue/identity";
-import { canonicalizeKnownMake } from "@/lib/vehicle-catalogue/make-canonicalization";
+import {
+  canonicalizeKnownMake,
+  normalizeMakeLookupKey,
+} from "@/lib/vehicle-catalogue/make-canonicalization";
 import { validateVehicleCatalogueSubmission } from "@/lib/vehicle-catalogue/listing-validation";
 import { vehicleCatalogueImportSchema } from "@/lib/validations/vehicle-catalogue";
 
@@ -109,6 +112,51 @@ const existingCatalogue = [
   },
 ];
 
+const omittedAudiMake = {
+  id: "make-audi",
+  name: "Audi",
+  normalizedName: "audi",
+  active: true,
+  sortOrder: 20,
+  source: payload.source,
+  sourceVersion: payload.sourceVersion,
+  models: [
+    {
+      id: "model-a3",
+      makeId: "make-audi",
+      name: "A3",
+      normalizedName: "a3",
+      active: true,
+      sortOrder: 10,
+      source: payload.source,
+      sourceVersion: payload.sourceVersion,
+      aliases: [
+        {
+          id: "alias-s3",
+          name: "S3",
+          normalizedName: "s3",
+          active: true,
+          sortOrder: 10,
+          source: payload.source,
+          sourceVersion: payload.sourceVersion,
+        },
+      ],
+    },
+  ],
+};
+
+const omitTrocPayload = vehicleCatalogueImportSchema.parse({
+  ...payload,
+  makes: [
+    {
+      name: "Volkswagen",
+      active: true,
+      sortOrder: 10,
+      models: [{ name: "Golf", active: true, sortOrder: 10, aliases: [] }],
+    },
+  ],
+});
+
 describe("vehicle catalogue query bounds MD-CAT-001", () => {
   it("does not scan listing attributes and bounds make/model/alias payloads", () => {
     const sellData = readFileSync(
@@ -133,6 +181,36 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
     expect(canonicalizeKnownMake("MERCEDES BENZ")).toBe("Mercedes-Benz");
     expect(canonicalizeKnownMake("SSANGYONG")).toBe("SsangYong");
     expect(canonicalizeKnownMake("Unknown Works")).toBe("Unknown Works");
+  });
+
+  it("binds VW, Mercedes, and merc aliases to catalogue make keys", () => {
+    expect(normalizeMakeLookupKey("VW")).toBe("volkswagen");
+    expect(normalizeMakeLookupKey("vw")).toBe("volkswagen");
+    expect(normalizeMakeLookupKey("Mercedes")).toBe("mercedesbenz");
+    expect(normalizeMakeLookupKey("merc")).toBe("mercedesbenz");
+    expect(normalizeMakeLookupKey("Mercedes-Benz")).toBe("mercedesbenz");
+
+    const fieldsSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "app",
+        "(public)",
+        "sell",
+        "vehicle-catalogue-fields.tsx",
+      ),
+      "utf8",
+    );
+    const validationSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "lib",
+        "vehicle-catalogue",
+        "listing-validation.ts",
+      ),
+      "utf8",
+    );
+    expect(fieldsSource).toContain("normalizeMakeLookupKey");
+    expect(validationSource).toContain("normalizeMakeLookupKey");
   });
 
   it("normalizes the T-Roc alias and preserves unknown manual values", async () => {
@@ -222,6 +300,72 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
       }),
     ).resolves.toEqual({});
     expect(mockDb.vehicleModel.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts VW and merc submitted makes against catalogue canonical names", async () => {
+    const definitions = [
+      {
+        id: "make-id",
+        slug: "make",
+        name: "Make",
+        dataType: "text",
+        required: true,
+        options: null,
+      },
+      {
+        id: "model-id",
+        slug: "model",
+        name: "Model",
+        dataType: "text",
+        required: true,
+        options: null,
+      },
+    ];
+    mockDb.vehicleModel.findFirst.mockResolvedValue({ id: "model-1" });
+    mockDb.vehicleMake.findUnique.mockResolvedValue({ id: "make-mb" });
+
+    await expect(
+      validateVehicleCatalogueSubmission({
+        definitions,
+        attributes: [
+          { attributeDefinitionId: "make-id", value: "VW" },
+          { attributeDefinitionId: "model-id", value: "T-Roc" },
+        ],
+        selection: {
+          makeMode: "catalogue",
+          modelMode: "catalogue",
+          canonicalMake: "Volkswagen",
+          canonicalModel: "T-Roc",
+        },
+      }),
+    ).resolves.toEqual({});
+    expect(mockDb.vehicleModel.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          normalizedName: "troc",
+          make: { active: true, normalizedName: "volkswagen" },
+        }),
+      }),
+    );
+
+    await expect(
+      validateVehicleCatalogueSubmission({
+        definitions,
+        attributes: [
+          { attributeDefinitionId: "make-id", value: "merc" },
+          { attributeDefinitionId: "model-id", value: "C-Class" },
+        ],
+        selection: {
+          makeMode: "catalogue",
+          modelMode: "manual",
+          canonicalMake: "Mercedes-Benz",
+        },
+      }),
+    ).resolves.toEqual({});
+    expect(mockDb.vehicleMake.findUnique).toHaveBeenCalledWith({
+      where: { normalizedName: "mercedesbenz", active: true },
+      select: { id: true },
+    });
   });
 });
 
@@ -474,6 +618,77 @@ describe("vehicle catalogue import MD-CAT-003", () => {
     expect(mockTx.vehicleMake.updateMany).not.toHaveBeenCalled();
     expect(mockTx.vehicleModel.updateMany).not.toHaveBeenCalled();
     expect(mockTx.vehicleModelAlias.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("cascades deactivateMissing to omitted make children and omitted model aliases", async () => {
+    const existingWithOmittedMake = [existingCatalogue[0], omittedAudiMake];
+    expect(
+      buildVehicleCatalogueDiff(existingWithOmittedMake, payload).deactivates,
+    ).toEqual({ makes: 1, models: 1, aliases: 1 });
+    const omitModelDiff = buildVehicleCatalogueDiff(
+      existingCatalogue,
+      omitTrocPayload,
+    );
+    expect(omitModelDiff.deactivates).toEqual({
+      makes: 0,
+      models: 1,
+      aliases: 1,
+    });
+    expect(omitModelDiff.creates).toEqual({ makes: 0, models: 1, aliases: 0 });
+
+    mockTx.vehicleMake.findMany
+      .mockReset()
+      .mockResolvedValueOnce(existingWithOmittedMake)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "make-1", normalizedName: "volkswagen" }]);
+    const omitMakeDiff = await applyVehicleCatalogueImport(payload, "admin-1");
+    expect(omitMakeDiff.deactivates).toEqual({
+      makes: 1,
+      models: 1,
+      aliases: 1,
+    });
+    expect(mockTx.vehicleModel.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          makeId: { in: ["make-audi"] },
+          source: payload.source,
+          active: true,
+        }),
+        data: { active: false },
+      }),
+    );
+    expect(mockTx.vehicleModelAlias.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          makeId: { in: ["make-audi"] },
+          source: payload.source,
+          active: true,
+        }),
+        data: { active: false },
+      }),
+    );
+
+    mockTx.vehicleMake.findMany
+      .mockReset()
+      .mockResolvedValueOnce(existingCatalogue)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "make-1", normalizedName: "volkswagen" }]);
+    mockTx.vehicleModel.findMany.mockResolvedValue([
+      { id: "model-golf", makeId: "make-1", normalizedName: "golf" },
+    ]);
+    mockTx.vehicleModel.updateMany.mockClear();
+    mockTx.vehicleModelAlias.updateMany.mockClear();
+    await applyVehicleCatalogueImport(omitTrocPayload, "admin-1");
+    expect(mockTx.vehicleModelAlias.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          modelId: { in: ["model-1"] },
+          source: payload.source,
+          active: true,
+        }),
+        data: { active: false },
+      }),
+    );
   });
 
   it("predicts exact boundary deactivations and fails closed on overflow", async () => {

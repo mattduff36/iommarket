@@ -33,7 +33,10 @@ vi.mock("@/lib/policy/gate", () => ({
 }));
 vi.mock("@/lib/db", () => ({
   db: {
-    dealerProfile: { findUnique: dealerFindUniqueMock },
+    dealerProfile: {
+      findUnique: dealerFindUniqueMock,
+      findFirst: dealerFindUniqueMock,
+    },
     $transaction: transactionMock,
   },
 }));
@@ -63,7 +66,11 @@ describe("dealer review workflow rate limits", () => {
       name: "Reviewer",
       disabledAt: null,
     });
-    requireAcceptedAuthMock.mockResolvedValue({ id: "dealer-user" });
+    requireAcceptedAuthMock.mockResolvedValue({
+      id: "dealer-user",
+      role: "DEALER",
+      dealerProfile: { id: dealerId, tier: "STARTER" },
+    });
     makeRateLimitKeyMock.mockImplementation(
       (scope: string, identifier: string) => `${scope}:${identifier}`,
     );
@@ -199,5 +206,31 @@ describe("dealer review workflow rate limits", () => {
         changedByUserId: null,
       }),
     );
+  });
+
+  it("AUD-REVIEW-001c rejects submit when the dealer is not publicly listed", async () => {
+    checkRateLimitMock.mockReturnValue({ allowed: true });
+    dealerFindUniqueMock.mockResolvedValue(null);
+
+    const { submitDealerReview } = await import("@/actions/dealer-reviews");
+    const result = await submitDealerReview({
+      dealerId,
+      rating: 5,
+      comment: "Plain text review",
+    });
+
+    expect(result).toEqual({ error: "Dealer not found" });
+    expect(dealerFindUniqueMock).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: dealerId,
+        user: expect.objectContaining({
+          role: { in: ["DEALER", "ADMIN"] },
+          disabledAt: null,
+          deletedAt: null,
+        }),
+      }),
+      select: { id: true, slug: true },
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 });

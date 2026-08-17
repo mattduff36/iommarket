@@ -11,6 +11,7 @@ const {
   listingUpdateMany,
   listingStatusEventFindFirst,
   listingImageCount,
+  listingAttributeValueFindFirst,
   policyAcceptanceFindUnique,
   transitionListingStatus,
   captureBusinessEvent,
@@ -24,6 +25,7 @@ const {
   const listingUpdateMany = vi.fn();
   const listingStatusEventFindFirst = vi.fn();
   const listingImageCount = vi.fn();
+  const listingAttributeValueFindFirst = vi.fn();
   const policyAcceptanceFindUnique = vi.fn();
   const transactionMock = vi.fn();
   const db: {
@@ -31,6 +33,8 @@ const {
     listing: { findUnique: typeof listingFindUnique; updateMany: typeof listingUpdateMany };
     listingStatusEvent: { findFirst: typeof listingStatusEventFindFirst };
     listingImage: { count: typeof listingImageCount };
+    listingAttributeValue: { findFirst: typeof listingAttributeValueFindFirst };
+    listingRevisionAttributeValue: { findFirst: ReturnType<typeof vi.fn> };
     policyAcceptance: { findUnique: typeof policyAcceptanceFindUnique };
     $transaction: (fn: (tx: unknown) => unknown) => Promise<unknown>;
   } = {
@@ -49,6 +53,12 @@ const {
     listingImage: {
       count: listingImageCount,
     },
+    listingAttributeValue: {
+      findFirst: listingAttributeValueFindFirst,
+    },
+    listingRevisionAttributeValue: {
+      findFirst: vi.fn(),
+    },
     policyAcceptance: {
       findUnique: policyAcceptanceFindUnique,
     },
@@ -62,6 +72,7 @@ const {
     listingUpdateMany,
     listingStatusEventFindFirst,
     listingImageCount,
+    listingAttributeValueFindFirst,
     policyAcceptanceFindUnique,
     transitionListingStatus: vi.fn(),
     captureBusinessEvent: vi.fn(),
@@ -137,7 +148,22 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
       trustDeclarationAccepted: true,
       lifecycleRevision: 1,
       userId: "user-1",
+      dealerId: null,
+      category: {
+        slug: "car",
+        attributeDefinitions: [
+          {
+            id: "write-off",
+            slug: "write-off-category",
+            name: "Insurance write-off category",
+            dataType: "select",
+            required: false,
+            options: JSON.stringify(["None", "Category N", "Category S"]),
+          },
+        ],
+      },
     });
+    listingAttributeValueFindFirst.mockResolvedValue(null);
     listingImageCount.mockResolvedValue(2);
     listingStatusEventFindFirst.mockResolvedValue(null);
     policyAcceptanceFindUnique.mockResolvedValue({ id: "acceptance-1" });
@@ -250,30 +276,103 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     expect(captureBusinessEvent).not.toHaveBeenCalled();
   });
 
-  it("records payment but withholds submission without a private receipt", async () => {
+  it("AUD-PAY-POL-001 records payment but withholds a non-compliant write-off listing", async () => {
+    const previous = process.env.POLICY_ENFORCE_LISTING_NS;
+    process.env.POLICY_ENFORCE_LISTING_NS = "true";
+    listingAttributeValueFindFirst.mockResolvedValue(null);
+
+    try {
+      await processProviderWebhookEvent(listingEvent());
+
+      expect(paymentCreate).toHaveBeenCalledOnce();
+      expect(transitionListingStatus).not.toHaveBeenCalled();
+      expect(dispatchListingNotifications).not.toHaveBeenCalled();
+      expect(captureBusinessEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: "HIGH",
+          title: "Paid listing withheld for write-off policy",
+        }),
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_LISTING_NS;
+      } else {
+        process.env.POLICY_ENFORCE_LISTING_NS = previous;
+      }
+    }
+  });
+
+  it("AUD-PAY-ACCEPT-001 withholds a missing bundle only when enforceAcceptance is on", async () => {
+    const previous = process.env.POLICY_ENFORCE_ACCEPTANCE;
+    process.env.POLICY_ENFORCE_ACCEPTANCE = "true";
     policyAcceptanceFindUnique.mockResolvedValue(null);
 
-    await processProviderWebhookEvent(listingEvent());
+    try {
+      await processProviderWebhookEvent(listingEvent());
 
-    expect(paymentCreate).toHaveBeenCalledOnce();
-    expect(transitionListingStatus).not.toHaveBeenCalled();
-    expect(captureBusinessEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        severity: "HIGH",
-        title: "Paid private listing missing policy acceptance",
-      }),
-    );
+      expect(paymentCreate).toHaveBeenCalledOnce();
+      expect(transitionListingStatus).not.toHaveBeenCalled();
+      expect(captureBusinessEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: "HIGH",
+          title: "Paid private listing missing policy acceptance",
+        }),
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_ACCEPTANCE;
+      } else {
+        process.env.POLICY_ENFORCE_ACCEPTANCE = previous;
+      }
+    }
+  });
+
+  it("AUD-PAY-ACCEPT-001 submits when the bundle is missing and enforceAcceptance is off", async () => {
+    const previous = process.env.POLICY_ENFORCE_ACCEPTANCE;
+    delete process.env.POLICY_ENFORCE_ACCEPTANCE;
+    policyAcceptanceFindUnique.mockResolvedValue(null);
+
+    try {
+      await processProviderWebhookEvent(listingEvent());
+
+      expect(paymentCreate).toHaveBeenCalledOnce();
+      expect(transitionListingStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "SUBMIT", source: "PAYMENT" }),
+        expect.anything(),
+      );
+      expect(captureBusinessEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Paid private listing missing policy acceptance",
+        }),
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_ACCEPTANCE;
+      } else {
+        process.env.POLICY_ENFORCE_ACCEPTANCE = previous;
+      }
+    }
   });
 
   it("fails the webhook transaction when receipt verification is unavailable", async () => {
+    const previous = process.env.POLICY_ENFORCE_ACCEPTANCE;
+    process.env.POLICY_ENFORCE_ACCEPTANCE = "true";
     policyAcceptanceFindUnique.mockRejectedValue(
       new Error("acceptance lookup unavailable"),
     );
 
-    await expect(processProviderWebhookEvent(listingEvent())).rejects.toThrow(
-      "acceptance lookup unavailable",
-    );
-    expect(transitionListingStatus).not.toHaveBeenCalled();
+    try {
+      await expect(processProviderWebhookEvent(listingEvent())).rejects.toThrow(
+        "acceptance lookup unavailable",
+      );
+      expect(transitionListingStatus).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.POLICY_ENFORCE_ACCEPTANCE;
+      } else {
+        process.env.POLICY_ENFORCE_ACCEPTANCE = previous;
+      }
+    }
   });
 
   it("rejects listing amount drift", async () => {

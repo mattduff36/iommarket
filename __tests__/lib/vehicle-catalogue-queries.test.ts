@@ -63,6 +63,24 @@ describe("vehicle catalogue query behavior MD-CAT-001", () => {
     );
   });
 
+  it("resolves the VW alias to the Volkswagen catalogue make", async () => {
+    await getActiveModelsByMake("VW");
+
+    expect(mockDb.vehicleModel.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          active: true,
+          make: { active: true, normalizedName: "volkswagen" },
+        },
+      }),
+    );
+    expect(
+      cacheCalls
+        .filter((call) => call.key[0] === "vehicle-catalogue-active-models-v1")
+        .map((call) => call.args),
+    ).toEqual([["volkswagen"]]);
+  });
+
   it("normalizes before the model cache boundary and skips unknown makes", async () => {
     await getActiveModelsByMake(" VW ");
     await getActiveModelsByMake("Volkswagen");

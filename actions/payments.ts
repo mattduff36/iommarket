@@ -23,7 +23,8 @@ import {
   getDealerPlanPricePence,
   getMarketplacePricing,
 } from "@/lib/config/marketplace-pricing";
-import { getDealerEntitlement } from "@/lib/dealers/entitlement";
+import { effectiveListingDealerId, getDealerEntitlement } from "@/lib/dealers/entitlement";
+import { detachListingDealerIdIfNeeded } from "@/lib/listings/submit-dealer-access";
 import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
@@ -125,12 +126,45 @@ export async function payForListing(input: PayForListingInput) {
   if (listing.status === "LIVE") {
     return { data: { checkoutUrl: null, skippedPayment: true } };
   }
+  const { getListingWriteOffReadiness } = await import(
+    "@/lib/listings/listing-ns-policy"
+  );
+  const writeOffReadiness = await getListingWriteOffReadiness({
+    listingId: listing.id,
+    listingStatus: listing.status,
+  });
+  if (!writeOffReadiness.ok) {
+    return { error: writeOffReadiness.error };
+  }
+  const effectiveDealerId = effectiveListingDealerId(user, listing);
+  if (
+    listing.status === "TAKEN_DOWN" ||
+    listing.status === "REJECTED" ||
+    listing.status === "DRAFT" ||
+    listing.status === "EXPIRED"
+  ) {
+    try {
+      await detachListingDealerIdIfNeeded(db, listing.id, user, listing);
+    } catch (err) {
+      await captureException({
+        source: "SERVER",
+        error: err,
+        action: "payForListing",
+        route: "/sell/checkout",
+        requestPath: "/sell/checkout",
+        userId: user.id,
+        userEmail: user.email,
+        tags: { listingId, step: "detach-stale-dealer" },
+      });
+      return { error: "Unable to update this listing. Please try again." };
+    }
+  }
   if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
     const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
     const skip = await canSkipListingPayment(db, {
       listingId: listing.id,
       userId: user.id,
-      dealerId: listing.dealerId,
+      dealerId: effectiveDealerId,
     });
     if (skip.skip) {
       return { data: { checkoutUrl: null, skippedPayment: true } };
@@ -142,7 +176,7 @@ export async function payForListing(input: PayForListingInput) {
   }
 
   try {
-    if (!listing.dealerId) {
+    if (!effectiveDealerId) {
       const {
         hasCurrentBundleAcceptance,
         recordAcceptance,
@@ -186,14 +220,14 @@ export async function payForListing(input: PayForListingInput) {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now(),
     );
-    if (!isRenewal && listing.status === "DRAFT" && !listing.dealerId) {
+    if (!isRenewal && listing.status === "DRAFT" && !effectiveDealerId) {
       const { canSkipListingPayment } = await import(
         "@/lib/listings/payment-skip"
       );
       const priorEntitlement = await canSkipListingPayment(db, {
         listingId: listing.id,
         userId: user.id,
-        dealerId: listing.dealerId,
+        dealerId: effectiveDealerId,
       });
       if (priorEntitlement.skip) {
         return { data: { checkoutUrl: null, skippedPayment: true } };
@@ -201,20 +235,20 @@ export async function payForListing(input: PayForListingInput) {
     }
 
     const pricing = await getMarketplacePricing();
-    const flow = listing.dealerId ? "dealer" : "private";
+    const flow = effectiveDealerId ? "dealer" : "private";
     const listingReturnTo = `/sell/checkout?listing=${listing.id}&flow=${flow}`;
     const dealerEntitlement =
-      listing.dealerId && listing.dealer
-        ? await getDealerEntitlement(listing.dealerId, listing.dealer.tier)
+      effectiveDealerId && listing.dealer
+        ? await getDealerEntitlement(effectiveDealerId, listing.dealer.tier)
         : null;
     const hasDealerAccess = Boolean(dealerEntitlement);
-    if (listing.dealerId && !hasDealerAccess) {
+    if (effectiveDealerId && !hasDealerAccess) {
       return {
         error: "Active dealer access is required before submitting dealer listings.",
       };
     }
     const isFreePrivateSeller =
-      !listing.dealerId &&
+      !effectiveDealerId &&
       (await isPrivateListingFreeForUser(user.id));
     const shouldSkipPayment =
       hasDealerAccess || (!isRenewal && isFreePrivateSeller);

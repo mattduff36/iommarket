@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { moderateDealerReview } from "@/actions/dealer-reviews";
 import {
   AdminActionButton,
@@ -21,6 +22,7 @@ export function ReviewActions({
   currentStatus,
   currentAdminNotes,
 }: Props) {
+  const router = useRouter();
   const [status, setStatus] = useState(currentStatus);
   const [reasonCode, setReasonCode] = useState("");
   const [adminNotes, setAdminNotes] = useState(currentAdminNotes ?? "");
@@ -45,7 +47,9 @@ export function ReviewActions({
             ? result.error
             : "Failed to save moderation changes."
         );
+        return;
       }
+      router.refresh();
     });
   }
 

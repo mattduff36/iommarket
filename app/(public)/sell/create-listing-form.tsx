@@ -1,18 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  createListing,
-  syncListingImages,
-  submitListingForReview,
-  updateListing,
-} from "@/actions/listings";
-import {
-  payForListing,
-  simulateDemoListingPaymentOutcome,
-} from "@/actions/payments";
+import { simulateDemoListingPaymentOutcome } from "@/actions/payments";
 import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,
@@ -20,33 +10,34 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
-import { LISTING_DECLARATION_LABEL } from "@/lib/listings/write-off-category";
+import { getAttributeFieldConfig } from "@/lib/listings/attribute-ui";
+import { CreateListingDeclarations } from "./create-listing-form.declarations";
+import { groupWriteOffWithVehicleDetails } from "@/lib/listings/listing-ns-ui";
 import {
-  getAttributeFieldConfig,
-  isListingAttributeRequired,
-  validateListingAttributes,
-} from "@/lib/listings/attribute-ui";
-import { mapVehicleResultToListingAttributes } from "@/lib/listings/vehicle-autofill";
-import type { VehicleCheckResponse } from "@/lib/services/vehicle-check-types";
-import { formatRegistrationForDisplay } from "@/lib/utils/registration";
-import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
+  CreateListingAttributeFields,
+  ListingFieldLabel,
+} from "./create-listing-attribute-fields";
+import { validateListingDetailsStep } from "./create-listing-form.validation";
+import {
+  collectListingAttributes,
+  executeCreateListingSubmit,
+  releaseSubmitFlight,
+  tryBeginSubmitFlight,
+} from "./create-listing-submit";
+import { runVehicleLookup } from "./create-listing-form.lookup";
 import {
   CATEGORY_TILE_META,
   DEFAULT_CATEGORY_TILE_ICON,
 } from "./create-listing-form.constants";
 import {
-  buildSuggestedListingTitle,
-  extractLookupErrorMessage,
-  inferCategoryFromLookupResult,
   pruneHiddenAttributes,
   REGISTRATION_LOOKUP_CATEGORY_SLUGS,
 } from "./create-listing-form.helpers";
 import type { EditableDraft } from "@/lib/listings/editable-draft";
 import { getListingPhotoLimit } from "@/lib/listings/photo-limits";
+import { formatRegistrationForDisplay } from "@/lib/utils/registration";
 import type { VehicleMakeOption } from "@/lib/vehicle-catalogue/queries";
-import { normalizeCatalogueName } from "@/lib/vehicle-catalogue/normalize";
 import {
   VehicleCatalogueFields,
   type VehicleCatalogueSelection,
@@ -80,73 +71,7 @@ interface Props {
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
   initialDraft?: EditableDraft | null;
-}
-
-function defendVehicleCatalogueSelection({
-  selection,
-  definitions,
-  attributes,
-}: {
-  selection: VehicleCatalogueSelection;
-  definitions: AttributeDef[];
-  attributes: Array<{ attributeDefinitionId: string; value: string }>;
-}): VehicleCatalogueSelection {
-  const valuesById = new Map(
-    attributes.map((attribute) => [
-      attribute.attributeDefinitionId,
-      attribute.value,
-    ]),
-  );
-  const makeValue =
-    valuesById.get(definitions.find((definition) => definition.slug === "make")?.id ?? "") ??
-    "";
-  const modelValue =
-    valuesById.get(definitions.find((definition) => definition.slug === "model")?.id ?? "") ??
-    "";
-  const makeIsCatalogueBacked =
-    selection.makeMode === "catalogue" &&
-    Boolean(selection.canonicalMake) &&
-    normalizeCatalogueName(makeValue) ===
-      normalizeCatalogueName(selection.canonicalMake ?? "");
-
-  if (!makeIsCatalogueBacked) {
-    return { makeMode: "manual", modelMode: "manual" };
-  }
-
-  const expectedModel = [selection.canonicalModel, selection.variant]
-    .filter((value): value is string => Boolean(value?.trim()))
-    .join(" ");
-  const modelIsCatalogueBacked =
-    selection.modelMode === "catalogue" &&
-    Boolean(selection.canonicalModel) &&
-    normalizeCatalogueName(modelValue) === normalizeCatalogueName(expectedModel);
-
-  return modelIsCatalogueBacked
-    ? selection
-    : {
-        makeMode: "catalogue",
-        modelMode: "manual",
-        canonicalMake: selection.canonicalMake,
-      };
-}
-
-function ListingFieldLabel({
-  label,
-  required = false,
-}: {
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <>
-      {label}
-      {required ? (
-        <span aria-hidden="true" className="text-text-error">
-          {" "}*
-        </span>
-      ) : null}
-    </>
-  );
+  enforceListingNs?: boolean;
 }
 
 export function CreateListingForm({
@@ -156,6 +81,7 @@ export function CreateListingForm({
   mode = "private",
   isFreeForUser = false,
   initialDraft = null,
+  enforceListingNs = false,
 }: Props) {
   const router = useRouter();
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
@@ -166,6 +92,9 @@ export function CreateListingForm({
     photoSignature: string;
     mutationId: string;
   } | null>(null);
+  const listingIdRef = useRef<string | null>(initialDraft?.id ?? null);
+  const photoRevisionRef = useRef(initialDraft?.photoRevision ?? 0);
+  const submitFlightRef = useRef(false);
   const isEditingDraft = Boolean(initialDraft);
   const editMode = initialDraft?.editMode ?? (isEditingDraft ? "draft" : undefined);
   const skipCheckout = editMode === "revision" || editMode === "resubmit";
@@ -188,7 +117,7 @@ export function CreateListingForm({
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(
     () => initialDraft?.images.map(toUploadedImage) ?? [],
   );
-  const [photoRevision, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
+  const [, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
   const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
   const [privateSellerTermsAccepted, setPrivateSellerTermsAccepted] =
@@ -227,15 +156,16 @@ export function CreateListingForm({
   const selectedFuelType = fuelTypeAttribute
     ? attributeValues[fuelTypeAttribute.id]
     : undefined;
-  const visibleAttributes = selectedCategory?.attributes
-    .filter(
+  const visibleAttributes = groupWriteOffWithVehicleDetails(
+    selectedCategory?.attributes.filter(
       (attr) =>
         !isVehicleCatalogueCategory ||
         (attr.slug !== "make" && attr.slug !== "model"),
-    )
+    ) ?? [],
+  )
     .map((attr) => ({
       attr,
-      config: getAttributeFieldConfig(selectedCategory.slug, attr, selectedFuelType),
+      config: getAttributeFieldConfig(selectedCategory?.slug, attr, selectedFuelType),
     }))
     .filter(
       (
@@ -244,7 +174,7 @@ export function CreateListingForm({
         attr: AttributeDef;
         config: NonNullable<ReturnType<typeof getAttributeFieldConfig>>;
       } => item.config !== null
-    ) ?? [];
+    );
   function getFieldError(fieldName: string) {
     return fieldErrors[fieldName]?.[0];
   }
@@ -303,163 +233,67 @@ export function CreateListingForm({
   );
 
   async function handleVehicleLookup() {
-    if (selectedCategory && !isLookupCategorySupported) {
-      setLookupError(
-        "Vehicle lookup is available for car, van, motorbike, and motorhome listings."
-      );
-      setLookupMeta(null);
-      return;
-    }
-
-    const submittedRegistration = registrationInput.trim();
-    if (!submittedRegistration) {
-      setLookupError("Enter a number plate to run the lookup.");
-      setLookupMeta(null);
-      return;
-    }
-
     setLookupPending(true);
     setLookupError(null);
     setLookupMeta(null);
-
-    try {
-      const response = await fetch("/api/vehicle-check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ registration: submittedRegistration }),
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | VehicleCheckResponse
-        | Record<string, unknown>
-        | null;
-
-      if (!response.ok || !payload || !("success" in payload) || payload.success !== true) {
-        setLookupError(extractLookupErrorMessage(payload));
-        return;
-      }
-      const lookupPayload = payload as VehicleCheckResponse;
-
-      let activeCategory = selectedCategory;
-      let autoSelectedCategoryName: string | null = null;
-      if (!activeCategory) {
-        const inferredCategory = inferCategoryFromLookupResult(
-          lookupPayload.result,
-          categories
-        );
-        if (!inferredCategory) {
-          setLookupError(
-            "Could not auto-select a category from the lookup result. Please choose a category and try again."
-          );
-          setLookupMeta(null);
-          return;
-        }
-        activeCategory = inferredCategory;
-        autoSelectedCategoryName = inferredCategory.name;
-        setSelectedCategoryId(inferredCategory.id);
-      }
-
-      if (!REGISTRATION_LOOKUP_CATEGORY_SLUGS.has(activeCategory.slug)) {
-        setLookupError(
-          "Vehicle lookup is available for car, van, motorbike, and motorhome listings."
-        );
-        setLookupMeta(null);
-        return;
-      }
-
-      const mapped = mapVehicleResultToListingAttributes({
-        definitions: activeCategory.attributes,
-        result: lookupPayload.result,
-      });
-
-      const yearDefinition = activeCategory.attributes.find(
-        (attribute) => attribute.slug === "year"
-      );
-      const makeDefinition = activeCategory.attributes.find(
-        (attribute) => attribute.slug === "make"
-      );
-      const modelDefinition = activeCategory.attributes.find(
-        (attribute) => attribute.slug === "model"
-      );
-      const suggestedTitle = buildSuggestedListingTitle({
-        year: yearDefinition ? mapped.values[yearDefinition.id] ?? null : null,
-        make:
-          (makeDefinition ? mapped.values[makeDefinition.id] ?? null : null) ??
-          lookupPayload.result.vehicle?.make ??
-          lookupPayload.result.motHistory?.make ??
-          null,
-        model:
-          (modelDefinition ? mapped.values[modelDefinition.id] ?? null : null) ??
-          lookupPayload.result.vehicle?.model ??
-          lookupPayload.result.motHistory?.model ??
-          null,
-      });
-      const didSuggestTitle = Boolean(suggestedTitle && !titleValue.trim());
-
-      setRegistrationInput(formatRegistrationForDisplay(submittedRegistration));
-      if (didSuggestTitle && suggestedTitle) {
-        setTitleValue(suggestedTitle);
-      }
-
-      if (mapped.appliedAttributeIds.length === 0 && !didSuggestTitle) {
-        setLookupMeta(
-          "Vehicle found, but no matching listing fields were available to auto-fill."
-        );
-        return;
-      }
-
-      setAttributeValues((currentValues) =>
-        pruneHiddenAttributes(
-          { ...currentValues, ...mapped.values },
-          activeCategory
-        )
-      );
-      setFieldErrors((currentErrors) => {
-        const nextErrors = { ...currentErrors };
-        for (const attributeId of mapped.appliedAttributeIds) {
-          delete nextErrors[`attr-${attributeId}`];
-        }
-        if (didSuggestTitle) {
-          delete nextErrors.title;
-        }
-        return nextErrors;
-      });
-
-      const statusMessages: string[] = [];
-      if (autoSelectedCategoryName) {
-        statusMessages.push(`Category auto-selected: ${autoSelectedCategoryName}`);
-      }
-      if (mapped.appliedAttributeIds.length > 0) {
-        statusMessages.push(
-          `Auto-filled ${mapped.appliedAttributeIds.length} field${mapped.appliedAttributeIds.length === 1 ? "" : "s"} from registration data`
-        );
-      }
-      if (didSuggestTitle) {
-        statusMessages.push("Suggested a listing title");
-      }
-
-      const warningSuffix = lookupPayload.result.warnings.length
-        ? ` (${lookupPayload.result.warnings.length} warning${lookupPayload.result.warnings.length === 1 ? "" : "s"} reported in lookup data).`
-        : ".";
-      setLookupMeta(
-        `${statusMessages.join(". ")}. Please review before submitting${warningSuffix}`
-      );
-    } catch {
-      setLookupError("Vehicle lookup failed. Please try again.");
-    } finally {
-      setLookupPending(false);
+    const result = await runVehicleLookup({
+      selectedCategory,
+      isLookupCategorySupported,
+      registrationInput,
+      titleValue,
+      categories,
+    });
+    setLookupPending(false);
+    if (!result.ok) {
+      setLookupError(result.error);
+      return;
     }
+    setRegistrationInput(result.registrationInput);
+    if (result.selectedCategoryId) {
+      setSelectedCategoryId(result.selectedCategoryId);
+    }
+    if (result.titleValue) {
+      setTitleValue(result.titleValue);
+    }
+    if (result.appliedAttributeIds.length > 0) {
+      const category =
+        categories.find((candidate) => candidate.id === result.selectedCategoryId) ??
+        selectedCategory;
+      if (category) {
+        setAttributeValues((currentValues) =>
+          pruneHiddenAttributes(
+            { ...currentValues, ...result.attributeValues },
+            category,
+          ),
+        );
+      }
+    }
+    setFieldErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      for (const attributeId of result.appliedAttributeIds) {
+        delete nextErrors[`attr-${attributeId}`];
+      }
+      if (result.clearTitleError) {
+        delete nextErrors.title;
+      }
+      return nextErrors;
+    });
+    setLookupMeta(result.meta);
   }
 
   function nextStep() {
     if (step === 1) {
-      if (!selectedCategoryId) {
-        setFieldErrors((current) => ({
-          ...current,
-          categoryId: ["Please choose a category."],
-        }));
+      const detailsValidation = validateListingDetailsStep({
+        selectedCategoryId,
+        selectedCategory,
+        attributeValues,
+        enforceListingNs,
+      });
+      if (!detailsValidation.ok) {
+        setFieldErrors(detailsValidation.fieldErrors);
+        if (detailsValidation.configurationError) {
+          setError(detailsValidation.configurationError);
+        }
         return;
       }
       if (formRef.current && !formRef.current.reportValidity()) {
@@ -510,7 +344,7 @@ export function CreateListingForm({
       setDemoDialogOpen(false);
 
       if (result.data?.nextUrl) {
-        router.push(result.data.nextUrl);
+        router.replace(result.data.nextUrl);
         return;
       }
 
@@ -520,175 +354,93 @@ export function CreateListingForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!tryBeginSubmitFlight(submitFlightRef)) {
+      return;
+    }
     setError(null);
     setFieldErrors({});
     if (revisionLocked) {
       setError("Your changes are awaiting review and cannot be edited yet.");
+      releaseSubmitFlight(submitFlightRef);
       return;
     }
 
     const form = new FormData(e.currentTarget);
     if (!trustConfirmed) {
       setTrustConfirmationMissing(true);
+      releaseSubmitFlight(submitFlightRef);
       return;
     }
     setTrustConfirmationMissing(false);
     if (mode === "private" && !privateSellerTermsAccepted) {
       setPrivateSellerTermsMissing(true);
+      releaseSubmitFlight(submitFlightRef);
       return;
     }
     setPrivateSellerTermsMissing(false);
 
-    const attributes: Array<{ attributeDefinitionId: string; value: string }> = [];
+    const attributes = selectedCategory
+      ? collectListingAttributes(selectedCategory.attributes, form)
+      : [];
     if (selectedCategory) {
-      for (const attr of selectedCategory.attributes) {
-        const val = (form.get(`attr-${attr.id}`) as string | null)?.trim() ?? "";
-        if (val) {
-          attributes.push({ attributeDefinitionId: attr.id, value: val });
-        }
-      }
-
-      const clientAttributeValidation = validateListingAttributes({
-        categorySlug: selectedCategory.slug,
-        definitions: selectedCategory.attributes,
-        attributes,
+      const clientAttributeValidation = validateListingDetailsStep({
+        selectedCategoryId,
+        selectedCategory,
+        attributeValues: Object.fromEntries(
+          attributes.map((attribute) => [
+            attribute.attributeDefinitionId,
+            attribute.value,
+          ]),
+        ),
+        enforceListingNs,
       });
-      if (Object.keys(clientAttributeValidation.fieldErrors).length > 0) {
+      if (!clientAttributeValidation.ok) {
         setFieldErrors(clientAttributeValidation.fieldErrors);
+        if (clientAttributeValidation.configurationError) {
+          setError(clientAttributeValidation.configurationError);
+        }
         setStep(1);
+        releaseSubmitFlight(submitFlightRef);
         return;
       }
     }
 
     startTransition(async () => {
-      const listingPayload = {
-        title: form.get("title") as string,
-        description: form.get("description") as string,
-        price: Math.round(parseFloat(form.get("price") as string) * 100),
-        categoryId: form.get("categoryId") as string,
-        regionId: form.get("regionId") as string,
-        trustDeclarationAccepted: trustConfirmed,
+      const navigation = await executeCreateListingSubmit({
+        form,
         attributes,
-        vehicleCatalogueSelection: isVehicleCatalogueCategory
-          ? defendVehicleCatalogueSelection({
-              selection: vehicleCatalogueSelection,
-              definitions: selectedCategory?.attributes ?? [],
-              attributes,
-            })
-          : undefined,
-      };
-      const result = isEditingDraft && initialDraft
-        ? await updateListing({
-            id: initialDraft.id,
-            ...listingPayload,
-          })
-        : await createListing(listingPayload);
-
-      if (result.error) {
-        if (typeof result.error === "string") {
-          setError(result.error);
-        } else {
-          setFieldErrors(result.error);
-          setStep(1);
+        mode,
+        skipCheckout,
+        isEditingDraft,
+        uploadedImages,
+        listingIdRef,
+        photoRevisionRef,
+        photoMutationRef,
+        submitFlightRef,
+        vehicleCatalogueSelection,
+        isVehicleCatalogueCategory,
+        selectedCategoryAttributes: selectedCategory?.attributes ?? [],
+        createMutationId: createPhotoMutationId,
+        onListingId: setPendingListingId,
+        onDraftUrl: (href) => router.replace(href),
+        onPhotoRevision: setPhotoRevision,
+        openCheckout: (url) => {
+          setDemoOutcomeError(null);
+          openCheckout(url);
+        },
+      });
+      if (navigation.kind === "stay") {
+        if (navigation.error) setError(navigation.error);
+        if (navigation.fieldErrors) {
+          setFieldErrors(navigation.fieldErrors);
+          setStep(navigation.step ?? 1);
         }
         return;
       }
-
-      if (result.data) {
-        const listingId = initialDraft?.id ?? result.data.id;
-        setPendingListingId(listingId);
-        if (isEditingDraft || uploadedImages.length > 0) {
-          const photos = uploadedImages.map((image) => ({
-            imageId: image.id,
-            uploadIntentId: image.id ? undefined : image.uploadIntentId,
-            focalX: image.focalX,
-            focalY: image.focalY,
-          }));
-          const photoSignature = JSON.stringify(photos);
-          const pendingMutation = photoMutationRef.current;
-          const mutationId =
-            pendingMutation?.basePhotoRevision === photoRevision &&
-            pendingMutation.photoSignature === photoSignature
-              ? pendingMutation.mutationId
-              : createPhotoMutationId();
-          photoMutationRef.current = {
-            basePhotoRevision: photoRevision,
-            photoSignature,
-            mutationId,
-          };
-          const saveResult = await syncListingImages(listingId, {
-            photos,
-            basePhotoRevision: photoRevision,
-            mutationId,
-          });
-          if (saveResult?.error) {
-            setError(
-              typeof saveResult.error === "string"
-                ? saveResult.error
-                : "Failed to save images. Please try again."
-            );
-            return;
-          }
-          photoMutationRef.current = null;
-          if (saveResult.data?.photoRevision != null) {
-            setPhotoRevision(saveResult.data.photoRevision);
-          }
-        }
-
-        const payResult = skipCheckout
-          ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
-          : await payForListing({
-              listingId,
-              privateSellerTermsAccepted:
-                mode === "private" ? true : undefined,
-            });
-        if (payResult.error) {
-          setError(
-            typeof payResult.error === "string"
-              ? payResult.error
-              : "Payment setup failed. Please try again."
-          );
-          return;
-        }
-
-        if (payResult.data?.skippedPayment) {
-          const reviewResult = await submitListingForReview({
-            listingId,
-            privateSellerTermsAccepted:
-              mode === "private" ? true : undefined,
-          });
-          if (reviewResult?.error) {
-            setError(
-              typeof reviewResult.error === "string"
-                ? reviewResult.error
-                : "Failed to submit listing for review."
-            );
-            return;
-          }
-        }
-
-        if (payResult.data?.checkoutUrl) {
-          setDemoOutcomeError(null);
-          openCheckout(payResult.data.checkoutUrl);
-          if (isRippleDemoCheckoutUrl(payResult.data.checkoutUrl)) {
-            return;
-          }
-          const checkoutSearch = new URLSearchParams({
-            listing: listingId,
-            flow: mode,
-            opened: "1",
-          });
-          router.push(`/sell/checkout?${checkoutSearch.toString()}`);
-          return;
-        }
-
-        const search = new URLSearchParams({
-          listing: listingId,
-          flow: mode,
-          payment: payResult.data?.skippedPayment ? "skipped" : "paid",
-        });
-        router.push(`/sell/success?${search.toString()}`);
+      if (navigation.kind === "demo") {
+        return;
       }
+      router.replace(navigation.href);
     });
   }
 
@@ -924,81 +676,22 @@ export function CreateListingForm({
               <p className="text-sm text-text-secondary">
                 Photos selected: {uploadedImages.length}
               </p>
-              <p
-                className={`text-sm ${
-                  trustConfirmationMissing ? "text-text-energy" : "text-text-secondary"
-                }`}
-              >
-                Please confirm ownership or authority, accuracy, photo rights,
-                prohibited-vehicle rules, Category N/S disclosure, and that the
-                vehicle is not stolen and has no outstanding finance.
-              </p>
-              <Checkbox
-                checked={trustConfirmed}
-                onCheckedChange={(checked) => {
-                  const isChecked = checked === true;
-                  setTrustConfirmed(isChecked);
-                  if (isChecked) {
-                    setTrustConfirmationMissing(false);
-                  }
+              <CreateListingDeclarations
+                mode={mode}
+                step={step}
+                trustConfirmed={trustConfirmed}
+                trustConfirmationMissing={trustConfirmationMissing}
+                privateSellerTermsAccepted={privateSellerTermsAccepted}
+                privateSellerTermsMissing={privateSellerTermsMissing}
+                onTrustChange={(accepted) => {
+                  setTrustConfirmed(accepted);
+                  if (accepted) setTrustConfirmationMissing(false);
                 }}
-                className="h-5 w-5 border-2 border-white/70 bg-surface-elevated"
-                label={LISTING_DECLARATION_LABEL}
+                onPrivateTermsChange={(accepted) => {
+                  setPrivateSellerTermsAccepted(accepted);
+                  if (accepted) setPrivateSellerTermsMissing(false);
+                }}
               />
-              {mode === "private" ? (
-                <div
-                  className={
-                    privateSellerTermsMissing
-                      ? "rounded-md border border-neon-red-500 p-3"
-                      : "rounded-md border border-border p-3"
-                  }
-                >
-                  <Checkbox
-                    checked={privateSellerTermsAccepted}
-                    onCheckedChange={(checked) => {
-                      const accepted = checked === true;
-                      setPrivateSellerTermsAccepted(accepted);
-                      if (accepted) setPrivateSellerTermsMissing(false);
-                    }}
-                    required={step === 3}
-                    label={
-                      <span className="leading-5">
-                        I expressly accept the current{" "}
-                        <Link
-                          href="/private-seller-terms"
-                          target="_blank"
-                          className="text-neon-blue-400 underline"
-                        >
-                          Private Seller Terms
-                        </Link>
-                        ,{" "}
-                        <Link
-                          href="/acceptable-use"
-                          target="_blank"
-                          className="text-neon-blue-400 underline"
-                        >
-                          Acceptable Use Policy
-                        </Link>
-                        , and{" "}
-                        <Link
-                          href="/refunds"
-                          target="_blank"
-                          className="text-neon-blue-400 underline"
-                        >
-                          Refund Policy
-                        </Link>
-                        .
-                      </span>
-                    }
-                  />
-                  {privateSellerTermsMissing ? (
-                    <p className="mt-2 text-xs text-text-error">
-                      Accept the current private seller policies before
-                      continuing.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
           </div>
 
           {/* Dynamic category attributes */}
@@ -1022,91 +715,15 @@ export function CreateListingForm({
                   onSelectionChange={setVehicleCatalogueSelection}
                 />
               ) : null}
-              {visibleAttributes.map(({ attr, config }) => {
-                const fieldName = `attr-${attr.id}`;
-                const fieldError = getFieldError(fieldName);
-                const isRequired = isListingAttributeRequired(selectedCategory.slug, attr);
-
-                if (config.control === "select") {
-                  return (
-                    <div key={attr.id} className="flex flex-col gap-1">
-                      <label htmlFor={fieldName} className="text-sm font-medium text-text-primary">
-                        <ListingFieldLabel label={attr.name} required={isRequired} />
-                      </label>
-                      <select
-                        id={fieldName}
-                        name={fieldName}
-                        required={isDetailsStep && isRequired}
-                        value={attributeValues[attr.id] ?? ""}
-                        onChange={(e) => handleAttributeChange(attr, e.target.value)}
-                        aria-invalid={fieldError ? true : undefined}
-                        aria-describedby={fieldError ? `${fieldName}-error` : undefined}
-                        className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
-                          fieldError ? "border-neon-red-500" : "border-border"
-                        }`}
-                      >
-                        <option value="">
-                          {attr.slug === "make" ? "Select a make" : `Select ${attr.name.toLowerCase()}`}
-                        </option>
-                        {config.options?.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                      {fieldError ? (
-                        <p id={`${fieldName}-error`} className="text-xs text-text-energy">
-                          {fieldError}
-                        </p>
-                      ) : config.helperText ? (
-                        <p className="text-xs text-text-secondary">{config.helperText}</p>
-                      ) : null}
-                    </div>
-                  );
-                }
-
-                if (config.control === "checkbox") {
-                  return (
-                    <div key={attr.id} className="space-y-2">
-                      <input type="hidden" name={fieldName} value={attributeValues[attr.id] ?? ""} />
-                      <Checkbox
-                        id={fieldName}
-                        checked={attributeValues[attr.id] === "true"}
-                        onCheckedChange={(checked) =>
-                          handleAttributeChange(attr, checked === true ? "true" : "")
-                        }
-                        required={isDetailsStep && isRequired}
-                        label={attr.name}
-                      />
-                      {fieldError ? (
-                        <p id={`${fieldName}-error`} className="text-xs text-text-energy">
-                          {fieldError}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                }
-
-                return (
-                  <Input
-                    key={attr.id}
-                    id={fieldName}
-                    label={attr.name}
-                    name={fieldName}
-                    required={isDetailsStep && isRequired}
-                    type={config.control === "number" ? "number" : "text"}
-                    value={attributeValues[attr.id] ?? ""}
-                    onChange={(e) => handleAttributeChange(attr, e.target.value)}
-                    min={config.min}
-                    max={config.max}
-                    step={config.step}
-                    inputMode={config.inputMode}
-                    placeholder={config.placeholder}
-                    helperText={config.helperText}
-                    error={fieldError}
-                  />
-                );
-              })}
+              <CreateListingAttributeFields
+                categorySlug={selectedCategory.slug}
+                visibleAttributes={visibleAttributes}
+                attributeValues={attributeValues}
+                isDetailsStep={isDetailsStep}
+                enforceListingNs={enforceListingNs}
+                getFieldError={getFieldError}
+                onAttributeChange={handleAttributeChange}
+              />
             </div>
           )}
 

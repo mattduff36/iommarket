@@ -277,12 +277,23 @@ async function recomputeDealerTier(
   }
 }
 
-async function ensureDealerRole(dealerId: string, client: PaymentDb = db) {
+async function ensureDealerRole(
+  dealerId: string,
+  client: PaymentDb = db,
+  options: { explicitGrant?: boolean } = {},
+) {
   const dealer = await client.dealerProfile.findUnique({
     where: { id: dealerId },
-    select: { userId: true },
+    select: {
+      userId: true,
+      user: { select: { role: true } },
+    },
   });
   if (!dealer) return;
+  if (dealer.user.role === "ADMIN" || dealer.user.role === "DEALER") {
+    return;
+  }
+  if (!options.explicitGrant) return;
   await client.user.update({
     where: { id: dealer.userId },
     data: { role: "DEALER" },
@@ -356,7 +367,8 @@ async function upsertSubscription(
       });
 
   if (data.status === "ACTIVE") {
-    await ensureDealerRole(resolved.dealerId, client);
+    const explicitGrant = !existing || existing.status === "INCOMPLETE";
+    await ensureDealerRole(resolved.dealerId, client, { explicitGrant });
   }
   await recomputeDealerTier(resolved.dealerId, new Date(), client);
   return { subscription, applied: true };

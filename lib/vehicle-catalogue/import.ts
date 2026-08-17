@@ -162,6 +162,28 @@ function assertSourceOwnership(
   }
 }
 
+function countOwnedActiveAliases(models: ExistingModel[], source: string) {
+  return models.reduce(
+    (count, model) =>
+      count +
+      model.aliases.filter((alias) => alias.source === source && alias.active)
+        .length,
+    0,
+  );
+}
+
+function omittedOwnedModels(
+  models: ExistingModel[],
+  source: string,
+  incomingModelKeys?: Set<string>,
+) {
+  return models.filter(
+    (model) =>
+      model.source === source &&
+      (!incomingModelKeys || !incomingModelKeys.has(model.normalizedName)),
+  );
+}
+
 function isChanged(
   existing: {
     name: string;
@@ -241,21 +263,37 @@ export function buildVehicleCatalogueDiff(
       }
     }
     if (payload.deactivateMissing) {
-      diff.deactivates.models += (existingMake?.models ?? []).filter(
-        (model) =>
-          model.source === payload.source &&
-          model.active &&
-          !incomingModelKeys.has(model.normalizedName),
+      const omittedModels = omittedOwnedModels(
+        existingMake?.models ?? [],
+        payload.source,
+        incomingModelKeys,
+      );
+      diff.deactivates.models += omittedModels.filter(
+        (model) => model.active,
       ).length;
+      diff.deactivates.aliases += countOwnedActiveAliases(
+        omittedModels,
+        payload.source,
+      );
     }
   }
   if (payload.deactivateMissing) {
-    diff.deactivates.makes += existingMakes.filter(
+    const omittedMakes = existingMakes.filter(
       (make) =>
         make.source === payload.source &&
-        make.active &&
         !incomingMakeKeys.has(make.normalizedName),
-    ).length;
+    );
+    diff.deactivates.makes += omittedMakes.filter((make) => make.active).length;
+    for (const make of omittedMakes) {
+      const ownedModels = omittedOwnedModels(make.models, payload.source);
+      diff.deactivates.models += ownedModels.filter(
+        (model) => model.active,
+      ).length;
+      diff.deactivates.aliases += countOwnedActiveAliases(
+        ownedModels,
+        payload.source,
+      );
+    }
   }
 
   return diff;
@@ -599,6 +637,21 @@ export async function applyVehicleCatalogueImport(
           },
           data: { active: false },
         });
+        const omittedModelIds = omittedOwnedModels(
+          existingMakesByKey.get(makeKey)?.models ?? [],
+          payload.source,
+          new Set(incomingModelKeys),
+        ).map((model) => model.id);
+        if (omittedModelIds.length > 0) {
+          await transaction.vehicleModelAlias.updateMany({
+            where: {
+              modelId: { in: omittedModelIds },
+              source: payload.source,
+              active: true,
+            },
+            data: { active: false },
+          });
+        }
       }
     }
     if (newAliases.length > 0) {
@@ -606,6 +659,13 @@ export async function applyVehicleCatalogueImport(
     }
 
     if (payload.deactivateMissing) {
+      const omittedMakeIds = existingMakes
+        .filter(
+          (make) =>
+            make.source === payload.source &&
+            !incomingMakeKeys.includes(make.normalizedName),
+        )
+        .map((make) => make.id);
       await transaction.vehicleMake.updateMany({
         where: {
           source: payload.source,
@@ -614,6 +674,24 @@ export async function applyVehicleCatalogueImport(
         },
         data: { active: false },
       });
+      if (omittedMakeIds.length > 0) {
+        await transaction.vehicleModel.updateMany({
+          where: {
+            makeId: { in: omittedMakeIds },
+            source: payload.source,
+            active: true,
+          },
+          data: { active: false },
+        });
+        await transaction.vehicleModelAlias.updateMany({
+          where: {
+            makeId: { in: omittedMakeIds },
+            source: payload.source,
+            active: true,
+          },
+          data: { active: false },
+        });
+      }
     }
 
     await logAdminAction(

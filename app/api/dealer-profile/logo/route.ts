@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { db } from "@/lib/db";
@@ -23,14 +23,23 @@ function hasTrustedOrigin(request: NextRequest) {
 }
 
 async function getAuthorizedDealer() {
+  let user;
   try {
-    const user = await requireAuth();
-    if (!hasDealerDashboardAccess(user)) return null;
-    if (!(await getCurrentDealerEntitlement(user))) return null;
-    return user;
-  } catch {
-    return null;
+    user = await requireAcceptedAuth();
+  } catch (error) {
+    return { ok: false as const, status: acceptedAuthHttpStatus(error) };
   }
+  if (!hasDealerDashboardAccess(user)) {
+    return { ok: false as const, status: 403 as const };
+  }
+  try {
+    if (!(await getCurrentDealerEntitlement(user))) {
+      return { ok: false as const, status: 403 as const };
+    }
+  } catch {
+    return { ok: false as const, status: 500 as const };
+  }
+  return { ok: true as const, user };
 }
 
 function getOwnedLogoPath(
@@ -79,8 +88,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
 
-  const user = await getAuthorizedDealer();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const authorized = await getAuthorizedDealer();
+  if (!authorized.ok) {
+    return NextResponse.json({ error: "Not authorized" }, { status: authorized.status });
+  }
+  const user = authorized.user;
 
   const rate = checkRateLimit(
     makeRateLimitKey("dealer-logo-upload", user.id),
@@ -176,8 +188,11 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
 
-  const user = await getAuthorizedDealer();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const authorized = await getAuthorizedDealer();
+  if (!authorized.ok) {
+    return NextResponse.json({ error: "Not authorized" }, { status: authorized.status });
+  }
+  const user = authorized.user;
 
   const rate = checkRateLimit(
     makeRateLimitKey("dealer-logo-remove", user.id),

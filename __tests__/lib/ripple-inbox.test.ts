@@ -174,6 +174,21 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     );
   });
 
+  it("AUD-PAY-001 rethrows inbox persist failures so the route can 5xx", async () => {
+    inboxFindUnique.mockResolvedValue(null);
+    inboxCreate.mockRejectedValue(new Error("inbox persist failed"));
+
+    await expect(
+      ingestVerifiedRippleWebhook({
+        rawBody: JSON.stringify({ event: "payment.received" }),
+        event: listingEvent(),
+        minimized,
+        customerEmailNorm: null,
+      }),
+    ).rejects.toThrow("inbox persist failed");
+    expect(processProviderWebhookEvent).not.toHaveBeenCalled();
+  });
+
   it("stores no raw body when persisting a verified event", async () => {
     inboxFindUnique.mockResolvedValue(null);
     inboxCreate.mockResolvedValue({ id: "inbox-3", status: "PENDING" });

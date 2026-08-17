@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createMonitoringFingerprint,
   redactMonitoringPayload,
+  capClientIngestSeverity,
   coerceSeverity,
   maxSeverity,
 } from "@/lib/monitoring";
@@ -77,5 +78,13 @@ describe("monitoring severity helpers", () => {
   it("keeps the higher severity when merging", () => {
     expect(maxSeverity("MEDIUM", "LOW")).toBe("MEDIUM");
     expect(maxSeverity("HIGH", "CRITICAL")).toBe("CRITICAL");
+  });
+
+  it("caps client ingest severity at MEDIUM so HIGH/CRITICAL cannot fire alerts", () => {
+    expect(capClientIngestSeverity("HIGH")).toBe("MEDIUM");
+    expect(capClientIngestSeverity("CRITICAL")).toBe("MEDIUM");
+    expect(capClientIngestSeverity("LOW")).toBe("LOW");
+    expect(capClientIngestSeverity("MEDIUM")).toBe("MEDIUM");
+    expect(capClientIngestSeverity(undefined)).toBeUndefined();
   });
 });

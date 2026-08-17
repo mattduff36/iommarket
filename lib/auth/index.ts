@@ -3,6 +3,22 @@ import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { UserRole } from "@prisma/client";
 
+export class AuthenticationRequiredError extends Error {
+  readonly statusCode = 401 as const;
+  constructor(message = "Authentication required") {
+    super(message);
+    this.name = "AuthenticationRequiredError";
+  }
+}
+
+export class AccountDisabledError extends Error {
+  readonly statusCode = 403 as const;
+  constructor(message = "Account disabled") {
+    super(message);
+    this.name = "AccountDisabledError";
+  }
+}
+
 /**
  * Get the current authenticated user from DB, syncing from Supabase Auth if needed.
  * Returns null if not authenticated or Supabase Auth is not configured.
@@ -108,10 +124,10 @@ export async function syncUser(
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
-    throw new Error("Authentication required");
+    throw new AuthenticationRequiredError();
   }
   if (user.disabledAt) {
-    throw new Error("Account disabled");
+    throw new AccountDisabledError();
   }
   return user;
 }

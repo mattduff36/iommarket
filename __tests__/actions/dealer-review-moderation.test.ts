@@ -144,4 +144,15 @@ describe("dealer review moderation ALR-REV-001", () => {
     );
     expect(invalidateWorkflows).not.toHaveBeenCalled();
   });
+
+  it("AUD-REVIEW-001a refreshes review actions after a successful save", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const source = readFileSync(
+      join(process.cwd(), "app/(admin)/admin/reviews/review-actions.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("useRouter");
+    expect(source).toContain("router.refresh()");
+  });
 });

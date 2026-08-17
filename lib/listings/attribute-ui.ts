@@ -3,6 +3,11 @@ import {
   fuelTypeSchema,
   isEvCompatibleFuelType,
 } from "@/lib/constants/fuel-types";
+import {
+  WRITE_OFF_CATEGORY_SLUG,
+  WRITE_OFF_CATEGORY_VALUES,
+  WRITE_OFF_CONFIG_ERROR,
+} from "@/lib/listings/write-off-category";
 
 export interface ListingAttributeDefinitionLike {
   id: string;
@@ -44,13 +49,50 @@ export function isVehicleCategorySlug(categorySlug: string | undefined): boolean
   return Boolean(categorySlug && VEHICLE_CATEGORY_SLUGS.has(categorySlug));
 }
 
+export type ListingAttributePolicyContext = {
+  enforceListingNs?: boolean;
+};
+
+export function getWriteOffConfigurationError(
+  categorySlug: string | undefined,
+  definitions: ListingAttributeDefinitionLike[],
+  policy?: ListingAttributePolicyContext,
+): string | null {
+  if (!policy?.enforceListingNs || !isVehicleCategorySlug(categorySlug)) {
+    return null;
+  }
+
+  const definition = definitions.find(
+    (candidate) => candidate.slug === WRITE_OFF_CATEGORY_SLUG,
+  );
+  if (!definition) {
+    return WRITE_OFF_CONFIG_ERROR;
+  }
+
+  const options = parseAttributeOptions(definition.options);
+  const hasRequiredOptions = WRITE_OFF_CATEGORY_VALUES.every((value) =>
+    options.includes(value),
+  );
+  if (!hasRequiredOptions) {
+    return WRITE_OFF_CONFIG_ERROR;
+  }
+
+  return null;
+}
+
 export function isListingAttributeRequired(
   categorySlug: string | undefined,
-  attribute: Pick<ListingAttributeDefinitionLike, "required" | "slug">
+  attribute: Pick<ListingAttributeDefinitionLike, "required" | "slug">,
+  policy?: ListingAttributePolicyContext,
 ): boolean {
   return (
     attribute.required ||
-    (isVehicleCategorySlug(categorySlug) && attribute.slug === "mileage")
+    (isVehicleCategorySlug(categorySlug) && attribute.slug === "mileage") ||
+    Boolean(
+      policy?.enforceListingNs &&
+        isVehicleCategorySlug(categorySlug) &&
+        attribute.slug === WRITE_OFF_CATEGORY_SLUG,
+    )
   );
 }
 
@@ -291,10 +333,26 @@ export function validateListingAttributes(params: {
   categorySlug: string | undefined;
   definitions: ListingAttributeDefinitionLike[];
   attributes: ListingAttributeInputLike[];
+  enforceListingNs?: boolean;
 }): {
   fieldErrors: Record<string, string[]>;
   sanitizedAttributes: ListingAttributeInputLike[];
+  configurationError?: string;
 } {
+  const policy = { enforceListingNs: params.enforceListingNs };
+  const configurationError = getWriteOffConfigurationError(
+    params.categorySlug,
+    params.definitions,
+    policy,
+  );
+  if (configurationError) {
+    return {
+      fieldErrors: {},
+      sanitizedAttributes: [],
+      configurationError,
+    };
+  }
+
   const submittedValues = new Map(
     params.attributes.map((attribute) => [
       attribute.attributeDefinitionId,
@@ -319,7 +377,7 @@ export function validateListingAttributes(params: {
     }
 
     if (!rawValue) {
-      if (isListingAttributeRequired(params.categorySlug, definition)) {
+      if (isListingAttributeRequired(params.categorySlug, definition, policy)) {
         fieldErrors[fieldName] = [`${definition.name} is required.`];
       }
       continue;

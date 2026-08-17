@@ -50,6 +50,25 @@ describe("MON-PRIVACY-001 monitoring redaction", () => {
     expect(redacted).not.toContain("tok_123");
   });
 
+  it("redacts Basic, Token, and Digest authorization scheme plus secret value", () => {
+    const basic = redactFreeText("Authorization: Basic dXNlcjpwYXNz");
+    expect(basic).toMatch(/authorization=\[redacted\]/i);
+    expect(basic).not.toContain("dXNlcjpwYXNz");
+    expect(basic).not.toMatch(/Basic\s+dXNlcjpwYXNz/i);
+
+    const token = redactFreeText("Authorization: Token tok_secret_abc");
+    expect(token).toMatch(/authorization=\[redacted\]/i);
+    expect(token).not.toContain("tok_secret_abc");
+    expect(token).not.toMatch(/Token\s+tok_secret_abc/i);
+
+    const digest = redactFreeText(
+      'Authorization: Digest username="user", realm="api", response="deadbeefsecret"',
+    );
+    expect(digest).toMatch(/authorization=\[redacted\]/i);
+    expect(digest).not.toContain("deadbeefsecret");
+    expect(digest).not.toContain('response="deadbeefsecret"');
+  });
+
   it("redacts stacks, paths, tags, extra fields, and console-like args", () => {
     const stack = redactStack(
       "Error: boom for bob@example.com\n    at run (https://app.example/x?token=abc)",

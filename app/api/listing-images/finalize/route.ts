@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuth } from "@/lib/auth";
+import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { finalizeListingImageUploadIntent } from "@/lib/listings/photo-upload";
-import { expireAbandonedListingImageIntents, processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
+import { processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import { captureException } from "@/lib/monitoring";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 
@@ -21,6 +21,21 @@ function hasTrustedOrigin(request: NextRequest) {
   return origin === request.nextUrl.origin;
 }
 
+async function runCleanupWithoutFailingFinalize(userId: string) {
+  try {
+    await processListingImageCleanupJobs();
+  } catch (cleanupError) {
+    await captureException({
+      source: "SERVER",
+      error: cleanupError,
+      action: "processListingImageCleanupJobs",
+      route: "/api/listing-images/finalize",
+      requestPath: "/api/listing-images/finalize",
+      userId,
+    });
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!hasTrustedOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
@@ -28,9 +43,12 @@ export async function POST(request: NextRequest) {
 
   let user;
   try {
-    user = await requireAuth();
-  } catch {
-    return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+    user = await requireAcceptedAuth();
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Not authorized" },
+      { status: acceptedAuthHttpStatus(error) },
+    );
   }
 
   const rate = checkRateLimit(makeRateLimitKey("listing-image-finalize", user.id), {
@@ -62,13 +80,12 @@ export async function POST(request: NextRequest) {
       version: parsed.data.version == null ? undefined : String(parsed.data.version),
     });
     if (result.error || !result.data) {
-      await processListingImageCleanupJobs();
+      await runCleanupWithoutFailingFinalize(user.id);
       return NextResponse.json({ error: result.error ?? "Could not verify the uploaded image." }, { status: 400 });
     }
 
     const verified = result.data;
-    await expireAbandonedListingImageIntents();
-    await processListingImageCleanupJobs();
+    await runCleanupWithoutFailingFinalize(user.id);
 
     return NextResponse.json(
       {

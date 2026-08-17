@@ -9,6 +9,11 @@ import {
   getCurrentDealerEntitlement,
   hasDealerAccountAccess,
 } from "@/lib/dealers/entitlement";
+import {
+  detachListingDealerIdIfNeeded,
+  effectiveListingDealerId,
+  runWithDealerDetach,
+} from "@/lib/listings/submit-dealer-access";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
   createListingSchema,
@@ -16,7 +21,6 @@ import {
   reportListingSchema,
   contactSellerSchema,
   submitListingForReviewSchema,
-  syncListingImagesActionSchema,
   withdrawListingSubmissionSchema,
   type CreateListingInput,
   type ContactSellerInput,
@@ -27,7 +31,6 @@ import {
   sendReportNotificationEmail,
   sendSellerContactEmail,
 } from "@/lib/email/resend";
-import { validateListingAttributes } from "@/lib/listings/attribute-ui";
 import {
   captureBusinessEvent,
   captureException,
@@ -49,13 +52,15 @@ import {
   updateDraftRevision,
 } from "@/lib/listings/revisions";
 import { isInPlaceEditable, usesPendingRevision } from "@/lib/listings/visibility";
-import { expireAbandonedListingImageIntents, processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 import {
-  syncListingImagesForUser,
   type ListingPhotoMutationItem,
   type SyncListingImagesInput,
 } from "@/lib/listings/photo-mutation";
+import {
+  runSaveListingImagesAction,
+  runSyncListingImagesAction,
+} from "@/lib/listings/sync-images-action";
 import { claimFreeListingSlot } from "@/lib/config/marketplace";
 import { validateVehicleCatalogueSubmission } from "@/lib/vehicle-catalogue/listing-validation";
 
@@ -178,11 +183,17 @@ export async function createListing(input: CreateListingInput) {
     return { error: { regionId: ["Invalid or inactive region."] } };
   }
 
-  const attributeValidation = validateListingAttributes({
+  const { validateListingAttributesWithServerPolicy } = await import(
+    "@/lib/listings/listing-ns-policy"
+  );
+  const attributeValidation = validateListingAttributesWithServerPolicy({
     categorySlug: category.slug,
     definitions: category.attributeDefinitions,
     attributes,
   });
+  if (attributeValidation.configurationError) {
+    return { error: attributeValidation.configurationError };
+  }
   if (Object.keys(attributeValidation.fieldErrors).length > 0) {
     return { error: attributeValidation.fieldErrors };
   }
@@ -306,11 +317,17 @@ export async function updateListing(input: unknown) {
     }
 
     if (attributes !== undefined) {
-      const attributeValidation = validateListingAttributes({
+      const { validateListingAttributesWithServerPolicy } = await import(
+        "@/lib/listings/listing-ns-policy"
+      );
+      const attributeValidation = validateListingAttributesWithServerPolicy({
         categorySlug: category.slug,
         definitions: category.attributeDefinitions,
         attributes,
       });
+      if (attributeValidation.configurationError) {
+        return { error: attributeValidation.configurationError };
+      }
 
       if (Object.keys(attributeValidation.fieldErrors).length > 0) {
         return { error: attributeValidation.fieldErrors };
@@ -437,36 +454,23 @@ export async function submitListingForReview(
   if (listing.userId !== user.id) return { error: "Not authorized" };
   const { getPolicyFlags } = await import("@/lib/policy/flags");
   const policyFlags = getPolicyFlags();
-  if (policyFlags.enforceListingNs) {
-    const { isWriteOffCategoryValue, WRITE_OFF_SUBMIT_ERROR } = await import(
-      "@/lib/listings/write-off-category"
-    );
-    const writeOff =
-      listing.status === "LIVE"
-        ? await db.listingRevisionAttributeValue.findFirst({
-            where: {
-              revision: { listingId, status: { in: ["DRAFT", "PENDING"] } },
-              attributeDefinition: { slug: "write-off-category" },
-            },
-            select: { value: true },
-          })
-        : await db.listingAttributeValue.findFirst({
-            where: {
-              listingId,
-              attributeDefinition: { slug: "write-off-category" },
-            },
-            select: { value: true },
-          });
-    if (!isWriteOffCategoryValue(writeOff?.value)) {
-      return { error: WRITE_OFF_SUBMIT_ERROR };
-    }
+  const { getListingWriteOffReadiness } = await import(
+    "@/lib/listings/listing-ns-policy"
+  );
+  const writeOffReadiness = await getListingWriteOffReadiness({
+    listingId,
+    listingStatus: listing.status,
+  });
+  if (!writeOffReadiness.ok) {
+    return { error: writeOffReadiness.error };
   }
   const {
     hasCurrentBundleAcceptance,
     recordAcceptance,
     requireBundleAcceptance,
   } = await import("@/lib/policy/acceptance");
-  if (listing.dealerId) {
+  const effectiveDealerId = effectiveListingDealerId(user, listing);
+  if (effectiveDealerId) {
     const dealerGate = await requireBundleAcceptance(user.id, "DEALER_BUNDLE");
     if (!dealerGate.ok) return { error: dealerGate.error };
   } else if (privateSellerTermsAccepted === true) {
@@ -530,6 +534,7 @@ export async function submitListingForReview(
         userId: user.id,
         expectedListingRevision: listing.lifecycleRevision,
         expectedVersion: openRevision.version,
+        seller: user,
       });
       revalidatePath(`/listings/${listingId}`);
       revalidatePath("/admin/listings");
@@ -569,9 +574,9 @@ export async function submitListingForReview(
     return { error: LISTING_DECLARATION_ERROR };
   }
 
-  if (listing.dealerId && listing.dealer) {
+  if (effectiveDealerId && listing.dealer) {
     const entitlement = await getDealerEntitlement(
-      listing.dealerId,
+      effectiveDealerId,
       listing.dealer.tier
     );
     if (!entitlement) {
@@ -585,14 +590,14 @@ export async function submitListingForReview(
     const skip = await canSkipListingPayment(db, {
       listingId,
       userId: user.id,
-      dealerId: listing.dealerId,
+      dealerId: effectiveDealerId,
     });
     if (!skip.skip) {
       return { error: "Payment is required before this listing can be resubmitted." };
     }
   }
 
-  if (!listing.dealerId && listing.status === "DRAFT") {
+  if (!effectiveDealerId && listing.status === "DRAFT") {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
     );
@@ -652,7 +657,7 @@ export async function submitListingForReview(
               if (
                 !currentListing ||
                 currentListing.userId !== user.id ||
-                currentListing.dealerId ||
+                (currentListing.dealerId && hasDealerAccountAccess(user)) ||
                 currentListing.status !== "DRAFT" ||
                 !currentListing.trustDeclarationAccepted ||
                 imageCount < 2
@@ -661,6 +666,12 @@ export async function submitListingForReview(
                   "This listing changed before it could be submitted. Please refresh and try again.",
                 );
               }
+              await detachListingDealerIdIfNeeded(
+                transaction,
+                listingId,
+                user,
+                currentListing,
+              );
               if (
                 currentListing.expiresAt &&
                 currentListing.expiresAt.getTime() <= Date.now()
@@ -742,13 +753,25 @@ export async function submitListingForReview(
   }
 
   try {
-    const updated = await transitionListingStatus({
+    const submitPayload = {
       listingId,
-      action: "SUBMIT",
+      action: "SUBMIT" as const,
       expectedRevision: listing.lifecycleRevision,
-      actor: { id: user.id, role: user.role === "ADMIN" ? "ADMIN" : "USER" },
-      source: "USER",
+      actor: {
+        id: user.id,
+        role: user.role === "ADMIN" ? ("ADMIN" as const) : ("USER" as const),
+      },
+      source: "USER" as const,
       notes: "Submitted for moderation",
+    };
+    const updated = await runWithDealerDetach(db, {
+      listingId,
+      user,
+      listing,
+      submit: (client) =>
+        client
+          ? transitionListingStatus(submitPayload, client)
+          : transitionListingStatus(submitPayload),
     });
 
     revalidatePath(`/listings/${listingId}`);
@@ -1098,76 +1121,12 @@ export async function markListingAsSold(listingId: string) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Sync listing photos (ordered set, revision-checked)
-// ---------------------------------------------------------------------------
-
-function hasUnexpectedPhotoSyncContractDrift(
-  issues: Array<{ code: string }>,
-) {
-  return issues.some(
-    (issue) => issue.code === "invalid_type" || issue.code === "unrecognized_keys",
-  );
-}
-
 export async function syncListingImages(
   listingId: string,
   input: SyncListingImagesInput,
 ) {
   const user = await requireAcceptedAuth();
-  const parsed = syncListingImagesActionSchema.safeParse({ listingId, input });
-  if (!parsed.success) {
-    if (hasUnexpectedPhotoSyncContractDrift(parsed.error.issues)) {
-      await captureBusinessEvent({
-        source: "BUSINESS",
-        severity: "LOW",
-        title: "Listing photo client contract drift",
-        message: "The listing photo action received a payload that does not match its schema.",
-        action: "syncListingImages",
-        route: "/account/listings",
-        requestPath: "/account/listings",
-        userId: user.id,
-        userEmail: user.email,
-        tags: {
-          issueCodes: [...new Set(parsed.error.issues.map((issue) => issue.code))].join(","),
-          issueCount: parsed.error.issues.length,
-        },
-      });
-    }
-    return { error: "Invalid photo update." };
-  }
-  const validated = parsed.data;
-
-  try {
-    const result = await syncListingImagesForUser({
-      listingId: validated.listingId,
-      userId: user.id,
-      isAdmin: user.role === "ADMIN",
-      input: validated.input,
-    });
-    if (result.error) return result;
-
-    await expireAbandonedListingImageIntents();
-    await processListingImageCleanupJobs();
-
-    revalidatePath(`/listings/${validated.listingId}`);
-    revalidatePath("/account/listings");
-    revalidatePath("/dealer/dashboard");
-    return result;
-  } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
-      action: "syncListingImages",
-      route: `/listings/${validated.listingId}`,
-      requestPath: `/listings/${validated.listingId}`,
-      userId: user.id,
-      userEmail: user.email,
-      tags: { listingId: validated.listingId, imageCount: validated.input.photos.length },
-    });
-    const message = err instanceof Error ? err.message : "Failed to update images";
-    return { error: message };
-  }
+  return runSyncListingImagesAction(user, listingId, input);
 }
 
 export async function saveListingImages(
@@ -1175,7 +1134,8 @@ export async function saveListingImages(
   photos: ListingPhotoMutationItem[],
   input: Omit<SyncListingImagesInput, "photos">,
 ) {
-  return syncListingImages(listingId, { ...input, photos });
+  const user = await requireAcceptedAuth();
+  return runSaveListingImagesAction(user, listingId, photos, input);
 }
 
 export async function replaceListingImages(

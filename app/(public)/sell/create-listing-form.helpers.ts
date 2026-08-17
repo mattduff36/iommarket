@@ -1,5 +1,7 @@
 import { isAttributeVisible } from "@/lib/listings/attribute-ui";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
+import { normalizeCatalogueName } from "@/lib/vehicle-catalogue/normalize";
+import type { VehicleCatalogueSelection } from "./vehicle-catalogue-fields";
 
 export const REGISTRATION_LOOKUP_CATEGORY_SLUGS = new Set([
   "car",
@@ -128,4 +130,52 @@ export function pruneHiddenAttributes<T extends { id: string; slug: string }>(
   }
 
   return nextValues;
+}
+
+export function defendVehicleCatalogueSelection({
+  selection,
+  definitions,
+  attributes,
+}: {
+  selection: VehicleCatalogueSelection;
+  definitions: Array<{ id: string; slug: string }>;
+  attributes: Array<{ attributeDefinitionId: string; value: string }>;
+}): VehicleCatalogueSelection {
+  const valuesById = new Map(
+    attributes.map((attribute) => [
+      attribute.attributeDefinitionId,
+      attribute.value,
+    ]),
+  );
+  const makeValue =
+    valuesById.get(definitions.find((definition) => definition.slug === "make")?.id ?? "") ??
+    "";
+  const modelValue =
+    valuesById.get(definitions.find((definition) => definition.slug === "model")?.id ?? "") ??
+    "";
+  const makeIsCatalogueBacked =
+    selection.makeMode === "catalogue" &&
+    Boolean(selection.canonicalMake) &&
+    normalizeCatalogueName(makeValue) ===
+      normalizeCatalogueName(selection.canonicalMake ?? "");
+
+  if (!makeIsCatalogueBacked) {
+    return { makeMode: "manual", modelMode: "manual" };
+  }
+
+  const expectedModel = [selection.canonicalModel, selection.variant]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" ");
+  const modelIsCatalogueBacked =
+    selection.modelMode === "catalogue" &&
+    Boolean(selection.canonicalModel) &&
+    normalizeCatalogueName(modelValue) === normalizeCatalogueName(expectedModel);
+
+  return modelIsCatalogueBacked
+    ? selection
+    : {
+        makeMode: "catalogue",
+        modelMode: "manual",
+        canonicalMake: selection.canonicalMake,
+      };
 }

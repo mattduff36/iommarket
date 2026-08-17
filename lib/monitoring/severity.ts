@@ -36,3 +36,10 @@ export function coerceSeverity(
 ): MonitoringSeverity {
   return severity ?? defaultSeverityForSource(source);
 }
+
+export function capClientIngestSeverity(
+  severity: MonitoringSeverity | undefined,
+): MonitoringSeverity | undefined {
+  if (!severity) return undefined;
+  return RANK[severity] > RANK.MEDIUM ? "MEDIUM" : severity;
+}

@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { AuthenticationRequiredError } from "@/lib/auth";
+import {
+  PolicyAcceptanceRequiredError,
+  PolicyAcceptanceVerificationError,
+} from "@/lib/policy/gate";
 
 const {
   requireAuthMock,
+  requireAcceptedAuthMock,
   getCurrentDealerEntitlementMock,
   uploadMock,
   removeMock,
@@ -11,6 +17,7 @@ const {
   storageFromMock,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
+  requireAcceptedAuthMock: vi.fn(),
   getCurrentDealerEntitlementMock: vi.fn(),
   uploadMock: vi.fn(),
   removeMock: vi.fn(),
@@ -19,9 +26,23 @@ const {
   storageFromMock: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  requireAuth: requireAuthMock,
-}));
+vi.mock("@/lib/auth", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/auth")>("@/lib/auth");
+  return {
+    ...actual,
+    requireAuth: requireAuthMock,
+  };
+});
+
+vi.mock("@/lib/policy/gate", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/policy/gate")>(
+    "@/lib/policy/gate",
+  );
+  return {
+    ...actual,
+    requireAcceptedAuth: requireAcceptedAuthMock,
+  };
+});
 
 vi.mock("@/lib/dealers/entitlement", () => ({
   getCurrentDealerEntitlement: getCurrentDealerEntitlementMock,
@@ -86,7 +107,7 @@ describe("dealer logo upload route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://project.supabase.co";
-    requireAuthMock.mockResolvedValue({
+    const acceptedDealer = {
       id: "user_123",
       authUserId: "11111111-1111-1111-1111-111111111111",
       role: "DEALER",
@@ -94,7 +115,9 @@ describe("dealer logo upload route", () => {
         id: "cmdealerprofile123",
         logoUrl: null,
       },
-    });
+    };
+    requireAuthMock.mockResolvedValue(acceptedDealer);
+    requireAcceptedAuthMock.mockResolvedValue(acceptedDealer);
     getCurrentDealerEntitlementMock.mockResolvedValue({
       subscriptionId: "grant_123",
       source: "ADMIN_GRANT",
@@ -146,7 +169,18 @@ describe("dealer logo upload route", () => {
   });
 
   it("denies an unauthenticated upload", async () => {
-    requireAuthMock.mockRejectedValue(new Error("Authentication required"));
+    requireAuthMock.mockRejectedValue(new AuthenticationRequiredError());
+    requireAcceptedAuthMock.mockRejectedValue(new AuthenticationRequiredError());
+    const { POST } = await import("@/app/api/dealer-profile/logo/route");
+    const response = await POST(createLogoRequest());
+
+    expect(response.status).toBe(401);
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(dealerProfileUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("denies a non-accepted session and does not upload a logo", async () => {
+    requireAcceptedAuthMock.mockRejectedValue(new PolicyAcceptanceRequiredError());
     const { POST } = await import("@/app/api/dealer-profile/logo/route");
     const response = await POST(createLogoRequest());
 
@@ -155,8 +189,20 @@ describe("dealer logo upload route", () => {
     expect(dealerProfileUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("returns 500 when dealer logo auth verification fails", async () => {
+    requireAcceptedAuthMock.mockRejectedValue(
+      new PolicyAcceptanceVerificationError(),
+    );
+    const { POST } = await import("@/app/api/dealer-profile/logo/route");
+    const response = await POST(createLogoRequest());
+
+    expect(response.status).toBe(500);
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(dealerProfileUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("never deletes a previous logo path owned by another account", async () => {
-    requireAuthMock.mockResolvedValue({
+    const foreignLogoDealer = {
       id: "user_123",
       authUserId: "11111111-1111-1111-1111-111111111111",
       role: "DEALER",
@@ -167,7 +213,9 @@ describe("dealer logo upload route", () => {
           "22222222-2222-2222-2222-222222222222/dealer-logos/" +
           "cmdealerprofile123/other-logo.png",
       },
-    });
+    };
+    requireAuthMock.mockResolvedValue(foreignLogoDealer);
+    requireAcceptedAuthMock.mockResolvedValue(foreignLogoDealer);
     const { POST } = await import("@/app/api/dealer-profile/logo/route");
     await POST(createLogoRequest());
 

@@ -152,6 +152,7 @@ export async function requireBundleAcceptance(
     if (!accepted) {
       return {
         ok: false as const,
+        reason: "required" as const,
         error: "Current policy acceptance is required for this action.",
       };
     }
@@ -159,6 +160,7 @@ export async function requireBundleAcceptance(
   } catch {
     return {
       ok: false as const,
+      reason: "verification_failed" as const,
       error: "Unable to verify policy acceptance.",
     };
   }
@@ -172,6 +174,7 @@ export async function requireAccountAcceptance(userId: string) {
     if (!accepted) {
       return {
         ok: false as const,
+        reason: "required" as const,
         redirectTo: ACCEPTANCE_REQUIRED_REDIRECT,
         error: "Current policy acceptance is required.",
       };
@@ -180,6 +183,7 @@ export async function requireAccountAcceptance(userId: string) {
   } catch {
     return {
       ok: false as const,
+      reason: "verification_failed" as const,
       redirectTo: ACCEPTANCE_REQUIRED_REDIRECT,
       error: "Unable to verify policy acceptance.",
     };

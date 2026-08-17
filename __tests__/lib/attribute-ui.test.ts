@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   getAttributeFieldConfig,
+  isListingAttributeRequired,
   parseAttributeOptions,
   validateListingAttributes,
 } from "@/lib/listings/attribute-ui";
+import { WRITE_OFF_CONFIG_ERROR } from "@/lib/listings/listing-ns-policy";
+import { groupWriteOffWithVehicleDetails } from "@/lib/listings/listing-ns-ui";
 import { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
 
 const makeDef = {
@@ -58,6 +61,15 @@ const locationDef = {
   dataType: "select",
   required: false,
   options: JSON.stringify(["Isle of Man", "UK"]),
+};
+
+const writeOffDef = {
+  id: "clwriteoff12345678901234",
+  name: "Insurance write-off category",
+  slug: "write-off-category",
+  dataType: "select",
+  required: false,
+  options: JSON.stringify(["None", "Category N", "Category S"]),
 };
 
 describe("parseAttributeOptions", () => {
@@ -201,5 +213,116 @@ describe("validateListingAttributes", () => {
 
     expect(result.fieldErrors[`attr-${makeDef.id}`]).toEqual(["Make is required."]);
     expect(result.fieldErrors[`attr-${modelDef.id}`]).toEqual(["Model is required."]);
+  });
+
+  it("LST-VAL-001 does not require seed-optional write-off when enforcement is off", () => {
+    expect(
+      isListingAttributeRequired("car", writeOffDef, { enforceListingNs: false }),
+    ).toBe(false);
+
+    const result = validateListingAttributes({
+      categorySlug: "car",
+      definitions: [...definitions, writeOffDef],
+      attributes: [
+        { attributeDefinitionId: makeDef.id, value: "BMW" },
+        { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
+      ],
+      enforceListingNs: false,
+    });
+
+    expect(result.fieldErrors[`attr-${writeOffDef.id}`]).toBeUndefined();
+    expect(result.configurationError).toBeUndefined();
+  });
+
+  it("LST-VAL-001 LST-WRITEOFF-001 requires write-off as attr-<id> when enforcement is on", () => {
+    expect(
+      isListingAttributeRequired("car", writeOffDef, { enforceListingNs: true }),
+    ).toBe(true);
+
+    const result = validateListingAttributes({
+      categorySlug: "car",
+      definitions: [...definitions, writeOffDef],
+      attributes: [
+        { attributeDefinitionId: makeDef.id, value: "BMW" },
+        { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
+      ],
+      enforceListingNs: true,
+    });
+
+    expect(result.fieldErrors[`attr-${writeOffDef.id}`]).toEqual([
+      "Insurance write-off category is required.",
+    ]);
+  });
+
+  it("LST-WRITEOFF-001 yields attr-<id> for an invalid write-off when enforcement is on", () => {
+    const result = validateListingAttributes({
+      categorySlug: "car",
+      definitions: [...definitions, writeOffDef],
+      attributes: [
+        { attributeDefinitionId: makeDef.id, value: "BMW" },
+        { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
+        { attributeDefinitionId: writeOffDef.id, value: "Category A" },
+      ],
+      enforceListingNs: true,
+    });
+
+    expect(result.fieldErrors[`attr-${writeOffDef.id}`]).toEqual([
+      "Please choose a valid insurance write-off category.",
+    ]);
+  });
+
+  it("LST-WRITEOFF-001 fails closed when a vehicle category lacks the write-off definition", () => {
+    const result = validateListingAttributes({
+      categorySlug: "car",
+      definitions,
+      attributes: [
+        { attributeDefinitionId: makeDef.id, value: "BMW" },
+        { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
+      ],
+      enforceListingNs: true,
+    });
+
+    expect(result.configurationError).toBe(WRITE_OFF_CONFIG_ERROR);
+    expect(result.fieldErrors).toEqual({});
+    expect(result.sanitizedAttributes).toEqual([]);
+  });
+
+  it("LST-WRITEOFF-001 fails closed when write-off options are missing", () => {
+    const result = validateListingAttributes({
+      categorySlug: "car",
+      definitions: [...definitions, { ...writeOffDef, options: null }],
+      attributes: [
+        { attributeDefinitionId: makeDef.id, value: "BMW" },
+        { attributeDefinitionId: modelDef.id, value: "320d" },
+        { attributeDefinitionId: mileageDef.id, value: "45000" },
+      ],
+      enforceListingNs: true,
+    });
+
+    expect(result.configurationError).toBe(WRITE_OFF_CONFIG_ERROR);
+  });
+
+  it("LST-WRITEOFF-001 groups write-off after mileage and fuel", () => {
+    const ordered = groupWriteOffWithVehicleDetails([
+      { slug: "make" },
+      { slug: "write-off-category" },
+      { slug: "fuel-type" },
+      { slug: "colour" },
+      { slug: "mileage" },
+      { slug: "engine-size" },
+    ]);
+
+    expect(ordered.map((item) => item.slug)).toEqual([
+      "make",
+      "fuel-type",
+      "colour",
+      "mileage",
+      "write-off-category",
+      "engine-size",
+    ]);
   });
 });

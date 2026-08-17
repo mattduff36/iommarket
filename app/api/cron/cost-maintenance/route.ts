@@ -9,6 +9,12 @@ export const dynamic = "force-dynamic";
 // The Vercel FOCUS billing endpoint streams slowly and is retried up to three times.
 export const maxDuration = 180;
 
+function syncStatusCode(status: "skipped" | "locked" | "succeeded" | "failed"): number {
+  if (status === "failed") return 502;
+  if (status === "locked") return 409;
+  return 200;
+}
+
 export async function GET(request: NextRequest) {
   if (!isCronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 401 });
@@ -23,10 +29,13 @@ export async function GET(request: NextRequest) {
     eventId: `cron:${new Date().toISOString().slice(0, 10)}`,
   });
   const emails = await retryPendingCostEmails();
-  return NextResponse.json({
-    data: {
-      sync,
-      emails,
+  return NextResponse.json(
+    {
+      data: {
+        sync,
+        emails,
+      },
     },
-  });
+    { status: syncStatusCode(sync.status) },
+  );
 }

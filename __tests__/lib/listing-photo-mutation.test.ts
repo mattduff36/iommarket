@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   listingFindUnique,
   listingUpdate,
+  listingRevisionFindUnique,
   listingImageFindMany,
   listingImageUpdate,
   listingImageCreate,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   listingFindUnique: vi.fn(),
   listingUpdate: vi.fn(),
+  listingRevisionFindUnique: vi.fn(),
   listingImageFindMany: vi.fn(),
   listingImageUpdate: vi.fn(),
   listingImageCreate: vi.fn(),
@@ -29,6 +31,9 @@ vi.mock("@/lib/db", () => ({
     listing: {
       findUnique: listingFindUnique,
       update: listingUpdate,
+    },
+    listingRevision: {
+      findUnique: listingRevisionFindUnique,
     },
     listingImage: {
       findMany: listingImageFindMany,
@@ -53,6 +58,7 @@ vi.mock("@/lib/images/cloudinary-url", () => ({
 }));
 
 import { hashPhotoMutation, syncListingImagesForUser } from "@/lib/listings/photo-mutation";
+import { PRIVATE_LISTING_PHOTO_LIMIT } from "@/lib/listings/photo-limits";
 
 const existingImage = {
   id: "img-1",
@@ -268,6 +274,66 @@ describe("listing photo mutation", () => {
     ).resolves.toEqual({ error });
   });
 
+  it("LST-PHOTO-CAS-001 returns structured conflict on the draft path", async () => {
+    listingFindUnique.mockResolvedValue(listing({ photoRevision: 11 }));
+    await expect(
+      syncListingImagesForUser({
+        listingId: "listing-1",
+        userId: "user-1",
+        isAdmin: false,
+        input: {
+          photos: [{ imageId: "img-1" }],
+          basePhotoRevision: 3,
+          mutationId: "mut-draft-conflict",
+        },
+      }),
+    ).resolves.toEqual({
+      error: "These photos were updated elsewhere. Reload and try again.",
+      conflict: true,
+      photoRevision: 11,
+    });
+  });
+
+  it("LST-PHOTO-CAS-001 returns structured conflict on the revision path", async () => {
+    const { syncRevisionImagesForUser } = await import(
+      "@/lib/listings/revision-photos"
+    );
+    listingFindUnique.mockResolvedValue({
+      id: "listing-1",
+      userId: "user-1",
+      dealerId: null,
+      featured: false,
+      lastPhotoMutationId: null,
+      lastPhotoMutationHash: null,
+      lifecycleRevision: 5,
+    });
+    listingRevisionFindUnique.mockResolvedValue({
+      id: "revision-1",
+      listingId: "listing-1",
+      status: "DRAFT",
+      version: 7,
+      images: [{ id: "img-1" }],
+    });
+
+    await expect(
+      syncRevisionImagesForUser({
+        listingId: "listing-1",
+        userId: "user-1",
+        revisionId: "revision-1",
+        expectedListingRevision: 5,
+        photos: {
+          photos: [{ imageId: "img-1" }],
+          basePhotoRevision: 2,
+          mutationId: "mut-revision-conflict",
+        },
+      }),
+    ).resolves.toEqual({
+      error: "These photos were updated elsewhere. Reload and try again.",
+      conflict: true,
+      photoRevision: 7,
+    });
+  });
+
   it("PHOTO-ORDER-CONCURRENCY-001 reports the winning revision when commit-time CAS loses", async () => {
     listingFindUnique
       .mockResolvedValueOnce(listing())
@@ -346,6 +412,86 @@ describe("listing photo mutation", () => {
       error: "This upload is no longer available.",
     });
     expect(listingImageCreate).not.toHaveBeenCalled();
+  });
+
+  it("applies the private photo limit to a demoted seller draft", async () => {
+    listingFindUnique.mockResolvedValue(
+      listing({
+        dealerId: "dealer-1",
+        featured: false,
+        user: {
+          role: "USER",
+          dealerProfile: { id: "dealer-1", tier: "STARTER" },
+        },
+      }),
+    );
+    const photos = Array.from(
+      { length: PRIVATE_LISTING_PHOTO_LIMIT + 1 },
+      (_, index) => ({ imageId: `img-${index}` }),
+    );
+
+    await expect(
+      syncListingImagesForUser({
+        listingId: "listing-1",
+        userId: "user-1",
+        isAdmin: false,
+        input: {
+          photos,
+          basePhotoRevision: 3,
+          mutationId: "mut-demoted-draft",
+        },
+      }),
+    ).resolves.toEqual({
+      error: `Maximum ${PRIVATE_LISTING_PHOTO_LIMIT} images allowed`,
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("applies the private photo limit to a demoted seller revision", async () => {
+    const { syncRevisionImagesForUser } = await import(
+      "@/lib/listings/revision-photos"
+    );
+    listingFindUnique.mockResolvedValue({
+      id: "listing-1",
+      userId: "user-1",
+      dealerId: "dealer-1",
+      featured: false,
+      lastPhotoMutationId: null,
+      lastPhotoMutationHash: null,
+      lifecycleRevision: 5,
+      user: {
+        role: "USER",
+        dealerProfile: { id: "dealer-1", tier: "STARTER" },
+      },
+    });
+    listingRevisionFindUnique.mockResolvedValue({
+      id: "revision-1",
+      listingId: "listing-1",
+      status: "DRAFT",
+      version: 2,
+      images: [{ id: "img-1" }],
+    });
+    const photos = Array.from(
+      { length: PRIVATE_LISTING_PHOTO_LIMIT + 1 },
+      (_, index) => ({ imageId: `img-${index}` }),
+    );
+
+    await expect(
+      syncRevisionImagesForUser({
+        listingId: "listing-1",
+        userId: "user-1",
+        revisionId: "revision-1",
+        expectedListingRevision: 5,
+        photos: {
+          photos,
+          basePhotoRevision: 2,
+          mutationId: "mut-demoted-revision",
+        },
+      }),
+    ).resolves.toEqual({
+      error: `Maximum ${PRIVATE_LISTING_PHOTO_LIMIT} images allowed`,
+    });
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("PHOTO-TRUST-001 rejects foreign or unverified uploads", async () => {

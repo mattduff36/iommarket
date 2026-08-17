@@ -118,8 +118,41 @@ describe("PHOTO-TRUST-001 listing upload finalization", () => {
         status: "VERIFIED",
         assetId: "asset-1",
         version: "99",
+        expiresAt: expect.any(Date),
       }),
     });
+  });
+
+  it("extends expiresAt on verify so VERIFIED is not bound to issue-time TTL", async () => {
+    getCloudinaryResource.mockResolvedValue({
+      assetId: "asset-1",
+      publicId: issuedIntent.publicId,
+      version: "99",
+      width: 1600,
+      height: 1000,
+      format: "jpg",
+      bytes: 12345,
+      resourceType: "image",
+      type: "private",
+    });
+
+    await expect(
+      finalizeListingImageUploadIntent({
+        userId: "user-1",
+        intentId: "intent-1",
+        publicId: issuedIntent.publicId,
+        assetId: "asset-1",
+        version: "99",
+      }),
+    ).resolves.toMatchObject({ data: { status: "VERIFIED" } });
+
+    const verifiedUpdate = intentUpdateMany.mock.calls.find(
+      (call) => call[0]?.data?.status === "VERIFIED",
+    );
+    expect(verifiedUpdate?.[0]?.data?.expiresAt).toBeInstanceOf(Date);
+    expect(verifiedUpdate?.[0]?.data?.expiresAt.getTime()).toBeGreaterThan(
+      issuedIntent.expiresAt.getTime(),
+    );
   });
 
   it("treats a lost finalize race as already verified when another request won", async () => {

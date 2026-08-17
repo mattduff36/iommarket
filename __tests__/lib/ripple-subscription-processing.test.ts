@@ -256,4 +256,57 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
       ),
     ).rejects.toThrow("subscription charge collision");
   });
+
+  it("AUD-LIFE-001b does not restore DEALER after admin demotion on ACTIVE renewal", async () => {
+    const existing = {
+      id: "sub-1",
+      dealerId: "dealer-1",
+      providerSubscriptionId: "synthetic-1",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-10-15T10:15:27.000Z"),
+      lastProviderEventAt: new Date("2026-09-15T10:15:27.000Z"),
+      lastProviderEventType: "payment.succeeded",
+      lastProviderEventFingerprint: "older-fingerprint",
+    };
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(existing);
+    subscriptionUpdate.mockResolvedValue({
+      ...existing,
+      lastProviderEventFingerprint: "renewal-fingerprint",
+    });
+    (
+      db.dealerProfile as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue({
+      userId: "user-1",
+      user: { role: "USER" },
+    });
+
+    await processProviderWebhookEvent(
+      renewalEvent({
+        fingerprint: "demotion-renewal-fingerprint",
+        eventTimestamp: new Date("2026-10-15T10:15:27.000Z"),
+      }),
+    );
+
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it("AUD-LIFE-001b still grants DEALER on explicit first activation", async () => {
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(null);
+    (
+      db.dealerProfile as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue({
+      userId: "user-1",
+      user: { role: "USER" },
+    });
+
+    await processProviderWebhookEvent(renewalEvent());
+
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { role: "DEALER" },
+    });
+  });
 });

@@ -11,6 +11,7 @@ import { resolveRippleProduct } from "@/lib/payments/ripple-mapping";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import { decideProviderEventApplication } from "@/lib/payments/webhook-ordering";
 import { hasCurrentBundleAcceptance } from "@/lib/policy/acceptance";
+import { getPolicyFlags } from "@/lib/policy/flags";
 
 type PaymentDb = Prisma.TransactionClient | typeof db;
 
@@ -110,6 +111,7 @@ export async function submitPaidListingForReview(
 
   if (
     !listing.dealerId &&
+    getPolicyFlags().enforceAcceptance &&
     !(await hasCurrentBundleAcceptance(
       listing.userId,
       "LISTING_BUNDLE",
@@ -122,6 +124,32 @@ export async function submitPaidListingForReview(
       title: "Paid private listing missing policy acceptance",
       message:
         "Provider payment succeeded, but moderation submission was withheld because the current private seller policy receipt is missing.",
+      action: "submitPaidListingForReview",
+      route: "/api/webhooks/payments",
+      requestPath: "/api/webhooks/payments",
+      tags: buildRippleSafeTags({
+        listingId,
+        eventType: event.rawType,
+      }),
+    });
+    return [];
+  }
+
+  const { getListingWriteOffReadiness } = await import(
+    "@/lib/listings/listing-ns-policy"
+  );
+  const writeOffReadiness = await getListingWriteOffReadiness({
+    listingId,
+    listingStatus: listing.status,
+    client,
+  });
+  if (!writeOffReadiness.ok) {
+    await captureBusinessEvent({
+      source: "WEBHOOK",
+      severity: "HIGH",
+      title: "Paid listing withheld for write-off policy",
+      message:
+        "Provider payment succeeded, but moderation submission was withheld because the listing is not N/S write-off ready.",
       action: "submitPaidListingForReview",
       route: "/api/webhooks/payments",
       requestPath: "/api/webhooks/payments",

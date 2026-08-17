@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireAuthMock,
@@ -7,6 +7,8 @@ const {
   getOpenRevisionMock,
   submitRevisionMock,
   syncListingImagesForUserMock,
+  expireAbandonedListingImageIntentsMock,
+  processListingImageCleanupJobsMock,
   captureBusinessEventMock,
   captureExceptionMock,
   reportHandledExceptionMock,
@@ -14,6 +16,7 @@ const {
   makeRateLimitKeyMock,
   dispatchListingNotificationsMock,
   mockDb,
+  revalidatePathMock,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
   claimFreeListingSlotMock: vi.fn(),
@@ -21,6 +24,8 @@ const {
   getOpenRevisionMock: vi.fn(),
   submitRevisionMock: vi.fn(),
   syncListingImagesForUserMock: vi.fn(),
+  expireAbandonedListingImageIntentsMock: vi.fn(),
+  processListingImageCleanupJobsMock: vi.fn(),
   captureBusinessEventMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   reportHandledExceptionMock: vi.fn(),
@@ -30,7 +35,9 @@ const {
   mockDb: {
     listing: {
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
+    $transaction: vi.fn(),
     listingAttributeValue: {
       findFirst: vi.fn(),
     },
@@ -51,6 +58,7 @@ const {
       findUnique: vi.fn(),
     },
   },
+  revalidatePathMock: vi.fn(),
 }));
 
 vi.mock("@/lib/policy/gate", () => ({
@@ -66,7 +74,25 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
+  revalidatePath: revalidatePathMock,
+}));
+
+vi.mock("next/cache.js", () => ({
+  revalidatePath: revalidatePathMock,
+}));
+
+vi.mock("next/dist/server/web/spec-extension/revalidate", () => ({
+  revalidatePath: revalidatePathMock,
+  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
+  refresh: vi.fn(),
+}));
+
+vi.mock("next/dist/server/web/spec-extension/revalidate.js", () => ({
+  revalidatePath: revalidatePathMock,
+  revalidateTag: vi.fn(),
+  updateTag: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("@/lib/listings/status-events", () => ({
@@ -101,8 +127,8 @@ vi.mock("@/lib/listings/photo-mutation", () => ({
 }));
 
 vi.mock("@/lib/listings/photo-cleanup", () => ({
-  expireAbandonedListingImageIntents: vi.fn(),
-  processListingImageCleanupJobs: vi.fn(),
+  expireAbandonedListingImageIntents: expireAbandonedListingImageIntentsMock,
+  processListingImageCleanupJobs: processListingImageCleanupJobsMock,
 }));
 
 describe("submitListingForReview", () => {
@@ -125,14 +151,34 @@ describe("submitListingForReview", () => {
       lifecycleRevision: 0,
       trustDeclarationAccepted: true,
       images: [{ id: "image_1" }, { id: "image_2" }],
+      category: {
+        slug: "car",
+        attributeDefinitions: [
+          {
+            id: "write-off",
+            slug: "write-off-category",
+            name: "Insurance write-off category",
+            dataType: "select",
+            required: false,
+            options: JSON.stringify(["None", "Category N", "Category S"]),
+          },
+        ],
+      },
     });
     mockDb.payment.findFirst.mockResolvedValue(null);
     mockDb.subscription.findFirst.mockResolvedValue(null);
     mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
-    mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
-    mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue({ value: "None" });
+    mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue({
+      value: "None",
+    });
+    delete process.env.POLICY_ENFORCE_LISTING_NS;
     mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acc_1" });
     claimFreeListingSlotMock.mockResolvedValue({ status: "already-claimed" });
+    mockDb.listing.update.mockResolvedValue({ id: "listing_123", dealerId: null });
+    mockDb.$transaction.mockImplementation(
+      async (callback: (tx: typeof mockDb) => unknown) => callback(mockDb),
+    );
   });
 
   it("rate-limits submit and resubmit before transition or email", async () => {
@@ -515,7 +561,171 @@ describe("submitListingForReview", () => {
     expect(transitionListingStatusMock).not.toHaveBeenCalled();
   });
 
-  it("rejects submit without a write-off declaration when enforcement is on POL-LIST-001", async () => {
+  it("AUD-LIFE-001a treats a demoted seller's paid-period draft as private", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "DRAFT",
+      lifecycleRevision: 0,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    mockDb.subscription.findFirst.mockResolvedValue({
+      id: "sub-paid",
+      source: "PAYMENT",
+      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+    });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({
+      id: "claim_1",
+      userId: "user_123",
+    });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "listing_123", status: "PENDING", dealerId: null },
+      notification: null,
+    });
+
+    const { submitListingForReview } = await import("@/actions/listings");
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "PENDING", dealerId: null },
+    });
+
+    expect(mockDb.policyAcceptance.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          acceptanceType: "LISTING_BUNDLE",
+        }),
+      }),
+    );
+    expect(mockDb.listing.update).toHaveBeenCalledWith({
+      where: { id: "listing_123" },
+      data: { dealerId: null },
+    });
+    expect(transitionListingStatusMock).toHaveBeenCalled();
+  });
+
+  it("AUD-LIFE-001a treats a demoted seller's live revision as private", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    mockDb.subscription.findFirst.mockResolvedValue({
+      id: "sub-paid",
+      source: "PAYMENT",
+      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+    });
+    getOpenRevisionMock.mockResolvedValue({
+      id: "revision_1",
+      status: "DRAFT",
+      version: 2,
+    });
+    submitRevisionMock.mockResolvedValue({
+      listing: { id: "listing_123", status: "LIVE" },
+    });
+
+    const { submitListingForReview } = await import("@/actions/listings");
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "LIVE" },
+    });
+
+    expect(mockDb.policyAcceptance.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          acceptanceType: "LISTING_BUNDLE",
+        }),
+      }),
+    );
+    expect(mockDb.listing.update).not.toHaveBeenCalled();
+    expect(submitRevisionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listingId: "listing_123",
+        userId: "user_123",
+        expectedListingRevision: 4,
+        expectedVersion: 2,
+        seller: expect.objectContaining({
+          role: "USER",
+          dealerProfile: { id: "dealer-1", tier: "STARTER" },
+        }),
+      }),
+    );
+  });
+
+  it("does not detach a stale dealerId before submitRevision on conflict", async () => {
+    const { ListingRevisionConflictError } = await import(
+      "@/lib/listings/errors"
+    );
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    getOpenRevisionMock.mockResolvedValue({
+      id: "revision_1",
+      status: "DRAFT",
+      version: 2,
+    });
+    submitRevisionMock.mockRejectedValue(new ListingRevisionConflictError());
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "These listing changes changed before they could be submitted. Refresh and try again.",
+      conflict: true,
+    });
+    expect(mockDb.listing.update).not.toHaveBeenCalled();
+    expect(submitRevisionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        seller: expect.objectContaining({ role: "USER" }),
+      }),
+    );
+  });
+
+  it("AUD-PAY-POL-001 LST-WRITEOFF-001 rejects submit without a write-off declaration when enforcement is on POL-LIST-001", async () => {
     const previous = process.env.POLICY_ENFORCE_LISTING_NS;
     process.env.POLICY_ENFORCE_LISTING_NS = "true";
     mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
@@ -863,6 +1073,101 @@ describe("syncListingImages action validation", () => {
       userId: "user_123",
       isAdmin: false,
       input,
+    });
+  });
+
+  it("AUD-MEDIA-001-EXPIRE-HOTPATH keeps a successful sync when cleanup fails", async () => {
+    expireAbandonedListingImageIntentsMock.mockRejectedValue(new Error("expire failed"));
+    const { syncListingImages } = await import("@/actions/listings");
+    const input = {
+      photos: [{ imageId: "image-1", focalX: 0.25, focalY: 0.75 }],
+      basePhotoRevision: 1,
+      mutationId: "mutation-1",
+    };
+
+    await expect(syncListingImages("listing-1", input)).resolves.toEqual({
+      data: { count: 1, photoRevision: 2 },
+    });
+    expect(captureExceptionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "syncListingImagesCleanup",
+      }),
+    );
+  });
+});
+
+describe("listing NS policy server helpers AUD-PAY-POL-001 LST-WRITEOFF-001", () => {
+  const previous = process.env.POLICY_ENFORCE_LISTING_NS;
+
+  afterEach(() => {
+    if (previous === undefined) {
+      delete process.env.POLICY_ENFORCE_LISTING_NS;
+    } else {
+      process.env.POLICY_ENFORCE_LISTING_NS = previous;
+    }
+  });
+
+  it("AUD-PAY-POL-001 reads getPolicyFlags independently for attribute validation", async () => {
+    process.env.POLICY_ENFORCE_LISTING_NS = "true";
+    const { validateListingAttributesWithServerPolicy } = await import(
+      "@/lib/listings/listing-ns-policy"
+    );
+    const writeOffId = "write-off";
+    const result = validateListingAttributesWithServerPolicy({
+      categorySlug: "car",
+      definitions: [
+        {
+          id: writeOffId,
+          slug: "write-off-category",
+          name: "Insurance write-off category",
+          dataType: "select",
+          required: false,
+          options: JSON.stringify(["None", "Category N", "Category S"]),
+        },
+      ],
+      attributes: [],
+    });
+
+    expect(result.fieldErrors[`attr-${writeOffId}`]).toEqual([
+      "Insurance write-off category is required.",
+    ]);
+  });
+
+  it("AUD-PAY-POL-001 LST-WRITEOFF-001 withholds readiness when write-off is missing", async () => {
+    process.env.POLICY_ENFORCE_LISTING_NS = "true";
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      status: "DRAFT",
+      category: {
+        slug: "car",
+        attributeDefinitions: [
+          {
+            id: "write-off",
+            slug: "write-off-category",
+            name: "Insurance write-off category",
+            dataType: "select",
+            required: false,
+            options: JSON.stringify(["None", "Category N", "Category S"]),
+          },
+        ],
+      },
+    });
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
+    const { getListingWriteOffReadiness, WRITE_OFF_SUBMIT_ERROR } = await import(
+      "@/lib/listings/listing-ns-policy"
+    );
+
+    await expect(
+      getListingWriteOffReadiness({
+        listingId: "listing_123",
+        listingStatus: "DRAFT",
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: WRITE_OFF_SUBMIT_ERROR,
+      fieldErrors: {
+        "attr-write-off": [WRITE_OFF_SUBMIT_ERROR],
+      },
     });
   });
 });

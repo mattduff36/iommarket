@@ -1,16 +1,34 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 const {
   payForListingMock,
   submitListingForReviewMock,
   pushMock,
-} = vi.hoisted(() => ({
-  payForListingMock: vi.fn(),
-  submitListingForReviewMock: vi.fn(),
-  pushMock: vi.fn(),
-}));
+  replaceMock,
+  navigationMock,
+} = vi.hoisted(() => {
+  const pushMock = vi.fn();
+  const replaceMock = vi.fn();
+  return {
+    payForListingMock: vi.fn(),
+    submitListingForReviewMock: vi.fn(),
+    pushMock,
+    replaceMock,
+    navigationMock: {
+      useRouter: () => ({
+        push: pushMock,
+        replace: replaceMock,
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+        back: vi.fn(),
+      }),
+    },
+  };
+});
 
 vi.mock("@/actions/payments", () => ({
   payForListing: payForListingMock,
@@ -21,9 +39,25 @@ vi.mock("@/actions/listings", () => ({
   submitListingForReview: submitListingForReviewMock,
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock, refresh: vi.fn() }),
-}));
+vi.mock("next/navigation", () => navigationMock);
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <AppRouterContext.Provider
+      value={{
+        push: pushMock,
+        replace: replaceMock,
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        bfcacheId: "test",
+      }}
+    >
+      {ui}
+    </AppRouterContext.Provider>,
+  );
+}
 
 vi.mock("@/components/payments/ripple-demo-checkout-dialog", () => ({
   RippleDemoCheckoutDialog: () => null,
@@ -52,14 +86,14 @@ describe("RetryCheckoutButton private acceptance", () => {
     const retry = screen.getByRole("button", {
       name: "Open payment in new tab",
     });
-    expect(retry).toBeDisabled();
+    expect((retry as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: /I expressly accept the current Private Seller Terms/i,
       }),
     );
-    expect(retry).toBeEnabled();
+    expect((retry as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(retry);
 
     await waitFor(() => {
@@ -72,8 +106,26 @@ describe("RetryCheckoutButton private acceptance", () => {
         privateSellerTermsAccepted: true,
       });
     });
-    expect(pushMock).toHaveBeenCalledWith(
+    expect(replaceMock).toHaveBeenCalledWith(
       "/sell/success?listing=listing-1&flow=private&payment=skipped",
     );
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("LST-REDIRECT-001 uses replace for automatic success navigation", async () => {
+    render(<RetryCheckoutButton listingId="listing-1" flow="private" />);
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open payment in new tab" }));
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith(
+        "/sell/success?listing=listing-1&flow=private&payment=skipped",
+      );
+    });
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });

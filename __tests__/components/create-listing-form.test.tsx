@@ -1,25 +1,42 @@
 import * as React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CreateListingForm } from "@/app/(public)/sell/create-listing-form";
-import {
-  createListing,
-  syncListingImages,
-  submitListingForReview,
-  updateListing,
-} from "@/actions/listings";
-import {
-  payForListing,
-  simulateDemoListingPaymentOutcome,
-} from "@/actions/payments";
 import { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
 
-const pushMock = vi.fn();
+const { pushMock, replaceMock } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+  replaceMock: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({
+    push: pushMock,
+    replace: replaceMock,
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+  }),
 }));
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <AppRouterContext.Provider
+      value={{
+        push: pushMock,
+        replace: replaceMock,
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        bfcacheId: "test",
+      }}
+    >
+      {ui}
+    </AppRouterContext.Provider>,
+  );
+}
 
 vi.mock("@/actions/listings", () => ({
   createListing: vi.fn(),
@@ -77,6 +94,26 @@ vi.mock("@/components/marketplace/image-upload", () => ({
   ),
 }));
 
+import { CreateListingForm } from "@/app/(public)/sell/create-listing-form";
+import {
+  applyAuthoritativePhotoRevision,
+  chooseListingWriteAction,
+  interpretPhotoSyncResult,
+  nextPhotoRevisionAfterListingSave,
+  resolvePhotoMutation,
+  tryBeginSubmitFlight,
+} from "@/app/(public)/sell/create-listing-submit";
+import {
+  createListing,
+  syncListingImages,
+  submitListingForReview,
+  updateListing,
+} from "@/actions/listings";
+import {
+  payForListing,
+  simulateDemoListingPaymentOutcome,
+} from "@/actions/payments";
+
 const fetchMock = vi.fn();
 
 const categories = [
@@ -87,6 +124,14 @@ const categories = [
     attributes: [
       { id: "make", name: "Make", slug: "make", dataType: "text", required: true, options: null },
       { id: "model", name: "Model", slug: "model", dataType: "text", required: true, options: null },
+      {
+        id: "write-off",
+        name: "Insurance write-off category",
+        slug: "write-off-category",
+        dataType: "select",
+        required: false,
+        options: JSON.stringify(["None", "Category N", "Category S"]),
+      },
       { id: "year", name: "Year", slug: "year", dataType: "number", required: true, options: null },
       {
         id: "fuel",
@@ -149,6 +194,14 @@ const categories = [
       },
       { id: "bike-mileage", name: "Mileage", slug: "mileage", dataType: "number", required: false, options: null },
       {
+        id: "bike-write-off",
+        name: "Insurance write-off category",
+        slug: "write-off-category",
+        dataType: "select",
+        required: false,
+        options: JSON.stringify(["None", "Category N", "Category S"]),
+      },
+      {
         id: "bike-engine",
         name: "Engine Size",
         slug: "engine-size",
@@ -174,6 +227,7 @@ describe("CreateListingForm registration lookup", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     pushMock.mockReset();
+    replaceMock.mockReset();
     vi.mocked(createListing).mockReset();
     vi.mocked(syncListingImages).mockReset();
     vi.mocked(submitListingForReview).mockReset();
@@ -920,10 +974,12 @@ describe("CreateListingForm registration lookup", () => {
     });
 
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith(
+      expect(replaceMock).toHaveBeenCalledWith("/sell/private?draft=listing-123");
+      expect(replaceMock).toHaveBeenCalledWith(
         "/sell/checkout?listing=listing-123&flow=private&opened=1"
       );
     });
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("updates an existing draft instead of creating a new listing", async () => {
@@ -1074,10 +1130,11 @@ describe("CreateListingForm registration lookup", () => {
     );
 
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith(
+      expect(replaceMock).toHaveBeenCalledWith(
         "/sell/checkout?listing=draft-123&flow=private&opened=1"
       );
     });
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("keeps demo checkout inside the Ripple modal instead of redirecting the original tab", async () => {
@@ -1143,6 +1200,10 @@ describe("CreateListingForm registration lookup", () => {
       screen.getByRole("button", { name: "Emulate successful payment" })
     ).toBeTruthy();
     expect(pushMock).not.toHaveBeenCalled();
+    expect(replaceMock).toHaveBeenCalledWith("/sell/private?draft=listing-456");
+    expect(replaceMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/sell/checkout"),
+    );
   });
 
   it("submits live revisions without opening checkout ALR-PAY-001", async () => {
@@ -1235,10 +1296,11 @@ describe("CreateListingForm registration lookup", () => {
     expect(payForListing).not.toHaveBeenCalled();
     expect(window.open).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith(
+      expect(replaceMock).toHaveBeenCalledWith(
         "/sell/success?listing=live-123&flow=private&payment=skipped"
       );
     });
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("reuses the photo mutation ID after a timed-out synchronization retry", async () => {
@@ -1335,5 +1397,428 @@ describe("CreateListingForm registration lookup", () => {
     const firstMutationId = vi.mocked(syncListingImages).mock.calls[0][1].mutationId;
     const retryMutationId = vi.mocked(syncListingImages).mock.calls[1][1].mutationId;
     expect(retryMutationId).toBe(firstMutationId);
+  });
+});
+
+function fillRequiredVehicleDetails() {
+  fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+  fireEvent.change(screen.getByLabelText(/^Title/), {
+    target: { value: "2019 BMW 320d M Sport" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Description/), {
+    target: { value: "A well-kept BMW with full history and plenty of specification." },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price \(£\)/), {
+    target: { value: "15000" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Region/), {
+    target: { value: "iom" },
+  });
+  fireEvent.change(screen.getByLabelText(/Make/i), {
+    target: { value: "BMW" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Model \(manual entry\)/), {
+    target: { value: "320d M Sport" },
+  });
+  fireEvent.change(screen.getByLabelText(/Year/i), {
+    target: { value: "2019" },
+  });
+  fireEvent.change(screen.getByLabelText(/Mileage/i), {
+    target: { value: "45000" },
+  });
+}
+
+describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    pushMock.mockReset();
+    replaceMock.mockReset();
+    vi.mocked(createListing).mockReset();
+    vi.mocked(syncListingImages).mockReset();
+    vi.mocked(submitListingForReview).mockReset();
+    vi.mocked(updateListing).mockReset();
+    vi.mocked(payForListing).mockReset();
+    vi.mocked(simulateDemoListingPaymentOutcome).mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("open", vi.fn());
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserver {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  it("LST-VAL-001 keeps step 1 Continue on shared attribute validation errors", () => {
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        enforceListingNs
+      />,
+    );
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByText("Create Listing - Step 1 of 3")).toBeTruthy();
+    expect(
+      screen.getByText("Insurance write-off category is required."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+  });
+
+  it("LST-WRITEOFF-001 groups write-off after mileage/fuel and marks it required when NS is on", () => {
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        enforceListingNs
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+
+    const writeOff = screen.getByLabelText(/Insurance write-off category/);
+    expect(writeOff).toBeTruthy();
+    expect(screen.getByText("Insurance write-off category").textContent).toContain(
+      "*",
+    );
+
+    const labels = screen
+      .getAllByText(/^(Fuel Type|Mileage|Insurance write-off category|Engine Size)/)
+      .map((node) => node.textContent?.replace(/\s+\*$/, "").trim());
+    expect(labels.indexOf("Fuel Type")).toBeLessThan(labels.indexOf("Insurance write-off category"));
+    expect(labels.indexOf("Mileage")).toBeLessThan(labels.indexOf("Insurance write-off category"));
+    expect(labels.indexOf("Insurance write-off category")).toBeLessThan(
+      labels.indexOf("Engine Size"),
+    );
+  });
+
+  it("LST-PHOTO-CAS-001 applies the winning revision, drops the mutation, and does not auto-retry", async () => {
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "draft-cas", version: 8 },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      error: "These photos were updated elsewhere. Reload and try again.",
+      conflict: true,
+      photoRevision: 9,
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+
+    render(
+      <CreateListingForm
+        categories={[
+          {
+            id: "simple-category",
+            name: "Other",
+            slug: "other",
+            attributes: [],
+          },
+        ]}
+        regions={regions}
+        mode="private"
+        initialDraft={{
+          id: "draft-cas",
+          title: "Conflict photo listing",
+          description: "A complete draft used to verify photo CAS conflict handling.",
+          price: 9000,
+          categoryId: "simple-category",
+          regionId: "iom",
+          trustDeclarationAccepted: true,
+          featured: false,
+          photoRevision: 3,
+          images: [
+            {
+              id: "img-1",
+              url: "https://example.com/existing-1.jpg",
+              publicId: "existing-1",
+              order: 0,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
+            },
+            {
+              id: "img-2",
+              url: "https://example.com/existing-2.jpg",
+              publicId: "existing-2",
+              order: 1,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
+            },
+          ],
+          attributes: [],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+
+    await screen.findByText("These photos were updated elsewhere. Reload and try again.");
+    expect(syncListingImages).toHaveBeenCalledTimes(1);
+    expect(payForListing).not.toHaveBeenCalled();
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(submit);
+    await waitFor(() => expect(syncListingImages).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(syncListingImages).mock.calls[0][1].basePhotoRevision).toBe(8);
+    expect(vi.mocked(syncListingImages).mock.calls[1][1].basePhotoRevision).toBe(9);
+    expect(vi.mocked(syncListingImages).mock.calls[1][1].mutationId).not.toBe(
+      vi.mocked(syncListingImages).mock.calls[0][1].mutationId,
+    );
+  });
+
+  it("LST-SUBMIT-001 retries with updateListing after create returns an id", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-created" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "listing-created" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(payForListing)
+      .mockResolvedValueOnce({
+        error: "Payment setup failed. Please try again.",
+      } as Awaited<ReturnType<typeof payForListing>>)
+      .mockResolvedValueOnce({
+        data: { checkoutUrl: "https://checkout.example/retry" },
+      } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+    await screen.findByText("Payment setup failed. Please try again.");
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(submit);
+    await waitFor(() => expect(payForListing).toHaveBeenCalledTimes(2));
+    expect(createListing).toHaveBeenCalledTimes(1);
+    expect(updateListing).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "listing-created" }),
+    );
+  });
+
+  it("LST-SUBMIT-001 LST-PHOTO-CAS-001 preserves photo mutationId across payment failure", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-created" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "listing-created" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(payForListing)
+      .mockResolvedValueOnce({
+        error: "Payment setup failed. Please try again.",
+      } as Awaited<ReturnType<typeof payForListing>>)
+      .mockResolvedValueOnce({
+        data: { checkoutUrl: "https://checkout.example/retry" },
+      } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+    await screen.findByText("Payment setup failed. Please try again.");
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(submit);
+    await waitFor(() => expect(syncListingImages).toHaveBeenCalledTimes(2));
+
+    expect(vi.mocked(syncListingImages).mock.calls[0][1].mutationId).toBe(
+      vi.mocked(syncListingImages).mock.calls[1][1].mutationId,
+    );
+  });
+
+  it("LST-HISTORY-001 LST-DRAFT-URL-001 LST-REDIRECT-001 uses replace for draft URL and checkout", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-redirect" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/pay/redirect" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith("/sell/private?draft=listing-redirect");
+      expect(replaceMock).toHaveBeenCalledWith(
+        "/sell/checkout?listing=listing-redirect&flow=private&opened=1",
+      );
+    });
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("LST-SUBMIT-001 blocks a second in-flight submit until a recoverable outcome", async () => {
+    let releaseCreate: ((value: Awaited<ReturnType<typeof createListing>>) => void) | undefined;
+    vi.mocked(createListing).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseCreate = resolve;
+        }),
+    );
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/flight" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1));
+    releaseCreate?.({ data: { id: "listing-flight" } } as Awaited<
+      ReturnType<typeof createListing>
+    >);
+  });
+});
+
+describe("create-listing-submit helpers WS-17AUG-REG-7C4B", () => {
+  it("LST-SUBMIT-001 chooses update once a listing id exists", () => {
+    expect(chooseListingWriteAction(null)).toBe("create");
+    expect(chooseListingWriteAction("listing-1")).toBe("update");
+  });
+
+  it("LST-PHOTO-CAS-001 uses returned revision version after live update", () => {
+    expect(nextPhotoRevisionAfterListingSave({ version: 8, photoRevision: 3 })).toBe(8);
+    expect(nextPhotoRevisionAfterListingSave({ photoRevision: 4 })).toBe(4);
+    expect(nextPhotoRevisionAfterListingSave({})).toBeNull();
+    expect(applyAuthoritativePhotoRevision(9, 8)).toBe(9);
+    expect(applyAuthoritativePhotoRevision(3, 8)).toBe(8);
+  });
+
+  it("LST-PHOTO-CAS-001 reuses a mutation id only for unchanged photo content", () => {
+    const pending = {
+      basePhotoRevision: 3,
+      photoSignature: "same",
+      mutationId: "mut-1",
+    };
+    expect(
+      resolvePhotoMutation({
+        pending,
+        basePhotoRevision: 3,
+        photoSignature: "same",
+        createMutationId: () => "mut-new",
+      }).mutationId,
+    ).toBe("mut-1");
+    expect(
+      resolvePhotoMutation({
+        pending,
+        basePhotoRevision: 4,
+        photoSignature: "same",
+        createMutationId: () => "mut-new",
+      }).mutationId,
+    ).toBe("mut-1");
+    expect(
+      resolvePhotoMutation({
+        pending,
+        basePhotoRevision: 3,
+        photoSignature: "changed",
+        createMutationId: () => "mut-new",
+      }).mutationId,
+    ).toBe("mut-new");
+  });
+
+  it("LST-PHOTO-CAS-001 interprets conflict without retrying the winning revision", () => {
+    expect(
+      interpretPhotoSyncResult({
+        error: "These photos were updated elsewhere. Reload and try again.",
+        conflict: true,
+        photoRevision: 9,
+      }),
+    ).toEqual({
+      kind: "conflict",
+      photoRevision: 9,
+      error: "These photos were updated elsewhere. Reload and try again.",
+    });
+    expect(
+      interpretPhotoSyncResult({ data: { photoRevision: 4 } }),
+    ).toEqual({ kind: "success", photoRevision: 4, keepMutation: true });
+  });
+
+  it("LST-SUBMIT-001 uses a synchronous submit-flight latch", () => {
+    const inFlight = { current: false };
+    expect(tryBeginSubmitFlight(inFlight)).toBe(true);
+    expect(tryBeginSubmitFlight(inFlight)).toBe(false);
+    inFlight.current = false;
+    expect(tryBeginSubmitFlight(inFlight)).toBe(true);
   });
 });

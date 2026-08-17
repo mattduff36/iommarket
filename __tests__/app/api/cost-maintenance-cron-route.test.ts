@@ -49,4 +49,34 @@ describe("cost maintenance cron", () => {
       data: { sync: { status: "succeeded" }, emails: 1 },
     });
   });
+
+  it("returns 502 when sync fails", async () => {
+    runCostSync.mockResolvedValue({ status: "failed" });
+    const { GET } = await import("@/app/api/cron/cost-maintenance/route");
+    const response = await GET(
+      new NextRequest("http://localhost:4000/api/cron/cost-maintenance", {
+        headers: { authorization: "Bearer cron-secret" },
+      }),
+    );
+    expect(response.status).toBe(502);
+    expect(retryPendingCostEmails).toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      data: { sync: { status: "failed" }, emails: 1 },
+    });
+  });
+
+  it("returns 409 when sync is locked", async () => {
+    runCostSync.mockResolvedValue({ status: "locked" });
+    const { GET } = await import("@/app/api/cron/cost-maintenance/route");
+    const response = await GET(
+      new NextRequest("http://localhost:4000/api/cron/cost-maintenance", {
+        headers: { authorization: "Bearer cron-secret" },
+      }),
+    );
+    expect(response.status).toBe(409);
+    expect(retryPendingCostEmails).toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      data: { sync: { status: "locked" }, emails: 1 },
+    });
+  });
 });

@@ -76,7 +76,12 @@ export async function processListingImageCleanupJobs(limit = 20) {
   return { processed };
 }
 
-export async function expireAbandonedListingImageIntents(now = new Date()) {
+export const EXPIRE_ABANDONED_INTENT_BATCH_SIZE = 50;
+
+export async function expireAbandonedListingImageIntents(
+  now = new Date(),
+  limit = EXPIRE_ABANDONED_INTENT_BATCH_SIZE,
+) {
   const expired = await db.listingImageUploadIntent.findMany({
     where: {
       status: { in: ["ISSUED", "VERIFIED"] },
@@ -84,6 +89,8 @@ export async function expireAbandonedListingImageIntents(now = new Date()) {
       image: { is: null },
     },
     select: { id: true, publicId: true, deliveryType: true },
+    orderBy: { expiresAt: "asc" },
+    take: limit,
   });
 
   let expiredCount = 0;
