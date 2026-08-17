@@ -19,9 +19,38 @@ import * as crypto from "crypto";
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 import { ADMIN_USER } from "./fixtures/test-users";
+import { assertEnvCheckSafety } from "./env-check-safety";
 
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? ADMIN_USER.email;
 const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? ADMIN_USER.password;
+const ENV_CHECK_BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:4000";
+
+test.beforeAll(() => {
+  assertEnvCheckSafety({
+    destructiveChecksEnabled: process.env.ALLOW_DESTRUCTIVE_ENV_CHECKS,
+    targetAttestation: process.env.E2E_ENV_CHECK_TARGET,
+    baseUrl: ENV_CHECK_BASE_URL,
+    blockedBaseUrls: [
+      process.env.NEXT_PUBLIC_APP_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    ],
+  });
+});
+
+test.beforeEach(async ({ context }) => {
+  const target = new URL(ENV_CHECK_BASE_URL);
+  await context.addCookies([
+    {
+      name: "dev-auth",
+      value: "true",
+      domain: target.hostname,
+      path: "/",
+      httpOnly: false,
+      secure: target.protocol === "https:",
+      sameSite: "Lax",
+    },
+  ]);
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -479,7 +508,10 @@ test.describe("[AdminPayments] Payments monitoring and refund UI", () => {
     const hasRefund = await refundBtn.isVisible({ timeout: 5_000 }).catch(() => false);
     // Not a failure if no succeeded payments yet — just document the finding
     if (!hasRefund) {
-      console.log("No SUCCEEDED payments found — Refund button not rendered (expected for a new/test DB).");
+      test.info().annotations.push({
+        type: "note",
+        description: "No SUCCEEDED payments found; refund action was not rendered.",
+      });
     }
 
     // Click the Subscriptions link and verify it loads

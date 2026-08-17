@@ -1,0 +1,31 @@
+import { defineConfig, devices } from "@playwright/test";
+
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:4000";
+
+export default defineConfig({
+  testDir: "./e2e",
+  testMatch: /env-check\.spec\.ts/,
+  fullyParallel: false,
+  workers: 1,
+  forbidOnly: true,
+  retries: 0,
+  reporter: "list",
+  use: {
+    baseURL,
+    trace: "retain-on-failure",
+  },
+  projects: [
+    {
+      name: "env-check-chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+    },
+  ],
+  webServer: {
+    command: "npm run dev",
+    url: baseURL,
+    reuseExistingServer: true,
+    timeout: 120_000,
+  },
+});

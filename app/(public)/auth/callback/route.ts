@@ -3,8 +3,15 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function getSafeNextPath(nextPath: string | null): string {
-  if (!nextPath) return "/";
-  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return "/";
+  if (
+    !nextPath ||
+    !nextPath.startsWith("/") ||
+    nextPath.startsWith("//") ||
+    nextPath.includes("\\") ||
+    /[\u0000-\u001f\u007f]/.test(nextPath)
+  ) {
+    return "/";
+  }
   return nextPath;
 }
 

@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-17T16:36:34.401Z",
+  "generatedAt": "2026-08-17T18:32:04.023Z",
   "projectKey": "d-Websites-iommarket",
   "windowStart": "2026-07-04T00:00:00.000Z",
   "windowEnd": "2026-08-18T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 238,
-    "unattributedEvents": 184,
-    "unattributedMicroCents": "35705221450"
+    "attributedEvents": 246,
+    "unattributedEvents": 187,
+    "unattributedMicroCents": "36205325332"
   },
   "days": [
     {
@@ -86,18 +86,22 @@
     },
     {
       "date": "2026-08-17",
-      "identifiedMicroCents": "18931540498",
+      "identifiedMicroCents": "19982740256",
       "project": {
-        "onDemandMicroCents": "14386009846",
-        "chargedMicroCents": "13108150089",
-        "inputTokens": 2130417,
-        "outputTokens": 659659,
-        "cacheWriteTokens": 4319275,
-        "cacheReadTokens": 177307697,
+        "onDemandMicroCents": "15437209604",
+        "chargedMicroCents": "14159349847",
+        "inputTokens": 2339581,
+        "outputTokens": 714030,
+        "cacheWriteTokens": 4506918,
+        "cacheReadTokens": 191868611,
         "models": [
           {
             "model": "claude-opus-5-thinking-high",
-            "onDemandMicroCents": "2198690427"
+            "onDemandMicroCents": "2319138447"
+          },
+          {
+            "model": "composer-2.5-fast",
+            "onDemandMicroCents": "120527201"
           },
           {
             "model": "cursor-grok-4.6-xhigh-fast",
@@ -105,7 +109,7 @@
           },
           {
             "model": "gpt-5.6-sol-high",
-            "onDemandMicroCents": "9631599904"
+            "onDemandMicroCents": "10441824441"
           }
         ]
       }

@@ -8,33 +8,61 @@ import {
   sendInviteEmail,
 } from "@/lib/email/resend";
 import { reportHandledException } from "@/lib/monitoring";
+import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 
-// Supabase sends the secret as "v1,whsec_<base64>" — strip the prefix for standardwebhooks
-const rawSecret = process.env.SUPABASE_AUTH_HOOK_SECRET ?? "";
-const HOOK_SECRET = rawSecret.replace(/^v1,whsec_/, "");
+function getHookSecret(): string | null {
+  const rawSecret = process.env.SUPABASE_AUTH_HOOK_SECRET?.trim();
+  if (!rawSecret) return null;
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-const APP_ORIGIN = (() => {
+  // Supabase sends "v1,whsec_<base64>"; standardwebhooks expects the base64 value.
+  const secret = rawSecret.replace(/^v1,whsec_/, "");
   try {
-    return new URL(APP_URL).origin;
+    const decoded = Buffer.from(secret, "base64");
+    const normalized = secret.replace(/=+$/, "");
+    const roundTrip = decoded.toString("base64").replace(/=+$/, "");
+    if (decoded.byteLength < 16 || roundTrip !== normalized) return null;
   } catch {
-    return "http://localhost:3000";
+    return null;
   }
-})();
+  return secret;
+}
 
-function buildVerifyUrl(tokenHash: string, type: string, redirectTo: string): string {
-  let origin = APP_ORIGIN;
+function getAppOrigin(): string | null {
+  try {
+    return getCanonicalBaseUrl(
+      process.env.NEXT_PUBLIC_APP_URL,
+      "production",
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    ).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getSafeNextPath(nextPath: string | null): string {
+  if (
+    !nextPath ||
+    !nextPath.startsWith("/") ||
+    nextPath.startsWith("//") ||
+    nextPath.includes("\\") ||
+    /[\u0000-\u001f\u007f]/.test(nextPath)
+  ) {
+    return "/";
+  }
+  return nextPath;
+}
+
+function buildVerifyUrl(
+  tokenHash: string,
+  type: string,
+  redirectTo: string,
+  appOrigin: string,
+): string {
   let nextPath = "/";
   try {
     const redirectUrl = new URL(redirectTo);
-    origin = redirectUrl.origin;
-    const nextFromQuery = redirectUrl.searchParams.get("next");
-    if (
-      nextFromQuery &&
-      nextFromQuery.startsWith("/") &&
-      !nextFromQuery.startsWith("//")
-    ) {
-      nextPath = nextFromQuery;
+    if (redirectUrl.origin === appOrigin) {
+      nextPath = getSafeNextPath(redirectUrl.searchParams.get("next"));
     }
   } catch {
     // fall through with defaults
@@ -45,20 +73,27 @@ function buildVerifyUrl(tokenHash: string, type: string, redirectTo: string): st
     type,
     next: nextPath,
   });
-  return `${origin}/auth/callback?${params.toString()}`;
+  return `${appOrigin}/auth/callback?${params.toString()}`;
 }
 
 export async function POST(req: NextRequest) {
   const payload = await req.text();
+  const hookSecret = getHookSecret();
 
-  if (HOOK_SECRET) {
-    const headers = Object.fromEntries(req.headers.entries());
-    const wh = new Webhook(HOOK_SECRET);
-    try {
-      wh.verify(payload, headers);
-    } catch {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!hookSecret) {
+    return NextResponse.json({ error: "Auth email hook unavailable" }, { status: 503 });
+  }
+
+  const headers = Object.fromEntries(req.headers.entries());
+  try {
+    new Webhook(hookSecret).verify(payload, headers);
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const appOrigin = getAppOrigin();
+  if (!appOrigin) {
+    return NextResponse.json({ error: "Auth email hook unavailable" }, { status: 503 });
   }
 
   let body: {
@@ -84,8 +119,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { token_hash, token_hash_new, email_action_type, new_email } = email_data;
-  const redirectTo = email_data.redirect_to || `${APP_ORIGIN}/auth/callback`;
-  const verifyUrl = buildVerifyUrl(token_hash, email_action_type, redirectTo);
+  const redirectTo = email_data.redirect_to || `${appOrigin}/auth/callback`;
+  const verifyUrl = buildVerifyUrl(
+    token_hash,
+    email_action_type,
+    redirectTo,
+    appOrigin,
+  );
 
   try {
     switch (email_action_type) {
@@ -104,7 +144,7 @@ export async function POST(req: NextRequest) {
       case "email_change": {
         const newEmail = new_email ?? "";
         const confirmNewUrl = token_hash_new
-          ? buildVerifyUrl(token_hash_new, "email_change", redirectTo)
+          ? buildVerifyUrl(token_hash_new, "email_change", redirectTo, appOrigin)
           : verifyUrl;
         await sendEmailChangeEmail({
           to: user.email,
@@ -133,7 +173,6 @@ export async function POST(req: NextRequest) {
       requestPath: "/api/auth/send-email",
       requestMethod: "POST",
     });
-    const message = err instanceof Error ? err.message : "Failed to send email";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to send auth email" }, { status: 500 });
   }
 }
