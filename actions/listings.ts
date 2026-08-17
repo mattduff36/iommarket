@@ -201,7 +201,9 @@ export async function createListing(input: CreateListingInput) {
         data: {
           ...data,
           userId: user.id,
-          dealerId: user.dealerProfile?.id ?? null,
+          dealerId: hasDealerAccountAccess(user)
+            ? user.dealerProfile.id
+            : null,
           status: "DRAFT",
           trustDeclarationAccepted,
           trustDeclarationAcceptedAt: trustDeclarationAccepted ? new Date() : null,
