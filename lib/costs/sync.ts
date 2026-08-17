@@ -9,7 +9,13 @@ import {
   classifyFocusRows,
   sharedMembershipChecksum,
 } from "@/lib/costs/classify";
+import {
+  getCursorSubscriptionUsdMinor,
+  parseCursorUsageLog,
+  planCursorCharges,
+} from "@/lib/costs/cursor";
 import { isOnOrAfterLaunch } from "@/lib/costs/dates";
+import cursorUsageLog from "@/data/cursor-usage.json";
 import { getOrCreateUsdGbpRate } from "@/lib/costs/fx";
 import { applyClassifiedCharge, ensureLedgerConfig, recordQuarantine } from "@/lib/costs/ledger";
 import { renewCostSyncLock, withCostSyncLock } from "@/lib/costs/lock";
@@ -75,6 +81,55 @@ export async function runCostSync(input: {
     return { status: "locked" };
   }
   return locked.result;
+}
+
+/**
+ * Allocates this project's fair share of the flat Cursor subscription from the
+ * committed usage log. Absent configuration or an empty log is not a failure:
+ * the Vercel importer must still complete.
+ */
+async function importCursorSubscriptionShare(input: {
+  startedAt: Date;
+  now: Date;
+  env: NodeJS.ProcessEnv;
+  lockHolder: string;
+}): Promise<number> {
+  const monthlyUsdMinor = getCursorSubscriptionUsdMinor(input.env);
+  if (!monthlyUsdMinor) return 0;
+
+  const log = parseCursorUsageLog(cursorUsageLog);
+  const charges = planCursorCharges({
+    log,
+    startedAt: input.startedAt,
+    now: input.now,
+    monthlyUsdMinor,
+  });
+
+  let applied = 0;
+  for (const charge of charges) {
+    await renewCostSyncLock(input.lockHolder);
+    await runSerializable(async (tx) => {
+      const fx = await getOrCreateUsdGbpRate(tx, charge.periodStart);
+      const result = await applyClassifiedCharge(tx, {
+        sourceKind: "CURSOR_USAGE",
+        bucketKey: charge.bucketKey,
+        checksum: charge.checksum,
+        category: "CURSOR",
+        invoiceability: "INVOICEABLE",
+        nativeAmount: charge.nativeAmount,
+        nativeCurrency: charge.nativeCurrency,
+        rate: fx.rate,
+        fxRateSnapshotId: fx.id,
+        periodStart: charge.periodStart,
+        periodEnd: charge.periodEnd,
+        displayLabel: charge.displayLabel,
+        metadata: charge.metadata,
+        startedAt: input.startedAt,
+      });
+      if (result !== "skipped") applied += 1;
+    });
+  }
+  return applied;
 }
 
 async function executeCostSync(
@@ -251,6 +306,13 @@ async function executeCostSync(
         if (result !== "skipped") classifiedCount += 1;
       });
     }
+
+    classifiedCount += await importCursorSubscriptionShare({
+      startedAt: config.startedAt,
+      now,
+      env,
+      lockHolder,
+    });
 
     const checksum = createHash("sha256")
       .update(`${classifiedCount}:${quarantinedCount}:${window.from.toISOString()}`)

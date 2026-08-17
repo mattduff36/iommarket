@@ -1,0 +1,25 @@
+#!/bin/sh
+# Blocks secrets from being committed, then refreshes the Cursor usage log so the
+# deployed cost ledger stays in step with the commit being made.
+
+STAGED_ENV=$(git diff --cached --name-only | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example$')
+
+if [ -n "$STAGED_ENV" ]; then
+  echo ""
+  echo "  COMMIT BLOCKED — secrets file(s) staged:"
+  echo ""
+  echo "$STAGED_ENV" | sed 's/^/    /'
+  echo ""
+  echo "  Remove them from the commit with:"
+  echo "    git restore --staged <file>"
+  echo ""
+  exit 1
+fi
+
+# Never block a commit on usage collection: it needs a signed-in Cursor and network.
+if [ -z "$SKIP_CURSOR_USAGE" ]; then
+  node --no-warnings --experimental-sqlite scripts/cursor-usage-export.mjs >/dev/null 2>&1
+  git add data/cursor-usage.json >/dev/null 2>&1 || true
+fi
+
+exit 0

@@ -23,7 +23,9 @@
     "test:e2e:ui": "playwright test --ui",
     "fixerrors": "npx tsx scripts/fixerrors.ts",
     "env:production:pull": "tsx scripts/production-env.ts pull",
-    "env:production:check": "tsx scripts/production-env.ts check"
+    "env:production:check": "tsx scripts/production-env.ts check",
+    "cursor:usage": "node --no-warnings --experimental-sqlite scripts/cursor-usage-export.mjs",
+    "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

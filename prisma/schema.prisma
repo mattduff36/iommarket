@@ -1363,6 +1363,7 @@ enum CostInvoiceability {
 enum CostSourceKind {
   VERCEL_FOCUS
   MANUAL
+  CURSOR_USAGE
 }
 
 enum InvoiceRequestStatus {
