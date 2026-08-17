@@ -10,6 +10,7 @@ import {
   MODERATION_SUB_REASONS,
   MODERATION_TAXONOMY_VERSION,
 } from "../lib/listings/moderation-reasons";
+import { generateDmPolicyBinaryArtifacts } from "./dm-policy-pack-binaries";
 
 interface GeneratePackOptions {
   date: string;
@@ -21,9 +22,10 @@ interface GeneratedPack {
   outputDirectory: string;
   files: string[];
   conversion: {
-    pandocAvailable: boolean;
-    docx: "generated" | "blocked" | "skipped";
-    pdf: "generated" | "blocked" | "skipped";
+    engine: "node" | "skipped";
+    docx: "generated" | "skipped";
+    pdf: "generated" | "skipped";
+    zip: "generated" | "skipped";
   };
 }
 
@@ -109,19 +111,9 @@ function escapeTable(value: string) {
   return value.replaceAll("|", "\\|").replaceAll("\n", " ");
 }
 
-function commandText(outputDirectory: string, date: string) {
-  const markdown = join(outputDirectory, "dm-policy-pack.md");
-  const docx = join(outputDirectory, `dm-policy-pack-${date}.docx`);
-  const pdf = join(outputDirectory, `dm-policy-pack-${date}.pdf`);
-  return [
-    `pandoc "${markdown}" --from=gfm --toc --standalone --output "${docx}"`,
-    `pandoc "${markdown}" --from=gfm --toc --standalone --pdf-engine=xelatex --output "${pdf}"`,
-  ];
-}
-
-export function generateDmPolicyPack(
+export async function generateDmPolicyPack(
   options: GeneratePackOptions,
-): GeneratedPack {
+): Promise<GeneratedPack> {
   assertDate(options.date);
   const outputDirectory = resolve(
     options.outputDirectory ??
@@ -254,7 +246,7 @@ export function generateDmPolicyPack(
         `# ${policy.title} — version ${policy.version}\n\n${policy.markdown}`,
     ),
   ].join("\n\n---\n\n");
-  const combinedPath = writeArtifact(
+  writeArtifact(
     outputDirectory,
     "dm-policy-pack.md",
     combined,
@@ -262,68 +254,29 @@ export function generateDmPolicyPack(
   );
 
   const conversion: GeneratedPack["conversion"] = {
-    pandocAvailable: false,
-    docx: options.convert === false ? "skipped" : "blocked",
-    pdf: options.convert === false ? "skipped" : "blocked",
+    engine: "skipped",
+    docx: "skipped",
+    pdf: "skipped",
+    zip: "skipped",
   };
   if (options.convert !== false) {
-    const pandoc = spawnSync("pandoc", ["--version"], { encoding: "utf8" });
-    conversion.pandocAvailable = pandoc.status === 0;
-    if (conversion.pandocAvailable) {
-      const docxPath = join(
+    try {
+      const binaries = await generateDmPolicyBinaryArtifacts(
         outputDirectory,
-        `dm-policy-pack-${options.date}.docx`,
+        options.date,
       );
-      const docx = spawnSync(
-        "pandoc",
-        [
-          combinedPath,
-          "--from=gfm",
-          "--toc",
-          "--standalone",
-          "--output",
-          docxPath,
-        ],
-        { encoding: "utf8" },
+      files.push(binaries.docxPath, binaries.pdfPath, binaries.zipPath);
+      conversion.engine = "node";
+      conversion.docx = "generated";
+      conversion.pdf = "generated";
+      conversion.zip = "generated";
+    } catch (error) {
+      throw new Error(
+        `The DM policy pack source was generated, but binary conversion failed: ${
+          error instanceof Error ? error.message : "unknown conversion error"
+        }`,
       );
-      conversion.docx = docx.status === 0 ? "generated" : "blocked";
-      if (docx.status === 0) files.push(docxPath);
-
-      const pdfPath = join(
-        outputDirectory,
-        `dm-policy-pack-${options.date}.pdf`,
-      );
-      const pdf = spawnSync(
-        "pandoc",
-        [
-          combinedPath,
-          "--from=gfm",
-          "--toc",
-          "--standalone",
-          "--pdf-engine=xelatex",
-          "--output",
-          pdfPath,
-        ],
-        { encoding: "utf8" },
-      );
-      conversion.pdf = pdf.status === 0 ? "generated" : "blocked";
-      if (pdf.status === 0) files.push(pdfPath);
     }
-  }
-
-  if (conversion.docx === "blocked" || conversion.pdf === "blocked") {
-    const commands = commandText(outputDirectory, options.date);
-    writeArtifact(
-      outputDirectory,
-      "TOOLING-BLOCKER.txt",
-      [
-        "Pandoc and a PDF engine are required for blocked conversions.",
-        "Exact commands:",
-        ...commands,
-        "",
-      ].join("\n"),
-      files,
-    );
   }
 
   return { outputDirectory, files, conversion };
@@ -343,9 +296,11 @@ function parseCliArgs(argv: string[]) {
   };
 }
 
-if (process.argv[1]?.endsWith("generate-dm-policy-pack.ts")) {
+async function main() {
   try {
-    const result = generateDmPolicyPack(parseCliArgs(process.argv.slice(2)));
+    const result = await generateDmPolicyPack(
+      parseCliArgs(process.argv.slice(2)),
+    );
     process.stdout.write(
       `${JSON.stringify(
         {
@@ -363,4 +318,8 @@ if (process.argv[1]?.endsWith("generate-dm-policy-pack.ts")) {
     );
     process.exitCode = 1;
   }
+}
+
+if (process.argv[1]?.endsWith("generate-dm-policy-pack.ts")) {
+  void main();
 }
