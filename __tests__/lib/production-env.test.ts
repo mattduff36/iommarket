@@ -4,13 +4,17 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COST_LEDGER_STARTED_AT_ISO } from "@/lib/costs/config";
 import {
+  PRODUCTION_SENSITIVE_KEYS,
   PRODUCTION_VERCEL_PROJECT_ID,
   PRODUCTION_VERCEL_TEAM_ID,
 } from "@/lib/ops/production-env-contract";
 import {
   checkProductionEnvMirror,
+  listVercelProductionEnvMetadata,
   pullProductionEnvMirror,
   pullVercelProductionEnvFile,
+  validateVercelProductionEnvMetadata,
+  type VercelProductionEnvMetadata,
 } from "@/lib/ops/production-env";
 import {
   compareEnvMaps,
@@ -27,12 +31,9 @@ function validProductionEnv(overrides: Record<string, string> = {}): string {
     COST_LEDGER_STARTED_AT: COST_LEDGER_STARTED_AT_ISO,
     COST_OWNER_AUTH_USER_ID: "8be27479-bad8-43a5-998f-5a0c1a9eb2ac",
     COST_OWNER_NOTIFICATION_EMAIL: "owner@mpdee.co.uk",
-    VERCEL_BILLING_TOKEN: "vcp_test_token",
     COST_VERCEL_TEAM_ID: PRODUCTION_VERCEL_TEAM_ID,
     COST_VERCEL_PROJECT_ID: PRODUCTION_VERCEL_PROJECT_ID,
     COST_VERCEL_DATABASE_RESOURCE_ID: "store_test",
-    COST_SYNC_SECRET: "sync-secret-value",
-    CRON_SECRET: "cron-secret-value",
     DATABASE_URL: "postgres://user:pass@db.mpdee.co.uk:5432/postgres",
     POSTGRES_URL: "postgres://user:pass@db.mpdee.co.uk:6543/postgres",
     POSTGRES_URL_NON_POOLING: "postgres://user:pass@db.mpdee.co.uk:5432/postgres",
@@ -43,6 +44,16 @@ function validProductionEnv(overrides: Record<string, string> = {}): string {
     .map(([key, value]) => `${key}="${value}"`)
     .join("\n");
 }
+
+function validSensitiveMetadata(): VercelProductionEnvMetadata[] {
+  return PRODUCTION_SENSITIVE_KEYS.map((key) => ({
+    key,
+    type: "sensitive",
+    target: ["production"],
+  }));
+}
+
+const listValidSensitiveMetadata = () => validSensitiveMetadata();
 
 function writeLinkedProject(cwd: string, projectId = PRODUCTION_VERCEL_PROJECT_ID, orgId = PRODUCTION_VERCEL_TEAM_ID) {
   mkdirSync(path.join(cwd, ".vercel"), { recursive: true });
@@ -74,8 +85,8 @@ describe("production environment mirror T8 T9 T10 T12", () => {
 
   it("refuses placeholder, loopback, drifted, and non-production values", () => {
     expect(() =>
-      validateProductionEnv(parseDotenv(validProductionEnv({ COST_SYNC_SECRET: "replace-with-cost-sync-secret" }))),
-    ).toThrow(/COST_SYNC_SECRET/);
+      validateProductionEnv(parseDotenv(validProductionEnv({ COST_OWNER_AUTH_USER_ID: "replace-with-owner-id" }))),
+    ).toThrow(/COST_OWNER_AUTH_USER_ID/);
     expect(() =>
       validateProductionEnv(parseDotenv(validProductionEnv({ DATABASE_URL: "postgres://user:pass@localhost:5432/postgres" }))),
     ).toThrow(/DATABASE_URL/);
@@ -91,8 +102,89 @@ describe("production environment mirror T8 T9 T10 T12", () => {
   });
 
   it("decodes escaped quotes without emitting values in drift reports", () => {
-    const parsed = parseDotenv('COST_SYNC_SECRET="say \\"hello\\""\n');
-    expect(parsed.COST_SYNC_SECRET).toBe('say "hello"');
+    const parsed = parseDotenv('COST_OWNER_NOTIFICATION_EMAIL="say \\"hello\\""\n');
+    expect(parsed.COST_OWNER_NOTIFICATION_EMAIL).toBe('say "hello"');
+  });
+
+  it("rejects sensitive values from the local mirror", () => {
+    for (const key of PRODUCTION_SENSITIVE_KEYS) {
+      expect(() =>
+        validateProductionEnv(parseDotenv(validProductionEnv({ [key]: "secret-value" }))),
+      ).toThrow(new RegExp(key));
+    }
+  });
+
+  it("parses Vercel metadata without exposing CLI output", () => {
+    const metadata = validSensitiveMetadata();
+    expect(
+      listVercelProductionEnvMetadata({
+        cwd: process.cwd(),
+        spawn: (() => ({
+          status: 0,
+          stdout: JSON.stringify({ envs: metadata }),
+          stderr: "",
+        })) as unknown as typeof import("node:child_process").spawnSync,
+      }),
+    ).toEqual(metadata);
+
+    const secretOutput = "must-not-appear";
+    expect(() =>
+      listVercelProductionEnvMetadata({
+        cwd: process.cwd(),
+        spawn: (() => ({
+          status: 0,
+          stdout: secretOutput,
+          stderr: secretOutput,
+        })) as unknown as typeof import("node:child_process").spawnSync,
+      }),
+    ).toThrow("Vercel production environment metadata was invalid.");
+    try {
+      listVercelProductionEnvMetadata({
+        cwd: process.cwd(),
+        spawn: (() => ({
+          status: 1,
+          stdout: secretOutput,
+          stderr: secretOutput,
+        })) as unknown as typeof import("node:child_process").spawnSync,
+      });
+    } catch (error) {
+      expect(String(error)).not.toContain(secretOutput);
+    }
+  });
+
+  it("rejects missing, duplicate, wrong-type, non-production, and forbidden metadata", () => {
+    const valid = validSensitiveMetadata();
+    expect(() => validateVercelProductionEnvMetadata(valid)).not.toThrow();
+    expect(() =>
+      validateVercelProductionEnvMetadata(valid.slice(1)),
+    ).toThrow(/VERCEL_BILLING_TOKEN/);
+    expect(() =>
+      validateVercelProductionEnvMetadata([...valid, valid[0]!]),
+    ).toThrow(/VERCEL_BILLING_TOKEN/);
+    expect(() =>
+      validateVercelProductionEnvMetadata(
+        valid.map((env, index) =>
+          index === 0 ? { ...env, type: "encrypted" } : env,
+        ),
+      ),
+    ).toThrow(/VERCEL_BILLING_TOKEN/);
+    expect(() =>
+      validateVercelProductionEnvMetadata(
+        valid.map((env, index) =>
+          index === 0 ? { ...env, target: ["preview"] } : env,
+        ),
+      ),
+    ).toThrow(/VERCEL_BILLING_TOKEN/);
+    expect(() =>
+      validateVercelProductionEnvMetadata([
+        ...valid,
+        {
+          key: "COST_SYNC_ALLOW_NON_PROD",
+          type: "plain",
+          target: ["production"],
+        },
+      ]),
+    ).toThrow(/COST_SYNC_ALLOW_NON_PROD/);
   });
 
   it("accepts only the canonical repository mirror path", () => {
@@ -110,6 +202,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     expect(() =>
       pullProductionEnvMirror({
         cwd,
+        list: listValidSensitiveMetadata,
         pull: ({ destPath }) => {
           writeFileSync(destPath, validProductionEnv());
         },
@@ -127,6 +220,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     expect(() =>
       pullProductionEnvMirror({
         cwd,
+        list: listValidSensitiveMetadata,
         pull: ({ destPath }) => {
           writeFileSync(destPath, validProductionEnv({ DATABASE_URL: "postgres://127.0.0.1/postgres" }));
         },
@@ -136,6 +230,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
 
     pullProductionEnvMirror({
       cwd,
+      list: listValidSensitiveMetadata,
       pull: ({ destPath }) => {
         writeFileSync(destPath, validProductionEnv());
       },
@@ -176,6 +271,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     expect(() =>
       pullProductionEnvMirror({
         cwd,
+        list: listValidSensitiveMetadata,
         pull: () => {
           throw new ProductionEnvError("Vercel production environment pull failed.");
         },
@@ -185,7 +281,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     expect(existsSync(path.join(cwd, ".env.production.staging-cli"))).toBe(false);
   });
 
-  it("preserves the existing mirror when replacement is denied", () => {
+  it("preserves the existing mirror when atomic replacement is denied", () => {
     const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-perm-"));
     directories.push(cwd);
     const dest = path.join(cwd, ".env.production");
@@ -196,12 +292,8 @@ describe("production environment mirror T8 T9 T10 T12", () => {
       replaceProductionEnvMirror({
         cwd,
         stagingPath: staging,
-        platform: "linux",
         rename: () => {
           throw Object.assign(new Error("EACCES"), { code: "EACCES" });
-        },
-        copyFile: () => {
-          throw new Error("copy must not run on POSIX");
         },
       }),
     ).toThrow(/Failed to replace/);
@@ -209,46 +301,112 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     expect(existsSync(staging)).toBe(true);
   });
 
-  it("uses copy-over-destination only on Windows after rename failure", () => {
-    const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-win-"));
+  it("preserves the existing mirror when metadata validation fails", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-metadata-"));
+    directories.push(cwd);
+    writeLinkedProject(cwd);
+    writeFileSync(path.join(cwd, ".env.production"), "KEEP=1\n");
+    const pull = vi.fn();
+    expect(() =>
+      pullProductionEnvMirror({
+        cwd,
+        list: () => validSensitiveMetadata().slice(1),
+        pull,
+      }),
+    ).toThrow(/VERCEL_BILLING_TOKEN/);
+    expect(pull).not.toHaveBeenCalled();
+    expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).toBe(
+      "KEEP=1\n",
+    );
+  });
+
+  it("does not fall back to a non-atomic copy after rename failure", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-rename-"));
     directories.push(cwd);
     const dest = path.join(cwd, ".env.production");
-    const staging = path.join(cwd, ".env.production.staging-win");
+    const staging = path.join(cwd, ".env.production.staging-rename");
     writeFileSync(dest, "KEEP=1\n");
     writeFileSync(staging, validProductionEnv());
-    const copied: string[] = [];
-    replaceProductionEnvMirror({
-      cwd,
-      stagingPath: staging,
-      platform: "win32",
-      rename: () => {
-        throw Object.assign(new Error("EPERM"), { code: "EPERM" });
-      },
-      copyFile: (from, to) => {
-        copied.push(String(to));
-        writeFileSync(to, readFileSync(from));
-      },
-    });
-    expect(copied).toEqual([dest]);
-    expect(readFileSync(dest, "utf8")).toContain("COSTS_ENABLED");
+    expect(() =>
+      replaceProductionEnvMirror({
+        cwd,
+        stagingPath: staging,
+        rename: () => {
+          throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+        },
+      }),
+    ).toThrow(/Failed to replace/);
+    expect(readFileSync(dest, "utf8")).toBe("KEEP=1\n");
+    expect(readFileSync(staging, "utf8")).toContain("COSTS_ENABLED");
+  });
+
+  it("preserves the existing mirror when staging fsync fails", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-fsync-"));
+    directories.push(cwd);
+    const dest = path.join(cwd, ".env.production");
+    const staging = path.join(cwd, ".env.production.staging-fsync");
+    writeFileSync(dest, "KEEP=1\n");
+    writeFileSync(staging, validProductionEnv());
+    expect(() =>
+      replaceProductionEnvMirror({
+        cwd,
+        stagingPath: staging,
+        fsync: () => {
+          throw Object.assign(new Error("EIO"), { code: "EIO" });
+        },
+      }),
+    ).toThrow(/Failed to replace/);
+    expect(readFileSync(dest, "utf8")).toBe("KEEP=1\n");
+    expect(readFileSync(staging, "utf8")).toContain("COSTS_ENABLED");
+  });
+
+  it("preserves the existing mirror when staging permissions cannot be secured", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-chmod-"));
+    directories.push(cwd);
+    const dest = path.join(cwd, ".env.production");
+    const staging = path.join(cwd, ".env.production.staging-chmod");
+    writeFileSync(dest, "KEEP=1\n");
+    writeFileSync(staging, validProductionEnv());
+    expect(() =>
+      replaceProductionEnvMirror({
+        cwd,
+        stagingPath: staging,
+        chmod: () => {
+          throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+        },
+      }),
+    ).toThrow(/Failed to replace/);
+    expect(readFileSync(dest, "utf8")).toBe("KEEP=1\n");
+    expect(readFileSync(staging, "utf8")).toContain("COSTS_ENABLED");
   });
 
   it("reports drift by key name only and does not overwrite the local mirror during check", () => {
     const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-check-"));
     directories.push(cwd);
     writeLinkedProject(cwd);
-    writeFileSync(path.join(cwd, ".env.production"), validProductionEnv({ CRON_SECRET: "local-secret" }));
+    writeFileSync(
+      path.join(cwd, ".env.production"),
+      validProductionEnv({ COST_OWNER_NOTIFICATION_EMAIL: "local@example.net" }),
+    );
     const result = checkProductionEnvMirror({
       cwd,
+      list: listValidSensitiveMetadata,
       pull: ({ destPath }) => {
-        writeFileSync(destPath, validProductionEnv({ CRON_SECRET: "remote-secret" }));
+        writeFileSync(
+          destPath,
+          validProductionEnv({
+            COST_OWNER_NOTIFICATION_EMAIL: "remote@example.net",
+          }),
+        );
       },
     });
     expect(result.ok).toBe(false);
-    expect(result.drift.mismatched).toEqual(["CRON_SECRET"]);
-    expect(JSON.stringify(result)).not.toContain("local-secret");
-    expect(JSON.stringify(result)).not.toContain("remote-secret");
-    expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).toContain("local-secret");
+    expect(result.drift.mismatched).toEqual(["COST_OWNER_NOTIFICATION_EMAIL"]);
+    expect(JSON.stringify(result)).not.toContain("local@example.net");
+    expect(JSON.stringify(result)).not.toContain("remote@example.net");
+    expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).toContain(
+      "local@example.net",
+    );
   });
 
   it("does not invoke Vercel when the injected pull is unused by local validation", () => {

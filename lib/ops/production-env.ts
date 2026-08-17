@@ -3,7 +3,9 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
+  PRODUCTION_FORBIDDEN_KEYS,
   PRODUCTION_ENV_MIRROR_FILE,
+  PRODUCTION_SENSITIVE_KEYS,
 } from "@/lib/ops/production-env-contract";
 import {
   assertLinkedVercelProject,
@@ -23,6 +25,12 @@ import {
 export interface ProductionEnvCheckResult {
   ok: boolean;
   drift: EnvDrift;
+}
+
+export interface VercelProductionEnvMetadata {
+  key: string;
+  type: string;
+  target: string[];
 }
 
 function resolveVercelBin(cwd: string): string {
@@ -65,14 +73,93 @@ export function pullVercelProductionEnvFile(input: {
   }
 }
 
+export function listVercelProductionEnvMetadata(input: {
+  cwd: string;
+  spawn?: typeof spawnSync;
+}): VercelProductionEnvMetadata[] {
+  const spawn = input.spawn ?? spawnSync;
+  const vercelBin = resolveVercelBin(input.cwd);
+  const result = spawn(process.execPath, [
+    vercelBin,
+    "env",
+    "list",
+    "production",
+    "--format",
+    "json",
+  ], {
+    cwd: input.cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0 || typeof result.stdout !== "string") {
+    throw new ProductionEnvError("Vercel production environment metadata lookup failed.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    throw new ProductionEnvError("Vercel production environment metadata was invalid.");
+  }
+  const envs = (parsed as { envs?: unknown }).envs;
+  if (
+    !Array.isArray(envs) ||
+    envs.some(
+      (item) =>
+        typeof item !== "object" ||
+        item === null ||
+        typeof (item as { key?: unknown }).key !== "string" ||
+        typeof (item as { type?: unknown }).type !== "string" ||
+        !Array.isArray((item as { target?: unknown }).target) ||
+        (item as { target: unknown[] }).target.some(
+          (target) => typeof target !== "string",
+        ),
+    )
+  ) {
+    throw new ProductionEnvError("Vercel production environment metadata was invalid.");
+  }
+  return envs as VercelProductionEnvMetadata[];
+}
+
+export function validateVercelProductionEnvMetadata(
+  envs: VercelProductionEnvMetadata[],
+): void {
+  for (const key of PRODUCTION_SENSITIVE_KEYS) {
+    const matches = envs.filter((env) => env.key === key);
+    if (
+      matches.length !== 1 ||
+      matches[0]?.type !== "sensitive" ||
+      matches[0]?.target.length !== 1 ||
+      matches[0]?.target[0] !== "production"
+    ) {
+      throw new ProductionEnvError(
+        `Vercel production metadata is invalid for ${key}.`,
+      );
+    }
+  }
+
+  for (const key of PRODUCTION_FORBIDDEN_KEYS) {
+    if (
+      envs.some(
+        (env) => env.key === key && env.target.includes("production"),
+      )
+    ) {
+      throw new ProductionEnvError(`${key} is not allowed in production.`);
+    }
+  }
+}
+
 export function pullProductionEnvMirror(input?: {
   cwd?: string;
   pull?: typeof pullVercelProductionEnvFile;
+  list?: typeof listVercelProductionEnvMetadata;
 }): string {
   const cwd = input?.cwd ?? process.cwd();
   const pull = input?.pull ?? pullVercelProductionEnvFile;
+  const list = input?.list ?? listVercelProductionEnvMetadata;
   return withProductionEnvLock(cwd, () => {
     assertLinkedVercelProject(cwd);
+    validateVercelProductionEnvMetadata(list({ cwd }));
     const dest = resolveCanonicalProductionEnvFile(cwd);
     assertNotSymlink(dest);
     const stagingPath = createStagingPath(cwd);
@@ -93,11 +180,14 @@ export function pullProductionEnvMirror(input?: {
 export function checkProductionEnvMirror(input?: {
   cwd?: string;
   pull?: typeof pullVercelProductionEnvFile;
+  list?: typeof listVercelProductionEnvMetadata;
 }): ProductionEnvCheckResult {
   const cwd = input?.cwd ?? process.cwd();
   const pull = input?.pull ?? pullVercelProductionEnvFile;
+  const list = input?.list ?? listVercelProductionEnvMetadata;
   return withProductionEnvLock(cwd, () => {
     assertLinkedVercelProject(cwd);
+    validateVercelProductionEnvMetadata(list({ cwd }));
     const dest = resolveCanonicalProductionEnvFile(cwd);
     if (!existsSync(dest)) {
       throw new ProductionEnvError(`${PRODUCTION_ENV_MIRROR_FILE} is missing.`);

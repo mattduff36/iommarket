@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   closeSync,
-  copyFileSync,
   existsSync,
   fsyncSync,
   lstatSync,
@@ -23,6 +22,7 @@ import {
   PRODUCTION_EXACT_VALUES,
   PRODUCTION_FORBIDDEN_KEYS,
   PRODUCTION_REQUIRED_KEYS,
+  PRODUCTION_SENSITIVE_KEYS,
   PRODUCTION_URL_KEYS,
   PRODUCTION_VERCEL_PROJECT_ID,
   PRODUCTION_VERCEL_TEAM_ID,
@@ -151,6 +151,14 @@ export function validateProductionEnv(values: EnvMap): void {
     }
   }
 
+  for (const key of PRODUCTION_SENSITIVE_KEYS) {
+    if (Object.hasOwn(values, key)) {
+      throw new ProductionEnvError(
+        `${key} must not be written to the production environment mirror.`,
+      );
+    }
+  }
+
   for (const [key, expected] of Object.entries(PRODUCTION_EXACT_VALUES)) {
     if (values[key] !== expected) {
       throw new ProductionEnvError(`Unexpected production value for ${key}.`);
@@ -239,41 +247,31 @@ export function withProductionEnvLock<T>(cwd: string, fn: () => T): T {
 export function replaceProductionEnvMirror(input: {
   cwd?: string;
   stagingPath: string;
-  platform?: NodeJS.Platform;
+  chmod?: typeof chmodSync;
+  open?: typeof openSync;
+  fsync?: typeof fsyncSync;
   rename?: typeof renameSync;
-  copyFile?: typeof copyFileSync;
 }): void {
   const cwd = input.cwd ?? process.cwd();
   const dest = resolveCanonicalProductionEnvFile(cwd);
-  const platform = input.platform ?? process.platform;
+  const chmod = input.chmod ?? chmodSync;
+  const open = input.open ?? openSync;
+  const fsync = input.fsync ?? fsyncSync;
   const rename = input.rename ?? renameSync;
-  const copyFile = input.copyFile ?? copyFileSync;
   assertNotSymlink(dest);
   assertNotSymlink(input.stagingPath);
   if (!existsSync(input.stagingPath)) {
     throw new ProductionEnvError("Production environment staging file is missing.");
   }
   try {
+    chmod(input.stagingPath, 0o600);
+    const fd = open(input.stagingPath, "r+");
     try {
-      rename(input.stagingPath, dest);
-    } catch (error) {
-      if (platform !== "win32") {
-        throw error;
-      }
-      copyFile(input.stagingPath, dest);
-      unlinkSync(input.stagingPath);
-    }
-    try {
-      chmodSync(dest, 0o600);
-    } catch {
-      // Windows cannot honor POSIX mode bits.
-    }
-    const fd = openSync(dest, "r+");
-    try {
-      fsyncSync(fd);
+      fsync(fd);
     } finally {
       closeSync(fd);
     }
+    rename(input.stagingPath, dest);
   } catch (error) {
     throw error instanceof ProductionEnvError
       ? error

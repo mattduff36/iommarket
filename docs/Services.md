@@ -166,7 +166,8 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 ### Production environment mirror
 - Vercel production is authoritative. A dashboard or CLI change does not update a workstation instantly.
 - After every production variable change, run `npm run env:production:pull` and `npm run env:production:check`.
-- `.env.production` stays gitignored and contains live production values. On Windows, file mode bits do not provide a reliable ACL; keep the workstation disk encrypted and exclude the file from backups or indexing where possible.
+- `.env.production` stays gitignored and contains the live values Vercel allows the CLI to pull. Vercel-sensitive values (`VERCEL_BILLING_TOKEN`, `COST_SYNC_SECRET`, and `CRON_SECRET`) are intentionally omitted; their presence, `sensitive` type, and production-only target are checked from Vercel metadata instead.
+- On Windows, file mode bits do not provide a reliable ACL; keep the workstation disk encrypted and exclude `.env.production` from backups or indexing where possible.
 - Production seeding runs `env:production:check` and aborts before opening a database connection if the mirror has drifted. It never pulls automatically.
 - Local development, tests, and builds do not call Vercel or overwrite environment files.
 
