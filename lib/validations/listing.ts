@@ -64,6 +64,13 @@ export type SubmitListingForReviewInput = z.infer<
   typeof submitListingForReviewSchema
 >;
 
+export const withdrawListingSubmissionSchema = z
+  .object({
+    listingId: z.string().cuid("Invalid listing"),
+    expectedRevision: z.number().int().min(0),
+  })
+  .strict();
+
 const listingPhotoMutationItemSchema = z
   .object({
     imageId: z.string().trim().min(1).max(100).optional(),

@@ -20,18 +20,22 @@ import { validateModerationReason } from "@/lib/listings/moderation-reasons";
 import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
 import { discardOpenRevisions } from "@/lib/listings/revision-discard";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
+import {
+  ListingLifecycleConflictError,
+  ListingLifecycleError,
+} from "@/lib/listings/errors";
+
+export {
+  ListingLifecycleConflictError,
+  ListingLifecycleError,
+  isListingConflictError,
+  isListingLifecycleDomainError,
+} from "@/lib/listings/errors";
 
 type DbClient = Prisma.TransactionClient | typeof db;
 
 const ACTIONS_THAT_DISCARD_REVISIONS: ReadonlySet<ListingLifecycleAction> =
   new Set(["TAKE_DOWN", "EXPIRE", "MARK_SOLD", "ACCOUNT_DISABLE"]);
-
-export class ListingLifecycleError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ListingLifecycleError";
-  }
-}
 
 export interface TransitionListingStatusInput {
   listingId: string;
@@ -145,13 +149,13 @@ async function runTransition(
   }
 
   if (existing.lifecycleRevision !== input.expectedRevision) {
-    throw new ListingLifecycleError(
+    throw new ListingLifecycleConflictError(
       "Listing status changed. Refresh and try again.",
     );
   }
 
   if (!canTransitionAction(input.action, existing.status)) {
-    throw new ListingLifecycleError(
+    throw new ListingLifecycleConflictError(
       `Invalid transition: ${input.action} from ${existing.status}`,
     );
   }
@@ -246,7 +250,7 @@ async function runTransition(
   });
 
   if (updated.count !== 1) {
-    throw new ListingLifecycleError(
+    throw new ListingLifecycleConflictError(
       "Listing status changed. Refresh and try again.",
     );
   }
@@ -299,17 +303,20 @@ async function runTransition(
 
   return {
     listing,
-    notification: {
-      eventId: event.id,
-      listingId: existing.id,
-      action: input.action,
-      fromStatus: existing.status,
-      toStatus,
-      reasonCode: input.reasonCode ?? null,
-      moderationSubReason: input.moderationSubReason ?? null,
-      moderationTaxonomyVersion:
-        input.moderationTaxonomyVersion ?? null,
-    },
+    notification:
+      input.action === "WITHDRAW"
+        ? null
+        : {
+            eventId: event.id,
+            listingId: existing.id,
+            action: input.action,
+            fromStatus: existing.status,
+            toStatus,
+            reasonCode: input.reasonCode ?? null,
+            moderationSubReason: input.moderationSubReason ?? null,
+            moderationTaxonomyVersion:
+              input.moderationTaxonomyVersion ?? null,
+          },
   };
 }
 

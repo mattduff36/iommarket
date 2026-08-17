@@ -52,7 +52,7 @@ describe("MON-HANDLED-004 handled failure reporting", () => {
     expect(
       isExpectedHandledOutcome(
         Object.assign(new Error("Invalid transition"), {
-          name: "ListingLifecycleError",
+          name: "ListingLifecycleConflictError",
         }),
       ),
     ).toBe(true);

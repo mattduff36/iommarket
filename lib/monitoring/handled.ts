@@ -11,6 +11,7 @@ const EXPECTED_ERROR_NAMES = new Set([
   "AccountDeletionError",
   "CancellationError",
   "ListingLifecycleError",
+  "ListingLifecycleConflictError",
   "ListingRevisionConflictError",
   "PhotoRevisionConflictError",
   "VehicleLookupError",

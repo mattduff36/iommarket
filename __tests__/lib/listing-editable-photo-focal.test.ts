@@ -38,7 +38,7 @@ const image = {
   focalY: 0.71,
 };
 
-function listing(status: "DRAFT" | "LIVE") {
+function listing(status: "DRAFT" | "LIVE" | "REJECTED" | "TAKEN_DOWN") {
   return {
     id: "listing-1",
     userId: "user-1",
@@ -73,6 +73,38 @@ describe("listing edit focal persistence", () => {
 
     expect(draft?.images[0]).toMatchObject({ focalX: 0.23, focalY: 0.71, order: 0 });
   });
+
+  it.each([
+    ["DRAFT", "draft"],
+    ["REJECTED", "resubmit"],
+    ["TAKEN_DOWN", "resubmit"],
+  ] as const)(
+    "reopens %s content in the correct editable flow",
+    async (status, editMode) => {
+      listingFindFirst.mockResolvedValue({
+        ...listing(status),
+        attributeValues: [
+          { attributeDefinitionId: "attribute-1", value: "value-1" },
+        ],
+      });
+
+      const draft = await getEditableDraft({
+        draftId: "listing-1",
+        userId: "user-1",
+        dealerId: null,
+      });
+
+      expect(draft).toMatchObject({
+        editMode,
+        trustDeclarationAccepted: true,
+        photoRevision: 4,
+        images: [{ focalX: 0.23, focalY: 0.71 }],
+        attributes: [
+          { attributeDefinitionId: "attribute-1", value: "value-1" },
+        ],
+      });
+    },
+  );
 
   it("keeps focal coordinates from a moderated revision", async () => {
     listingFindFirst.mockResolvedValue(listing("LIVE"));

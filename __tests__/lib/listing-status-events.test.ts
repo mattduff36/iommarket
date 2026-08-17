@@ -46,7 +46,10 @@ vi.mock("@/lib/email/listing-notifications", () => ({
   dispatchListingNotifications: vi.fn(),
 }));
 
-import { transitionListingStatus } from "@/lib/listings/status-events";
+import {
+  ListingLifecycleConflictError,
+  transitionListingStatus,
+} from "@/lib/listings/status-events";
 
 describe("transitionListingStatus", () => {
   beforeEach(() => {
@@ -93,6 +96,60 @@ describe("transitionListingStatus", () => {
       }),
     });
     expect(mockTx.adminAuditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("withdraws pending to draft without clearing Featured or revisions MD-LIFE-001", async () => {
+    mockTx.listing.findUnique.mockResolvedValue({
+      id: "listing-withdraw",
+      status: "PENDING",
+      userId: "user-1",
+      expiresAt: null,
+      lifecycleRevision: 4,
+    });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "event-withdraw" });
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({
+      id: "listing-withdraw",
+      status: "DRAFT",
+      featured: true,
+      lifecycleRevision: 5,
+    });
+
+    const result = await transitionListingStatus({
+      listingId: "listing-withdraw",
+      action: "WITHDRAW",
+      expectedRevision: 4,
+      actor: { id: "user-1", role: "USER" },
+      source: "USER",
+    });
+
+    expect(result.listing).toEqual(
+      expect.objectContaining({ status: "DRAFT", featured: true }),
+    );
+    expect(result.notification).toBeNull();
+    expect(mockTx.listing.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "listing-withdraw",
+        status: "PENDING",
+        lifecycleRevision: 4,
+      },
+      data: {
+        status: "DRAFT",
+        lifecycleRevision: { increment: 1 },
+      },
+    });
+    expect(mockTx.listingRevision.findMany).not.toHaveBeenCalled();
+    expect(mockTx.listingRevision.updateMany).not.toHaveBeenCalled();
+    expect(mockTx.adminAuditLog.create).not.toHaveBeenCalled();
+    expect(mockTx.listingStatusEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "WITHDRAW",
+        fromStatus: "PENDING",
+        toStatus: "DRAFT",
+        source: "USER",
+        reasonCode: undefined,
+      }),
+    });
   });
 
   it("writes an admin audit record for material admin actions ALR-AUD-001", async () => {
@@ -160,7 +217,10 @@ describe("transitionListingStatus", () => {
         reasonCode: "FRAUD",
         reportId: "report-1",
       }),
-    ).rejects.toThrow("Report does not belong to this listing.");
+    ).rejects.toMatchObject({
+      name: "ListingLifecycleError",
+      message: "Report does not belong to this listing.",
+    });
     expect(mockTx.listing.updateMany).not.toHaveBeenCalled();
   });
 
@@ -182,10 +242,70 @@ describe("transitionListingStatus", () => {
         source: "ADMIN",
         reasonCode: "FRAUD",
       }),
-    ).rejects.toThrow("Listing status changed");
+    ).rejects.toBeInstanceOf(ListingLifecycleConflictError);
 
     expect(mockTx.listing.updateMany).not.toHaveBeenCalled();
     expect(mockTx.listingStatusEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("allows exactly one concurrent approve or withdrawal MD-LIFE-002", async () => {
+    let readCount = 0;
+    let releaseReads: (() => void) | undefined;
+    const bothReads = new Promise<void>((resolve) => {
+      releaseReads = resolve;
+    });
+    let winnerChosen = false;
+    let finalStatus = "PENDING";
+
+    mockTx.listing.findUnique.mockImplementation(async () => {
+      readCount += 1;
+      if (readCount === 2) releaseReads?.();
+      await bothReads;
+      return {
+        id: "listing-race",
+        status: "PENDING",
+        userId: "user-1",
+        expiresAt: null,
+        lifecycleRevision: 7,
+      };
+    });
+    mockTx.listing.updateMany.mockImplementation(async ({ data }) => {
+      if (winnerChosen) return { count: 0 };
+      winnerChosen = true;
+      finalStatus = data.status as string;
+      return { count: 1 };
+    });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "event-race" });
+    mockTx.listing.findUniqueOrThrow.mockImplementation(async () => ({
+      id: "listing-race",
+      status: finalStatus,
+      lifecycleRevision: 8,
+    }));
+
+    const outcomes = await Promise.allSettled([
+      transitionListingStatus({
+        listingId: "listing-race",
+        action: "APPROVE",
+        expectedRevision: 7,
+        actor: { id: "admin-1", role: "ADMIN" },
+        source: "ADMIN",
+      }),
+      transitionListingStatus({
+        listingId: "listing-race",
+        action: "WITHDRAW",
+        expectedRevision: 7,
+        actor: { id: "user-1", role: "USER" },
+        source: "USER",
+      }),
+    ]);
+
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+    expect(
+      rejected && "reason" in rejected ? rejected.reason : null,
+    ).toBeInstanceOf(ListingLifecycleConflictError);
+    expect(mockTx.listingStatusEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it("rejects invalid transitions without writing ALR-LST-002", async () => {
@@ -206,7 +326,7 @@ describe("transitionListingStatus", () => {
         source: "ADMIN",
         reasonCode: "FRAUD",
       }),
-    ).rejects.toThrow("Invalid transition");
+    ).rejects.toBeInstanceOf(ListingLifecycleConflictError);
 
     expect(mockTx.listing.updateMany).not.toHaveBeenCalled();
   });

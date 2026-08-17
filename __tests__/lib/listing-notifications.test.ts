@@ -11,7 +11,7 @@ import {
 } from "@/lib/listings/notification-intents";
 
 describe("listing notification copy ALR-MAIL-001 ALR-MAIL-004", () => {
-  it("has seller copy for every lifecycle action except backfill ALR-MAIL-001", () => {
+  it("has seller copy for externally-notified lifecycle actions ALR-MAIL-001", () => {
     const actions = [
       "SUBMIT",
       "APPROVE",
@@ -31,6 +31,7 @@ describe("listing notification copy ALR-MAIL-001 ALR-MAIL-004", () => {
     for (const action of actions) {
       expect(buildListingStatusEmail({ action, listingTitle: "Van" })).not.toBeNull();
     }
+    expect(buildListingStatusEmail({ action: "WITHDRAW", listingTitle: "Van" })).toBeNull();
     expect(buildListingStatusEmail({ action: "SYSTEM_BACKFILL", listingTitle: "Van" })).toBeNull();
   });
 
@@ -38,12 +39,15 @@ describe("listing notification copy ALR-MAIL-001 ALR-MAIL-004", () => {
     const email = buildListingStatusEmail({
       action: "REJECT",
       listingTitle: "Test van",
+      listingId: "listing-1",
       reasonCode: "FRAUD",
     });
     expect(email?.subject).toContain("not approved");
     expect(email?.text).toContain("Fraud or scam");
     expect(email?.text).not.toContain("internal");
     expect(email?.html).not.toContain("adminNotes");
+    expect(email?.text).toContain("/listings/listing-1");
+    expect(email?.text).toContain("/account/listings");
     expect(buildListingStatusEmail({ action: "SYSTEM_BACKFILL", listingTitle: "x" })).toBeNull();
   });
 
@@ -106,6 +110,7 @@ describe("listing notification copy ALR-MAIL-001 ALR-MAIL-004", () => {
       isRevision: false,
     });
     expect(admin.subject).toContain("resubmitted");
+    expect(admin.text).toContain("/admin/listings");
   });
 
   it("skips seller status mail for same-status and backfill events", () => {
@@ -116,6 +121,26 @@ describe("listing notification copy ALR-MAIL-001 ALR-MAIL-004", () => {
         action: "SUBMIT_REVISION",
         fromStatus: "LIVE",
         toStatus: "LIVE",
+        reasonCode: null,
+      }),
+    ).toBe(false);
+    expect(
+      shouldNotifySellerStatusChange({
+        eventId: "e-withdraw",
+        listingId: "l1",
+        action: "WITHDRAW",
+        fromStatus: "PENDING",
+        toStatus: "DRAFT",
+        reasonCode: null,
+      }),
+    ).toBe(false);
+    expect(
+      shouldNotifyAdminSubmission({
+        eventId: "e-withdraw",
+        listingId: "l1",
+        action: "WITHDRAW",
+        fromStatus: "PENDING",
+        toStatus: "DRAFT",
         reasonCode: null,
       }),
     ).toBe(false);

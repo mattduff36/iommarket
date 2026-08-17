@@ -102,6 +102,9 @@ export function ListingModerationActions({
           setError(
             typeof result.error === "string" ? result.error : "Moderation failed",
           );
+          if ("conflict" in result && result.conflict) {
+            router.refresh();
+          }
           return;
         }
         setDialog(null);

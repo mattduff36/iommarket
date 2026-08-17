@@ -20,6 +20,7 @@ export const LIFECYCLE_ACTION_TRANSITIONS: Record<
   { from: ListingStatus[]; to: ListingStatus }
 > = {
   SUBMIT: { from: ["DRAFT", "TAKEN_DOWN", "REJECTED"], to: "PENDING" },
+  WITHDRAW: { from: ["PENDING"], to: "DRAFT" },
   APPROVE: { from: ["PENDING", "APPROVED"], to: "LIVE" },
   REJECT: { from: ["PENDING"], to: "REJECTED" },
   TAKE_DOWN: { from: ["LIVE", "APPROVED"], to: "TAKEN_DOWN" },
@@ -51,6 +52,8 @@ export function isActionAuthorized(input: {
         input.isOwner &&
         (input.source === "USER" || input.source === "PAYMENT")
       );
+    case "WITHDRAW":
+      return input.isOwner && input.source === "USER";
     case "APPROVE":
     case "REJECT":
     case "TAKE_DOWN":

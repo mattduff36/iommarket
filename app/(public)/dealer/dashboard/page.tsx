@@ -25,6 +25,7 @@ import { Plus, ExternalLink, Star } from "lucide-react";
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
+import { WithdrawSubmissionButton } from "@/components/marketplace/withdraw-submission-button";
 import {
   DEALER_TIER_LABELS,
   getDealerListingCap,
@@ -416,7 +417,9 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                   <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[listing.status] ?? "neutral"}>
-                      {listing.status}
+                      {listing.status === "PENDING"
+                        ? "Awaiting review"
+                        : listing.status.replaceAll("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-text-secondary">
@@ -455,6 +458,16 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                       )}
                       {listing.status === "LIVE" && (
                         <MarkSoldButton listingId={listing.id} />
+                      )}
+                      {listing.status === "PENDING" && (
+                        <WithdrawSubmissionButton
+                          listingId={listing.id}
+                          expectedRevision={listing.lifecycleRevision}
+                          editHref={getDraftEditorHref({
+                            listingId: listing.id,
+                            dealerId: listing.dealerId,
+                          })}
+                        />
                       )}
                       {listing.status === "EXPIRED" && (
                         <RenewListingButton

@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +16,7 @@ import {
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "@/app/(public)/dealer/dashboard/mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
+import { WithdrawSubmissionButton } from "@/components/marketplace/withdraw-submission-button";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
@@ -128,6 +128,10 @@ export default async function AccountListingsPage({ searchParams }: Props) {
         <p className="mt-2 text-sm text-text-secondary">
           Once a vehicle sells, use <span className="font-medium text-text-primary">Mark as sold</span> to inform itrader.im and remove it from live results.
         </p>
+        <p className="mt-2 text-sm text-text-secondary">
+          A listing awaiting review cannot be edited. Withdraw its submission first
+          to return it to Draft.
+        </p>
       </div>
 
       <Card className="mb-6">
@@ -190,7 +194,11 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                 <TableCell>{listing.region.name}</TableCell>
                 <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
                 <TableCell>
-                  <Badge variant="neutral">{listing.status}</Badge>
+                  <Badge variant="neutral">
+                    {listing.status === "PENDING"
+                      ? "Awaiting review"
+                      : listing.status.replaceAll("_", " ")}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-text-secondary text-xs">
                   {listing.statusEvents[0]
@@ -233,6 +241,16 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                     )}
                     {listing.status === "LIVE" && (
                       <MarkSoldButton listingId={listing.id} />
+                    )}
+                    {listing.status === "PENDING" && (
+                      <WithdrawSubmissionButton
+                        listingId={listing.id}
+                        expectedRevision={listing.lifecycleRevision}
+                        editHref={getDraftEditorHref({
+                          listingId: listing.id,
+                          dealerId: listing.dealerId,
+                        })}
+                      />
                     )}
                     {listing.status === "EXPIRED" && (
                       <RenewListingButton

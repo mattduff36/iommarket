@@ -5,7 +5,11 @@ import type {
 import { db } from "@/lib/db";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { isListingEffectivelyExpired } from "@/lib/listings/expiry";
-import { ListingLifecycleError, createListingStatusEvent } from "@/lib/listings/status-events";
+import {
+  ListingLifecycleError,
+  ListingRevisionConflictError,
+} from "@/lib/listings/errors";
+import { createListingStatusEvent } from "@/lib/listings/status-events";
 import { validateModerationReason } from "@/lib/listings/moderation-reasons";
 import {
   applyRevisionImages,
@@ -18,12 +22,7 @@ type DbClient = Prisma.TransactionClient | typeof db;
 
 const OPEN_REVISION_STATUSES = ["DRAFT", "PENDING"] as const;
 
-export class ListingRevisionConflictError extends Error {
-  constructor(message = "Listing revision changed. Refresh and try again.") {
-    super(message);
-    this.name = "ListingRevisionConflictError";
-  }
-}
+export { ListingRevisionConflictError } from "@/lib/listings/errors";
 
 async function casListingRevision(
   client: DbClient,

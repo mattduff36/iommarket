@@ -14,6 +14,13 @@ import {
 } from "@/lib/listings/notification-intents";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 
+function getAppUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
+    /\/$/,
+    "",
+  );
+}
+
 const SELLER_COPY: Record<
   ListingLifecycleAction,
   { title: string; intro: string } | null
@@ -22,6 +29,7 @@ const SELLER_COPY: Record<
     title: "Listing submitted for review",
     intro: "We have received your listing and will review it shortly.",
   },
+  WITHDRAW: null,
   APPROVE: {
     title: "Your listing is now live",
     intro: "Your listing has been approved and is visible on iTrader.im.",
@@ -80,7 +88,6 @@ const SELLER_COPY: Record<
 function publicReasonLabel(
   reasonCode: ListingModerationReason | null,
   moderationSubReason?: string | null,
-  _moderationTaxonomyVersion?: string | null,
 ) {
   if (!reasonCode) return null;
   return moderationReasonLabelForHistory(reasonCode, moderationSubReason);
@@ -89,6 +96,7 @@ function publicReasonLabel(
 export function buildListingStatusEmail(input: {
   action: ListingLifecycleAction;
   listingTitle: string;
+  listingId?: string;
   reasonCode?: ListingModerationReason | null;
   moderationSubReason?: string | null;
   moderationTaxonomyVersion?: string | null;
@@ -98,9 +106,15 @@ export function buildListingStatusEmail(input: {
   const reasonLabel = publicReasonLabel(
     input.reasonCode ?? null,
     input.moderationSubReason,
-    input.moderationTaxonomyVersion,
   );
   const bodyLines = [`Listing: ${input.listingTitle}`];
+  if (input.listingId) {
+    const appUrl = getAppUrl();
+    bodyLines.push(
+      `Open listing: ${appUrl}/listings/${input.listingId}`,
+      `Your listings: ${appUrl}/account/listings`,
+    );
+  }
   if (reasonLabel) {
     bodyLines.push(`Reason: ${reasonLabel}`);
   }
@@ -132,6 +146,7 @@ export function buildAdminSubmissionEmail(input: {
   isResubmit: boolean;
   isRevision: boolean;
 }) {
+  const appUrl = getAppUrl();
   const title = input.isRevision
     ? "Live listing changes awaiting review"
     : input.isResubmit
@@ -142,7 +157,11 @@ export function buildAdminSubmissionEmail(input: {
     ...renderBrandedEmail({
       title,
       intro: "A listing is waiting in the moderation queue.",
-      bodyLines: [`Listing: ${input.listingTitle}`, `ID: ${input.listingId}`],
+      bodyLines: [
+        `Listing: ${input.listingTitle}`,
+        `ID: ${input.listingId}`,
+        `Review: ${appUrl}/admin/listings`,
+      ],
     }),
   };
 }
@@ -162,6 +181,7 @@ async function sendOneNotification(intent: ListingNotificationIntent) {
     const sellerEmail = buildListingStatusEmail({
       action: intent.action,
       listingTitle: listing.title,
+      listingId: listing.id,
       reasonCode: intent.reasonCode,
       moderationSubReason: intent.moderationSubReason,
       moderationTaxonomyVersion: intent.moderationTaxonomyVersion,

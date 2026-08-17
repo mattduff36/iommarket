@@ -186,16 +186,16 @@ export async function payForListing(input: PayForListingInput) {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now(),
     );
-    if (!isRenewal && listing.status === "DRAFT") {
-      const capturedPayment = await db.payment.findFirst({
-        where: {
-          listingId: listing.id,
-          type: "LISTING",
-          status: "SUCCEEDED",
-        },
-        select: { id: true },
+    if (!isRenewal && listing.status === "DRAFT" && !listing.dealerId) {
+      const { canSkipListingPayment } = await import(
+        "@/lib/listings/payment-skip"
+      );
+      const priorEntitlement = await canSkipListingPayment(db, {
+        listingId: listing.id,
+        userId: user.id,
+        dealerId: listing.dealerId,
       });
-      if (capturedPayment) {
+      if (priorEntitlement.skip) {
         return { data: { checkoutUrl: null, skippedPayment: true } };
       }
     }

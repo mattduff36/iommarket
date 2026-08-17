@@ -20,6 +20,9 @@ describe("listing lifecycle matrix ALR-LST-001", () => {
     expect(canTransitionAction("RETURN_TO_DRAFT", "REJECTED")).toBe(true);
     expect(canTransitionAction("SUBMIT", "TAKEN_DOWN")).toBe(true);
     expect(canTransitionAction("SUBMIT", "REJECTED")).toBe(true);
+    expect(canTransitionAction("WITHDRAW", "PENDING")).toBe(true);
+    expect(canTransitionAction("WITHDRAW", "DRAFT")).toBe(false);
+    expect(getActionTargetStatus("WITHDRAW")).toBe("DRAFT");
     expect(canTransitionAction("SUBMIT_REVISION", "LIVE")).toBe(true);
     expect(getActionTargetStatus("SUBMIT_REVISION")).toBe("LIVE");
     expect(Object.keys(LIFECYCLE_ACTION_TRANSITIONS)).toContain("ACCOUNT_DISABLE");
@@ -42,6 +45,41 @@ describe("listing lifecycle matrix ALR-LST-001", () => {
         isOwner: false,
       }),
     ).toBe(true);
+  });
+
+  it("allows only the owner using the user source to withdraw MD-LIFE-001", () => {
+    expect(
+      isActionAuthorized({
+        action: "WITHDRAW",
+        actorRole: "USER",
+        source: "USER",
+        isOwner: true,
+      }),
+    ).toBe(true);
+    expect(
+      isActionAuthorized({
+        action: "WITHDRAW",
+        actorRole: "USER",
+        source: "USER",
+        isOwner: false,
+      }),
+    ).toBe(false);
+    expect(
+      isActionAuthorized({
+        action: "WITHDRAW",
+        actorRole: "ADMIN",
+        source: "ADMIN",
+        isOwner: true,
+      }),
+    ).toBe(false);
+    expect(
+      isActionAuthorized({
+        action: "WITHDRAW",
+        actorRole: "USER",
+        source: "PAYMENT",
+        isOwner: true,
+      }),
+    ).toBe(false);
   });
 });
 

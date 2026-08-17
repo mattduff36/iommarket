@@ -81,6 +81,16 @@ describe("production migration contract MIG-001", () => {
     expect(backfill).toContain("'SYSTEM_BACKFILL'");
   });
 
+  it("adds withdrawal as an enum-only production migration MD-LIFE-001", () => {
+    const withdrawal = readMigration(
+      "20260817034000_listing_submission_withdrawal",
+    );
+    expect(withdrawal).toContain(
+      'ALTER TYPE "ListingLifecycleAction" ADD VALUE IF NOT EXISTS \'WITHDRAW\'',
+    );
+    expect(withdrawal).not.toMatch(/\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/);
+  });
+
   it("adds the vehicle catalogue without constraining listing EAV values", () => {
     const catalogue = readMigration("20260817014500_vehicle_catalogue");
     for (const table of ["VehicleMake", "VehicleModel", "VehicleModelAlias"]) {

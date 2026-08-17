@@ -97,7 +97,34 @@ Refund each payment manually through Ripple.
 
 Only set `RIPPLE_LIVE_CHECKOUT_ENABLED=1` after all four flows pass.
 
-## 5. Rollback and operations
+## 5. Seller withdrawal browser checks
+
+Use disposable private-seller and dealer accounts against a non-production
+database:
+
+- Submit a listing and confirm its account row says **Awaiting review**, has no
+  edit action, and offers **Withdraw submission**.
+- Cancel the withdrawal confirmation and verify the listing remains pending.
+- Confirm withdrawal and verify the control becomes disabled with
+  **Withdrawing…**, then opens the Draft editor with details, attributes,
+  trust declaration, photo order, and focal points intact.
+- For a paid and a free-claim listing, edit and resubmit the withdrawn draft.
+  Verify no second checkout opens and no second `FreeListingClaim` is created.
+- Verify a paid Featured submission remains Featured after withdrawal and is
+  still non-public until approval.
+- Verify self-withdrawal creates one `WITHDRAW` status event but sends neither
+  the moderation-inbox submission email nor an admin-style seller status email.
+- In two sessions, race admin approval against seller withdrawal. Exactly one
+  action must succeed; the loser must show refresh guidance without creating an
+  extra status event or monitoring issue.
+- Replay an older disposable payment event after withdrawal. Verify payment is
+  `SUCCEEDED`, the listing remains `DRAFT`, no submission email is sent, and the
+  safe business event is recorded.
+
+Do not run these checks against production listings or the production payment
+webhook.
+
+## 6. Rollback and operations
 
 - First response to payment trouble: set `RIPPLE_LIVE_CHECKOUT_ENABLED=0`.
 - Keep webhook ingestion and retry enabled for payments already made.

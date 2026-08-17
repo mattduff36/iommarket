@@ -247,6 +247,7 @@ enum ListingStatus {
 
 enum ListingLifecycleAction {
   SUBMIT
+  WITHDRAW
   APPROVE
   REJECT
   TAKE_DOWN

@@ -243,6 +243,59 @@ describe("payForListing", () => {
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
   });
 
+  it("does not charge after a paid pending submission is withdrawn and resubmitted", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: null,
+      status: "DRAFT",
+      title: "Withdrawn paid listing",
+      lifecycleRevision: 3,
+    });
+    mockDb.payment.findFirst.mockResolvedValue({ id: "original-payment" });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
+
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: {
+        checkoutUrl: null,
+        skippedPayment: true,
+      },
+    });
+
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(isPrivateListingFreeForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("does not charge a withdrawn draft with its original free claim MD-LIFE-003", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({
+      id: "claim-1",
+      userId: "user_123",
+    });
+
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: {
+        checkoutUrl: null,
+        skippedPayment: true,
+      },
+    });
+
+    expect(isPrivateListingFreeForUserMock).not.toHaveBeenCalled();
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+  });
+
   it("requires checkout to renew an expired free listing", async () => {
     mockDb.listing.findUnique.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",

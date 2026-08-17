@@ -9,6 +9,10 @@ const {
   syncListingImagesForUserMock,
   captureBusinessEventMock,
   captureExceptionMock,
+  reportHandledExceptionMock,
+  checkRateLimitMock,
+  makeRateLimitKeyMock,
+  dispatchListingNotificationsMock,
   mockDb,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
@@ -19,6 +23,10 @@ const {
   syncListingImagesForUserMock: vi.fn(),
   captureBusinessEventMock: vi.fn(),
   captureExceptionMock: vi.fn(),
+  reportHandledExceptionMock: vi.fn(),
+  checkRateLimitMock: vi.fn(),
+  makeRateLimitKeyMock: vi.fn(),
+  dispatchListingNotificationsMock: vi.fn(),
   mockDb: {
     listing: {
       findUnique: vi.fn(),
@@ -35,6 +43,12 @@ const {
     },
     payment: {
       findFirst: vi.fn(),
+    },
+    subscription: {
+      findFirst: vi.fn(),
+    },
+    freeListingClaim: {
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -56,12 +70,23 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/listings/status-events", () => ({
+  ListingLifecycleError: class ListingLifecycleError extends Error {},
   transitionListingStatus: transitionListingStatusMock,
 }));
 
 vi.mock("@/lib/monitoring", () => ({
   captureBusinessEvent: captureBusinessEventMock,
   captureException: captureExceptionMock,
+  reportHandledException: reportHandledExceptionMock,
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: checkRateLimitMock,
+  makeRateLimitKey: makeRateLimitKeyMock,
+}));
+
+vi.mock("@/lib/email/listing-notifications", () => ({
+  dispatchListingNotifications: dispatchListingNotificationsMock,
 }));
 
 vi.mock("@/lib/listings/revisions", () => ({
@@ -88,6 +113,10 @@ describe("submitListingForReview", () => {
       email: "seller@example.com",
       role: "USER",
     });
+    checkRateLimitMock.mockReturnValue({ allowed: true });
+    makeRateLimitKeyMock.mockImplementation(
+      (scope: string, identifier: string) => `${scope}:${identifier}`,
+    );
     mockDb.listing.findUnique.mockResolvedValue({
       id: "listing_123",
       userId: "user_123",
@@ -98,10 +127,74 @@ describe("submitListingForReview", () => {
       images: [{ id: "image_1" }, { id: "image_2" }],
     });
     mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.subscription.findFirst.mockResolvedValue(null);
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
     mockDb.listingAttributeValue.findFirst.mockResolvedValue(null);
     mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
     mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acc_1" });
     claimFreeListingSlotMock.mockResolvedValue({ status: "already-claimed" });
+  });
+
+  it("rate-limits submit and resubmit before transition or email", async () => {
+    checkRateLimitMock
+      .mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ allowed: false });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "Too many listing status changes. Please wait a few minutes and try again.",
+    });
+
+    expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
+      "listing-lifecycle-user",
+      "user_123",
+    );
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      "listing-lifecycle-user:user_123",
+      { windowMs: 600_000, maxRequests: 12 },
+    );
+    expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
+      "listing-lifecycle",
+      "user_123:listing_123",
+    );
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      "listing-lifecycle:user_123:listing_123",
+      { windowMs: 600_000, maxRequests: 6 },
+    );
+    expect(mockDb.listing.findUnique).not.toHaveBeenCalled();
+    expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(dispatchListingNotificationsMock).not.toHaveBeenCalled();
+  });
+
+  it("bounds multi-listing churn before creating attacker-controlled keys", async () => {
+    checkRateLimitMock.mockReturnValueOnce({ allowed: false });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "attacker-controlled-listing-key",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "Too many listing status changes. Please wait a few minutes and try again.",
+    });
+
+    expect(makeRateLimitKeyMock).toHaveBeenCalledTimes(1);
+    expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
+      "listing-lifecycle-user",
+      "user_123",
+    );
+    expect(mockDb.listing.findUnique).not.toHaveBeenCalled();
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(dispatchListingNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("rejects a private submission without explicit or prior acceptance MD-SELL-001", async () => {
@@ -229,6 +322,176 @@ describe("submitListingForReview", () => {
     );
   });
 
+  it("resubmits a withdrawn free-claim draft without a second claim MD-LIFE-003", async () => {
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({
+      id: "claim_1",
+      userId: "user_123",
+    });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "listing_123", status: "PENDING" },
+      notification: null,
+    });
+
+    const { submitListingForReview } = await import("@/actions/listings");
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "PENDING" },
+    });
+
+    expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
+    expect(transitionListingStatusMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "SUBMIT",
+        expectedRevision: 0,
+      }),
+    );
+  });
+
+  it("returns safe conflict copy for a plain submit CAS race", async () => {
+    const { ListingLifecycleConflictError } = await import(
+      "@/lib/listings/errors"
+    );
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({
+      id: "claim_1",
+      userId: "user_123",
+    });
+    transitionListingStatusMock.mockRejectedValue(
+      new ListingLifecycleConflictError(),
+    );
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "This listing changed before it could be submitted. Refresh and try again.",
+      conflict: true,
+    });
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("returns safe conflict copy for a free-claim submit race", async () => {
+    const { ListingLifecycleConflictError } = await import(
+      "@/lib/listings/errors"
+    );
+    claimFreeListingSlotMock.mockRejectedValue(
+      new ListingLifecycleConflictError(),
+    );
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "This listing changed before it could be submitted. Refresh and try again.",
+      conflict: true,
+    });
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves safe actionable free-claim lifecycle errors", async () => {
+    const { ListingLifecycleError } = await import("@/lib/listings/errors");
+    claimFreeListingSlotMock.mockRejectedValue(
+      new ListingLifecycleError(
+        "Payment is required to renew an expired listing.",
+      ),
+    );
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error: "Payment is required to renew an expired listing.",
+    });
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["plain", true],
+    ["free-claim", false],
+  ] as const)(
+    "reports unexpected %s submit failures with fixed safe copy",
+    async (_flow, hasPriorClaim) => {
+      mockDb.freeListingClaim.findUnique.mockResolvedValue(
+        hasPriorClaim ? { id: "claim_1", userId: "user_123" } : null,
+      );
+      if (hasPriorClaim) {
+        transitionListingStatusMock.mockRejectedValue(
+          new Error("internal database details"),
+        );
+      } else {
+        claimFreeListingSlotMock.mockRejectedValue(
+          new Error("internal database details"),
+        );
+      }
+      const { submitListingForReview } = await import("@/actions/listings");
+
+      await expect(
+        submitListingForReview({
+          listingId: "listing_123",
+          privateSellerTermsAccepted: true,
+        }),
+      ).resolves.toEqual({
+        error: "Unable to submit this listing. Please try again.",
+      });
+      expect(reportHandledExceptionMock).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "submitListingForReview" }),
+      );
+      expect(captureExceptionMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns safe conflict copy for revision submission races", async () => {
+    const { ListingRevisionConflictError } = await import(
+      "@/lib/listings/errors"
+    );
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: null,
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+    });
+    getOpenRevisionMock.mockResolvedValue({
+      id: "revision_1",
+      status: "DRAFT",
+      version: 2,
+    });
+    submitRevisionMock.mockRejectedValue(new ListingRevisionConflictError());
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error:
+        "These listing changes changed before they could be submitted. Refresh and try again.",
+      conflict: true,
+    });
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
   it("requires payment to renew a free listing", async () => {
     const { submitListingForReview } = await import("@/actions/listings");
     mockDb.listing.findUnique.mockResolvedValue({
@@ -271,6 +534,231 @@ describe("submitListingForReview", () => {
         process.env.POLICY_ENFORCE_LISTING_NS = previous;
       }
     }
+  });
+});
+
+describe("withdrawListingSubmission", () => {
+  const listingId = "caaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+    });
+    checkRateLimitMock.mockReturnValue({ allowed: true });
+    makeRateLimitKeyMock.mockImplementation(
+      (scope: string, identifier: string) => `${scope}:${identifier}`,
+    );
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: listingId,
+      userId: "user_123",
+      status: "PENDING",
+      lifecycleRevision: 5,
+    });
+  });
+
+  it("uses the lifecycle path with the caller's expected revision MD-LIFE-001", async () => {
+    transitionListingStatusMock.mockResolvedValue({
+      listing: {
+        id: listingId,
+        status: "DRAFT",
+        lifecycleRevision: 6,
+        featured: true,
+      },
+      notification: null,
+    });
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({
+        listingId,
+        expectedRevision: 5,
+      }),
+    ).resolves.toEqual({
+      data: expect.objectContaining({
+        status: "DRAFT",
+        featured: true,
+      }),
+    });
+    expect(transitionListingStatusMock).toHaveBeenCalledWith({
+      listingId,
+      action: "WITHDRAW",
+      expectedRevision: 5,
+      actor: { id: "user_123", role: "USER" },
+      source: "USER",
+      notes: "Submission withdrawn by seller",
+    });
+  });
+
+  it("rejects malformed input before lookup, limiting, or transition", async () => {
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({
+        listingId: "not-a-cuid",
+        expectedRevision: 5,
+      }),
+    ).resolves.toEqual({ error: "Invalid withdrawal request." });
+    expect(checkRateLimitMock).not.toHaveBeenCalled();
+    expect(mockDb.listing.findUnique).not.toHaveBeenCalled();
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", null],
+    [
+      "non-owner",
+      {
+        id: listingId,
+        userId: "another-user",
+        status: "PENDING",
+        lifecycleRevision: 5,
+      },
+    ],
+  ])("returns the same safe response for a %s listing", async (_label, found) => {
+    mockDb.listing.findUnique.mockResolvedValue(found);
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({ listingId, expectedRevision: 5 }),
+    ).resolves.toEqual({ error: "Submission not found." });
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a listing that is no longer pending", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: listingId,
+      userId: "user_123",
+      status: "DRAFT",
+      lifecycleRevision: 6,
+    });
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({ listingId, expectedRevision: 5 }),
+    ).resolves.toEqual({
+      error: "Only submissions awaiting review can be withdrawn.",
+      conflict: true,
+    });
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits withdrawal before lookup, transition, or email", async () => {
+    checkRateLimitMock
+      .mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ allowed: false });
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({ listingId, expectedRevision: 5 }),
+    ).resolves.toEqual({
+      error:
+        "Too many listing status changes. Please wait a few minutes and try again.",
+    });
+    expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
+      "listing-lifecycle-user",
+      "user_123",
+    );
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      "listing-lifecycle-user:user_123",
+      { windowMs: 600_000, maxRequests: 12 },
+    );
+    expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
+      "listing-lifecycle",
+      `user_123:${listingId}`,
+    );
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      `listing-lifecycle:user_123:${listingId}`,
+      { windowMs: 600_000, maxRequests: 6 },
+    );
+    expect(mockDb.listing.findUnique).not.toHaveBeenCalled();
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(dispatchListingNotificationsMock).not.toHaveBeenCalled();
+  });
+
+  it("maps dealer sellers without granting admin semantics", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      role: "DEALER",
+    });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: listingId, status: "DRAFT" },
+      notification: null,
+    });
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await withdrawListingSubmission({ listingId, expectedRevision: 5 });
+
+    expect(transitionListingStatusMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: { id: "user_123", role: "DEALER" },
+        source: "USER",
+      }),
+    );
+  });
+
+  it("returns a recoverable pre-check revision conflict without monitoring", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: listingId,
+      userId: "user_123",
+      status: "PENDING",
+      lifecycleRevision: 6,
+    });
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({ listingId, expectedRevision: 5 }),
+    ).resolves.toEqual({
+      error:
+        "This submission changed before it could be withdrawn. Refresh and try again.",
+      conflict: true,
+    });
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a recoverable stale-conflict response", async () => {
+    const { ListingLifecycleConflictError } = await import(
+      "@/lib/listings/errors"
+    );
+    transitionListingStatusMock.mockRejectedValue(
+      new ListingLifecycleConflictError(),
+    );
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({
+        listingId,
+        expectedRevision: 5,
+      }),
+    ).resolves.toEqual({
+      error:
+        "This submission changed before it could be withdrawn. Refresh and try again.",
+      conflict: true,
+    });
+    expect(reportHandledExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("reports unexpected failures while returning fixed safe copy", async () => {
+    transitionListingStatusMock.mockRejectedValue(new Error("database failed"));
+    const { withdrawListingSubmission } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({ listingId, expectedRevision: 5 }),
+    ).resolves.toEqual({
+      error: "Unable to withdraw this submission. Please try again.",
+    });
+    expect(reportHandledExceptionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "withdrawListingSubmission",
+        userId: "user_123",
+      }),
+    );
   });
 });
 

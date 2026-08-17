@@ -16,7 +16,9 @@ export interface ListingNotificationIntent {
 }
 
 export function shouldNotifySellerStatusChange(intent: ListingNotificationIntent) {
-  if (intent.action === "SYSTEM_BACKFILL") return false;
+  if (intent.action === "SYSTEM_BACKFILL" || intent.action === "WITHDRAW") {
+    return false;
+  }
   if (intent.fromStatus == null) return false;
   return intent.fromStatus !== intent.toStatus;
 }

@@ -9,6 +9,7 @@ const {
   paymentUpdate,
   listingFindUnique,
   listingUpdateMany,
+  listingStatusEventFindFirst,
   listingImageCount,
   policyAcceptanceFindUnique,
   transitionListingStatus,
@@ -21,12 +22,14 @@ const {
   const paymentUpdate = vi.fn();
   const listingFindUnique = vi.fn();
   const listingUpdateMany = vi.fn();
+  const listingStatusEventFindFirst = vi.fn();
   const listingImageCount = vi.fn();
   const policyAcceptanceFindUnique = vi.fn();
   const transactionMock = vi.fn();
   const db: {
     payment: { findMany: typeof paymentFindMany; create: typeof paymentCreate; update: typeof paymentUpdate };
     listing: { findUnique: typeof listingFindUnique; updateMany: typeof listingUpdateMany };
+    listingStatusEvent: { findFirst: typeof listingStatusEventFindFirst };
     listingImage: { count: typeof listingImageCount };
     policyAcceptance: { findUnique: typeof policyAcceptanceFindUnique };
     $transaction: (fn: (tx: unknown) => unknown) => Promise<unknown>;
@@ -39,6 +42,9 @@ const {
     listing: {
       findUnique: listingFindUnique,
       updateMany: listingUpdateMany,
+    },
+    listingStatusEvent: {
+      findFirst: listingStatusEventFindFirst,
     },
     listingImage: {
       count: listingImageCount,
@@ -54,6 +60,7 @@ const {
     paymentUpdate,
     listingFindUnique,
     listingUpdateMany,
+    listingStatusEventFindFirst,
     listingImageCount,
     policyAcceptanceFindUnique,
     transitionListingStatus: vi.fn(),
@@ -132,6 +139,7 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
       userId: "user-1",
     });
     listingImageCount.mockResolvedValue(2);
+    listingStatusEventFindFirst.mockResolvedValue(null);
     policyAcceptanceFindUnique.mockResolvedValue({ id: "acceptance-1" });
     transitionListingStatus.mockResolvedValue({
       listing: { id: "listing-1", status: "PENDING" },
@@ -170,6 +178,76 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     expect(paymentCreate).toHaveBeenCalledOnce();
     expect(paymentUpdate).not.toHaveBeenCalled();
     expect(transitionListingStatus).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a seller-withdrawn draft regardless of provider clock", async () => {
+    listingStatusEventFindFirst.mockResolvedValue({
+      action: "WITHDRAW",
+    });
+
+    await processProviderWebhookEvent(
+      listingEvent({
+        eventTimestamp: new Date("2036-08-15T10:17:00.000Z"),
+      }),
+    );
+
+    expect(paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        listingId: "listing-1",
+        status: "SUCCEEDED",
+      }),
+    });
+    expect(transitionListingStatus).not.toHaveBeenCalled();
+    expect(dispatchListingNotifications).not.toHaveBeenCalled();
+    expect(captureBusinessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: "LOW",
+        title: "Listing payment withheld after seller withdrawal",
+      }),
+    );
+    expect(listingStatusEventFindFirst).toHaveBeenCalledWith({
+      where: {
+        listingId: "listing-1",
+        action: { in: ["SUBMIT", "WITHDRAW"] },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { action: true },
+    });
+  });
+
+  it("allows normal payment when submit is the latest seller decision", async () => {
+    listingStatusEventFindFirst.mockResolvedValue({
+      action: "SUBMIT",
+    });
+
+    await processProviderWebhookEvent(listingEvent());
+
+    expect(transitionListingStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "SUBMIT", source: "PAYMENT" }),
+      expect.anything(),
+    );
+    expect(dispatchListingNotifications).toHaveBeenCalledOnce();
+  });
+
+  it("does not auto-submit an explicitly resubmitted pending listing", async () => {
+    listingFindUnique.mockResolvedValue({
+      id: "listing-1",
+      status: "PENDING",
+      trustDeclarationAccepted: true,
+      lifecycleRevision: 3,
+      userId: "user-1",
+      dealerId: null,
+    });
+    listingStatusEventFindFirst.mockResolvedValue({ action: "SUBMIT" });
+
+    await processProviderWebhookEvent(listingEvent());
+
+    expect(paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: "SUCCEEDED" }),
+    });
+    expect(transitionListingStatus).not.toHaveBeenCalled();
+    expect(dispatchListingNotifications).not.toHaveBeenCalled();
+    expect(captureBusinessEvent).not.toHaveBeenCalled();
   });
 
   it("records payment but withholds submission without a private receipt", async () => {

@@ -18,6 +18,10 @@ import {
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
 import { transitionListingStatus } from "@/lib/listings/status-events";
+import {
+  isListingConflictError,
+  isListingLifecycleDomainError,
+} from "@/lib/listings/errors";
 import { reportHandledException } from "@/lib/monitoring";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { approveRevision, rejectRevision } from "@/lib/listings/revisions";
@@ -102,15 +106,23 @@ export async function moderateListing(input: ModerateListingInput) {
     revalidatePath("/");
     return { data: result.listing };
   } catch (err) {
+    if (isListingConflictError(err)) {
+      return {
+        error:
+          "This listing changed before moderation completed. Refresh and try again.",
+        conflict: true,
+      };
+    }
+    if (isListingLifecycleDomainError(err)) {
+      return { error: err.message };
+    }
     await reportHandledException({
       error: err,
       action: "moderateListing",
       route: "/admin/listings",
       userId: admin.id,
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to moderate listing";
-    return { error: message };
+    return { error: "Failed to moderate listing. Please try again." };
   }
 }
 

@@ -17,6 +17,7 @@ import {
   contactSellerSchema,
   submitListingForReviewSchema,
   syncListingImagesActionSchema,
+  withdrawListingSubmissionSchema,
   type CreateListingInput,
   type ContactSellerInput,
   type ReportListingInput,
@@ -27,10 +28,18 @@ import {
   sendSellerContactEmail,
 } from "@/lib/email/resend";
 import { validateListingAttributes } from "@/lib/listings/attribute-ui";
-import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import {
-  transitionListingStatus,
-} from "@/lib/listings/status-events";
+  captureBusinessEvent,
+  captureException,
+  reportHandledException,
+} from "@/lib/monitoring";
+import { transitionListingStatus } from "@/lib/listings/status-events";
+import {
+  ListingLifecycleConflictError,
+  ListingLifecycleError,
+  isListingConflictError,
+  isListingLifecycleDomainError,
+} from "@/lib/listings/errors";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { canSkipListingPayment } from "@/lib/listings/payment-skip";
 import {
@@ -49,6 +58,43 @@ import {
 } from "@/lib/listings/photo-mutation";
 import { claimFreeListingSlot } from "@/lib/config/marketplace";
 import { validateVehicleCatalogueSubmission } from "@/lib/vehicle-catalogue/listing-validation";
+
+const LISTING_LIFECYCLE_RATE_LIMIT = {
+  windowMs: 10 * 60_000,
+  maxRequests: 6,
+} as const;
+const USER_LIFECYCLE_RATE_LIMIT = {
+  windowMs: 10 * 60_000,
+  maxRequests: 12,
+} as const;
+const LISTING_LIFECYCLE_RATE_LIMIT_ERROR =
+  "Too many listing status changes. Please wait a few minutes and try again.";
+
+function canChangeListingLifecycle(userId: string, listingId: string) {
+  const userCheck = checkRateLimit(
+    makeRateLimitKey("listing-lifecycle-user", userId),
+    USER_LIFECYCLE_RATE_LIMIT,
+  );
+  if (!userCheck.allowed) return false;
+
+  return checkRateLimit(
+    makeRateLimitKey("listing-lifecycle", `${userId}:${listingId}`),
+    LISTING_LIFECYCLE_RATE_LIMIT,
+  ).allowed;
+}
+
+function expectedListingActionError(
+  error: unknown,
+  conflictMessage: string,
+): { error: string; conflict?: true } | null {
+  if (isListingConflictError(error)) {
+    return { error: conflictMessage, conflict: true };
+  }
+  if (isListingLifecycleDomainError(error)) {
+    return { error: error.message };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Create Listing
@@ -374,6 +420,9 @@ export async function submitListingForReview(
     return { error: parsedInput.error.flatten().fieldErrors };
   }
   const { listingId, privateSellerTermsAccepted } = parsedInput.data;
+  if (!canChangeListingLifecycle(user.id, listingId)) {
+    return { error: LISTING_LIFECYCLE_RATE_LIMIT_ERROR };
+  }
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -484,8 +533,23 @@ export async function submitListingForReview(
       revalidatePath("/admin/listings");
       return { data: result.listing };
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to submit listing changes";
-      return { error: message };
+      const expected = expectedListingActionError(
+        err,
+        "These listing changes changed before they could be submitted. Refresh and try again.",
+      );
+      if (expected) return expected;
+      await reportHandledException({
+        error: err,
+        action: "submitListingRevisionForReview",
+        route: `/listings/${listingId}`,
+        requestPath: `/listings/${listingId}`,
+        userId: user.id,
+        userEmail: user.email,
+        tags: { listingId },
+      });
+      return {
+        error: "Unable to submit these listing changes. Please try again.",
+      };
     }
   }
   if (
@@ -530,127 +594,147 @@ export async function submitListingForReview(
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
     );
-    const hasSuccessfulPayment = await db.payment.findFirst({
-      where: {
-        listingId,
-        type: "LISTING",
-        status: "SUCCEEDED",
-        ...(isRenewal && listing.expiresAt
-          ? { createdAt: { gt: listing.expiresAt } }
-          : {}),
-      },
-      select: { id: true },
-    });
-    if (!hasSuccessfulPayment) {
-      if (isRenewal) {
+    if (isRenewal) {
+      const renewalPayment = await db.payment.findFirst({
+        where: {
+          listingId,
+          type: "LISTING",
+          status: "SUCCEEDED",
+          ...(listing.expiresAt
+            ? { createdAt: { gt: listing.expiresAt } }
+            : {}),
+        },
+        select: { id: true },
+      });
+      if (!renewalPayment) {
         return {
           error: "Payment is required to renew an expired listing.",
         };
       }
+    } else {
+      const priorEntitlement = await canSkipListingPayment(db, {
+        listingId,
+        userId: user.id,
+        dealerId: null,
+      });
 
-      try {
-        const freeClaim = await claimFreeListingSlot({
-          userId: user.id,
-          listingId,
-          onClaim: async (transaction) => {
-            const [currentListing, imageCount, paidListing] = await Promise.all([
-              transaction.listing.findUnique({
-                where: { id: listingId },
-                select: {
-                  dealerId: true,
-                  expiresAt: true,
-                  status: true,
-                  trustDeclarationAccepted: true,
-                  userId: true,
-                  lifecycleRevision: true,
-                },
-              }),
-              transaction.listingImage.count({ where: { listingId } }),
-              transaction.payment.findFirst({
-                where: {
+      if (!priorEntitlement.skip) {
+        try {
+          const freeClaim = await claimFreeListingSlot({
+            userId: user.id,
+            listingId,
+            onClaim: async (transaction) => {
+              const [currentListing, imageCount, paidListing] = await Promise.all([
+                transaction.listing.findUnique({
+                  where: { id: listingId },
+                  select: {
+                    dealerId: true,
+                    expiresAt: true,
+                    status: true,
+                    trustDeclarationAccepted: true,
+                    userId: true,
+                    lifecycleRevision: true,
+                  },
+                }),
+                transaction.listingImage.count({ where: { listingId } }),
+                transaction.payment.findFirst({
+                  where: {
+                    listingId,
+                    type: "LISTING",
+                    status: "SUCCEEDED",
+                  },
+                  select: { id: true },
+                }),
+              ]);
+
+              if (
+                !currentListing ||
+                currentListing.userId !== user.id ||
+                currentListing.dealerId ||
+                currentListing.status !== "DRAFT" ||
+                !currentListing.trustDeclarationAccepted ||
+                imageCount < 2
+              ) {
+                throw new ListingLifecycleConflictError(
+                  "This listing changed before it could be submitted. Please refresh and try again.",
+                );
+              }
+              if (
+                currentListing.expiresAt &&
+                currentListing.expiresAt.getTime() <= Date.now()
+              ) {
+                throw new ListingLifecycleError(
+                  "Payment is required to renew an expired listing.",
+                );
+              }
+              if (paidListing) {
+                throw new ListingLifecycleConflictError(
+                  "A payment was received for this listing. Please refresh and try again.",
+                );
+              }
+
+              const updated = await transitionListingStatus(
+                {
                   listingId,
-                  type: "LISTING",
-                  status: "SUCCEEDED",
+                  action: "SUBMIT",
+                  expectedRevision: currentListing.lifecycleRevision,
+                  actor: {
+                    id: user.id,
+                    role: user.role === "ADMIN" ? "ADMIN" : "USER",
+                  },
+                  source: "USER",
+                  notes: "Submitted for moderation with free listing claim",
                 },
-                select: { id: true },
-              }),
-            ]);
+                transaction,
+              );
 
-            if (
-              !currentListing ||
-              currentListing.userId !== user.id ||
-              currentListing.dealerId ||
-              currentListing.status !== "DRAFT" ||
-              !currentListing.trustDeclarationAccepted ||
-              imageCount < 2
-            ) {
-              throw new Error("This listing changed before it could be submitted. Please refresh and try again.");
+              return updated;
+            },
+          });
+
+          if (freeClaim.status === "already-claimed") {
+            return {
+              error:
+                "Your one free listing has already been used. Complete payment for this listing to submit it.",
+            };
+          }
+          if (freeClaim.status === "slots-exhausted") {
+            return {
+              error:
+                "All free launch listings have now been claimed. Complete payment for this listing to submit it.",
+            };
+          }
+
+          if (freeClaim.status === "claimed" && freeClaim.data) {
+            try {
+              await dispatchListingNotifications([freeClaim.data.notification]);
+            } catch {
+              // Email is best-effort after the free-claim commit.
             }
-            if (currentListing.expiresAt && currentListing.expiresAt.getTime() <= Date.now()) {
-              throw new Error("Payment is required to renew an expired listing.");
-            }
-            if (paidListing) {
-              throw new Error("A payment was received for this listing. Please refresh and try again.");
-            }
-
-            const updated = await transitionListingStatus(
-              {
-                listingId,
-                action: "SUBMIT",
-                expectedRevision: currentListing.lifecycleRevision,
-                actor: {
-                  id: user.id,
-                  role: user.role === "ADMIN" ? "ADMIN" : "USER",
-                },
-                source: "USER",
-                notes: "Submitted for moderation with free listing claim",
-              },
-              transaction,
-            );
-
-            return updated;
-          },
-        });
-
-        if (freeClaim.status === "already-claimed") {
-          return {
-            error:
-              "Your one free listing has already been used. Complete payment for this listing to submit it.",
-          };
-        }
-        if (freeClaim.status === "slots-exhausted") {
-          return {
-            error:
-              "All free launch listings have now been claimed. Complete payment for this listing to submit it.",
-          };
-        }
-
-        if (freeClaim.status === "claimed" && freeClaim.data) {
-          try {
-            await dispatchListingNotifications([freeClaim.data.notification]);
-          } catch {
-            // Email is best-effort after the free-claim commit.
+            revalidatePath(`/listings/${listingId}`);
+            return { data: freeClaim.data.listing };
           }
           revalidatePath(`/listings/${listingId}`);
-          return { data: freeClaim.data.listing };
+          return { data: freeClaim.data };
+        } catch (err) {
+          const expected = expectedListingActionError(
+            err,
+            "This listing changed before it could be submitted. Refresh and try again.",
+          );
+          if (expected) return expected;
+          await reportHandledException({
+            error: err,
+            action: "submitListingForReview",
+            route: `/listings/${listingId}`,
+            requestPath: `/listings/${listingId}`,
+            userId: user.id,
+            userEmail: user.email,
+            tags: { listingId, flow: "free-listing-claim" },
+          });
+          return {
+            error: "Unable to submit this listing. Please try again.",
+          };
         }
-        revalidatePath(`/listings/${listingId}`);
-        return { data: freeClaim.data };
-      } catch (err) {
-        await captureException({
-          source: "SERVER",
-          error: err,
-          action: "submitListingForReview",
-          route: `/listings/${listingId}`,
-          requestPath: `/listings/${listingId}`,
-          userId: user.id,
-          userEmail: user.email,
-          tags: { listingId, flow: "free-listing-claim" },
-        });
-        const message = err instanceof Error ? err.message : "Failed to submit listing";
-        return {
-          error: message,
-        };
       }
     }
   }
@@ -669,8 +753,12 @@ export async function submitListingForReview(
     revalidatePath("/admin/listings");
     return { data: updated.listing };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    const expected = expectedListingActionError(
+      err,
+      "This listing changed before it could be submitted. Refresh and try again.",
+    );
+    if (expected) return expected;
+    await reportHandledException({
       error: err,
       action: "submitListingForReview",
       route: `/listings/${listingId}`,
@@ -679,8 +767,86 @@ export async function submitListingForReview(
       userEmail: user.email,
       tags: { listingId },
     });
-    const message = err instanceof Error ? err.message : "Failed to submit listing";
-    return { error: message };
+    return { error: "Unable to submit this listing. Please try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Withdraw Submission (Pending → Draft)
+// ---------------------------------------------------------------------------
+
+export async function withdrawListingSubmission(input: unknown) {
+  const user = await requireAcceptedAuth();
+  const parsed = withdrawListingSubmissionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "Invalid withdrawal request." };
+  }
+
+  const { listingId, expectedRevision } = parsed.data;
+  if (!canChangeListingLifecycle(user.id, listingId)) {
+    return { error: LISTING_LIFECYCLE_RATE_LIMIT_ERROR };
+  }
+
+  try {
+    const listing = await db.listing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        lifecycleRevision: true,
+      },
+    });
+    if (!listing || listing.userId !== user.id) {
+      return { error: "Submission not found." };
+    }
+    if (listing.status !== "PENDING") {
+      return {
+        error: "Only submissions awaiting review can be withdrawn.",
+        conflict: true,
+      };
+    }
+    if (listing.lifecycleRevision !== expectedRevision) {
+      return {
+        error:
+          "This submission changed before it could be withdrawn. Refresh and try again.",
+        conflict: true,
+      };
+    }
+
+    const result = await transitionListingStatus({
+      listingId,
+      action: "WITHDRAW",
+      expectedRevision,
+      actor: { id: user.id, role: user.role === "DEALER" ? "DEALER" : "USER" },
+      source: "USER",
+      notes: "Submission withdrawn by seller",
+    });
+
+    revalidatePath(`/listings/${listingId}`);
+    revalidatePath("/account/listings");
+    revalidatePath("/dealer/dashboard");
+    revalidatePath("/admin/listings");
+    return { data: result.listing };
+  } catch (err) {
+    const expected = expectedListingActionError(
+      err,
+      "This submission changed before it could be withdrawn. Refresh and try again.",
+    );
+    if (expected) return expected;
+
+    await reportHandledException({
+      error: err,
+      action: "withdrawListingSubmission",
+      route: "/account/listings",
+      requestPath: "/account/listings",
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId },
+    });
+    return {
+      error: "Unable to withdraw this submission. Please try again.",
+    };
   }
 }
 

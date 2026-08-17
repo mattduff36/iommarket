@@ -72,6 +72,42 @@ export async function submitPaidListingForReview(
     return [];
   }
 
+  const latestSubmissionDecision = await client.listingStatusEvent.findFirst({
+    where: {
+      listingId,
+      action: { in: ["SUBMIT", "WITHDRAW"] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { action: true },
+  });
+  if (
+    listing.status === "DRAFT" &&
+    latestSubmissionDecision?.action === "WITHDRAW"
+  ) {
+    await captureBusinessEvent({
+      source: "WEBHOOK",
+      severity: "LOW",
+      title: "Listing payment withheld after seller withdrawal",
+      message:
+        "Provider payment succeeded, but automatic moderation submission was withheld because withdrawal is the seller's latest submission decision.",
+      action: "submitPaidListingForReview",
+      route: "/api/webhooks/payments",
+      requestPath: "/api/webhooks/payments",
+      tags: buildRippleSafeTags({
+        listingId,
+        status: listing.status,
+        eventType: event.rawType,
+      }),
+    });
+    return [];
+  }
+  if (
+    listing.status === "PENDING" &&
+    latestSubmissionDecision?.action === "SUBMIT"
+  ) {
+    return [];
+  }
+
   if (
     !listing.dealerId &&
     !(await hasCurrentBundleAcceptance(
