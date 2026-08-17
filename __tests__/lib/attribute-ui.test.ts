@@ -67,16 +67,15 @@ describe("parseAttributeOptions", () => {
 });
 
 describe("getAttributeFieldConfig", () => {
-  it("renders make as a dropdown for vehicle categories", () => {
+  it("leaves make as text for the progressive catalogue control", () => {
     const config = getAttributeFieldConfig("car", makeDef, undefined);
-    expect(config?.control).toBe("select");
-    expect(config?.options?.includes("BMW")).toBe(true);
+    expect(config?.control).toBe("text");
+    expect(config?.helperText).toContain("catalogue");
   });
 
   it("treats motorhome as a vehicle category", () => {
     const config = getAttributeFieldConfig("motorhome", makeDef, undefined);
-    expect(config?.control).toBe("select");
-    expect(config?.options?.includes("Ford")).toBe(true);
+    expect(config?.control).toBe("text");
   });
 
   it("hides EV-only fields for petrol vehicles and duplicate location always", () => {
@@ -122,7 +121,7 @@ describe("validateListingAttributes", () => {
     expect(result.fieldErrors).toEqual({});
   });
 
-  it("rejects makes outside the curated list", () => {
+  it("accepts bounded manual makes outside the catalogue", () => {
     const result = validateListingAttributes({
       categorySlug: "car",
       definitions,
@@ -132,9 +131,7 @@ describe("validateListingAttributes", () => {
       ],
     });
 
-    expect(result.fieldErrors[`attr-${makeDef.id}`]).toEqual([
-      "Please choose a make from the list.",
-    ]);
+    expect(result.fieldErrors[`attr-${makeDef.id}`]).toBeUndefined();
   });
 
   it.each(["Hybrid", "Plug-in Hybrid"])(

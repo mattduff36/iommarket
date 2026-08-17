@@ -162,6 +162,75 @@ model AttributeDefinition {
 }
 
 // ---------------------------------------------------------------------------
+// Vehicle catalogue (lookup-only; listing make/model values remain EAV text)
+// ---------------------------------------------------------------------------
+
+model VehicleMake {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  source         String
+  sourceVersion  String
+  importedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  models  VehicleModel[]
+  aliases VehicleModelAlias[]
+
+  @@index([active, sortOrder, name])
+  @@index([source, sourceVersion])
+}
+
+model VehicleModel {
+  id             String   @id @default(cuid())
+  makeId         String
+  name           String
+  normalizedName String
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  source         String
+  sourceVersion  String
+  importedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  make    VehicleMake         @relation(fields: [makeId], references: [id], onDelete: Restrict)
+  aliases VehicleModelAlias[]
+
+  @@unique([id, makeId])
+  @@unique([makeId, normalizedName])
+  @@index([makeId, active, sortOrder, name])
+  @@index([source, sourceVersion])
+}
+
+model VehicleModelAlias {
+  id             String   @id @default(cuid())
+  makeId         String
+  modelId        String
+  name           String
+  normalizedName String
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  source         String
+  sourceVersion  String
+  importedAt     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  make  VehicleMake  @relation(fields: [makeId], references: [id], onDelete: Restrict)
+  model VehicleModel @relation(fields: [modelId, makeId], references: [id, makeId], onDelete: Restrict)
+
+  @@unique([makeId, normalizedName])
+  @@index([normalizedName, active])
+  @@index([modelId, active, sortOrder])
+  @@index([makeId, active, sortOrder])
+  @@index([source, sourceVersion])
+}
+
+// ---------------------------------------------------------------------------
 // Listings
 // ---------------------------------------------------------------------------
 

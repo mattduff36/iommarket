@@ -47,6 +47,7 @@ import {
   type SyncListingImagesInput,
 } from "@/lib/listings/photo-mutation";
 import { claimFreeListingSlot } from "@/lib/config/marketplace";
+import { validateVehicleCatalogueSubmission } from "@/lib/vehicle-catalogue/listing-validation";
 
 // ---------------------------------------------------------------------------
 // Create Listing
@@ -94,31 +95,38 @@ export async function createListing(input: CreateListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const { attributes, trustDeclarationAccepted, ...data } = parsed.data;
-  const category = await db.category.findUnique({
-    where: { id: data.categoryId, active: true },
-    select: {
-      slug: true,
-      attributeDefinitions: {
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          dataType: true,
-          required: true,
-          options: true,
+  const {
+    attributes,
+    trustDeclarationAccepted,
+    vehicleCatalogueSelection,
+    ...data
+  } = parsed.data;
+  const [category, region] = await Promise.all([
+    db.category.findUnique({
+      where: { id: data.categoryId, active: true },
+      select: {
+        slug: true,
+        attributeDefinitions: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            dataType: true,
+            required: true,
+            options: true,
+          },
         },
       },
-    },
-  });
+    }),
+    db.region.findUnique({
+      where: { id: data.regionId, active: true },
+      select: { id: true },
+    }),
+  ]);
   if (!category) {
     return { error: { categoryId: ["Invalid or inactive category."] } };
   }
 
-  const region = await db.region.findUnique({
-    where: { id: data.regionId, active: true },
-    select: { id: true },
-  });
   if (!region) {
     return { error: { regionId: ["Invalid or inactive region."] } };
   }
@@ -130,6 +138,14 @@ export async function createListing(input: CreateListingInput) {
   });
   if (Object.keys(attributeValidation.fieldErrors).length > 0) {
     return { error: attributeValidation.fieldErrors };
+  }
+  const catalogueErrors = await validateVehicleCatalogueSubmission({
+    definitions: category.attributeDefinitions,
+    attributes: attributeValidation.sanitizedAttributes,
+    selection: vehicleCatalogueSelection,
+  });
+  if (Object.keys(catalogueErrors).length > 0) {
+    return { error: catalogueErrors };
   }
 
   try {
@@ -193,7 +209,7 @@ export async function updateListing(input: unknown) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const { id, attributes, ...data } = parsed.data;
+  const { id, attributes, vehicleCatalogueSelection, ...data } = parsed.data;
 
   const existing = await db.listing.findUnique({
     where: { id },
@@ -252,6 +268,14 @@ export async function updateListing(input: unknown) {
       }
 
       sanitizedAttributes = attributeValidation.sanitizedAttributes;
+      const catalogueErrors = await validateVehicleCatalogueSubmission({
+        definitions: category.attributeDefinitions,
+        attributes: sanitizedAttributes,
+        selection: vehicleCatalogueSelection,
+      });
+      if (Object.keys(catalogueErrors).length > 0) {
+        return { error: catalogueErrors };
+      }
     }
   }
 

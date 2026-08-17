@@ -7,6 +7,7 @@ import {
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { vehicleCheckSchema } from "@/lib/validations/vehicle-check";
 import { reportHandledException } from "@/lib/monitoring";
+import { normalizeVehicleCheckCatalogue } from "@/lib/vehicle-catalogue/identity";
 
 const MAX_BODY_BYTES = 8_000;
 
@@ -66,7 +67,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await getVehicleCheckResult(parsed.data.registration);
+    const lookupResult = await getVehicleCheckResult(parsed.data.registration);
+    let result = lookupResult;
+    try {
+      result = await normalizeVehicleCheckCatalogue(lookupResult);
+    } catch (normalizationError) {
+      await reportHandledException({
+        error: normalizationError,
+        action: "vehicleCheckCatalogueNormalization",
+        route: "/api/vehicle-check",
+        requestPath: "/api/vehicle-check",
+        requestMethod: "POST",
+        extra: {
+          normalizedRegistration: lookupResult.normalizedRegistration,
+        },
+      });
+    }
     return NextResponse.json({ success: true, result });
   } catch (error) {
     const jsonError = toJsonError(error);

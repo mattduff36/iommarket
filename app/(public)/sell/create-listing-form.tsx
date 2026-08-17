@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -45,6 +45,12 @@ import {
 } from "./create-listing-form.helpers";
 import type { EditableDraft } from "@/lib/listings/editable-draft";
 import { getListingPhotoLimit } from "@/lib/listings/photo-limits";
+import type { VehicleMakeOption } from "@/lib/vehicle-catalogue/queries";
+import { normalizeCatalogueName } from "@/lib/vehicle-catalogue/normalize";
+import {
+  VehicleCatalogueFields,
+  type VehicleCatalogueSelection,
+} from "./vehicle-catalogue-fields";
 
 interface AttributeDef {
   id: string;
@@ -70,10 +76,58 @@ interface RegionOption {
 interface Props {
   categories: CategoryOption[];
   regions: RegionOption[];
-  modelOptionsByMake?: Record<string, string[]>;
+  vehicleMakes?: VehicleMakeOption[];
   mode?: "private" | "dealer";
   isFreeForUser?: boolean;
   initialDraft?: EditableDraft | null;
+}
+
+function defendVehicleCatalogueSelection({
+  selection,
+  definitions,
+  attributes,
+}: {
+  selection: VehicleCatalogueSelection;
+  definitions: AttributeDef[];
+  attributes: Array<{ attributeDefinitionId: string; value: string }>;
+}): VehicleCatalogueSelection {
+  const valuesById = new Map(
+    attributes.map((attribute) => [
+      attribute.attributeDefinitionId,
+      attribute.value,
+    ]),
+  );
+  const makeValue =
+    valuesById.get(definitions.find((definition) => definition.slug === "make")?.id ?? "") ??
+    "";
+  const modelValue =
+    valuesById.get(definitions.find((definition) => definition.slug === "model")?.id ?? "") ??
+    "";
+  const makeIsCatalogueBacked =
+    selection.makeMode === "catalogue" &&
+    Boolean(selection.canonicalMake) &&
+    normalizeCatalogueName(makeValue) ===
+      normalizeCatalogueName(selection.canonicalMake ?? "");
+
+  if (!makeIsCatalogueBacked) {
+    return { makeMode: "manual", modelMode: "manual" };
+  }
+
+  const expectedModel = [selection.canonicalModel, selection.variant]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" ");
+  const modelIsCatalogueBacked =
+    selection.modelMode === "catalogue" &&
+    Boolean(selection.canonicalModel) &&
+    normalizeCatalogueName(modelValue) === normalizeCatalogueName(expectedModel);
+
+  return modelIsCatalogueBacked
+    ? selection
+    : {
+        makeMode: "catalogue",
+        modelMode: "manual",
+        canonicalMake: selection.canonicalMake,
+      };
 }
 
 function ListingFieldLabel({
@@ -98,7 +152,7 @@ function ListingFieldLabel({
 export function CreateListingForm({
   categories,
   regions,
-  modelOptionsByMake = {},
+  vehicleMakes = [],
   mode = "private",
   isFreeForUser = false,
   initialDraft = null,
@@ -140,6 +194,11 @@ export function CreateListingForm({
   const [lookupPending, setLookupPending] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupMeta, setLookupMeta] = useState<string | null>(null);
+  const [vehicleCatalogueSelection, setVehicleCatalogueSelection] =
+    useState<VehicleCatalogueSelection>({
+      makeMode: "manual",
+      modelMode: "manual",
+    });
   const maxImages = getListingPhotoLimit({
     isDealer: mode === "dealer",
     isFeatured: Boolean(initialDraft?.featured),
@@ -152,13 +211,23 @@ export function CreateListingForm({
   );
   const fuelTypeAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "fuel-type");
   const makeAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "make");
+  const modelAttribute = selectedCategory?.attributes.find((attr) => attr.slug === "model");
+  const isVehicleCatalogueCategory = Boolean(
+    selectedCategory &&
+      REGISTRATION_LOOKUP_CATEGORY_SLUGS.has(selectedCategory.slug) &&
+      makeAttribute &&
+      modelAttribute,
+  );
   const isDetailsStep = step === 1;
   const selectedFuelType = fuelTypeAttribute
     ? attributeValues[fuelTypeAttribute.id]
     : undefined;
-  const selectedMake = makeAttribute ? attributeValues[makeAttribute.id] : undefined;
-  const modelOptions = selectedMake ? (modelOptionsByMake[selectedMake] ?? []) : [];
   const visibleAttributes = selectedCategory?.attributes
+    .filter(
+      (attr) =>
+        !isVehicleCatalogueCategory ||
+        (attr.slug !== "make" && attr.slug !== "model"),
+    )
     .map((attr) => ({
       attr,
       config: getAttributeFieldConfig(selectedCategory.slug, attr, selectedFuelType),
@@ -185,6 +254,7 @@ export function CreateListingForm({
     setError(null);
     setLookupError(null);
     setLookupMeta(null);
+    setVehicleCatalogueSelection({ makeMode: "manual", modelMode: "manual" });
   }
 
   function handleAttributeChange(attribute: AttributeDef, value: string) {
@@ -206,6 +276,26 @@ export function CreateListingForm({
       return nextValues;
     });
   }
+
+  const handleVehicleCatalogueChange = useCallback(
+    (attributeId: string, value: string) => {
+      const attribute = selectedCategory?.attributes.find(
+        (candidate) => candidate.id === attributeId,
+      );
+      if (!attribute) return;
+      setAttributeValues((currentValues) => {
+        const nextValues = { ...currentValues, [attribute.id]: value };
+        if (attribute.slug === "make") {
+          const nextModel = selectedCategory?.attributes.find(
+            (candidate) => candidate.slug === "model",
+          );
+          if (nextModel) delete nextValues[nextModel.id];
+        }
+        return nextValues;
+      });
+    },
+    [selectedCategory],
+  );
 
   async function handleVehicleLookup() {
     if (selectedCategory && !isLookupCategorySupported) {
@@ -474,6 +564,13 @@ export function CreateListingForm({
         regionId: form.get("regionId") as string,
         trustDeclarationAccepted: trustConfirmed,
         attributes,
+        vehicleCatalogueSelection: isVehicleCatalogueCategory
+          ? defendVehicleCatalogueSelection({
+              selection: vehicleCatalogueSelection,
+              definitions: selectedCategory?.attributes ?? [],
+              attributes,
+            })
+          : undefined,
       };
       const result = isEditingDraft && initialDraft
         ? await updateListing({
@@ -886,11 +983,26 @@ export function CreateListingForm({
           </div>
 
           {/* Dynamic category attributes */}
-          {selectedCategory && visibleAttributes.length > 0 && (
+          {selectedCategory &&
+            (visibleAttributes.length > 0 || isVehicleCatalogueCategory) && (
             <div className={isDetailsStep ? "space-y-4 rounded-lg border border-border p-4" : "hidden"}>
               <h3 className="text-sm font-semibold text-text-primary">
                 {selectedCategory.name} Details
               </h3>
+              {isVehicleCatalogueCategory && makeAttribute && modelAttribute ? (
+                <VehicleCatalogueFields
+                  makeAttribute={makeAttribute}
+                  modelAttribute={modelAttribute}
+                  makes={vehicleMakes}
+                  makeValue={attributeValues[makeAttribute.id] ?? ""}
+                  modelValue={attributeValues[modelAttribute.id] ?? ""}
+                  makeError={getFieldError(`attr-${makeAttribute.id}`)}
+                  modelError={getFieldError(`attr-${modelAttribute.id}`)}
+                  required={isDetailsStep}
+                  onChange={handleVehicleCatalogueChange}
+                  onSelectionChange={setVehicleCatalogueSelection}
+                />
+              ) : null}
               {visibleAttributes.map(({ attr, config }) => {
                 const fieldName = `attr-${attr.id}`;
                 const fieldError = getFieldError(fieldName);
@@ -930,56 +1042,6 @@ export function CreateListingForm({
                       ) : config.helperText ? (
                         <p className="text-xs text-text-secondary">{config.helperText}</p>
                       ) : null}
-                    </div>
-                  );
-                }
-
-                if (config.control === "model-select") {
-                  const currentModel = attributeValues[attr.id] ?? "";
-                  const selectedKnownModel = modelOptions.includes(currentModel) ? currentModel : "";
-
-                  return (
-                    <div key={attr.id} className="space-y-3">
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor={`${fieldName}-select`} className="text-sm font-medium text-text-primary">
-                          <ListingFieldLabel label={attr.name} required={isRequired} />
-                        </label>
-                        <select
-                          id={`${fieldName}-select`}
-                          value={selectedKnownModel}
-                          disabled={!selectedMake || modelOptions.length === 0}
-                          onChange={(e) => handleAttributeChange(attr, e.target.value)}
-                          aria-describedby={fieldError ? `${fieldName}-error` : undefined}
-                          className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
-                            fieldError ? "border-neon-red-500" : "border-border"
-                          } ${!selectedMake || modelOptions.length === 0 ? "opacity-60" : ""}`}
-                        >
-                          <option value="">
-                            {!selectedMake
-                              ? "Select a make first"
-                              : modelOptions.length > 0
-                                ? "Select a known model"
-                                : "No known models available"}
-                          </option>
-                          {modelOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <Input
-                        id={fieldName}
-                        label="Manual model fallback"
-                        name={fieldName}
-                        required={isDetailsStep && isRequired}
-                        value={currentModel}
-                        onChange={(e) => handleAttributeChange(attr, e.target.value)}
-                        maxLength={80}
-                        placeholder={config.placeholder}
-                        helperText={config.helperText}
-                        error={fieldError}
-                      />
                     </div>
                   );
                 }

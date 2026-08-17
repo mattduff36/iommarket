@@ -4,15 +4,25 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const getVehicleCheckResult = vi.fn();
+const normalizeVehicleCheckCatalogue = vi.fn();
+const reportHandledException = vi.fn();
 
 vi.mock("@/lib/services/vehicle-check-aggregator", () => ({
   getVehicleCheckResult,
+}));
+vi.mock("@/lib/vehicle-catalogue/identity", () => ({
+  normalizeVehicleCheckCatalogue,
+}));
+vi.mock("@/lib/monitoring", () => ({
+  reportHandledException,
 }));
 
 describe("POST /api/vehicle-check", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    normalizeVehicleCheckCatalogue.mockImplementation(async (result) => result);
+    reportHandledException.mockResolvedValue(undefined);
   });
 
   function buildRequest(
@@ -88,6 +98,43 @@ describe("POST /api/vehicle-check", () => {
     await expect(response.json()).resolves.toEqual({
       error: "lookup exploded",
     });
+  });
+
+  it("returns raw lookup data and reports catalogue database failures", async () => {
+    const rawResult = {
+      normalizedRegistration: "AB12CDE",
+      displayRegistration: "AB12 CDE",
+      isManx: false,
+      lookupTargetRegistration: "AB12CDE",
+      vehicle: { make: "RAW MAKE", model: "RAW MODEL" },
+      motHistory: null,
+      mileage: null,
+      auctionHistory: null,
+      warnings: [],
+      sourceNotes: [],
+      checkedAt: new Date().toISOString(),
+    };
+    getVehicleCheckResult.mockResolvedValue(rawResult);
+    normalizeVehicleCheckCatalogue.mockRejectedValue(
+      new Error("Prisma connection details must not leak"),
+    );
+
+    const { POST } = await import("@/app/api/vehicle-check/route");
+    const response = await POST(
+      buildRequest(JSON.stringify({ registration: "AB12 CDE" })),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      result: rawResult,
+    });
+    expect(reportHandledException).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "vehicleCheckCatalogueNormalization",
+        requestMethod: "POST",
+      }),
+    );
   });
 
   it("rejects invalid JSON", async () => {

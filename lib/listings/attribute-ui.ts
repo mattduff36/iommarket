@@ -1,4 +1,3 @@
-import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
 import {
   FUEL_TYPE_OPTIONS,
   fuelTypeSchema,
@@ -41,8 +40,6 @@ const ALWAYS_HIDDEN_ATTRIBUTE_SLUGS = new Set([
   "location",
   "previously-written-off",
 ]);
-const STATIC_VEHICLE_MAKES = getMakesWithDb([]);
-
 export function isVehicleCategorySlug(categorySlug: string | undefined): boolean {
   return Boolean(categorySlug && VEHICLE_CATEGORY_SLUGS.has(categorySlug));
 }
@@ -107,9 +104,9 @@ export function getAttributeFieldConfig(
 
   if (isVehicleCategorySlug(categorySlug) && attribute.slug === "make") {
     return {
-      control: "select",
-      options: STATIC_VEHICLE_MAKES,
-      helperText: "Choose the vehicle manufacturer.",
+      control: "text",
+      placeholder: "Search or enter the manufacturer",
+      helperText: "Choose a catalogue make or enter it manually.",
     };
   }
 
@@ -352,8 +349,9 @@ function validateAttributeValue(
     return "Please choose a specific fuel type.";
   }
 
-  if (definition.slug === "make" && !STATIC_VEHICLE_MAKES.includes(value)) {
-    return "Please choose a make from the list.";
+  if (definition.slug === "make") {
+    if (value.length < 1) return "Make is required.";
+    if (value.length > 80) return "Make must be 80 characters or fewer.";
   }
 
   if (definition.slug === "model") {

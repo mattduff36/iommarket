@@ -18,6 +18,7 @@ import {
   Mail,
   Bug,
   ListTodo,
+  CarFront,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Dealers", href: "/admin/dealers", icon: Store, group: "core" },
   { label: "Listings", href: "/admin/listings", icon: ClipboardList, group: "core" },
   { label: "Categories", href: "/admin/categories", icon: FolderTree, group: "core" },
+  { label: "Vehicle Catalogue", href: "/admin/vehicle-catalogue", icon: CarFront, group: "core" },
   { label: "Regions", href: "/admin/regions", icon: MapPin, group: "core" },
   { label: "Reports", href: "/admin/reports", icon: ShieldAlert, group: "operations" },
   { label: "Reviews", href: "/admin/reviews", icon: Star, group: "operations" },

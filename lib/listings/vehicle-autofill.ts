@@ -1,22 +1,10 @@
-import { getMakesWithDb } from "@/lib/constants/vehicle-makes";
 import { fuelTypeSchema } from "@/lib/constants/fuel-types";
 import {
   parseAttributeOptions,
   type ListingAttributeDefinitionLike,
 } from "@/lib/listings/attribute-ui";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
-
-const KNOWN_MAKES = getMakesWithDb([]);
-
-const MAKE_ALIASES: Record<string, string> = {
-  ALFAROMEO: "Alfa Romeo",
-  LANDROVER: "Land Rover",
-  MERCEDES: "Mercedes-Benz",
-  MERCEDESBENZ: "Mercedes-Benz",
-  ROLLSROYCE: "Rolls-Royce",
-  SSANGYONG: "SsangYong",
-  VW: "Volkswagen",
-};
+import { canonicalizeKnownMake } from "@/lib/vehicle-catalogue/make-canonicalization";
 
 const FUEL_ALIASES: Record<string, string> = {
   BEV: "Electric",
@@ -72,21 +60,7 @@ function matchOption(value: string, options: string[]): string | null {
 
 function normalizeMake(rawValue: string | null): string | null {
   if (!rawValue) return null;
-  const compact = normalizeKey(rawValue);
-  if (!compact) return null;
-
-  const alias = MAKE_ALIASES[compact];
-  if (alias && KNOWN_MAKES.includes(alias)) {
-    return alias;
-  }
-
-  for (const make of KNOWN_MAKES) {
-    if (normalizeKey(make) === compact) {
-      return make;
-    }
-  }
-
-  return null;
+  return canonicalizeKnownMake(rawValue);
 }
 
 function normalizeFuelType(

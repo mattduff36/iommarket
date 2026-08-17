@@ -107,7 +107,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
     );
   }
 
-  const { categories, regions, modelOptionsByMake } = await getSellFormData();
+  const { categories, regions, vehicleMakes } = await getSellFormData();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -123,7 +123,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
       <CreateListingForm
         categories={categories}
         regions={regions}
-        modelOptionsByMake={modelOptionsByMake}
+        vehicleMakes={vehicleMakes}
         mode="dealer"
         initialDraft={initialDraft}
       />

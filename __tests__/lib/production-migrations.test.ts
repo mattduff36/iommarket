@@ -80,4 +80,22 @@ describe("production migration contract MIG-001", () => {
     expect(backfill).toContain("RETURNING id");
     expect(backfill).toContain("'SYSTEM_BACKFILL'");
   });
+
+  it("adds the vehicle catalogue without constraining listing EAV values", () => {
+    const catalogue = readMigration("20260817014500_vehicle_catalogue");
+    for (const table of ["VehicleMake", "VehicleModel", "VehicleModelAlias"]) {
+      expect(catalogue).toContain(`CREATE TABLE "${table}"`);
+      expect(catalogue).toContain(
+        `ALTER TABLE "public"."${table}" ENABLE ROW LEVEL SECURITY`,
+      );
+    }
+    expect(catalogue).toContain('"VehicleMake_normalizedName_key"');
+    expect(catalogue).toContain('"VehicleModel_makeId_normalizedName_key"');
+    expect(catalogue).toContain('"VehicleModelAlias_makeId_normalizedName_key"');
+    expect(catalogue).toContain('"enforce_vehicle_model_name_uniqueness"');
+    expect(catalogue).toContain('"VehicleModelAlias_makeId_fkey"');
+    expect(catalogue).not.toContain('ALTER TABLE "ListingAttributeValue"');
+    expect(catalogue).not.toContain("DELETE FROM");
+    expect(catalogue).not.toContain("UPDATE \"ListingAttributeValue\"");
+  });
 });

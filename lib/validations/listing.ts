@@ -5,6 +5,14 @@ import {
   validateModerationReason,
 } from "@/lib/listings/moderation-reasons";
 
+export const vehicleCatalogueSelectionSchema = z.object({
+  makeMode: z.enum(["catalogue", "manual"]),
+  modelMode: z.enum(["catalogue", "manual"]),
+  canonicalMake: z.string().trim().min(1).max(80).optional(),
+  canonicalModel: z.string().trim().min(1).max(80).optional(),
+  variant: z.string().trim().max(60).optional(),
+});
+
 export const createListingSchema = z.object({
   title: z
     .string()
@@ -36,6 +44,7 @@ export const createListingSchema = z.object({
     )
     .optional()
     .default([]),
+  vehicleCatalogueSelection: vehicleCatalogueSelectionSchema.optional(),
 });
 
 export const updateListingSchema = createListingSchema.partial().extend({

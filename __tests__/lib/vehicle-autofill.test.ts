@@ -151,7 +151,7 @@ describe("mapVehicleResultToListingAttributes", () => {
     expect(result.values.colour).toBe("Blue");
   });
 
-  it("skips unsupported values that cannot be normalized", () => {
+  it("retains an unknown make for manual fallback and skips unsupported fields", () => {
     const result = mapVehicleResultToListingAttributes({
       definitions,
       result: buildResult({
@@ -183,8 +183,8 @@ describe("mapVehicleResultToListingAttributes", () => {
       }),
     });
 
-    expect(result.values).toEqual({});
-    expect(result.appliedAttributeIds).toEqual([]);
+    expect(result.values).toEqual({ make: "UNKNOWN MOTORS" });
+    expect(result.appliedAttributeIds).toEqual(["make"]);
   });
 
   it("maps only unambiguous hybrid lookup values", () => {
