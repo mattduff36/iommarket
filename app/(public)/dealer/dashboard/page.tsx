@@ -35,6 +35,8 @@ import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getPolicyFlags } from "@/lib/policy/flags";
 import { CancellationRequestCard } from "./cancellation-request-card";
+import { DealerReviewResponseManager } from "./dealer-review-response-manager";
+import { toManagedDealerReview } from "@/lib/reviews/dealer-review-client";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -110,7 +112,15 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     ...(status !== "ALL" ? { status } : {}),
   };
 
-  const [listings, totalFiltered, allStatusGroups, reviewStats, pricing, openCancellation] = await Promise.all([
+  const [
+    listings,
+    totalFiltered,
+    allStatusGroups,
+    reviewStats,
+    pricing,
+    openCancellation,
+    responseEligibleReviews,
+  ] = await Promise.all([
     db.listing.findMany({
       where: listingWhere,
       orderBy: getSortOrder(sort),
@@ -143,6 +153,46 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
         status: { in: ["REQUESTED", "ACKNOWLEDGED", "RECONCILED"] },
       },
       orderBy: { requestedAt: "desc" },
+    }),
+    db.dealerReview.findMany({
+      where: {
+        dealerId: user.dealerProfile.id,
+        status: "APPROVED",
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        response: {
+          select: {
+            approvedBody: true,
+            version: true,
+            revisions: {
+              orderBy: { createdAt: "desc" },
+              take: 5,
+              select: {
+                id: true,
+                body: true,
+                status: true,
+                version: true,
+                reasonCode: true,
+              },
+            },
+          },
+        },
+        disputes: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            status: true,
+            reasonCode: true,
+            decisionReasonCode: true,
+          },
+        },
+      },
     }),
   ]);
 
@@ -179,6 +229,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
 
   const listingCap = getDealerListingCap(user.dealerProfile.tier);
   const tierLabel = DEALER_TIER_LABELS[user.dealerProfile.tier];
+  const managedReviews = responseEligibleReviews.map(toManagedDealerReview);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -294,6 +345,8 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           existingStatus={openCancellation?.status ?? null}
         />
       ) : null}
+
+      <DealerReviewResponseManager reviews={managedReviews} />
 
       <div className="mb-8 grid gap-4 md:grid-cols-2">
         <Link

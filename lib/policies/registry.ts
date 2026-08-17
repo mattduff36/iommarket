@@ -10,6 +10,7 @@ import {
 const CURRENT_VERSION = COMPANY.policyVersion;
 const CURRENT_EFFECTIVE_DATE = COMPANY.policyEffectiveDate;
 const LAUNCH_VERSION = "2026-08-17.1";
+const DEALER_REVIEW_VERSION = "2026-08-17.2";
 const EFFECTIVE_ON_LAUNCH = "on launch";
 
 export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
@@ -17,7 +18,7 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "privacy",
     title: "Privacy Policy",
     route: "/privacy",
-    version: LAUNCH_VERSION,
+    version: DEALER_REVIEW_VERSION,
     effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "privacy.md",
   },
@@ -33,7 +34,7 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "terms",
     title: "Terms and Conditions",
     route: "/terms",
-    version: LAUNCH_VERSION,
+    version: DEALER_REVIEW_VERSION,
     effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "terms.md",
   },
@@ -41,8 +42,8 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "dealer-terms",
     title: "Dealer Terms",
     route: "/dealer-terms",
-    version: CURRENT_VERSION,
-    effectiveDate: CURRENT_EFFECTIVE_DATE,
+    version: DEALER_REVIEW_VERSION,
+    effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "dealer-terms.md",
   },
   "private-seller-terms": {
@@ -57,7 +58,7 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "acceptable-use",
     title: "Acceptable Use Policy",
     route: "/acceptable-use",
-    version: LAUNCH_VERSION,
+    version: DEALER_REVIEW_VERSION,
     effectiveDate: EFFECTIVE_ON_LAUNCH,
     fileName: "acceptable-use.md",
   },

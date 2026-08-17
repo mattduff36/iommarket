@@ -33,6 +33,19 @@ enum DealerReviewerType {
   ANONYMOUS
 }
 
+enum DealerReviewResponseRevisionStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DealerReviewDisputeStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
 model User {
   id             String    @id @default(cuid())
   authUserId     String    @unique
@@ -63,6 +76,11 @@ model User {
   listingStatusEvents ListingStatusEvent[]
   listingRevisionsDecided ListingRevision[] @relation("ListingRevisionDecidedBy")
   dealerReviewModerationEvents DealerReviewModerationEvent[]
+  dealerResponseRevisionsDecided DealerReviewResponseRevision[]        @relation("DealerResponseRevisionDecidedBy")
+  dealerResponseModerationEvents DealerReviewResponseModerationEvent[]
+  dealerReviewDisputesOpened     DealerReviewDispute[]                 @relation("DealerReviewDisputeOpenedBy")
+  dealerReviewDisputesDecided    DealerReviewDispute[]                 @relation("DealerReviewDisputeDecidedBy")
+  dealerReviewDisputeEvents      DealerReviewDisputeEvent[]
   monitoringIssueStatusEvents MonitoringIssueStatusEvent[]
   freeListingClaim   FreeListingClaim?
   listingImageUploadIntents ListingImageUploadIntent[]
@@ -783,6 +801,7 @@ model DealerReview {
   comment           String?
   status            DealerReviewStatus @default(PENDING)
   adminNotes        String?
+  moderationVersion Int                @default(0)
   moderatedAt       DateTime?
   removedAt         DateTime?
   createdAt         DateTime           @default(now())
@@ -791,6 +810,8 @@ model DealerReview {
   dealer   DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
   reviewer User?         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
   moderationEvents DealerReviewModerationEvent[]
+  response         DealerReviewResponse?
+  disputes         DealerReviewDispute[]
 
   @@unique([dealerId, reviewerUserId])
   @@unique([dealerId, reviewerDeviceId])
@@ -806,12 +827,122 @@ model DealerReviewModerationEvent {
   reasonCode      DealerReviewModerationReason?
   adminNotes      String?
   changedByUserId String?
+  reviewVersion   Int                           @default(0)
   createdAt       DateTime                       @default(now())
 
   review    DealerReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   changedBy User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
 
   @@index([reviewId, createdAt])
+}
+
+model DealerReviewResponse {
+  id                 String    @id @default(cuid())
+  reviewId           String    @unique
+  approvedBody       String?
+  approvedRevisionId String?   @unique
+  version            Int       @default(0)
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  review           DealerReview                   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  revisions        DealerReviewResponseRevision[] @relation("DealerReviewResponseRevisions")
+  approvedRevision DealerReviewResponseRevision?  @relation("DealerReviewApprovedRevision", fields: [approvedRevisionId, id], references: [id, responseId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([approvedRevisionId, id])
+  @@index([reviewId, approvedAt])
+}
+
+model DealerReviewResponseRevision {
+  id              String                             @id @default(cuid())
+  responseId      String
+  body            String
+  status          DealerReviewResponseRevisionStatus @default(DRAFT)
+  version         Int                                @default(0)
+  reasonCode      DealerReviewModerationReason?
+  adminNotes      String?
+  submittedAt     DateTime?
+  decidedAt       DateTime?
+  decidedByUserId String?
+  createdAt       DateTime                           @default(now())
+  updatedAt       DateTime                           @updatedAt
+
+  response         DealerReviewResponse                  @relation("DealerReviewResponseRevisions", fields: [responseId], references: [id], onDelete: Cascade)
+  approvedFor      DealerReviewResponse?                 @relation("DealerReviewApprovedRevision")
+  decidedBy        User?                                 @relation("DealerResponseRevisionDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  moderationEvents DealerReviewResponseModerationEvent[]
+
+  @@unique([id, responseId])
+  @@index([responseId, status])
+  @@index([status, submittedAt])
+  @@index([decidedByUserId])
+}
+
+model DealerReviewResponseModerationEvent {
+  id              String                             @id @default(cuid())
+  revisionId      String
+  fromStatus      DealerReviewResponseRevisionStatus
+  toStatus        DealerReviewResponseRevisionStatus
+  reasonCode      DealerReviewModerationReason?
+  adminNotes      String?
+  revisionVersion Int
+  responseVersion Int
+  reviewVersion   Int                                @default(0)
+  changedByUserId String?
+  createdAt       DateTime                           @default(now())
+
+  revision  DealerReviewResponseRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  changedBy User?                        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([revisionId, createdAt])
+  @@index([changedByUserId])
+}
+
+model DealerReviewDispute {
+  id                 String                        @id @default(cuid())
+  reviewId           String
+  openedByUserId     String?
+  reasonCode         DealerReviewModerationReason
+  body               String
+  evidenceMetadata   Json?
+  status             DealerReviewDisputeStatus     @default(OPEN)
+  version            Int                           @default(0)
+  decisionReasonCode DealerReviewModerationReason?
+  adminNotes         String?
+  decidedAt          DateTime?
+  decidedByUserId    String?
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+
+  review    DealerReview               @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  openedBy  User?                      @relation("DealerReviewDisputeOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
+  decidedBy User?                      @relation("DealerReviewDisputeDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  events    DealerReviewDisputeEvent[]
+
+  @@index([reviewId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([openedByUserId])
+  @@index([decidedByUserId])
+}
+
+model DealerReviewDisputeEvent {
+  id              String                       @id @default(cuid())
+  disputeId       String
+  fromStatus      DealerReviewDisputeStatus
+  toStatus        DealerReviewDisputeStatus
+  reasonCode      DealerReviewModerationReason
+  adminNotes      String?
+  disputeVersion  Int
+  reviewVersion   Int                          @default(0)
+  changedByUserId String?
+  createdAt       DateTime                     @default(now())
+
+  dispute   DealerReviewDispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  changedBy User?               @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([disputeId, createdAt])
+  @@index([changedByUserId])
 }
 
 model Favourite {

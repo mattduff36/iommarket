@@ -68,13 +68,13 @@ describe("POL-DOC-001 canonical policy corpus", () => {
   it("builds deterministic bundle versions in registry order", () => {
     expect(buildBundleVersion("AGE_18")).toBe("AGE_18:1");
     expect(buildBundleVersion("ACCOUNT_BUNDLE")).toBe(
-      "ACCOUNT_BUNDLE:privacy=2026-08-17.1|terms=2026-08-17.1|acceptable-use=2026-08-17.1",
+      "ACCOUNT_BUNDLE:privacy=2026-08-17.2|terms=2026-08-17.2|acceptable-use=2026-08-17.2",
     );
     expect(buildBundleVersion("LISTING_BUNDLE")).toBe(
-      "LISTING_BUNDLE:private-seller-terms=2026-08-17.1|acceptable-use=2026-08-17.1|refunds=2026-08-14.1",
+      "LISTING_BUNDLE:private-seller-terms=2026-08-17.1|acceptable-use=2026-08-17.2|refunds=2026-08-14.1",
     );
     expect(buildBundleVersion("DEALER_BUNDLE")).toBe(
-      "DEALER_BUNDLE:dealer-terms=2026-08-14.1|acceptable-use=2026-08-17.1|refunds=2026-08-14.1",
+      "DEALER_BUNDLE:dealer-terms=2026-08-17.2|acceptable-use=2026-08-17.2|refunds=2026-08-14.1",
     );
   });
 

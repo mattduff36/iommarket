@@ -130,4 +130,66 @@ describe("DealerProfilePage", () => {
     expect(screen.getByText("Verified Dealer")).toBeTruthy();
     expect(screen.queryByText("Subscription Active")).toBeNull();
   });
+
+  it("publishes only the approved response under an approved parent review MD-REV-001..003", async () => {
+    findUniqueMock.mockResolvedValue(buildDealer({ verified: true }));
+    aggregateMock.mockResolvedValue({
+      _avg: { rating: 5 },
+      _count: { _all: 1 },
+    });
+    findManyReviewsMock.mockResolvedValue([
+      {
+        id: "review-1",
+        rating: 5,
+        comment: "Helpful service",
+        createdAt: new Date("2026-08-16T00:00:00.000Z"),
+        reviewerType: "REGISTERED",
+        reviewerName: "Buyer",
+        response: { approvedBody: "Thank you for your feedback." },
+      },
+    ]);
+
+    render(
+      await DealerProfilePage({
+        params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+      }),
+    );
+
+    expect(screen.getByText("Thank you for your feedback.")).toBeTruthy();
+    expect(findManyReviewsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { dealerId: "dealer-1", status: "APPROVED" },
+        select: expect.objectContaining({
+          response: { select: { approvedBody: true } },
+        }),
+      }),
+    );
+    expect(aggregateMock).toHaveBeenCalledWith({
+      where: { dealerId: "dealer-1", status: "APPROVED" },
+      _avg: { rating: true },
+      _count: { _all: true },
+    });
+  });
+
+  it("does not publish a response for a rating-only review", async () => {
+    findUniqueMock.mockResolvedValue(buildDealer({ verified: true }));
+    findManyReviewsMock.mockResolvedValue([
+      {
+        id: "review-rating-only",
+        rating: 4,
+        comment: null,
+        createdAt: new Date("2026-08-16T00:00:00.000Z"),
+        reviewerType: "ANONYMOUS",
+        reviewerName: null,
+        response: { approvedBody: "Must remain hidden" },
+      },
+    ]);
+
+    render(
+      await DealerProfilePage({
+        params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+      }),
+    );
+    expect(screen.queryByText("Must remain hidden")).toBeNull();
+  });
 });

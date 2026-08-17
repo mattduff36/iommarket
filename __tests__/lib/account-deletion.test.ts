@@ -10,6 +10,8 @@ const { mockDb, deleteUserMock, deleteImageMock } = vi.hoisted(() => ({
     savedSearch: { deleteMany: vi.fn() },
     listingView: { updateMany: vi.fn() },
     dealerProfile: { update: vi.fn() },
+    dealerReviewResponse: { deleteMany: vi.fn() },
+    dealerReviewDispute: { deleteMany: vi.fn() },
     $transaction: vi.fn(),
   },
   deleteUserMock: vi.fn(),
@@ -77,6 +79,8 @@ describe("account deletion lease fencing POL-PRIV-001-A", () => {
     mockDb.favourite.deleteMany.mockResolvedValue({ count: 0 });
     mockDb.savedSearch.deleteMany.mockResolvedValue({ count: 0 });
     mockDb.listingView.updateMany.mockResolvedValue({ count: 0 });
+    mockDb.dealerReviewResponse.deleteMany.mockResolvedValue({ count: 0 });
+    mockDb.dealerReviewDispute.deleteMany.mockResolvedValue({ count: 0 });
     mockDb.user.update.mockResolvedValue({});
     deleteUserMock.mockResolvedValue({ error: null });
   });
@@ -145,6 +149,25 @@ describe("account deletion atomic complete POL-PRIV-001-B", () => {
         data: expect.objectContaining({ status: "COMPLETED" }),
       }),
     );
+  });
+
+  it("removes dealer response and dispute UGC before anonymising MD-REV-004", async () => {
+    mockDb.accountDeletionJob.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      deletedAt: null,
+      disabledAt: null,
+      dealerProfile: { id: "dealer-1" },
+    });
+
+    await anonymiseAccountAndComplete(mockDb as never, leasedJob());
+
+    expect(mockDb.dealerReviewDispute.deleteMany).toHaveBeenCalledWith({
+      where: { review: { dealerId: "dealer-1" } },
+    });
+    expect(mockDb.dealerReviewResponse.deleteMany).toHaveBeenCalledWith({
+      where: { review: { dealerId: "dealer-1" } },
+    });
   });
 
   it("rolls back when anonymisation outlives the renewed lease POL-PRIV-001-B", async () => {

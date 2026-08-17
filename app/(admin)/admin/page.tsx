@@ -43,7 +43,9 @@ export default async function AdminDashboardPage() {
     totalDealers,
     verifiedDealers,
     openReports,
-    pendingReviews,
+    pendingCustomerReviews,
+    pendingResponses,
+    openReviewDisputes,
     openCancellations,
     openMonitoringIssues,
     recentPayments,
@@ -69,6 +71,8 @@ export default async function AdminDashboardPage() {
     db.dealerProfile.count({ where: { verified: true } }),
     db.report.count({ where: { status: "OPEN" } }),
     db.dealerReview.count({ where: { status: "PENDING" } }),
+    db.dealerReviewResponseRevision.count({ where: { status: "PENDING" } }),
+    db.dealerReviewDispute.count({ where: { status: "OPEN" } }),
     db.dealerCancellationRequest.count({
       where: { status: { in: [...OPEN_CANCELLATION_STATUSES] } },
     }),
@@ -126,6 +130,8 @@ export default async function AdminDashboardPage() {
     }),
   ]);
 
+  const pendingReviews =
+    pendingCustomerReviews + pendingResponses + openReviewDisputes;
   const totalRevenue = (totalRevenuePence._sum.amount ?? 0) / 100;
 
   const LISTING_STATUS_BADGE: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {

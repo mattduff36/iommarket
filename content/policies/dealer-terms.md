@@ -1,5 +1,5 @@
 # iTrader.im Dealer Terms
-*Last updated: 14 August 2026*
+*Effective on launch*
 
 ## 1. About these Terms
 
@@ -156,6 +156,12 @@ Buyers may browse Listings and submit contact-form enquiries without an iTrader 
 **13.3** iTrader may suspend or terminate accounts for breach, suspected fraud, deception, unlawful activity, misuse or conduct that may harm users or iTrader.
 
 **13.4** Where action results from your breach, you will not normally be entitled to a refund.
+
+**13.5** Where the Platform permits, a Dealer may submit one public response to an approved written review. Dealer responses and later edits are moderated before publication. While an edit is awaiting moderation, the last approved response may remain public. A response does not alter the review's star rating.
+
+**13.6** A Dealer may raise a private dispute about an approved review for administrator assessment and may provide relevant supporting notes. Disputes and supporting information are not published. Raising a dispute does not guarantee that a review will be removed, hidden or changed.
+
+**13.7** Dealer responses, disputes and supporting notes must be accurate, relevant, professional and compliant with the Acceptable Use Policy. They must not disclose unnecessary personal information, threaten or harass a reviewer, manipulate ratings, or contain unlawful or misleading material.
 
 
 ## 14. No guarantee of sales

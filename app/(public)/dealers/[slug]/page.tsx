@@ -106,6 +106,11 @@ export default async function DealerProfilePage({ params }: Props) {
         createdAt: true,
         reviewerType: true,
         reviewerName: true,
+        response: {
+          select: {
+            approvedBody: true,
+          },
+        },
       },
     }),
     getCurrentUser(),
@@ -268,6 +273,16 @@ export default async function DealerProfilePage({ params }: Props) {
                   <p className="mt-2 text-sm text-text-secondary whitespace-pre-wrap">
                     {review.comment}
                   </p>
+                ) : null}
+                {review.comment?.trim() && review.response?.approvedBody ? (
+                  <div className="mt-3 rounded-md bg-canvas/40 p-3">
+                    <p className="text-xs font-medium text-text-primary">
+                      Response from {dealer.name}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-text-secondary">
+                      {review.response.approvedBody}
+                    </p>
+                  </div>
                 ) : null}
               </div>
             ))}

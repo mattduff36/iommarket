@@ -124,7 +124,11 @@ describe("CardOverlayLink", () => {
       <div className="relative">
         <CardOverlayLink href="/dealers/alpha-autos" label="Alpha Autos" />
         <div className={CARD_OVERLAY_CONTROL_CLASS}>
-          <ReviewActions reviewId="rev-1" currentStatus="PENDING" />
+          <ReviewActions
+            reviewId="rev-1"
+            currentVersion={0}
+            currentStatus="PENDING"
+          />
         </div>
       </div>,
     );
@@ -138,6 +142,7 @@ describe("CardOverlayLink", () => {
     await waitFor(() => {
       expect(moderateDealerReviewMock).toHaveBeenCalledWith({
         reviewId: "rev-1",
+        expectedVersion: 0,
         status: "PENDING",
         adminNotes: undefined,
       });

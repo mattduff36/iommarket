@@ -169,6 +169,12 @@ async function anonymiseAccountRows(tx: Prisma.TransactionClient, userId: string
     data: { viewerId: null },
   });
   if (user.dealerProfile) {
+    await tx.dealerReviewDispute.deleteMany({
+      where: { review: { dealerId: user.dealerProfile.id } },
+    });
+    await tx.dealerReviewResponse.deleteMany({
+      where: { review: { dealerId: user.dealerProfile.id } },
+    });
     await tx.dealerProfile.update({
       where: { id: user.dealerProfile.id },
       data: {

@@ -98,4 +98,19 @@ describe("retention report POL-RET-001", () => {
     const result = await runRetentionPass(new Date("2026-08-15T00:00:00Z"));
     expect(result.counts.LISTING).toBe(0);
   });
+
+  it("selects reviews removed for 24 months for cascade deletion MD-REV-004", async () => {
+    mockDb.dealerReview.findMany.mockResolvedValue([{ id: "review-removed" }]);
+
+    const result = await runRetentionPass(new Date("2026-08-17T00:00:00Z"));
+
+    expect(result.counts.DEALER_REVIEW).toBe(1);
+    expect(mockDb.dealerReview.findMany).toHaveBeenCalledWith({
+      where: {
+        removedAt: { lte: new Date("2024-08-17T00:00:00.000Z") },
+      },
+      select: { id: true },
+      take: 500,
+    });
+  });
 });

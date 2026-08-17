@@ -167,7 +167,7 @@ any product or service unrelated to the sale of a Vehicle, including finance off
 
 **8.5** Vehicle Check information is supplied from third-party vehicle-data services and is governed by the separate Vehicle Check Terms. It is provided for general information only. We do not warrant that Vehicle Check data is complete, current, or accurate, and it does not replace an independent inspection, history check, or professional advice.
 
-**8.6** Dealer reviews may be submitted by registered or anonymous reviewers, are subject to moderation, and may be approved, rejected, or hidden. Reviews are opinions of the reviewer and are not statements by iTrader. Personal data in reviews is handled in accordance with our Privacy Policy.
+**8.6** Dealer reviews may be submitted by registered or anonymous reviewers, are subject to moderation, and may be approved, rejected, or hidden. Reviews are opinions of the reviewer and are not statements by iTrader. Dealers may submit moderated public responses to approved written reviews and may privately dispute approved reviews for administrator assessment. A pending response edit does not replace the last approved public response, disputes are not public, and neither a response nor a dispute changes the review's rating. Personal data in reviews, responses and disputes is handled in accordance with our Privacy Policy.
 
 
 ## 9. DEALER OBLIGATIONS

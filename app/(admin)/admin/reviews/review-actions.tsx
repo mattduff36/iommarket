@@ -10,11 +10,17 @@ import {
 
 interface Props {
   reviewId: string;
+  currentVersion: number;
   currentStatus: "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN";
   currentAdminNotes?: string | null;
 }
 
-export function ReviewActions({ reviewId, currentStatus, currentAdminNotes }: Props) {
+export function ReviewActions({
+  reviewId,
+  currentVersion,
+  currentStatus,
+  currentAdminNotes,
+}: Props) {
   const [status, setStatus] = useState(currentStatus);
   const [reasonCode, setReasonCode] = useState("");
   const [adminNotes, setAdminNotes] = useState(currentAdminNotes ?? "");
@@ -26,6 +32,7 @@ export function ReviewActions({ reviewId, currentStatus, currentAdminNotes }: Pr
     startTransition(async () => {
       const result = await moderateDealerReview({
         reviewId,
+        expectedVersion: currentVersion,
         status,
         reasonCode: reasonCode
           ? (reasonCode as "POLICY" | "ABUSE" | "SPAM" | "OFF_TOPIC" | "OTHER")

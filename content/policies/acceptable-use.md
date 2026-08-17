@@ -33,7 +33,7 @@ Every Listing must relate to a genuine vehicle, accurately identify it, contain 
 
 ## 5. Prohibited content
 
-You must not upload or publish pornography, nudity, sexually explicit or excessively offensive material, hateful or discriminatory content, threats or abuse, content promoting unlawful activity, malicious software, fraudulent documents, impersonation material, or content infringing intellectual-property rights.
+You must not upload or publish pornography, nudity, sexually explicit or excessively offensive material, hateful or discriminatory content, threats or abuse, content promoting unlawful activity, malicious software, fraudulent documents, impersonation material, content infringing intellectual-property rights, or personal information that is unnecessary for a Listing, review, dealer response or dispute.
 
 
 ## 6. Prohibited goods and services
@@ -43,7 +43,7 @@ Unless expressly approved by iTrader, the Platform must not be used to advertise
 
 ## 7. Dealer conduct
 
-Dealers must provide genuine business information, advertise vehicles genuinely available, maintain accurate prices and specifications, mark sold vehicles promptly, comply with applicable consumer protection law and not use Private Seller accounts to disguise commercial trading.
+Dealers must provide genuine business information, advertise vehicles genuinely available, maintain accurate prices and specifications, mark sold vehicles promptly, comply with applicable consumer protection law and not use Private Seller accounts to disguise commercial trading. Dealer responses to reviews, review disputes and supporting evidence must be relevant, factual and professional. They must not expose unnecessary personal information, pressure or threaten a reviewer, manipulate ratings, or misuse the dispute process.
 
 
 ## 8. Private seller conduct
