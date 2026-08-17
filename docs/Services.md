@@ -159,7 +159,7 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 ### 5. After rotation
 1. Update Vercel production first. Vercel is the authoritative source for production values.
 2. Run `npm run env:production:pull` then `npm run env:production:check` so the ignored local `.env.production` mirror matches Vercel. Do not edit `.env.local` for this.
-3. Redeploy: `npx vercel --prod` or push to `main` to trigger CI. A Vercel environment change is not live until the next deployment.
+3. Redeploy: `npx vercel --prod` or push to `main` to trigger CI. A Vercel environment change is not live until the next deployment. Commits must be attributed to the GitHub account connected to Vercel; an unassociated author email can block the deployment.
 4. Verify the env-check e2e suite passes: `npm run test:e2e -- --grep "\[AuthHook\]|\[Cloudinary\]|\[Resend\]|\[Payment"`.
 5. Confirm no secrets remain in git history: `git log --all --full-history -- .env.production` should return nothing.
 
