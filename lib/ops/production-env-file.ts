@@ -19,6 +19,7 @@ import {
   PRODUCTION_ENV_LOCK_FILE,
   PRODUCTION_ENV_MIRROR_FILE,
   PRODUCTION_ENV_STAGING_PREFIX,
+  PRODUCTION_EPHEMERAL_KEYS,
   PRODUCTION_EXACT_VALUES,
   PRODUCTION_FORBIDDEN_KEYS,
   PRODUCTION_REQUIRED_KEYS,
@@ -152,6 +153,14 @@ export function validateProductionEnv(values: EnvMap): void {
   }
 
   for (const key of PRODUCTION_SENSITIVE_KEYS) {
+    if (Object.hasOwn(values, key)) {
+      throw new ProductionEnvError(
+        `${key} must not be written to the production environment mirror.`,
+      );
+    }
+  }
+
+  for (const key of PRODUCTION_EPHEMERAL_KEYS) {
     if (Object.hasOwn(values, key)) {
       throw new ProductionEnvError(
         `${key} must not be written to the production environment mirror.`,

@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
+  PRODUCTION_EPHEMERAL_KEYS,
   PRODUCTION_FORBIDDEN_KEYS,
   PRODUCTION_ENV_MIRROR_FILE,
   PRODUCTION_SENSITIVE_KEYS,
@@ -149,6 +150,37 @@ export function validateVercelProductionEnvMetadata(
   }
 }
 
+function sanitizePulledProductionEnv(stagingPath: string) {
+  const contents = readFileSync(stagingPath, "utf8");
+  const pulled = parseDotenv(contents);
+  for (const key of PRODUCTION_SENSITIVE_KEYS) {
+    if (Object.hasOwn(pulled, key) && pulled[key] !== "") {
+      throw new ProductionEnvError(
+        `${key} must not be readable from the production environment pull.`,
+      );
+    }
+  }
+
+  const omittedKeys = new Set<string>([
+    ...PRODUCTION_SENSITIVE_KEYS,
+    ...PRODUCTION_EPHEMERAL_KEYS,
+  ]);
+  const sanitized = contents
+    .split(/\r?\n/)
+    .filter((line) => {
+      const equalsIndex = line.indexOf("=");
+      if (equalsIndex < 1) return true;
+      return !omittedKeys.has(line.slice(0, equalsIndex).trim());
+    })
+    .join("\n");
+  writeFileSync(
+    stagingPath,
+    sanitized.endsWith("\n") ? sanitized : `${sanitized}\n`,
+    "utf8",
+  );
+  return parseDotenv(sanitized);
+}
+
 export function pullProductionEnvMirror(input?: {
   cwd?: string;
   pull?: typeof pullVercelProductionEnvFile;
@@ -166,7 +198,7 @@ export function pullProductionEnvMirror(input?: {
     try {
       pull({ cwd, destPath: stagingPath });
       assertNotSymlink(stagingPath);
-      const parsed = parseDotenv(readFileSync(stagingPath, "utf8"));
+      const parsed = sanitizePulledProductionEnv(stagingPath);
       validateProductionEnv(parsed);
       replaceProductionEnvMirror({ cwd, stagingPath });
       return dest;
@@ -199,7 +231,7 @@ export function checkProductionEnvMirror(input?: {
     try {
       pull({ cwd, destPath: stagingPath });
       assertNotSymlink(stagingPath);
-      const remote = parseDotenv(readFileSync(stagingPath, "utf8"));
+      const remote = sanitizePulledProductionEnv(stagingPath);
       validateProductionEnv(remote);
       const drift = compareEnvMaps(local, remote);
       return {

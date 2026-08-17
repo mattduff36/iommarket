@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COST_LEDGER_STARTED_AT_ISO } from "@/lib/costs/config";
 import {
+  PRODUCTION_EPHEMERAL_KEYS,
   PRODUCTION_SENSITIVE_KEYS,
   PRODUCTION_VERCEL_PROJECT_ID,
   PRODUCTION_VERCEL_TEAM_ID,
@@ -54,6 +55,16 @@ function validSensitiveMetadata(): VercelProductionEnvMetadata[] {
 }
 
 const listValidSensitiveMetadata = () => validSensitiveMetadata();
+
+function vercelPulledProductionEnv(
+  overrides: Record<string, string> = {},
+): string {
+  return [
+    validProductionEnv(overrides),
+    ...PRODUCTION_SENSITIVE_KEYS.map((key) => `${key}=""`),
+    ...PRODUCTION_EPHEMERAL_KEYS.map((key) => `${key}="ephemeral-value"`),
+  ].join("\n");
+}
 
 function writeLinkedProject(cwd: string, projectId = PRODUCTION_VERCEL_PROJECT_ID, orgId = PRODUCTION_VERCEL_TEAM_ID) {
   mkdirSync(path.join(cwd, ".vercel"), { recursive: true });
@@ -107,7 +118,10 @@ describe("production environment mirror T8 T9 T10 T12", () => {
   });
 
   it("rejects sensitive values from the local mirror", () => {
-    for (const key of PRODUCTION_SENSITIVE_KEYS) {
+    for (const key of [
+      ...PRODUCTION_SENSITIVE_KEYS,
+      ...PRODUCTION_EPHEMERAL_KEYS,
+    ]) {
       expect(() =>
         validateProductionEnv(parseDotenv(validProductionEnv({ [key]: "secret-value" }))),
       ).toThrow(new RegExp(key));
@@ -204,7 +218,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
         cwd,
         list: listValidSensitiveMetadata,
         pull: ({ destPath }) => {
-          writeFileSync(destPath, validProductionEnv());
+          writeFileSync(destPath, vercelPulledProductionEnv());
         },
       }),
     ).toThrow(ProductionEnvError);
@@ -222,7 +236,12 @@ describe("production environment mirror T8 T9 T10 T12", () => {
         cwd,
         list: listValidSensitiveMetadata,
         pull: ({ destPath }) => {
-          writeFileSync(destPath, validProductionEnv({ DATABASE_URL: "postgres://127.0.0.1/postgres" }));
+          writeFileSync(
+            destPath,
+            vercelPulledProductionEnv({
+              DATABASE_URL: "postgres://127.0.0.1/postgres",
+            }),
+          );
         },
       }),
     ).toThrow(/DATABASE_URL/);
@@ -232,11 +251,41 @@ describe("production environment mirror T8 T9 T10 T12", () => {
       cwd,
       list: listValidSensitiveMetadata,
       pull: ({ destPath }) => {
-        writeFileSync(destPath, validProductionEnv());
+        writeFileSync(destPath, vercelPulledProductionEnv());
       },
     });
     expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).toContain("COSTS_ENABLED");
     expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).not.toContain("KEEP=1");
+    for (const key of [
+      ...PRODUCTION_SENSITIVE_KEYS,
+      ...PRODUCTION_EPHEMERAL_KEYS,
+    ]) {
+      expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).not.toContain(
+        `${key}=`,
+      );
+    }
+  });
+
+  it("rejects a readable sensitive value from Vercel and preserves the mirror", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "prod-env-readable-secret-"));
+    directories.push(cwd);
+    writeLinkedProject(cwd);
+    writeFileSync(path.join(cwd, ".env.production"), "KEEP=1\n");
+    expect(() =>
+      pullProductionEnvMirror({
+        cwd,
+        list: listValidSensitiveMetadata,
+        pull: ({ destPath }) => {
+          writeFileSync(
+            destPath,
+            `${validProductionEnv()}\nCOST_SYNC_SECRET="readable-secret"\n`,
+          );
+        },
+      }),
+    ).toThrow(/COST_SYNC_SECRET/);
+    expect(readFileSync(path.join(cwd, ".env.production"), "utf8")).toBe(
+      "KEEP=1\n",
+    );
   });
 
   it("replaces the dest file in place and never moves the existing mirror aside", () => {
@@ -394,7 +443,7 @@ describe("production environment mirror T8 T9 T10 T12", () => {
       pull: ({ destPath }) => {
         writeFileSync(
           destPath,
-          validProductionEnv({
+          vercelPulledProductionEnv({
             COST_OWNER_NOTIFICATION_EMAIL: "remote@example.net",
           }),
         );
