@@ -1,0 +1,32 @@
+name: Project cost sync
+
+on:
+  repository_dispatch:
+    types:
+      - vercel.deployment.success
+
+jobs:
+  sync-costs:
+    if: >-
+      github.event.client_payload.target == 'production' &&
+      (github.event.client_payload.projectId == vars.COST_VERCEL_PROJECT_ID ||
+       github.event.client_payload.name == 'iommarket' ||
+       github.event.client_payload.projectName == 'iommarket')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger production cost sync
+        env:
+          COST_SYNC_URL: ${{ secrets.COST_SYNC_URL }}
+          COST_SYNC_SECRET: ${{ secrets.COST_SYNC_SECRET }}
+        run: |
+          if [ -z "$COST_SYNC_URL" ] || [ -z "$COST_SYNC_SECRET" ]; then
+            echo "COST_SYNC_URL and COST_SYNC_SECRET must be configured."
+            exit 1
+          fi
+          EVENT_ID="${{ github.event.client_payload.id }}"
+          PROJECT_ID="${{ github.event.client_payload.projectId }}"
+          curl --fail --silent --show-error \
+            -X POST "$COST_SYNC_URL" \
+            -H "Authorization: Bearer $COST_SYNC_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"eventId\":\"${EVENT_ID:-$GITHUB_RUN_ID}\",\"projectId\":\"$PROJECT_ID\",\"target\":\"production\",\"trigger\":\"DEPLOYMENT\"}"

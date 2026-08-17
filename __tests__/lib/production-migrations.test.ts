@@ -44,6 +44,34 @@ describe("production migration contract MIG-001", () => {
     }
   });
 
+  it("creates the cost ledger with unique settlements and private RLS", () => {
+    const costs = readMigration("20260817010000_project_cost_ledger");
+    expect(costs).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "CostSettlement_costEntryId_key"');
+    expect(costs).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "InvoiceRequest_openSlot_key"');
+    expect(costs).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "CostEntry_sourceSnapshotId_kind_key"');
+    expect(costs).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "CostEntry_reversesEntryId_key"');
+    expect(costs).toContain("cost_entry_immutable");
+    expect(costs).toContain("cost ledger rows are append-only");
+
+    for (const table of [
+      "CostLedgerConfig",
+      "FxRateSnapshot",
+      "CostSourceSnapshot",
+      "CostEntry",
+      "CostSyncRun",
+      "CostSyncLock",
+      "InvoiceRequest",
+      "InvoiceRequestLine",
+      "CostSettlement",
+      "CostWorkflowEvent",
+      "CostEmailOutbox",
+    ]) {
+      expect(costs).toContain(
+        `ALTER TABLE "public"."${table}" ENABLE ROW LEVEL SECURITY`,
+      );
+    }
+  });
+
   it("retains the lifecycle data-migration rollback mapping", () => {
     const backfill = readMigration("20260815002000_lifecycle_backfill");
     expect(backfill).toContain(

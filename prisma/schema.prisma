@@ -1122,13 +1122,242 @@ model RetentionLegalHold {
 }
 
 model RetentionRun {
-  id           String   @id @default(cuid())
-  mode         String
-  entityTypes  Json
-  status       String
-  counts       Json?
-  sampleIds    Json?
-  error        String?
-  startedAt    DateTime @default(now())
-  completedAt  DateTime?
+  id          String    @id @default(cuid())
+  mode        String
+  entityTypes Json
+  status      String
+  counts      Json?
+  sampleIds   Json?
+  error       String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Project cost ledger
+// ---------------------------------------------------------------------------
+
+enum CostCategory {
+  CURSOR
+  VERCEL_HOSTING
+  DATABASE
+  SHARED_VERCEL
+  OTHER
+}
+
+enum CostEntryKind {
+  CHARGE
+  REVERSAL
+}
+
+enum CostInvoiceability {
+  INVOICEABLE
+  PROVISIONAL
+}
+
+enum CostSourceKind {
+  VERCEL_FOCUS
+  MANUAL
+}
+
+enum InvoiceRequestStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum CostEmailOutboxStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+enum CostSyncTrigger {
+  DEPLOYMENT
+  CRON
+  MANUAL
+}
+
+enum CostSyncStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model CostLedgerConfig {
+  id            String   @id
+  startedAt     DateTime
+  policyVersion String
+  createdAt     DateTime @default(now())
+}
+
+model FxRateSnapshot {
+  id            String   @id @default(cuid())
+  pair          String
+  rate          Decimal  @db.Decimal(20, 8)
+  provider      String
+  captureDate   DateTime @db.Date
+  effectiveDate DateTime @db.Date
+  fetchedAt     DateTime
+  createdAt     DateTime @default(now())
+
+  entries CostEntry[]
+
+  @@unique([pair, effectiveDate, provider])
+  @@index([pair, effectiveDate])
+}
+
+model CostSourceSnapshot {
+  id               String         @id @default(cuid())
+  sourceKind       CostSourceKind
+  bucketKey        String
+  revision         Int
+  checksum         String
+  periodStart      DateTime
+  periodEnd        DateTime
+  classified       Boolean
+  quarantined      Boolean        @default(false)
+  quarantineReason String?
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+
+  entries CostEntry[]
+
+  @@unique([sourceKind, bucketKey, revision])
+  @@index([bucketKey, revision])
+  @@index([quarantined, createdAt])
+}
+
+model CostEntry {
+  id                 String             @id @default(cuid())
+  category           CostCategory
+  kind               CostEntryKind
+  invoiceability     CostInvoiceability
+  sourceKind         CostSourceKind
+  sourceSnapshotId   String
+  reversesEntryId    String?
+  fxRateSnapshotId   String?
+  nativeAmount       Decimal            @db.Decimal(20, 8)
+  nativeCurrency     String
+  markedGbpMinor     BigInt
+  servicePeriodStart DateTime
+  servicePeriodEnd   DateTime
+  displayLabel       String
+  createdAt          DateTime           @default(now())
+
+  sourceSnapshot CostSourceSnapshot   @relation(fields: [sourceSnapshotId], references: [id], onDelete: Restrict)
+  reversesEntry  CostEntry?           @relation("CostEntryReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy     CostEntry[]          @relation("CostEntryReversal")
+  fxRateSnapshot FxRateSnapshot?      @relation(fields: [fxRateSnapshotId], references: [id], onDelete: Restrict)
+  invoiceLines   InvoiceRequestLine[]
+  settlement     CostSettlement?
+
+  @@unique([sourceSnapshotId, kind])
+  @@unique([reversesEntryId])
+  @@index([category, createdAt])
+  @@index([invoiceability, createdAt])
+  @@index([createdAt])
+}
+
+model CostSyncLock {
+  id        String   @id
+  holder    String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model CostSyncRun {
+  id               String          @id @default(cuid())
+  trigger          CostSyncTrigger
+  status           CostSyncStatus
+  eventId          String?         @unique
+  queryFrom        DateTime
+  queryTo          DateTime
+  checksum         String?
+  classifiedCount  Int             @default(0)
+  quarantinedCount Int             @default(0)
+  errorCode        String?
+  startedAt        DateTime        @default(now())
+  completedAt      DateTime?
+
+  @@index([status, startedAt])
+}
+
+model InvoiceRequest {
+  id               String               @id @default(cuid())
+  status           InvoiceRequestStatus
+  openSlot         String?
+  requesterUserId  String
+  confirmerUserId  String?
+  frozenGbpMinor   BigInt
+  frozenEntryCount Int
+  createdAt        DateTime             @default(now())
+  confirmedAt      DateTime?
+
+  lines       InvoiceRequestLine[]
+  settlements CostSettlement[]
+  events      CostWorkflowEvent[]
+  emails      CostEmailOutbox[]
+
+  @@unique([openSlot])
+  @@index([status, createdAt])
+}
+
+model InvoiceRequestLine {
+  id               String @id @default(cuid())
+  invoiceRequestId String
+  costEntryId      String
+  markedGbpMinor   BigInt
+
+  request InvoiceRequest @relation(fields: [invoiceRequestId], references: [id], onDelete: Restrict)
+  entry   CostEntry      @relation(fields: [costEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([invoiceRequestId, costEntryId])
+  @@index([costEntryId])
+}
+
+model CostSettlement {
+  id               String   @id @default(cuid())
+  costEntryId      String   @unique
+  invoiceRequestId String
+  markedGbpMinor   BigInt
+  createdAt        DateTime @default(now())
+
+  entry   CostEntry      @relation(fields: [costEntryId], references: [id], onDelete: Restrict)
+  request InvoiceRequest @relation(fields: [invoiceRequestId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceRequestId])
+}
+
+model CostWorkflowEvent {
+  id               String   @id @default(cuid())
+  invoiceRequestId String?
+  type             String
+  actorUserId      String?
+  payload          Json?
+  createdAt        DateTime @default(now())
+
+  request InvoiceRequest? @relation(fields: [invoiceRequestId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceRequestId, createdAt])
+  @@index([type, createdAt])
+}
+
+model CostEmailOutbox {
+  id                String                @id @default(cuid())
+  invoiceRequestId  String
+  kind              String
+  status            CostEmailOutboxStatus @default(PENDING)
+  attemptCount      Int                   @default(0)
+  lastError         String?
+  providerMessageId String?
+  nextAttemptAt     DateTime?
+  claimedAt         DateTime?
+  createdAt         DateTime              @default(now())
+  sentAt            DateTime?
+
+  request InvoiceRequest @relation(fields: [invoiceRequestId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
 }
