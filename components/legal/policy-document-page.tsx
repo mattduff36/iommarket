@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MarkdownRenderer } from "@/components/cms/markdown-renderer";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getPolicyDocument } from "@/lib/policies/loader";
 import { LEGAL_NAV_ITEMS } from "@/lib/policies/registry";
 import type { PolicySlug } from "@/lib/policies/types";
@@ -9,6 +10,9 @@ export function PolicyDocumentPage({ slug }: { slug: PolicySlug }) {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+      <Breadcrumbs
+        items={[{ label: policy.title, href: policy.route }]}
+      />
       <p className="text-xs uppercase tracking-[0.16em] text-text-tertiary">
         Version {policy.version} · Effective {policy.effectiveDate}
       </p>

@@ -70,7 +70,7 @@ describe("SellPrivatePage", () => {
       "@/app/(public)/sell/private/page"
     );
 
-    render(await SellPrivatePage({}));
+    const { container } = render(await SellPrivatePage({}));
 
     const welcomeDialog = await screen.findByRole("dialog", {
       name: "This listing is free!",
@@ -88,6 +88,9 @@ describe("SellPrivatePage", () => {
     expect(form.getAttribute("data-mode")).toBe("private");
     expect(form.getAttribute("data-free-for-user")).toBe("true");
     expect(isPrivateListingFreeForUserMock).toHaveBeenCalledWith("user-1");
+    expect(
+      container.querySelector('script[type="application/ld+json"]'),
+    ).toBeNull();
   });
 
   it("redirects dealers to the dealer flow", async () => {

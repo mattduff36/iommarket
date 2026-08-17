@@ -1,12 +1,15 @@
 import * as React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildDealerProfilePath } from "@/lib/navigation-paths";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 const getCurrentUserMock = vi.fn();
 const getDealerEntitlementMock = vi.fn();
 const expireStaleLiveListingsMock = vi.fn();
 const liveListingWhereMock = vi.fn(() => ({ status: "LIVE" }));
 const findUniqueMock = vi.fn();
+const findFirstMock = vi.fn();
 const aggregateMock = vi.fn();
 const findManyReviewsMock = vi.fn();
 
@@ -22,6 +25,11 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/dealers/entitlement", () => ({
   getDealerEntitlement: getDealerEntitlementMock,
+  getPaidSubscriptionEntitlementWhere: (now: Date) => ({
+    source: "PAYMENT",
+    status: "ACTIVE",
+    currentPeriodEnd: { gt: now },
+  }),
 }));
 
 vi.mock("@/lib/listings/expiry", () => ({
@@ -33,6 +41,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     dealerProfile: {
       findUnique: findUniqueMock,
+      findFirst: findFirstMock,
     },
     dealerReview: {
       aggregate: aggregateMock,
@@ -51,7 +60,10 @@ vi.mock("@/actions/dealer-reviews", () => ({
   submitDealerReview: vi.fn(),
 }));
 
-const { default: DealerProfilePage } = await import(
+const {
+  default: DealerProfilePage,
+  generateMetadata,
+} = await import(
   "@/app/(public)/dealers/[slug]/page"
 );
 
@@ -97,6 +109,34 @@ describe("DealerProfilePage", () => {
       _count: { _all: 0 },
     });
     findManyReviewsMock.mockResolvedValue([]);
+  });
+
+  it("adds a canonical URL only for a publicly eligible dealer", async () => {
+    findFirstMock.mockResolvedValue({
+      name: "Douglas Auto Exchange",
+      bio: "Island dealership",
+      slug: "douglas-auto-exchange-canonical",
+    });
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+    });
+
+    expect(metadata.alternates?.canonical).toBe(
+      buildCanonicalUrl(
+        buildDealerProfilePath("douglas-auto-exchange-canonical"),
+      ),
+    );
+    expect(findFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          slug: "douglas-auto-exchange",
+          subscriptions: expect.any(Object),
+          user: expect.any(Object),
+        }),
+        select: { name: true, bio: true, slug: true },
+      }),
+    );
   });
 
   it("does not show Verified Dealer for a subscribed but unverified dealer", async () => {

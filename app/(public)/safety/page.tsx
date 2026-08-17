@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   title: "Buyer Safety",
   description: "Safety guidance for buyers and sellers on iTrader.im.",
+  alternates: { canonical: buildCanonicalUrl("/safety") },
 };
 
 export default function SafetyPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+      <Breadcrumbs
+        items={[{ label: "Buyer Safety", href: "/safety" }]}
+      />
       <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
         Buyer Safety Guidance
       </h1>

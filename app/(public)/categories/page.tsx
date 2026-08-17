@@ -8,10 +8,13 @@ import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
+import { buildCategorySearchPath } from "@/lib/navigation-paths";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   title: "Categories",
   description: "Browse vehicle categories on itrader.im. Cars, vans, motorbikes, motorhomes.",
+  alternates: { canonical: buildCanonicalUrl("/categories") },
 };
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -25,7 +28,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   car: "from-neon-red-500 to-neon-red-600",
   van: "from-neon-blue-500 to-neon-blue-600",
   motorbike: "from-premium-gold-500 to-premium-gold-600",
-  motorhome: "from-violet-500 to-violet-700",
+  motorhome: "from-metallic-500 to-graphite-800",
 };
 
 export default async function CategoriesPage() {
@@ -45,7 +48,7 @@ export default async function CategoriesPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:py-16 sm:px-6 lg:px-8">
-      <Breadcrumbs items={[{ label: "Categories" }]} />
+      <Breadcrumbs items={[{ label: "Buy", href: "/categories" }]} />
       <div className="mb-8 sm:mb-12">
         <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           Categories
@@ -61,12 +64,11 @@ export default async function CategoriesPage() {
           return (
             <Link
               key={cat.id}
-              href={`/search?category=${cat.slug}`}
+              href={buildCategorySearchPath(cat.slug)}
               className={cn(
                 "group relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]",
                 NAVIGABLE_CARD_LINK_CLASS,
               )}
-              style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }}
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
               <div className="relative z-10">

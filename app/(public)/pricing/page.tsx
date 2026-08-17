@@ -9,10 +9,13 @@ import {
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getCurrentUser } from "@/lib/auth";
 import { PricingCards } from "@/components/pricing/pricing-cards";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description: "Simple pricing for sellers and dealers on itrader.im.",
+  alternates: { canonical: buildCanonicalUrl("/pricing") },
 };
 
 export default async function PricingPage() {
@@ -31,6 +34,7 @@ export default async function PricingPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-20 lg:px-8">
+      <Breadcrumbs items={[{ label: "Pricing", href: "/pricing" }]} />
       <div className="mb-10 text-center sm:mb-16">
         <p className="text-sm font-semibold uppercase tracking-widest text-neon-blue-500">
           Pricing

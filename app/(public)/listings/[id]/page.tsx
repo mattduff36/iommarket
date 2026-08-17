@@ -9,16 +9,16 @@ import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
-import { cn } from "@/lib/cn";
 import { MapPin, Calendar, Tag, AlertTriangle, Star } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { JsonLd } from "@/components/seo/json-ld";
 import { ContactSellerForm } from "./contact-form";
 import { ReportButton } from "./report-button";
 import { ExpandableDescription } from "./expandable-description";
 import { ShareLinks } from "./share-links";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { ListingDealerIdentity } from "@/components/dealers/listing-dealer-identity";
 import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { MarkSoldButton } from "./mark-sold-button";
@@ -44,6 +44,12 @@ import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudina
 import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
 import { isDisclosedWriteOff, writeOffFromAttributeValues } from "@/lib/listings/write-off-category";
 import { buildViewerHash } from "@/lib/privacy/viewer-hash";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import {
+  buildListingBreadcrumbItems,
+  getPublicListingDealer,
+} from "@/lib/dealers/public-listing-dealer";
+import { buildListingPath } from "@/lib/navigation-paths";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -76,7 +82,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   ) {
     return { title: "Listing unavailable" };
   }
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const canonicalUrl = buildCanonicalUrl(buildListingPath(id));
   const primaryPhoto = toListingPhotoSource(listing.images[0]);
   const socialImage = primaryPhoto
     ? signPrivateCloudinaryUrl(buildSocialImageUrl(primaryPhoto))
@@ -87,7 +93,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: listing.title,
       description: listing.description.slice(0, 160),
-      url: `${appUrl}/listings/${id}`,
+      url: canonicalUrl,
       images: socialImage ? [{ url: socialImage, width: 1200, height: 630 }] : undefined,
     },
     twitter: {
@@ -97,7 +103,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: socialImage ? [socialImage] : undefined,
     },
     alternates: {
-      canonical: `${appUrl}/listings/${id}`,
+      canonical: canonicalUrl,
     },
   };
 }
@@ -204,6 +210,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   }
 
   if (!canView) notFound();
+  const publicDealer = await getPublicListingDealer(listing.dealerId);
 
   const pendingRevision =
     showAdminReviewActions
@@ -280,8 +287,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     ? (await getMarketplacePricing()).featuredUpgradePence
     : null;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const shareUrl = `${appUrl}/listings/${listing.id}`;
+  const listingPath = buildListingPath(listing.id);
+  const shareUrl = buildCanonicalUrl(listingPath);
   const shareText = `Check out this listing: ${listing.title}`;
 
   return (
@@ -313,10 +320,13 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       ) : null}
 
       <Breadcrumbs
-        items={[
-          { label: listing.category.name, href: `/search?category=${listing.category.slug}` },
-          { label: listing.title },
-        ]}
+        items={buildListingBreadcrumbItems({
+          listingId: listing.id,
+          listingTitle: listing.title,
+          category: listing.category,
+          publicDealer,
+        })}
+        structuredData={isVisible}
       />
 
       {showAdminReviewActions && pendingRevision ? (
@@ -492,31 +502,15 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm font-semibold text-text-primary">
-                {listing.dealer?.name ?? listing.user.name ?? "Anonymous"}
-              </p>
-              {listing.dealer && (
-                <Link
-                  href={`/dealers/${listing.dealer.slug}`}
-                  aria-label="View dealer profile"
-                  className={cn(
-                    "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated/60 px-3 py-2",
-                    NAVIGABLE_CARD_LINK_CLASS,
-                  )}
-                >
-                  {listing.dealer.verified ? (
-                    <Badge variant="success" className="shrink-0">
-                      Verified dealer
-                    </Badge>
-                  ) : null}
-                  <span aria-hidden="true" className="text-xs font-semibold text-text-trust">
-                    View dealer profile
-                  </span>
-                </Link>
-              )}
-              {listing.dealer?.phone && (
-                <p className="text-sm text-text-secondary">
-                  {listing.dealer.phone}
+              {listing.dealer ? (
+                <ListingDealerIdentity
+                  fallbackName={listing.dealer.name}
+                  phone={listing.dealer.phone}
+                  publicDealer={publicDealer}
+                />
+              ) : (
+                <p className="text-sm font-semibold text-text-primary">
+                  {listing.user.name ?? "Anonymous"}
                 </p>
               )}
             </CardContent>
@@ -547,12 +541,12 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                         size="sm"
                         className="w-full border border-neon-blue-500 bg-transparent font-bold uppercase italic text-neon-blue-500 hover:bg-neon-blue-500/10 hover:text-neon-blue-400"
                       >
-                        <Link href={`/sign-up?next=${encodeURIComponent(`/listings/${listing.id}`)}`}>
+                        <Link href={`/sign-up?next=${encodeURIComponent(listingPath)}`}>
                           Sign up
                         </Link>
                       </Button>
                       <Button asChild variant="trust" size="sm" className="w-full">
-                        <Link href={`/sign-in?next=${encodeURIComponent(`/listings/${listing.id}`)}`}>
+                        <Link href={`/sign-in?next=${encodeURIComponent(listingPath)}`}>
                           Sign in
                         </Link>
                       </Button>
@@ -657,18 +651,16 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 featured={item.featured}
                 badge={item.featured ? "Featured" : undefined}
                 writeOffCategory={item.attributeValues[0]?.value ?? null}
-                href={`/listings/${item.id}`}
+                href={buildListingPath(item.id)}
               />
             ))}
           </div>
         </section>
       )}
 
-      {/* Structured data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+      {isVisible ? (
+        <JsonLd
+          data={{
             "@context": "https://schema.org",
             "@type": "Product",
             name: listing.title,
@@ -692,13 +684,13 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               "@type": "Offer",
               price: price,
               priceCurrency: "GBP",
-              availability: isVisible
-                ? "https://schema.org/InStock"
-                : "https://schema.org/SoldOut",
+              availability: isSold
+                ? "https://schema.org/SoldOut"
+                : "https://schema.org/InStock",
             },
-          }),
-        }}
-      />
+          }}
+        />
+      ) : null}
     </div>
   );
 }

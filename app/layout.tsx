@@ -3,6 +3,7 @@ import { Inter, Orbitron } from "next/font/google";
 import { ThemeProvider } from "@once-ui-system/core";
 import { ClientErrorListener } from "@/components/monitoring/client-error-listener";
 import { ConsentedAnalytics } from "@/components/layout/consented-analytics";
+import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,9 +32,7 @@ export const metadata: Metadata = {
     template: "%s | itrader.im",
   },
   description: "Buy and sell cars, vans, motorbikes, and motorhomes on the Isle of Man.",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-  ),
+  metadataBase: getCanonicalBaseUrl(),
   icons: {
     icon: "/images/icon-itrader.png",
     apple: "/images/icon-itrader.png",

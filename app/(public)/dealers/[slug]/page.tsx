@@ -17,6 +17,12 @@ import { DealerReviewForm } from "./dealer-review-form";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getDealerEntitlement } from "@/lib/dealers/entitlement";
+import { getPublicDealerWhere } from "@/lib/dealers/access";
+import {
+  buildDealerProfilePath,
+  buildListingPath,
+} from "@/lib/navigation-paths";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -28,14 +34,17 @@ function stars(rating: number) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const dealer = await db.dealerProfile.findUnique({
-    where: { slug },
-    select: { name: true, bio: true },
+  const dealer = await db.dealerProfile.findFirst({
+    where: { slug, ...getPublicDealerWhere() },
+    select: { name: true, bio: true, slug: true },
   });
   if (!dealer) return {};
   return {
     title: dealer.name,
     description: dealer.bio?.slice(0, 160) ?? `View ${dealer.name}'s listings on itrader.im.`,
+    alternates: {
+      canonical: buildCanonicalUrl(buildDealerProfilePath(dealer.slug)),
+    },
   };
 }
 
@@ -137,8 +146,8 @@ export default async function DealerProfilePage({ params }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <Breadcrumbs
         items={[
-          { label: "Dealers", href: "/search?sellerType=dealer" },
-          { label: dealer.name },
+          { label: "Dealers", href: "/dealers" },
+          { label: dealer.name, href: buildDealerProfilePath(dealer.slug) },
         ]}
       />
       {/* Dealer header */}
@@ -331,7 +340,7 @@ export default async function DealerProfilePage({ params }: Props) {
               featured={listing.featured}
               badge={listing.featured ? "Featured" : undefined}
               writeOffCategory={listing.attributeValues[0]?.value ?? null}
-              href={`/listings/${listing.id}`}
+              href={buildListingPath(listing.id)}
             />
           ))}
         </div>

@@ -13,6 +13,10 @@ contract changes. Local verification does not authorize production changes.
 - Vercel Production has `RIPPLE_CLIENT_ID`, `RIPPLE_WEBHOOK_SECRET`,
   `RIPPLE_REFERENCE_SECRET`, `CRON_SECRET`, and the four canonical `/pay/{code}`
   URLs.
+- Set `NEXT_PUBLIC_APP_URL` to the origin-only production URL. If it is absent,
+  canonical metadata falls back to Vercel's system
+  `VERCEL_PROJECT_PRODUCTION_URL`; if neither is available the production build
+  fails. Rebuild and redeploy after changing either canonical-origin value.
 - Keep `RIPPLE_LIVE_CHECKOUT_ENABLED=0`.
 
 ## 2. Database checkpoint

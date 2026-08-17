@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CreateListingForm } from "../create-listing-form";
 import { FreeListingWelcomeDialog } from "../free-listing-welcome-dialog";
 import { getSellFormData } from "../sell-form-data";
@@ -44,6 +45,13 @@ export default async function SellPrivatePage({ searchParams }: Props) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       {isFreeForUser ? <FreeListingWelcomeDialog /> : null}
+      <Breadcrumbs
+        items={[
+          { label: "Sell", href: "/sell" },
+          { label: "Private listing", href: "/sell/private" },
+        ]}
+        structuredData={false}
+      />
       <h1 className="text-3xl font-bold text-text-primary mb-2">
         {initialDraft ? "Continue Editing Your Draft" : "Create a Private Listing"}
       </h1>

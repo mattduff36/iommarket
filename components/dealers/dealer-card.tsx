@@ -1,10 +1,10 @@
 import { ArrowUpRight } from "lucide-react";
 import { DealerLogo } from "@/components/dealers/dealer-logo";
 import { Badge } from "@/components/ui/badge";
-import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
+import { CardOverlayLink } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
 import type { DealerSpotlight } from "@/lib/dealers/spotlights";
-import Link from "next/link";
+import { buildDealerProfilePath } from "@/lib/navigation-paths";
 
 interface DealerCardProps {
   dealer: DealerSpotlight;
@@ -13,15 +13,16 @@ interface DealerCardProps {
 
 export function DealerCard({ dealer, className }: DealerCardProps) {
   return (
-    <Link
-      href={`/dealers/${dealer.slug}`}
-      aria-label={`Visit ${dealer.name} profile`}
+    <article
       className={cn(
-        "group flex h-full min-w-0 flex-col rounded-2xl border border-border bg-black/20 p-4 transition-colors hover:border-neon-blue-500/40",
-        NAVIGABLE_CARD_LINK_CLASS,
+        "group relative flex h-full min-w-0 flex-col rounded-2xl border border-border bg-black/20 p-4 transition-colors hover:border-neon-blue-500/40",
         className,
       )}
     >
+      <CardOverlayLink
+        href={buildDealerProfilePath(dealer.slug)}
+        label={`Visit ${dealer.name} profile`}
+      />
       <div className="flex min-w-0 items-center gap-3">
         <DealerLogo
           logoUrl={dealer.logoUrl}
@@ -57,6 +58,6 @@ export function DealerCard({ dealer, className }: DealerCardProps) {
           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
         </span>
       </div>
-    </Link>
+    </article>
   );
 }

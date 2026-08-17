@@ -7,6 +7,7 @@ import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { CreateListingForm } from "../create-listing-form";
 import { getSellFormData } from "../sell-form-data";
@@ -91,6 +92,13 @@ export default async function SellDealerPage({ searchParams }: Props) {
   if (!entitlement && !initialDraft) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-4">
+        <Breadcrumbs
+          items={[
+            { label: "Sell", href: "/sell" },
+            { label: "Dealer listing", href: "/sell/dealer" },
+          ]}
+          structuredData={false}
+        />
         <h1 className="text-3xl font-bold text-text-primary">Dealer Listing</h1>
         <p className="text-text-secondary">
           Active dealer access is required before you can create new dealer listings.
@@ -111,6 +119,13 @@ export default async function SellDealerPage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+      <Breadcrumbs
+        items={[
+          { label: "Sell", href: "/sell" },
+          { label: "Dealer listing", href: "/sell/dealer" },
+        ]}
+        structuredData={false}
+      />
       <h1 className="text-3xl font-bold text-text-primary mb-2">
         {initialDraft ? "Continue Editing Your Dealer Draft" : "Create a Dealer Listing"}
       </h1>

@@ -57,11 +57,17 @@ describe("DealerDirectory", () => {
     const beta = screen.getByRole("link", { name: "Visit Beta Motors profile" });
     expect(alpha).toHaveAttribute("href", "/dealers/alpha-autos");
     expect(beta).toHaveAttribute("href", "/dealers/beta-motors");
+    expect(alpha.className).toContain("absolute");
+    expect(alpha.className).toContain("inset-0");
     expect(alpha.querySelector("a, button")).toBeNull();
     expect(beta.querySelector("a, button")).toBeNull();
     expect(screen.getAllByRole("link", { name: /Visit .* profile/ })).toHaveLength(
       dealers.length,
     );
+    for (const card of screen.getAllByRole("article")) {
+      expect(card.querySelectorAll("a")).toHaveLength(1);
+      expect(card.querySelector("button")).toBeNull();
+    }
     expect(screen.getByText("Verified Dealer")).toBeInTheDocument();
     expect(screen.getAllByText("Verified Dealer")).toHaveLength(1);
   });

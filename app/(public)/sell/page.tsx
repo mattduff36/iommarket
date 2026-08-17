@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getSellLandingPath } from "@/lib/navigation";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { AdminListingChoiceModal } from "./admin-listing-choice-modal";
 
 export const metadata: Metadata = {
@@ -19,6 +20,10 @@ export default async function SellPage() {
   if (user.role === "ADMIN") {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
+        <Breadcrumbs
+          items={[{ label: "Sell", href: "/sell" }]}
+          structuredData={false}
+        />
         <h1 className="text-3xl font-bold text-text-primary mb-2">
           Create a Listing
         </h1>

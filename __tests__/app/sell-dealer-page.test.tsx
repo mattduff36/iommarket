@@ -77,11 +77,14 @@ describe("SellDealerPage", () => {
       "@/app/(public)/sell/dealer/page"
     );
 
-    render(await SellDealerPage({}));
+    const { container } = render(await SellDealerPage({}));
 
     expect(screen.getByTestId("create-listing-form").getAttribute("data-mode")).toBe(
       "dealer"
     );
+    expect(
+      container.querySelector('script[type="application/ld+json"]'),
+    ).toBeNull();
   });
 
   it("shows the subscribe state after grant expiry", async () => {
@@ -90,11 +93,14 @@ describe("SellDealerPage", () => {
       "@/app/(public)/sell/dealer/page"
     );
 
-    render(await SellDealerPage({}));
+    const { container } = render(await SellDealerPage({}));
 
     expect(
       screen.getByText(/Active dealer access is required/i)
     ).toBeTruthy();
     expect(screen.queryByTestId("create-listing-form")).toBeNull();
+    expect(
+      container.querySelector('script[type="application/ld+json"]'),
+    ).toBeNull();
   });
 });

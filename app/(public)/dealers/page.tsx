@@ -12,11 +12,13 @@ import {
   expireStaleLiveListings,
   liveListingWhere,
 } from "@/lib/listings/expiry";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   title: "Isle of Man Dealers",
   description:
     "Browse active Isle of Man vehicle dealers and visit their profiles on itrader.im.",
+  alternates: { canonical: buildCanonicalUrl("/dealers") },
 };
 
 export default async function DealersPage() {
@@ -28,7 +30,7 @@ export default async function DealersPage() {
 
   return (
     <main className="mx-auto min-w-0 max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <Breadcrumbs items={[{ label: "Dealers" }]} />
+      <Breadcrumbs items={[{ label: "Dealers", href: "/dealers" }]} />
 
       <header className="mb-8 max-w-3xl sm:mb-10">
         <p className="text-sm font-semibold uppercase tracking-[0.22em] text-neon-blue-400">

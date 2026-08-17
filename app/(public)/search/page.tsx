@@ -7,7 +7,12 @@ import { SearchControls } from "@/components/marketplace/search/search-controls"
 import { ListingResultsClient } from "@/components/marketplace/search/listing-results-client";
 import { SaveSearchButton } from "@/components/marketplace/save-search-button";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { type SearchParams } from "@/lib/search/search-url";
+import {
+  getSearchSeoState,
+  normalizeSearchParams,
+  type SearchParams,
+} from "@/lib/search/search-url";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
@@ -39,23 +44,24 @@ interface Props {
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const sp = await searchParams;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const canonicalParams = new URLSearchParams();
-  for (const [key, value] of Object.entries(sp)) {
-    if (!value) continue;
-    if (key === "page" && value === "1") continue;
-    canonicalParams.set(key, value);
-  }
-  const canonicalPath = canonicalParams.toString()
-    ? `/search?${canonicalParams.toString()}`
-    : "/search";
+  const sp = normalizeSearchParams(await searchParams);
+  const activeCategory = sp.category
+    ? await db.category.findFirst({
+        where: { slug: sp.category, active: true },
+        select: { slug: true },
+      })
+    : null;
+  const seo = getSearchSeoState(sp, activeCategory?.slug);
   return {
     title: sp.q ? `Search: ${sp.q}` : "Search",
     description:
       "Search vehicles on itrader.im. Cars, vans, motorbikes, and motorhomes across the Isle of Man.",
     alternates: {
-      canonical: `${appUrl}${canonicalPath}`,
+      canonical: buildCanonicalUrl(seo.canonicalPath),
+    },
+    robots: {
+      index: seo.indexable,
+      follow: true,
     },
   };
 }
@@ -74,7 +80,7 @@ interface NumericRangeFilter {
 
 export default async function SearchPage({ searchParams }: Props) {
   await expireStaleLiveListings();
-  const sp = await searchParams;
+  const sp = normalizeSearchParams(await searchParams);
   const currentUser = await getCurrentUser();
   const query = sp.q?.trim() ?? "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
@@ -245,7 +251,15 @@ export default async function SearchPage({ searchParams }: Props) {
     ...(attrAndClauses.length > 0 ? { AND: attrAndClauses } : {}),
   };
 
-  const [listings, total, categories, regions, makeDefs, modelDefs] = await Promise.all([
+  const [
+    listings,
+    total,
+    categories,
+    regions,
+    makeDefs,
+    modelDefs,
+    selectedCategory,
+  ] = await Promise.all([
     db.listing.findMany({
       where,
       orderBy: getSearchOrderBy(sort),
@@ -284,6 +298,12 @@ export default async function SearchPage({ searchParams }: Props) {
       where: { slug: "model" },
       select: { id: true },
     }),
+    sp.category
+      ? db.category.findFirst({
+          where: { slug: sp.category, active: true },
+          select: { name: true, slug: true },
+        })
+      : Promise.resolve(null),
   ]);
   const favouriteListingIds = currentUser
     ? new Set(
@@ -343,6 +363,15 @@ export default async function SearchPage({ searchParams }: Props) {
   const makes = Object.entries(makeCounts)
     .map(([label, count]) => ({ label, value: label, count }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  const canonicalPath = getSearchSeoState(
+    sp,
+    selectedCategory?.slug,
+  ).canonicalPath;
+  const resultHeading = query ? `Results for “${query}”` : "All Listings";
+  const breadcrumbLabel = query
+    ? resultHeading
+    : selectedCategory?.name ??
+      (sp.sellerType === "dealer" ? "Dealer listings" : "All listings");
 
   const currentParams: SearchParams = {
     q: sp.q, category: sp.category, region: sp.region,
@@ -370,10 +399,15 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
-      <Breadcrumbs items={[{ label: "Search" }]} />
+      <Breadcrumbs
+        items={[
+          { label: "Buy", href: "/categories" },
+          { label: breadcrumbLabel, href: canonicalPath },
+        ]}
+      />
       <div className="mb-6 sm:mb-10">
         <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-          {query ? `Results for "${query}"` : "All Listings"}
+          {resultHeading}
         </h1>
       </div>
       <div className="sticky top-16 z-20 bg-canvas/95 backdrop-blur-sm py-2 mb-5 border-b border-border">

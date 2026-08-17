@@ -1,17 +1,26 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { getPublicDealerWhere } from "@/lib/dealers/access";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import {
+  buildCategorySearchPath,
+  buildDealerProfilePath,
+  buildListingPath,
+} from "@/lib/navigation-paths";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await expireStaleLiveListings();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const staticRoutes = [
     "/",
     "/search",
     "/pricing",
     "/categories",
+    "/dealers",
+    "/vehicle-check",
+    "/contact",
     "/terms",
     "/privacy",
     "/cookies",
@@ -23,21 +32,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/safety",
   ];
 
-  const listings = await db.listing.findMany({
-    where: liveListingWhere(),
-    select: { id: true, updatedAt: true },
-    take: 2000,
-    orderBy: { updatedAt: "desc" },
-  });
+  const [listings, dealers, categories] = await Promise.all([
+    db.listing.findMany({
+      where: liveListingWhere(),
+      select: { id: true, updatedAt: true },
+      take: 2000,
+      orderBy: { updatedAt: "desc" },
+    }),
+    db.dealerProfile.findMany({
+      where: getPublicDealerWhere(),
+      select: { slug: true, updatedAt: true },
+      take: 2000,
+      orderBy: { updatedAt: "desc" },
+    }),
+    db.category.findMany({
+      where: { active: true },
+      select: { slug: true, createdAt: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+  ]);
 
   return [
     ...staticRoutes.map((route) => ({
-      url: `${baseUrl}${route}`,
+      url: buildCanonicalUrl(route),
       lastModified: new Date(),
     })),
     ...listings.map((listing) => ({
-      url: `${baseUrl}/listings/${listing.id}`,
+      url: buildCanonicalUrl(buildListingPath(listing.id)),
       lastModified: listing.updatedAt,
+    })),
+    ...dealers.map((dealer) => ({
+      url: buildCanonicalUrl(buildDealerProfilePath(dealer.slug)),
+      lastModified: dealer.updatedAt,
+    })),
+    ...categories.map((category) => ({
+      url: buildCanonicalUrl(buildCategorySearchPath(category.slug)),
+      lastModified: category.createdAt,
     })),
   ];
 }
