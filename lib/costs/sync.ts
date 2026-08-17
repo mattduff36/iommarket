@@ -173,7 +173,18 @@ async function executeCostSync(
         },
       });
 
+  let classifiedCount = 0;
+
   try {
+    // Cursor allocation comes from a committed local log, so it must not be held
+    // hostage by a provider outage on the Vercel side of the same run.
+    classifiedCount += await importCursorSubscriptionShare({
+      startedAt: config.startedAt,
+      now,
+      env,
+      lockHolder,
+    });
+
     const billing = getVercelBillingConfig(env);
     const charges = await fetchFocusCharges({
       from: window.from,
@@ -186,7 +197,6 @@ async function executeCostSync(
       now,
     });
 
-    let classifiedCount = 0;
     let quarantinedCount = charges.quarantined.length + classified.quarantined.length;
 
     for (const item of charges.quarantined) {
@@ -306,13 +316,6 @@ async function executeCostSync(
         if (result !== "skipped") classifiedCount += 1;
       });
     }
-
-    classifiedCount += await importCursorSubscriptionShare({
-      startedAt: config.startedAt,
-      now,
-      env,
-      lockHolder,
-    });
 
     const checksum = createHash("sha256")
       .update(`${classifiedCount}:${quarantinedCount}:${window.from.toISOString()}`)
