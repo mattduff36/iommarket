@@ -422,7 +422,7 @@ export function CreateListingForm({
         selectedCategoryAttributes: selectedCategory?.attributes ?? [],
         createMutationId: createPhotoMutationId,
         onListingId: setPendingListingId,
-        onDraftUrl: (href) => router.replace(href),
+        onDraftUrl: (href) => window.history.replaceState(null, "", href),
         onPhotoRevision: setPhotoRevision,
         openCheckout: (url) => {
           setDemoOutcomeError(null);
@@ -433,8 +433,8 @@ export function CreateListingForm({
         if (navigation.error) setError(navigation.error);
         if (navigation.fieldErrors) {
           setFieldErrors(navigation.fieldErrors);
-          setStep(navigation.step ?? 1);
         }
+        if (navigation.step) setStep(navigation.step);
         return;
       }
       if (navigation.kind === "demo") {

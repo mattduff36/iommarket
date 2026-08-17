@@ -87,6 +87,40 @@ test.afterEach(async () => {
 });
 
 test.describe("Critical launch funnels", () => {
+  test("LST-DRAFT-NAV-002 native draft URL update keeps the listing form mounted", async ({
+    page,
+  }) => {
+    await page.goto("/sell/private", { waitUntil: "domcontentloaded" });
+
+    const form = page.locator("form").last();
+    await expect(form).toBeVisible({ timeout: 20_000 });
+    await form.evaluate((node) => {
+      Reflect.set(window, "__listingFormBeforeDraftUrl", node);
+      window.history.replaceState(
+        null,
+        "",
+        "/sell/private?draft=browser-history-proof",
+      );
+    });
+
+    await expect(page).toHaveURL(/\/sell\/private\?draft=browser-history-proof$/);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const original = Reflect.get(
+            window,
+            "__listingFormBeforeDraftUrl",
+          ) as HTMLFormElement | undefined;
+          const forms = document.querySelectorAll("form");
+          return {
+            connected: original?.isConnected ?? false,
+            sameNode: original === forms.item(forms.length - 1),
+          };
+        }),
+      )
+      .toEqual({ connected: true, sameNode: true });
+  });
+
   test("sell flow: private wizard -> checkout handoff -> moderation visibility", async ({ page }) => {
     const listing = await createListingForE2E({
       status: "DRAFT",

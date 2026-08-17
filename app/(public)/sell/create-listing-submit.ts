@@ -169,11 +169,27 @@ export function collectListingAttributes(
 
 export type ListingSubmitFieldErrors = Record<string, string[]>;
 
+export function summarizeListingSubmitFieldErrors(
+  fieldErrors: ListingSubmitFieldErrors,
+  fallback: string,
+) {
+  for (const messages of Object.values(fieldErrors)) {
+    const message = messages.find((candidate) => candidate.trim().length > 0);
+    if (message) return message;
+  }
+  return fallback;
+}
+
 export type ListingSubmitNavigation =
   | { kind: "checkout"; href: string }
   | { kind: "success"; href: string }
   | { kind: "demo" }
-  | { kind: "stay"; error?: string; fieldErrors?: ListingSubmitFieldErrors; step?: 1 };
+  | {
+      kind: "stay";
+      error?: string;
+      fieldErrors?: ListingSubmitFieldErrors;
+      step?: 1 | 3;
+    };
 
 export async function executeCreateListingSubmit(params: {
   form: FormData;
@@ -314,7 +330,15 @@ export async function executeCreateListingSubmit(params: {
     if (typeof payResult.error === "string") {
       return { kind: "stay", error: payResult.error };
     }
-    return { kind: "stay", fieldErrors: payResult.error, step: 1 };
+    return {
+      kind: "stay",
+      error: summarizeListingSubmitFieldErrors(
+        payResult.error,
+        "Unable to continue to checkout. Please review your details and try again.",
+      ),
+      fieldErrors: payResult.error,
+      step: 3,
+    };
   }
 
   if (payResult.data?.skippedPayment) {

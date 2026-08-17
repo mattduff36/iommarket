@@ -101,6 +101,7 @@ import {
   interpretPhotoSyncResult,
   nextPhotoRevisionAfterListingSave,
   resolvePhotoMutation,
+  summarizeListingSubmitFieldErrors,
   tryBeginSubmitFlight,
 } from "@/app/(public)/sell/create-listing-submit";
 import {
@@ -225,6 +226,8 @@ const regions = [{ id: "iom", name: "IOM Central" }];
 
 describe("CreateListingForm registration lookup", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
     fetchMock.mockReset();
     pushMock.mockReset();
     replaceMock.mockReset();
@@ -718,7 +721,12 @@ describe("CreateListingForm registration lookup", () => {
     await screen.findByText(/Auto-filled/i);
 
     expect((screen.getByLabelText(/Make/i) as HTMLSelectElement).value).toBe("Mercedes-Benz");
-    expect((screen.getByLabelText(/^Model \(manual entry\)/) as HTMLInputElement).value).toBe("A 200 AMG LINE");
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText(/^Model \(manual entry\)/) as HTMLInputElement)
+          .value,
+      ).toBe("A 200 AMG LINE"),
+    );
     expect((screen.getByLabelText(/Year/i) as HTMLInputElement).value).toBe("2020");
     expect((screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement).value).toBe("Petrol");
     expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Grey");
@@ -974,11 +982,14 @@ describe("CreateListingForm registration lookup", () => {
     });
 
     await waitFor(() => {
-      expect(replaceMock).toHaveBeenCalledWith("/sell/private?draft=listing-123");
+      expect(window.location.pathname + window.location.search).toBe(
+        "/sell/private?draft=listing-123",
+      );
       expect(replaceMock).toHaveBeenCalledWith(
         "/sell/checkout?listing=listing-123&flow=private&opened=1"
       );
     });
+    expect(replaceMock).not.toHaveBeenCalledWith("/sell/private?draft=listing-123");
     expect(pushMock).not.toHaveBeenCalled();
   });
 
@@ -1200,7 +1211,10 @@ describe("CreateListingForm registration lookup", () => {
       screen.getByRole("button", { name: "Emulate successful payment" })
     ).toBeTruthy();
     expect(pushMock).not.toHaveBeenCalled();
-    expect(replaceMock).toHaveBeenCalledWith("/sell/private?draft=listing-456");
+    expect(window.location.pathname + window.location.search).toBe(
+      "/sell/private?draft=listing-456",
+    );
+    expect(replaceMock).not.toHaveBeenCalledWith("/sell/private?draft=listing-456");
     expect(replaceMock).not.toHaveBeenCalledWith(
       expect.stringContaining("/sell/checkout"),
     );
@@ -1430,6 +1444,8 @@ function fillRequiredVehicleDetails() {
 
 describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
     fetchMock.mockReset();
     pushMock.mockReset();
     replaceMock.mockReset();
@@ -1634,6 +1650,57 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     );
   });
 
+  it("LST-SUBMIT-ERROR-002 keeps object payment errors visible on step 3 and retries the saved draft", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-object-error" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "listing-object-error" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(payForListing)
+      .mockResolvedValueOnce({
+        error: {
+          privateSellerTermsAccepted: [
+            "Private seller terms acceptance is required.",
+          ],
+        },
+      } as Awaited<ReturnType<typeof payForListing>>)
+      .mockResolvedValueOnce({
+        data: { checkoutUrl: "https://checkout.example/object-error-retry" },
+      } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+
+    await screen.findByText("Private seller terms acceptance is required.");
+    expect(screen.getByText("Create Listing - Step 3 of 3")).toBeTruthy();
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(submit);
+    await waitFor(() => expect(payForListing).toHaveBeenCalledTimes(2));
+    expect(createListing).toHaveBeenCalledTimes(1);
+    expect(updateListing).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "listing-object-error" }),
+    );
+  });
+
   it("LST-SUBMIT-001 LST-PHOTO-CAS-001 preserves photo mutationId across payment failure", async () => {
     vi.mocked(createListing).mockResolvedValue({
       data: { id: "listing-created" },
@@ -1677,7 +1744,8 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     );
   });
 
-  it("LST-HISTORY-001 LST-DRAFT-URL-001 LST-REDIRECT-001 uses replace for draft URL and checkout", async () => {
+  it("LST-DRAFT-NAV-002 LST-CHECKOUT-NAV-002 updates the draft URL without router navigation before checkout", async () => {
+    const historyReplaceSpy = vi.spyOn(window.history, "replaceState");
     vi.mocked(createListing).mockResolvedValue({
       data: { id: "listing-redirect" },
     } as Awaited<ReturnType<typeof createListing>>);
@@ -1704,11 +1772,21 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
 
     await waitFor(() => {
-      expect(replaceMock).toHaveBeenCalledWith("/sell/private?draft=listing-redirect");
+      expect(historyReplaceSpy).toHaveBeenCalledWith(
+        null,
+        "",
+        "/sell/private?draft=listing-redirect",
+      );
       expect(replaceMock).toHaveBeenCalledWith(
         "/sell/checkout?listing=listing-redirect&flow=private&opened=1",
       );
     });
+    expect(window.location.pathname + window.location.search).toBe(
+      "/sell/private?draft=listing-redirect",
+    );
+    expect(replaceMock).not.toHaveBeenCalledWith(
+      "/sell/private?draft=listing-redirect",
+    );
     expect(pushMock).not.toHaveBeenCalled();
   });
 
@@ -1752,6 +1830,19 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
 });
 
 describe("create-listing-submit helpers WS-17AUG-REG-7C4B", () => {
+  it("LST-SUBMIT-ERROR-002 summarizes the first actionable field error", () => {
+    expect(
+      summarizeListingSubmitFieldErrors(
+        {
+          listingId: [],
+          privateSellerTermsAccepted: ["Private seller terms acceptance is required."],
+        },
+        "Fallback",
+      ),
+    ).toBe("Private seller terms acceptance is required.");
+    expect(summarizeListingSubmitFieldErrors({}, "Fallback")).toBe("Fallback");
+  });
+
   it("LST-SUBMIT-001 chooses update once a listing id exists", () => {
     expect(chooseListingWriteAction(null)).toBe("create");
     expect(chooseListingWriteAction("listing-1")).toBe("update");
