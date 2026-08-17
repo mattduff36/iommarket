@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CostSyncTrigger } from "@prisma/client";
+import { Prisma, type CostSyncTrigger } from "@prisma/client";
 import {
   getVercelBillingConfig,
   isCostsEnabled,
@@ -270,7 +270,12 @@ async function executeCostSync(
       quarantinedCount,
     };
   } catch (error) {
-    const errorCode = error instanceof Error ? error.name : "COST_SYNC_FAILED";
+    const errorCode =
+      error instanceof Prisma.PrismaClientKnownRequestError
+        ? error.code
+        : error instanceof Error
+          ? error.name
+          : "COST_SYNC_FAILED";
     await db.costSyncRun.update({
       where: { id: run.id },
       data: {
