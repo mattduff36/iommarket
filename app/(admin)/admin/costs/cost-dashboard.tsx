@@ -9,14 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  COST_ALLOCATION_HELP,
-  COST_CALCULATION_HELP,
-  COST_DISABLED_HELP,
   COST_EMPTY_HELP,
   COST_INVOICE_HELP,
   COST_NON_OWNER_HELP,
-  COST_PAGE_INTRO,
-  COST_REFRESH_HELP,
   syncHealthDetail,
   syncHealthLabel,
 } from "@/lib/costs/copy";
@@ -30,14 +25,6 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
   return (
     <>
       <h1 className="text-2xl font-bold text-text-primary mb-3">Costs</h1>
-      <p className="mb-4 text-sm text-text-secondary">{COST_PAGE_INTRO}</p>
-      <p className="mb-4 text-sm text-text-secondary">{COST_REFRESH_HELP}</p>
-      <p className="mb-4 text-sm text-text-secondary">{COST_CALCULATION_HELP}</p>
-      <p className="mb-6 text-sm text-text-secondary">{COST_ALLOCATION_HELP}</p>
-
-      {!dashboard.enabled ? (
-        <p className="mb-6 text-text-secondary">{COST_DISABLED_HELP}</p>
-      ) : null}
 
       {dashboard.enabled && dashboard.startedAt ? (
         <p className="mb-6 text-sm text-text-secondary">

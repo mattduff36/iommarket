@@ -73,9 +73,9 @@ describe("admin costs dashboard T5", () => {
     const data = dashboard();
     expect(hasSensitiveCostField(data)).toBe(false);
     render(<CostDashboardView dashboard={data} />);
-    expect(screen.getByText(COST_PAGE_INTRO)).not.toBeNull();
-    expect(screen.getByText(COST_CALCULATION_HELP)).not.toBeNull();
-    expect(screen.getByText(COST_ALLOCATION_HELP)).not.toBeNull();
+    expect(screen.queryByText(COST_PAGE_INTRO)).toBeNull();
+    expect(screen.queryByText(COST_CALCULATION_HELP)).toBeNull();
+    expect(screen.queryByText(COST_ALLOCATION_HELP)).toBeNull();
     expect(screen.getByText(COST_EMPTY_HELP)).not.toBeNull();
     expect(screen.getByText(COST_NON_OWNER_HELP)).not.toBeNull();
     expect(screen.getByText(/No refresh yet/i)).not.toBeNull();
@@ -187,7 +187,7 @@ describe("admin costs dashboard T5", () => {
 
   it("explains the disabled gate without promising a billing-period boundary", () => {
     render(<CostDashboardView dashboard={dashboard({ enabled: false, startedAt: null })} />);
-    expect(screen.getByText(COST_DISABLED_HELP)).not.toBeNull();
+    expect(screen.queryByText(COST_DISABLED_HELP)).toBeNull();
     expect(screen.queryByText(/billing-period boundary/i)).toBeNull();
   });
 });

@@ -21,7 +21,9 @@ test.describe("admin costs", () => {
     await page.goto("/admin/costs", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Costs" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Costs" })).toBeVisible();
-    await expect(page.getByText(/Opening it does not refresh provider charges/i)).toBeVisible();
+    await expect(
+      page.getByText(/Opening it does not refresh provider charges/i),
+    ).toHaveCount(0);
     await expect(page.getByRole("button", { name: /request an invoice for/i })).toBeVisible();
   });
 });
