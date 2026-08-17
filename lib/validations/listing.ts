@@ -4,6 +4,7 @@ import {
   MODERATION_TAXONOMY_VERSION,
   validateModerationReason,
 } from "@/lib/listings/moderation-reasons";
+import { FEATURED_LISTING_PHOTO_LIMIT } from "@/lib/listings/photo-limits";
 
 export const vehicleCatalogueSelectionSchema = z.object({
   makeMode: z.enum(["catalogue", "manual"]),
@@ -62,6 +63,48 @@ export const submitListingForReviewSchema = z.object({
 export type SubmitListingForReviewInput = z.infer<
   typeof submitListingForReviewSchema
 >;
+
+const listingPhotoMutationItemSchema = z
+  .object({
+    imageId: z.string().trim().min(1).max(100).optional(),
+    uploadIntentId: z.string().trim().min(1).max(100).optional(),
+    focalX: z.number().finite().min(0).max(1).nullable().optional(),
+    focalY: z.number().finite().min(0).max(1).nullable().optional(),
+  })
+  .strict()
+  .superRefine((photo, ctx) => {
+    if (Boolean(photo.imageId) === Boolean(photo.uploadIntentId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["imageId"],
+        message: "Each photo must reference exactly one image or upload.",
+      });
+    }
+    const hasFocalX = photo.focalX !== undefined;
+    const hasFocalY = photo.focalY !== undefined;
+    if (hasFocalX !== hasFocalY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["focalX"],
+        message: "Focal points must include both X and Y coordinates.",
+      });
+    }
+  });
+
+export const syncListingImagesSchema = z
+  .object({
+    photos: z.array(listingPhotoMutationItemSchema).max(FEATURED_LISTING_PHOTO_LIMIT),
+    basePhotoRevision: z.number().int().min(0),
+    mutationId: z.string().trim().min(1).max(100),
+  })
+  .strict();
+
+export const syncListingImagesActionSchema = z
+  .object({
+    listingId: z.string().trim().min(1).max(100),
+    input: syncListingImagesSchema,
+  })
+  .strict();
 
 export const REPORT_REASON_CODES = [
   "FRAUD",

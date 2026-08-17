@@ -161,6 +161,11 @@ export function CreateListingForm({
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
   const formRef = useRef<HTMLFormElement>(null);
+  const photoMutationRef = useRef<{
+    basePhotoRevision: number;
+    photoSignature: string;
+    mutationId: string;
+  } | null>(null);
   const isEditingDraft = Boolean(initialDraft);
   const editMode = initialDraft?.editMode ?? (isEditingDraft ? "draft" : undefined);
   const skipCheckout = editMode === "revision" || editMode === "resubmit";
@@ -593,15 +598,28 @@ export function CreateListingForm({
         const listingId = initialDraft?.id ?? result.data.id;
         setPendingListingId(listingId);
         if (isEditingDraft || uploadedImages.length > 0) {
-          const saveResult = await syncListingImages(listingId, {
-            photos: uploadedImages.map((image) => ({
-              imageId: image.id,
-              uploadIntentId: image.id ? undefined : image.uploadIntentId,
-              focalX: image.focalX,
-              focalY: image.focalY,
-            })),
+          const photos = uploadedImages.map((image) => ({
+            imageId: image.id,
+            uploadIntentId: image.id ? undefined : image.uploadIntentId,
+            focalX: image.focalX,
+            focalY: image.focalY,
+          }));
+          const photoSignature = JSON.stringify(photos);
+          const pendingMutation = photoMutationRef.current;
+          const mutationId =
+            pendingMutation?.basePhotoRevision === photoRevision &&
+            pendingMutation.photoSignature === photoSignature
+              ? pendingMutation.mutationId
+              : createPhotoMutationId();
+          photoMutationRef.current = {
             basePhotoRevision: photoRevision,
-            mutationId: createPhotoMutationId(),
+            photoSignature,
+            mutationId,
+          };
+          const saveResult = await syncListingImages(listingId, {
+            photos,
+            basePhotoRevision: photoRevision,
+            mutationId,
           });
           if (saveResult?.error) {
             setError(
@@ -611,6 +629,7 @@ export function CreateListingForm({
             );
             return;
           }
+          photoMutationRef.current = null;
           if (saveResult.data?.photoRevision != null) {
             setPhotoRevision(saveResult.data.photoRevision);
           }

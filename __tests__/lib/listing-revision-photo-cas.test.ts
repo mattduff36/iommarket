@@ -130,4 +130,41 @@ describe("revision photo lifecycle CAS LST-CAS-002", () => {
     );
     expect(rolledBack).toBe(true);
   });
+
+  it("writes bounded focal coordinates through the revision CAS path", async () => {
+    transaction.mockImplementationOnce(async (callback: (tx: typeof mockDb) => unknown) =>
+      callback(mockDb),
+    );
+    listingUpdateMany.mockResolvedValueOnce({ count: 1 });
+
+    await expect(
+      syncRevisionImagesForUser({
+        listingId: "listing-1",
+        userId: "user-1",
+        revisionId: "revision-1",
+        expectedListingRevision: 5,
+        photos: {
+          photos: [{ imageId: "image-1", focalX: 0.2, focalY: 0.8 }],
+          basePhotoRevision: 2,
+          mutationId: "mutation-focal",
+        },
+      }),
+    ).resolves.toEqual({
+      data: { count: 1, photoRevision: 3 },
+    });
+
+    expect(revisionImageUpdate).toHaveBeenCalledWith({
+      where: { id: "image-1" },
+      data: { order: 0, focalX: 0.2, focalY: 0.8 },
+    });
+    expect(listingUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ lifecycleRevision: 5 }),
+        data: expect.objectContaining({
+          lastPhotoMutationId: "mutation-focal",
+          lifecycleRevision: { increment: 1 },
+        }),
+      }),
+    );
+  });
 });

@@ -16,6 +16,7 @@ import {
   reportListingSchema,
   contactSellerSchema,
   submitListingForReviewSchema,
+  syncListingImagesActionSchema,
   type CreateListingInput,
   type ContactSellerInput,
   type ReportListingInput,
@@ -933,25 +934,55 @@ export async function markListingAsSold(listingId: string) {
 // Sync listing photos (ordered set, revision-checked)
 // ---------------------------------------------------------------------------
 
+function hasUnexpectedPhotoSyncContractDrift(
+  issues: Array<{ code: string }>,
+) {
+  return issues.some(
+    (issue) => issue.code === "invalid_type" || issue.code === "unrecognized_keys",
+  );
+}
+
 export async function syncListingImages(
   listingId: string,
   input: SyncListingImagesInput,
 ) {
   const user = await requireAcceptedAuth();
+  const parsed = syncListingImagesActionSchema.safeParse({ listingId, input });
+  if (!parsed.success) {
+    if (hasUnexpectedPhotoSyncContractDrift(parsed.error.issues)) {
+      await captureBusinessEvent({
+        source: "BUSINESS",
+        severity: "LOW",
+        title: "Listing photo client contract drift",
+        message: "The listing photo action received a payload that does not match its schema.",
+        action: "syncListingImages",
+        route: "/account/listings",
+        requestPath: "/account/listings",
+        userId: user.id,
+        userEmail: user.email,
+        tags: {
+          issueCodes: [...new Set(parsed.error.issues.map((issue) => issue.code))].join(","),
+          issueCount: parsed.error.issues.length,
+        },
+      });
+    }
+    return { error: "Invalid photo update." };
+  }
+  const validated = parsed.data;
 
   try {
     const result = await syncListingImagesForUser({
-      listingId,
+      listingId: validated.listingId,
       userId: user.id,
       isAdmin: user.role === "ADMIN",
-      input,
+      input: validated.input,
     });
     if (result.error) return result;
 
     await expireAbandonedListingImageIntents();
     await processListingImageCleanupJobs();
 
-    revalidatePath(`/listings/${listingId}`);
+    revalidatePath(`/listings/${validated.listingId}`);
     revalidatePath("/account/listings");
     revalidatePath("/dealer/dashboard");
     return result;
@@ -960,11 +991,11 @@ export async function syncListingImages(
       source: "SERVER",
       error: err,
       action: "syncListingImages",
-      route: `/listings/${listingId}`,
-      requestPath: `/listings/${listingId}`,
+      route: `/listings/${validated.listingId}`,
+      requestPath: `/listings/${validated.listingId}`,
       userId: user.id,
       userEmail: user.email,
-      tags: { listingId, imageCount: input.photos.length },
+      tags: { listingId: validated.listingId, imageCount: validated.input.photos.length },
     });
     const message = err instanceof Error ? err.message : "Failed to update images";
     return { error: message };

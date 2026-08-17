@@ -19,11 +19,29 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, ImagePlus, Star, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Crosshair,
+  GripVertical,
+  ImagePlus,
+  MoreHorizontal,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
 import { ListingPhotoFocalDialog } from "@/components/marketplace/listing-photo-focal-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/cn";
+import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
 import { LISTING_IMAGE_ACCEPT } from "@/lib/images/constraints";
 import { uploadListingImageFile, validateListingImageFile } from "@/lib/images/client-upload";
 import type { ListingPhotoSource } from "@/lib/images/photo";
@@ -85,8 +103,9 @@ export function ImageUpload({
   function moveImage(index: number, nextIndex: number) {
     if (nextIndex < 0 || nextIndex >= images.length) return;
     const next = arrayMove(images, index, nextIndex);
-    const becamePrimary = nextIndex === 0 ? `${next[0]?.publicId ?? "Photo"} is now primary.` : "";
-    reorder(next, `Moved photo to position ${nextIndex + 1}. ${becamePrimary}`.trim());
+    const becameCover =
+      nextIndex === 0 ? `Photo ${nextIndex + 1} is now the cover photo.` : "";
+    reorder(next, `Moved photo to position ${nextIndex + 1}. ${becameCover}`.trim());
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -139,9 +158,10 @@ export function ImageUpload({
             ...uploaded,
             uploadIntentId: uploaded.uploadIntentId!,
             order: 0,
-            url:
-              uploaded.url ||
-              `https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/private/f_auto,q_auto/${uploaded.publicId}`,
+            url: buildCanonicalListingImageUrl({
+              ...uploaded,
+              url: uploaded.url,
+            }),
           } satisfies UploadedImage;
         } catch (uploadError) {
           const message =
@@ -179,12 +199,16 @@ export function ImageUpload({
             items={images.map((image) => image.uploadIntentId)}
             strategy={rectSortingStrategy}
           >
-            <div className="grid grid-cols-3 gap-3" data-testid="listing-photo-grid">
+            <div
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              data-testid="listing-photo-grid"
+            >
               {images.map((image, index) => (
                 <SortablePhoto
                   key={image.uploadIntentId}
                   image={image}
                   index={index}
+                  isLast={index === images.length - 1}
                   disabled={isBusy}
                   onRemove={() => handleRemove(index)}
                   onMovePrevious={() => moveImage(index, index - 1)}
@@ -196,7 +220,8 @@ export function ImageUpload({
               {pending.map((slot) => (
                 <div
                   key={slot.clientId}
-                  className="flex aspect-[16/10] items-center justify-center rounded-md border border-dashed border-border bg-surface-elevated px-2 text-center text-[11px] text-text-secondary"
+                  className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border bg-surface-elevated px-4 text-center text-sm text-text-secondary"
+                  role="status"
                 >
                   {slot.error ? slot.error : `Uploading ${slot.fileName}…`}
                 </div>
@@ -236,10 +261,14 @@ export function ImageUpload({
         </>
       )}
 
-      {error ? <p className="text-xs text-text-error">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-text-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <p className="text-xs text-text-tertiary">
-        Upload up to {maxImages} photos. JPG, PNG, WebP, HEIC or HEIF, max 10MB each. Drag photos
-        to change the order. The first image is the main photo.
+        Upload up to {maxImages} photos. JPG, PNG, WebP, HEIC or HEIF, max 10MB each. The first
+        photo is the cover photo. Drag photos or use the move controls to change the order.
       </p>
       <div className="sr-only" aria-live="polite">
         {announcement}
@@ -271,6 +300,7 @@ export function ImageUpload({
 interface SortablePhotoProps {
   image: UploadedImage;
   index: number;
+  isLast: boolean;
   disabled: boolean;
   onRemove: () => void;
   onMovePrevious: () => void;
@@ -282,6 +312,7 @@ interface SortablePhotoProps {
 function SortablePhoto({
   image,
   index,
+  isLast,
   disabled,
   onRemove,
   onMovePrevious,
@@ -297,68 +328,98 @@ function SortablePhoto({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "relative overflow-hidden rounded-md border border-border bg-surface-elevated",
+        "overflow-hidden rounded-lg border border-border bg-surface-elevated",
         isDragging && "z-10 shadow-high",
       )}
       data-testid={`listing-photo-${index}`}
     >
-      <ListingPhoto
-        photo={image}
-        frame="preview"
-        alt={`Upload ${index + 1}`}
-        sizes="(max-width: 768px) 33vw, 160px"
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        ref={setActivatorNodeRef}
-        {...attributes}
-        {...listeners}
-        disabled={disabled}
-        className="absolute top-1 left-1 h-7 w-7 touch-none rounded-full bg-black/60 text-white hover:bg-black/80"
-        aria-label={`Drag to reorder photo ${index + 1}`}
+      <div className="relative">
+        <ListingPhoto
+          photo={image}
+          frame="preview"
+          alt={`Upload ${index + 1}`}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        />
+        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/70 px-3 py-2 text-xs text-white">
+          <span className="font-semibold">{index === 0 ? "Cover photo" : `Photo ${index + 1}`}</span>
+          {image.focalX != null && image.focalY != null ? <span>Focus set</span> : null}
+        </div>
+      </div>
+      <div
+        className="grid grid-cols-[2.75rem_1fr_1fr_2.75rem] border-t border-border"
+        role="group"
+        aria-label={`Controls for photo ${index + 1}`}
       >
-        <GripVertical className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={onRemove}
-        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white hover:bg-black/80"
-        aria-label={`Remove image ${index + 1}`}
-      >
-        <X className="h-3 w-3" />
-      </Button>
-      {index === 0 ? (
-        <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-          Main
-        </span>
-      ) : null}
-      <div className="absolute inset-x-1 bottom-7 flex flex-wrap justify-end gap-1">
-        <Button type="button" variant="ghost" className="h-6 px-1.5 text-[10px]" onClick={onAdjustFocus}>
-          Adjust focus
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          disabled={disabled}
+          className="h-11 w-11 touch-none rounded-none border-r border-border"
+          aria-label={`Drag to reorder photo ${index + 1}`}
+        >
+          <GripVertical className="h-4 w-4" />
         </Button>
-        {index > 0 ? (
-          <>
-            <Button type="button" variant="ghost" className="h-6 px-1.5 text-[10px]" onClick={onMovePrevious}>
-              Move previous
-            </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onMovePrevious}
+          disabled={disabled || index === 0}
+          className="h-11 min-w-0 rounded-none border-r border-border px-2 text-xs"
+          aria-label={`Move photo ${index + 1} left`}
+        >
+          <ArrowLeft className="h-4 w-4 shrink-0" />
+          <span>Left</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onMoveNext}
+          disabled={disabled || isLast}
+          className="h-11 min-w-0 rounded-none border-r border-border px-2 text-xs"
+          aria-label={`Move photo ${index + 1} right`}
+        >
+          <span>Right</span>
+          <ArrowRight className="h-4 w-4 shrink-0" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="ghost"
-              className="h-6 px-1.5 text-[10px]"
-              onClick={onMakePrimary}
+              size="icon"
+              disabled={disabled}
+              className="h-11 w-11 rounded-none"
+              aria-label={`More actions for photo ${index + 1}`}
             >
-              <Star className="h-3 w-3" />
-              Make primary
+              <MoreHorizontal className="h-5 w-5" />
             </Button>
-          </>
-        ) : null}
-        <Button type="button" variant="ghost" className="h-6 px-1.5 text-[10px]" onClick={onMoveNext}>
-          Move next
-        </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel>Photo {index + 1}</DropdownMenuLabel>
+            <DropdownMenuItem className="min-h-11 gap-2" onSelect={onAdjustFocus}>
+              <Crosshair className="h-4 w-4" />
+              Adjust focus
+            </DropdownMenuItem>
+            {index > 0 ? (
+              <DropdownMenuItem className="min-h-11 gap-2" onSelect={onMakePrimary}>
+                <Star className="h-4 w-4" />
+                Make cover photo
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="min-h-11 gap-2 text-text-error focus:text-text-error"
+              onSelect={onRemove}
+            >
+              <Trash2 className="h-4 w-4" />
+              Remove photo
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

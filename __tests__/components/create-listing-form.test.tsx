@@ -1240,4 +1240,100 @@ describe("CreateListingForm registration lookup", () => {
       );
     });
   });
+
+  it("reuses the photo mutation ID after a timed-out synchronization retry", async () => {
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "draft-retry" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(syncListingImages)
+      .mockResolvedValueOnce({
+        error: "Request timed out",
+      } as Awaited<ReturnType<typeof syncListingImages>>)
+      .mockResolvedValueOnce({
+        data: { count: 2, photoRevision: 4 },
+      } as Awaited<ReturnType<typeof syncListingImages>>);
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/retry" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm
+        categories={[
+          {
+            id: "simple-category",
+            name: "Other",
+            slug: "other",
+            attributes: [],
+          },
+        ]}
+        regions={regions}
+        mode="private"
+        initialDraft={{
+          id: "draft-retry",
+          title: "Retryable photo listing",
+          description: "A complete draft used to verify retry-safe photo synchronization.",
+          price: 9000,
+          categoryId: "simple-category",
+          regionId: "iom",
+          trustDeclarationAccepted: true,
+          featured: false,
+          photoRevision: 3,
+          images: [
+            {
+              id: "img-1",
+              url: "https://example.com/existing-1.jpg",
+              publicId: "existing-1",
+              order: 0,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: 0.25,
+              focalY: 0.75,
+            },
+            {
+              id: "img-2",
+              url: "https://example.com/existing-2.jpg",
+              publicId: "existing-2",
+              order: 1,
+              provider: "EXTERNAL",
+              assetId: null,
+              version: null,
+              width: 800,
+              height: 600,
+              format: "jpg",
+              bytes: null,
+              uploadIntentId: null,
+              focalX: null,
+              focalY: null,
+            },
+          ],
+          attributes: [],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+    await screen.findByText("Request timed out");
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(submit);
+    await waitFor(() => expect(syncListingImages).toHaveBeenCalledTimes(2));
+
+    const firstMutationId = vi.mocked(syncListingImages).mock.calls[0][1].mutationId;
+    const retryMutationId = vi.mocked(syncListingImages).mock.calls[1][1].mutationId;
+    expect(retryMutationId).toBe(firstMutationId);
+  });
 });

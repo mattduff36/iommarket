@@ -54,7 +54,7 @@ export function ListingPhoto({
           frameWidth: frameSize.width,
           frameHeight: frameSize.height,
         });
-  const objectPosition = hasValidFocalPoint(photo)
+  const focalObjectPosition = hasValidFocalPoint(photo)
     ? `${photo.focalX! * 100}% ${photo.focalY! * 100}%`
     : "center";
   const useCloudinary = photo.provider === "CLOUDINARY";
@@ -70,7 +70,7 @@ export function ListingPhoto({
           sizes={sizes}
           priority={priority}
           className={cn("object-contain", imageClassName)}
-          style={{ objectPosition }}
+          style={{ objectPosition: "center" }}
           loader={useCloudinary ? listingPhotoLoader(photo, frame, "fit") : undefined}
           unoptimized={unoptimized || !useCloudinary}
         />
@@ -89,7 +89,7 @@ export function ListingPhoto({
             sizes="320px"
             aria-hidden="true"
             className="scale-110 object-cover blur-xl"
-            style={{ objectPosition }}
+            style={{ objectPosition: focalObjectPosition }}
             loader={useCloudinary ? listingPhotoLoader(photo, frame, "blur") : undefined}
             unoptimized={unoptimized || !useCloudinary}
           />
@@ -100,7 +100,7 @@ export function ListingPhoto({
             sizes={sizes}
             priority={priority}
             className={cn("object-contain", imageClassName)}
-            style={{ objectPosition }}
+            style={{ objectPosition: "center" }}
             loader={useCloudinary ? listingPhotoLoader(photo, frame, "fit") : undefined}
             unoptimized={unoptimized || !useCloudinary}
           />
@@ -113,7 +113,7 @@ export function ListingPhoto({
           sizes={sizes}
           priority={priority}
           className={cn("object-cover", imageClassName)}
-          style={{ objectPosition }}
+          style={{ objectPosition: focalObjectPosition }}
           loader={useCloudinary ? listingPhotoLoader(photo, frame, "fill") : undefined}
           unoptimized={unoptimized || !useCloudinary}
         />

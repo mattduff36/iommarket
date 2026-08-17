@@ -136,7 +136,7 @@ test.describe("PHOTO-E2E-001 adaptive listing photos", () => {
 });
 
 test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
-  test("make primary changes order zero and survives draft reload", async ({ page }) => {
+  test("cover and focal changes survive draft reload", async ({ page }) => {
     const listing = await createDraftWithPhotos();
     await signInAsAdmin(page);
     await page.goto(`/sell/private?draft=${listing.id}`, { waitUntil: "domcontentloaded" });
@@ -147,10 +147,19 @@ test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
     });
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByTestId("listing-photo-grid")).toBeVisible();
-    await expect(page.getByText("Main")).toBeVisible();
+    await expect(page.getByText("Cover photo")).toBeVisible();
 
-    await page.getByRole("button", { name: "Make primary" }).click();
-    await expect(page.getByText(/is now primary/i)).toBeVisible();
+    await page.getByRole("button", { name: "More actions for photo 2" }).click();
+    await page.getByRole("menuitem", { name: "Make cover photo" }).click();
+    await expect(page.getByText(/is now the cover photo/i)).toBeVisible();
+
+    await page.getByRole("button", { name: "More actions for photo 1" }).click();
+    await page.getByRole("menuitem", { name: "Adjust focus" }).click();
+    const focusPicker = page.getByRole("button", { name: "Choose photo focus point" });
+    await focusPicker.press("Home");
+    await focusPicker.press("ArrowRight");
+    await page.getByRole("button", { name: "Save focus" }).click();
+    await expect(page.getByText("Focus set")).toBeVisible();
 
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: /continue to checkout/i }).click();
@@ -160,11 +169,24 @@ test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
         const images = await db.listingImage.findMany({
           where: { listingId: listing.id },
           orderBy: { order: "asc" },
-          select: { publicId: true, order: true },
+          select: { publicId: true, order: true, focalX: true, focalY: true },
         });
-        return images.map((image) => image.publicId);
+        return images;
       }, { timeout: 20_000 })
-      .toEqual([`demo/${listing.id}-two`, `demo/${listing.id}-one`]);
+      .toEqual([
+        {
+          publicId: `demo/${listing.id}-two`,
+          order: 0,
+          focalX: 0.51,
+          focalY: 0.5,
+        },
+        {
+          publicId: `demo/${listing.id}-one`,
+          order: 1,
+          focalX: null,
+          focalY: null,
+        },
+      ]);
 
     const draft = await db.listing.findUnique({
       where: { id: listing.id },
@@ -181,5 +203,28 @@ test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
       "src",
       "https://images.unsplash.com/photo-e2e-two",
     );
+    await expect(page.getByText("Focus set")).toBeVisible();
+  });
+});
+
+test.describe("PHOTO-GALLERY-E2E-001 listing photo swipe", () => {
+  test("dragging the hero advances the visible position", async ({ page }) => {
+    const listing = await createDraftWithPhotos();
+    await signInAsAdmin(page);
+    await page.goto(`/listings/${listing.id}`, { waitUntil: "domcontentloaded" });
+    await dismissCookieBanner(page);
+
+    const stage = page.getByTestId("listing-gallery-stage");
+    await expect(stage).toBeVisible();
+    await expect(page.getByText("1 / 2")).toBeVisible();
+    const box = await stage.boundingBox();
+    if (!box) throw new Error("Listing gallery stage is not measurable");
+
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2, { steps: 12 });
+    await page.mouse.up();
+
+    await expect(page.getByText("2 / 2")).toBeVisible();
   });
 });

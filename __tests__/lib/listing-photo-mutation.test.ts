@@ -242,6 +242,32 @@ describe("listing photo mutation", () => {
     });
   });
 
+  it.each([
+    {
+      photos: [{ imageId: "img-1", focalX: 1.1, focalY: 0.5 }],
+      error: "Focal points must be numbers between 0 and 1.",
+    },
+    {
+      photos: [{ imageId: "img-1", focalX: 0.5, focalY: null }],
+      error: "Focal points must include both X and Y coordinates.",
+    },
+  ])("PHOTO-FOCAL-VALIDATION-001 rejects invalid focal coordinates", async ({ photos, error }) => {
+    listingFindUnique.mockResolvedValue(listing());
+
+    await expect(
+      syncListingImagesForUser({
+        listingId: "listing-1",
+        userId: "user-1",
+        isAdmin: false,
+        input: {
+          photos,
+          basePhotoRevision: 3,
+          mutationId: "mut-invalid-focal",
+        },
+      }),
+    ).resolves.toEqual({ error });
+  });
+
   it("PHOTO-ORDER-CONCURRENCY-001 reports the winning revision when commit-time CAS loses", async () => {
     listingFindUnique
       .mockResolvedValueOnce(listing())

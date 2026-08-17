@@ -5,7 +5,9 @@ import {
   moderateListingSchema,
   takeDownFromReportSchema,
   contactSellerSchema,
+  syncListingImagesSchema,
 } from "@/lib/validations/listing";
+import { FEATURED_LISTING_PHOTO_LIMIT } from "@/lib/listings/photo-limits";
 
 describe("createListingSchema", () => {
   const validInput = {
@@ -92,6 +94,50 @@ describe("createListingSchema", () => {
   it("rejects NaN prices", () => {
     const result = createListingSchema.safeParse({ ...validInput, price: Number.NaN });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("syncListingImagesSchema", () => {
+  const validPayload = {
+    photos: [
+      { imageId: "image-1", focalX: 0.25, focalY: 0.75 },
+      { uploadIntentId: "intent-2", focalX: null, focalY: null },
+    ],
+    basePhotoRevision: 3,
+    mutationId: "mutation-123",
+  };
+
+  it("accepts a real ordered photo mutation payload", () => {
+    expect(syncListingImagesSchema.safeParse(validPayload)).toMatchObject({
+      success: true,
+    });
+  });
+
+  it.each([
+    ["both image IDs", { ...validPayload, photos: [{ imageId: "image-1", uploadIntentId: "intent-1" }] }],
+    ["neither image ID", { ...validPayload, photos: [{ focalX: 0.5, focalY: 0.5 }] }],
+    ["half a focal pair", { ...validPayload, photos: [{ imageId: "image-1", focalX: 0.5 }] }],
+    ["half a null focal pair", { ...validPayload, photos: [{ imageId: "image-1", focalX: null }] }],
+    [
+      "an out-of-range focal point",
+      { ...validPayload, photos: [{ imageId: "image-1", focalX: -0.1, focalY: 0.5 }] },
+    ],
+    [
+      "more than the featured photo cap",
+      {
+        ...validPayload,
+        photos: Array.from({ length: FEATURED_LISTING_PHOTO_LIMIT + 1 }, (_, index) => ({
+          imageId: `image-${index}`,
+        })),
+      },
+    ],
+    ["unknown root keys", { ...validPayload, unexpected: true }],
+    [
+      "unknown photo keys",
+      { ...validPayload, photos: [{ imageId: "image-1", unexpected: true }] },
+    ],
+  ])("rejects %s", (_label, payload) => {
+    expect(syncListingImagesSchema.safeParse(payload).success).toBe(false);
   });
 });
 

@@ -11,18 +11,22 @@ vi.mock("@/actions/user-tools", () => ({
 }));
 
 vi.mock("next/image", () => ({
-  default: ({
-    fill: _fill,
-    priority: _priority,
-    sizes: _sizes,
-    unoptimized: _unoptimized,
-    ...props
-  }: React.ImgHTMLAttributes<HTMLImageElement> & {
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement> & {
     fill?: boolean;
     priority?: boolean;
     sizes?: string;
     unoptimized?: boolean;
-  }) => <img {...props} />,
+    loader?: unknown;
+  }) => {
+    const imageProps = { ...props };
+    delete imageProps.fill;
+    delete imageProps.priority;
+    delete imageProps.sizes;
+    delete imageProps.unoptimized;
+    delete imageProps.loader;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt={imageProps.alt ?? ""} {...imageProps} />;
+  },
 }));
 
 const listing = {
@@ -108,5 +112,27 @@ describe("ListingCard", () => {
     );
 
     expect(screen.getByText("Category N write-off")).toBeTruthy();
+  });
+
+  it("uses the saved focal point for the listing-card crop", () => {
+    render(
+      <ListingCard
+        title={listing.title}
+        price={listing.price}
+        photo={{
+          url: "https://example.com/focal.jpg",
+          publicId: "demo/focal",
+          provider: "EXTERNAL",
+          width: 1600,
+          height: 1000,
+          focalX: 0.2,
+          focalY: 0.75,
+        }}
+      />,
+    );
+
+    expect(screen.getByAltText(listing.title)).toHaveStyle({
+      objectPosition: "20% 75%",
+    });
   });
 });

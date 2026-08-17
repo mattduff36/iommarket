@@ -6,6 +6,8 @@ const {
   transitionListingStatusMock,
   getOpenRevisionMock,
   submitRevisionMock,
+  syncListingImagesForUserMock,
+  captureBusinessEventMock,
   captureExceptionMock,
   mockDb,
 } = vi.hoisted(() => ({
@@ -14,6 +16,8 @@ const {
   transitionListingStatusMock: vi.fn(),
   getOpenRevisionMock: vi.fn(),
   submitRevisionMock: vi.fn(),
+  syncListingImagesForUserMock: vi.fn(),
+  captureBusinessEventMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   mockDb: {
     listing: {
@@ -56,7 +60,7 @@ vi.mock("@/lib/listings/status-events", () => ({
 }));
 
 vi.mock("@/lib/monitoring", () => ({
-  captureBusinessEvent: vi.fn(),
+  captureBusinessEvent: captureBusinessEventMock,
   captureException: captureExceptionMock,
 }));
 
@@ -65,6 +69,15 @@ vi.mock("@/lib/listings/revisions", () => ({
   getOrCreateDraftRevision: vi.fn(),
   submitRevision: submitRevisionMock,
   updateDraftRevision: vi.fn(),
+}));
+
+vi.mock("@/lib/listings/photo-mutation", () => ({
+  syncListingImagesForUser: syncListingImagesForUserMock,
+}));
+
+vi.mock("@/lib/listings/photo-cleanup", () => ({
+  expireAbandonedListingImageIntents: vi.fn(),
+  processListingImageCleanupJobs: vi.fn(),
 }));
 
 describe("submitListingForReview", () => {
@@ -258,5 +271,110 @@ describe("submitListingForReview", () => {
         process.env.POLICY_ENFORCE_LISTING_NS = previous;
       }
     }
+  });
+});
+
+describe("syncListingImages action validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      role: "USER",
+    });
+    syncListingImagesForUserMock.mockResolvedValue({
+      data: { count: 1, photoRevision: 2 },
+    });
+  });
+
+  it.each([
+    ["", { photos: [], basePhotoRevision: 0, mutationId: "mutation-1" }],
+    ["listing-1", { photos: [], basePhotoRevision: -1, mutationId: "mutation-1" }],
+    ["listing-1", { photos: [], basePhotoRevision: 0, mutationId: " " }],
+    [
+      "listing-1",
+      {
+        photos: [{ focalX: 0.5, focalY: 0.5 }],
+        basePhotoRevision: 0,
+        mutationId: "mutation-1",
+      },
+    ],
+    [
+      "listing-1",
+      {
+        photos: [{ imageId: "image-1", uploadIntentId: "intent-1" }],
+        basePhotoRevision: 0,
+        mutationId: "mutation-1",
+      },
+    ],
+    [
+      "listing-1",
+      {
+        photos: [{ imageId: "image-1", focalX: 0.5 }],
+        basePhotoRevision: 0,
+        mutationId: "mutation-1",
+      },
+    ],
+    [
+      "listing-1",
+      {
+        photos: [{ imageId: "image-1", focalX: 1.1, focalY: 0.5 }],
+        basePhotoRevision: 0,
+        mutationId: "mutation-1",
+      },
+    ],
+  ])("rejects malformed photo synchronization input", async (listingId, input) => {
+    const { syncListingImages } = await import("@/actions/listings");
+
+    await expect(syncListingImages(listingId, input as never)).resolves.toEqual({
+      error: "Invalid photo update.",
+    });
+    expect(syncListingImagesForUserMock).not.toHaveBeenCalled();
+    expect(captureBusinessEventMock).not.toHaveBeenCalled();
+  });
+
+  it("reports unexpected client schema drift without capturing an exception", async () => {
+    const { syncListingImages } = await import("@/actions/listings");
+
+    await expect(
+      syncListingImages(
+        "listing-1",
+        {
+          photos: [],
+          basePhotoRevision: 0,
+          mutationId: "mutation-1",
+          unexpected: true,
+        } as never,
+      ),
+    ).resolves.toEqual({ error: "Invalid photo update." });
+
+    expect(captureBusinessEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: "LOW",
+        title: "Listing photo client contract drift",
+        action: "syncListingImages",
+      }),
+    );
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(syncListingImagesForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards validated photo input without weakening the mutation contract", async () => {
+    const { syncListingImages } = await import("@/actions/listings");
+    const input = {
+      photos: [{ imageId: "image-1", focalX: 0.25, focalY: 0.75 }],
+      basePhotoRevision: 1,
+      mutationId: "mutation-1",
+    };
+
+    await expect(syncListingImages("listing-1", input)).resolves.toEqual({
+      data: { count: 1, photoRevision: 2 },
+    });
+    expect(syncListingImagesForUserMock).toHaveBeenCalledWith({
+      listingId: "listing-1",
+      userId: "user_123",
+      isAdmin: false,
+      input,
+    });
   });
 });

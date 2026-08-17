@@ -1,21 +1,64 @@
 import * as React from "react";
+import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ListingImageGallery } from "@/app/(public)/listings/[id]/listing-image-gallery";
 
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+vi.stubGlobal(
+  "IntersectionObserver",
+  class {
+    root = null;
+    rootMargin = "";
+    thresholds = [0];
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+    takeRecords() {
+      return [];
+    }
+  },
+);
+
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+  },
+);
+
 vi.mock("next/image", () => ({
-  default: ({
-    fill: _fill,
-    priority: _priority,
-    sizes: _sizes,
-    unoptimized: _unoptimized,
-    ...props
-  }: React.ImgHTMLAttributes<HTMLImageElement> & {
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement> & {
     fill?: boolean;
     priority?: boolean;
     sizes?: string;
     unoptimized?: boolean;
-  }) => <img {...props} />,
+    loader?: unknown;
+  }) => {
+    const imageProps = { ...props };
+    delete imageProps.fill;
+    delete imageProps.priority;
+    delete imageProps.sizes;
+    delete imageProps.unoptimized;
+    delete imageProps.loader;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt={imageProps.alt ?? ""} {...imageProps} />;
+  },
 }));
 
 const images = [
@@ -63,11 +106,11 @@ describe("ListingImageGallery", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show image 2 of 3" }));
     fireEvent.click(screen.getByRole("button", { name: "Open image gallery for Test Volvo" }));
 
-    expect(screen.getByText("2 / 3")).toBeTruthy();
+    expect(screen.getAllByText("2 / 3")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Next image" }));
 
-    expect(screen.getByText("3 / 3")).toBeTruthy();
+    expect(screen.getAllByText("3 / 3")).toHaveLength(2);
   });
 
   it("browses main gallery photos with visible controls", () => {
@@ -78,5 +121,29 @@ describe("ListingImageGallery", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Previous photo" }));
     expect(screen.getByAltText("Test Volvo").getAttribute("src")).toBe(images[0].url);
+  });
+
+  it("exposes swipeable hero and fullscreen stages with position indicators", () => {
+    render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
+
+    const hero = screen.getByTestId("listing-gallery-stage");
+    expect(hero).toHaveAttribute("aria-roledescription", "carousel");
+    expect(hero.querySelector(".touch-pan-y")).toBeTruthy();
+    expect(screen.getByText("1 / 3")).toBeTruthy();
+    expect(screen.getByText("Swipe")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open image gallery for Test Volvo" }));
+
+    const lightbox = screen.getByTestId("listing-lightbox-stage");
+    expect(lightbox).toHaveAttribute("aria-roledescription", "carousel");
+    expect(lightbox.querySelector(".touch-pan-y")).toBeTruthy();
+    expect(screen.getByText("Swipe to browse")).toBeTruthy();
+  });
+
+  it("keeps previous and next controls at least 44px", () => {
+    render(<ListingImageGallery images={images} title="Test Volvo" isSold={false} />);
+
+    expect(screen.getByRole("button", { name: "Previous photo" }).className).toContain("h-11");
+    expect(screen.getByRole("button", { name: "Next photo" }).className).toContain("w-11");
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Dialog,
@@ -26,26 +27,41 @@ export function ListingImageGallery({
 }: ListingImageGalleryProps) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
-  const activeImage = images[activeIndex] ?? images[0];
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
   const canNavigate = images.length > 1;
 
-  function showImage(index: number) {
+  React.useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    syncPreference();
+    mediaQuery.addEventListener("change", syncPreference);
+    return () => mediaQuery.removeEventListener("change", syncPreference);
+  }, []);
+
+  React.useEffect(() => {
+    if (images.length > 0 && activeIndex >= images.length) {
+      setActiveIndex(images.length - 1);
+    }
+  }, [activeIndex, images.length]);
+
+  const showImage = React.useCallback((index: number) => {
     setActiveIndex(Math.min(Math.max(index, 0), images.length - 1));
-  }
+  }, [images.length]);
 
-  function showPrevious() {
+  const showPrevious = React.useCallback(() => {
     if (!canNavigate) return;
     setActiveIndex((currentIndex) =>
-      currentIndex === 0 ? images.length - 1 : currentIndex - 1
+      currentIndex === 0 ? images.length - 1 : currentIndex - 1,
     );
-  }
+  }, [canNavigate, images.length]);
 
-  function showNext() {
+  const showNext = React.useCallback(() => {
     if (!canNavigate) return;
     setActiveIndex((currentIndex) =>
-      currentIndex === images.length - 1 ? 0 : currentIndex + 1
+      currentIndex === images.length - 1 ? 0 : currentIndex + 1,
     );
-  }
+  }, [canNavigate, images.length]);
 
   function handleLightboxKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft") {
@@ -58,7 +74,7 @@ export function ListingImageGallery({
     }
   }
 
-  if (!activeImage) {
+  if (images.length === 0) {
     return (
       <div className="flex aspect-[16/10] items-center justify-center rounded-lg bg-graphite-800 text-metallic-500">
         No images available
@@ -70,29 +86,16 @@ export function ListingImageGallery({
     <>
       <div className="grid gap-3">
         <div className="relative">
-          <button
-            type="button"
-            onClick={() => setIsLightboxOpen(true)}
-            className="group relative block aspect-[16/10] w-full overflow-hidden rounded-lg bg-graphite-800 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            aria-label={`Open image gallery for ${title}`}
-          >
-            <ListingPhoto
-              photo={activeImage}
-              frame="gallery"
-              alt={title}
-              fillContainer
-              priority
-              sizes="(max-width: 768px) 100vw, 66vw"
-              imageClassName={cn(
-                "transition duration-300 group-hover:scale-[1.015]",
-                isSold && "brightness-75"
-              )}
-            />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-              Tap to view all photos
-            </div>
-            {isSold && <SoldStamp />}
-          </button>
+          <SwipeablePhotoStage
+            images={images}
+            title={title}
+            activeIndex={activeIndex}
+            onSelect={showImage}
+            onOpen={() => setIsLightboxOpen(true)}
+            isSold={isSold}
+            prefersReducedMotion={prefersReducedMotion}
+            testId="listing-gallery-stage"
+          />
 
           {canNavigate && (
             <>
@@ -118,7 +121,20 @@ export function ListingImageGallery({
               </Button>
             </>
           )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex items-end justify-center px-3">
+            <span className="rounded-full bg-black/75 px-3 py-1.5 text-xs font-semibold tabular-nums text-white">
+              {activeIndex + 1} / {images.length}
+            </span>
+          </div>
+          {canNavigate ? (
+            <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white sm:hidden">
+              Swipe
+            </span>
+          ) : null}
         </div>
+        <p className="sr-only" aria-live="polite">
+          Showing photo {activeIndex + 1} of {images.length}
+        </p>
 
         {images.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:pb-0">
@@ -170,14 +186,14 @@ export function ListingImageGallery({
 
           <div className="flex h-full flex-col">
             <div className="relative min-h-0 flex-1">
-              <ListingPhoto
-                photo={activeImage}
-                frame="gallery"
-                variant="contain"
-                fillContainer
-                alt={`${title} image ${activeIndex + 1}`}
-                sizes="100vw"
-                priority
+              <SwipeablePhotoStage
+                images={images}
+                title={title}
+                activeIndex={activeIndex}
+                onSelect={showImage}
+                fullscreen
+                prefersReducedMotion={prefersReducedMotion}
+                testId="listing-lightbox-stage"
               />
 
               {canNavigate && (
@@ -208,6 +224,11 @@ export function ListingImageGallery({
                   </div>
                 </>
               )}
+              {canNavigate ? (
+                <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white sm:hidden">
+                  Swipe to browse
+                </span>
+              ) : null}
             </div>
 
             <div className="border-t border-white/10 bg-black/90 px-4 py-3">
@@ -249,6 +270,122 @@ export function ListingImageGallery({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+interface SwipeablePhotoStageProps {
+  images: ListingPhotoSource[];
+  title: string;
+  activeIndex: number;
+  onSelect: (index: number) => void;
+  onOpen?: () => void;
+  isSold?: boolean;
+  fullscreen?: boolean;
+  prefersReducedMotion: boolean;
+  testId: string;
+}
+
+function SwipeablePhotoStage({
+  images,
+  title,
+  activeIndex,
+  onSelect,
+  onOpen,
+  isSold = false,
+  fullscreen = false,
+  prefersReducedMotion,
+  testId,
+}: SwipeablePhotoStageProps) {
+  const [initialIndex] = React.useState(activeIndex);
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: images.length > 1,
+    skipSnaps: false,
+    duration: prefersReducedMotion ? 0 : 25,
+    startIndex: initialIndex,
+  });
+
+  const syncSelection = React.useCallback(() => {
+    if (!emblaApi) return;
+    onSelect(emblaApi.selectedScrollSnap());
+  }, [emblaApi, onSelect]);
+
+  React.useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on("select", syncSelection);
+    emblaApi.on("reInit", syncSelection);
+    return () => {
+      emblaApi.off("select", syncSelection);
+      emblaApi.off("reInit", syncSelection);
+    };
+  }, [emblaApi, syncSelection]);
+
+  React.useEffect(() => {
+    if (!emblaApi || emblaApi.selectedScrollSnap() === activeIndex) return;
+    emblaApi.scrollTo(activeIndex, prefersReducedMotion);
+  }, [activeIndex, emblaApi, prefersReducedMotion]);
+
+  return (
+    <div
+      ref={emblaRef}
+      className={cn(
+        "overflow-hidden bg-graphite-800",
+        fullscreen ? "h-full w-full" : "aspect-[16/10] w-full rounded-lg",
+      )}
+      role="region"
+      aria-label={fullscreen ? `${title} fullscreen photos` : `${title} photos`}
+      aria-roledescription="carousel"
+      data-testid={testId}
+    >
+      <div className="flex h-full touch-pan-y touch-pinch-zoom">
+        {images.map((image, index) => (
+          <div
+            key={image.id ?? image.publicId ?? index}
+            className="relative min-w-0 flex-[0_0_100%]"
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`${index + 1} of ${images.length}`}
+            aria-hidden={index !== activeIndex}
+          >
+            {fullscreen ? (
+              <ListingPhoto
+                photo={image}
+                frame="gallery"
+                variant="contain"
+                fillContainer
+                alt={index === activeIndex ? `${title} image ${index + 1}` : ""}
+                sizes="100vw"
+                priority={index === 0}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={onOpen}
+                tabIndex={index === activeIndex ? 0 : -1}
+                className="group relative block h-full w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neon-blue-500"
+                aria-label={`Open image gallery for ${title}`}
+              >
+                <ListingPhoto
+                  photo={image}
+                  frame="gallery"
+                  alt={index === activeIndex ? title : ""}
+                  fillContainer
+                  priority={index === 0}
+                  sizes="(max-width: 768px) 100vw, 66vw"
+                  imageClassName={cn(
+                    "transition duration-300 motion-reduce:transition-none group-hover:scale-[1.015] motion-reduce:group-hover:scale-100",
+                    isSold && "brightness-75",
+                  )}
+                />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition-opacity motion-reduce:transition-none group-hover:opacity-100 group-focus-visible:opacity-100">
+                  Tap to view all photos
+                </div>
+                {isSold ? <SoldStamp /> : null}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

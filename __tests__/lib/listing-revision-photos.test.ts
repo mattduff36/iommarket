@@ -71,6 +71,18 @@ describe("revision photo apply ALR-PHOTO-001 ALR-PHOTO-002", () => {
         data: expect.objectContaining({
           publicId: "new",
           uploadIntentId: null,
+          focalX: null,
+          focalY: null,
+        }),
+      }),
+    );
+    expect(client.listingImage.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "live-1" },
+        data: expect.objectContaining({
+          focalX: 0.5,
+          focalY: 0.5,
+          order: 0,
         }),
       }),
     );
