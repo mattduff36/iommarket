@@ -46,15 +46,17 @@ export function SiteFooter() {
             &copy; {year} {COMPANY.legalName}. All rights reserved.
           </p>
           <p className="text-xs text-metallic-500">
-            Trading as {COMPANY.tradingAs}. Company number {COMPANY.companyNumber}.
-            Registered office: {COMPANY.registeredOffice}. Email:{" "}
+            {COMPANY.tradingAs} is a trading name of {COMPANY.legalName}, a
+            company registered in the Isle of Man under company number{" "}
+            {COMPANY.companyNumber}.
+          </p>
+          <p className="text-xs text-metallic-500">
             <a
               href={`mailto:${COMPANY.email}`}
               className="hover:text-text-primary"
             >
               {COMPANY.email}
             </a>
-            .
           </p>
           {dataControllerReference ? (
             <p className="text-xs text-metallic-500">
