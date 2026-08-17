@@ -6,7 +6,8 @@ import { buildMarketplacePlan } from "./seed/dataset";
 import { getSeedConnectionString, loadSeedEnv } from "./seed/env";
 import { assertSeedGuards } from "./seed/guards";
 import { comparePreservedIdentities, isPreservedAuthUserId } from "./seed/preserve";
-import { assertSeedSafety, parseDatabaseHost, redactDatabaseTarget } from "./seed/target";
+import { runConfirmedProductionSeedPreflight } from "./seed/production-preflight";
+import { assertSeedSafety, isLiveSeedTarget, parseDatabaseHost, redactDatabaseTarget } from "./seed/target";
 
 function cleanUrl(raw: string) {
   try {
@@ -25,17 +26,24 @@ async function main() {
   const connectionString = getSeedConnectionString();
   const databaseHost = parseDatabaseHost(connectionString);
   const redactedDatabase = redactDatabaseTarget(connectionString);
-  assertSeedSafety(
-    {
-      SEED_ALLOW: process.env.SEED_ALLOW,
-      SEED_TARGET: process.env.SEED_TARGET,
-      SEED_ENV_FILE: process.env.SEED_ENV_FILE,
-      SEED_BACKUP_ID: process.env.SEED_BACKUP_ID,
-      SEED_CONFIRM_DB: process.env.SEED_CONFIRM_DB,
-      SEED_WRITERS_PAUSED: process.env.SEED_WRITERS_PAUSED,
-    },
-    { databaseHost, redactedDatabase },
-  );
+  const seedSafety = {
+    SEED_ALLOW: process.env.SEED_ALLOW,
+    SEED_TARGET: process.env.SEED_TARGET,
+    SEED_ENV_FILE: process.env.SEED_ENV_FILE,
+    SEED_BACKUP_ID: process.env.SEED_BACKUP_ID,
+    SEED_CONFIRM_DB: process.env.SEED_CONFIRM_DB,
+    SEED_WRITERS_PAUSED: process.env.SEED_WRITERS_PAUSED,
+  };
+  assertSeedSafety(seedSafety, { databaseHost, redactedDatabase });
+  if (
+    isLiveSeedTarget({
+      seedTarget: seedSafety.SEED_TARGET,
+      seedEnvFile: seedSafety.SEED_ENV_FILE,
+      databaseHost,
+    })
+  ) {
+    runConfirmedProductionSeedPreflight();
+  }
 
   if (!connectionString) {
     throw new Error("No database URL found for seed.");

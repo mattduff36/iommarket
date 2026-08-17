@@ -15,6 +15,107 @@ export interface VercelDeploymentSummary {
   createdAt?: number;
 }
 
+export class CostDeploymentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CostDeploymentError";
+  }
+}
+
+export type VerifiedDeployment =
+  | {
+      status: "production";
+      uid: string;
+      projectId: string;
+    }
+  | {
+      status: "preview";
+      uid: string;
+      projectId: string;
+    };
+
+interface VercelDeploymentRecord {
+  id?: string;
+  uid?: string;
+  url?: string;
+  readyState?: string;
+  state?: string;
+  target?: string | null;
+  projectId?: string;
+  ownerId?: string;
+  teamId?: string;
+  project?: { id?: string };
+  team?: { id?: string };
+}
+
+export function normalizeDeploymentUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new CostDeploymentError("Deployment URL is required.");
+  }
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function deploymentUid(record: VercelDeploymentRecord): string | null {
+  const uid = record.uid?.trim() || record.id?.trim();
+  return uid || null;
+}
+
+function deploymentProjectId(record: VercelDeploymentRecord): string | null {
+  return record.project?.id?.trim() || record.projectId?.trim() || null;
+}
+
+function deploymentTeamId(record: VercelDeploymentRecord): string | null {
+  return record.team?.id?.trim() || record.teamId?.trim() || record.ownerId?.trim() || null;
+}
+
+export async function verifyProductionDeployment(input: {
+  deploymentUrl: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+}): Promise<VerifiedDeployment> {
+  const config = getVercelBillingConfig(input.env);
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const deploymentUrl = normalizeDeploymentUrl(input.deploymentUrl);
+  const hostname = new URL(deploymentUrl).hostname;
+  const requestUrl = new URL(`https://api.vercel.com/v13/deployments/${encodeURIComponent(hostname)}`);
+  requestUrl.searchParams.set("teamId", config.teamId);
+
+  const response = await fetchImpl(requestUrl, {
+    headers: { Authorization: `Bearer ${config.token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new CostDeploymentError("Deployment could not be verified.");
+  }
+
+  const record = (await response.json()) as VercelDeploymentRecord;
+  const uid = deploymentUid(record);
+  const projectId = deploymentProjectId(record);
+  const teamId = deploymentTeamId(record);
+  const readyState = record.readyState ?? record.state;
+  if (!uid || !projectId || !teamId) {
+    throw new CostDeploymentError("Deployment identity is incomplete.");
+  }
+  if (teamId !== config.teamId) {
+    throw new CostDeploymentError("Deployment team does not match the cost ledger.");
+  }
+  if (projectId !== config.projectId) {
+    throw new CostDeploymentError("Deployment project does not match the cost ledger.");
+  }
+  if (readyState !== "READY") {
+    throw new CostDeploymentError("Deployment is not ready.");
+  }
+  if (record.target === "preview") {
+    return { status: "preview", uid, projectId };
+  }
+  if (record.target !== "production") {
+    throw new CostDeploymentError("Deployment target is not production.");
+  }
+  return { status: "production", uid, projectId };
+}
+
 async function vercelGet<T>(
   path: string,
   token: string,

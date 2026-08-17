@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { isOnOrAfterLaunch } from "@/lib/costs/dates";
-import { applyClassifiedCharge, CostLedgerError } from "@/lib/costs/ledger";
+import { applyClassifiedCharge, CostLedgerError, ensureLedgerConfig } from "@/lib/costs/ledger";
 import { planLedgerRevision } from "@/lib/costs/ledger-plan";
 
 const existing = {
@@ -115,6 +115,30 @@ describe("COST-LEDGER-002 changed FOCUS buckets", () => {
       originalNativeAmount: "10",
       originalNativeCurrency: "USD",
     });
+  });
+});
+
+describe("COST-LEDGER config drift", () => {
+  it("fails closed when the persisted boundary does not match the environment", async () => {
+    const previous = process.env.COST_LEDGER_STARTED_AT;
+    process.env.COST_LEDGER_STARTED_AT = "2026-08-13T23:00:00.000Z";
+    try {
+      await expect(
+        ensureLedgerConfig({
+          costLedgerConfig: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "default",
+              startedAt: new Date("2026-09-01T07:00:00.000Z"),
+              policyVersion: "gbp-markup-v1",
+            }),
+            create: vi.fn(),
+          },
+        } as never),
+      ).rejects.toBeInstanceOf(CostLedgerError);
+    } finally {
+      if (previous === undefined) delete process.env.COST_LEDGER_STARTED_AT;
+      else process.env.COST_LEDGER_STARTED_AT = previous;
+    }
   });
 });
 

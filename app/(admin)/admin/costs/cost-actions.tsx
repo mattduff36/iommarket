@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   recordManualProjectCost,
   requestProjectInvoice,
   retryProjectCostEmail,
   runManualCostSync,
 } from "@/actions/admin/costs";
+import { interpretManualCostSyncResult } from "@/lib/costs/copy";
 import {
   AdminActionBar,
   AdminActionButton,
 } from "@/components/admin/admin-action-controls";
 import { Input } from "@/components/ui/input";
+import { useRefreshPage } from "./use-refresh-page";
 
 function actionError(result: { error?: unknown } | { data: unknown }): string | null {
   if ("error" in result && result.error) {
@@ -33,7 +34,7 @@ export function RequestInvoiceButton({
   label: string;
   disabled: boolean;
 }) {
-  const router = useRouter();
+  const refreshPage = useRefreshPage();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +53,7 @@ export function RequestInvoiceButton({
                 setError(nextError);
                 return;
               }
-              router.refresh();
+              refreshPage();
             });
           }}
         >
@@ -71,7 +72,7 @@ export function OwnerCostControls({
   canRetryEmail: boolean;
   outboxId?: string;
 }) {
-  const router = useRouter();
+  const refreshPage = useRefreshPage();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export function OwnerCostControls({
         return;
       }
       setSuccess("Cost recorded.");
-      router.refresh();
+      refreshPage();
     });
   }
 
@@ -140,13 +141,14 @@ export function OwnerCostControls({
               setError(null);
               startTransition(async () => {
                 const result = await runManualCostSync();
-                const nextError = actionError(result);
-                if (nextError) {
-                  setError(nextError);
+                const feedback = interpretManualCostSyncResult(result);
+                if (!feedback.ok) {
+                  setError(feedback.message);
+                  setSuccess(null);
                   return;
                 }
-                setSuccess("Synchronization finished.");
-                router.refresh();
+                setSuccess(feedback.message);
+                refreshPage();
               });
             }}
           >
@@ -166,7 +168,7 @@ export function OwnerCostControls({
                     return;
                   }
                   setSuccess("Email retry sent.");
-                  router.refresh();
+                  refreshPage();
                 });
               }}
             >

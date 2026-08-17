@@ -16,6 +16,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock("@/app/(admin)/admin/costs/use-refresh-page", () => ({
+  useRefreshPage: () => vi.fn(),
+}));
+
 import { RequestInvoiceButton } from "@/app/(admin)/admin/costs/cost-actions";
 
 describe("admin costs invoice button", () => {

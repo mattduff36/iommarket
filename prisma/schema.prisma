@@ -1392,7 +1392,7 @@ enum CostSyncStatus {
 
 model CostLedgerConfig {
   id            String   @id
-  startedAt     DateTime
+  startedAt     DateTime @db.Timestamptz(3)
   policyVersion String
   createdAt     DateTime @default(now())
 }

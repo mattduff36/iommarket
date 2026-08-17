@@ -27,8 +27,13 @@ describe("cost input validation", () => {
     ).toBe(false);
   });
 
-  it("requires a deployment event id", () => {
+  it("requires a deployment URL and ignores an event id alone", () => {
     expect(costSyncRequestSchema.safeParse({}).success).toBe(false);
-    expect(costSyncRequestSchema.safeParse({ eventId: "dpl_1" }).success).toBe(true);
+    expect(costSyncRequestSchema.safeParse({ eventId: "dpl_1" }).success).toBe(false);
+    expect(
+      costSyncRequestSchema.safeParse({
+        deploymentUrl: "https://iommarket.vercel.app",
+      }).success,
+    ).toBe(true);
   });
 });

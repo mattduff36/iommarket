@@ -91,6 +91,17 @@ describe("production migration contract MIG-001", () => {
     expect(withdrawal).not.toMatch(/\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/);
   });
 
+  it("corrects the empty cost ledger start boundary to timestamptz", () => {
+    const startedAt = readMigration(
+      "20260817120000_cost_ledger_started_at_timestamptz",
+    );
+    expect(startedAt).toContain('ALTER COLUMN "startedAt" TYPE TIMESTAMPTZ(3)');
+    expect(startedAt).toContain("TIMESTAMPTZ '2026-08-13 23:00:00+00'");
+    expect(startedAt).toContain("DROP TRIGGER cost_ledger_config_immutable");
+    expect(startedAt).toContain("CREATE TRIGGER cost_ledger_config_immutable");
+    expect(startedAt).toContain("financial or provenance rows exist");
+  });
+
   it("adds the vehicle catalogue without constraining listing EAV values", () => {
     const catalogue = readMigration("20260817014500_vehicle_catalogue");
     for (const table of ["VehicleMake", "VehicleModel", "VehicleModelAlias"]) {

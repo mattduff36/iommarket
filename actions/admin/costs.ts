@@ -1,7 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
+import { revalidateCostPages } from "@/actions/admin/revalidate-costs";
 import { logAdminAction } from "@/lib/admin/audit";
 import {
   getCostOwnerAuthUserId,
@@ -17,6 +17,7 @@ import {
   safeInvoiceAuditDetails,
 } from "@/lib/costs/invoices";
 import { applyClassifiedCharge, ensureLedgerConfig, CostLedgerError } from "@/lib/costs/ledger";
+import { manualCostSyncMessage } from "@/lib/costs/copy";
 import { runCostSync } from "@/lib/costs/sync";
 import { runSerializable } from "@/lib/costs/transaction";
 import { reportHandledException } from "@/lib/monitoring";
@@ -62,7 +63,7 @@ export async function requestProjectInvoice() {
     } catch {
       // Outbox remains retryable.
     }
-    revalidatePath("/admin/costs");
+    revalidateCostPages();
     return { data: { requestId: created.request.id } };
   } catch (error) {
     if (error instanceof CostInvoiceError) {
@@ -100,8 +101,7 @@ export async function confirmProjectInvoice(input: ConfirmInvoiceRequestInput) {
         }),
       });
     }
-    revalidatePath("/admin/costs");
-    revalidatePath(`/admin/costs/confirm/${result.request.id}`);
+    revalidateCostPages(result.request.id);
     return { data: { requestId: result.request.id, alreadyConfirmed: result.alreadyConfirmed } };
   } catch (error) {
     if (error instanceof CostInvoiceError) {
@@ -156,7 +156,7 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
       entityId: parsed.data.externalRef,
       details: { category: parsed.data.category },
     });
-    revalidatePath("/admin/costs");
+    revalidateCostPages();
     return { data: { recorded: true } };
   } catch (error) {
     if (error instanceof CostLedgerError) {
@@ -179,7 +179,7 @@ export async function retryProjectCostEmail(input: RetryCostEmailInput) {
 
   try {
     await deliverCostOutbox(parsed.data.outboxId);
-    revalidatePath("/admin/costs");
+    revalidateCostPages();
     return { data: { retried: true } };
   } catch (error) {
     await reportHandledException({
@@ -193,22 +193,34 @@ export async function retryProjectCostEmail(input: RetryCostEmailInput) {
 
 export async function runManualCostSync() {
   await requireCostOwnerAdmin();
-  if (!isCostsEnabled()) return costsDisabledError();
+  if (!isCostsEnabled()) {
+    return {
+      error: costsDisabledError().error,
+      data: { status: "skipped" as const, message: manualCostSyncMessage({ status: "skipped" }) },
+    };
+  }
 
   try {
     const result = await runCostSync({
       trigger: "MANUAL",
       eventId: `manual:${Date.now()}`,
     });
-    revalidatePath("/admin/costs");
-    return { data: { status: result.status } };
+    revalidateCostPages();
+    const message = manualCostSyncMessage(result);
+    if (result.status === "succeeded") {
+      return { data: { status: result.status, message } };
+    }
+    return { error: message, data: { status: result.status, message } };
   } catch (error) {
     await reportHandledException({
       error,
       action: "runManualCostSync",
       route: "/admin/costs",
     });
-    return { error: "Failed to synchronize costs." };
+    return {
+      error: manualCostSyncMessage({ status: "failed" }),
+      data: { status: "failed" as const, message: manualCostSyncMessage({ status: "failed" }) },
+    };
   }
 }
 

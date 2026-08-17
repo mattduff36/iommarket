@@ -28,10 +28,14 @@ export const recordManualCostSchema = z
   });
 
 export const costSyncRequestSchema = z.object({
-  eventId: z.string().trim().min(1).max(200),
+  deploymentUrl: z.string().trim().min(1).max(500).optional(),
+  eventId: z.string().trim().min(1).max(200).optional(),
   projectId: z.string().trim().min(1).max(120).optional(),
   target: z.enum(["production", "preview", "development"]).optional(),
   trigger: z.enum(["DEPLOYMENT", "CRON", "MANUAL"]).optional(),
+}).refine((value) => Boolean(value.deploymentUrl), {
+  message: "A deployment URL is required.",
+  path: ["deploymentUrl"],
 });
 export type RecordManualCostInput = z.infer<typeof recordManualCostSchema>;
 

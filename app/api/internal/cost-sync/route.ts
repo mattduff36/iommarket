@@ -6,10 +6,20 @@ import {
   isProductionRuntime,
 } from "@/lib/costs/config";
 import { runCostSync } from "@/lib/costs/sync";
+import {
+  CostDeploymentError,
+  verifyProductionDeployment,
+} from "@/lib/costs/vercel";
 import { costSyncRequestSchema } from "@/lib/validations/costs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function syncStatusCode(status: "skipped" | "locked" | "succeeded" | "failed"): number {
+  if (status === "failed") return 502;
+  if (status === "locked") return 409;
+  return 200;
+}
 
 export async function POST(request: NextRequest) {
   if (!isBearerSecretAuthorized(
@@ -27,32 +37,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: { status: "skipped" } });
   }
 
-  let eventId: string | undefined;
-  let projectId: string | undefined;
-  let target: string | undefined;
+  let deploymentUrl: string;
   try {
     const parsed = costSyncRequestSchema.safeParse(await request.json());
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    if (!parsed.success || !parsed.data.deploymentUrl) {
+      return NextResponse.json({ error: "A deployment URL is required." }, { status: 400 });
     }
-    eventId = parsed.data.eventId;
-    projectId = parsed.data.projectId;
-    target = parsed.data.target;
+    deploymentUrl = parsed.data.deploymentUrl;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const expectedProjectId = process.env.COST_VERCEL_PROJECT_ID;
-  if (projectId && expectedProjectId && projectId !== expectedProjectId) {
-    return NextResponse.json({ data: { status: "skipped" } });
-  }
-  if (target && target !== "production") {
-    return NextResponse.json({ data: { status: "skipped" } });
-  }
+  try {
+    const deployment = await verifyProductionDeployment({ deploymentUrl });
+    if (deployment.status === "preview") {
+      return NextResponse.json({ data: { status: "skipped" } });
+    }
 
-  const result = await runCostSync({
-    trigger: "DEPLOYMENT",
-    eventId: eventId ?? request.headers.get("x-vercel-id") ?? undefined,
-  });
-  return NextResponse.json({ data: result });
+    const result = await runCostSync({
+      trigger: "DEPLOYMENT",
+      eventId: deployment.uid,
+    });
+    return NextResponse.json({ data: result }, { status: syncStatusCode(result.status) });
+  } catch (error) {
+    if (error instanceof CostDeploymentError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Deployment could not be verified." }, { status: 400 });
+  }
 }

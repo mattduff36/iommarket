@@ -21,7 +21,9 @@
     "test:run": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "fixerrors": "npx tsx scripts/fixerrors.ts"
+    "fixerrors": "npx tsx scripts/fixerrors.ts",
+    "env:production:pull": "tsx scripts/production-env.ts pull",
+    "env:production:check": "tsx scripts/production-env.ts check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -83,6 +85,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
+    "vercel": "50.17.1",
     "vitest": "^4.0.18"
   }
 }

@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { runConfirmedProductionSeedPreflight } from "../../prisma/seed/production-preflight";
 import { loadSeedEnv } from "../../prisma/seed/env";
 import { assertSeedGuards } from "../../prisma/seed/guards";
 import {
@@ -82,6 +83,32 @@ describe("SEED-SAFE-001 live-target safeguards", () => {
     ).toThrow("SEED_TARGET=production");
   });
 
+  it("does not treat a non-canonical production-named file as the live mirror", () => {
+    expect(
+      isLiveSeedTarget({
+        seedTarget: "local",
+        seedEnvFile: "/tmp/nested/.env.production",
+        databaseHost: "127.0.0.1",
+      }),
+    ).toBe(false);
+    expect(() =>
+      assertSeedSafety(
+        {
+          SEED_ALLOW: "1",
+          SEED_TARGET: "production",
+          SEED_ENV_FILE: "/tmp/nested/.env.production",
+          SEED_BACKUP_ID: "backup-1",
+          SEED_CONFIRM_DB: "db.example.com/postgres",
+          SEED_WRITERS_PAUSED: "1",
+        },
+        {
+          databaseHost: "db.example.com",
+          redactedDatabase: "db.example.com/postgres",
+        },
+      ),
+    ).toThrow("SEED_ENV_FILE=.env.production");
+  });
+
   it("SEED_TARGET cannot downgrade a production env file", () => {
     expect(
       isLiveSeedTarget({
@@ -90,6 +117,20 @@ describe("SEED-SAFE-001 live-target safeguards", () => {
         databaseHost: "localhost",
       }),
     ).toBe(true);
+  });
+
+  it("runs the production env check before a database connection can be opened", () => {
+    const check = () => {
+      throw new Error("Vercel production environment pull failed.");
+    };
+    expect(() => runConfirmedProductionSeedPreflight({ check })).toThrow(
+      /Vercel production environment pull failed/,
+    );
+    const seedSource = readFileSync(join(process.cwd(), "prisma", "seed.ts"), "utf8");
+    expect(seedSource.indexOf("runConfirmedProductionSeedPreflight()")).toBeGreaterThan(-1);
+    expect(seedSource.indexOf("runConfirmedProductionSeedPreflight()")).toBeLessThan(
+      seedSource.indexOf("new pg.Pool"),
+    );
   });
 
   it("accepts a fully confirmed live target", () => {

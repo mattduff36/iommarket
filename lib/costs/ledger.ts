@@ -4,7 +4,13 @@ import type {
   CostSourceKind,
   Prisma,
 } from "@prisma/client";
-import { COST_LEDGER_CONFIG_ID, getCostLedgerStartedAt, getCostPolicyVersion } from "@/lib/costs/config";
+import {
+  assertLedgerConfigMatchesEnvironment,
+  COST_LEDGER_CONFIG_ID,
+  CostConfigError,
+  getCostLedgerStartedAt,
+  getCostPolicyVersion,
+} from "@/lib/costs/config";
 import { isOnOrAfterLaunch } from "@/lib/costs/dates";
 import { planLedgerRevision, type ExistingLedgerRevision } from "@/lib/costs/ledger-plan";
 import { computeMarkedGbpMinor, negateMinor } from "@/lib/costs/money";
@@ -22,7 +28,17 @@ export async function ensureLedgerConfig(client: LedgerClient) {
   const existing = await client.costLedgerConfig.findUnique({
     where: { id: COST_LEDGER_CONFIG_ID },
   });
-  if (existing) return existing;
+  if (existing) {
+    try {
+      assertLedgerConfigMatchesEnvironment(existing);
+    } catch (error) {
+      if (error instanceof CostConfigError) {
+        throw new CostLedgerError(error.message);
+      }
+      throw error;
+    }
+    return existing;
+  }
 
   return client.costLedgerConfig.create({
     data: {

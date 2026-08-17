@@ -1,3 +1,4 @@
+import { isCanonicalProductionEnvFile } from "@/lib/ops/production-env-file";
 import { PRODUCTION_ENV_FILE_SUFFIX } from "./constants";
 
 export interface SeedEnvLike {
@@ -39,22 +40,21 @@ export function redactDatabaseTarget(connectionString: string | undefined) {
   }
 }
 
-export function isProductionEnvFile(seedEnvFile: string | undefined) {
-  if (!seedEnvFile) return false;
-  return (
-    seedEnvFile === PRODUCTION_ENV_FILE_SUFFIX ||
-    seedEnvFile.endsWith(`/${PRODUCTION_ENV_FILE_SUFFIX}`) ||
-    seedEnvFile.endsWith(`\\${PRODUCTION_ENV_FILE_SUFFIX}`)
-  );
+export function isProductionEnvFile(
+  seedEnvFile: string | undefined,
+  cwd = process.cwd(),
+) {
+  return isCanonicalProductionEnvFile(seedEnvFile, cwd);
 }
 
 export function isLiveSeedTarget(input: {
   seedTarget?: string;
   seedEnvFile?: string;
   databaseHost?: string | null;
+  cwd?: string;
 }) {
   if (input.seedTarget === "production") return true;
-  if (isProductionEnvFile(input.seedEnvFile)) return true;
+  if (isProductionEnvFile(input.seedEnvFile, input.cwd)) return true;
   if (input.databaseHost && !isLoopbackHost(input.databaseHost)) {
     return true;
   }
@@ -64,6 +64,7 @@ export function isLiveSeedTarget(input: {
 export function assertSeedSafety(env: SeedEnvLike, input: {
   databaseHost?: string | null;
   redactedDatabase?: string | null;
+  cwd?: string;
 }) {
   if (env.SEED_ALLOW !== "1") {
     throw new Error("Refusing to seed without SEED_ALLOW=1.");
@@ -73,14 +74,15 @@ export function assertSeedSafety(env: SeedEnvLike, input: {
     seedTarget: env.SEED_TARGET,
     seedEnvFile: env.SEED_ENV_FILE,
     databaseHost: input.databaseHost,
+    cwd: input.cwd,
   });
   if (!live) return;
 
   if (env.SEED_TARGET !== "production") {
     throw new Error("Live database requires SEED_TARGET=production.");
   }
-  if (!isProductionEnvFile(env.SEED_ENV_FILE)) {
-    throw new Error("Live database requires SEED_ENV_FILE=.env.production.");
+  if (!isProductionEnvFile(env.SEED_ENV_FILE, input.cwd)) {
+    throw new Error(`Live database requires SEED_ENV_FILE=${PRODUCTION_ENV_FILE_SUFFIX}.`);
   }
   if (!env.SEED_BACKUP_ID?.trim()) {
     throw new Error("Live database requires SEED_BACKUP_ID.");

@@ -7,26 +7,35 @@ on:
 
 jobs:
   sync-costs:
-    if: >-
-      github.event.client_payload.target == 'production' &&
-      (github.event.client_payload.projectId == vars.COST_VERCEL_PROJECT_ID ||
-       github.event.client_payload.name == 'iommarket' ||
-       github.event.client_payload.projectName == 'iommarket')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger production cost sync
         env:
           COST_SYNC_URL: ${{ secrets.COST_SYNC_URL }}
           COST_SYNC_SECRET: ${{ secrets.COST_SYNC_SECRET }}
+          DEPLOYMENT_URL: ${{ github.event.client_payload.url }}
         run: |
           if [ -z "$COST_SYNC_URL" ] || [ -z "$COST_SYNC_SECRET" ]; then
             echo "COST_SYNC_URL and COST_SYNC_SECRET must be configured."
             exit 1
           fi
-          EVENT_ID="${{ github.event.client_payload.id }}"
-          PROJECT_ID="${{ github.event.client_payload.projectId }}"
-          curl --fail --silent --show-error \
+          if [ -z "$DEPLOYMENT_URL" ]; then
+            echo "Deployment URL is required."
+            exit 1
+          fi
+          PAYLOAD="$(jq -cn --arg url "$DEPLOYMENT_URL" '{deploymentUrl:$url,trigger:"DEPLOYMENT"}')"
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_STATUS="$(curl --silent --show-error --output "$RESPONSE_FILE" --write-out '%{http_code}' \
             -X POST "$COST_SYNC_URL" \
             -H "Authorization: Bearer $COST_SYNC_SECRET" \
             -H "Content-Type: application/json" \
-            -d "{\"eventId\":\"${EVENT_ID:-$GITHUB_RUN_ID}\",\"projectId\":\"$PROJECT_ID\",\"target\":\"production\",\"trigger\":\"DEPLOYMENT\"}"
+            -d "$PAYLOAD")"
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "Cost sync HTTP status $HTTP_STATUS."
+            exit 1
+          fi
+          SYNC_STATUS="$(jq -r '.data.status // empty' "$RESPONSE_FILE")"
+          if [ "$SYNC_STATUS" != "succeeded" ] && [ "$SYNC_STATUS" != "skipped" ]; then
+            echo "Cost sync returned an unsuccessful status."
+            exit 1
+          fi

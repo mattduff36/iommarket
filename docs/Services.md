@@ -157,12 +157,20 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 - **API key**: Resend Dashboard → API Keys → Delete old key, create new. Update `RESEND_API_KEY`.
 
 ### 5. After rotation
-1. Update Vercel env vars: `npx vercel env add <VAR> production --force` (repeat for preview / development).
-2. Redeploy: `npx vercel --prod` or push to `main` to trigger CI.
-3. Verify the env-check e2e suite passes: `npm run test:e2e -- --grep "\[AuthHook\]|\[Cloudinary\]|\[Resend\]|\[Payment"`.
-4. Confirm no secrets remain in git history: `git log --all --full-history -- .env.production` should return nothing.
+1. Update Vercel production first. Vercel is the authoritative source for production values.
+2. Run `npm run env:production:pull` then `npm run env:production:check` so the ignored local `.env.production` mirror matches Vercel. Do not edit `.env.local` for this.
+3. Redeploy: `npx vercel --prod` or push to `main` to trigger CI. A Vercel environment change is not live until the next deployment.
+4. Verify the env-check e2e suite passes: `npm run test:e2e -- --grep "\[AuthHook\]|\[Cloudinary\]|\[Resend\]|\[Payment"`.
+5. Confirm no secrets remain in git history: `git log --all --full-history -- .env.production` should return nothing.
+
+### Production environment mirror
+- Vercel production is authoritative. A dashboard or CLI change does not update a workstation instantly.
+- After every production variable change, run `npm run env:production:pull` and `npm run env:production:check`.
+- `.env.production` stays gitignored and contains live production values. On Windows, file mode bits do not provide a reliable ACL; keep the workstation disk encrypted and exclude the file from backups or indexing where possible.
+- Production seeding runs `env:production:check` and aborts before opening a database connection if the mirror has drifted. It never pulls automatically.
+- Local development, tests, and builds do not call Vercel or overwrite environment files.
 
 ### Git safeguards in place
 - `.gitignore` covers all `.env.*` files (broad glob + explicit entries for `.env.production`, `.env.staging`, `.env.development`).
 - `.git/hooks/pre-commit` blocks any staged `.env.*` file from being committed.
-- All production secrets are stored exclusively in Vercel (encrypted at rest).
+- Production secrets live in Vercel. The local `.env.production` file is only a checked mirror for maintenance and live seeding.

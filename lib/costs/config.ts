@@ -7,6 +7,10 @@ export const COST_SYNC_LOCK_KEY = 727401;
 export const COST_FX_PAIR_USD_GBP = "USDGBP";
 export const COST_FX_PROVIDER = "frankfurter";
 export const COST_IDENTITY_FX_PROVIDER = "identity";
+export const COST_LEDGER_STARTED_AT_ISO = "2026-08-13T23:00:00.000Z";
+export const COST_LEDGER_PREVIOUS_STARTED_AT_NAIVE = "2026-09-01 07:00:00";
+const STRICT_ISO_TIMESTAMP =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/;
 
 export class CostConfigError extends Error {
   constructor(message: string) {
@@ -24,7 +28,10 @@ export function isCostSyncNonProdAllowed(env: NodeJS.ProcessEnv = process.env): 
 }
 
 export function isProductionRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.VERCEL_ENV === "production" || env.NODE_ENV === "production";
+  if (env.VERCEL_ENV) {
+    return env.VERCEL_ENV === "production";
+  }
+  return env.NODE_ENV === "production";
 }
 
 export function getCostOwnerAuthUserId(env: NodeJS.ProcessEnv = process.env): string {
@@ -43,16 +50,56 @@ export function getCostOwnerNotificationEmail(env: NodeJS.ProcessEnv = process.e
   return value;
 }
 
+export function parseCostLedgerStartedAt(value: string): Date {
+  const trimmed = value.trim();
+  const match = trimmed.match(STRICT_ISO_TIMESTAMP);
+  if (!match) {
+    throw new CostConfigError(
+      "COST_LEDGER_STARTED_AT must be a timezone-bearing ISO timestamp.",
+    );
+  }
+  const startedAt = new Date(trimmed);
+  if (Number.isNaN(startedAt.getTime())) {
+    throw new CostConfigError("COST_LEDGER_STARTED_AT must be a valid ISO timestamp.");
+  }
+  const millisecond = (match[7] ?? "0").padEnd(3, "0");
+  if (
+    startedAt.getUTCFullYear() !== Number(match[1]) ||
+    startedAt.getUTCMonth() + 1 !== Number(match[2]) ||
+    startedAt.getUTCDate() !== Number(match[3]) ||
+    startedAt.getUTCHours() !== Number(match[4]) ||
+    startedAt.getUTCMinutes() !== Number(match[5]) ||
+    startedAt.getUTCSeconds() !== Number(match[6]) ||
+    startedAt.getUTCMilliseconds() !== Number(millisecond)
+  ) {
+    throw new CostConfigError("COST_LEDGER_STARTED_AT must be a real calendar timestamp.");
+  }
+  return startedAt;
+}
+
 export function getCostLedgerStartedAt(env: NodeJS.ProcessEnv = process.env): Date {
   const value = env.COST_LEDGER_STARTED_AT?.trim();
   if (!value) {
     throw new CostConfigError("COST_LEDGER_STARTED_AT is not configured.");
   }
-  const startedAt = new Date(value);
-  if (Number.isNaN(startedAt.getTime())) {
-    throw new CostConfigError("COST_LEDGER_STARTED_AT must be an ISO timestamp.");
+  return parseCostLedgerStartedAt(value);
+}
+
+export function assertLedgerConfigMatchesEnvironment(input: {
+  startedAt: Date;
+  policyVersion: string;
+  env?: NodeJS.ProcessEnv;
+}): void {
+  const expectedStartedAt = getCostLedgerStartedAt(input.env);
+  const expectedPolicy = getCostPolicyVersion();
+  if (
+    input.startedAt.getTime() !== expectedStartedAt.getTime() ||
+    input.policyVersion !== expectedPolicy
+  ) {
+    throw new CostConfigError(
+      "Cost ledger configuration has drifted from the environment contract.",
+    );
   }
-  return startedAt;
 }
 
 export function getVercelBillingConfig(env: NodeJS.ProcessEnv = process.env) {
