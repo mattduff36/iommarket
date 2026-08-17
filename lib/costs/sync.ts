@@ -352,9 +352,10 @@ async function executeCostSync(
       data: {
         status: "FAILED",
         errorCode,
+        classifiedCount,
         completedAt: new Date(),
       },
     });
-    return { status: "failed", runId: run.id, errorCode };
+    return { status: "failed", runId: run.id, classifiedCount, errorCode };
   }
 }

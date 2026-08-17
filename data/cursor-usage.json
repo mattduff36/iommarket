@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-17T16:27:18.620Z",
+  "generatedAt": "2026-08-17T16:36:34.401Z",
   "projectKey": "d-Websites-iommarket",
   "windowStart": "2026-07-04T00:00:00.000Z",
   "windowEnd": "2026-08-18T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 237,
+    "attributedEvents": 238,
     "unattributedEvents": 184,
     "unattributedMicroCents": "35705221450"
   },
@@ -86,18 +86,18 @@
     },
     {
       "date": "2026-08-17",
-      "identifiedMicroCents": "18590030557",
+      "identifiedMicroCents": "18931540498",
       "project": {
-        "onDemandMicroCents": "14134401890",
-        "chargedMicroCents": "12856542133",
-        "inputTokens": 2130403,
-        "outputTokens": 655765,
-        "cacheWriteTokens": 4054653,
-        "cacheReadTokens": 175778153,
+        "onDemandMicroCents": "14386009846",
+        "chargedMicroCents": "13108150089",
+        "inputTokens": 2130417,
+        "outputTokens": 659659,
+        "cacheWriteTokens": 4319275,
+        "cacheReadTokens": 177307697,
         "models": [
           {
             "model": "claude-opus-5-thinking-high",
-            "onDemandMicroCents": "1947082471"
+            "onDemandMicroCents": "2198690427"
           },
           {
             "model": "cursor-grok-4.6-xhigh-fast",
