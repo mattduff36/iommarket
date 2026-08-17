@@ -6,6 +6,8 @@ import { isCronAuthorized } from "@/lib/ops/safety";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The Vercel FOCUS billing endpoint streams slowly and is retried up to three times.
+export const maxDuration = 180;
 
 export async function GET(request: NextRequest) {
   if (!isCronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {

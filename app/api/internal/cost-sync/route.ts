@@ -14,6 +14,8 @@ import { costSyncRequestSchema } from "@/lib/validations/costs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The Vercel FOCUS billing endpoint streams slowly and is retried up to three times.
+export const maxDuration = 180;
 
 function syncStatusCode(status: "skipped" | "locked" | "succeeded" | "failed"): number {
   if (status === "failed") return 502;

@@ -16,7 +16,11 @@ import { renewCostSyncLock, withCostSyncLock } from "@/lib/costs/lock";
 import { allocateSharedPence } from "@/lib/costs/shared";
 import { computeMarkedGbpMinor } from "@/lib/costs/money";
 import { runSerializable } from "@/lib/costs/transaction";
-import { fetchFocusCharges, listActiveProductionProjectIds } from "@/lib/costs/vercel";
+import {
+  CostProviderUnavailableError,
+  fetchFocusCharges,
+  listActiveProductionProjectIds,
+} from "@/lib/costs/vercel";
 import { db } from "@/lib/db";
 
 export interface CostSyncResult {
@@ -271,11 +275,13 @@ async function executeCostSync(
     };
   } catch (error) {
     const errorCode =
-      error instanceof Prisma.PrismaClientKnownRequestError
+      error instanceof CostProviderUnavailableError
         ? error.code
-        : error instanceof Error
-          ? error.name
-          : "COST_SYNC_FAILED";
+        : error instanceof Prisma.PrismaClientKnownRequestError
+          ? error.code
+          : error instanceof Error
+            ? error.name
+            : "COST_SYNC_FAILED";
     await db.costSyncRun.update({
       where: { id: run.id },
       data: {

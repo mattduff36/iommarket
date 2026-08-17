@@ -22,6 +22,21 @@ export class CostDeploymentError extends Error {
   }
 }
 
+export const COST_PROVIDER_UNAVAILABLE_CODE = "VERCEL_BILLING_UNAVAILABLE";
+
+export class CostProviderUnavailableError extends Error {
+  readonly code = COST_PROVIDER_UNAVAILABLE_CODE;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "CostProviderUnavailableError";
+  }
+}
+
+const FOCUS_ATTEMPT_TIMEOUT_MS = 25_000;
+const FOCUS_MAX_ATTEMPTS = 3;
+const FOCUS_RETRY_DELAY_MS = 2_000;
+
 export type VerifiedDeployment =
   | {
       status: "production";
@@ -135,28 +150,90 @@ async function vercelGet<T>(
   return (await response.json()) as T;
 }
 
-export async function fetchFocusCharges(input: {
+function isRetryableChargeStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function fetchFocusChargesBody(input: {
   from: Date;
   to: Date;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
-}): Promise<{ rows: Array<{ row: FocusChargeRow; rawIndex: number }>; quarantined: Array<{ reason: string; rawIndex: number }> }> {
+  attemptTimeoutMs?: number;
+  maxAttempts?: number;
+  retryDelayMs?: number;
+  sleepImpl?: (ms: number) => Promise<void>;
+}): Promise<string> {
   const config = getVercelBillingConfig(input.env);
   const fetchImpl = input.fetchImpl ?? fetch;
+  const attemptTimeoutMs = input.attemptTimeoutMs ?? FOCUS_ATTEMPT_TIMEOUT_MS;
+  const maxAttempts = Math.max(1, input.maxAttempts ?? FOCUS_MAX_ATTEMPTS);
+  const retryDelayMs = input.retryDelayMs ?? FOCUS_RETRY_DELAY_MS;
+  const sleep =
+    input.sleepImpl ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
   const url = new URL("https://api.vercel.com/v1/billing/charges");
   url.searchParams.set("from", input.from.toISOString());
   url.searchParams.set("to", input.to.toISOString());
   url.searchParams.set("teamId", config.teamId);
 
-  const response = await fetchImpl(url, {
-    headers: { Authorization: `Bearer ${config.token}` },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`Vercel billing charges returned ${response.status}.`);
+  let lastReason = "Vercel billing charges did not respond.";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), attemptTimeoutMs);
+    let response: Response | null = null;
+    try {
+      response = await fetchImpl(url, {
+        headers: { Authorization: `Bearer ${config.token}` },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } catch (error) {
+      lastReason =
+        error instanceof Error && error.name === "AbortError"
+          ? `Vercel billing charges timed out after ${attemptTimeoutMs}ms.`
+          : "Vercel billing charges request failed.";
+    }
+
+    if (response && !response.ok && !isRetryableChargeStatus(response.status)) {
+      clearTimeout(timer);
+      throw new Error(`Vercel billing charges returned ${response.status}.`);
+    }
+
+    if (response?.ok) {
+      try {
+        const body = await response.text();
+        clearTimeout(timer);
+        return body;
+      } catch {
+        lastReason = "Vercel billing charges stream ended early.";
+      }
+    } else if (response) {
+      lastReason = `Vercel billing charges returned ${response.status}.`;
+    }
+
+    clearTimeout(timer);
+    if (attempt < maxAttempts) {
+      await sleep(retryDelayMs * attempt);
+    }
   }
 
-  const parsed = parseFocusJsonl(await response.text());
+  throw new CostProviderUnavailableError(lastReason);
+}
+
+export async function fetchFocusCharges(input: {
+  from: Date;
+  to: Date;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  attemptTimeoutMs?: number;
+  maxAttempts?: number;
+  retryDelayMs?: number;
+  sleepImpl?: (ms: number) => Promise<void>;
+}): Promise<{ rows: Array<{ row: FocusChargeRow; rawIndex: number }>; quarantined: Array<{ reason: string; rawIndex: number }> }> {
+  const parsed = parseFocusJsonl(await fetchFocusChargesBody(input));
   return {
     rows: parsed.filter((line) => line.ok).map((line) => ({
       row: line.row,
