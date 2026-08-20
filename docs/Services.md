@@ -12,7 +12,7 @@
   - `POSTGRES_DATABASE`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_USER` (Vercel Postgres integration)
 - **Local**: Supabase hosted project or local Postgres container.
 - **Staging/Prod**: managed Postgres with backups and migration pipeline.
-- **Row Level Security (RLS)**: Enabled on all public tables (migration `20260222120000_enable_rls_public`). With no permissive policies for `anon`/`authenticated`, PostgREST access is denied. The app uses Prisma with the DB connection role (BYPASSRLS), so server-side access is unchanged.
+- **Row Level Security (RLS)**: Enabled on all public tables (migrations `20260222120000_enable_rls_public` and `20260820220000_enable_rls_remaining_public_tables`, plus later table-create migrations). With no permissive policies for `anon`/`authenticated`, PostgREST access is denied. The app uses Prisma with the DB connection role (BYPASSRLS), so server-side access is unchanged.
 
 ## Authentication
 

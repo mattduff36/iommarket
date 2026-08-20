@@ -46,7 +46,7 @@ If schema is unchanged but data must be updated, create a migration folder manua
 prisma/migrations/<timestamp>_<name>/migration.sql
 ```
 
-Use idempotent SQL when practical (`WHERE NOT EXISTS`, defensive updates, etc.).
+Use idempotent SQL when practical (`WHERE NOT EXISTS`, defensive updates, etc.). Every new `public` table migration must `ENABLE ROW LEVEL SECURITY` (no PostgREST policies) so anon/authenticated stay denied.
 
 ## 4) Apply migrations to the configured database
 
