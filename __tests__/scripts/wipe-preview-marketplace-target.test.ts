@@ -27,7 +27,7 @@ const APPROVED_KEEP_EMAILS = [
   "mattduff36@gmail.com",
 ] as const;
 const APPROVED_DELETE_EMAILS = ["noreply@avsquires.co.uk"] as const;
-const APPROVED_DEALER_NAMES = ["Morris motors", "Matt Duffill TEST"] as const;
+const APPROVED_DEALER_NAMES = ["Morris motors", "Ocean Motor Village"] as const;
 
 const previewDirect = "postgresql://postgres:x@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres";
 const previewPooler =
@@ -132,14 +132,14 @@ describe("WPE-HOST-001 preview wipe host allowlist", () => {
     expect(() =>
       assertPreflightKeptDealers([
         { name: "Morris motors", ownerEmail: "d.p.marshall@hotmail.co.uk" },
-        { name: "Matt Duffill TEST", ownerEmail: "mattduff36@gmail.com" },
+        { name: "Ocean Motor Village", ownerEmail: "mattduff36@gmail.com" },
         { name: "Manx Motors Ltd", ownerEmail: "info@manxmotors.im" },
       ]),
     ).not.toThrow();
     expect(() =>
       assertPreflightKeptDealers([
         { name: "Morris motors", ownerEmail: "mattduff36@gmail.com" },
-        { name: "Matt Duffill TEST", ownerEmail: "d.p.marshall@hotmail.co.uk" },
+        { name: "Ocean Motor Village", ownerEmail: "d.p.marshall@hotmail.co.uk" },
       ]),
     ).toThrow("Kept dealer ownership mismatch");
     expect(
@@ -151,7 +151,7 @@ describe("WPE-HOST-001 preview wipe host allowlist", () => {
             email === "d.p.marshall@hotmail.co.uk"
               ? "Morris motors"
               : email === "mattduff36@gmail.com"
-                ? "Matt Duffill TEST"
+                ? "Ocean Motor Village"
                 : null,
         })),
         authUsers: [

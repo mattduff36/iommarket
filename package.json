@@ -23,6 +23,7 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:seed:vehicles": "npx tsx scripts/seed-vehicle-catalogue.ts",
     "seed:admin": "npx tsx scripts/seed-admin-users.ts",
+    "import:ocean-preview": "npx tsx scripts/import-ocean-inventory.ts",
     "tokens:generate": "npx tsx scripts/generate-ui-from-json.ts",
     "tokens:check": "npx tsx scripts/generate-ui-from-json.ts && echo 'Tokens up to date'",
     "dm-pack": "tsx scripts/generate-dm-policy-pack.ts",

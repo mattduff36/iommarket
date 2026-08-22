@@ -15,7 +15,7 @@ export const DELETE_AUTH_EMAILS = ["noreply@avsquires.co.uk"] as const;
 
 export const EXPECTED_KEPT_DEALERS = [
   { name: "Morris motors", ownerEmail: "d.p.marshall@hotmail.co.uk" },
-  { name: "Matt Duffill TEST", ownerEmail: "mattduff36@gmail.com" },
+  { name: "Ocean Motor Village", ownerEmail: "mattduff36@gmail.com" },
 ] as const;
 
 export const EXPECTED_KEPT_DEALER_NAMES = EXPECTED_KEPT_DEALERS.map(
