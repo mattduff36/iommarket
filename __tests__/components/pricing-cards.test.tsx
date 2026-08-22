@@ -7,6 +7,7 @@ import {
   getSellerFeatures,
   PricingCards,
 } from "@/components/pricing/pricing-cards";
+import { getDealerListingCapFeature } from "@/lib/config/dealer-tiers";
 
 const pricing = {
   privateListingPence: 749,
@@ -72,5 +73,10 @@ describe("PricingCards", () => {
       "Private seller listing — free",
       ...getSellerFeatures(pricing).slice(1),
     ]);
+  });
+
+  it("advertises dealer listing caps from the shared tier helper", () => {
+    expect(DEALER_STARTER_FEATURES[0]).toBe(getDealerListingCapFeature("STARTER"));
+    expect(DEALER_PRO_FEATURES[0]).toBe(getDealerListingCapFeature("PRO"));
   });
 });

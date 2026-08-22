@@ -10,6 +10,7 @@ import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 import { Check } from "lucide-react";
+import { getDealerListingCapFeature } from "@/lib/config/dealer-tiers";
 import type { MarketplacePricing } from "@/lib/config/marketplace-pricing-definitions";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 
@@ -30,7 +31,7 @@ export function getSellerFeatures(pricing: MarketplacePricing): string[] {
 }
 
 export const DEALER_STARTER_FEATURES = [
-  "Up to 30 active listings",
+  getDealerListingCapFeature("STARTER"),
   "Dedicated dealer profile page",
   "Up to 20 photos per listing",
   "Priority moderation",
@@ -39,7 +40,7 @@ export const DEALER_STARTER_FEATURES = [
 ];
 
 export const DEALER_PRO_FEATURES = [
-  "Up to 100 active listings",
+  getDealerListingCapFeature("PRO"),
   "All Starter features",
   "Priority moderation",
   "Dealer dashboard",

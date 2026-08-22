@@ -3,8 +3,8 @@ import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import { getDealerTierFromProviderPlanId as getTierFromRipplePlan } from "@/lib/payments/ripple-mapping";
 
 export const DEALER_TIER_CAPS: Record<DealerTier, number> = {
-  STARTER: 10,
-  PRO: 30,
+  STARTER: 30,
+  PRO: 100,
 };
 
 export const DEALER_TIER_LABELS: Record<DealerTier, string> = {
@@ -14,6 +14,10 @@ export const DEALER_TIER_LABELS: Record<DealerTier, string> = {
 
 export function getDealerListingCap(tier: DealerTier | null | undefined): number {
   return DEALER_TIER_CAPS[tier ?? "STARTER"];
+}
+
+export function getDealerListingCapFeature(tier: DealerTier): string {
+  return `Up to ${getDealerListingCap(tier)} active listings`;
 }
 
 export function getDealerProviderPlanId(tier: DealerTier): string {
