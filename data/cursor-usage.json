@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-20T21:37:26.809Z",
+  "generatedAt": "2026-08-22T12:32:16.709Z",
   "projectKey": "d-Websites-iommarket",
-  "windowStart": "2026-07-07T00:00:00.000Z",
-  "windowEnd": "2026-08-21T00:00:00.000Z",
+  "windowStart": "2026-07-09T00:00:00.000Z",
+  "windowEnd": "2026-08-23T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 442,
-    "unattributedEvents": 300,
-    "unattributedMicroCents": "53403087193"
+    "attributedEvents": 478,
+    "unattributedEvents": 343,
+    "unattributedMicroCents": "58815976088"
   },
   "days": [
     {
@@ -152,14 +152,14 @@
     },
     {
       "date": "2026-08-20",
-      "identifiedMicroCents": "10954785590",
+      "identifiedMicroCents": "11004015485",
       "project": {
-        "onDemandMicroCents": "230312255",
-        "chargedMicroCents": "230312255",
-        "inputTokens": 143334,
-        "outputTokens": 17545,
-        "cacheWriteTokens": 43168,
-        "cacheReadTokens": 1322623,
+        "onDemandMicroCents": "279542150",
+        "chargedMicroCents": "279542150",
+        "inputTokens": 143370,
+        "outputTokens": 22316,
+        "cacheWriteTokens": 53104,
+        "cacheReadTokens": 1896401,
         "models": [
           {
             "model": "cursor-grok-4.6-xhigh-fast",
@@ -167,7 +167,38 @@
           },
           {
             "model": "gpt-5.6-sol-high",
-            "onDemandMicroCents": "44222252"
+            "onDemandMicroCents": "93452147"
+          }
+        ]
+      }
+    },
+    {
+      "date": "2026-08-21",
+      "identifiedMicroCents": "3375957162",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-08-22",
+      "identifiedMicroCents": "2122244172",
+      "project": {
+        "onDemandMicroCents": "2122244172",
+        "chargedMicroCents": "2122244172",
+        "inputTokens": 788825,
+        "outputTokens": 120530,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 16638592,
+        "models": [
+          {
+            "model": "cursor-grok-4.6-xhigh-fast",
+            "onDemandMicroCents": "2122244172"
           }
         ]
       }
