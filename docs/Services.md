@@ -129,7 +129,7 @@
   - `NEXT_PUBLIC_APP_URL`
   - `LAUNCH_FREE_UNTIL`
   - `FREE_LISTING_WINDOW_DAYS` (fallback strategy)
-  - `DEV_PASS` (development-only gate)
+  - `DEV_PASS` (holding-page gate on production and local; skipped on Vercel Preview)
 - **Notes**:
   - staging should mirror production behavior as closely as possible.
   - all secrets must remain server-side and not leak to client bundles.

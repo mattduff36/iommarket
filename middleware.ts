@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { shouldEnforceDevGate } from "@/lib/dev-gate";
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/dev/auth") return true;
@@ -9,9 +10,10 @@ function isPublicPath(pathname: string): boolean {
 
 /**
  * Middleware that:
- * 1. Gates the entire site behind a dev password (cookie-based session).
- *    Public visitors only see the holding page at "/".
- * 2. Uses Supabase Auth for authenticated dev users (when configured).
+ * 1. Gates the entire site behind a dev password (cookie-based session)
+ *    on production and local runtimes. Vercel Preview skips this gate.
+ *    Public visitors on gated runtimes only see the holding page at "/".
+ * 2. Uses Supabase Auth for authenticated users (when configured).
  */
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -58,7 +60,7 @@ export default async function middleware(request: NextRequest) {
     pathname === "/contact" ||
     pathname === "/safety";
 
-  if (!devAuth) {
+  if (shouldEnforceDevGate() && !devAuth) {
     if (pathname === "/") {
       return NextResponse.rewrite(new URL("/holding", request.url));
     }
