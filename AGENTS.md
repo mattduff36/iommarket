@@ -24,6 +24,7 @@ Rules are stored in `.cursor/rules/` and use the `.mdc` format (Markdown with YA
 | Rule | Activation | Purpose |
 |------|------------|---------|
 | `00-core.mdc` | Always | Non-negotiables: no secrets, small files, validate inputs |
+| `finalise.mdc` | Always | Run the registered finalise npm scripts; never invent a handoff |
 | `coding-style.mdc` | Code files | Immutability, file organization, error handling |
 | `security.mdc` | Code files | Security checklist, input validation, XSS/SQL prevention |
 | `testing.mdc` | Test files | TDD workflow, coverage requirements |
@@ -58,6 +59,10 @@ I need to implement a user dashboard with analytics
 | `tdd.md` | New features, bug fixes, critical business logic |
 | `refactor-clean.md` | Removing dead code, consolidating duplicates |
 | `e2e.md` | Testing user journeys, UI flows, integration testing |
+| `finalise.md` | Verify and commit on the current branch (no push) |
+| `fap.md` | Verify, commit, and push the current branch |
+| `finalise-full.md` | Full verify (lint + build) and commit (no push) |
+| `ffap.md` | Full verify, commit, and push the current branch |
 
 ### Command Workflow
 
@@ -65,7 +70,8 @@ I need to implement a user dashboard with analytics
 1. Start with `plan.md` to create implementation plan
 2. Use `tdd.md` to implement with tests
 3. Run `code-review.md` before committing
-4. Use `build-fix.md` if build fails
+4. Use `/finalise` to verify and commit, or `/fap` to also push
+5. Use `build-fix.md` if build fails
 
 **For debugging:**
 1. Use `build-fix.md` to fix compilation errors
