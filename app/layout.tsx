@@ -4,6 +4,7 @@ import { ThemeProvider } from "@once-ui-system/core";
 import { ClientErrorListener } from "@/components/monitoring/client-error-listener";
 import { ConsentedAnalytics } from "@/components/layout/consented-analytics";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
+import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
 import "./globals.css";
 
 const inter = Inter({
@@ -24,6 +25,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: faviconThemeColor,
 };
 
 export const metadata: Metadata = {
@@ -33,11 +35,8 @@ export const metadata: Metadata = {
   },
   description: "Buy and sell cars, vans, motorbikes, and motorhomes on the Isle of Man.",
   metadataBase: getCanonicalBaseUrl(),
-  icons: {
-    icon: "/images/icon-itrader.png",
-    apple: "/images/icon-itrader.png",
-    shortcut: "/images/icon-itrader.png",
-  },
+  manifest: faviconManifest,
+  icons: faviconIcons,
   openGraph: {
     type: "website",
     locale: "en_GB",
