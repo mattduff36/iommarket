@@ -387,7 +387,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
             <CardContent>
               <p className="text-2xl font-bold text-premium-gold-500 flex items-center gap-2">
                 <Star className="h-5 w-5" />
-                {averageRating ?? "—"}
+                {averageRating ?? "-"}
               </p>
               <p className="mt-1 text-sm text-text-secondary">
                 {reviewStats._count._all} approved review
@@ -478,7 +478,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                   <TableCell className="text-text-secondary">
                     {listing.expiresAt
                       ? listing.expiresAt.toLocaleDateString("en-GB")
-                      : "—"}
+                      : "-"}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">

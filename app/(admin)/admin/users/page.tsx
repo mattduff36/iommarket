@@ -185,7 +185,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   href={`/admin/users/${user.id}`}
                   className="font-medium text-text-primary hover:underline"
                 >
-                  {user.name ?? "—"}
+                  {user.name ?? "-"}
                 </Link>
                 <p className="text-xs text-text-tertiary">{user.email}</p>
                 {user.deletedAt ? (
@@ -208,11 +208,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     {getDealerPackageLabel(user.dealerProfile.tier)}
                   </Badge>
                 ) : (
-                  <span className="text-text-tertiary text-sm">—</span>
+                  <span className="text-text-tertiary text-sm">-</span>
                 )}
               </TableCell>
               <TableCell className="text-sm text-text-secondary">
-                {user.region?.name ?? "—"}
+                {user.region?.name ?? "-"}
               </TableCell>
               <TableCell>
                 {user.dealerProfile ? (
@@ -226,7 +226,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     )}
                   </Link>
                 ) : (
-                  <span className="text-text-tertiary text-sm">—</span>
+                  <span className="text-text-tertiary text-sm">-</span>
                 )}
               </TableCell>
               <TableCell className="text-sm text-text-secondary">

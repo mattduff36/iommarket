@@ -258,7 +258,7 @@ export function SubscribeForm({
               loading={isPending}
               disabled={!acceptedDealerTerms}
             >
-              Subscribe &mdash; {tierPrice}/month
+              Subscribe - {tierPrice}/month
             </Button>
             <div className="mt-4">
               <PaymentAwaitingStatus

@@ -276,7 +276,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
                     <Badge variant={sub.status === "ACTIVE" ? "success" : sub.status === "PAST_DUE" ? "warning" : "error"}>
                       {sub.status}
                     </Badge>
-                    <span>ends {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}</span>
+                    <span>ends {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "-"}</span>
                     <span className="text-text-tertiary font-mono">{getSubscriptionDisplayId(sub)}</span>
                     <span className="text-text-tertiary">
                       {sub.source === "ADMIN_GRANT"

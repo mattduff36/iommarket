@@ -219,7 +219,7 @@ export default async function DealerProfilePage({ params }: Props) {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-premium-gold-500">
-              {averageRating ?? "—"}
+              {averageRating ?? "-"}
             </p>
           </CardContent>
         </Card>

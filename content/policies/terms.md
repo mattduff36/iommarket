@@ -1,5 +1,5 @@
 # TERMS AND CONDITIONS OF USE
-*iTrader.im — Online Vehicle Marketplace*
+*iTrader.im - Online Vehicle Marketplace*
 *Effective on launch*
 iTrader.im is a trading name of Code Lab Platforms Limited.
 

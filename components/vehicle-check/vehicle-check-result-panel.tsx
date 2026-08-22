@@ -640,7 +640,7 @@ export function VehicleCheckResultPanel({
       <Card className="border-neon-blue-500/25 bg-neon-blue-500/6">
         <CardContent className="p-5 text-sm leading-6 text-text-secondary">
           <p className="font-semibold text-text-primary">
-            Information only — verify independently
+            Information only - verify independently
           </p>
           <p className="mt-2">
             Vehicle Check combines third-party and public-source data that may

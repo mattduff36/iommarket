@@ -202,8 +202,8 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                 </TableCell>
                 <TableCell className="text-text-secondary text-xs">
                   {listing.statusEvents[0]
-                    ? `${listing.statusEvents[0].fromStatus ?? "—"} -> ${listing.statusEvents[0].toStatus} (${listing.statusEvents[0].createdAt.toLocaleDateString("en-GB")})`
-                    : "—"}
+                    ? `${listing.statusEvents[0].fromStatus ?? "-"} -> ${listing.statusEvents[0].toStatus} (${listing.statusEvents[0].createdAt.toLocaleDateString("en-GB")})`
+                    : "-"}
                 </TableCell>
                 <TableCell className="text-text-secondary">
                   {listing.createdAt.toLocaleDateString("en-GB")}

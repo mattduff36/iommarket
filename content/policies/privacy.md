@@ -1,5 +1,5 @@
 # PRIVACY POLICY
-*iTrader.im — Online Vehicle Marketplace*
+*iTrader.im - Online Vehicle Marketplace*
 *Effective on launch*
 
 ## 1. WHO WE ARE
@@ -36,23 +36,23 @@
 
 **3.1** We use your personal data for the following purposes, relying on the lawful bases indicated:
 
-To create and administer your Account, and to provide the Service to you — necessary for the performance of our contract with you.
+To create and administer your Account, and to provide the Service to you - necessary for the performance of our contract with you.
 
-To publish and display your Listings on the Platform, and to enable Buyers and Sellers to communicate — necessary for the performance of our contract with you.
+To publish and display your Listings on the Platform, and to enable Buyers and Sellers to communicate - necessary for the performance of our contract with you.
 
-To process payments for Listings, upgrades, and subscriptions through our Payment Provider — necessary for the performance of our contract with you.
+To process payments for Listings, upgrades, and subscriptions through our Payment Provider - necessary for the performance of our contract with you.
 
-To verify your identity, investigate suspected fraud, and enforce our Terms and Conditions — necessary for our legitimate interests in maintaining a safe and trustworthy Platform, and, where relevant, to comply with a legal obligation.
+To verify your identity, investigate suspected fraud, and enforce our Terms and Conditions - necessary for our legitimate interests in maintaining a safe and trustworthy Platform, and, where relevant, to comply with a legal obligation.
 
-To respond to your enquiries and provide customer support — necessary for the performance of our contract with you, or our legitimate interests in providing good service.
+To respond to your enquiries and provide customer support - necessary for the performance of our contract with you, or our legitimate interests in providing good service.
 
-To send you service-related communications, such as confirmation of a Listing, renewal reminders, or notices about changes to the Platform — necessary for the performance of our contract with you.
+To send you service-related communications, such as confirmation of a Listing, renewal reminders, or notices about changes to the Platform - necessary for the performance of our contract with you.
 
-To send you marketing communications about our services, where you have consented to receive them or where permitted under applicable law — based on your consent, or our legitimate interests, as applicable, and always with the ability for you to opt out.
+To send you marketing communications about our services, where you have consented to receive them or where permitted under applicable law - based on your consent, or our legitimate interests, as applicable, and always with the ability for you to opt out.
 
-To analyse and improve the Platform, including monitoring usage patterns and diagnosing technical issues — necessary for our legitimate interests in operating and improving our Service.
+To analyse and improve the Platform, including monitoring usage patterns and diagnosing technical issues - necessary for our legitimate interests in operating and improving our Service.
 
-To comply with our legal and regulatory obligations, including tax, accounting, and reporting obligations, and to cooperate with law enforcement — necessary for compliance with a legal obligation, or our legitimate interests in cooperating with lawful authorities.
+To comply with our legal and regulatory obligations, including tax, accounting, and reporting obligations, and to cooperate with law enforcement - necessary for compliance with a legal obligation, or our legitimate interests in cooperating with lawful authorities.
 
 **3.2** We will not use your personal data for a purpose materially different from those described in this Privacy Policy without notifying you and, where required, obtaining your consent.
 

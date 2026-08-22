@@ -49,7 +49,7 @@ export const DEALER_PRO_FEATURES = [
 ];
 
 export function getFreeLaunchFeatures(pricing: MarketplacePricing): string[] {
-  return ["Private seller listing — free", ...getSellerFeatures(pricing).slice(1)];
+  return ["Private seller listing - free", ...getSellerFeatures(pricing).slice(1)];
 }
 
 interface CardCta {
@@ -182,7 +182,7 @@ export function PricingCards({
       {showFreeOffer && (
         <PricingCard
           title="Free Launch Offer"
-          description={`FREE private seller listing — ${slotsRemaining} of ${slotsTotal} spots left!`}
+          description={`FREE private seller listing - ${slotsRemaining} of ${slotsTotal} spots left!`}
           price={formatGbpFromPence(0)}
           billingPeriod="listing"
           cta={freeLaunchCta}

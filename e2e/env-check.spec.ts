@@ -5,7 +5,7 @@
  * interactions so failures pinpoint which env var / service is broken.
  *
  * Skipped in CI if the corresponding env var is absent (graceful degradation).
- * Hosted payment flows are intentionally excluded — tested manually.
+ * Hosted payment flows are intentionally excluded - tested manually.
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -273,7 +273,7 @@ test.describe("[Cloudinary] API credentials", () => {
 
     const publicId = uploadData.public_id!;
 
-    // Delete — sign destroy request
+    // Delete - sign destroy request
     const delTimestamp = Math.floor(Date.now() / 1000).toString();
     const delParamsToSign = `public_id=${publicId}&timestamp=${delTimestamp}`;
     const delSignature = crypto
@@ -491,7 +491,7 @@ test.describe("[AdminPayments] Payments monitoring and refund UI", () => {
     await expect(
       page.getByRole("heading", { name: /payments/i }).first()
     ).toBeVisible({ timeout: 30_000 });
-    // The payments tab should be active by default — either a table or an empty state
+    // The payments tab should be active by default - either a table or an empty state
     const hasTable = await page.getByRole("table").isVisible({ timeout: 10_000 }).catch(() => false);
     const hasEmpty = await page.getByText(/no payments|no records/i).isVisible({ timeout: 5_000 }).catch(() => false);
     expect(hasTable || hasEmpty, "Payments table or empty state should be visible").toBe(true);
@@ -506,7 +506,7 @@ test.describe("[AdminPayments] Payments monitoring and refund UI", () => {
     // If there are succeeded payments, a Refund button should exist
     const refundBtn = page.getByRole("button", { name: /refund/i }).first();
     const hasRefund = await refundBtn.isVisible({ timeout: 5_000 }).catch(() => false);
-    // Not a failure if no succeeded payments yet — just document the finding
+    // Not a failure if no succeeded payments yet - just document the finding
     if (!hasRefund) {
       test.info().annotations.push({
         type: "note",
@@ -523,7 +523,7 @@ test.describe("[AdminPayments] Payments monitoring and refund UI", () => {
       const hasSubsEmpty = await page.getByText(/no subscriptions|no records/i).isVisible({ timeout: 5_000 }).catch(() => false);
       expect(hasSubsTable || hasSubsEmpty, "Subscriptions tab should render content").toBe(true);
     } else {
-      // Subscriptions rendered inline (no tab) — just check the page loaded
+      // Subscriptions rendered inline (no tab) - just check the page loaded
       expect(true).toBe(true);
     }
   });

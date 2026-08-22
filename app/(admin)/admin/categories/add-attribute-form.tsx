@@ -142,7 +142,7 @@ export function AddAttributeForm({ categories }: Props) {
             minLength={2}
             maxLength={60}
             pattern="[a-z0-9-]+"
-            helperText="Auto-generated — lowercase, numbers, hyphens only"
+            helperText="Auto-generated - lowercase, numbers, hyphens only"
             placeholder="e.g. engine-size"
           />
 
@@ -162,7 +162,7 @@ export function AddAttributeForm({ categories }: Props) {
             </AdminActionSelect>
           </div>
 
-          {/* Options — only for select type */}
+          {/* Options - only for select type */}
           {dataType === "select" && (
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-text-primary">Options</label>

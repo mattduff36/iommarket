@@ -136,7 +136,7 @@ export async function generateDmPolicyPack(
 
   const policyIndex = {
     generatedFor: options.date,
-    classification: "Private working pack — not legal approval",
+    classification: "Private working pack - not legal approval",
     moderationTaxonomyVersion: MODERATION_TAXONOMY_VERSION,
     policies: changedPolicies.map((policy) => ({
       slug: policy.slug,
@@ -157,7 +157,7 @@ export async function generateDmPolicyPack(
   );
 
   const indexMarkdown = [
-    `# DM policy pack index — ${options.date}`,
+    `# DM policy pack index - ${options.date}`,
     "",
     "> Private working pack. Generated deterministically from repository sources. This pack does not claim legal approval.",
     "",
@@ -172,7 +172,7 @@ export async function generateDmPolicyPack(
   writeArtifact(outputDirectory, "index.md", indexMarkdown, files);
 
   const schedule = [
-    `# Change schedule — ${options.date}`,
+    `# Change schedule - ${options.date}`,
     "",
     "> Operational summary only; not legal advice or approval.",
     "",
@@ -190,7 +190,7 @@ export async function generateDmPolicyPack(
   writeArtifact(outputDirectory, "change-schedule.md", schedule, files);
 
   const redline = [
-    `# Policy line redline — ${options.date}`,
+    `# Policy line redline - ${options.date}`,
     "",
     "Lines beginning `-` are from HEAD; lines beginning `+` are in the current canonical Markdown.",
     "",
@@ -208,7 +208,7 @@ export async function generateDmPolicyPack(
   writeArtifact(outputDirectory, "redline.md", redline, files);
 
   const moderationMatrix = [
-    `# Moderation matrix — taxonomy ${MODERATION_TAXONOMY_VERSION}`,
+    `# Moderation matrix - taxonomy ${MODERATION_TAXONOMY_VERSION}`,
     "",
     "| Parent | Subreason | Seller label | Clause references | Correction | Resubmit | Appeal | Refund advisory | Retired |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -243,7 +243,7 @@ export async function generateDmPolicyPack(
     vehicleSources,
     ...changedPolicies.map(
       (policy) =>
-        `# ${policy.title} — version ${policy.version}\n\n${policy.markdown}`,
+        `# ${policy.title} - version ${policy.version}\n\n${policy.markdown}`,
     ),
   ].join("\n\n---\n\n");
   writeArtifact(

@@ -98,15 +98,15 @@ export default async function MonitoringIssuePage({ params }: Props) {
             </p>
             <p>
               <span className="text-text-secondary">Sample route:</span>{" "}
-              <span className="font-mono text-text-primary">{issue.sampleRoute ?? "—"}</span>
+              <span className="font-mono text-text-primary">{issue.sampleRoute ?? "-"}</span>
             </p>
             <p>
               <span className="text-text-secondary">Sample action:</span>{" "}
-              <span className="font-mono text-text-primary">{issue.sampleAction ?? "—"}</span>
+              <span className="font-mono text-text-primary">{issue.sampleAction ?? "-"}</span>
             </p>
             <p>
               <span className="text-text-secondary">Sample component:</span>{" "}
-              <span className="font-mono text-text-primary">{issue.sampleComponent ?? "—"}</span>
+              <span className="font-mono text-text-primary">{issue.sampleComponent ?? "-"}</span>
             </p>
             <div>
               <p className="text-text-secondary mb-1">Message:</p>
@@ -175,10 +175,10 @@ export default async function MonitoringIssuePage({ params }: Props) {
               </div>
               <p className="mt-2 text-sm text-text-primary">{event.message}</p>
               <div className="mt-2 grid gap-2 text-xs text-text-secondary sm:grid-cols-2">
-                <p>Route: {event.route ?? "—"}</p>
-                <p>Action: {event.action ?? "—"}</p>
-                <p>Component: {event.component ?? "—"}</p>
-                <p>Request ID: {event.requestId ?? "—"}</p>
+                <p>Route: {event.route ?? "-"}</p>
+                <p>Action: {event.action ?? "-"}</p>
+                <p>Component: {event.component ?? "-"}</p>
+                <p>Request ID: {event.requestId ?? "-"}</p>
                 <p>User: {event.userEmail ?? event.userId ?? "anonymous"}</p>
                 <p>Environment: {event.environment}</p>
               </div>

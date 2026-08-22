@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
         break;
 
       default:
-        // Unknown type — return success so Supabase doesn't retry
+        // Unknown type - return success so Supabase doesn't retry
         break;
     }
 

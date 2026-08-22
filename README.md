@@ -1,4 +1,4 @@
-# itrader.im — Isle of Man Hyper-Local Marketplace
+# itrader.im - Isle of Man Hyper-Local Marketplace
 
 A trusted, hyper-local marketplace for the Isle of Man. Buy and sell vehicles, marine, hi-fi, instruments, photography gear, and more from trusted local sellers on the island.
 
@@ -83,17 +83,17 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The data model uses an **EAV (Entity-Attribute-Value)** pattern for category-specific attributes:
 
-- **User** — synced from Supabase Auth
-- **DealerProfile** — dealer business info
-- **Region** — first-class geography (multi-island ready)
-- **Category** — hierarchical categories
-- **AttributeDefinition** — per-category attribute schema
-- **ListingAttributeValue** — per-listing attribute values
-- **Listing** — marketplace listings
-- **ListingImage** — Cloudinary images
-- **Payment** — provider-neutral payment records
-- **Subscription** — provider-neutral dealer subscription records
-- **Report** — trust & safety reports
+- **User** - synced from Supabase Auth
+- **DealerProfile** - dealer business info
+- **Region** - first-class geography (multi-island ready)
+- **Category** - hierarchical categories
+- **AttributeDefinition** - per-category attribute schema
+- **ListingAttributeValue** - per-listing attribute values
+- **Listing** - marketplace listings
+- **ListingImage** - Cloudinary images
+- **Payment** - provider-neutral payment records
+- **Subscription** - provider-neutral dealer subscription records
+- **Report** - trust & safety reports
 
 ### Status Models
 

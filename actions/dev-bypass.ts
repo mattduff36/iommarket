@@ -3,7 +3,7 @@
 /**
  * Dev-only server actions that simulate payment-provider webhook effects.
  * These actions are guarded against production use.
- * Remove this file before going live (or leave it — it no-ops in production).
+ * Remove this file before going live (or leave it - it no-ops in production).
  */
 
 import { revalidatePath } from "next/cache";

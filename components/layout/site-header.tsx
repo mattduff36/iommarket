@@ -101,7 +101,7 @@ export function SiteHeader() {
 
   return (
     <>
-      {/* Top utility bar — hidden on small mobile to save vertical space */}
+      {/* Top utility bar - hidden on small mobile to save vertical space */}
       <div className="hidden sm:block bg-graphite-950 text-text-secondary">
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between px-4 text-xs sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
@@ -119,7 +119,7 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {/* Main header — glass surface + neon trust border */}
+      {/* Main header - glass surface + neon trust border */}
       <header
         className={cn(
           "sticky top-0 z-40 w-full h-16 sm:h-20",
@@ -249,7 +249,7 @@ export function SiteHeader() {
         )}
       </header>
 
-      {/* Mobile menu backdrop — blurs page content behind the open panel.
+      {/* Mobile menu backdrop - blurs page content behind the open panel.
           MUST be a sibling of <header>, not a child: the header's
           `glass-surface` class applies `backdrop-filter`, which creates a
           containing block for fixed descendants and would confine this

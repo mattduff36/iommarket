@@ -2,7 +2,7 @@
 
 Workstream: `ws_7f3c9a21`  
 Owner decision (programme): remediate all 37 findings in classified slices.  
-Confirmed restoration policy: contextual — **Reinstate live** for mistaken takedowns; **Return to draft** for seller correction.
+Confirmed restoration policy: contextual - **Reinstate live** for mistaken takedowns; **Return to draft** for seller correction.
 
 Status values: `open` | `in_progress` | `implemented` | `verified` | `unresolved`
 
@@ -14,7 +14,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 
 ## Listings and reports
 
-### ALR-01 — `TAKEN_DOWN` is terminal
+### ALR-01 - `TAKEN_DOWN` is terminal
 - **Severity:** Critical
 - **Evidence:** `lib/listing-status.ts` (`TAKEN_DOWN: []`); `components/admin/listing-moderation-actions.tsx` hides actions for that status; `actions/admin.ts` maps REJECT and TAKE_DOWN to `TAKEN_DOWN`.
 - **Current behaviour:** No restore/relist path. Mistaken moderation requires database intervention.
@@ -24,7 +24,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-LST-003`, `ALR-LST-004`
 - **Status:** verified
 
-### ALR-02 — Owner View of taken-down listings 404s
+### ALR-02 - Owner View of taken-down listings 404s
 - **Severity:** High
 - **Evidence:** `app/(public)/listings/[id]/page.tsx` (`notFound()` unless admin); `app/(public)/account/listings/page.tsx` still links to `/listings/{id}`.
 - **Current behaviour:** Owners see the row but cannot open it or the reason.
@@ -34,7 +34,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-VIS-002`
 - **Status:** verified
 
-### ALR-03 — Reject/take-down captures no reason
+### ALR-03 - Reject/take-down captures no reason
 - **Severity:** High
 - **Evidence:** `lib/validations/listing.ts` `adminNotes` optional; `listing-moderation-actions.tsx` calls `moderateListing({ listingId, action })` only.
 - **Current behaviour:** One-click adverse action; notes never sent.
@@ -44,7 +44,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-LST-003`
 - **Status:** verified
 
-### ALR-04 — Transition rules not enforced at runtime
+### ALR-04 - Transition rules not enforced at runtime
 - **Severity:** High
 - **Evidence:** `isValidTransition` used in tests only; `lib/listings/status-events.ts` writes any `toStatus`.
 - **Current behaviour:** UI-only guards; `updateListing` can force `DRAFT` from any status.
@@ -54,7 +54,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-LST-001`, `ALR-LST-002`
 - **Status:** verified
 
-### ALR-05 — Listing moderation bypasses `AdminAuditLog`
+### ALR-05 - Listing moderation bypasses `AdminAuditLog`
 - **Severity:** Medium
 - **Evidence:** `actions/admin.ts` `moderateListing` / `setListingFeatured` never call `logAdminAction`.
 - **Current behaviour:** Only optional `ListingStatusEvent.notes`.
@@ -64,7 +64,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-AUD-001`
 - **Status:** verified
 
-### ALR-06 — Admin listings capped at 50, no filters
+### ALR-06 - Admin listings capped at 50, no filters
 - **Severity:** Medium
 - **Evidence:** `app/(admin)/admin/listings/page.tsx` `findMany({ take: 50 })` with no `where` / searchParams.
 - **Current behaviour:** Terminal listings compete for 50 slots; no archive view.
@@ -74,16 +74,16 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-ADM-001`
 - **Status:** verified
 
-### ALR-07 — `APPROVED` listing status is unused
+### ALR-07 - `APPROVED` listing status is unused
 - **Severity:** Medium
 - **Evidence:** `moderateListing` APPROVE maps to `LIVE`; no writer sets `APPROVED`.
 - **Current behaviour:** Dead enum value and filter badges.
-- **Owner decision:** Expand/backfill/switch/contract — keep enum during switch; migrate any rows; stop writing `APPROVED`. Contract removal is a later migration.
+- **Owner decision:** Expand/backfill/switch/contract - keep enum during switch; migrate any rows; stop writing `APPROVED`. Contract removal is a later migration.
 - **Slice / lane:** `lst_contract` CRITICAL
 - **Verification:** `ALR-DAT-001`
 - **Status:** verified
 
-### ALR-08 — Reject vs take-down indistinguishable
+### ALR-08 - Reject vs take-down indistinguishable
 - **Severity:** High
 - **Evidence:** Both map to `TAKEN_DOWN`; action string is discarded.
 - **Current behaviour:** Cannot report pre-live rejection vs post-live takedown.
@@ -92,7 +92,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-LST-003`, `ALR-DAT-001`
 - **Status:** verified
 
-### ALR-09 — Reports disconnected from listing moderation
+### ALR-09 - Reports disconnected from listing moderation
 - **Severity:** Medium
 - **Evidence:** `updateReportStatus` updates report only; report cards link to public listing URL.
 - **Current behaviour:** ACTIONED does not change listing visibility.
@@ -101,7 +101,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-RPT-001`
 - **Status:** verified
 
-### ALR-10 — DRAFT/PENDING reachable by public URL
+### ALR-10 - DRAFT/PENDING reachable by public URL
 - **Severity:** High
 - **Evidence:** `app/(public)/listings/[id]/page.tsx` gates only `TAKEN_DOWN`.
 - **Current behaviour:** Unpublished inventory and metadata leak to anyone with the ID.
@@ -110,7 +110,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-VIS-001`
 - **Status:** verified
 
-### ALR-11 — Expiry depends on request-time sweep
+### ALR-11 - Expiry depends on request-time sweep
 - **Severity:** Medium
 - **Evidence:** `lib/listings/expiry.ts` 60s in-process sweep; only image-cleanup cron exists.
 - **Current behaviour:** Stale LIVE listings persist on low traffic; admin LIVE counts ignore expiry.
@@ -119,7 +119,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-OPS-001`
 - **Status:** verified
 
-### ALR-12 — Admin disable leaves listings live
+### ALR-12 - Admin disable leaves listings live
 - **Severity:** High
 - **Evidence:** `actions/account.ts` self-delete takes listings down; `actions/admin/users.ts` `setUserDisabled` updates user only.
 - **Current behaviour:** Disabled users can remain searchable sellers.
@@ -128,7 +128,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-IDN-001`
 - **Status:** verified
 
-### ALR-13 — Favourites keep dead links
+### ALR-13 - Favourites keep dead links
 - **Severity:** Medium
 - **Evidence:** `app/(public)/account/favourites/page.tsx` no status filter.
 - **Current behaviour:** Saved listings 404 after moderation/expiry.
@@ -137,7 +137,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-VIS-001`
 - **Status:** verified
 
-### ALR-14 — Admin hard-delete destroys listings and history
+### ALR-14 - Admin hard-delete destroys listings and history
 - **Severity:** Critical
 - **Evidence:** `actions/admin/users.ts` deletes payments, reports, listings, then user.
 - **Current behaviour:** Financial and moderation history is destroyed.
@@ -146,7 +146,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-IDN-001`
 - **Status:** verified
 
-### ALR-15 — Photo mutations ignore listing status
+### ALR-15 - Photo mutations ignore listing status
 - **Severity:** Medium
 - **Evidence:** `lib/listings/photo-mutation.ts` ownership check only.
 - **Current behaviour:** LIVE/TAKEN_DOWN/SOLD photos can change without remoderation.
@@ -155,7 +155,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-LST-002`
 - **Status:** verified
 
-### ALR-16 — Report status changes unaudited
+### ALR-16 - Report status changes unaudited
 - **Severity:** High
 - **Evidence:** `actions/admin.ts` `updateReportStatus` has no `logAdminAction`.
 - **Owner decision:** Log actor, prior/new status, reportId, listingId.
@@ -163,7 +163,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-AUD-001`, `ALR-RPT-002`
 - **Status:** verified
 
-### ALR-17 — Report admin notes hidden
+### ALR-17 - Report admin notes hidden
 - **Severity:** Medium
 - **Evidence:** `report-actions.tsx` initialises notes to `""`; page does not pass `adminNotes`.
 - **Owner decision:** Preload and display saved notes (mirror reviews).
@@ -171,7 +171,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-RPT-002`
 - **Status:** verified
 
-### ALR-18 — Reports capped at 100, no filters
+### ALR-18 - Reports capped at 100, no filters
 - **Severity:** Medium
 - **Evidence:** `app/(admin)/admin/reports/page.tsx` `take: 100`.
 - **Owner decision:** OPEN-first filters and pagination.
@@ -179,7 +179,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-RPT-002`
 - **Status:** verified
 
-### ALR-19 — Reporter reason unstructured
+### ALR-19 - Reporter reason unstructured
 - **Severity:** Low
 - **Evidence:** `reportListingSchema` free-text `reason` only.
 - **Owner decision:** `reasonCode` enum + optional detail.
@@ -187,19 +187,19 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-RPT-002`
 - **Status:** verified
 
-### ALR-20 — E2E report records can leak
+### ALR-20 - E2E report records can leak
 - **Severity:** Medium
 - **Evidence:** `e2e/critical-funnels.spec.ts` creates listings/reports; cleanup is afterEach only.
 - **Owner decision:** Deterministic cleanup helpers and environment guards.
 - **Slice / lane:** `ops_safety` STANDARD
 - **Verification:** `ALR-E2E-001`, `ALR-OPS-001`
-- **Status:** implemented (Playwright journey written; runtime not executed — no safe non-production app/database target)
+- **Status:** implemented (Playwright journey written; runtime not executed - no safe non-production app/database target)
 
 ---
 
 ## Reviews, users, dealers, and taxonomy
 
-### ALR-21 — Review moderation has no event history
+### ALR-21 - Review moderation has no event history
 - **Severity:** High
 - **Evidence:** `actions/dealer-reviews.ts` `moderateDealerReview` overwrites status/notes; no `logAdminAction`.
 - **Owner decision:** Append-only `DealerReviewModerationEvent` + audit log.
@@ -207,7 +207,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-REV-001`
 - **Status:** verified
 
-### ALR-22 — REJECTED vs HIDDEN review semantics unclear
+### ALR-22 - REJECTED vs HIDDEN review semantics unclear
 - **Severity:** Low
 - **Evidence:** Public queries use `APPROVED` only.
 - **Owner decision:** Document in admin UI; require reason. REJECTED = never publish; HIDDEN = withdraw after approval.
@@ -215,7 +215,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-REV-001`
 - **Status:** verified
 
-### ALR-23 — Review resubmit clears moderation metadata
+### ALR-23 - Review resubmit clears moderation metadata
 - **Severity:** Medium
 - **Evidence:** upsert sets `adminNotes: null`, `moderatedAt: null`.
 - **Owner decision:** Keep immutable prior events; do not null historical notes.
@@ -223,7 +223,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-REV-001`
 - **Status:** verified
 
-### ALR-24 — Admin reviews capped at 200, no filters
+### ALR-24 - Admin reviews capped at 200, no filters
 - **Severity:** Medium
 - **Evidence:** `app/(admin)/admin/reviews/page.tsx` `take: 200`.
 - **Owner decision:** Pending-first filters and pagination.
@@ -231,7 +231,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-REV-001`
 - **Status:** verified
 
-### ALR-25 — Self-deactivate is soft; admin delete is hard
+### ALR-25 - Self-deactivate is soft; admin delete is hard
 - **Severity:** Critical
 - **Evidence:** `actions/account.ts` vs `actions/admin/users.ts` deleteUser.
 - **Owner decision:** Unify on reversible soft-delete; restore action; hard purge is out of routine scope.
@@ -239,7 +239,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-IDN-001`
 - **Status:** verified
 
-### ALR-26 — Soft-deleted users look active in admin
+### ALR-26 - Soft-deleted users look active in admin
 - **Severity:** Medium
 - **Evidence:** `app/(admin)/admin/users/page.tsx` no `deletedAt` badge/filter.
 - **Owner decision:** Status badges, filters, restore controls, show `deletionReason`.
@@ -247,7 +247,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-IDN-001`
 - **Status:** verified
 
-### ALR-27 — User disable has no useful reason
+### ALR-27 - User disable has no useful reason
 - **Severity:** Medium
 - **Evidence:** UI never collects reason; defaults to `"Disabled by admin"`.
 - **Owner decision:** Required structured reason + optional detail.
@@ -255,7 +255,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-IDN-001`
 - **Status:** verified
 
-### ALR-28 — Dealer demotion leaves entitlements
+### ALR-28 - Dealer demotion leaves entitlements
 - **Severity:** High
 - **Evidence:** `setUserRole` / `downgradeDealerToUser` update role only.
 - **Owner decision:** Transactionally revoke grants and mark subscriptions cancel-at-period-end / local cancelled as policy allows.
@@ -263,7 +263,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-IDN-001`
 - **Status:** verified
 
-### ALR-29 — Dealer downgrade confirm closes early
+### ALR-29 - Dealer downgrade confirm closes early
 - **Severity:** Low
 - **Evidence:** `dealer-actions.tsx` closes confirm immediately.
 - **Owner decision:** Keep dialog until success/error.
@@ -271,7 +271,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** focused component test
 - **Status:** verified
 
-### ALR-30 — Inactive category/region does not hide existing listings
+### ALR-30 - Inactive category/region does not hide existing listings
 - **Severity:** High
 - **Evidence:** create UI filters `active: true`; `createListing` does not; search shows LIVE regardless.
 - **Owner decision:** Server-side `active` checks; existing LIVE listings remain until expiry/moderation (do not auto-destroy); warn with count on deactivate.
@@ -279,7 +279,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-TAX-001`
 - **Status:** verified
 
-### ALR-31 — Category/attribute mutations unaudited
+### ALR-31 - Category/attribute mutations unaudited
 - **Severity:** Medium
 - **Evidence:** `deleteAttributeDefinition`, `toggleCategoryActive`, `deleteCategory` skip `logAdminAction`.
 - **Owner decision:** Audit all taxonomy mutations; prefer deactivate over delete.
@@ -291,7 +291,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 
 ## Payments, content, media, waitlist, monitoring, operations
 
-### ALR-32 — Cancel-at-period-end stays locally ACTIVE
+### ALR-32 - Cancel-at-period-end stays locally ACTIVE
 - **Severity:** High
 - **Evidence:** `actions/admin/payments.ts` updates local status only when `immediately: true`.
 - **Owner decision:** Persist `cancelAtPeriodEnd` (and period end); reconcile via webhook.
@@ -299,7 +299,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-PAY-001`
 - **Status:** verified
 
-### ALR-33 — Refunds lack local reconciliation and reason
+### ALR-33 - Refunds lack local reconciliation and reason
 - **Severity:** Medium
 - **Evidence:** refund hits provider only; schema/UI have no required reason.
 - **Owner decision:** Required refund reason; local refund record; entitlement update; audit details.
@@ -307,7 +307,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-PAY-001`
 - **Status:** verified
 
-### ALR-34 — Waitlist delete irreversible and unaudited
+### ALR-34 - Waitlist delete irreversible and unaudited
 - **Severity:** Medium
 - **Evidence:** `actions/waitlist.ts` hard delete; no audit.
 - **Owner decision:** Soft-delete + `logAdminAction`.
@@ -315,7 +315,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-CMS-001`
 - **Status:** verified
 
-### ALR-35 — CMS unpublish/delete and live media deletion
+### ALR-35 - CMS unpublish/delete and live media deletion
 - **Severity:** Medium
 - **Evidence:** `publishedAt` set only on publish (`undefined` on draft); `deleteContentPage` hard-deletes; `actions/admin/media.ts` deletes LIVE images.
 - **Owner decision:** Clear `publishedAt` on unpublish; soft-delete pages; block LIVE image delete unless listing is non-public or reason recorded.
@@ -323,7 +323,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-CMS-001`
 - **Status:** verified
 
-### ALR-36 — Monitoring mute expiry stale
+### ALR-36 - Monitoring mute expiry stale
 - **Severity:** Medium
 - **Evidence:** alerts respect `mutedUntil`; status stays MUTED until manual reopen.
 - **Owner decision:** Treat expired mute as OPEN in queries; optional cron reopen; append status events.
@@ -331,7 +331,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 - **Verification:** `ALR-MON-001`
 - **Status:** verified
 
-### ALR-37 — Audit log write-only; seed/dev unsafe
+### ALR-37 - Audit log write-only; seed/dev unsafe
 - **Severity:** High
 - **Evidence:** `AdminAuditLog` has no admin UI; seed prints credentials and incomplete cleanup; `dev-bypass` gated only by `NODE_ENV`.
 - **Owner decision:** `/admin/audit` viewer; complete `logAdminAction` coverage; production-guard seed/dev; no credential logging; comprehensive cleanup.

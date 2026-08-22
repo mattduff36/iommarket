@@ -41,10 +41,10 @@ Envelope: `{ event, client_id, timestamp, data }`.
 
 Events:
 
-- `payment.received` — initial one-off or initial recurring signup
-- `payment.success` — subsequent monthly collection
+- `payment.received` - initial one-off or initial recurring signup
+- `payment.success` - subsequent monthly collection
 - `payment.failed`
-- `subscription.created` — associate only, never grant access
+- `subscription.created` - associate only, never grant access
 - `subscription.paused` / `subscription.cancelled` / `subscription.resumed`
 
 Amounts are decimal pounds. `payment_reference` is the only payment id. Renewals and lifecycle events use `customer_email` + `package` and have no `link_code`.

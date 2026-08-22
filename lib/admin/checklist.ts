@@ -46,7 +46,7 @@ export const DEFAULT_CHECKLIST_SEEDS: Array<{
   },
   {
     id: "seed-website-terms",
-    title: "Website T&Cs — avoid being an agent",
+    title: "Website T&Cs - avoid being an agent",
     notes: "Draft terms and conditions for the website.",
     labels: ["DM"],
   },
@@ -65,7 +65,7 @@ export const DEFAULT_CHECKLIST_SEEDS: Array<{
   },
   {
     id: "seed-listing-dropdowns",
-    title: "Reduce listing page with dropdowns — see Autotrader",
+    title: "Reduce listing page with dropdowns - see Autotrader",
     notes:
       "Potential look at reducing page with drop downs (performance, running cost etc).",
     labels: ["MD"],

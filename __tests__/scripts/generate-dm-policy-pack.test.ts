@@ -68,7 +68,7 @@ describe("DM policy pack generator MD-DM-001", () => {
       ]),
     );
     expect(firstIndex).toContain(
-      "Private working pack — not legal approval",
+      "Private working pack - not legal approval",
     );
   });
 

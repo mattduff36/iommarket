@@ -142,7 +142,7 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 
 ### 1. Supabase
 - **Anon key / JWT secret**: Supabase Dashboard → Settings → API → Reset keys.
-- **Service role key**: Same page — rotate separately.
+- **Service role key**: Same page - rotate separately.
 - **Auth hook secret**: Supabase Dashboard → Auth → Hooks → regenerate the signing secret; update `SUPABASE_AUTH_HOOK_SECRET` everywhere.
 - **Database password**: Supabase Dashboard → Settings → Database → Reset password; update all `POSTGRES_*` and `DATABASE_URL` vars.
 

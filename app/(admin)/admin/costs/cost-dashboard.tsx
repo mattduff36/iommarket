@@ -160,7 +160,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
                       {request.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{request.emailStatus ?? "—"}</TableCell>
+                  <TableCell>{request.emailStatus ?? "-"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -70,7 +70,7 @@ describe("PricingCards", () => {
       "Upgrade to featured listing for £8.75",
     ]);
     expect(getFreeLaunchFeatures(pricing)).toEqual([
-      "Private seller listing — free",
+      "Private seller listing - free",
       ...getSellerFeatures(pricing).slice(1),
     ]);
   });

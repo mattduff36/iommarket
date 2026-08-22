@@ -16,10 +16,10 @@ describe("createDefaultChecklistItems", () => {
     expect(items.map((item) => item.title)).toEqual([
       "GDPR advice",
       "As a dealer, how do you pause or cancel your subscription?",
-      "Website T&Cs — avoid being an agent",
+      "Website T&Cs - avoid being an agent",
       "Plate checker terms & conditions",
       "Become a founding dealership and receive 3 months free Pro listings",
-      "Reduce listing page with dropdowns — see Autotrader",
+      "Reduce listing page with dropdowns - see Autotrader",
       "Auction (commission), scrap / parts",
     ]);
     expect(items.every((item) => item.done === false)).toBe(true);

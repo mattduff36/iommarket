@@ -76,7 +76,7 @@ export function SettingsForm({ settings, envDefaults }: SettingsFormProps) {
         const dbValue = settingsMap.get(setting.key);
         const hasOverride = dbValue !== undefined;
         const currentValue = hasOverride ? String(dbValue) : "";
-        const envDefault = envDefaults[setting.key] ?? "—";
+        const envDefault = envDefaults[setting.key] ?? "-";
 
         return (
           <div key={setting.key} className="rounded-lg border border-border p-4">

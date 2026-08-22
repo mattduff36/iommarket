@@ -276,7 +276,7 @@ function DealerRow({ dealer }: DealerRowProps) {
                       {(access.source === "ADMIN_GRANT"
                         ? access.grantEndsAt
                         : access.currentPeriodEnd
-                      )?.toLocaleDateString("en-GB") ?? "—"}
+                      )?.toLocaleDateString("en-GB") ?? "-"}
                     </p>
                   </div>
                 ) : (

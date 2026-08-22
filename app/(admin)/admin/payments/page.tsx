@@ -185,7 +185,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   {(sub.source === "ADMIN_GRANT"
                     ? sub.grantEndsAt
                     : sub.currentPeriodEnd
-                  )?.toLocaleDateString("en-GB") ?? "—"}
+                  )?.toLocaleDateString("en-GB") ?? "-"}
                 </TableCell>
                 <TableCell className="text-xs text-text-tertiary">
                   {sub.source === "ADMIN_GRANT" ? "Free admin grant" : "Paid"}

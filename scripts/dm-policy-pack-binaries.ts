@@ -195,8 +195,8 @@ async function buildDocx(markdown: string, date: string) {
 
   const document = new Document({
     creator: "Code Lab Platforms Limited",
-    title: `DM policy pack — ${date}`,
-    description: "Private working pack — not legal approval",
+    title: `DM policy pack - ${date}`,
+    description: "Private working pack - not legal approval",
     sections: [{ children }],
   });
   return normalizeDocx(await Packer.toBuffer(document), date);
@@ -221,9 +221,9 @@ async function buildPdf(markdown: string, date: string) {
     bufferPages: false,
     margins: { top: 54, right: 54, bottom: 54, left: 54 },
     info: {
-      Title: `DM policy pack — ${date}`,
+      Title: `DM policy pack - ${date}`,
       Author: "Code Lab Platforms Limited",
-      Subject: "Private working pack — not legal approval",
+      Subject: "Private working pack - not legal approval",
       CreationDate: timestamp,
       ModDate: timestamp,
     },
