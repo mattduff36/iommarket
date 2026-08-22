@@ -207,6 +207,8 @@ npm run test:e2e:ui
 5. Configure Ripple webhook endpoint to `https://yourdomain.com/api/webhooks/payments`
 6. Deploy
 
+Vercel Preview deployments use a dedicated Supabase preview database. Production continues to use the main database.
+
 Build command: `prisma generate && next build` (configured in `package.json`)
 
 ## Project Structure
