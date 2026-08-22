@@ -1,14 +1,16 @@
 import { chromium, type Page } from "@playwright/test";
 import {
+  applyDetailEnrichment as applyGenericDetailEnrichment,
+  paginateClassicListing,
+  paginateVehicleSearch,
+  withPageNumber,
+} from "../dealer-stock-sync/connectors/netdirector";
+import {
   isClassicListRequest,
   isVueListRequest,
   transitUsedVansUrl,
-  withPageQuery,
 } from "./classic";
 import {
-  extractHasMoreResults,
-  extractSearchVehicles,
-  extractTotalPages,
   mergeDetailIntoCard,
   normalizeNetDirectorVehicle,
   vehicleIdentityToken,
@@ -16,19 +18,15 @@ import {
 import { OCEAN_SOURCES, type OceanSourceKey } from "./sources";
 import type { NormalizedVehicle, SourceListResult, SourceSearchContext } from "./types";
 
-export interface NetDirectorSearchContext extends SourceSearchContext {}
+export { paginateClassicListing, paginateVehicleSearch, withPageNumber };
+
+export type NetDirectorSearchContext = SourceSearchContext;
 
 export interface CapturedSearchRequest {
   url: string;
   method: string;
   headers: Record<string, string>;
   body: string | null;
-}
-
-interface SearchPageResult {
-  vehicles: unknown[];
-  totalPages: number;
-  hasMoreResults: boolean;
 }
 
 const BROWSER_UA =
@@ -54,28 +52,6 @@ export function buildSearchUrl(context: NetDirectorSearchContext, extraQuery = "
   return url.toString();
 }
 
-export function withPageNumber(body: string | null, page: number) {
-  if (!body) {
-    return JSON.stringify({ page, pageNumber: page, pageIndex: page });
-  }
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    if (typeof parsed.query === "string" && /currentPage:\s*\d+/.test(parsed.query)) {
-      parsed.query = parsed.query.replace(/currentPage:\s*\d+/, `currentPage: ${page}`);
-      return JSON.stringify(parsed);
-    }
-    if ("page" in parsed) parsed.page = page;
-    if ("pageNumber" in parsed) parsed.pageNumber = page;
-    if ("pageIndex" in parsed) parsed.pageIndex = page;
-    if (!("page" in parsed) && !("pageNumber" in parsed) && !("pageIndex" in parsed)) {
-      parsed.page = page;
-    }
-    return JSON.stringify(parsed);
-  } catch {
-    return body;
-  }
-}
-
 function sanitizeHeaders(headers?: Record<string, string>) {
   if (!headers) return {};
   const sanitized: Record<string, string> = {};
@@ -84,99 +60,6 @@ function sanitizeHeaders(headers?: Record<string, string>) {
     if (value) sanitized[key] = value;
   }
   return sanitized;
-}
-
-export async function fetchSearchPage(input: {
-  url: string;
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string | null;
-  fetchImpl?: typeof fetch;
-}): Promise<SearchPageResult> {
-  const fetchImpl = input.fetchImpl ?? fetch;
-  const method = (input.method ?? "POST").toUpperCase();
-  const response = await fetchImpl(input.url, {
-    method,
-    headers: {
-      accept: "application/json",
-      ...(method === "GET" ? {} : { "content-type": "application/json" }),
-      ...sanitizeHeaders(input.headers),
-    },
-    body: method === "GET" ? undefined : (input.body ?? undefined),
-  });
-  if (!response.ok) {
-    throw new Error(`vehicle-search failed: ${response.status} ${response.statusText}`);
-  }
-  const payload = await response.json();
-  const vehicles = extractSearchVehicles(payload);
-  return {
-    vehicles,
-    totalPages: extractTotalPages(payload, vehicles.length),
-    hasMoreResults: extractHasMoreResults(payload),
-  };
-}
-
-export async function paginateVehicleSearch(input: {
-  context: NetDirectorSearchContext;
-  captured?: CapturedSearchRequest | null;
-  fetchImpl?: typeof fetch;
-}) {
-  const firstUrl = input.captured?.url ?? buildSearchUrl(input.context);
-  const firstBody = withPageNumber(input.captured?.body ?? JSON.stringify({ page: 1 }), 1);
-  const first = await fetchSearchPage({
-    url: firstUrl,
-    method: input.captured?.method,
-    headers: input.captured?.headers,
-    body: firstBody,
-    fetchImpl: input.fetchImpl,
-  });
-
-  const vehicles = [...first.vehicles];
-  let pagesFetched = 1;
-  for (let page = 2; page <= first.totalPages; page += 1) {
-    const next = await fetchSearchPage({
-      url: firstUrl,
-      method: input.captured?.method,
-      headers: input.captured?.headers,
-      body: withPageNumber(input.captured?.body ?? JSON.stringify({ page }), page),
-      fetchImpl: input.fetchImpl,
-    });
-    vehicles.push(...next.vehicles);
-    pagesFetched += 1;
-    if (next.vehicles.length === 0) break;
-  }
-  return { vehicles, pagesFetched };
-}
-
-export async function paginateClassicListing(input: {
-  captured: CapturedSearchRequest;
-  fetchImpl?: typeof fetch;
-}) {
-  const first = await fetchSearchPage({
-    url: withPageQuery(input.captured.url, 1),
-    method: "GET",
-    headers: input.captured.headers,
-    fetchImpl: input.fetchImpl,
-  });
-  const vehicles = [...first.vehicles];
-  let pagesFetched = 1;
-  let page = 2;
-  let hasMore = first.hasMoreResults;
-  while (page <= first.totalPages || hasMore) {
-    if (page > 50) break;
-    const next = await fetchSearchPage({
-      url: withPageQuery(input.captured.url, page),
-      method: "GET",
-      headers: input.captured.headers,
-      fetchImpl: input.fetchImpl,
-    });
-    vehicles.push(...next.vehicles);
-    pagesFetched += 1;
-    hasMore = next.hasMoreResults;
-    if (next.vehicles.length === 0 || (!hasMore && page >= first.totalPages)) break;
-    page += 1;
-  }
-  return { vehicles, pagesFetched };
 }
 
 export function freezeListSnapshot(results: SourceListResult[]) {
@@ -190,25 +73,7 @@ export function applyDetailEnrichment(
   frozen: NormalizedVehicle[],
   detailsByToken: Map<string, NormalizedVehicle>,
 ) {
-  const frozenTokens = new Set(frozen.map((vehicle) => vehicleIdentityToken(vehicle)));
-  const extraTokens = [...detailsByToken.keys()].filter((token) => !frozenTokens.has(token));
-  if (extraTokens.length > 0) {
-    throw new Error(`Detail phase introduced new vehicles: ${extraTokens.join(", ")}`);
-  }
-
-  let detailMissing = 0;
-  const enriched: NormalizedVehicle[] = [];
-  for (const card of frozen) {
-    const detail = detailsByToken.get(vehicleIdentityToken(card));
-    if (!detail) {
-      const mappable = Boolean(card.make && card.model && card.year != null && card.mileage != null);
-      if (!mappable) detailMissing += 1;
-      enriched.push(card);
-      continue;
-    }
-    enriched.push(mergeDetailIntoCard(card, detail));
-  }
-  return { vehicles: enriched, detailMissing };
+  return applyGenericDetailEnrichment(frozen, detailsByToken, vehicleIdentityToken, mergeDetailIntoCard);
 }
 
 function contextFromCaptured(captured: CapturedSearchRequest): NetDirectorSearchContext {
