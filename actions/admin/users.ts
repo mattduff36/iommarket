@@ -60,7 +60,7 @@ export async function listUsers(input: ListUsersInput) {
       take: pageSize,
       include: {
         region: { select: { name: true } },
-        dealerProfile: { select: { id: true, name: true, verified: true } },
+        dealerProfile: { select: { id: true, name: true, verified: true, tier: true } },
         _count: { select: { listings: true, favourites: true } },
       },
     }),

@@ -14,6 +14,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { DealerActions } from "./dealer-actions";
+import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
+import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Dealers | Admin" };
@@ -33,6 +35,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const query = params.q ?? "";
   const verifiedFilter = params.verified === "true" ? true : params.verified === "false" ? false : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const now = new Date();
 
   const where: Prisma.DealerProfileWhereInput = getAdminDealerWhere();
   if (query) {
@@ -54,7 +57,18 @@ export default async function AdminDealersPage({ searchParams }: Props) {
         user: { select: { id: true, email: true, name: true, role: true, disabledAt: true } },
         _count: { select: { listings: true, subscriptions: true } },
         subscriptions: {
-          where: { status: "ACTIVE" },
+          where: {
+            OR: [
+              getPaidSubscriptionEntitlementWhere(now),
+              {
+                source: "ADMIN_GRANT",
+                status: "ACTIVE",
+                revokedAt: null,
+                grantStartsAt: { lte: now },
+                grantEndsAt: { gt: now },
+              },
+            ],
+          },
           select: {
             id: true,
             source: true,
@@ -132,6 +146,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
             <TableHead>Dealer</TableHead>
             <TableHead>Owner</TableHead>
             <TableHead>Verified</TableHead>
+            <TableHead>Package</TableHead>
             <TableHead>Subscription</TableHead>
             <TableHead>Listings</TableHead>
             <TableHead>Joined</TableHead>
@@ -144,7 +159,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
           ))}
           {dealers.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-text-tertiary py-8">
+              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
                 No dealers found.
               </TableCell>
             </TableRow>
@@ -185,6 +200,7 @@ interface DealerRowProps {
     id: string;
     name: string;
     slug: string;
+    tier: "STARTER" | "PRO";
     verified: boolean;
     createdAt: Date;
     user: {
@@ -245,6 +261,11 @@ function DealerRow({ dealer }: DealerRowProps) {
                 </Badge>
               </TableCell>
               <TableCell>
+                <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
+                  {getDealerPackageLabel(dealer.tier)}
+                </Badge>
+              </TableCell>
+              <TableCell>
                 {access ? (
                   <div className="space-y-1">
                     <Badge variant="success">
@@ -275,6 +296,8 @@ function DealerRow({ dealer }: DealerRowProps) {
                   userLabel={dealer.user.name ?? dealer.user.email}
                   verified={dealer.verified}
                   canGrantAccess={dealer.user.role === "DEALER"}
+                  currentTier={dealer.tier}
+                  hasActivePaidSubscription={Boolean(paidSubscription)}
                 />
               </TableCell>
     </TableRow>

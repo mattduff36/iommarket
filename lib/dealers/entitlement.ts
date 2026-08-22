@@ -188,11 +188,6 @@ export async function grantAdminDealerAccess(
     return { kind: "paid-access-preserved" as const, subscription: paidSubscription };
   }
 
-  await tx.dealerProfile.update({
-    where: { id: input.dealerId },
-    data: { tier: "STARTER" },
-  });
-
   const existingGrant = await tx.subscription.findFirst({
     where: {
       dealerId: input.dealerId,

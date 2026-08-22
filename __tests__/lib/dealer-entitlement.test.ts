@@ -249,10 +249,7 @@ describe("grantAdminDealerAccess", () => {
     });
 
     expect(result.kind).toBe("granted");
-    expect(tx.dealerProfile.update).toHaveBeenCalledWith({
-      where: { id: "dealer-1" },
-      data: { tier: "STARTER" },
-    });
+    expect(tx.dealerProfile.update).not.toHaveBeenCalled();
     expect(tx.subscription.create).toHaveBeenCalledWith({
       data: {
         dealerId: "dealer-1",
@@ -266,5 +263,41 @@ describe("grantAdminDealerAccess", () => {
         revokedAt: null,
       },
     });
+  });
+
+  it("admin-grant-preserves-tier: granting or extending free access does not overwrite complimentary PRO", async () => {
+    const existingGrant = {
+      id: "grant-1",
+      grantStartsAt: new Date("2026-07-01T20:00:00.000Z"),
+      grantEndsAt: new Date("2026-08-01T20:00:00.000Z"),
+    };
+    const tx = {
+      dealerProfile: {
+        update: vi.fn(),
+      },
+      subscription: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(existingGrant),
+        create: vi.fn(),
+        update: vi.fn().mockImplementation(async ({ data }) => ({
+          id: existingGrant.id,
+          ...data,
+        })),
+      },
+    };
+
+    const result = await grantAdminDealerAccess(tx as never, {
+      dealerId: "dealer-1",
+      adminId: "admin-1",
+      durationDays: 30,
+      now: NOW,
+    });
+
+    expect(result.kind).toBe("extended");
+    expect(tx.dealerProfile.update).not.toHaveBeenCalled();
+    expect(tx.subscription.create).not.toHaveBeenCalled();
+    expect(tx.subscription.update).toHaveBeenCalled();
   });
 });

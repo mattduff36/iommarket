@@ -13,6 +13,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { UserActions } from "./user-actions";
+import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
+import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Users | Admin" };
@@ -40,6 +42,8 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const roleFilter = params.role as "USER" | "DEALER" | "ADMIN" | undefined;
   const disabledFilter = params.disabled === "true" ? true : params.disabled === "false" ? false : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const now = new Date();
+  const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
 
   const where: Prisma.UserWhereInput = {};
   if (query) {
@@ -61,7 +65,19 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       take: PAGE_SIZE,
       include: {
         region: { select: { name: true } },
-        dealerProfile: { select: { id: true, name: true, verified: true } },
+        dealerProfile: {
+          select: {
+            id: true,
+            name: true,
+            verified: true,
+            tier: true,
+            subscriptions: {
+              where: paidEntitlementWhere,
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
         _count: { select: { listings: true } },
       },
     }),
@@ -153,6 +169,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           <TableRow>
             <TableHead>User</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Package</TableHead>
             <TableHead>Region</TableHead>
             <TableHead>Dealer</TableHead>
             <TableHead>Listings</TableHead>
@@ -185,6 +202,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   {user.role}
                 </Badge>
               </TableCell>
+              <TableCell>
+                {user.dealerProfile ? (
+                  <Badge variant={user.dealerProfile.tier === "PRO" ? "info" : "neutral"}>
+                    {getDealerPackageLabel(user.dealerProfile.tier)}
+                  </Badge>
+                ) : (
+                  <span className="text-text-tertiary text-sm">—</span>
+                )}
+              </TableCell>
               <TableCell className="text-sm text-text-secondary">
                 {user.region?.name ?? "—"}
               </TableCell>
@@ -216,13 +242,17 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   isDisabled={!!user.disabledAt}
                   isDeleted={!!user.deletedAt}
                   userLabel={user.name ?? user.email}
+                  currentTier={user.dealerProfile?.tier ?? null}
+                  hasActivePaidSubscription={
+                    (user.dealerProfile?.subscriptions.length ?? 0) > 0
+                  }
                 />
               </TableCell>
             </TableRow>
           ))}
           {users.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-text-tertiary py-8">
+              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
                 No users found.
               </TableCell>
             </TableRow>
