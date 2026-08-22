@@ -4,7 +4,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
-import { DEALER_TIER_LABELS } from "@/lib/config/dealer-tiers";
+import {
+  DEALER_TIER_LABELS,
+  getDealerListingCapFeature,
+} from "@/lib/config/dealer-tiers";
 import { getDealerPlanPricePence, getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { SubscribeForm } from "./subscribe-form";
@@ -17,7 +20,7 @@ export const metadata: Metadata = {
 const TIER_DETAILS = {
   STARTER: {
     features: [
-      "Up to 30 active listings",
+      getDealerListingCapFeature("STARTER"),
       "Dedicated dealer profile page",
       "Up to 20 photos per listing",
       "Priority moderation",
@@ -27,7 +30,7 @@ const TIER_DETAILS = {
   },
   PRO: {
     features: [
-      "Up to 100 active listings",
+      getDealerListingCapFeature("PRO"),
       "All Starter features",
       "Priority moderation",
       "Dealer dashboard",
