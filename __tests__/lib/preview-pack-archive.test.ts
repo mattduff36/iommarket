@@ -99,14 +99,40 @@ describe("preview pack archive index", () => {
       expect.objectContaining({
         dealerKey: "athol-garage",
         enabled: false,
+        loaded: false,
         materialized: false,
         listingCount: 0,
       }),
       expect.objectContaining({
         dealerKey: "mikes-motors",
         enabled: true,
+        loaded: true,
         materialized: true,
         listingCount: 34,
+      }),
+    ]);
+  });
+
+  it("marks empty database packs as loaded so Vercel can toggle them", () => {
+    const rows = mergePreviewPackRows({
+      archives: [],
+      packs: [
+        {
+          dealerKey: "vehicles-im",
+          displayName: "Vehicles.im",
+          enabled: false,
+          sourceRunId: "run-v",
+          listingCount: 0,
+          slug: "preview-vehicles-im",
+        },
+      ],
+    });
+    expect(rows).toEqual([
+      expect.objectContaining({
+        dealerKey: "vehicles-im",
+        loaded: true,
+        materialized: false,
+        enabled: false,
       }),
     ]);
   });

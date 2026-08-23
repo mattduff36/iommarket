@@ -50,7 +50,8 @@ export default async function PreviewPacksPage() {
         <h1 className="text-2xl font-bold text-text-primary">Preview packs</h1>
         <p className="mt-1 text-sm text-text-secondary">
           Toggle each dealer independently. Visible packs appear on the marketplace
-          for admin sessions only. First turn-on uploads photos from this machine.
+          for admin sessions only. Already-loaded packs can be shown or hidden on
+          any host. First-time photo upload still needs this PC.
         </p>
         <p className="mt-2 text-xs text-text-tertiary">
           {visibleCount} of {rows.length} visible
@@ -106,7 +107,9 @@ export default async function PreviewPacksPage() {
                       dealerKey={row.dealerKey}
                       displayName={row.displayName}
                       enabled={row.enabled}
+                      loaded={row.loaded}
                       materialized={row.materialized}
+                      archiveAvailable={archive.archiveAvailable}
                     />
                   </div>
                 </TableCell>

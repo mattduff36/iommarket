@@ -71,6 +71,7 @@ export interface PreviewPackListRow {
   importable: number | null;
   listingCount: number;
   enabled: boolean;
+  loaded: boolean;
   materialized: boolean;
   slug: string | null;
 }
@@ -137,6 +138,7 @@ export function mergePreviewPackRows(input: {
       importable: dealer.importable,
       listingCount: pack?.listingCount ?? 0,
       enabled: pack?.enabled ?? false,
+      loaded: Boolean(pack),
       materialized: Boolean(pack && pack.listingCount > 0),
       slug: pack?.slug ?? null,
     });
@@ -154,6 +156,7 @@ export function mergePreviewPackRows(input: {
       importable: null,
       listingCount: pack.listingCount,
       enabled: pack.enabled,
+      loaded: true,
       materialized: pack.listingCount > 0,
       slug: pack.slug,
     });

@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
-import { materializePreviewPack, setPreviewPackEnabled } from "@/lib/preview-packs/materialize";
+import {
+  materializePreviewPack,
+  previewPackExists,
+  setPreviewPackEnabled,
+} from "@/lib/preview-packs/materialize";
 import { assertPreviewDealerAllowed } from "@/lib/preview-packs/safety";
 import { registryGroupKey } from "@/lib/preview-packs/archive";
 import { z } from "zod";
@@ -28,6 +32,11 @@ export async function enablePreviewPack(input: { dealerKey: string }) {
       dealerKey: parsed.data.dealerKey,
       groupKey: registryGroupKey(parsed.data.dealerKey),
     });
+    if (await previewPackExists(parsed.data.dealerKey)) {
+      await setPreviewPackEnabled(parsed.data.dealerKey, true);
+      revalidatePreviewSurfaces();
+      return { data: { enabled: true } };
+    }
     const result = await materializePreviewPack(parsed.data.dealerKey);
     revalidatePreviewSurfaces();
     return { data: result };

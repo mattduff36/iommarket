@@ -24,6 +24,7 @@
     "db:seed:vehicles": "npx tsx scripts/seed-vehicle-catalogue.ts",
     "seed:admin": "npx tsx scripts/seed-admin-users.ts",
     "import:ocean-preview": "npx tsx scripts/import-ocean-inventory.ts",
+    "preview-packs:materialize": "npx tsx scripts/materialize-preview-packs.ts",
     "dealer-stock:probe": "npx tsx scripts/dealer-stock-sync/cli.ts probe",
     "dealer-stock:archive": "npx tsx scripts/dealer-stock-sync/cli.ts archive",
     "dealer-stock:import": "npx tsx scripts/dealer-stock-sync/cli.ts import",
