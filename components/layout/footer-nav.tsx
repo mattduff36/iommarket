@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { cn } from "@/lib/cn";
 import { sameLineSeparatorVisibility } from "@/lib/footer-nav-separators";
 
 type FooterNavItem = {
@@ -13,7 +14,13 @@ function readLineStarts(elements: Array<HTMLElement | null>): number[] {
   return elements.map((element) => element?.getBoundingClientRect().top ?? 0);
 }
 
-export function FooterNav({ items }: { items: FooterNavItem[] }) {
+export function FooterNav({
+  items,
+  className,
+}: {
+  items: FooterNavItem[];
+  className?: string;
+}) {
   const navRef = useRef<HTMLElement>(null);
   const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const [visibleSeparators, setVisibleSeparators] = useState<boolean[]>(() =>
@@ -60,7 +67,10 @@ export function FooterNav({ items }: { items: FooterNavItem[] }) {
   return (
     <nav
       ref={navRef}
-      className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0 text-center text-sm leading-snug"
+      className={cn(
+        "flex flex-wrap items-center justify-center gap-x-4 gap-y-0 text-center text-sm leading-snug",
+        className,
+      )}
       aria-label="Footer"
     >
       {items.map((item, index) => (
