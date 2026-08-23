@@ -5,6 +5,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import {
   listAvailablePreviewArchives,
+  listablePreviewPackRows,
   mergePreviewPackRows,
 } from "@/lib/preview-packs/archive";
 import { Badge } from "@/components/ui/badge";
@@ -31,17 +32,19 @@ export default async function PreviewPacksPage() {
       orderBy: { displayName: "asc" },
     }),
   ]);
-  const rows = mergePreviewPackRows({
-    archives: archive.dealers,
-    packs: packs.map((pack) => ({
-      dealerKey: pack.dealerKey,
-      displayName: pack.displayName,
-      enabled: pack.enabled,
-      sourceRunId: pack.sourceRunId,
-      listingCount: pack._count.listings,
-      slug: pack.dealerProfile.slug,
-    })),
-  });
+  const rows = listablePreviewPackRows(
+    mergePreviewPackRows({
+      archives: archive.dealers,
+      packs: packs.map((pack) => ({
+        dealerKey: pack.dealerKey,
+        displayName: pack.displayName,
+        enabled: pack.enabled,
+        sourceRunId: pack.sourceRunId,
+        listingCount: pack._count.listings,
+        slug: pack.dealerProfile.slug,
+      })),
+    }),
+  );
   const visibleCount = rows.filter((row) => row.enabled).length;
 
   return (

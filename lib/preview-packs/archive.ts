@@ -167,6 +167,10 @@ export function mergePreviewPackRows(input: {
   );
 }
 
+export function listablePreviewPackRows(rows: PreviewPackListRow[]) {
+  return rows.filter((row) => row.listingCount > 0);
+}
+
 export function dealerSnapshotPath(dealerKey: string, runId: string, root?: string) {
   return dealerDir(archiveRoot(root), runId, dealerKey);
 }

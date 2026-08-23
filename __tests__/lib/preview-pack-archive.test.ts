@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   findLatestRunForDealer,
   listAvailablePreviewArchives,
+  listablePreviewPackRows,
   mergePreviewPackRows,
 } from "@/lib/preview-packs/archive";
 
@@ -111,6 +112,41 @@ describe("preview pack archive index", () => {
         listingCount: 34,
       }),
     ]);
+  });
+
+  it("hides dealers that have no listings from the admin list", () => {
+    const rows = listablePreviewPackRows(
+      mergePreviewPackRows({
+        archives: [
+          {
+            dealerKey: "vehicles-im",
+            displayName: "Vehicles.im",
+            runId: "run-v",
+            uniqueVehicles: 0,
+            importable: 0,
+          },
+        ],
+        packs: [
+          {
+            dealerKey: "mikes-motors",
+            displayName: "Mikes Motors",
+            enabled: true,
+            sourceRunId: "run-m",
+            listingCount: 34,
+            slug: "preview-mikes-motors",
+          },
+          {
+            dealerKey: "vehicles-im",
+            displayName: "Vehicles.im",
+            enabled: false,
+            sourceRunId: "run-v",
+            listingCount: 0,
+            slug: "preview-vehicles-im",
+          },
+        ],
+      }),
+    );
+    expect(rows.map((row) => row.dealerKey)).toEqual(["mikes-motors"]);
   });
 
   it("marks empty database packs as loaded so Vercel can toggle them", () => {
