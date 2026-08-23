@@ -10,12 +10,14 @@ import { HomeVehicleCheck } from "@/components/vehicle-check/home-vehicle-check"
 import { DealerSpotlights } from "@/components/dealers/dealer-spotlights";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { getCurrentUser } from "@/lib/auth";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
-  getDealerSpotlightQuery,
+  getMarketplaceDealerSpotlightQuery,
   shuffleDealerSpotlights,
 } from "@/lib/dealers/spotlights";
 
@@ -33,7 +35,8 @@ function shuffleListings<T>(items: T[]): T[] {
 
 export default async function HomePage() {
   await expireStaleLiveListings();
-  const liveWhere = liveListingWhere();
+  const currentUser = await getCurrentUser();
+  const liveWhere = marketplaceListingWhere({ viewer: currentUser });
   /* Fetch categories and dealer/search datasets */
   const [categories, regions, makeDefs, modelDefs, dealerResults, soldCount, pricing] = await Promise.all([
     db.category.findMany({
@@ -55,7 +58,7 @@ export default async function HomePage() {
       where: { slug: "model" },
       select: { id: true },
     }),
-    db.dealerProfile.findMany(getDealerSpotlightQuery(liveWhere)),
+    db.dealerProfile.findMany(getMarketplaceDealerSpotlightQuery(liveWhere, currentUser)),
     db.listing.count({ where: { status: "SOLD" } }),
     getMarketplacePricing(),
   ]);

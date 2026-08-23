@@ -22,9 +22,8 @@ import {
 } from "@/lib/constants/fuel-types";
 import {
   expireStaleLiveListings,
-  liveListingWhere,
-  liveOrSoldListingWhere,
 } from "@/lib/listings/expiry";
+import { marketplaceListingWhere, marketplaceListingBadge } from "@/lib/listings/marketplace";
 import {
   FUEL_CONSUMPTION_MAX,
   FUEL_CONSUMPTION_MIN,
@@ -90,7 +89,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   const includeSold = sp.includeSold === "true";
   const now = new Date();
-  const liveVisibilityWhere = liveListingWhere(now);
+  const liveVisibilityWhere = marketplaceListingWhere({ viewer: currentUser, now });
   const currentYear = getCurrentYear();
   const minPrice = parseOptionalBoundedInteger(sp.minPrice, PRICE_MIN, PRICE_MAX);
   const maxPrice = parseOptionalBoundedInteger(sp.maxPrice, PRICE_MIN, PRICE_MAX);
@@ -219,7 +218,11 @@ export default async function SearchPage({ searchParams }: Props) {
     })),
   ];
 
-  const statusFilter = liveOrSoldListingWhere(includeSold, now);
+  const statusFilter = marketplaceListingWhere({
+    viewer: currentUser,
+    includeSold,
+    now,
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
@@ -454,6 +457,11 @@ export default async function SearchPage({ searchParams }: Props) {
             categoryName: listing.category.name,
             regionName: listing.region.name,
             writeOffCategory: listing.attributeValues[0]?.value ?? null,
+            badge: marketplaceListingBadge({
+              status: listing.status,
+              featured: listing.featured,
+            }),
+            showFavourite: listing.status !== "ADMIN_PREVIEW",
           }))}
           total={total}
           pageSize={pageSize}

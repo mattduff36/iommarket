@@ -66,7 +66,7 @@ export function buildAdminListingArchiveWhere(input: {
           }
       : input.status !== "ALL"
         ? { status: input.status as ListingStatus }
-        : {}),
+        : { status: { not: "ADMIN_PREVIEW" } }),
     ...(input.query
       ? {
           OR: [

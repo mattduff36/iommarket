@@ -21,6 +21,8 @@ interface ListingItem {
   categoryName: string;
   regionName: string;
   writeOffCategory?: string | null;
+  badge?: string;
+  showFavourite?: boolean;
 }
 
 interface Props {
@@ -187,11 +189,11 @@ export function ListingResultsClient({
               meta={listing.categoryName}
               featured={listing.featured}
               sold={listing.sold}
-              badge={listing.featured ? "Featured" : undefined}
+              badge={listing.badge ?? (listing.featured ? "Featured" : undefined)}
               writeOffCategory={listing.writeOffCategory}
               href={`/listings/${listing.id}`}
               listingId={listing.id}
-              showFavourite={enableFavourites}
+              showFavourite={enableFavourites && listing.showFavourite !== false}
               initialIsFavourite={Boolean(listing.isFavourite)}
             />
           </div>

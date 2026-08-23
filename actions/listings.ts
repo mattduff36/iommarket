@@ -51,8 +51,12 @@ import {
   submitRevision,
   updateDraftRevision,
 } from "@/lib/listings/revisions";
-import { isInPlaceEditable, usesPendingRevision } from "@/lib/listings/visibility";
-import { isListingPubliclyVisible } from "@/lib/listings/visibility";
+import {
+  isAdminPreviewListing,
+  isInPlaceEditable,
+  isListingPubliclyVisible,
+  usesPendingRevision,
+} from "@/lib/listings/visibility";
 import {
   type ListingPhotoMutationItem,
   type SyncListingImagesInput,
@@ -945,6 +949,7 @@ export async function reportListing(input: ReportListingInput) {
   });
   if (
     !targetListing ||
+    isAdminPreviewListing(targetListing.status) ||
     !isListingPubliclyVisible({
       status: targetListing.status,
       expiresAt: targetListing.expiresAt,
@@ -1037,6 +1042,7 @@ export async function contactSeller(input: ContactSellerInput) {
   });
   if (
     !listing ||
+    isAdminPreviewListing(listing.status) ||
     !isListingPubliclyVisible({
       status: listing.status,
       expiresAt: listing.expiresAt,

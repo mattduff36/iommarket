@@ -5,13 +5,12 @@ import { DealerDirectory } from "@/components/dealers/dealer-directory";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { db } from "@/lib/db";
 import {
-  getDealerDirectoryQuery,
+  getMarketplaceDealerDirectoryQuery,
   sortDealersAlphabetically,
 } from "@/lib/dealers/spotlights";
-import {
-  expireStaleLiveListings,
-  liveListingWhere,
-} from "@/lib/listings/expiry";
+import { getCurrentUser } from "@/lib/auth";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
@@ -23,8 +22,12 @@ export const metadata: Metadata = {
 
 export default async function DealersPage() {
   await expireStaleLiveListings();
+  const currentUser = await getCurrentUser();
   const dealers = await db.dealerProfile.findMany(
-    getDealerDirectoryQuery(liveListingWhere()),
+    getMarketplaceDealerDirectoryQuery(
+      marketplaceListingWhere({ viewer: currentUser }),
+      currentUser,
+    ),
   );
   const sortedDealers = sortDealersAlphabetically(dealers);
 

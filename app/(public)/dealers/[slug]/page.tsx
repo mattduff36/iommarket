@@ -14,10 +14,11 @@ import { cn } from "@/lib/cn";
 import { Globe, Phone, Calendar } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
-import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { marketplaceListingBadge, marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getDealerEntitlement } from "@/lib/dealers/entitlement";
-import { getPublicDealerWhere } from "@/lib/dealers/access";
+import { canViewMarketplaceDealerProfile, getMarketplaceDealerWhere } from "@/lib/dealers/access";
 import {
   buildDealerProfilePath,
   buildListingPath,
@@ -34,9 +35,10 @@ function stars(rating: number) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const currentUser = await getCurrentUser();
   const dealer = await db.dealerProfile.findFirst({
-    where: { slug, ...getPublicDealerWhere() },
-    select: { name: true, bio: true, slug: true },
+    where: { slug, ...getMarketplaceDealerWhere(currentUser) },
+    select: { name: true, bio: true, slug: true, isAdminPreview: true },
   });
   if (!dealer) return {};
   return {
@@ -45,13 +47,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: {
       canonical: buildCanonicalUrl(buildDealerProfilePath(dealer.slug)),
     },
+    robots: dealer.isAdminPreview ? { index: false, follow: false } : undefined,
   };
 }
 
 export default async function DealerProfilePage({ params }: Props) {
   await expireStaleLiveListings();
   const { slug } = await params;
-  const liveWhere = liveListingWhere();
+  const currentUser = await getCurrentUser();
+  const liveWhere = marketplaceListingWhere({ viewer: currentUser });
 
   const dealer = await db.dealerProfile.findUnique({
     where: { slug },
@@ -79,6 +83,7 @@ export default async function DealerProfilePage({ params }: Props) {
           deletedAt: true,
         },
       },
+      previewPack: { select: { enabled: true } },
     },
   });
 
@@ -91,7 +96,7 @@ export default async function DealerProfilePage({ params }: Props) {
     notFound();
   }
 
-  const [entitlement, reviewStats, approvedReviews, currentUser] = await Promise.all([
+  const [entitlement, reviewStats, approvedReviews] = await Promise.all([
     getDealerEntitlement(dealer.id, dealer.tier),
     db.dealerReview.aggregate({
       where: {
@@ -122,9 +127,17 @@ export default async function DealerProfilePage({ params }: Props) {
         },
       },
     }),
-    getCurrentUser(),
   ]);
-  if (!entitlement) notFound();
+  if (
+    !canViewMarketplaceDealerProfile({
+      viewer: currentUser,
+      isAdminPreview: dealer.isAdminPreview,
+      previewPackEnabled: dealer.previewPack?.enabled === true,
+      hasEntitlement: Boolean(entitlement),
+    })
+  ) {
+    notFound();
+  }
   const reviewCount = reviewStats._count._all;
   const averageRating = reviewStats._avg.rating
     ? Number(reviewStats._avg.rating.toFixed(1))
@@ -303,7 +316,7 @@ export default async function DealerProfilePage({ params }: Props) {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface p-5">
+        {dealer.isAdminPreview ? null : <div className="rounded-lg border border-border bg-surface p-5">
           <h3 className="text-base font-semibold text-text-primary">Leave a Review</h3>
           <p className="mt-1 text-xs text-text-secondary">
             Every review is moderated before it appears publicly. Reviews may be
@@ -320,7 +333,7 @@ export default async function DealerProfilePage({ params }: Props) {
           <div className="mt-4">
             <DealerReviewForm dealerId={dealer.id} canComment={Boolean(currentUser)} />
           </div>
-        </div>
+        </div>}
       </div>
 
       <h2 className="section-heading-accent text-xl font-bold text-text-primary font-heading mb-8">
@@ -338,7 +351,10 @@ export default async function DealerProfilePage({ params }: Props) {
               location={listing.region.name}
               meta={listing.category.name}
               featured={listing.featured}
-              badge={listing.featured ? "Featured" : undefined}
+              badge={marketplaceListingBadge({
+                status: listing.status,
+                featured: listing.featured,
+              })}
               writeOffCategory={listing.attributeValues[0]?.value ?? null}
               href={buildListingPath(listing.id)}
             />

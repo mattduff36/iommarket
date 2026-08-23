@@ -82,6 +82,11 @@ describe("sitemap", () => {
         }),
       }),
     );
+    expect(mocks.listingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: "LIVE" },
+      }),
+    );
     expect(mocks.categoryFindMany).toHaveBeenCalledWith({
       where: { active: true },
       select: { slug: true, createdAt: true },

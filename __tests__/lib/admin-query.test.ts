@@ -19,7 +19,11 @@ describe("admin listing archive ALR-ADM-001", () => {
     expect(buildAdminListingArchiveWhere({ status: "TAKEN_DOWN", query: "" })).toEqual({
       status: "TAKEN_DOWN",
     });
+    expect(buildAdminListingArchiveWhere({ status: "ALL", query: "" })).toEqual({
+      status: { not: "ADMIN_PREVIEW" },
+    });
     expect(buildAdminListingArchiveWhere({ status: "ALL", query: "bmw" })).toEqual({
+      status: { not: "ADMIN_PREVIEW" },
       OR: [
         { title: { contains: "bmw", mode: "insensitive" } },
         { user: { email: { contains: "bmw", mode: "insensitive" } } },

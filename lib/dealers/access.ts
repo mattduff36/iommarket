@@ -34,12 +34,45 @@ export function getDealerProfileDefaults(user: DealerProfileDefaultsSubject) {
 
 export function getAdminDealerWhere(): Prisma.DealerProfileWhereInput {
   return {
+    isAdminPreview: false,
     user: {
       role: {
         in: DEALER_ACCOUNT_ROLES,
       },
     },
   };
+}
+
+export function getEnabledPreviewDealerWhere(): Prisma.DealerProfileWhereInput {
+  return {
+    isAdminPreview: true,
+    previewPack: { enabled: true },
+  };
+}
+
+export function getMarketplaceDealerWhere(
+  viewer?: { role: string } | null,
+  now = new Date(),
+): Prisma.DealerProfileWhereInput {
+  const publicWhere = getPublicDealerWhere(now);
+  if (viewer?.role !== "ADMIN") return publicWhere;
+  return {
+    OR: [publicWhere, getEnabledPreviewDealerWhere()],
+  };
+}
+
+export function canViewMarketplaceDealerProfile(input: {
+  viewer?: { role: string } | null;
+  isAdminPreview: boolean;
+  previewPackEnabled: boolean;
+  hasEntitlement: boolean;
+}) {
+  if (input.hasEntitlement && !input.isAdminPreview) return true;
+  return (
+    input.viewer?.role === "ADMIN" &&
+    input.isAdminPreview &&
+    input.previewPackEnabled
+  );
 }
 
 export function getPublicDealerWhere(

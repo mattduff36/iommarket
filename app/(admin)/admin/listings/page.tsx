@@ -39,6 +39,7 @@ const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error"
   TAKEN_DOWN: "error",
   REJECTED: "error",
   SOLD: "premium",
+  ADMIN_PREVIEW: "info",
 };
 
 interface ListingReviewLinkProps {

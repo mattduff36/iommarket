@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getPublicDealerWhere } from "@/lib/dealers/access";
+import { getMarketplaceDealerWhere } from "@/lib/dealers/access";
 import {
   buildCategorySearchPath,
   buildDealerProfilePath,
@@ -16,13 +16,14 @@ export interface PublicListingDealer {
 export async function getPublicListingDealer(
   dealerId: string | null,
   now = new Date(),
+  viewer?: { role: string } | null,
 ): Promise<PublicListingDealer | null> {
   if (!dealerId) return null;
 
   return db.dealerProfile.findFirst({
     where: {
       id: dealerId,
-      ...getPublicDealerWhere(now),
+      ...getMarketplaceDealerWhere(viewer, now),
     },
     select: {
       name: true,

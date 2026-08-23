@@ -8,6 +8,7 @@ const getCurrentUserMock = vi.fn();
 const getDealerEntitlementMock = vi.fn();
 const expireStaleLiveListingsMock = vi.fn();
 const liveListingWhereMock = vi.fn(() => ({ status: "LIVE" }));
+const marketplaceListingWhereMock = vi.fn(() => ({ status: "LIVE" }));
 const findUniqueMock = vi.fn();
 const findFirstMock = vi.fn();
 const aggregateMock = vi.fn();
@@ -35,6 +36,11 @@ vi.mock("@/lib/dealers/entitlement", () => ({
 vi.mock("@/lib/listings/expiry", () => ({
   expireStaleLiveListings: expireStaleLiveListingsMock,
   liveListingWhere: liveListingWhereMock,
+}));
+
+vi.mock("@/lib/listings/marketplace", () => ({
+  marketplaceListingWhere: marketplaceListingWhereMock,
+  marketplaceListingBadge: () => undefined,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -78,6 +84,8 @@ function buildDealer(overrides: { verified: boolean }) {
     phone: "01624 671234",
     logoUrl: null,
     tier: "STARTER",
+    isAdminPreview: false,
+    previewPack: null,
     createdAt: new Date("2026-03-01T00:00:00.000Z"),
     listings: [],
     user: {
@@ -134,7 +142,7 @@ describe("DealerProfilePage", () => {
           subscriptions: expect.any(Object),
           user: expect.any(Object),
         }),
-        select: { name: true, bio: true, slug: true },
+        select: { name: true, bio: true, slug: true, isAdminPreview: true },
       }),
     );
   });

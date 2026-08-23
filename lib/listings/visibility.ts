@@ -12,12 +12,20 @@ export function isListingPubliclyVisible(input: {
   return !isListingEffectivelyExpired(input);
 }
 
+export function isAdminPreviewListing(status: ListingStatus) {
+  return status === "ADMIN_PREVIEW";
+}
+
 export function canViewListing(input: {
   status: ListingStatus;
   expiresAt: Date | null;
   listingUserId: string;
   viewer?: { id: string; role: string } | null;
+  previewPackEnabled?: boolean | null;
 }) {
+  if (isAdminPreviewListing(input.status)) {
+    return input.viewer?.role === "ADMIN" && input.previewPackEnabled === true;
+  }
   if (isListingPubliclyVisible(input)) return true;
   if (!input.viewer) return false;
   if (input.viewer.role === "ADMIN") return true;

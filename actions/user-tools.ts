@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
-import { isListingPubliclyVisible } from "@/lib/listings/visibility";
+import { isAdminPreviewListing, isListingPubliclyVisible } from "@/lib/listings/visibility";
 import { z } from "zod";
 
 const toggleFavouriteSchema = z.object({
@@ -39,6 +39,7 @@ export async function toggleFavourite(input: { listingId: string }) {
   });
   if (
     !listing ||
+    isAdminPreviewListing(listing.status) ||
     !isListingPubliclyVisible({
       status: listing.status,
       expiresAt: listing.expiresAt,
