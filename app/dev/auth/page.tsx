@@ -20,6 +20,20 @@ export default function DevAuthPage() {
       });
 
       if (res.ok) {
+        const data: unknown = await res.json();
+        const redirect =
+          typeof data === "object" &&
+          data !== null &&
+          "redirect" in data &&
+          typeof data.redirect === "string"
+            ? data.redirect
+            : null;
+
+        if (redirect && /^https?:\/\//i.test(redirect)) {
+          window.location.assign(redirect);
+          return;
+        }
+
         // Password correct → cookie set → go to site
         router.push("/");
         router.refresh();
