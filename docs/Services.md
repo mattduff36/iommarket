@@ -130,7 +130,7 @@
   - `LAUNCH_FREE_UNTIL`
   - `FREE_LISTING_WINDOW_DAYS` (fallback strategy)
   - `DEV_PASS` (development-only gate)
-  - `PREVIEW_PASS` / `PREVIEW_URL` (optional /dev/auth redirect to a preview deployment)
+  - `PREVIEW_PASS` / `PREVIEW_URL` (optional /preview redirect to a preview deployment)
 - **Notes**:
   - staging should mirror production behavior as closely as possible.
   - all secrets must remain server-side and not leak to client bundles.
