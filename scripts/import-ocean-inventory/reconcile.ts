@@ -80,7 +80,7 @@ function mergeVehicles(records: NormalizedVehicle[]): NormalizedVehicle {
   };
 }
 
-function identityFor(vehicle: NormalizedVehicle): { key: string; kind: IdentityKind } | null {
+export function identityFor(vehicle: NormalizedVehicle): { key: string; kind: IdentityKind } | null {
   if (vehicle.stockId) return { key: `stockId:${vehicle.stockId.toLowerCase()}`, kind: "stockId" };
   if (vehicle.registration) {
     return {

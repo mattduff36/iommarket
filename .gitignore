@@ -50,3 +50,6 @@ NUL
 
 # Local Supabase CLI cache
 supabase/.temp/
+
+# Local one-off artifacts (preview enrichment snapshots, leftover manifests)
+.local/
