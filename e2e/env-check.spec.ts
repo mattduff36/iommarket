@@ -475,6 +475,22 @@ test.describe("[AppConfig] Application-level env vars", () => {
     // Response should set the dev-auth cookie
     const setCookie = goodRes.headers()["set-cookie"] ?? "";
     expect(setCookie).toMatch(/dev-auth/);
+
+    const previewPass = process.env.PREVIEW_PASS;
+    const previewUrl = process.env.PREVIEW_URL;
+    if (!previewPass || !previewUrl) {
+      return;
+    }
+
+    const previewRes = await request.post("/api/dev-auth", {
+      headers: { "Content-Type": "application/json" },
+      data: JSON.stringify({ password: previewPass }),
+    });
+    expect(previewRes.status()).toBe(200);
+    const previewBody = (await previewRes.json()) as { redirect?: string };
+    expect(previewBody.redirect).toBe(previewUrl);
+    const previewCookie = previewRes.headers()["set-cookie"] ?? "";
+    expect(previewCookie).not.toMatch(/dev-auth/);
   });
 });
 

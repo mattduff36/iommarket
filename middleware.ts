@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { shouldEnforceDevGate } from "@/lib/dev-gate";
+import { resolvePreviewAccessPath } from "@/lib/preview-access";
 
 function isPublicPath(pathname: string): boolean {
-  if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/dev/auth") return true;
+  if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/preview") return true;
   if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo") || pathname.startsWith("/vehicle-check") || pathname === "/privacy" || pathname === "/terms" || pathname === "/cookies" || pathname === "/dealer-terms" || pathname === "/private-seller-terms" || pathname === "/acceptable-use" || pathname === "/refunds" || pathname === "/vehicle-check-terms" || pathname === "/contact" || pathname === "/safety") return true;
   return false;
 }
@@ -26,12 +27,13 @@ export default async function middleware(request: NextRequest) {
   }
 
   /* ------------------------------------------------------------------ */
-  /*  2. Always allow the dev auth page; redirect /dev → /dev/auth       */
+  /*  2. Always allow the preview page; redirect /dev → /preview         */
   /* ------------------------------------------------------------------ */
-  if (pathname === "/dev") {
-    return NextResponse.redirect(new URL("/dev/auth", request.url));
+  const previewAccess = resolvePreviewAccessPath(pathname);
+  if (previewAccess?.action === "redirect") {
+    return NextResponse.redirect(new URL(previewAccess.to, request.url));
   }
-  if (pathname === "/dev/auth") {
+  if (previewAccess?.action === "allow") {
     return NextResponse.next();
   }
 

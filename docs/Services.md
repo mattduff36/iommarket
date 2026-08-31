@@ -130,6 +130,7 @@
   - `LAUNCH_FREE_UNTIL`
   - `FREE_LISTING_WINDOW_DAYS` (fallback strategy)
   - `DEV_PASS` (holding-page gate on production and local; skipped on Vercel Preview)
+  - `PREVIEW_PASS` / `PREVIEW_URL` (optional /preview redirect to a preview deployment)
 - **Notes**:
   - staging should mirror production behavior as closely as possible.
   - all secrets must remain server-side and not leak to client bundles.
