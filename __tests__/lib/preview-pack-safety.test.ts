@@ -3,6 +3,8 @@ import {
   assertNotOceanDealerProfile,
   assertPreviewDealerAllowed,
   isExcludedPreviewDealerKey,
+  isPreviewSystemAuthUserId,
+  isPreviewSystemEmail,
   isProtectedPreviewOwnerEmail,
   previewSystemAuthUserId,
   previewSystemEmail,
@@ -28,6 +30,10 @@ describe("preview pack safety", () => {
     ).toThrow(/Ocean owner/);
     expect(previewSystemEmail("athol-garage")).not.toContain("mattduff36");
     expect(previewSystemAuthUserId("athol-garage")).toBe("preview-system:athol-garage");
+    expect(isPreviewSystemEmail("preview+pextray@preview.internal")).toBe(true);
+    expect(isPreviewSystemEmail("sales@manxmotors.im")).toBe(false);
+    expect(isPreviewSystemAuthUserId("preview-system:pextray")).toBe(true);
+    expect(isPreviewSystemAuthUserId("auth0|real-user")).toBe(false);
     expect(() =>
       assertNotOceanDealerProfile({
         dealerId: "ocean-dealer-id",

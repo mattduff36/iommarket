@@ -28,7 +28,7 @@ import {
   type RestoreUserInput,
   type SetUserRegionInput,
 } from "@/lib/validations/admin";
-import type { Prisma } from "@prisma/client";
+import { buildAdminUsersWhere } from "@/lib/admin/query";
 
 const ROLE_CHANGE_TRANSACTION_ATTEMPTS = 3;
 
@@ -40,17 +40,12 @@ export async function listUsers(input: ListUsersInput) {
 
   const { query, role, regionId, disabled, page, pageSize } = parsed.data;
 
-  const where: Prisma.UserWhereInput = {};
-  if (query) {
-    where.OR = [
-      { email: { contains: query, mode: "insensitive" } },
-      { name: { contains: query, mode: "insensitive" } },
-    ];
-  }
-  if (role) where.role = role;
-  if (regionId) where.regionId = regionId;
-  if (disabled === true) where.disabledAt = { not: null };
-  if (disabled === false) where.disabledAt = null;
+  const where = buildAdminUsersWhere({
+    query,
+    role,
+    regionId,
+    disabled,
+  });
 
   const [users, total] = await Promise.all([
     db.user.findMany({

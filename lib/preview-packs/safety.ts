@@ -2,13 +2,22 @@ export const OCEAN_OWNER_EMAIL = "mattduff36@gmail.com";
 export const OCEAN_DEALER_NAME = "Ocean Motor Village";
 export const OCEAN_DEALER_KEY = "ocean-motor-village";
 export const PREVIEW_EMAIL_DOMAIN = "preview.internal";
+export const PREVIEW_AUTH_USER_ID_PREFIX = "preview-system:";
 
 export function previewSystemEmail(dealerKey: string) {
   return `preview+${dealerKey}@${PREVIEW_EMAIL_DOMAIN}`;
 }
 
 export function previewSystemAuthUserId(dealerKey: string) {
-  return `preview-system:${dealerKey}`;
+  return `${PREVIEW_AUTH_USER_ID_PREFIX}${dealerKey}`;
+}
+
+export function isPreviewSystemEmail(email: string) {
+  return email.trim().toLowerCase().endsWith(`@${PREVIEW_EMAIL_DOMAIN}`);
+}
+
+export function isPreviewSystemAuthUserId(authUserId: string) {
+  return authUserId.startsWith(PREVIEW_AUTH_USER_ID_PREFIX);
 }
 
 export function previewDealerSlug(dealerKey: string) {

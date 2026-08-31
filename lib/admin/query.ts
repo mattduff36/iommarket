@@ -1,4 +1,8 @@
-import type { ListingStatus, Prisma } from "@prisma/client";
+import type { ListingStatus, Prisma, UserRole } from "@prisma/client";
+import {
+  PREVIEW_AUTH_USER_ID_PREFIX,
+  PREVIEW_EMAIL_DOMAIN,
+} from "@/lib/preview-packs/safety";
 
 export const ADMIN_LISTING_STATUS_FILTERS = [
   "ALL",
@@ -48,6 +52,45 @@ export function splitPendingFirstPage(input: {
 
 export function adminTotalPages(total: number, pageSize: number) {
   return Math.max(1, Math.ceil(total / pageSize));
+}
+
+export function excludePreviewSystemUsersWhere(): Prisma.UserWhereInput {
+  return {
+    NOT: [
+      {
+        email: {
+          endsWith: `@${PREVIEW_EMAIL_DOMAIN}`,
+          mode: "insensitive",
+        },
+      },
+      { authUserId: { startsWith: PREVIEW_AUTH_USER_ID_PREFIX } },
+      { dealerProfile: { isAdminPreview: true } },
+    ],
+  };
+}
+
+export function buildAdminUsersWhere(input: {
+  query?: string;
+  role?: UserRole;
+  regionId?: string;
+  disabled?: boolean;
+  deleted?: boolean;
+}): Prisma.UserWhereInput {
+  const where: Prisma.UserWhereInput = {
+    ...excludePreviewSystemUsersWhere(),
+  };
+  if (input.query) {
+    where.OR = [
+      { email: { contains: input.query, mode: "insensitive" } },
+      { name: { contains: input.query, mode: "insensitive" } },
+    ];
+  }
+  if (input.role) where.role = input.role;
+  if (input.regionId) where.regionId = input.regionId;
+  if (input.disabled === true) where.disabledAt = { not: null };
+  if (input.disabled === false) where.disabledAt = null;
+  if (input.deleted) where.deletedAt = { not: null };
+  return where;
 }
 
 export function buildAdminListingArchiveWhere(input: {

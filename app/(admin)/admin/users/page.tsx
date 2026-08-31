@@ -15,7 +15,7 @@ import {
 import { UserActions } from "./user-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
-import type { Prisma } from "@prisma/client";
+import { buildAdminUsersWhere } from "@/lib/admin/query";
 
 export const metadata: Metadata = { title: "Users | Admin" };
 
@@ -45,17 +45,12 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const now = new Date();
   const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
 
-  const where: Prisma.UserWhereInput = {};
-  if (query) {
-    where.OR = [
-      { email: { contains: query, mode: "insensitive" } },
-      { name: { contains: query, mode: "insensitive" } },
-    ];
-  }
-  if (roleFilter) where.role = roleFilter;
-  if (disabledFilter === true) where.disabledAt = { not: null };
-  if (disabledFilter === false) where.disabledAt = null;
-  if (params.disabled === "deleted") where.deletedAt = { not: null };
+  const where = buildAdminUsersWhere({
+    query,
+    role: roleFilter,
+    disabled: disabledFilter,
+    deleted: params.disabled === "deleted",
+  });
 
   const [users, total] = await Promise.all([
     db.user.findMany({

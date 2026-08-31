@@ -3,6 +3,7 @@ import {
   ADMIN_LISTING_STATUS_FILTERS,
   adminTotalPages,
   buildAdminListingArchiveWhere,
+  buildAdminUsersWhere,
   parseAdminListingStatus,
   parseAdminPage,
   splitPendingFirstPage,
@@ -49,6 +50,35 @@ describe("admin listing archive ALR-ADM-001", () => {
     expect(splitPendingFirstPage({ page: 2, pageSize: 25, pendingCount: 3 })).toEqual({
       pending: { skip: 0, take: 0 },
       rest: { skip: 22, take: 25 },
+    });
+  });
+});
+
+describe("admin users list", () => {
+  it("excludes preview system accounts from the default users query", () => {
+    expect(buildAdminUsersWhere({})).toEqual({
+      NOT: [
+        { email: { endsWith: "@preview.internal", mode: "insensitive" } },
+        { authUserId: { startsWith: "preview-system:" } },
+        { dealerProfile: { isAdminPreview: true } },
+      ],
+    });
+  });
+
+  it("keeps search and role filters while still hiding preview dealers", () => {
+    expect(
+      buildAdminUsersWhere({ query: "manx", role: "DEALER" }),
+    ).toEqual({
+      NOT: [
+        { email: { endsWith: "@preview.internal", mode: "insensitive" } },
+        { authUserId: { startsWith: "preview-system:" } },
+        { dealerProfile: { isAdminPreview: true } },
+      ],
+      OR: [
+        { email: { contains: "manx", mode: "insensitive" } },
+        { name: { contains: "manx", mode: "insensitive" } },
+      ],
+      role: "DEALER",
     });
   });
 });

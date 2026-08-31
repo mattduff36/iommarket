@@ -29,7 +29,7 @@ export function SiteFooter() {
             </p>
           </div>
 
-          <FooterNav items={FOOTER_NAV_ITEMS} className="hidden md:flex" />
+          <FooterNav items={FOOTER_NAV_ITEMS} />
 
           <div className="text-left text-xs leading-snug text-metallic-500 md:text-right">
             <div>
