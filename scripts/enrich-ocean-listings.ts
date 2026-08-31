@@ -4,6 +4,7 @@
  *
  * Dry-run: npx tsx scripts/enrich-ocean-listings.ts
  * Apply:   npx tsx scripts/enrich-ocean-listings.ts --apply
+ * Accept model mismatch: --accept-model-mismatch path.json
  * Rollback: npx tsx scripts/enrich-ocean-listings.ts --rollback path/to/snapshot.json
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -19,6 +20,11 @@ import {
   loadEnrichableListings,
   rollbackEnrichmentSnapshot,
 } from "./import-ocean-inventory/enrich-apply";
+import {
+  parseAcceptModelMismatchFile,
+  requireAcceptModelMismatchPath,
+  validateAcceptModelMismatchIds,
+} from "./import-ocean-inventory/enrich-accept";
 import { parsePlateOverrideFile } from "./import-ocean-inventory/enrich-plates";
 import { runEnrichPipeline } from "./import-ocean-inventory/enrich-pipeline";
 import { ENRICH_DEFAULT_LOOKUP_DELAY_MS, type EnrichSnapshot } from "./import-ocean-inventory/enrich-types";
@@ -128,6 +134,7 @@ async function main() {
   const apply = hasFlag("--apply");
   const rollbackPath = argValue("--rollback");
   const platesPath = argValue("--plates");
+  const acceptPath = requireAcceptModelMismatchPath(process.argv);
   const delayRaw = argValue("--lookup-delay-ms");
   const delayMs = delayRaw ? Number(delayRaw) : ENRICH_DEFAULT_LOOKUP_DELAY_MS;
   const { prisma, pool } = createPrisma();
@@ -143,6 +150,12 @@ async function main() {
     }
 
     const listings = await loadEnrichableListings(prisma, dealer.dealerId);
+    const acceptModelMismatchIds = acceptPath
+      ? parseAcceptModelMismatchFile(JSON.parse(await readFile(acceptPath, "utf8")))
+      : undefined;
+    if (acceptModelMismatchIds) {
+      validateAcceptModelMismatchIds({ listingIds: acceptModelMismatchIds, listings });
+    }
     const scraped = await scrapeSources();
     const overrides = platesPath
       ? parsePlateOverrideFile(JSON.parse(await readFile(platesPath, "utf8")))
@@ -156,6 +169,7 @@ async function main() {
       listings,
       sourceResults: scraped.sourceResults,
       overrides,
+      acceptModelMismatchIds,
       lookup: (registration) => getVehicleCheckResult(registration),
       sleep,
       delayMs: Number.isFinite(delayMs) ? delayMs : ENRICH_DEFAULT_LOOKUP_DELAY_MS,

@@ -45,26 +45,41 @@ export async function evaluateLookupIdentity(input: {
   lookupModel: string | null;
   lookupYear: number | null;
   catalogueLookup?: CatalogueIdentityLookup;
-}): Promise<{ ok: true } | { ok: false; reason: EnrichReasonCode }> {
+  acceptModelMismatch?: boolean;
+}): Promise<
+  { ok: true; modelCorroborationWaived: boolean } | { ok: false; reason: EnrichReasonCode }
+> {
   if (!input.listingMake.trim() || !input.lookupMake?.trim()) {
     return { ok: false, reason: "skip-make-mismatch" };
   }
   if (!makesAgree(input.listingMake, input.lookupMake)) {
     return { ok: false, reason: "skip-make-mismatch" };
   }
+
+  let modelCorroborationWaived = false;
   if (!input.listingModel.trim() || !input.lookupModel?.trim()) {
-    return { ok: false, reason: "skip-model-mismatch" };
+    if (!input.acceptModelMismatch) {
+      return { ok: false, reason: "skip-model-mismatch" };
+    }
+    modelCorroborationWaived = true;
+  } else {
+    const modelOk = await modelsAgree({
+      listingModel: input.listingModel,
+      lookupModel: input.lookupModel,
+      listingMake: input.listingMake,
+      lookupMake: input.lookupMake,
+      catalogueLookup: input.catalogueLookup,
+    });
+    if (!modelOk) {
+      if (!input.acceptModelMismatch) {
+        return { ok: false, reason: "skip-model-mismatch" };
+      }
+      modelCorroborationWaived = true;
+    }
   }
-  const modelOk = await modelsAgree({
-    listingModel: input.listingModel,
-    lookupModel: input.lookupModel,
-    listingMake: input.listingMake,
-    lookupMake: input.lookupMake,
-    catalogueLookup: input.catalogueLookup,
-  });
-  if (!modelOk) return { ok: false, reason: "skip-model-mismatch" };
+
   if (!yearsAgree(input.listingYear, input.lookupYear)) {
     return { ok: false, reason: "skip-year-mismatch" };
   }
-  return { ok: true };
+  return { ok: true, modelCorroborationWaived };
 }

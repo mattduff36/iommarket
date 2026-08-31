@@ -17,6 +17,12 @@ import {
   secondaryMatchKey,
 } from "../../scripts/import-ocean-inventory/enrich-match";
 import { mergeEmptyAttributes, lookupValuesBySlug } from "../../scripts/import-ocean-inventory/enrich-merge";
+import {
+  AcceptModelMismatchError,
+  parseAcceptModelMismatchFile,
+  requireAcceptModelMismatchPath,
+  validateAcceptModelMismatchIds,
+} from "../../scripts/import-ocean-inventory/enrich-accept";
 import { parsePlateOverrideFile, PlateOverrideError, validatePlateOverrides } from "../../scripts/import-ocean-inventory/enrich-plates";
 import { runEnrichPipeline } from "../../scripts/import-ocean-inventory/enrich-pipeline";
 import { buildSnapshot, verifySnapshot } from "../../scripts/import-ocean-inventory/enrich-snapshot";
@@ -535,7 +541,7 @@ describe("OMV-ENRICH-004 identity corroboration", () => {
         lookupModel: "Focus",
         lookupYear: 2022,
       }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ ok: true, modelCorroborationWaived: false });
   });
 });
 
@@ -920,6 +926,289 @@ describe("OMV-ENRICH-012 lookup pacing and reporting", () => {
       },
     });
     expect(eventsApply).toEqual(["persist", "apply"]);
+  });
+});
+
+describe("OMV-ENRICH-013A accept-model-mismatch schema", () => {
+  it("parses a strict listingIds file and rejects empty, malformed, duplicate, and missing paths", () => {
+    expect(parseAcceptModelMismatchFile({ listingIds: ["listing-1"] })).toEqual(["listing-1"]);
+    expect(() => parseAcceptModelMismatchFile({ listingIds: [] })).toThrow(AcceptModelMismatchError);
+    expect(() => parseAcceptModelMismatchFile({})).toThrow(AcceptModelMismatchError);
+    expect(() => parseAcceptModelMismatchFile({ listingIds: ["listing-1", " listing-1"] })).toThrow(
+      /Duplicate accept-model-mismatch/,
+    );
+    expect(() => parseAcceptModelMismatchFile({ listingIds: ["  "] })).toThrow(/non-empty/);
+    expect(() =>
+      parseAcceptModelMismatchFile({ listingIds: ["listing-1"], extra: true }),
+    ).toThrow(AcceptModelMismatchError);
+    expect(() => requireAcceptModelMismatchPath(["--accept-model-mismatch"])).toThrow(
+      /requires a JSON file path/,
+    );
+    expect(() => requireAcceptModelMismatchPath(["--accept-model-mismatch", "--apply"])).toThrow(
+      /requires a JSON file path/,
+    );
+    expect(requireAcceptModelMismatchPath(["--accept-model-mismatch", "allow.json"])).toBe("allow.json");
+    expect(requireAcceptModelMismatchPath(["--apply"])).toBeNull();
+  });
+});
+
+describe("OMV-ENRICH-013B unknown accept IDs", () => {
+  it("throws before lookup or apply when an ID is unknown or ineligible", async () => {
+    const lookup = vi.fn(async () => checkResult());
+    const applySnapshot = vi.fn();
+    const persistSnapshot = vi.fn();
+    await expect(
+      runEnrichPipeline({
+        dealerId: "dealer-1",
+        listings: [listing()],
+        sourceResults: healthySources([vehicle()]),
+        acceptModelMismatchIds: ["not-a-listing"],
+        lookup,
+        sleep: async () => undefined,
+        delayMs: 0,
+        apply: true,
+        runId: "accept-unknown",
+        createdAt: "2026-08-31T20:00:00.000Z",
+        persistSnapshot,
+        applySnapshot,
+      }),
+    ).rejects.toThrow(/Unknown or ineligible listing ID/);
+    expect(lookup).not.toHaveBeenCalled();
+    expect(persistSnapshot).not.toHaveBeenCalled();
+    expect(applySnapshot).not.toHaveBeenCalled();
+    expect(() =>
+      validateAcceptModelMismatchIds({
+        listingIds: ["listing-1"],
+        listings: [listing({ status: "LIVE" })],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateAcceptModelMismatchIds({
+        listingIds: ["listing-1"],
+        listings: [{ ...listing(), status: "DRAFT" } as unknown as EnrichListing],
+      }),
+    ).toThrow(/Unknown or ineligible listing ID/);
+  });
+});
+
+describe("OMV-ENRICH-013C through 013H model-mismatch allowlist", () => {
+  const mismatchListing = () =>
+    listing({
+      model: "Transit Custom",
+      attributes: {
+        make: "Ford",
+        model: "Transit Custom",
+        year: "2022",
+        mileage: "12000",
+        colour: "Blue",
+        "fuel-type": "Diesel",
+      },
+    });
+  const mismatchVehicle = () => vehicle({ model: "Transit Custom" });
+  const transitLookup = () => {
+    const result = checkResult();
+    return {
+      ...result,
+      vehicle: result.vehicle ? { ...result.vehicle, model: "TRANSIT" } : null,
+    };
+  };
+
+  it("OMV-ENRICH-013C allowlisted model mismatch fills only empty fields and records the waiver", async () => {
+    const result = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => transitLookup(),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: false,
+      runId: "accept-c",
+      createdAt: "2026-08-31T20:00:00.000Z",
+    });
+    expect(result.report.rows[0].reason).toBe("applied");
+    expect(result.report.rows[0].modelCorroborationWaived).toBe(true);
+    expect(result.report.rows[0].filledSlugs.sort()).toEqual(
+      ["co2-emissions", "engine-size", "tax-per-year"].sort(),
+    );
+    expect(result.snapshot?.listings[0].operations.map((item) => item.slug).sort()).toEqual(
+      ["co2-emissions", "engine-size", "tax-per-year"].sort(),
+    );
+    expect(result.snapshot?.listings[0].operations.some((item) => item.slug === "model")).toBe(false);
+  });
+
+  it("records the waiver when an allowlisted mismatch has no empty fields to fill", async () => {
+    const filled = listing({
+      model: "Transit Custom",
+      attributes: {
+        make: "Ford",
+        model: "Transit Custom",
+        year: "2022",
+        mileage: "12000",
+        colour: "Blue",
+        "fuel-type": "Diesel",
+        "engine-size": "2.0",
+        "co2-emissions": "168",
+        "tax-per-year": "180",
+      },
+    });
+    const result = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [filled],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => transitLookup(),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: false,
+      runId: "accept-c-empty",
+      createdAt: "2026-08-31T20:00:00.000Z",
+    });
+    expect(result.report.rows[0].reason).toBe("skip-no-empty-fields");
+    expect(result.report.rows[0].modelCorroborationWaived).toBe(true);
+    expect(result.snapshot).toBeNull();
+  });
+
+  it("OMV-ENRICH-013D allowlisted wrong make still skips with no snapshot", async () => {
+    const applySnapshot = vi.fn();
+    const persistSnapshot = vi.fn();
+    const toyota = transitLookup();
+    const result = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => ({
+        ...toyota,
+        vehicle: toyota.vehicle ? { ...toyota.vehicle, make: "TOYOTA" } : null,
+      }),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: true,
+      runId: "accept-d",
+      createdAt: "2026-08-31T20:00:00.000Z",
+      persistSnapshot,
+      applySnapshot,
+    });
+    expect(result.report.rows[0].reason).toBe("skip-make-mismatch");
+    expect(result.snapshot).toBeNull();
+    expect(result.applied).toBe(false);
+    expect(persistSnapshot).not.toHaveBeenCalled();
+    expect(applySnapshot).not.toHaveBeenCalled();
+  });
+
+  it("OMV-ENRICH-013E allowlisted blank or mismatching year still skips", async () => {
+    await expect(
+      evaluateLookupIdentity({
+        listingMake: "Ford",
+        listingModel: "Transit Custom",
+        listingYear: "",
+        lookupMake: "Ford",
+        lookupModel: "TRANSIT",
+        lookupYear: 2022,
+        acceptModelMismatch: true,
+      }),
+    ).resolves.toEqual({ ok: false, reason: "skip-year-mismatch" });
+
+    const lookup = transitLookup();
+    const result = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => ({
+        ...lookup,
+        vehicle: lookup.vehicle ? { ...lookup.vehicle, yearOfManufacture: 2023 } : null,
+      }),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: false,
+      runId: "accept-e",
+      createdAt: "2026-08-31T20:00:00.000Z",
+    });
+    expect(result.report.rows[0].reason).toBe("skip-year-mismatch");
+    expect(result.snapshot).toBeNull();
+  });
+
+  it("OMV-ENRICH-013F without the allowlist exact model disagreement still skips", async () => {
+    const result = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      lookup: async () => transitLookup(),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: false,
+      runId: "accept-f",
+      createdAt: "2026-08-31T20:00:00.000Z",
+    });
+    expect(result.report.rows[0].reason).toBe("skip-model-mismatch");
+    expect(result.report.rows[0].modelCorroborationWaived).toBe(false);
+    expect(result.snapshot).toBeNull();
+  });
+
+  it("OMV-ENRICH-013G dry-run does not persist and apply snapshots before mutation", async () => {
+    const persistSnapshot = vi.fn();
+    const applySnapshot = vi.fn();
+    const dry = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => transitLookup(),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: false,
+      runId: "accept-g-dry",
+      createdAt: "2026-08-31T20:00:00.000Z",
+      persistSnapshot,
+      applySnapshot,
+    });
+    expect(dry.applied).toBe(false);
+    expect(persistSnapshot).not.toHaveBeenCalled();
+    expect(applySnapshot).not.toHaveBeenCalled();
+
+    const events: string[] = [];
+    await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => transitLookup(),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: true,
+      runId: "accept-g-apply",
+      createdAt: "2026-08-31T20:00:00.000Z",
+      persistSnapshot: async () => {
+        events.push("persist");
+      },
+      applySnapshot: async () => {
+        events.push("apply");
+      },
+    });
+    expect(events).toEqual(["persist", "apply"]);
+  });
+
+  it("OMV-ENRICH-013H report records waiver without raw VRMs and keeps applied counts", async () => {
+    const result = await runEnrichPipeline({
+      dealerId: "dealer-1",
+      listings: [mismatchListing()],
+      sourceResults: healthySources([mismatchVehicle()]),
+      acceptModelMismatchIds: ["listing-1"],
+      lookup: async () => transitLookup(),
+      sleep: async () => undefined,
+      delayMs: 0,
+      apply: false,
+      runId: "accept-h",
+      createdAt: "2026-08-31T20:00:00.000Z",
+    });
+    expect(result.report.counts.applied).toBe(1);
+    expect(result.report.rows[0].modelCorroborationWaived).toBe(true);
+    expect(result.report.rows[0].vrmMasked).toBe("AB****DE");
+    const serialized = JSON.stringify(result.report);
+    expect(serialized).not.toContain("AB12CDE");
+    expect(serialized).not.toContain("AB12 CDE");
   });
 });
 

@@ -8,6 +8,7 @@ import {
 } from "./enrich-match";
 import { lookupValuesBySlug, mergeEmptyAttributes } from "./enrich-merge";
 import { lookupWithPacing } from "./enrich-lookup";
+import { validateAcceptModelMismatchIds } from "./enrich-accept";
 import { PlateOverrideError, validatePlateOverrides } from "./enrich-plates";
 import { buildSnapshot } from "./enrich-snapshot";
 import {
@@ -36,6 +37,7 @@ export interface EnrichReportRow {
   matchMethod: ListingMatch["matchMethod"];
   vrmMasked: string | null;
   filledSlugs: string[];
+  modelCorroborationWaived: boolean;
 }
 
 export interface EnrichPipelineReport {
@@ -50,6 +52,7 @@ export interface EnrichPipelineReport {
     title: string;
     reason: EnrichReasonCode;
     vrmMasked: string | null;
+    modelCorroborationWaived: boolean;
   }>;
 }
 
@@ -103,6 +106,7 @@ export async function runEnrichPipeline(input: {
   listings: EnrichListing[];
   sourceResults: SourceListResult[];
   overrides?: PlateOverride[];
+  acceptModelMismatchIds?: string[];
   lookup: LookupFn;
   sleep: (ms: number) => Promise<void>;
   delayMs: number;
@@ -117,6 +121,14 @@ export async function runEnrichPipeline(input: {
   if (input.apply && unhealthy) {
     throw new Error(unhealthy);
   }
+
+  const acceptModelMismatchIds = input.acceptModelMismatchIds
+    ? validateAcceptModelMismatchIds({
+        listingIds: input.acceptModelMismatchIds,
+        listings: input.listings,
+      })
+    : [];
+  const acceptModelMismatch = new Set(acceptModelMismatchIds);
 
   const validatedOverrides = input.overrides
     ? validatePlateOverrides({ overrides: input.overrides, listings: input.listings })
@@ -159,6 +171,7 @@ export async function runEnrichPipeline(input: {
       matchMethod: match.matchMethod,
       vrmMasked: match.vrmMasked,
       filledSlugs: [] as string[],
+      modelCorroborationWaived: false,
     };
     if (!match.vrm) {
       rows.push({ ...baseRow, reason: match.reason });
@@ -181,6 +194,7 @@ export async function runEnrichPipeline(input: {
       lookupModel: identity.model,
       lookupYear: identity.year,
       catalogueLookup: input.catalogueLookup,
+      acceptModelMismatch: acceptModelMismatch.has(listing.id),
     });
     if (!agreed.ok) {
       rows.push({ ...baseRow, reason: agreed.reason });
@@ -198,12 +212,20 @@ export async function runEnrichPipeline(input: {
       Object.entries(merged.fills).filter((entry): entry is [string, string] => Boolean(entry[1])),
     );
     if (Object.keys(fills).length === 0) {
-      rows.push({ ...baseRow, reason: "skip-no-empty-fields" });
+      rows.push({
+        ...baseRow,
+        reason: "skip-no-empty-fields",
+        modelCorroborationWaived: agreed.modelCorroborationWaived,
+      });
       continue;
     }
     const snapshotListing = operationsForFills(listing, fills);
     if (!snapshotListing) {
-      rows.push({ ...baseRow, reason: "skip-no-empty-fields" });
+      rows.push({
+        ...baseRow,
+        reason: "skip-no-empty-fields",
+        modelCorroborationWaived: agreed.modelCorroborationWaived,
+      });
       continue;
     }
     snapshotListings.push(snapshotListing);
@@ -211,6 +233,7 @@ export async function runEnrichPipeline(input: {
       ...baseRow,
       reason: "applied",
       filledSlugs: snapshotListing.operations.map((operation) => operation.slug),
+      modelCorroborationWaived: agreed.modelCorroborationWaived,
     });
   }
 
@@ -255,6 +278,7 @@ export async function runEnrichPipeline(input: {
       title: row.title,
       reason: row.reason,
       vrmMasked: row.vrmMasked,
+      modelCorroborationWaived: row.modelCorroborationWaived,
     }));
 
   return {
