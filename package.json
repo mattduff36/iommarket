@@ -46,6 +46,7 @@
     "finalise:full:push": "tsx scripts/finalise.ts --full --push",
     "finalise:repair": "tsx scripts/finalise-repair.ts",
     "fixerrors": "npx tsx scripts/fixerrors.ts",
+    "prod-mirror": "npx tsx scripts/prod-mirror.ts",
     "env:production:pull": "tsx scripts/production-env.ts pull",
     "env:production:check": "tsx scripts/production-env.ts check",
     "cursor:usage": "node --no-warnings --experimental-sqlite scripts/cursor-usage-export.mjs",
