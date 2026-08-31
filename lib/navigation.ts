@@ -12,8 +12,8 @@ interface AccountNavItem extends NavItem {
 export const PUBLIC_NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/" },
   { label: "Buy", href: "/categories" },
-  { label: "Dealers", href: "/dealers" },
   { label: "Sell", href: "/sell" },
+  { label: "Dealers", href: "/dealers" },
   { label: "Pricing", href: "/pricing" },
   { label: "Vehicle Check", href: "/vehicle-check" },
 ];

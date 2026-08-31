@@ -47,8 +47,8 @@ describe("PUBLIC_NAV_ITEMS", () => {
     expect(PUBLIC_NAV_ITEMS).toEqual([
       { label: "Home", href: "/" },
       { label: "Buy", href: "/categories" },
-      { label: "Dealers", href: "/dealers" },
       { label: "Sell", href: "/sell" },
+      { label: "Dealers", href: "/dealers" },
       { label: "Pricing", href: "/pricing" },
       { label: "Vehicle Check", href: "/vehicle-check" },
     ]);
