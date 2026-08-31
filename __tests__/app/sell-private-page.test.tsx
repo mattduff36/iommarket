@@ -106,4 +106,23 @@ describe("SellPrivatePage", () => {
     await expect(SellPrivatePage({})).rejects.toThrow("redirect:/sell/dealer");
     expect(redirectMock).toHaveBeenCalledWith("/sell/dealer");
   });
+
+  it("T7 renders the private listing form for admins", async () => {
+    getCurrentUserMock.mockResolvedValue({
+      id: "admin-1",
+      role: "ADMIN",
+    });
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+
+    const { default: SellPrivatePage } = await import(
+      "@/app/(public)/sell/private/page"
+    );
+
+    render(await SellPrivatePage({}));
+
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("create-listing-form").getAttribute("data-mode")).toBe(
+      "private",
+    );
+  });
 });

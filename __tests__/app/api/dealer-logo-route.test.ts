@@ -45,7 +45,7 @@ vi.mock("@/lib/policy/gate", async () => {
 });
 
 vi.mock("@/lib/dealers/entitlement", () => ({
-  getCurrentDealerEntitlement: getCurrentDealerEntitlementMock,
+  hasOperationalDealerAccess: getCurrentDealerEntitlementMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -118,12 +118,7 @@ describe("dealer logo upload route", () => {
     };
     requireAuthMock.mockResolvedValue(acceptedDealer);
     requireAcceptedAuthMock.mockResolvedValue(acceptedDealer);
-    getCurrentDealerEntitlementMock.mockResolvedValue({
-      subscriptionId: "grant_123",
-      source: "ADMIN_GRANT",
-      tier: "STARTER",
-      endsAt: new Date("2026-08-19T20:00:00.000Z"),
-    });
+    getCurrentDealerEntitlementMock.mockResolvedValue(true);
     uploadMock.mockResolvedValue({ error: null });
     removeMock.mockResolvedValue({ error: null });
     getPublicUrlMock.mockReturnValue({
@@ -220,5 +215,31 @@ describe("dealer logo upload route", () => {
     await POST(createLogoRequest());
 
     expect(removeMock).not.toHaveBeenCalled();
+  });
+
+  it("T10 allows an admin with a dealer profile and no billing entitlement", async () => {
+    const admin = {
+      id: "admin_123",
+      authUserId: "11111111-1111-1111-1111-111111111111",
+      role: "ADMIN",
+      dealerProfile: {
+        id: "cmdealerprofile123",
+        logoUrl: null,
+      },
+    };
+    requireAuthMock.mockResolvedValue(admin);
+    requireAcceptedAuthMock.mockResolvedValue(admin);
+    getCurrentDealerEntitlementMock.mockResolvedValue(true);
+    const { POST } = await import("@/app/api/dealer-profile/logo/route");
+    const response = await POST(createLogoRequest());
+    expect(response.status).toBe(200);
+  });
+
+  it("T10 denies an unpaid dealer logo upload", async () => {
+    getCurrentDealerEntitlementMock.mockResolvedValue(false);
+    const { POST } = await import("@/app/api/dealer-profile/logo/route");
+    const response = await POST(createLogoRequest());
+    expect(response.status).toBe(403);
+    expect(uploadMock).not.toHaveBeenCalled();
   });
 });

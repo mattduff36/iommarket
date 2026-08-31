@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
-import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
+import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import {
   deactivateMyAccountSchema,
   updateDealerSelfProfileSchema,
@@ -67,7 +67,7 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
   if (!hasDealerDashboardAccess(user)) {
     return { error: "Not authorized to update a dealer profile" };
   }
-  if (!(await getCurrentDealerEntitlement(user))) {
+  if (!(await hasOperationalDealerAccess(user))) {
     return { error: "Active dealer access is required to update a dealer profile" };
   }
 

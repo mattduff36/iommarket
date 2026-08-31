@@ -23,7 +23,13 @@ import {
   getDealerPlanPricePence,
   getMarketplacePricing,
 } from "@/lib/config/marketplace-pricing";
-import { effectiveListingDealerId, getDealerEntitlement } from "@/lib/dealers/entitlement";
+import {
+  effectiveListingDealerId,
+  getDealerEntitlement,
+  hasMismatchedDealerListing,
+  hasOperationalDealerAccess,
+} from "@/lib/dealers/entitlement";
+import { canAdminSkipOwnedListingPayment } from "@/lib/listings/payment-skip";
 import { detachListingDealerIdIfNeeded } from "@/lib/listings/submit-dealer-access";
 import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
@@ -123,6 +129,9 @@ export async function payForListing(input: PayForListingInput) {
   });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (hasMismatchedDealerListing(user, listing)) {
+    return { error: "Not authorized" };
+  }
   if (listing.status === "LIVE") {
     return { data: { checkoutUrl: null, skippedPayment: true } };
   }
@@ -158,6 +167,9 @@ export async function payForListing(input: PayForListingInput) {
       });
       return { error: "Unable to update this listing. Please try again." };
     }
+  }
+  if (canAdminSkipOwnedListingPayment({ actor: user, listing })) {
+    return { data: { checkoutUrl: null, skippedPayment: true } };
   }
   if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
     const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
@@ -241,7 +253,9 @@ export async function payForListing(input: PayForListingInput) {
       effectiveDealerId && listing.dealer
         ? await getDealerEntitlement(effectiveDealerId, listing.dealer.tier)
         : null;
-    const hasDealerAccess = Boolean(dealerEntitlement);
+    const hasDealerAccess =
+      Boolean(dealerEntitlement) ||
+      (Boolean(effectiveDealerId) && (await hasOperationalDealerAccess(user)));
     if (effectiveDealerId && !hasDealerAccess) {
       return {
         error: "Active dealer access is required before submitting dealer listings.",

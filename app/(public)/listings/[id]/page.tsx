@@ -31,13 +31,14 @@ import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import {
   expireStaleLiveListings,
   isListingEffectivelyExpired,
-  liveListingWhere,
 } from "@/lib/listings/expiry";
 import {
   canInspectPendingRevision,
   canViewListing,
+  isAdminPreviewListing,
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
+import { ADMIN_PREVIEW_BADGE, marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
@@ -68,6 +69,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       status: true,
       expiresAt: true,
       userId: true,
+      previewPack: { select: { enabled: true } },
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
@@ -78,6 +80,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       expiresAt: listing.expiresAt,
       listingUserId: listing.userId,
       viewer: currentUser,
+      previewPackEnabled: listing.previewPack?.enabled ?? false,
     })
   ) {
     return { title: "Listing unavailable" };
@@ -105,6 +108,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: {
       canonical: canonicalUrl,
     },
+    robots: listing.status === "ADMIN_PREVIEW" ? { index: false, follow: false } : undefined,
   };
 }
 
@@ -123,6 +127,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       region: true,
       user: { select: { name: true, email: true } },
       dealer: { select: { name: true, slug: true, phone: true, verified: true } },
+      previewPack: { select: { enabled: true } },
       attributeValues: {
         include: { attributeDefinition: true },
       },
@@ -153,7 +158,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     expiresAt: listing.expiresAt,
     listingUserId: listing.userId,
     viewer: currentUser,
+    previewPackEnabled: listing.previewPack?.enabled ?? false,
   });
+  const isPreviewListing = isAdminPreviewListing(listing.status);
   const isFavourite = currentUser
     ? Boolean(
         await db.favourite.findUnique({
@@ -210,7 +217,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   }
 
   if (!canView) notFound();
-  const publicDealer = await getPublicListingDealer(listing.dealerId);
+  const publicDealer = await getPublicListingDealer(listing.dealerId, new Date(), currentUser);
 
   const pendingRevision =
     showAdminReviewActions
@@ -250,7 +257,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   const similarListings = await db.listing.findMany({
     where: {
-      ...liveListingWhere(),
+      ...marketplaceListingWhere({ viewer: currentUser }),
       id: { not: listing.id },
       categoryId: listing.categoryId,
       regionId: listing.regionId,
@@ -444,6 +451,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 Listed {listing.createdAt.toLocaleDateString("en-GB")}
               </Badge>
               <Badge variant="neutral">{listing.viewCount + (isVisible ? 1 : 0)} views</Badge>
+              {isPreviewListing ? <Badge variant="warning">{ADMIN_PREVIEW_BADGE}</Badge> : null}
               {isDisclosedWriteOff(writeOffCategory) ? (
                 <Badge variant="energy">{writeOffCategory} write-off</Badge>
               ) : null}
@@ -516,7 +524,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             </CardContent>
           </Card>
 
-          {isVisible && !isSold && (
+          {isVisible && !isSold && !isPreviewListing && (
             <Card>
               <CardHeader>
                 <CardTitle>Contact Seller</CardTitle>
@@ -556,7 +564,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               </CardContent>
             </Card>
           )}
-          {currentUser && (
+          {currentUser && !isPreviewListing && (
             <Card>
               <CardHeader>
                 <CardTitle>Save Listing</CardTitle>
@@ -570,6 +578,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             </Card>
           )}
 
+          {isPreviewListing ? null : (
           <Card>
             <CardHeader>
               <CardTitle>Share</CardTitle>
@@ -578,8 +587,9 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               <ShareLinks url={shareUrl} title={listing.title} text={shareText} />
             </CardContent>
           </Card>
+          )}
 
-          {isVisible && (
+          {isVisible && !isPreviewListing && (
             <ReportButton listingId={listing.id} />
           )}
         </div>
@@ -649,7 +659,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 location={item.region.name}
                 meta={item.category.name}
                 featured={item.featured}
-                badge={item.featured ? "Featured" : undefined}
+                badge={item.status === "ADMIN_PREVIEW" ? ADMIN_PREVIEW_BADGE : item.featured ? "Featured" : undefined}
                 writeOffCategory={item.attributeValues[0]?.value ?? null}
                 href={buildListingPath(item.id)}
               />

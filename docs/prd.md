@@ -246,7 +246,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 - `robots` and sitemap are available.
 - Seed can generate 100-300 realistic listings.
 - Vitest and Playwright suites run locally with documented setup.
-# Isle of Man Marketplace (itrader.im) — PRD + Implementation Plan
+# Isle of Man Marketplace (itrader.im) - PRD + Implementation Plan
 
 This document is the **source of truth PRD** and a **build-ready implementation plan** for an Isle of Man hyper-local marketplace MVP. It is written to be actionable by another engineer/model to implement directly.
 

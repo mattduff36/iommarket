@@ -7,7 +7,7 @@ export function getPaymentDisplayId(payment: {
     payment.providerPaymentId ??
     payment.providerReference ??
     payment.stripePaymentId ??
-    "—"
+    "-"
   );
 }
 
@@ -15,7 +15,7 @@ export function getSubscriptionDisplayId(subscription: {
   providerSubscriptionId?: string | null;
   stripeSubscriptionId?: string | null;
 }): string {
-  return subscription.providerSubscriptionId ?? subscription.stripeSubscriptionId ?? "—";
+  return subscription.providerSubscriptionId ?? subscription.stripeSubscriptionId ?? "-";
 }
 
 export function getProviderLabel(value: string | null | undefined): string {

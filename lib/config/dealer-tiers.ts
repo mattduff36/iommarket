@@ -12,6 +12,10 @@ export const DEALER_TIER_LABELS: Record<DealerTier, string> = {
   PRO: "Pro",
 };
 
+export function getDealerPackageLabel(tier: DealerTier): string {
+  return `Dealer ${DEALER_TIER_LABELS[tier]}`;
+}
+
 export function getDealerListingCap(tier: DealerTier | null | undefined): number {
   return DEALER_TIER_CAPS[tier ?? "STARTER"];
 }

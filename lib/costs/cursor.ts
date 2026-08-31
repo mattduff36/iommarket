@@ -255,7 +255,7 @@ export function planCursorCharges(input: {
       periodEnd,
       nativeAmount: minorToDecimalString(shareUsdMinor),
       nativeCurrency: "USD",
-      displayLabel: `Cursor ${formatDayLabel(day.date)} — ${formatTokenCount(tokens)} tokens, ${(
+      displayLabel: `Cursor ${formatDayLabel(day.date)} - ${formatTokenCount(tokens)} tokens, ${(
         shareParts / 100
       ).toFixed(1)}% of tracked usage`,
       metadata,

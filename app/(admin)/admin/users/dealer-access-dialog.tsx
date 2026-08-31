@@ -105,8 +105,8 @@ export function DealerAccessDialog({
           <DialogTitle>{actionLabel}</DialogTitle>
           <DialogDescription>
             {mode === "promote"
-              ? `${userLabel} will become a dealer on the Starter plan.`
-              : `Give ${userLabel} free Starter dealer access.`}{" "}
+              ? `${userLabel} will become a dealer with complimentary access.`
+              : `Give ${userLabel} complimentary dealer access.`}{" "}
             No payment will be taken or recorded.
           </DialogDescription>
         </DialogHeader>
@@ -178,7 +178,7 @@ export function DealerAccessDialog({
           </fieldset>
 
           <div className="mt-4 rounded-md border border-border bg-canvas/40 p-3 text-sm">
-            <p className="font-medium text-text-primary">Free Starter dealer access</p>
+            <p className="font-medium text-text-primary">Complimentary dealer access</p>
             <p className="mt-1 text-text-secondary">
               {expiresAt
                 ? `Expires ${expiresAt.toLocaleDateString("en-GB", {

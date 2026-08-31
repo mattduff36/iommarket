@@ -19,7 +19,11 @@ import {
   getProviderLabel,
   getSubscriptionDisplayId,
 } from "@/lib/payments/records";
-import { getAdminGrantState } from "@/lib/dealers/entitlement";
+import {
+  getAdminGrantState,
+  getPaidSubscriptionEntitlementWhere,
+} from "@/lib/dealers/entitlement";
+import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 
 export const metadata: Metadata = { title: "User Detail | Admin" };
 
@@ -64,15 +68,25 @@ export default async function AdminUserDetailPage({ params }: Props) {
 
   if (!user) notFound();
 
-  const adminGrant = user.dealerProfile
-    ? await db.subscription.findFirst({
-        where: {
-          dealerId: user.dealerProfile.id,
-          source: "ADMIN_GRANT",
-        },
-        orderBy: { updatedAt: "desc" },
-      })
-    : null;
+  const now = new Date();
+  const [adminGrant, paidSubscription] = user.dealerProfile
+    ? await Promise.all([
+        db.subscription.findFirst({
+          where: {
+            dealerId: user.dealerProfile.id,
+            source: "ADMIN_GRANT",
+          },
+          orderBy: { updatedAt: "desc" },
+        }),
+        db.subscription.findFirst({
+          where: {
+            dealerId: user.dealerProfile.id,
+            ...getPaidSubscriptionEntitlementWhere(now),
+          },
+          select: { id: true },
+        }),
+      ])
+    : [null, null];
   const adminGrantState = getAdminGrantState(adminGrant);
 
   const recentListings = await db.listing.findMany({
@@ -107,6 +121,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
           isDeleted={!!user.deletedAt}
           userLabel={user.name ?? user.email}
           hasActiveAdminGrant={adminGrantState === "ACTIVE"}
+          currentTier={user.dealerProfile?.tier ?? null}
+          hasActivePaidSubscription={Boolean(paidSubscription)}
           redirectOnDelete="/admin/users"
         />
       </div>
@@ -210,6 +226,12 @@ export default async function AdminUserDetailPage({ params }: Props) {
               <span className="text-text-tertiary font-mono">{user.dealerProfile.slug}</span>
             </div>
             <div className="flex gap-2">
+              <span className="text-text-secondary w-32">Package:</span>
+              <Badge variant={user.dealerProfile.tier === "PRO" ? "info" : "neutral"}>
+                {getDealerPackageLabel(user.dealerProfile.tier)}
+              </Badge>
+            </div>
+            <div className="flex gap-2">
               <span className="text-text-secondary w-32">Verified:</span>
               <Badge variant={user.dealerProfile.verified ? "success" : "neutral"}>
                 {user.dealerProfile.verified ? "Yes" : "No"}
@@ -254,7 +276,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
                     <Badge variant={sub.status === "ACTIVE" ? "success" : sub.status === "PAST_DUE" ? "warning" : "error"}>
                       {sub.status}
                     </Badge>
-                    <span>ends {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}</span>
+                    <span>ends {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "-"}</span>
                     <span className="text-text-tertiary font-mono">{getSubscriptionDisplayId(sub)}</span>
                     <span className="text-text-tertiary">
                       {sub.source === "ADMIN_GRANT"

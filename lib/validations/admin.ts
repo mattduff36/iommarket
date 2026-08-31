@@ -33,6 +33,12 @@ export const revokeDealerAccessSchema = z.object({
 });
 export type RevokeDealerAccessInput = z.infer<typeof revokeDealerAccessSchema>;
 
+export const setDealerTierSchema = z.object({
+  userId: z.string().cuid(),
+  tier: z.enum(["STARTER", "PRO"]),
+});
+export type SetDealerTierInput = z.infer<typeof setDealerTierSchema>;
+
 export const setUserDisabledSchema = z
   .object({
     userId: z.string().cuid(),

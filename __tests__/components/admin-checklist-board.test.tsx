@@ -28,7 +28,7 @@ function renderBoard() {
         createChecklistItem(
           {
             id: "seed-website-terms",
-            title: "Website T&Cs — avoid being an agent",
+            title: "Website T&Cs - avoid being an agent",
             notes: "Draft terms and conditions for the website.",
             labels: ["DM"],
           },
@@ -64,7 +64,7 @@ describe("ChecklistBoard", () => {
           createChecklistItem(
             {
               id: "seed-website-terms",
-              title: "Website T&Cs — avoid being an agent",
+              title: "Website T&Cs - avoid being an agent",
               notes: "Draft terms and conditions for the website.",
               labels: ["DM"],
             },
@@ -144,13 +144,13 @@ describe("ChecklistBoard", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Show notes for Website T&Cs — avoid being an agent",
+        name: "Show notes for Website T&Cs - avoid being an agent",
       }),
     );
 
     expect(
       screen.getByRole("textbox", {
-        name: "Notes for Website T&Cs — avoid being an agent",
+        name: "Notes for Website T&Cs - avoid being an agent",
       }),
     ).toHaveValue("Draft terms and conditions for the website.");
   });
@@ -193,12 +193,12 @@ describe("ChecklistBoard", () => {
     });
 
     const showNotes = screen.getByRole("button", {
-      name: "Show notes for Website T&Cs — avoid being an agent",
+      name: "Show notes for Website T&Cs - avoid being an agent",
     });
     await waitFor(() => expect(showNotes).toBeEnabled());
     fireEvent.click(showNotes);
     const notes = screen.getByRole("textbox", {
-      name: "Notes for Website T&Cs — avoid being an agent",
+      name: "Notes for Website T&Cs - avoid being an agent",
     });
     fireEvent.change(notes, { target: { value: "Conflicting notes" } });
     fireEvent.blur(notes);

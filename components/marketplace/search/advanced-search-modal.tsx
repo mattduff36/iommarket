@@ -318,7 +318,7 @@ export function AdvancedSearchModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto lg:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Advanced Search</DialogTitle>
           <DialogDescription className="sr-only">
@@ -326,7 +326,8 @@ export function AdvancedSearchModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 py-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+          <div className="space-y-6">
           {/* --- Vehicle --- */}
           <section>
             <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Vehicle</h3>
@@ -394,7 +395,9 @@ export function AdvancedSearchModal({
               <RangeSlider label="Year" min={YEAR_MIN} max={currentYear} step={1} value={yearRange} onValueChange={setYearRange} formatValue={String} />
             </div>
           </section>
+          </div>
 
+          <div className="space-y-6">
           {/* --- Performance --- */}
           <section>
             <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Performance</h3>
@@ -449,6 +452,7 @@ export function AdvancedSearchModal({
               </div>
             </div>
           </section>
+          </div>
         </div>
 
         <DialogFooter>

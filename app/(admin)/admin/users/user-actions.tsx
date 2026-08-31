@@ -15,7 +15,8 @@ import {
   setUserRole,
   setUserDisabled,
 } from "@/actions/admin/users";
-import type { UserRole } from "@prisma/client";
+import { setDealerTier } from "@/actions/admin/dealer-tier";
+import type { DealerTier, UserRole } from "@prisma/client";
 import { DealerAccessDialog } from "./dealer-access-dialog";
 
 interface UserActionsProps {
@@ -25,6 +26,8 @@ interface UserActionsProps {
   isDeleted?: boolean;
   userLabel?: string;
   hasActiveAdminGrant?: boolean;
+  currentTier?: DealerTier | null;
+  hasActivePaidSubscription?: boolean;
   redirectOnDelete?: string;
 }
 
@@ -35,6 +38,8 @@ export function UserActions({
   isDeleted = false,
   userLabel = "this account",
   hasActiveAdminGrant = false,
+  currentTier = null,
+  hasActivePaidSubscription = false,
   redirectOnDelete,
 }: UserActionsProps) {
   const router = useRouter();
@@ -59,6 +64,24 @@ export function UserActions({
       } else {
         router.refresh();
       }
+    });
+  }
+
+  function handlePackageChange(tier: DealerTier) {
+    if (!currentTier || tier === currentTier) return;
+
+    setError(null);
+    startTransition(async () => {
+      const result = await setDealerTier({ userId, tier });
+      if (result.error) {
+        setError(
+          typeof result.error === "string"
+            ? result.error
+            : "Failed to update dealer package"
+        );
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -130,6 +153,19 @@ export function UserActions({
           onChange={handleRoleChange}
           disabled={isPending}
         />
+
+        {currentTier ? (
+          <AdminSegmentedControl
+            label="Package"
+            value={currentTier}
+            options={[
+              { value: "STARTER", label: "Starter" },
+              { value: "PRO", label: "Pro" },
+            ]}
+            onChange={handlePackageChange}
+            disabled={isPending || hasActivePaidSubscription}
+          />
+        ) : null}
 
         <AdminActionButton
           onClick={handleToggleDisabled}
@@ -208,6 +244,11 @@ export function UserActions({
 
         {isDisabled && <Badge variant="error">Disabled</Badge>}
       </AdminActionBar>
+      {currentTier && hasActivePaidSubscription ? (
+        <p className="text-xs text-text-tertiary">
+          Package is set by the paid subscription and cannot be changed.
+        </p>
+      ) : null}
       {error && <p className="text-xs text-text-error">{error}</p>}
       <DealerAccessDialog
         userId={userId}

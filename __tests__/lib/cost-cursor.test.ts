@@ -159,7 +159,7 @@ describe("Cursor charge planning", () => {
     expect(charges[0].bucketKey).toBe("cursor:subscription:2026-08-14");
     expect(charges[0].nativeCurrency).toBe("USD");
     expect(charges[0].nativeAmount).toBe("5.16");
-    expect(charges[0].displayLabel).toBe("Cursor 14 Aug 2026 — 4.6M tokens, 80.0% of tracked usage");
+    expect(charges[0].displayLabel).toBe("Cursor 14 Aug 2026 - 4.6M tokens, 80.0% of tracked usage");
     expect(charges[1].nativeAmount).toBe("6.45");
     expect(charges[0].periodStart.toISOString()).toBe("2026-08-14T00:00:00.000Z");
     expect(charges[0].periodEnd.toISOString()).toBe("2026-08-15T00:00:00.000Z");

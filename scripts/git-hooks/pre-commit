@@ -6,7 +6,7 @@ STAGED_ENV=$(git diff --cached --name-only | grep -E '(^|/)\.env(\.|$)' | grep -
 
 if [ -n "$STAGED_ENV" ]; then
   echo ""
-  echo "  COMMIT BLOCKED — secrets file(s) staged:"
+  echo "  COMMIT BLOCKED - secrets file(s) staged:"
   echo ""
   echo "$STAGED_ENV" | sed 's/^/    /'
   echo ""

@@ -1,5 +1,5 @@
 # COOKIE POLICY
-*iTrader.im — Online Vehicle Marketplace*
+*iTrader.im - Online Vehicle Marketplace*
 *Effective on launch*
 
 ## 1. INTRODUCTION

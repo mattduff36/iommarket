@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
+import { fitSingleLineFontSize } from "@/lib/utils/fit-single-line-font-size";
 import { formatRegistrationForDisplay, getRegistrationRegion } from "@/lib/utils/registration";
 import { CarFront, History, ShieldCheck } from "lucide-react";
+
+const PLATE_TEXT_BASE_PX = 28;
+const PLATE_TEXT_MIN_PX = 12;
 
 function HomeVehicleCheckCountryBadge({ region }: { region: "iom" | "uk" }) {
   if (region === "iom") {
@@ -62,6 +67,66 @@ function formatRegistrationAsTyped(value: string) {
   }
 
   return formatRegistrationForDisplay(normalized);
+}
+
+function HomeVehicleCheckPlateText({ value }: { value: string }) {
+  const display = value.trim() || "REG 123";
+  const isPlaceholder = !value.trim();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fit = () => {
+      if (cancelled) {
+        return;
+      }
+
+      text.style.fontSize = `${PLATE_TEXT_BASE_PX}px`;
+      const nextSize = fitSingleLineFontSize(
+        container.clientWidth,
+        text.scrollWidth,
+        PLATE_TEXT_BASE_PX,
+        PLATE_TEXT_MIN_PX,
+      );
+      text.style.fontSize = `${nextSize}px`;
+    };
+
+    fit();
+
+    const observer = new ResizeObserver(fit);
+    observer.observe(container);
+    void document.fonts?.ready.then(fit);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [display]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden px-3 sm:px-4"
+    >
+      <span
+        ref={textRef}
+        className={cn(
+          "block select-none whitespace-nowrap text-center text-[28px] font-black uppercase leading-none tracking-[0.28em]",
+          isPlaceholder ? "text-black/40" : "text-black",
+        )}
+      >
+        {display}
+      </span>
+    </div>
+  );
 }
 
 export function HomeVehicleCheck() {
@@ -142,7 +207,7 @@ export function HomeVehicleCheck() {
                   </label>
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="w-full max-w-[360px] rounded-[22px] bg-[linear-gradient(180deg,#f8e57c_0%,#e6bf17_100%)] p-[3px] shadow-[0_12px_30px_rgba(0,0,0,0.26)]">
+                    <div className="min-w-0 w-full max-w-[360px] rounded-[22px] bg-[linear-gradient(180deg,#f8e57c_0%,#e6bf17_100%)] p-[3px] shadow-[0_12px_30px_rgba(0,0,0,0.26)]">
                       <div className="relative h-16 overflow-hidden rounded-[20px] border-2 border-black/55 bg-[linear-gradient(180deg,#f9dd40_0%,#efc500_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_-6px_10px_rgba(0,0,0,0.12)]">
                         {registrationRegion === "iom" || registrationRegion === "uk" ? (
                           <div className="absolute inset-y-0 left-0 flex w-[76px] items-stretch">
@@ -173,15 +238,7 @@ export function HomeVehicleCheck() {
                             spellCheck={false}
                             className="absolute inset-0 h-full w-full cursor-text bg-transparent text-transparent opacity-0 focus:outline-none"
                           />
-                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 sm:px-5">
-                            <span
-                              className={`block select-none text-center text-lg font-black uppercase tracking-[0.28em] sm:text-[28px] ${
-                                registration.trim() ? "text-black" : "text-black/40"
-                              }`}
-                            >
-                              {registration.trim() || "REG 123"}
-                            </span>
-                          </div>
+                          <HomeVehicleCheckPlateText value={registration} />
                         </div>
                       </div>
                     </div>

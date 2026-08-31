@@ -257,7 +257,7 @@ try {
     lines.push(`${indent(2)}--font-body: ${typo.fontFamily.body};`);
   }
 } catch {
-  /* v1 file not available — light theme will inherit dark vars */
+  /* v1 file not available - light theme will inherit dark vars */
 }
 
 if (!hasV1) {

@@ -4,7 +4,7 @@ let adminClient: ReturnType<typeof createClient> | null = null;
 
 /**
  * Supabase admin client using the service_role key.
- * Only for server-side use — never expose to the browser.
+ * Only for server-side use - never expose to the browser.
  */
 export function createSupabaseAdminClient() {
   if (adminClient) return adminClient;

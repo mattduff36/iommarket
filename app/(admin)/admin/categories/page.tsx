@@ -68,7 +68,7 @@ export default async function AdminCategoriesPage() {
                     {cat.slug}
                   </TableCell>
                   <TableCell className="text-text-secondary text-sm">
-                    {cat.parent?.name ?? "—"}
+                    {cat.parent?.name ?? "-"}
                   </TableCell>
                   <TableCell>
                     {cat.attributeDefinitions.length > 0 ? (

@@ -129,7 +129,7 @@
   - `NEXT_PUBLIC_APP_URL`
   - `LAUNCH_FREE_UNTIL`
   - `FREE_LISTING_WINDOW_DAYS` (fallback strategy)
-  - `DEV_PASS` (development-only gate)
+  - `DEV_PASS` (holding-page gate on production and local; skipped on Vercel Preview)
   - `PREVIEW_PASS` / `PREVIEW_URL` (optional /preview redirect to a preview deployment)
 - **Notes**:
   - staging should mirror production behavior as closely as possible.
@@ -143,7 +143,7 @@ If any credential is suspected to be exposed (e.g. accidentally committed, visib
 
 ### 1. Supabase
 - **Anon key / JWT secret**: Supabase Dashboard → Settings → API → Reset keys.
-- **Service role key**: Same page — rotate separately.
+- **Service role key**: Same page - rotate separately.
 - **Auth hook secret**: Supabase Dashboard → Auth → Hooks → regenerate the signing secret; update `SUPABASE_AUTH_HOOK_SECRET` everywhere.
 - **Database password**: Supabase Dashboard → Settings → Database → Reset password; update all `POSTGRES_*` and `DATABASE_URL` vars.
 

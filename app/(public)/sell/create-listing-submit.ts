@@ -5,6 +5,7 @@ import {
   updateListing,
 } from "@/actions/listings";
 import { payForListing } from "@/actions/payments";
+import { summarizeFieldErrors, type FieldErrors } from "@/lib/forms/action-error";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { defendVehicleCatalogueSelection } from "./create-listing-form.helpers";
@@ -167,17 +168,13 @@ export function collectListingAttributes(
   return attributes;
 }
 
-export type ListingSubmitFieldErrors = Record<string, string[]>;
+export type ListingSubmitFieldErrors = FieldErrors;
 
 export function summarizeListingSubmitFieldErrors(
   fieldErrors: ListingSubmitFieldErrors,
   fallback: string,
 ) {
-  for (const messages of Object.values(fieldErrors)) {
-    const message = messages.find((candidate) => candidate.trim().length > 0);
-    if (message) return message;
-  }
-  return fallback;
+  return summarizeFieldErrors(fieldErrors, fallback);
 }
 
 export type ListingSubmitNavigation =
@@ -239,7 +236,10 @@ export async function executeCreateListingSubmit(params: {
           id: existingListingId,
           ...listingPayload,
         })
-      : await createListing(listingPayload);
+      : await createListing({
+          ...listingPayload,
+          flow: params.mode,
+        });
 
   if (result.error) {
     releaseSubmitFlight(params.submitFlightRef);

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { canSkipListingPayment } from "@/lib/listings/payment-skip";
+import { canAdminSkipOwnedListingPayment, canSkipListingPayment } from "@/lib/listings/payment-skip";
 
 describe("listing payment skip ALR-PAY-001 ALR-RESUB-001", () => {
   const client = {
@@ -64,5 +64,53 @@ describe("listing payment skip ALR-PAY-001 ALR-RESUB-001", () => {
         dealerId: "dealer-1",
       }),
     ).resolves.toEqual({ skip: true, reason: "dealer" });
+  });
+});
+
+describe("admin owned listing payment skip T6", () => {
+  const admin = {
+    id: "admin-1",
+    role: "ADMIN" as const,
+    dealerProfile: { id: "dealer-admin", tier: "STARTER" as const },
+  };
+
+  it("skips for the admin owner on private and matching dealer listings", () => {
+    expect(
+      canAdminSkipOwnedListingPayment({
+        actor: admin,
+        listing: { userId: "admin-1", dealerId: null },
+      }),
+    ).toBe(true);
+    expect(
+      canAdminSkipOwnedListingPayment({
+        actor: admin,
+        listing: { userId: "admin-1", dealerId: "dealer-admin" },
+      }),
+    ).toBe(true);
+  });
+
+  it("does not skip for non-owners, mismatched dealers, or unpaid dealers", () => {
+    expect(
+      canAdminSkipOwnedListingPayment({
+        actor: admin,
+        listing: { userId: "seller-1", dealerId: null },
+      }),
+    ).toBe(false);
+    expect(
+      canAdminSkipOwnedListingPayment({
+        actor: admin,
+        listing: { userId: "admin-1", dealerId: "dealer-other" },
+      }),
+    ).toBe(false);
+    expect(
+      canAdminSkipOwnedListingPayment({
+        actor: {
+          id: "dealer-1",
+          role: "DEALER",
+          dealerProfile: { id: "dealer-1", tier: "STARTER" },
+        },
+        listing: { userId: "dealer-1", dealerId: "dealer-1" },
+      }),
+    ).toBe(false);
   });
 });

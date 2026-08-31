@@ -69,8 +69,8 @@ test.describe("Navigation", () => {
     const footer = page.locator("footer");
     await expect(footer).toBeVisible({ timeout: 45_000 });
     await footer.scrollIntoViewIfNeeded();
-    await expect(footer.getByRole("link", { name: "Terms" })).toBeVisible();
-    await expect(footer.getByRole("link", { name: "Privacy" })).toBeVisible();
+    await expect(footer.getByRole("link", { name: "Terms", exact: true })).toBeVisible();
+    await expect(footer.getByRole("link", { name: "Privacy", exact: true })).toBeVisible();
   });
 });
 

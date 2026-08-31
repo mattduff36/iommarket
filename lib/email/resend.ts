@@ -140,10 +140,10 @@ export async function sendEmailChangeEmail(params: {
     text: [
       `You requested to change your iTrader.im email address to: ${params.newEmail}`,
       "",
-      "Step 1 — confirm from your current email:",
+      "Step 1 - confirm from your current email:",
       params.confirmCurrentUrl,
       "",
-      "Step 2 — confirm from your new email address once received.",
+      "Step 2 - confirm from your new email address once received.",
       params.confirmNewUrl,
       "",
       "Both links expire in 24 hours.",
@@ -243,7 +243,7 @@ export async function sendWaitlistConfirmationEmail(params: {
     text: [
       "You're on the list!",
       "",
-      "Thanks for your interest in iTrader.im — the upcoming vehicle marketplace for the Isle of Man.",
+      "Thanks for your interest in iTrader.im - the upcoming vehicle marketplace for the Isle of Man.",
       "",
       "We'll notify you as soon as the platform launches.",
       "",
@@ -280,7 +280,7 @@ export async function sendWaitlistConfirmationEmail(params: {
                         You're on the list!
                       </h1>
                       <p style="margin:0 auto 16px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">
-                        Thanks for your interest in iTrader.im —<br />
+                        Thanks for your interest in iTrader.im -<br />
                         the upcoming vehicle marketplace for the Isle of Man.
                       </p>
                       <p style="margin:0 auto 16px auto;font-family:Arial,sans-serif;font-size:17px;line-height:27px;color:#d7dff2;text-align:center;max-width:520px;">

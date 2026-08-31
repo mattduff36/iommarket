@@ -118,7 +118,7 @@ export default async function AdminReviewsPage({
                     </p>
                     <p className="mt-1 text-xs text-text-secondary">
                       Review status: {review.status} · Submitted{" "}
-                      {revision.submittedAt?.toLocaleDateString("en-GB") ?? "—"}
+                      {revision.submittedAt?.toLocaleDateString("en-GB") ?? "-"}
                     </p>
                   </div>
                   <Badge variant="warning">PENDING RESPONSE</Badge>

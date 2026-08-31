@@ -1,6 +1,6 @@
 /**
  * Test credentials for e2e tests.
- * These are seeded demo accounts only — not production credentials.
+ * These are seeded demo accounts only - not production credentials.
  * Defined in prisma/seed.ts and created via scripts/seed-admin-users.ts.
  */
 

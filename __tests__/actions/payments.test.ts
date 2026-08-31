@@ -508,6 +508,112 @@ describe("payForListing", () => {
       }
     }
   });
+
+  it("T6 skips initial, renewal, and resubmission payment for an admin owner", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "admin_1",
+      dealerId: null,
+      status: "DRAFT",
+      title: "Admin private listing",
+      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      category: {
+        slug: "car",
+        attributeDefinitions: [],
+      },
+    });
+    mockDb.listingAttributeValue.findFirst.mockResolvedValue({ value: "None" });
+
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      data: { checkoutUrl: null, skippedPayment: true },
+    });
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "admin_1",
+      dealerId: null,
+      status: "DRAFT",
+      title: "Admin private initial listing",
+      category: {
+        slug: "car",
+        attributeDefinitions: [],
+      },
+    });
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      data: { checkoutUrl: null, skippedPayment: true },
+    });
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "admin_1",
+      dealerId: "dealer-admin",
+      status: "DRAFT",
+      title: "Admin dealer listing",
+      dealer: { tier: "STARTER" },
+      category: {
+        slug: "car",
+        attributeDefinitions: [],
+      },
+    });
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      data: { checkoutUrl: null, skippedPayment: true },
+    });
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "admin_1",
+      dealerId: "dealer-admin",
+      status: "TAKEN_DOWN",
+      title: "Admin dealer listing",
+      dealer: { tier: "STARTER" },
+      category: {
+        slug: "car",
+        attributeDefinitions: [],
+      },
+    });
+
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      data: { checkoutUrl: null, skippedPayment: true },
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+  });
+
+  it("T6 T11 never skips payment for a non-owner admin", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "seller_1",
+      dealerId: null,
+      status: "DRAFT",
+      title: "Someone else listing",
+    });
+
+    await expect(
+      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
+    ).resolves.toEqual({
+      error: "Not authorized",
+    });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("createDealerSubscription", () => {

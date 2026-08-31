@@ -178,7 +178,7 @@ export default async function AdminRevenuePage() {
                 </Badge>
               </TableCell>
               <TableCell>
-                {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}
+                {sub.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "-"}
               </TableCell>
               <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
                 {getSubscriptionDisplayId(sub)}

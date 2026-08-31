@@ -105,6 +105,7 @@ model DealerProfile {
   logoUrl   String?
   verified  Boolean  @default(false)
   tier      DealerTier @default(STARTER)
+  isAdminPreview Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -113,6 +114,7 @@ model DealerProfile {
   subscriptions Subscription[]
   reviews       DealerReview[]
   cancellationRequests DealerCancellationRequest[]
+  previewPack   DealerPreviewPack?
 
   @@index([slug])
 }
@@ -261,6 +263,7 @@ enum ListingStatus {
   TAKEN_DOWN
   SOLD
   REJECTED
+  ADMIN_PREVIEW
 }
 
 enum ListingLifecycleAction {
@@ -356,6 +359,7 @@ model Listing {
   lastPhotoMutationHash      String?
   lifecycleRevision          Int      @default(0)
   retentionPurgedAt DateTime?
+  previewPackId String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -363,6 +367,7 @@ model Listing {
   dealer   DealerProfile? @relation(fields: [dealerId], references: [id])
   category Category       @relation(fields: [categoryId], references: [id])
   region   Region         @relation(fields: [regionId], references: [id])
+  previewPack DealerPreviewPack? @relation(fields: [previewPackId], references: [id], onDelete: SetNull)
 
   images             ListingImage[]
   imageUploadIntents ListingImageUploadIntent[]
@@ -381,7 +386,24 @@ model Listing {
   @@index([slug])
   @@index([userId])
   @@index([dealerId])
+  @@index([previewPackId])
   @@index([createdAt])
+}
+
+model DealerPreviewPack {
+  id              String   @id @default(cuid())
+  dealerKey       String   @unique
+  displayName     String
+  sourceRunId     String
+  enabled         Boolean  @default(false)
+  dealerProfileId String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  dealerProfile DealerProfile @relation(fields: [dealerProfileId], references: [id], onDelete: Cascade)
+  listings      Listing[]
+
+  @@index([enabled])
 }
 
 model ListingStatusEvent {

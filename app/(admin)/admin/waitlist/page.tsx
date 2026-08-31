@@ -143,7 +143,7 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
               <TableRow key={user.id}>
                 <TableCell className="font-medium text-text-primary">{user.email}</TableCell>
                 <TableCell className="text-sm text-text-secondary">
-                  {interests.length > 0 ? interests.join(", ") : "—"}
+                  {interests.length > 0 ? interests.join(", ") : "-"}
                 </TableCell>
                 <TableCell className="text-sm text-text-tertiary">
                   {user.createdAt.toLocaleDateString("en-GB")}

@@ -13,7 +13,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { UserActions } from "./user-actions";
-import type { Prisma } from "@prisma/client";
+import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
+import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import { buildAdminUsersWhere } from "@/lib/admin/query";
 
 export const metadata: Metadata = { title: "Users | Admin" };
 
@@ -40,18 +42,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const roleFilter = params.role as "USER" | "DEALER" | "ADMIN" | undefined;
   const disabledFilter = params.disabled === "true" ? true : params.disabled === "false" ? false : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const now = new Date();
+  const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
 
-  const where: Prisma.UserWhereInput = {};
-  if (query) {
-    where.OR = [
-      { email: { contains: query, mode: "insensitive" } },
-      { name: { contains: query, mode: "insensitive" } },
-    ];
-  }
-  if (roleFilter) where.role = roleFilter;
-  if (disabledFilter === true) where.disabledAt = { not: null };
-  if (disabledFilter === false) where.disabledAt = null;
-  if (params.disabled === "deleted") where.deletedAt = { not: null };
+  const where = buildAdminUsersWhere({
+    query,
+    role: roleFilter,
+    disabled: disabledFilter,
+    deleted: params.disabled === "deleted",
+  });
 
   const [users, total] = await Promise.all([
     db.user.findMany({
@@ -61,7 +60,19 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       take: PAGE_SIZE,
       include: {
         region: { select: { name: true } },
-        dealerProfile: { select: { id: true, name: true, verified: true } },
+        dealerProfile: {
+          select: {
+            id: true,
+            name: true,
+            verified: true,
+            tier: true,
+            subscriptions: {
+              where: paidEntitlementWhere,
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
         _count: { select: { listings: true } },
       },
     }),
@@ -153,6 +164,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           <TableRow>
             <TableHead>User</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Package</TableHead>
             <TableHead>Region</TableHead>
             <TableHead>Dealer</TableHead>
             <TableHead>Listings</TableHead>
@@ -168,7 +180,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   href={`/admin/users/${user.id}`}
                   className="font-medium text-text-primary hover:underline"
                 >
-                  {user.name ?? "—"}
+                  {user.name ?? "-"}
                 </Link>
                 <p className="text-xs text-text-tertiary">{user.email}</p>
                 {user.deletedAt ? (
@@ -185,8 +197,17 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   {user.role}
                 </Badge>
               </TableCell>
+              <TableCell>
+                {user.dealerProfile ? (
+                  <Badge variant={user.dealerProfile.tier === "PRO" ? "info" : "neutral"}>
+                    {getDealerPackageLabel(user.dealerProfile.tier)}
+                  </Badge>
+                ) : (
+                  <span className="text-text-tertiary text-sm">-</span>
+                )}
+              </TableCell>
               <TableCell className="text-sm text-text-secondary">
-                {user.region?.name ?? "—"}
+                {user.region?.name ?? "-"}
               </TableCell>
               <TableCell>
                 {user.dealerProfile ? (
@@ -200,7 +221,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     )}
                   </Link>
                 ) : (
-                  <span className="text-text-tertiary text-sm">—</span>
+                  <span className="text-text-tertiary text-sm">-</span>
                 )}
               </TableCell>
               <TableCell className="text-sm text-text-secondary">
@@ -216,13 +237,17 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   isDisabled={!!user.disabledAt}
                   isDeleted={!!user.deletedAt}
                   userLabel={user.name ?? user.email}
+                  currentTier={user.dealerProfile?.tier ?? null}
+                  hasActivePaidSubscription={
+                    (user.dealerProfile?.subscriptions.length ?? 0) > 0
+                  }
                 />
               </TableCell>
             </TableRow>
           ))}
           {users.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-text-tertiary py-8">
+              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
                 No users found.
               </TableCell>
             </TableRow>

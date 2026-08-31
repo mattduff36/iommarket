@@ -171,7 +171,7 @@ function ReviewManagementItem({ review }: { review: ManagedDealerReview }) {
       </div>
 
       <blockquote className="mt-3 whitespace-pre-wrap text-sm text-text-secondary">
-        {review.comment ? `“${review.comment}”` : "Star rating only — no written comment"}
+        {review.comment ? `“${review.comment}”` : "Star rating only - no written comment"}
       </blockquote>
 
       {review.canRespond && review.approvedResponse ? (

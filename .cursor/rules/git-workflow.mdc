@@ -88,3 +88,13 @@ When creating PRs:
    - Detailed commit messages
    - Follow conventional commits format
    - Push and create PR
+
+## Finalise
+
+`/finalise` and `/finalise-full` authorize verify + commit on the current branch. They do not push.
+
+`/fap`, `/ffap`, or an explicit "finalise and push" authorize verify + commit + push.
+
+Never push unless the user invokes those commands or explicitly asks to push. Stay on the current branch unless the user says otherwise.
+
+Finalise does not apply Prisma or Supabase migrations. If schema files changed, warn only and apply them separately with `npm run db:migrate`.

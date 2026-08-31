@@ -725,6 +725,244 @@ describe("submitListingForReview", () => {
     );
   });
 
+  it("T5 allows an admin-owned live dealer revision without billing entitlement", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "admin_1",
+      dealerId: "dealer-admin",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    getOpenRevisionMock.mockResolvedValue({
+      id: "revision_1",
+      status: "DRAFT",
+      version: 2,
+    });
+    submitRevisionMock.mockResolvedValue({
+      listing: { id: "listing_123", status: "LIVE" },
+    });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "LIVE" },
+    });
+    expect(submitRevisionMock).toHaveBeenCalled();
+  });
+
+  it("T5 denies an unpaid dealer live revision and a mismatched dealer association", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      role: "DEALER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.subscription.findFirst.mockResolvedValue(null);
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({
+      error: "Active dealer access is required before submitting dealer listings.",
+    });
+    expect(submitRevisionMock).not.toHaveBeenCalled();
+
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      role: "DEALER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: "dealer-other",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({
+      error: "Not authorized",
+    });
+  });
+
+  it("T5 T6 allows admin-owned dealer draft submit and unpaid dealer draft deny", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "admin_1",
+      dealerId: "dealer-admin",
+      status: "DRAFT",
+      lifecycleRevision: 0,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "listing_123", status: "PENDING" },
+      notification: null,
+    });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "PENDING" },
+    });
+    expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
+    expect(transitionListingStatusMock).toHaveBeenCalled();
+
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "dealer@example.com",
+      role: "DEALER",
+      dealerProfile: { id: "dealer-1", tier: "STARTER" },
+    });
+    mockDb.subscription.findFirst.mockResolvedValue(null);
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "user_123",
+      dealerId: "dealer-1",
+      status: "DRAFT",
+      lifecycleRevision: 0,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    transitionListingStatusMock.mockClear();
+
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({
+      error: "Active dealer access is required before submitting dealer listings.",
+    });
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("T6 skips admin-owned private initial, renewal, and resubmission payment", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+    transitionListingStatusMock.mockResolvedValue({
+      listing: { id: "listing_123", status: "PENDING" },
+      notification: null,
+    });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "admin_1",
+      dealerId: null,
+      status: "DRAFT",
+      lifecycleRevision: 0,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+    });
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "PENDING" },
+    });
+    expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "admin_1",
+      dealerId: null,
+      status: "DRAFT",
+      lifecycleRevision: 0,
+      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+    });
+    mockDb.payment.findFirst.mockResolvedValue(null);
+    await expect(
+      submitListingForReview({
+        listingId: "listing_123",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "PENDING" },
+    });
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "admin_1",
+      dealerId: "dealer-admin",
+      status: "TAKEN_DOWN",
+      lifecycleRevision: 2,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({
+      data: { id: "listing_123", status: "PENDING" },
+    });
+  });
+
+  it("T11 refuses submit for a listing the admin does not own", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "listing_123",
+      userId: "seller_1",
+      dealerId: "dealer-1",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      trustDeclarationAccepted: true,
+      images: [{ id: "image_1" }, { id: "image_2" }],
+      dealer: { tier: "STARTER" },
+    });
+    const { submitListingForReview } = await import("@/actions/listings");
+
+    await expect(
+      submitListingForReview({ listingId: "listing_123" }),
+    ).resolves.toEqual({ error: "Not authorized" });
+    expect(submitRevisionMock).not.toHaveBeenCalled();
+  });
+
   it("AUD-PAY-POL-001 LST-WRITEOFF-001 rejects submit without a write-off declaration when enforcement is on POL-LIST-001", async () => {
     const previous = process.env.POLICY_ENFORCE_LISTING_NS;
     process.env.POLICY_ENFORCE_LISTING_NS = "true";
@@ -1168,6 +1406,39 @@ describe("listing NS policy server helpers AUD-PAY-POL-001 LST-WRITEOFF-001", ()
       fieldErrors: {
         "attr-write-off": [WRITE_OFF_SUBMIT_ERROR],
       },
+    });
+  });
+});
+
+describe("updateListing T11", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+    });
+  });
+
+  it("keeps seller edits owner-scoped even for admins", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "cllisting123456789012345678",
+      userId: "seller_1",
+      categoryId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      status: "LIVE",
+      trustDeclarationAcceptedAt: new Date(),
+      lifecycleRevision: 1,
+    });
+    const { updateListing } = await import("@/actions/listings");
+
+    await expect(
+      updateListing({
+        id: "cllisting123456789012345678",
+        title: "Updated live dealer listing title",
+      }),
+    ).resolves.toEqual({
+      error: "Not authorized to edit this listing",
     });
   });
 });

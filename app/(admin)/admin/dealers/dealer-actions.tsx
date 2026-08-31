@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   AdminActionBar,
   AdminActionButton,
+  AdminSegmentedControl,
 } from "@/components/admin/admin-action-controls";
 import { verifyDealer, downgradeDealerToUser } from "@/actions/admin/dealers";
+import { setDealerTier } from "@/actions/admin/dealer-tier";
 import { DealerAccessDialog } from "../users/dealer-access-dialog";
+import type { DealerTier } from "@prisma/client";
 
 interface DealerActionsProps {
   dealerId: string;
@@ -15,6 +18,8 @@ interface DealerActionsProps {
   userLabel: string;
   verified: boolean;
   canGrantAccess: boolean;
+  currentTier: DealerTier;
+  hasActivePaidSubscription: boolean;
 }
 
 export function DealerActions({
@@ -23,6 +28,8 @@ export function DealerActions({
   userLabel,
   verified,
   canGrantAccess,
+  currentTier,
+  hasActivePaidSubscription,
 }: DealerActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -42,6 +49,24 @@ export function DealerActions({
     });
   }
 
+  function handlePackageChange(tier: DealerTier) {
+    if (tier === currentTier) return;
+
+    setError(null);
+    startTransition(async () => {
+      const result = await setDealerTier({ userId, tier });
+      if (result.error) {
+        setError(
+          typeof result.error === "string"
+            ? result.error
+            : "Failed to update dealer package"
+        );
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   function handleDowngrade() {
     setError(null);
     startTransition(async () => {
@@ -58,6 +83,17 @@ export function DealerActions({
   return (
     <div className="space-y-2">
       <AdminActionBar>
+        <AdminSegmentedControl
+          label="Package"
+          value={currentTier}
+          options={[
+            { value: "STARTER", label: "Starter" },
+            { value: "PRO", label: "Pro" },
+          ]}
+          onChange={handlePackageChange}
+          disabled={isPending || hasActivePaidSubscription}
+        />
+
         <AdminActionButton
           onClick={handleVerify}
           disabled={isPending}
@@ -104,6 +140,11 @@ export function DealerActions({
         )}
       </AdminActionBar>
 
+      {hasActivePaidSubscription ? (
+        <p className="text-xs text-text-tertiary">
+          Package is set by the paid subscription and cannot be changed.
+        </p>
+      ) : null}
       {error && <p className="text-xs text-text-error">{error}</p>}
       <DealerAccessDialog
         userId={userId}

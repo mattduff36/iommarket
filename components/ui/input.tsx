@@ -55,7 +55,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             id={helperId}
             className={cn(
               "text-xs",
-              hasError ? "text-text-energy" : "text-text-secondary",
+              hasError ? "text-text-error" : "text-text-secondary",
             )}
           >
             {error || helperText}

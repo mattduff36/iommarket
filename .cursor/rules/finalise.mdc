@@ -1,0 +1,23 @@
+---
+description: Finalise and push are registered npm commands, not a free-form handoff
+alwaysApply: true
+---
+
+# Finalise
+
+When the user says `finalise`, `/finalise`, `fap`, `/fap`, `finalise-full`, `/ffap`, or `finalise and push`, run the matching npm script. Do not invent a manual test-commit-push handoff.
+
+| User says | Command | Commit | Push |
+|-----------|---------|--------|------|
+| finalise / `/finalise` | `npm run finalise` | yes | no |
+| fap / `/fap` / finalise and push | `npm run finalise:push` | yes | yes |
+| finalise-full / `/finalise-full` | `npm run finalise:full` | yes | no |
+| ffap / `/ffap` | `npm run finalise:full:push` | yes | yes |
+
+- Contract: `iommarket-finalise-v1` in `scripts/finalise/trusted-actions.ts`
+- Ordinary verify: `typecheck` + `test:run`
+- Full verify: also `lint` + `build`
+- Never apply Prisma/Supabase migrations or run `db:push` / `db:migrate` as part of finalise
+- Repair only allowlisted failed steps with `npm run finalise:repair`, then rerun the original command once
+- Never generically repair commit, push, database, or unknown steps
+- State the branch and a short summary before any push

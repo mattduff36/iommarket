@@ -20,6 +20,60 @@ describe("listing visibility ALR-VIS-001", () => {
       }),
     ).toBe(true);
     expect(isListingPubliclyVisible({ status: "SOLD", expiresAt: null })).toBe(true);
+    expect(
+      isListingPubliclyVisible({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("shows enabled preview listings only to admins", () => {
+    expect(
+      canViewListing({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        viewer: null,
+        previewPackEnabled: true,
+      }),
+    ).toBe(false);
+    expect(
+      canViewListing({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        viewer: { id: "buyer", role: "USER" },
+        previewPackEnabled: true,
+      }),
+    ).toBe(false);
+    expect(
+      canViewListing({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        viewer: { id: "preview-owner", role: "DEALER" },
+        previewPackEnabled: true,
+      }),
+    ).toBe(false);
+    expect(
+      canViewListing({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        viewer: { id: "admin", role: "ADMIN" },
+        previewPackEnabled: false,
+      }),
+    ).toBe(false);
+    expect(
+      canViewListing({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        viewer: { id: "admin", role: "ADMIN" },
+        previewPackEnabled: true,
+      }),
+    ).toBe(true);
   });
 
   it("lets owners and admins inspect moderated listings ALR-VIS-002", () => {
@@ -56,6 +110,7 @@ describe("listing visibility ALR-VIS-001", () => {
     expect(isListingEditable("REJECTED")).toBe(true);
     expect(isListingEditable("PENDING")).toBe(false);
     expect(isListingEditable("SOLD")).toBe(false);
+    expect(isListingEditable("ADMIN_PREVIEW")).toBe(false);
   });
 
   it("only lets an explicitly requested admin review fetch a live pending revision UI-REV-001", () => {

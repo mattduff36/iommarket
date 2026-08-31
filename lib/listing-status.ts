@@ -18,6 +18,7 @@ const VALID_TRANSITIONS: Record<ListingStatus, ListingStatus[]> = {
   TAKEN_DOWN: ["LIVE", "DRAFT", "PENDING"],
   REJECTED: ["DRAFT", "PENDING"],
   SOLD: [],
+  ADMIN_PREVIEW: [],
 };
 
 /**

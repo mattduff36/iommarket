@@ -101,7 +101,7 @@ export function FeaturedUpgradeButton({
         className="shrink-0"
       >
         <Star className="h-3.5 w-3.5" />
-        Upgrade — {formatGbpFromPence(featuredUpgradePricePence)}
+        Upgrade - {formatGbpFromPence(featuredUpgradePricePence)}
       </Button>
       {error && (
         <p className="text-sm text-text-energy w-full" role="alert">

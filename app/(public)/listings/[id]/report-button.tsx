@@ -4,7 +4,16 @@ import { useState } from "react";
 import { reportListing } from "@/actions/listings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { AlertTriangle } from "lucide-react";
+import {
+  firstFieldError,
+  flattenZodFieldErrors,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { REPORT_REASON_CODES, reportListingSchema } from "@/lib/validations/listing";
 
 interface Props {
   listingId: string;
@@ -15,33 +24,38 @@ export function ReportButton({ listingId }: Props) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldErrors({});
 
     const formData = new FormData(e.currentTarget);
-    const result = await reportListing({
+    const payload = {
       listingId,
-      reporterEmail: formData.get("email") as string,
-      reasonCode: formData.get("reasonCode") as
-        | "FRAUD"
-        | "PROHIBITED"
-        | "MISLEADING"
-        | "DUPLICATE"
-        | "POLICY"
-        | "SAFETY"
-        | "OTHER",
-      reason: formData.get("reason") as string,
-    });
+      reporterEmail: String(formData.get("email") ?? ""),
+      reasonCode: String(formData.get("reasonCode") ?? "") as (typeof REPORT_REASON_CODES)[number],
+      reason: String(formData.get("reason") ?? ""),
+    };
+    const parsed = reportListingSchema.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(flattenZodFieldErrors(parsed.error));
+      setLoading(false);
+      return;
+    }
+
+    const result = await reportListing(parsed.data);
 
     setLoading(false);
     if (result.error) {
-      setError(typeof result.error === "string" ? result.error : "Failed to submit report");
-    } else {
-      setSuccess(true);
+      const split = splitActionError(result.error);
+      setFieldErrors(split.fieldErrors);
+      setError(split.formError);
+      return;
     }
+    setSuccess(true);
   }
 
   if (success) {
@@ -51,6 +65,9 @@ export function ReportButton({ listingId }: Props) {
       </p>
     );
   }
+
+  const reasonError = firstFieldError(fieldErrors, "reason");
+  const reasonCodeError = firstFieldError(fieldErrors, "reasonCode");
 
   return (
     <div>
@@ -64,13 +81,15 @@ export function ReportButton({ listingId }: Props) {
       </button>
 
       {open && (
-        <form onSubmit={handleSubmit} className="mt-3 space-y-3 rounded-lg border border-border p-4">
+        <form onSubmit={handleSubmit} noValidate className="mt-3 space-y-3 rounded-lg border border-border p-4">
+          <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
           <Input
             label="Your email"
             name="email"
             type="email"
             required
             placeholder="you@example.com"
+            error={firstFieldError(fieldErrors, "reporterEmail")}
           />
           <div className="flex flex-col gap-1">
             <label htmlFor="reasonCode" className="text-sm font-medium text-text-primary">
@@ -80,6 +99,7 @@ export function ReportButton({ listingId }: Props) {
               id="reasonCode"
               name="reasonCode"
               required
+              aria-invalid={reasonCodeError ? true : undefined}
               className="flex h-10 w-full rounded-sm border border-border bg-surface-elevated px-3 text-sm"
               defaultValue="FRAUD"
             >
@@ -91,6 +111,9 @@ export function ReportButton({ listingId }: Props) {
               <option value="SAFETY">Safety</option>
               <option value="OTHER">Other</option>
             </select>
+            {reasonCodeError ? (
+              <p className="text-xs text-text-error">{reasonCodeError}</p>
+            ) : null}
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="reason" className="text-sm font-medium text-text-primary">
@@ -103,10 +126,19 @@ export function ReportButton({ listingId }: Props) {
               rows={3}
               minLength={10}
               placeholder="Please describe the issue..."
-              className="flex w-full rounded-sm border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue"
+              aria-invalid={reasonError ? true : undefined}
+              aria-describedby={reasonError ? "report-reason-error" : undefined}
+              className={[
+                "flex w-full rounded-sm border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-neon-blue-500 focus:shadow-glow-blue",
+                reasonError ? "border-neon-red-500" : "border-border",
+              ].join(" ")}
             />
+            {reasonError ? (
+              <p id="report-reason-error" className="text-xs text-text-error">
+                {reasonError}
+              </p>
+            ) : null}
           </div>
-          {error && <p className="text-xs text-text-error">{error}</p>}
           <Button type="submit" variant="energy" size="sm" loading={loading}>
             Submit Report
           </Button>

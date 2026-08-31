@@ -16,7 +16,9 @@ import {
   getDealerEntitlement,
   getPaidSubscriptionEntitlementWhere,
   grantAdminDealerAccess,
+  hasOperationalDealerAccess,
   isPaidSubscriptionEntitled,
+  listingDealerMatchesActor,
 } from "@/lib/dealers/entitlement";
 
 const NOW = new Date("2026-07-20T20:00:00.000Z");
@@ -173,6 +175,47 @@ describe("dealer entitlement", () => {
     expect(mockDb.subscription.findFirst).not.toHaveBeenCalled();
   });
 
+  it("T1 T8 grants operational access to admins without billing entitlement", async () => {
+    const admin = {
+      role: "ADMIN" as const,
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" as const },
+    };
+    await expect(hasOperationalDealerAccess(admin, NOW)).resolves.toBe(true);
+    await expect(getCurrentDealerEntitlement(admin, NOW)).resolves.toBeNull();
+    expect(mockDb.subscription.findFirst).toHaveBeenCalled();
+  });
+
+  it("T1 denies operational access for unpaid dealers and users", async () => {
+    mockDb.subscription.findFirst.mockResolvedValue(null);
+    await expect(
+      hasOperationalDealerAccess(
+        {
+          role: "DEALER",
+          dealerProfile: { id: "dealer-1", tier: "STARTER" },
+        },
+        NOW,
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      hasOperationalDealerAccess(
+        {
+          role: "USER",
+          dealerProfile: null,
+        },
+        NOW,
+      ),
+    ).resolves.toBe(false);
+    expect(
+      listingDealerMatchesActor(
+        {
+          role: "ADMIN",
+          dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+        },
+        { dealerId: "other-dealer" },
+      ),
+    ).toBe(false);
+  });
+
   it("gives active paid access precedence over a grant", async () => {
     mockDb.subscription.findFirst
       .mockResolvedValueOnce({
@@ -249,10 +292,7 @@ describe("grantAdminDealerAccess", () => {
     });
 
     expect(result.kind).toBe("granted");
-    expect(tx.dealerProfile.update).toHaveBeenCalledWith({
-      where: { id: "dealer-1" },
-      data: { tier: "STARTER" },
-    });
+    expect(tx.dealerProfile.update).not.toHaveBeenCalled();
     expect(tx.subscription.create).toHaveBeenCalledWith({
       data: {
         dealerId: "dealer-1",
@@ -266,5 +306,41 @@ describe("grantAdminDealerAccess", () => {
         revokedAt: null,
       },
     });
+  });
+
+  it("admin-grant-preserves-tier: granting or extending free access does not overwrite complimentary PRO", async () => {
+    const existingGrant = {
+      id: "grant-1",
+      grantStartsAt: new Date("2026-07-01T20:00:00.000Z"),
+      grantEndsAt: new Date("2026-08-01T20:00:00.000Z"),
+    };
+    const tx = {
+      dealerProfile: {
+        update: vi.fn(),
+      },
+      subscription: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(existingGrant),
+        create: vi.fn(),
+        update: vi.fn().mockImplementation(async ({ data }) => ({
+          id: existingGrant.id,
+          ...data,
+        })),
+      },
+    };
+
+    const result = await grantAdminDealerAccess(tx as never, {
+      dealerId: "dealer-1",
+      adminId: "admin-1",
+      durationDays: 30,
+      now: NOW,
+    });
+
+    expect(result.kind).toBe("extended");
+    expect(tx.dealerProfile.update).not.toHaveBeenCalled();
+    expect(tx.subscription.create).not.toHaveBeenCalled();
+    expect(tx.subscription.update).toHaveBeenCalled();
   });
 });

@@ -39,7 +39,7 @@ export function HeaderAuthButtons({ authState }: Props) {
   if (!user) {
     return (
       <div className="flex items-center gap-3">
-        {/* Sign up is hidden on mobile — it moves to the burger menu */}
+        {/* Sign up is hidden on mobile - it moves to the burger menu */}
         <Button
           asChild
           variant="ghost"

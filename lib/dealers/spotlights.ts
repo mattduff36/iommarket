@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { getPublicDealerWhere } from "@/lib/dealers/access";
+import { getMarketplaceDealerWhere, getPublicDealerWhere } from "@/lib/dealers/access";
 
 export interface DealerSpotlight {
   id: string;
@@ -33,6 +33,29 @@ export function getDealerDirectoryQuery(
   liveListingWhere: Prisma.ListingWhereInput,
 ) {
   return getDealerCardQuery(liveListingWhere, getPublicDealerWhere());
+}
+
+export function getMarketplaceDealerDirectoryQuery(
+  listingWhere: Prisma.ListingWhereInput,
+  viewer?: { role: string } | null,
+) {
+  return getDealerCardQuery(listingWhere, getMarketplaceDealerWhere(viewer));
+}
+
+export function getMarketplaceDealerSpotlightQuery(
+  listingWhere: Prisma.ListingWhereInput,
+  viewer?: { role: string } | null,
+) {
+  const publicSpotlight: Prisma.DealerProfileWhereInput = {
+    ...getPublicDealerWhere(),
+    verified: true,
+  };
+  if (viewer?.role !== "ADMIN") {
+    return getDealerCardQuery(listingWhere, publicSpotlight);
+  }
+  return getDealerCardQuery(listingWhere, {
+    OR: [publicSpotlight, { isAdminPreview: true, previewPack: { enabled: true } }],
+  });
 }
 
 function getDealerCardQuery(

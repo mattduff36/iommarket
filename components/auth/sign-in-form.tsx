@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  firstZodMessage,
+  publicAuthErrorMessage,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { emailField } from "@/lib/validations/email";
 
 function getSafeNextPath(nextPath: string | null): string | null {
   if (!nextPath) return null;
@@ -28,20 +37,41 @@ export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const nextErrors: FieldErrors = {};
+    const parsedEmail = emailField.safeParse(email);
+    if (!parsedEmail.success) {
+      const message = firstZodMessage(parsedEmail.error);
+      if (message) nextErrors.email = [message];
+    }
+    if (!password) {
+      nextErrors.password = ["Enter your password."];
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setFieldErrors({});
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
       const { data, error: err } = await supabase.auth.signInWithPassword({
-        email,
+        email: parsedEmail.success ? parsedEmail.data : email,
         password,
       });
       if (err) {
-        setError(err.message);
+        setError(
+          publicAuthErrorMessage(
+            err.message,
+            "We could not sign you in. Check your email and password and try again.",
+          ),
+        );
         return;
       }
 
@@ -54,8 +84,8 @@ export function SignInForm() {
       try {
         const res = await fetch("/api/me", { credentials: "same-origin" });
         if (res.ok) {
-          const data = await res.json();
-          if (data.role === "ADMIN") {
+          const me = await res.json();
+          if (me.role === "ADMIN") {
             router.push("/admin");
             router.refresh();
             return;
@@ -82,7 +112,8 @@ export function SignInForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-sm space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="mx-auto w-full max-w-sm space-y-4">
+      <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
       <Input
         label="Email"
         type="email"
@@ -90,6 +121,7 @@ export function SignInForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
+        error={firstFieldError(fieldErrors, "email")}
       />
       <Input
         label="Password"
@@ -98,12 +130,8 @@ export function SignInForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
+        error={firstFieldError(fieldErrors, "password")}
       />
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
       <div className="flex flex-col gap-3">
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}

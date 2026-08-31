@@ -49,7 +49,7 @@ function severityVariant(
 }
 
 function Timestamp({ value }: { value: Date | null }) {
-  if (!value) return <span>—</span>;
+  if (!value) return <span>-</span>;
   return (
     <time dateTime={value.toISOString()} className="tabular-nums">
       {value.toLocaleString("en-GB")}
@@ -60,7 +60,7 @@ function Timestamp({ value }: { value: Date | null }) {
 function ContextValue({ value }: { value: string | null }) {
   return (
     <span className="break-words font-mono text-xs text-text-primary">
-      {value ?? "—"}
+      {value ?? "-"}
     </span>
   );
 }

@@ -50,7 +50,7 @@ export function buildRevisionFieldDiffs(
     const liveValue = liveAttributes.get(name) ?? "";
     const proposedValue = proposedAttributes.get(name) ?? "";
     if (liveValue !== proposedValue) {
-      diffs.push({ field: name, live: liveValue || "—", proposed: proposedValue || "—" });
+      diffs.push({ field: name, live: liveValue || "-", proposed: proposedValue || "-" });
     }
   }
 

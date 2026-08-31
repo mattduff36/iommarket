@@ -295,6 +295,7 @@ describe("setUserRole dealer provisioning", () => {
 describe("dealer account lookup rules", () => {
   it("includes promoted dealer accounts in the admin dealer query", () => {
     expect(getAdminDealerWhere()).toEqual({
+      isAdminPreview: false,
       user: { role: { in: ["DEALER", "ADMIN"] } },
     });
   });
@@ -371,5 +372,103 @@ describe("grantDealerAccess repair action", () => {
       grantDealerAccess({ userId: targetUser.id, durationDays: 30 })
     ).rejects.toThrow("Insufficient permissions");
     expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("setDealerTier", () => {
+  const dealerUser = {
+    id: targetUser.id,
+    dealerProfile: { id: "cldealerxxxxxxxxxxxxxxxxx", tier: "STARTER" as const },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireRoleMock.mockResolvedValue({
+      id: "cladminxxxxxxxxxxxxxxxxxx",
+      role: "ADMIN",
+    });
+    transaction.user.findUnique.mockResolvedValue(dealerUser);
+    transaction.subscription.findFirst.mockResolvedValue(null);
+    transaction.dealerProfile.update.mockResolvedValue({
+      id: dealerUser.dealerProfile.id,
+      tier: "PRO",
+    });
+    mockDb.$transaction.mockImplementation(async (callback) =>
+      callback(transaction)
+    );
+  });
+
+  it("admin-set-dealer-tier-grant: complimentary dealer can be moved to Pro with an audit row", async () => {
+    const { setDealerTier } = await import("@/actions/admin/dealer-tier");
+
+    await expect(
+      setDealerTier({ userId: targetUser.id, tier: "PRO" })
+    ).resolves.toEqual({ data: { tier: "PRO" } });
+
+    expect(mockDb.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { isolationLevel: "Serializable" }
+    );
+    expect(transaction.dealerProfile.update).toHaveBeenCalledWith({
+      where: { id: dealerUser.dealerProfile.id },
+      data: { tier: "PRO" },
+    });
+    expect(logAdminActionMock).toHaveBeenCalledWith(
+      {
+        adminId: "cladminxxxxxxxxxxxxxxxxxx",
+        action: "SET_DEALER_TIER",
+        entityType: "DealerProfile",
+        entityId: dealerUser.dealerProfile.id,
+        details: {
+          userId: targetUser.id,
+          dealerId: dealerUser.dealerProfile.id,
+          previousTier: "STARTER",
+          nextTier: "PRO",
+          paidBlocked: false,
+        },
+      },
+      transaction,
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/users");
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/admin/users/${targetUser.id}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/dealers");
+  });
+
+  it("admin-set-dealer-tier-paid-blocked: active paid subscription blocks the write", async () => {
+    transaction.subscription.findFirst.mockResolvedValue({ id: "clpaidxxxxxxxxxxxxxxxxxxxx" });
+    const { setDealerTier } = await import("@/actions/admin/dealer-tier");
+
+    await expect(
+      setDealerTier({ userId: targetUser.id, tier: "PRO" })
+    ).resolves.toEqual({
+      error: "Package is set by the paid subscription and cannot be changed.",
+    });
+    expect(transaction.subscription.findFirst).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        dealerId: dealerUser.dealerProfile.id,
+        source: "PAYMENT",
+        status: "ACTIVE",
+        currentPeriodEnd: { gt: expect.any(Date) },
+      }),
+      select: { id: true },
+    });
+    expect(transaction.dealerProfile.update).not.toHaveBeenCalled();
+    expect(logAdminActionMock).not.toHaveBeenCalled();
+  });
+
+  it("admin-set-dealer-tier-no-profile: user without a dealer profile is rejected", async () => {
+    transaction.user.findUnique.mockResolvedValue({
+      id: targetUser.id,
+      dealerProfile: null,
+    });
+    const { setDealerTier } = await import("@/actions/admin/dealer-tier");
+
+    await expect(
+      setDealerTier({ userId: targetUser.id, tier: "PRO" })
+    ).resolves.toEqual({
+      error: "This account has no dealer profile.",
+    });
+    expect(transaction.dealerProfile.update).not.toHaveBeenCalled();
+    expect(logAdminActionMock).not.toHaveBeenCalled();
   });
 });

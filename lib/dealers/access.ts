@@ -34,12 +34,44 @@ export function getDealerProfileDefaults(user: DealerProfileDefaultsSubject) {
 
 export function getAdminDealerWhere(): Prisma.DealerProfileWhereInput {
   return {
+    isAdminPreview: false,
     user: {
       role: {
         in: DEALER_ACCOUNT_ROLES,
       },
     },
   };
+}
+
+export function getEnabledPreviewDealerWhere(): Prisma.DealerProfileWhereInput {
+  return {
+    isAdminPreview: true,
+    previewPack: { enabled: true },
+  };
+}
+
+export function getMarketplaceDealerWhere(
+  viewer?: { role: string } | null,
+  now = new Date(),
+): Prisma.DealerProfileWhereInput {
+  const publicWhere = getPublicDealerWhere(now);
+  if (viewer?.role !== "ADMIN") return publicWhere;
+  return {
+    OR: [publicWhere, getEnabledPreviewDealerWhere()],
+  };
+}
+
+export function canViewMarketplaceDealerProfile(input: {
+  viewer?: { role: string } | null;
+  isAdminPreview: boolean;
+  previewPackEnabled: boolean;
+  hasEntitlement: boolean;
+}) {
+  if (input.isAdminPreview) {
+    return input.viewer?.role === "ADMIN" && input.previewPackEnabled;
+  }
+  if (input.hasEntitlement) return true;
+  return input.viewer?.role === "ADMIN";
 }
 
 export function getPublicDealerWhere(
@@ -70,8 +102,14 @@ export function getPublicDealerWhere(
   };
 }
 
+type DealerProfileClient = {
+  dealerProfile: {
+    upsert: Prisma.TransactionClient["dealerProfile"]["upsert"];
+  };
+};
+
 export async function provisionDealerProfile(
-  tx: Prisma.TransactionClient,
+  tx: DealerProfileClient,
   user: DealerProfileDefaultsSubject
 ) {
   const defaults = getDealerProfileDefaults(user);
@@ -84,6 +122,18 @@ export async function provisionDealerProfile(
       ...defaults,
     },
   });
+}
+
+export async function ensureAdminDealerProfile<
+  T extends DealerProfileDefaultsSubject & {
+    role: UserRole;
+    dealerProfile: { id: string } | null;
+  },
+>(user: T, tx: DealerProfileClient) {
+  if (user.role !== "ADMIN") return user;
+  if (user.dealerProfile) return user;
+  const dealerProfile = await provisionDealerProfile(tx, user);
+  return { ...user, dealerProfile };
 }
 
 function getDefaultDealerName(user: DealerProfileDefaultsSubject) {

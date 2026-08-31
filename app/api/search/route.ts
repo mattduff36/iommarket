@@ -4,8 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import {
   expireStaleLiveListings,
-  liveOrSoldListingWhere,
 } from "@/lib/listings/expiry";
+import { marketplaceListingWhere, marketplaceListingBadge } from "@/lib/listings/marketplace";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
   getFuelTypeFilterValues,
@@ -186,7 +186,11 @@ export async function GET(request: NextRequest) {
     })),
   ];
 
-  const statusFilter = liveOrSoldListingWhere(includeSold, now);
+  const statusFilter = marketplaceListingWhere({
+    viewer: currentUser,
+    includeSold,
+    now,
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
@@ -266,6 +270,11 @@ export async function GET(request: NextRequest) {
       categoryName: listing.category.name,
       regionName: listing.region.name,
       writeOffCategory: listing.attributeValues[0]?.value ?? null,
+      badge: marketplaceListingBadge({
+        status: listing.status,
+        featured: listing.featured,
+      }),
+      showFavourite: listing.status !== "ADMIN_PREVIEW",
     })),
   });
 }

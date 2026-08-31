@@ -1,8 +1,22 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
+import {
+  getPaidSubscriptionEntitlementWhere,
+  listingDealerMatchesActor,
+  type DealerAccessSubject,
+} from "@/lib/dealers/entitlement";
 
 type DbClient = Prisma.TransactionClient | typeof db;
+
+export function canAdminSkipOwnedListingPayment(input: {
+  actor: DealerAccessSubject & { id: string };
+  listing: { userId: string; dealerId: string | null };
+}) {
+  if (input.actor.role !== "ADMIN") return false;
+  if (input.actor.id !== input.listing.userId) return false;
+  if (input.listing.dealerId === null) return true;
+  return listingDealerMatchesActor(input.actor, input.listing);
+}
 
 export async function canSkipListingPayment(
   client: DbClient,

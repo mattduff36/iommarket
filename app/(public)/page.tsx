@@ -10,12 +10,14 @@ import { HomeVehicleCheck } from "@/components/vehicle-check/home-vehicle-check"
 import { DealerSpotlights } from "@/components/dealers/dealer-spotlights";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { getCurrentUser } from "@/lib/auth";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
-  getDealerSpotlightQuery,
+  getMarketplaceDealerSpotlightQuery,
   shuffleDealerSpotlights,
 } from "@/lib/dealers/spotlights";
 
@@ -33,7 +35,8 @@ function shuffleListings<T>(items: T[]): T[] {
 
 export default async function HomePage() {
   await expireStaleLiveListings();
-  const liveWhere = liveListingWhere();
+  const currentUser = await getCurrentUser();
+  const liveWhere = marketplaceListingWhere({ viewer: currentUser });
   /* Fetch categories and dealer/search datasets */
   const [categories, regions, makeDefs, modelDefs, dealerResults, soldCount, pricing] = await Promise.all([
     db.category.findMany({
@@ -55,7 +58,7 @@ export default async function HomePage() {
       where: { slug: "model" },
       select: { id: true },
     }),
-    db.dealerProfile.findMany(getDealerSpotlightQuery(liveWhere)),
+    db.dealerProfile.findMany(getMarketplaceDealerSpotlightQuery(liveWhere, currentUser)),
     db.listing.count({ where: { status: "SOLD" } }),
     getMarketplacePricing(),
   ]);
@@ -140,10 +143,10 @@ export default async function HomePage() {
     <>
       {/* ============ HERO ============ */}
       <section
-        className="relative min-h-[calc(100svh-64px)] sm:min-h-[calc(100svh-116px)] md:min-h-0 overflow-hidden"
+        className="relative overflow-hidden"
         style={{ background: HERO_GRADIENT }}
       >
-        <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-24 lg:py-32 lg:px-8 text-center">
+        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-16 text-center">
           <div className="mx-auto mb-8 flex items-center justify-center">
             <Image
               src="/images/logo-itrader-hq.png"
@@ -155,7 +158,7 @@ export default async function HomePage() {
             />
           </div>
           <p className="mx-auto mt-3 sm:mt-5 max-w-xl text-base sm:text-lg text-metallic-400">
-            Cars, vans, motorbikes, and motorhomes &mdash; from trusted Isle of Man sellers.
+            Cars, vans, motorbikes, and motorhomes - from trusted Isle of Man sellers.
           </p>
 
           <HeroSearch
@@ -241,15 +244,6 @@ export default async function HomePage() {
           </div>
         </section>
       )}
-
-      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-        <h2 className="text-lg font-semibold text-text-primary">Isle of Man vehicle marketplace</h2>
-        <p className="mt-3 text-sm text-text-secondary leading-relaxed">
-          iTrader.im helps buyers and sellers across the Isle of Man connect through structured listings,
-          transparent pricing, and moderation-first trust standards. Search by make, model, running costs,
-          and location to find the right vehicle faster.
-        </p>
-      </section>
     </>
   );
 }

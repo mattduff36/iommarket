@@ -169,14 +169,16 @@ export async function deleteImage(
 export function createSignedListingUpload({
   publicId,
   timestamp = Math.round(Date.now() / 1000),
+  overwrite = false,
 }: {
   publicId: string;
   timestamp?: number;
+  overwrite?: boolean;
 }) {
   const config = requireCloudinaryConfig();
   const params = {
     image_metadata: "false",
-    overwrite: "false",
+    overwrite: overwrite ? "true" : "false",
     public_id: publicId,
     timestamp,
     transformation: "fl_force_strip",
@@ -193,7 +195,7 @@ export function createSignedListingUpload({
     type: IMAGE_CONSTRAINTS.deliveryType,
     transformation: params.transformation,
     imageMetadata: false,
-    overwrite: false,
+    overwrite,
     uploadUrl: `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`,
   };
 }
