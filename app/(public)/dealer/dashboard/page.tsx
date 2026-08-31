@@ -5,8 +5,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
-import { hasDealerDashboardAccess } from "@/lib/dealers/access";
-import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
+import {
+  ensureAdminDealerProfile,
+  hasDealerDashboardAccess,
+} from "@/lib/dealers/access";
+import { getCurrentDealerEntitlement, hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -88,10 +91,11 @@ interface Props {
 
 export default async function DealerDashboardPage({ searchParams }: Props) {
   await expireStaleLiveListings();
-  const user = await requireAcceptedUser("/dealer/dashboard");
+  const acceptedUser = await requireAcceptedUser("/dealer/dashboard");
+  const user = await ensureAdminDealerProfile(acceptedUser, db);
   if (!hasDealerDashboardAccess(user)) redirect("/dealer/subscribe");
+  if (!(await hasOperationalDealerAccess(user))) redirect("/dealer/subscribe");
   const entitlement = await getCurrentDealerEntitlement(user);
-  if (!entitlement) redirect("/dealer/subscribe");
 
   const params = searchParams ? await searchParams : {};
   const q = params.q?.trim() ?? "";
@@ -230,6 +234,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
   const listingCap = getDealerListingCap(user.dealerProfile.tier);
   const tierLabel = DEALER_TIER_LABELS[user.dealerProfile.tier];
   const managedReviews = responseEligibleReviews.map(toManagedDealerReview);
+  const showAdminOperationalAccess = user.role === "ADMIN" && !entitlement;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -321,24 +326,30 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
             <span className="text-sm font-medium text-text-primary">
               Subscription:
             </span>
-            <Badge variant="success">
-              {entitlement.source === "ADMIN_GRANT" ? "Free access" : "Active"}
-            </Badge>
-            <Badge variant="info">{tierLabel} plan</Badge>
-            <span className="text-sm text-text-secondary">
-              {Math.min(activeSlotsUsed, listingCap)}/{listingCap} active listing slots used
-            </span>
-            {entitlement.endsAt && (
-              <span className="text-sm text-text-secondary">
-                {entitlement.source === "ADMIN_GRANT" ? "Expires" : "Renews"}{" "}
-                {entitlement.endsAt.toLocaleDateString("en-GB")}
-              </span>
-            )}
+            {showAdminOperationalAccess ? (
+              <Badge variant="info">Admin operational access</Badge>
+            ) : entitlement ? (
+              <>
+                <Badge variant="success">
+                  {entitlement.source === "ADMIN_GRANT" ? "Free access" : "Active"}
+                </Badge>
+                <Badge variant="info">{tierLabel} plan</Badge>
+                <span className="text-sm text-text-secondary">
+                  {Math.min(activeSlotsUsed, listingCap)}/{listingCap} active listing slots used
+                </span>
+                {entitlement.endsAt && (
+                  <span className="text-sm text-text-secondary">
+                    {entitlement.source === "ADMIN_GRANT" ? "Expires" : "Renews"}{" "}
+                    {entitlement.endsAt.toLocaleDateString("en-GB")}
+                  </span>
+                )}
+              </>
+            ) : null}
           </div>
         </CardContent>
       </Card>
 
-      {entitlement.source === "PAYMENT" ? (
+      {entitlement?.source === "PAYMENT" ? (
         <CancellationRequestCard
           enabled={getPolicyFlags().enableCancellationRequests}
           periodEndAt={openCancellation?.periodEndAt ?? entitlement.endsAt}

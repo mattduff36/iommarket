@@ -120,10 +120,15 @@ describe("DealerProfilePage", () => {
   });
 
   it("adds a canonical URL only for a publicly eligible dealer", async () => {
-    findFirstMock.mockResolvedValue({
+    findUniqueMock.mockResolvedValue({
+      id: "dealer-1",
       name: "Douglas Auto Exchange",
       bio: "Island dealership",
       slug: "douglas-auto-exchange-canonical",
+      tier: "STARTER",
+      isAdminPreview: false,
+      previewPack: null,
+      user: { role: "DEALER", disabledAt: null, deletedAt: null },
     });
 
     const metadata = await generateMetadata({
@@ -135,16 +140,85 @@ describe("DealerProfilePage", () => {
         buildDealerProfilePath("douglas-auto-exchange-canonical"),
       ),
     );
-    expect(findFirstMock).toHaveBeenCalledWith(
+    expect(metadata.robots).toBeUndefined();
+    expect(findUniqueMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          slug: "douglas-auto-exchange",
-          subscriptions: expect.any(Object),
-          user: expect.any(Object),
-        }),
-        select: { name: true, bio: true, slug: true, isAdminPreview: true },
+        where: { slug: "douglas-auto-exchange" },
       }),
     );
+  });
+
+  it("T13 noindexes unpaid admin-viewable dealer profiles and hides them from users", async () => {
+    findUniqueMock.mockResolvedValue({
+      id: "dealer-1",
+      name: "Admin Motors",
+      bio: "Staff dealer profile",
+      slug: "admin-motors",
+      tier: "STARTER",
+      isAdminPreview: false,
+      previewPack: null,
+      user: { role: "ADMIN", disabledAt: null, deletedAt: null },
+    });
+    getDealerEntitlementMock.mockResolvedValue(null);
+    getCurrentUserMock.mockResolvedValue({ role: "ADMIN" });
+
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "admin-motors" }),
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        title: "Admin Motors",
+        robots: { index: false, follow: false },
+      }),
+    );
+
+    getCurrentUserMock.mockResolvedValue({ role: "USER" });
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "admin-motors" }),
+      }),
+    ).resolves.toEqual({});
+
+    findUniqueMock.mockResolvedValue({
+      id: "dealer-preview",
+      name: "Preview Motors",
+      bio: "Preview",
+      slug: "preview-motors",
+      tier: "STARTER",
+      isAdminPreview: true,
+      previewPack: { enabled: false },
+      user: { role: "DEALER", disabledAt: null, deletedAt: null },
+    });
+    getCurrentUserMock.mockResolvedValue({ role: "ADMIN" });
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    ).resolves.toEqual({});
+  });
+
+  it("T13 lets an admin view an unpaid non-preview dealer page and 404s users", async () => {
+    findUniqueMock.mockResolvedValue(buildDealer({ verified: false }));
+    getDealerEntitlementMock.mockResolvedValue(null);
+    getCurrentUserMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+
+    render(
+      await DealerProfilePage({
+        params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+      }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Douglas Auto Exchange" }),
+    ).toBeTruthy();
+
+    cleanup();
+    getCurrentUserMock.mockResolvedValue({ id: "user-1", role: "USER" });
+    await expect(
+      DealerProfilePage({
+        params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+      }),
+    ).rejects.toThrow("notFound");
   });
 
   it("does not show Verified Dealer for a subscribed but unverified dealer", async () => {

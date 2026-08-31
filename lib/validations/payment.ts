@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const DEALER_TERMS_ACCEPTANCE_MESSAGE =
+  "Please accept the Dealer Terms, Acceptable Use Policy, and Refund Policy.";
+
 export const createCheckoutSchema = z.object({
   listingId: z.string().cuid("Invalid listing ID"),
 });
@@ -16,10 +19,7 @@ export const createDealerSubscriptionSchema = z.object({
   tier: z.enum(["STARTER", "PRO"]).default("STARTER"),
   acceptedDealerTerms: z
     .boolean()
-    .refine(
-      (value) => value === true,
-      "Please accept the Dealer Terms, Acceptable Use Policy, and Refund Policy.",
-    ),
+    .refine((value) => value === true, DEALER_TERMS_ACCEPTANCE_MESSAGE),
 });
 
 export type CreateCheckoutInput = z.infer<typeof createCheckoutSchema>;

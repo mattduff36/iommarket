@@ -3,15 +3,20 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
-import { hasDealerDashboardAccess } from "@/lib/dealers/access";
-import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
+import { db } from "@/lib/db";
+import {
+  ensureAdminDealerProfile,
+  hasDealerDashboardAccess,
+} from "@/lib/dealers/access";
+import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { Button } from "@/components/ui/button";
 import { DealerProfileForm } from "./dealer-profile-form";
 
 export default async function DealerProfileManagePage() {
-  const user = await requireAcceptedUser("/dealer/profile");
+  const acceptedUser = await requireAcceptedUser("/dealer/profile");
+  const user = await ensureAdminDealerProfile(acceptedUser, db);
   if (!hasDealerDashboardAccess(user)) redirect("/pricing");
-  if (!(await getCurrentDealerEntitlement(user))) redirect("/dealer/subscribe");
+  if (!(await hasOperationalDealerAccess(user))) redirect("/dealer/subscribe");
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">

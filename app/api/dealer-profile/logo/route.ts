@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
-import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
+import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { db } from "@/lib/db";
 import { captureException } from "@/lib/monitoring";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
@@ -33,7 +33,7 @@ async function getAuthorizedDealer() {
     return { ok: false as const, status: 403 as const };
   }
   try {
-    if (!(await getCurrentDealerEntitlement(user))) {
+    if (!(await hasOperationalDealerAccess(user))) {
       return { ok: false as const, status: 403 as const };
     }
   } catch {

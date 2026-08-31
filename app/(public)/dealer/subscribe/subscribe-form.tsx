@@ -19,6 +19,14 @@ import {
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { DEALER_TERMS_ACCEPTANCE_MESSAGE } from "@/lib/validations/payment";
 
 interface SubscribeFormProps {
   tier: "STARTER" | "PRO";
@@ -45,6 +53,7 @@ export function SubscribeForm({
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
@@ -53,6 +62,7 @@ export function SubscribeForm({
   function handleCreateProfile(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     startTransition(async () => {
       const result = await createSelfServiceDealerProfile({
         name: businessName.trim(),
@@ -60,11 +70,9 @@ export function SubscribeForm({
         website: website.trim() || undefined,
       });
       if (result.error) {
-        const msg =
-          typeof result.error === "string"
-            ? result.error
-            : Object.values(result.error).flat().join(", ");
-        setError(msg);
+        const split = splitActionError(result.error);
+        setFieldErrors(split.fieldErrors);
+        setError(split.formError);
         return;
       }
       setHasProfile(true);
@@ -74,10 +82,13 @@ export function SubscribeForm({
 
   function handleSubscribe() {
     setError(null);
+    setFieldErrors({});
     setNotice(null);
     setDemoOutcomeError(null);
     if (!acceptedDealerTerms) {
-      setError("Please accept the Dealer Terms, Acceptable Use Policy, and Refund Policy.");
+      setFieldErrors({
+        acceptedDealerTerms: [DEALER_TERMS_ACCEPTANCE_MESSAGE],
+      });
       return;
     }
     startTransition(async () => {
@@ -86,11 +97,9 @@ export function SubscribeForm({
         acceptedDealerTerms: true,
       });
       if (result.error) {
-        const msg =
-          typeof result.error === "string"
-            ? result.error
-            : Object.values(result.error).flat().join(", ");
-        setError(msg);
+        const split = splitActionError(result.error);
+        setFieldErrors(split.fieldErrors);
+        setError(split.formError);
         return;
       }
       if (result.data?.checkoutUrl) {
@@ -174,7 +183,8 @@ export function SubscribeForm({
               We need a few details to create your dealer profile before you
               can subscribe.
             </p>
-            <form onSubmit={handleCreateProfile} className="space-y-4">
+            <form onSubmit={handleCreateProfile} noValidate className="space-y-4">
+              <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
               <Input
                 label="Business Name"
                 type="text"
@@ -182,6 +192,7 @@ export function SubscribeForm({
                 onChange={(e) => setBusinessName(e.target.value)}
                 required
                 placeholder="e.g. Island Motors"
+                error={firstFieldError(fieldErrors, "name")}
               />
               <Input
                 label="Phone (optional)"
@@ -189,6 +200,7 @@ export function SubscribeForm({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. 01624 123456"
+                error={firstFieldError(fieldErrors, "phone")}
               />
               <Input
                 label="Website (optional)"
@@ -196,12 +208,8 @@ export function SubscribeForm({
                 value={website}
                 onChange={(e) => setWebsite(e.target.value)}
                 placeholder="e.g. https://islandmotors.im"
+                error={firstFieldError(fieldErrors, "website")}
               />
-              {error && (
-                <p className="text-sm text-text-energy" role="alert">
-                  {error}
-                </p>
-              )}
               <Button
                 type="submit"
                 className="w-full"
@@ -222,11 +230,7 @@ export function SubscribeForm({
               A secure Ripple checkout will open in a new tab so you can keep
               this subscription page open while you complete payment.
             </p>
-            {error && (
-              <p className="text-sm text-text-energy mb-4" role="alert">
-                {error}
-              </p>
-            )}
+            <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
             {notice && (
               <p className="text-sm text-text-secondary mb-4" role="status">
                 {notice}
@@ -235,6 +239,8 @@ export function SubscribeForm({
             <Checkbox
               checked={acceptedDealerTerms}
               onCheckedChange={(checked) => setAcceptedDealerTerms(checked === true)}
+              required
+              error={firstFieldError(fieldErrors, "acceptedDealerTerms")}
               label={
                 <>
                   I accept the{" "}
@@ -256,7 +262,6 @@ export function SubscribeForm({
               onClick={handleSubscribe}
               className="w-full mt-4"
               loading={isPending}
-              disabled={!acceptedDealerTerms}
             >
               Subscribe - {tierPrice}/month
             </Button>

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
-import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
+import { ensureAdminDealerProfile } from "@/lib/dealers/access";
+import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
@@ -18,43 +19,6 @@ export const metadata: Metadata = {
   description: "Create a dealer listing on itrader.im.",
 };
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-async function ensureAdminDealerProfile(user: {
-  id: string;
-  name: string | null;
-  email: string;
-}) {
-  const baseRaw =
-    user.name?.trim() || user.email.split("@")[0] || `admin-${user.id.slice(-6)}`;
-  const base = slugify(baseRaw) || `admin-${user.id.slice(-6)}`;
-  const profileName = user.name?.trim() || `${baseRaw} Dealer`;
-
-  for (let i = 0; i < 100; i += 1) {
-    const slug = i === 0 ? `${base}-dealer` : `${base}-dealer-${i}`;
-    const existing = await db.dealerProfile.findUnique({
-      where: { slug },
-      select: { id: true },
-    });
-    if (existing) continue;
-
-    return db.dealerProfile.create({
-      data: {
-        userId: user.id,
-        name: profileName,
-        slug,
-      },
-    });
-  }
-
-  throw new Error("Failed to provision dealer profile for admin user.");
-}
-
 interface Props {
   searchParams?: Promise<{
     draft?: string;
@@ -62,15 +26,12 @@ interface Props {
 }
 
 export default async function SellDealerPage({ searchParams }: Props) {
-  const user = await requireAcceptedUser("/sell/dealer");
-  if (user.role === "USER") redirect("/sell/private");
-  let dealerProfile = user.dealerProfile;
+  const acceptedUser = await requireAcceptedUser("/sell/dealer");
+  if (acceptedUser.role === "USER") redirect("/sell/private");
+  const user = await ensureAdminDealerProfile(acceptedUser, db);
+  const dealerProfile = user.dealerProfile;
   const params = searchParams ? await searchParams : {};
   const draftId = params.draft?.trim();
-
-  if (!dealerProfile && user.role === "ADMIN") {
-    dealerProfile = await ensureAdminDealerProfile(user);
-  }
 
   if (!dealerProfile) redirect("/dealer/subscribe");
 
@@ -85,12 +46,12 @@ export default async function SellDealerPage({ searchParams }: Props) {
     redirect("/dealer/dashboard?status=DRAFT");
   }
 
-  const entitlement = await getCurrentDealerEntitlement({
+  const operationalAccess = await hasOperationalDealerAccess({
     role: user.role,
     dealerProfile,
   });
 
-  if (!entitlement && !initialDraft) {
+  if (!operationalAccess && !initialDraft) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-4">
         <Breadcrumbs

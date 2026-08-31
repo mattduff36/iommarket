@@ -67,12 +67,11 @@ export function canViewMarketplaceDealerProfile(input: {
   previewPackEnabled: boolean;
   hasEntitlement: boolean;
 }) {
-  if (input.hasEntitlement && !input.isAdminPreview) return true;
-  return (
-    input.viewer?.role === "ADMIN" &&
-    input.isAdminPreview &&
-    input.previewPackEnabled
-  );
+  if (input.isAdminPreview) {
+    return input.viewer?.role === "ADMIN" && input.previewPackEnabled;
+  }
+  if (input.hasEntitlement) return true;
+  return input.viewer?.role === "ADMIN";
 }
 
 export function getPublicDealerWhere(
@@ -103,8 +102,14 @@ export function getPublicDealerWhere(
   };
 }
 
+type DealerProfileClient = {
+  dealerProfile: {
+    upsert: Prisma.TransactionClient["dealerProfile"]["upsert"];
+  };
+};
+
 export async function provisionDealerProfile(
-  tx: Prisma.TransactionClient,
+  tx: DealerProfileClient,
   user: DealerProfileDefaultsSubject
 ) {
   const defaults = getDealerProfileDefaults(user);
@@ -117,6 +122,18 @@ export async function provisionDealerProfile(
       ...defaults,
     },
   });
+}
+
+export async function ensureAdminDealerProfile<
+  T extends DealerProfileDefaultsSubject & {
+    role: UserRole;
+    dealerProfile: { id: string } | null;
+  },
+>(user: T, tx: DealerProfileClient) {
+  if (user.role !== "ADMIN") return user;
+  if (user.dealerProfile) return user;
+  const dealerProfile = await provisionDealerProfile(tx, user);
+  return { ...user, dealerProfile };
 }
 
 function getDefaultDealerName(user: DealerProfileDefaultsSubject) {

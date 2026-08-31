@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  firstZodMessage,
+  publicAuthErrorMessage,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { emailField } from "@/lib/validations/email";
 
 function getSafeNextPath(nextPath: string | null): string {
   if (!nextPath) return "/";
@@ -36,17 +45,33 @@ export function SignUpForm() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const nextErrors: FieldErrors = {};
+    const parsedEmail = emailField.safeParse(email);
+    if (!parsedEmail.success) {
+      const message = firstZodMessage(parsedEmail.error);
+      if (message) nextErrors.email = [message];
+    }
+    if (password.length < 8) {
+      nextErrors.password = ["Password must be at least 8 characters."];
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setFieldErrors({});
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
       const { data, error: err } = await supabase.auth.signUp({
-        email,
+        email: parsedEmail.success ? parsedEmail.data : email,
         password,
         options: {
           data: {
@@ -56,11 +81,14 @@ export function SignUpForm() {
         },
       });
       if (err) {
-        setError(err.message);
+        setError(
+          publicAuthErrorMessage(
+            err.message,
+            "We could not create your account. Check the highlighted fields and try again.",
+          ),
+        );
         return;
       }
-      // Supabase silently "succeeds" for existing emails to prevent enumeration.
-      // An empty identities array is the reliable signal that the email is already registered.
       if (data.user && data.user.identities?.length === 0) {
         setError(
           "An account with this email already exists. Please sign in instead.",
@@ -88,7 +116,8 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-sm space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="mx-auto w-full max-w-sm space-y-4">
+      <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
       <Input
         label="Email"
         type="email"
@@ -96,6 +125,7 @@ export function SignUpForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
+        error={firstFieldError(fieldErrors, "email")}
       />
       <Input
         label="Password"
@@ -104,6 +134,7 @@ export function SignUpForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
+        error={firstFieldError(fieldErrors, "password")}
       />
       <Input
         label="Name (optional)"
@@ -112,11 +143,6 @@ export function SignUpForm() {
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      {error && (
-        <p className="text-sm text-text-energy" role="alert">
-          {error}
-        </p>
-      )}
       <div className="flex flex-col gap-3">
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Creating account…" : "Sign up"}

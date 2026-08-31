@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emailField } from "@/lib/validations/email";
 import { LISTING_DECLARATION_ERROR } from "@/lib/listings/write-off-category";
 import {
   MODERATION_TAXONOMY_VERSION,
@@ -14,7 +15,7 @@ export const vehicleCatalogueSelectionSchema = z.object({
   variant: z.string().trim().max(60).optional(),
 });
 
-export const createListingSchema = z.object({
+export const listingDetailsSchema = z.object({
   title: z
     .string()
     .trim()
@@ -48,7 +49,11 @@ export const createListingSchema = z.object({
   vehicleCatalogueSelection: vehicleCatalogueSelectionSchema.optional(),
 });
 
-export const updateListingSchema = createListingSchema.partial().extend({
+export const createListingSchema = listingDetailsSchema.extend({
+  flow: z.enum(["private", "dealer"]),
+});
+
+export const updateListingSchema = listingDetailsSchema.partial().extend({
   id: z.string().cuid(),
 });
 
@@ -125,22 +130,27 @@ export const REPORT_REASON_CODES = [
 
 export const reportListingSchema = z.object({
   listingId: z.string().cuid(),
-  reporterEmail: z.string().email("Valid email required"),
+  reporterEmail: emailField,
   reasonCode: z.enum(REPORT_REASON_CODES),
   reason: z
     .string()
-    .min(10, "Please provide more detail")
-    .max(2000, "Reason is too long"),
+    .min(10, "Enter a reason of at least 10 characters.")
+    .max(2000, "Reason is too long."),
 });
 
 export const contactSellerSchema = z.object({
   listingId: z.string().cuid(),
-  name: z.string().min(2, "Name is required").max(120, "Name is too long"),
-  email: z.string().email("Valid email required"),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Enter your name.")
+    .max(120, "Name is too long."),
+  email: emailField,
   message: z
     .string()
-    .min(10, "Please provide more detail")
-    .max(2000, "Message is too long"),
+    .trim()
+    .min(10, "Enter a message of at least 10 characters.")
+    .max(2000, "Message is too long."),
   website: z.string().max(0).optional().default(""),
 });
 

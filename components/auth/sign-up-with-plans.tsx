@@ -7,7 +7,17 @@ import { signUpWithPolicyAcceptance } from "@/actions/auth/sign-up";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Check, ChevronRight, Heart, Search, ShieldCheck, Star } from "lucide-react";
+import {
+  firstFieldError,
+  flattenZodFieldErrors,
+  publicAuthErrorMessage,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { signUpSchema } from "@/lib/validations/auth";
 
 function getSafeNextPath(nextPath: string | null | undefined): string {
   if (!nextPath) return "/";
@@ -41,6 +51,7 @@ export function SignUpWithPlans({
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [ageAttested, setAgeAttested] = useState(false);
@@ -76,31 +87,40 @@ export function SignUpWithPlans({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setFieldErrors({});
 
-    if (!email || !password) {
-      setError("Please enter your email and password above first.");
+    const safeNextPath = getSafeNextPath(defaultNextPath);
+    const parsed = signUpSchema.safeParse({
+      email,
+      password,
+      name,
+      nextPath: safeNextPath,
+      ageAttested,
+      policiesAccepted,
+    });
+    if (!parsed.success) {
+      setFieldErrors(flattenZodFieldErrors(parsed.error));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    const safeNextPath = getSafeNextPath(defaultNextPath);
-    setSignedUpNextPath(safeNextPath);
+    setSignedUpNextPath(parsed.data.nextPath);
     setLoading(true);
 
     try {
-      const result = await signUpWithPolicyAcceptance({
-        email,
-        password,
-        name,
-        nextPath: safeNextPath,
-        ageAttested,
-        policiesAccepted,
-      });
+      const result = await signUpWithPolicyAcceptance(parsed.data);
       if (result.error) {
+        const split = splitActionError(result.error);
+        setFieldErrors(split.fieldErrors);
         setError(
-          typeof result.error === "string"
-            ? result.error
-            : Object.values(result.error).flat()[0] ?? "Unable to create account.",
+          split.formError
+            ? publicAuthErrorMessage(
+                split.formError,
+                "We could not create your account. Check the highlighted fields and try again.",
+              )
+            : Object.keys(split.fieldErrors).length > 0
+              ? null
+              : "We could not create your account. Check the highlighted fields and try again.",
         );
         return;
       }
@@ -130,6 +150,7 @@ export function SignUpWithPlans({
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
       <form
         onSubmit={handleSubmit}
+        noValidate
         className="rounded-2xl border border-neon-blue-500/25 bg-surface p-6 shadow-low sm:p-8"
       >
         <div className="mb-6">
@@ -157,6 +178,7 @@ export function SignUpWithPlans({
         </div>
 
         <div className="space-y-4">
+          <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
           <Input
             label="Email"
             type="email"
@@ -164,6 +186,7 @@ export function SignUpWithPlans({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            error={firstFieldError(fieldErrors, "email")}
           />
           <Input
             label="Password"
@@ -172,6 +195,7 @@ export function SignUpWithPlans({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            error={firstFieldError(fieldErrors, "password")}
           />
           <Input
             label="Name (optional)"
@@ -179,17 +203,20 @@ export function SignUpWithPlans({
             autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            error={firstFieldError(fieldErrors, "name")}
           />
           <Checkbox
             checked={ageAttested}
             onCheckedChange={(value) => setAgeAttested(value === true)}
             required
+            error={firstFieldError(fieldErrors, "ageAttested")}
             label="I confirm I am 18 or over."
           />
           <Checkbox
             checked={policiesAccepted}
             onCheckedChange={(value) => setPoliciesAccepted(value === true)}
             required
+            error={firstFieldError(fieldErrors, "policiesAccepted")}
             label={
               <span>
                 I acknowledge the{" "}
@@ -208,11 +235,6 @@ export function SignUpWithPlans({
               </span>
             }
           />
-          {error && (
-            <p className="text-sm text-text-energy" role="alert">
-              {error}
-            </p>
-          )}
           <p className="text-center text-sm text-text-secondary">
             Already have an account?{" "}
             <Link href={signInHref} className="text-text-trust hover:underline">

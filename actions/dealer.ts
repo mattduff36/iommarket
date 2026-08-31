@@ -9,10 +9,15 @@ import { reportHandledException } from "@/lib/monitoring";
 const selfServiceDealerProfileSchema = z.object({
   name: z
     .string()
-    .min(2, "Business name must be at least 2 characters")
-    .max(100, "Business name must be at most 100 characters"),
-  phone: z.string().max(30).optional(),
-  website: z.string().url().max(500).optional().or(z.literal("")),
+    .min(2, "Enter a business name of at least 2 characters.")
+    .max(100, "Business name must be at most 100 characters."),
+  phone: z.string().max(30, "Phone number is too long.").optional(),
+  website: z
+    .string()
+    .url("Enter a valid website URL, for example https://example.com.")
+    .max(500)
+    .optional()
+    .or(z.literal("")),
 });
 
 export type SelfServiceDealerProfileInput = z.infer<

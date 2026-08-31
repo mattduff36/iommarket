@@ -8,6 +8,16 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  firstZodMessage,
+  publicAuthErrorMessage,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { emailField } from "@/lib/validations/email";
 
 interface RegionOption {
   id: string;
@@ -64,11 +74,13 @@ export function ProfileSecurityForm({ user, regions }: Props) {
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? "");
   const [regionId, setRegionId] = useState(user.regionId ?? "");
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileFieldErrors, setProfileFieldErrors] = useState<FieldErrors>({});
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
 
   const [newEmail, setNewEmail] = useState("");
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailFieldError, setEmailFieldError] = useState<string | undefined>();
   const [emailLoading, setEmailLoading] = useState(false);
 
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
@@ -78,23 +90,14 @@ export function ProfileSecurityForm({ user, regions }: Props) {
   const [confirmationText, setConfirmationText] = useState("");
   const [deletionReason, setDeletionReason] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteFieldErrors, setDeleteFieldErrors] = useState<FieldErrors>({});
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeletionProgress, setShowDeletionProgress] = useState(false);
-
-  function parseFieldError(error: unknown): string {
-    if (typeof error === "string") return error;
-    if (error && typeof error === "object") {
-      const values = Object.values(error as Record<string, unknown>)
-        .flatMap((value) => (Array.isArray(value) ? value : []))
-        .filter((value): value is string => typeof value === "string");
-      if (values.length > 0) return values[0];
-    }
-    return "Something went wrong. Please try again.";
-  }
 
   function handleProfileSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setProfileError(null);
+    setProfileFieldErrors({});
     setProfileSuccess(null);
 
     startTransition(async () => {
@@ -107,7 +110,9 @@ export function ProfileSecurityForm({ user, regions }: Props) {
       });
 
       if (result.error) {
-        setProfileError(parseFieldError(result.error));
+        const split = splitActionError(result.error);
+        setProfileFieldErrors(split.fieldErrors);
+        setProfileError(split.formError);
         return;
       }
 
@@ -119,13 +124,24 @@ export function ProfileSecurityForm({ user, regions }: Props) {
   async function handleEmailChange(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setEmailError(null);
+    setEmailFieldError(undefined);
     setEmailMessage(null);
+    const parsedEmail = emailField.safeParse(newEmail);
+    if (!parsedEmail.success) {
+      setEmailFieldError(firstZodMessage(parsedEmail.error));
+      return;
+    }
     setEmailLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      const { error } = await supabase.auth.updateUser({ email: parsedEmail.data });
       if (error) {
-        setEmailError(error.message);
+        setEmailError(
+          publicAuthErrorMessage(
+            error.message,
+            "We could not update your email. Check the address and try again.",
+          ),
+        );
         return;
       }
       setEmailMessage("Check your inbox to confirm your new email address.");
@@ -143,7 +159,12 @@ export function ProfileSecurityForm({ user, regions }: Props) {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signOut({ scope: "others" });
       if (error) {
-        setSessionError(error.message);
+        setSessionError(
+          publicAuthErrorMessage(
+            error.message,
+            "We could not sign out other devices. Please try again shortly.",
+          ),
+        );
         return;
       }
       setSessionMessage("Signed out from other devices.");
@@ -155,6 +176,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
   async function handleAccountDeletion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setDeleteError(null);
+    setDeleteFieldErrors({});
     setDeleteLoading(true);
     try {
       const result = await deactivateMyAccount({
@@ -163,7 +185,9 @@ export function ProfileSecurityForm({ user, regions }: Props) {
       });
 
       if (result.error) {
-        setDeleteError(parseFieldError(result.error));
+        const split = splitActionError(result.error);
+        setDeleteFieldErrors(split.fieldErrors);
+        setDeleteError(split.formError);
         setDeleteLoading(false);
         return;
       }
@@ -196,7 +220,8 @@ export function ProfileSecurityForm({ user, regions }: Props) {
           <CardTitle>Profile Basics</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleProfileSubmit} className="space-y-4">
+          <form onSubmit={handleProfileSubmit} noValidate className="space-y-4">
+            <FormErrorSummary messages={uniqueErrorMessages(profileFieldErrors, profileError)} />
             <Input
               label="Display name"
               value={name}
@@ -204,6 +229,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
               required
               minLength={2}
               maxLength={100}
+              error={firstFieldError(profileFieldErrors, "name")}
             />
 
             <div className="flex flex-col gap-1">
@@ -230,6 +256,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               maxLength={30}
+              error={firstFieldError(profileFieldErrors, "phone")}
             />
 
             <Input
@@ -238,6 +265,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
               onChange={(e) => setAvatarUrl(e.target.value)}
               placeholder="https://..."
               maxLength={500}
+              error={firstFieldError(profileFieldErrors, "avatarUrl")}
             />
 
             <div className="flex flex-col gap-1">
@@ -254,7 +282,10 @@ export function ProfileSecurityForm({ user, regions }: Props) {
               />
             </div>
 
-            {profileError ? <p className="text-sm text-text-error">{profileError}</p> : null}
+            {firstFieldError(profileFieldErrors, "bio") ? (
+              <p className="text-xs text-text-error">{firstFieldError(profileFieldErrors, "bio")}</p>
+            ) : null}
+
             {profileSuccess ? <p className="text-sm text-neon-blue-400">{profileSuccess}</p> : null}
 
             <Button type="submit" loading={isPending}>
@@ -279,19 +310,20 @@ export function ProfileSecurityForm({ user, regions }: Props) {
             </Button>
           </div>
 
-          <form onSubmit={handleEmailChange} className="rounded-md border border-border p-4 space-y-3">
+          <form onSubmit={handleEmailChange} noValidate className="rounded-md border border-border p-4 space-y-3">
             <p className="text-sm font-medium text-text-primary">Email Address</p>
             <p className="text-xs text-text-secondary">
               Current: {user.email}
             </p>
+            <FormErrorSummary messages={emailError ? [emailError] : []} />
             <Input
               label="New email"
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               required
+              error={emailFieldError}
             />
-            {emailError ? <p className="text-sm text-text-error">{emailError}</p> : null}
             {emailMessage ? <p className="text-sm text-neon-blue-400">{emailMessage}</p> : null}
             <Button type="submit" size="sm" loading={emailLoading}>
               Update Email
@@ -360,7 +392,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
           <CardTitle className="text-neon-red-500">Delete Account</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAccountDeletion} className="space-y-3">
+          <form onSubmit={handleAccountDeletion} noValidate className="space-y-3">
             <p className="text-sm text-text-secondary">
               This is a two-step request. First we disable your account and take
               down live listings. A later queued step removes login credentials,
@@ -368,11 +400,13 @@ export function ProfileSecurityForm({ user, regions }: Props) {
               and audit records are kept. Type{" "}
               <span className="font-semibold text-text-primary">DELETE MY ACCOUNT</span> to confirm.
             </p>
+            <FormErrorSummary messages={uniqueErrorMessages(deleteFieldErrors, deleteError)} />
             <Input
               label="Confirmation"
               value={confirmationText}
               onChange={(e) => setConfirmationText(e.target.value)}
               required
+              error={firstFieldError(deleteFieldErrors, "confirmationText")}
             />
             <div className="flex flex-col gap-1">
               <label htmlFor="reason" className="text-sm font-medium text-text-primary">
@@ -387,7 +421,9 @@ export function ProfileSecurityForm({ user, regions }: Props) {
                 className="flex w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline"
               />
             </div>
-            {deleteError ? <p className="text-sm text-text-error">{deleteError}</p> : null}
+            {firstFieldError(deleteFieldErrors, "reason") ? (
+              <p className="text-xs text-text-error">{firstFieldError(deleteFieldErrors, "reason")}</p>
+            ) : null}
             <Button type="submit" variant="energy" size="sm" loading={deleteLoading}>
               Delete My Account
             </Button>

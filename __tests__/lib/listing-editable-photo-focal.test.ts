@@ -74,6 +74,23 @@ describe("listing edit focal persistence", () => {
     expect(draft?.images[0]).toMatchObject({ focalX: 0.23, focalY: 0.71, order: 0 });
   });
 
+  it("T11 returns null when the actor does not own the listing", async () => {
+    listingFindFirst.mockResolvedValue(null);
+
+    await expect(
+      getEditableDraft({
+        draftId: "listing-1",
+        userId: "admin-1",
+        dealerId: null,
+      }),
+    ).resolves.toBeNull();
+    expect(listingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "listing-1", userId: "admin-1", dealerId: null },
+      }),
+    );
+  });
+
   it.each([
     ["DRAFT", "draft"],
     ["REJECTED", "resubmit"],

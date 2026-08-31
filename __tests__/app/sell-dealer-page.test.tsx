@@ -6,9 +6,10 @@ const redirectMock = vi.fn((path: string) => {
   throw new Error(`redirect:${path}`);
 });
 const getCurrentUserMock = vi.fn();
-const getCurrentDealerEntitlementMock = vi.fn();
+const hasOperationalDealerAccessMock = vi.fn();
 const getSellFormDataMock = vi.fn();
 const getEditableDraftMock = vi.fn();
+const ensureAdminDealerProfileMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => redirectMock(path),
@@ -19,7 +20,11 @@ vi.mock("@/lib/policy/gate", () => ({
 }));
 
 vi.mock("@/lib/dealers/entitlement", () => ({
-  getCurrentDealerEntitlement: getCurrentDealerEntitlementMock,
+  hasOperationalDealerAccess: hasOperationalDealerAccessMock,
+}));
+
+vi.mock("@/lib/dealers/access", () => ({
+  ensureAdminDealerProfile: ensureAdminDealerProfileMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -64,15 +69,11 @@ describe("SellDealerPage", () => {
       modelOptionsByMake: {},
     });
     getEditableDraftMock.mockResolvedValue(null);
+    ensureAdminDealerProfileMock.mockImplementation(async (user: unknown) => user);
+    hasOperationalDealerAccessMock.mockResolvedValue(true);
   });
 
   it("unlocks dealer listing creation for an active admin grant", async () => {
-    getCurrentDealerEntitlementMock.mockResolvedValue({
-      subscriptionId: "grant-1",
-      source: "ADMIN_GRANT",
-      tier: "STARTER",
-      endsAt: new Date("2026-08-19T20:00:00.000Z"),
-    });
     const { default: SellDealerPage } = await import(
       "@/app/(public)/sell/dealer/page"
     );
@@ -88,7 +89,7 @@ describe("SellDealerPage", () => {
   });
 
   it("shows the subscribe state after grant expiry", async () => {
-    getCurrentDealerEntitlementMock.mockResolvedValue(null);
+    hasOperationalDealerAccessMock.mockResolvedValue(false);
     const { default: SellDealerPage } = await import(
       "@/app/(public)/sell/dealer/page"
     );
@@ -102,5 +103,28 @@ describe("SellDealerPage", () => {
     expect(
       container.querySelector('script[type="application/ld+json"]'),
     ).toBeNull();
+  });
+
+  it("T2 unlocks dealer listing creation for admins without billing entitlement", async () => {
+    getCurrentUserMock.mockResolvedValue({
+      id: "admin-1",
+      name: "Admin",
+      email: "admin@example.com",
+      role: "ADMIN",
+      dealerProfile: {
+        id: "dealer-admin",
+        tier: "STARTER",
+      },
+    });
+    const { default: SellDealerPage } = await import(
+      "@/app/(public)/sell/dealer/page"
+    );
+
+    render(await SellDealerPage({}));
+
+    expect(screen.getByTestId("create-listing-form").getAttribute("data-mode")).toBe(
+      "dealer",
+    );
+    expect(screen.queryByText(/Active dealer access is required/i)).toBeNull();
   });
 });

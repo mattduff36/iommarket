@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DealerLogoUpload } from "./dealer-logo-upload";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
 
 interface Props {
   initialData: {
@@ -30,22 +37,13 @@ export function DealerProfileForm({ initialData }: Props) {
   const [phone, setPhone] = useState(initialData.phone ?? "");
   const [logoUrl, setLogoUrl] = useState(initialData.logoUrl ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState<string | null>(null);
-
-  function parseError(value: unknown): string {
-    if (typeof value === "string") return value;
-    if (value && typeof value === "object") {
-      const fields = Object.values(value as Record<string, unknown>)
-        .flatMap((item) => (Array.isArray(item) ? item : []))
-        .filter((item): item is string => typeof item === "string");
-      if (fields.length > 0) return fields[0];
-    }
-    return "Failed to update dealer profile.";
-  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     setSuccess(null);
 
     startTransition(async () => {
@@ -58,7 +56,9 @@ export function DealerProfileForm({ initialData }: Props) {
       });
 
       if (result.error) {
-        setError(parseError(result.error));
+        const split = splitActionError(result.error);
+        setFieldErrors(split.fieldErrors);
+        setError(split.formError ?? (Object.keys(split.fieldErrors).length > 0 ? null : "We could not update your dealer profile. Check the highlighted fields and try again."));
         return;
       }
 
@@ -88,7 +88,8 @@ export function DealerProfileForm({ initialData }: Props) {
         </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
           <Input
             label="Dealer name"
             value={name}
@@ -96,6 +97,7 @@ export function DealerProfileForm({ initialData }: Props) {
             required
             minLength={2}
             maxLength={100}
+            error={firstFieldError(fieldErrors, "name")}
           />
 
           <Input
@@ -105,6 +107,7 @@ export function DealerProfileForm({ initialData }: Props) {
             required
             minLength={2}
             maxLength={100}
+            error={firstFieldError(fieldErrors, "slug")}
           />
 
           <Input
@@ -113,6 +116,7 @@ export function DealerProfileForm({ initialData }: Props) {
             onChange={(e) => setWebsite(e.target.value)}
             placeholder="https://..."
             maxLength={500}
+            error={firstFieldError(fieldErrors, "website")}
           />
 
           <Input
@@ -120,6 +124,7 @@ export function DealerProfileForm({ initialData }: Props) {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             maxLength={30}
+            error={firstFieldError(fieldErrors, "phone")}
           />
 
           <div className="flex flex-col gap-1">
@@ -132,11 +137,17 @@ export function DealerProfileForm({ initialData }: Props) {
               onChange={(e) => setBio(e.target.value)}
               rows={5}
               maxLength={2000}
-              className="flex w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline"
+              aria-invalid={firstFieldError(fieldErrors, "bio") ? true : undefined}
+              className={[
+                "flex w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline",
+                firstFieldError(fieldErrors, "bio") ? "border-neon-red-500" : "border-border",
+              ].join(" ")}
             />
+            {firstFieldError(fieldErrors, "bio") ? (
+              <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "bio")}</p>
+            ) : null}
           </div>
 
-          {error ? <p className="text-sm text-text-error">{error}</p> : null}
           {success ? <p className="text-sm text-neon-blue-400">{success}</p> : null}
 
           <div className="space-y-2">

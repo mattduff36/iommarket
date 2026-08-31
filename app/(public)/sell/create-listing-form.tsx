@@ -9,6 +9,7 @@ import {
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 import { getAttributeFieldConfig } from "@/lib/listings/attribute-ui";
@@ -727,14 +728,7 @@ export function CreateListingForm({
             </div>
           )}
 
-          {error ? (
-            <div
-              role="alert"
-              className="rounded-md border border-border bg-surface-elevated px-3 py-2"
-            >
-              <p className="text-sm text-text-secondary">{error}</p>
-            </div>
-          ) : null}
+          {error ? <FormErrorSummary messages={[error]} /> : null}
 
           <div className="flex items-center gap-3">
             {step > 1 ? (

@@ -4,6 +4,15 @@ import { useState } from "react";
 import { contactSeller } from "@/actions/listings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  flattenZodFieldErrors,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { contactSellerSchema } from "@/lib/validations/listing";
 
 interface Props {
   listingId: string;
@@ -12,29 +21,37 @@ interface Props {
 export function ContactSellerForm({ listingId }: Props) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSending, setIsSending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     setIsSending(true);
 
     const formData = new FormData(e.currentTarget);
-    const result = await contactSeller({
+    const payload = {
       listingId,
       name: String(formData.get("name") ?? ""),
       email: String(formData.get("email") ?? ""),
       message: String(formData.get("message") ?? ""),
       website: String(formData.get("website") ?? ""),
-    });
+    };
+    const parsed = contactSellerSchema.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(flattenZodFieldErrors(parsed.error));
+      setIsSending(false);
+      return;
+    }
+
+    const result = await contactSeller(parsed.data);
     setIsSending(false);
 
     if (result.error) {
-      setError(
-        typeof result.error === "string"
-          ? result.error
-          : "Unable to send your message right now."
-      );
+      const split = splitActionError(result.error);
+      setFieldErrors(split.fieldErrors);
+      setError(split.formError);
       return;
     }
     setSent(true);
@@ -48,13 +65,18 @@ export function ContactSellerForm({ listingId }: Props) {
     );
   }
 
+  const messageError = firstFieldError(fieldErrors, "message");
+  const summaryMessages = uniqueErrorMessages(fieldErrors, error);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
+      <FormErrorSummary messages={summaryMessages} />
       <Input
         label="Your name"
         name="name"
         required
         placeholder="John Smith"
+        error={firstFieldError(fieldErrors, "name")}
       />
       <Input
         label="Your email"
@@ -62,6 +84,8 @@ export function ContactSellerForm({ listingId }: Props) {
         type="email"
         required
         placeholder="john@example.com"
+        autoComplete="email"
+        error={firstFieldError(fieldErrors, "email")}
       />
       <div className="flex flex-col gap-1">
         <label
@@ -69,6 +93,9 @@ export function ContactSellerForm({ listingId }: Props) {
           className="text-sm font-medium text-text-primary"
         >
           Message
+          <span aria-hidden="true" className="text-text-error">
+            {" "}*
+          </span>
         </label>
         <textarea
           id="message"
@@ -76,8 +103,18 @@ export function ContactSellerForm({ listingId }: Props) {
           required
           rows={4}
           placeholder="I'm interested in this item..."
-          className="flex w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline"
+          aria-invalid={messageError ? true : undefined}
+          aria-describedby={messageError ? "contact-message-error" : undefined}
+          className={[
+            "flex w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline",
+            messageError ? "border-neon-red-500" : "border-border",
+          ].join(" ")}
         />
+        {messageError ? (
+          <p id="contact-message-error" className="text-xs text-text-error">
+            {messageError}
+          </p>
+        ) : null}
       </div>
       <input type="hidden" name="listingId" value={listingId} />
       <input
@@ -87,7 +124,6 @@ export function ContactSellerForm({ listingId }: Props) {
         tabIndex={-1}
         className="hidden"
       />
-      {error ? <p className="text-xs text-text-error">{error}</p> : null}
       <Button type="submit" className="w-full">
         {isSending ? "Sending..." : "Send Message"}
       </Button>

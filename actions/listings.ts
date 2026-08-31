@@ -5,9 +5,10 @@ import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import {
-  getDealerEntitlement,
-  getCurrentDealerEntitlement,
   hasDealerAccountAccess,
+  hasMismatchedDealerListing,
+  hasOperationalDealerAccess,
+  listingDealerMatchesActor,
 } from "@/lib/dealers/entitlement";
 import {
   detachListingDealerIdIfNeeded,
@@ -44,7 +45,10 @@ import {
   isListingLifecycleDomainError,
 } from "@/lib/listings/errors";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
-import { canSkipListingPayment } from "@/lib/listings/payment-skip";
+import {
+  canAdminSkipOwnedListingPayment,
+  canSkipListingPayment,
+} from "@/lib/listings/payment-skip";
 import {
   getOpenRevision,
   getOrCreateDraftRevision,
@@ -112,29 +116,42 @@ function expectedListingActionError(
 export async function createListing(input: CreateListingInput) {
   const user = await requireAcceptedAuth();
 
-  if (user.role === "DEALER" && !user.dealerProfile) {
-    return { error: "A dealer profile is required to post listings." };
+  const parsed = createListingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors };
   }
 
-  if (hasDealerAccountAccess(user)) {
-    const entitlement = await getCurrentDealerEntitlement(user);
-    if (!entitlement) {
+  const { flow } = parsed.data;
+  if (flow === "dealer" && user.role === "USER") {
+    return { error: "A dealer account is required to post dealer listings." };
+  }
+  if (flow === "private" && user.role === "DEALER") {
+    return { error: "Dealer accounts must use the dealer listing flow." };
+  }
+
+  if (flow === "dealer") {
+    if (!hasDealerAccountAccess(user)) {
+      return { error: "A dealer profile is required to post listings." };
+    }
+    if (!(await hasOperationalDealerAccess(user))) {
       return { error: "Active dealer access is required to post listings." };
     }
 
-    const listingCap = getDealerListingCap(user.dealerProfile.tier);
-    const activeListingCount = await db.listing.count({
-      where: {
-        dealerId: user.dealerProfile.id,
-        status: {
-          in: ["DRAFT", "PENDING", "APPROVED", "LIVE"],
+    if (user.role !== "ADMIN") {
+      const listingCap = getDealerListingCap(user.dealerProfile.tier);
+      const activeListingCount = await db.listing.count({
+        where: {
+          dealerId: user.dealerProfile.id,
+          status: {
+            in: ["DRAFT", "PENDING", "APPROVED", "LIVE"],
+          },
         },
-      },
-    });
-    if (activeListingCount >= listingCap) {
-      return {
-        error: `Your ${user.dealerProfile.tier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
-      };
+      });
+      if (activeListingCount >= listingCap) {
+        return {
+          error: `Your ${user.dealerProfile.tier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
+        };
+      }
     }
   }
 
@@ -146,15 +163,11 @@ export async function createListing(input: CreateListingInput) {
     return { error: "Too many requests. Please try again shortly." };
   }
 
-  const parsed = createListingSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: parsed.error.flatten().fieldErrors };
-  }
-
   const {
     attributes,
     trustDeclarationAccepted,
     vehicleCatalogueSelection,
+    flow: listingFlow,
     ...data
   } = parsed.data;
   const [category, region] = await Promise.all([
@@ -216,9 +229,10 @@ export async function createListing(input: CreateListingInput) {
         data: {
           ...data,
           userId: user.id,
-          dealerId: hasDealerAccountAccess(user)
-            ? user.dealerProfile.id
-            : null,
+          dealerId:
+            listingFlow === "dealer" && hasDealerAccountAccess(user)
+              ? user.dealerProfile.id
+              : null,
           status: "DRAFT",
           trustDeclarationAccepted,
           trustDeclarationAcceptedAt: trustDeclarationAccepted ? new Date() : null,
@@ -456,6 +470,21 @@ export async function submitListingForReview(
   });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (hasMismatchedDealerListing(user, listing)) {
+    return { error: "Not authorized" };
+  }
+  if (
+    listingDealerMatchesActor(user, listing) &&
+    !(await hasOperationalDealerAccess(user))
+  ) {
+    return {
+      error: "Active dealer access is required before submitting dealer listings.",
+    };
+  }
+  const adminOwnedPaymentSkip = canAdminSkipOwnedListingPayment({
+    actor: user,
+    listing,
+  });
   const { getPolicyFlags } = await import("@/lib/policy/flags");
   const policyFlags = getPolicyFlags();
   const { getListingWriteOffReadiness } = await import(
@@ -578,12 +607,8 @@ export async function submitListingForReview(
     return { error: LISTING_DECLARATION_ERROR };
   }
 
-  if (effectiveDealerId && listing.dealer) {
-    const entitlement = await getDealerEntitlement(
-      effectiveDealerId,
-      listing.dealer.tier
-    );
-    if (!entitlement) {
+  if (effectiveDealerId && listing.dealer && !adminOwnedPaymentSkip) {
+    if (!(await hasOperationalDealerAccess(user))) {
       return {
         error: "Active dealer access is required before submitting dealer listings.",
       };
@@ -591,17 +616,21 @@ export async function submitListingForReview(
   }
 
   if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
-    const skip = await canSkipListingPayment(db, {
-      listingId,
-      userId: user.id,
-      dealerId: effectiveDealerId,
-    });
-    if (!skip.skip) {
+    if (
+      !adminOwnedPaymentSkip &&
+      !(
+        await canSkipListingPayment(db, {
+          listingId,
+          userId: user.id,
+          dealerId: effectiveDealerId,
+        })
+      ).skip
+    ) {
       return { error: "Payment is required before this listing can be resubmitted." };
     }
   }
 
-  if (!effectiveDealerId && listing.status === "DRAFT") {
+  if (!effectiveDealerId && listing.status === "DRAFT" && !adminOwnedPaymentSkip) {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
     );

@@ -18,7 +18,7 @@ import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { marketplaceListingBadge, marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getDealerEntitlement } from "@/lib/dealers/entitlement";
-import { canViewMarketplaceDealerProfile, getMarketplaceDealerWhere } from "@/lib/dealers/access";
+import { canViewMarketplaceDealerProfile } from "@/lib/dealers/access";
 import {
   buildDealerProfilePath,
   buildListingPath,
@@ -36,18 +36,53 @@ function stars(rating: number) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const currentUser = await getCurrentUser();
-  const dealer = await db.dealerProfile.findFirst({
-    where: { slug, ...getMarketplaceDealerWhere(currentUser) },
-    select: { name: true, bio: true, slug: true, isAdminPreview: true },
+  const dealer = await db.dealerProfile.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      name: true,
+      bio: true,
+      slug: true,
+      tier: true,
+      isAdminPreview: true,
+      previewPack: { select: { enabled: true } },
+      user: { select: { role: true, disabledAt: true, deletedAt: true } },
+    },
   });
-  if (!dealer) return {};
+  if (
+    !dealer ||
+    (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
+    dealer.user.disabledAt ||
+    dealer.user.deletedAt
+  ) {
+    return {};
+  }
+
+  const entitlement = await getDealerEntitlement(dealer.id, dealer.tier);
+  if (
+    !canViewMarketplaceDealerProfile({
+      viewer: currentUser,
+      isAdminPreview: dealer.isAdminPreview,
+      previewPackEnabled: dealer.previewPack?.enabled === true,
+      hasEntitlement: Boolean(entitlement),
+    })
+  ) {
+    return {};
+  }
+
+  const viewerOnlyUnpaidProfile =
+    !entitlement && currentUser?.role === "ADMIN" && !dealer.isAdminPreview;
+
   return {
     title: dealer.name,
     description: dealer.bio?.slice(0, 160) ?? `View ${dealer.name}'s listings on itrader.im.`,
     alternates: {
       canonical: buildCanonicalUrl(buildDealerProfilePath(dealer.slug)),
     },
-    robots: dealer.isAdminPreview ? { index: false, follow: false } : undefined,
+    robots:
+      dealer.isAdminPreview || viewerOnlyUnpaidProfile
+        ? { index: false, follow: false }
+        : undefined,
   };
 }
 

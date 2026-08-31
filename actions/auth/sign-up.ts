@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { signUpSchema, type SignUpInput } from "@/lib/validations/auth";
+import { publicAuthErrorMessage } from "@/lib/forms/action-error";
 import { reportHandledException } from "@/lib/monitoring";
 
 function getSafeNextPath(nextPath: string) {
@@ -19,7 +20,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
   }
 
   if (!isSupabaseAuthConfigured()) {
-    return { error: "Authentication is not configured." };
+    return { error: "Account sign-up is temporarily unavailable. Please try again shortly." };
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,7 +30,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
     "",
   );
   if (!url || !anonKey) {
-    return { error: "Authentication is not configured." };
+    return { error: "Account sign-up is temporarily unavailable. Please try again shortly." };
   }
 
   const nextPath = getSafeNextPath(parsed.data.nextPath);
@@ -49,7 +50,12 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
     });
 
     if (error) {
-      return { error: error.message };
+      return {
+        error: publicAuthErrorMessage(
+          error.message,
+          "We could not create your account. Check the highlighted fields and try again.",
+        ),
+      };
     }
     if (data.user && data.user.identities?.length === 0) {
       return {
@@ -57,7 +63,9 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
       };
     }
     if (!data.user) {
-      return { error: "Unable to create account." };
+      return {
+        error: "We could not create your account. Check the highlighted fields and try again.",
+      };
     }
 
     const admin = createSupabaseAdminClient();
@@ -81,8 +89,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
       route: "/sign-up",
     });
     return {
-      error:
-        err instanceof Error ? err.message : "Unable to create account right now.",
+      error: "We could not create your account. Please try again shortly.",
     };
   }
 }

@@ -49,6 +49,39 @@ export function hasDealerAccountAccess(
   return DEALER_ACCESS_ROLES.has(user.role) && user.dealerProfile !== null;
 }
 
+export function listingDealerMatchesActor(
+  user: DealerAccessSubject,
+  listing: { dealerId: string | null },
+): user is DealerAccessSubject & {
+  dealerProfile: NonNullable<DealerAccessSubject["dealerProfile"]>;
+} {
+  return (
+    listing.dealerId !== null &&
+    hasDealerAccountAccess(user) &&
+    listing.dealerId === user.dealerProfile.id
+  );
+}
+
+export function hasMismatchedDealerListing(
+  user: DealerAccessSubject,
+  listing: { dealerId: string | null },
+) {
+  return (
+    listing.dealerId !== null &&
+    hasDealerAccountAccess(user) &&
+    listing.dealerId !== user.dealerProfile.id
+  );
+}
+
+export async function hasOperationalDealerAccess(
+  user: DealerAccessSubject,
+  now = new Date(),
+) {
+  if (!hasDealerAccountAccess(user)) return false;
+  if (user.role === "ADMIN") return true;
+  return Boolean(await getCurrentDealerEntitlement(user, now));
+}
+
 export function listingHasDealerSellerAccess(
   user: DealerAccessSubject,
   listing: { dealerId: string | null }

@@ -9,6 +9,8 @@ import {
   syncListingImagesSchema,
 } from "@/lib/validations/listing";
 import { FEATURED_LISTING_PHOTO_LIMIT } from "@/lib/listings/photo-limits";
+import { flattenZodFieldErrors } from "@/lib/forms/action-error";
+import { EMAIL_INVALID_MESSAGE } from "@/lib/validations/email";
 
 describe("createListingSchema", () => {
   const validInput = {
@@ -18,11 +20,30 @@ describe("createListingSchema", () => {
     categoryId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
     regionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
     trustDeclarationAccepted: true,
+    flow: "private" as const,
   };
 
-  it("accepts valid input", () => {
-    const result = createListingSchema.safeParse(validInput);
+  it("requires a create-only listing flow", () => {
+    const result = createListingSchema.safeParse({
+      title: "2019 BMW 320d M Sport",
+      description: "Low mileage, full service history, excellent condition throughout.",
+      price: 1500000,
+      categoryId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      regionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      trustDeclarationAccepted: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("does not apply flow on update", () => {
+    const result = updateListingSchema.safeParse({
+      id: "cllisting123456789012345678",
+      title: "2019 BMW 320d M Sport updated",
+    });
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect("flow" in result.data).toBe(false);
+    }
   });
 
   it("rejects title shorter than 5 characters", () => {
@@ -222,6 +243,11 @@ describe("reportListingSchema", () => {
       reason: "This listing appears to be a scam with fake photos",
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(flattenZodFieldErrors(result.error).reporterEmail?.[0]).toBe(
+        EMAIL_INVALID_MESSAGE,
+      );
+    }
   });
 
   it("rejects short reason", () => {
@@ -282,6 +308,19 @@ describe("moderateListingSchema", () => {
 });
 
 describe("public abuse safeguards POL-ABUSE-001", () => {
+  it("FE-08 uses the shared email helper for contact and report", () => {
+    const contact = contactSellerSchema.safeParse({
+      listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      name: "Buyer",
+      email: "not-an-email",
+      message: "Is this vehicle still available today?",
+    });
+    expect(contact.success).toBe(false);
+    if (!contact.success) {
+      expect(flattenZodFieldErrors(contact.error).email?.[0]).toBe(EMAIL_INVALID_MESSAGE);
+    }
+  });
+
   it("rejects contact-seller honeypot submissions", () => {
     const result = contactSellerSchema.safeParse({
       listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",

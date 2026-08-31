@@ -16,7 +16,9 @@ import {
   getDealerEntitlement,
   getPaidSubscriptionEntitlementWhere,
   grantAdminDealerAccess,
+  hasOperationalDealerAccess,
   isPaidSubscriptionEntitled,
+  listingDealerMatchesActor,
 } from "@/lib/dealers/entitlement";
 
 const NOW = new Date("2026-07-20T20:00:00.000Z");
@@ -171,6 +173,47 @@ describe("dealer entitlement", () => {
       )
     ).resolves.toBeNull();
     expect(mockDb.subscription.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("T1 T8 grants operational access to admins without billing entitlement", async () => {
+    const admin = {
+      role: "ADMIN" as const,
+      dealerProfile: { id: "dealer-admin", tier: "STARTER" as const },
+    };
+    await expect(hasOperationalDealerAccess(admin, NOW)).resolves.toBe(true);
+    await expect(getCurrentDealerEntitlement(admin, NOW)).resolves.toBeNull();
+    expect(mockDb.subscription.findFirst).toHaveBeenCalled();
+  });
+
+  it("T1 denies operational access for unpaid dealers and users", async () => {
+    mockDb.subscription.findFirst.mockResolvedValue(null);
+    await expect(
+      hasOperationalDealerAccess(
+        {
+          role: "DEALER",
+          dealerProfile: { id: "dealer-1", tier: "STARTER" },
+        },
+        NOW,
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      hasOperationalDealerAccess(
+        {
+          role: "USER",
+          dealerProfile: null,
+        },
+        NOW,
+      ),
+    ).resolves.toBe(false);
+    expect(
+      listingDealerMatchesActor(
+        {
+          role: "ADMIN",
+          dealerProfile: { id: "dealer-admin", tier: "STARTER" },
+        },
+        { dealerId: "other-dealer" },
+      ),
+    ).toBe(false);
   });
 
   it("gives active paid access precedence over a grant", async () => {

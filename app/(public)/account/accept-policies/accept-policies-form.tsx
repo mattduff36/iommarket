@@ -6,6 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { acceptCurrentPolicies } from "@/actions/policy/accept";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import {
+  firstFieldError,
+  flattenZodFieldErrors,
+  splitActionError,
+  uniqueErrorMessages,
+  type FieldErrors,
+} from "@/lib/forms/action-error";
+import { acceptPoliciesSchema } from "@/lib/validations/auth";
 
 function getSafeNextPath(nextPath: string | null) {
   if (!nextPath || !nextPath.startsWith("/") || nextPath.startsWith("//")) {
@@ -20,23 +29,29 @@ export function AcceptPoliciesForm() {
   const [ageAttested, setAgeAttested] = useState(false);
   const [policiesAccepted, setPoliciesAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setFieldErrors({});
     setLoading(true);
     try {
-      const result = await acceptCurrentPolicies({
+      const parsed = acceptPoliciesSchema.safeParse({
         ageAttested,
         policiesAccepted,
       });
+      if (!parsed.success) {
+        setFieldErrors(flattenZodFieldErrors(parsed.error));
+        return;
+      }
+
+      const result = await acceptCurrentPolicies(parsed.data);
       if (result.error) {
-        setError(
-          typeof result.error === "string"
-            ? result.error
-            : Object.values(result.error).flat()[0] ?? "Unable to save acceptance.",
-        );
+        const split = splitActionError(result.error);
+        setFieldErrors(split.fieldErrors);
+        setError(split.formError);
         return;
       }
       router.push(getSafeNextPath(searchParams.get("next")));
@@ -47,17 +62,20 @@ export function AcceptPoliciesForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
       <Checkbox
         checked={ageAttested}
         onCheckedChange={(value) => setAgeAttested(value === true)}
         required
+        error={firstFieldError(fieldErrors, "ageAttested")}
         label="I confirm I am 18 or over."
       />
       <Checkbox
         checked={policiesAccepted}
         onCheckedChange={(value) => setPoliciesAccepted(value === true)}
         required
+        error={firstFieldError(fieldErrors, "policiesAccepted")}
         label={
           <span>
             I acknowledge the current{" "}
@@ -76,11 +94,6 @@ export function AcceptPoliciesForm() {
           </span>
         }
       />
-      {error ? (
-        <p className="text-sm text-text-energy" role="alert">
-          {error}
-        </p>
-      ) : null}
       <Button type="submit" loading={loading}>
         Continue
       </Button>
