@@ -3,7 +3,7 @@ import { LISTING_DURATION_DAYS } from "../../lib/listing-status";
 import { LIVE_COUNT, SOLD_COUNT } from "../../prisma/seed/constants";
 import { BLOCKED_SAMPLE_NAMES } from "../../prisma/seed/copy";
 import { buildMarketplacePlan } from "../../prisma/seed/dataset";
-import { assertPhotoKindMatch, photoKindFor } from "../../prisma/seed/photos";
+import { assertOriginalSampleImages } from "../../prisma/seed/photos";
 import { LIVE_MAX_AGE_DAYS } from "../../prisma/seed/timeline";
 
 const NOW = new Date("2026-09-04T12:00:00.000Z");
@@ -48,19 +48,19 @@ describe("SEED-REALISM-001", () => {
 
     for (const listing of [...live, ...sold, ...plan.listings.filter((row) => row.status === "PENDING")]) {
       expect(listing.imageUrls.length).toBeGreaterThanOrEqual(2);
-      assertPhotoKindMatch(
-        photoKindFor({
-          category: listing.category,
-          bodyType: listing.attributes["body-type"],
-        }),
-        listing.imageUrls,
-      );
+      assertOriginalSampleImages(listing.imageUrls);
     }
 
     expect(plan.dealers.some((dealer) => BLOCKED_SAMPLE_NAMES.includes(dealer.name as (typeof BLOCKED_SAMPLE_NAMES)[number]))).toBe(false);
     expect(plan.dealers.some((dealer) => dealer.slug === "morris-motors")).toBe(false);
     expect(plan.sellers.some((seller) => seller.key === plan.listings.find((row) => row.key === "draft-001")?.sellerKey)).toBe(true);
     expect(live.every((listing) => (listing.expiresOffsetDays ?? 0) <= LISTING_DURATION_DAYS)).toBe(true);
+
+    const featured = plan.listings.filter((listing) => listing.featured);
+    const featuredHeroes = featured.map((listing) => listing.imageUrls[0]);
+    expect(featured.every((listing) => listing.status === "LIVE")).toBe(true);
+    expect(featuredHeroes).toHaveLength(new Set(featuredHeroes).size);
+    expect(plan.listings.filter((listing) => listing.status !== "LIVE" && listing.featured)).toHaveLength(0);
 
     const cars = plan.listings.filter((listing) => listing.category === "car").length;
     expect(cars / plan.listings.length).toBeGreaterThanOrEqual(0.65);

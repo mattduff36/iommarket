@@ -128,7 +128,7 @@ export default async function HomePage() {
     },
   });
 
-  const featuredCarouselListings = shuffleListings(featuredListings).slice(0, 8).map((listing) => ({
+  const featuredCarouselListings = shuffleListings(featuredListings).map((listing) => ({
     id: listing.id,
     title: listing.title,
     price: listing.price / 100,

@@ -28,7 +28,7 @@ import {
   privateDescription,
   reviewComment,
 } from "./copy";
-import { listingImageUrls, photoKindFor } from "./photos";
+import { applyUniqueSampleHeroFeatured, listingImageUrls, photoKindFor } from "./photos";
 import {
   expiresOffsetDays,
   expiredCreatedDaysAgo,
@@ -538,7 +538,9 @@ export function buildMarketplacePlan(input: {
     input.preservedUsers.map((user) => user.email),
   );
   const sellers = buildSellers(input.preservedUsers);
-  const listings = buildListings(dealers, sellers, input.preservedUsers);
+  const listings = applyUniqueSampleHeroFeatured(
+    buildListings(dealers, sellers, input.preservedUsers),
+  );
   const reviews = buildReviews(dealers, sellers);
   const plan = {
     version: DATASET_VERSION,
