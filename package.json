@@ -28,6 +28,7 @@
     "import:ocean-preview": "npx tsx scripts/import-ocean-inventory.ts",
     "enrich:ocean-preview": "npx tsx scripts/enrich-ocean-listings.ts",
     "preview-packs:materialize": "npx tsx scripts/materialize-preview-packs.ts",
+    "preview-packs:restore-from-prod": "npx tsx scripts/restore-preview-packs-from-prod.ts",
     "dealer-stock:probe": "npx tsx scripts/dealer-stock-sync/cli.ts probe",
     "dealer-stock:archive": "npx tsx scripts/dealer-stock-sync/cli.ts archive",
     "dealer-stock:import": "npx tsx scripts/dealer-stock-sync/cli.ts import",
