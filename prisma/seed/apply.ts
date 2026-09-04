@@ -4,12 +4,19 @@ import {
   policyVersionsForBundle,
 } from "../../lib/policies/registry";
 import type { PolicyAcceptanceType } from "../../lib/policies/types";
+import { resolveCatalog } from "./catalog-resolve";
 import { upsertCatalog } from "./catalog-upsert";
 import type { MarketplacePlan, PlannedDealer, PlannedSeller } from "./dataset";
 import {
   buildGrantEntitlementDates,
   buildPaidEntitlementDates,
 } from "./entitlement";
+import {
+  assertStatusEventTimes,
+  listingStatusEventTimes,
+  listingStatusEvents,
+} from "./lifecycle";
+import { accountDaysAgo } from "./timeline";
 import {
   seedPaymentId,
   seedPaymentIdempotencyKey,
@@ -18,7 +25,7 @@ import {
   seedSubscriptionId,
 } from "./payments";
 import { comparePreservedIdentities, type PreservedIdentity } from "./preserve";
-import { wipeMarketplace } from "./wipe";
+import { wipeMarketplace, wipeRemainingDealerProfiles } from "./wipe";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -52,6 +59,7 @@ async function upsertDealerUser(
   tx: TransactionClient,
   dealer: PlannedDealer,
   regionId: string,
+  createdAt: Date,
 ) {
   if (dealer.preservedUserId && dealer.preservedDealerId) {
     return { userId: dealer.preservedUserId, dealerId: dealer.preservedDealerId };
@@ -64,6 +72,7 @@ async function upsertDealerUser(
       name: dealer.userName,
       role: "DEALER",
       regionId,
+      createdAt,
     },
   });
   const profile = await tx.dealerProfile.create({
@@ -76,6 +85,7 @@ async function upsertDealerUser(
       website: dealer.website,
       verified: dealer.verified,
       tier: dealer.tier,
+      createdAt,
     },
   });
   await recordPlaceholderAcceptances(tx, user.id, [
@@ -91,6 +101,7 @@ async function upsertSellerUser(
   tx: TransactionClient,
   seller: PlannedSeller,
   regionId: string,
+  createdAt: Date,
 ) {
   if (seller.preservedUserId) return seller.preservedUserId;
   const user = await tx.user.create({
@@ -100,6 +111,7 @@ async function upsertSellerUser(
       name: seller.name,
       role: "USER",
       regionId,
+      createdAt,
     },
   });
   await recordPlaceholderAcceptances(tx, user.id, [
@@ -116,9 +128,17 @@ async function writeEntitlement(
   dealer: PlannedDealer,
   dealerId: string,
   now: Date,
+  createdAt: Date,
 ) {
   const paidDates = buildPaidEntitlementDates(now);
-  const grantDates = buildGrantEntitlementDates(now);
+  const grantDates =
+    dealer.entitlement === "ADMIN_GRANT"
+      ? {
+          grantStartsAt: createdAt,
+          grantEndsAt: buildGrantEntitlementDates(now).grantEndsAt,
+          currentPeriodEnd: buildGrantEntitlementDates(now).currentPeriodEnd,
+        }
+      : buildGrantEntitlementDates(now);
   await tx.subscription.upsert({
     where: { providerSubscriptionId: seedSubscriptionId(dealer.slug) },
     update:
@@ -146,45 +166,10 @@ async function writeEntitlement(
       source: dealer.entitlement === "ADMIN_GRANT" ? "ADMIN_GRANT" : "PAYMENT",
       status: "ACTIVE",
       customerEmailNorm: null,
+      createdAt,
       ...(dealer.entitlement === "ADMIN_GRANT" ? grantDates : paidDates),
     },
   });
-}
-
-function statusEvents(status: MarketplacePlan["listings"][number]["status"]) {
-  if (status === "DRAFT") return [{ toStatus: "DRAFT" as const, action: "RETURN_TO_DRAFT" as const }];
-  if (status === "PENDING") return [{ toStatus: "PENDING" as const, action: "SUBMIT" as const }];
-  if (status === "REJECTED") {
-    return [
-      { toStatus: "PENDING" as const, action: "SUBMIT" as const },
-      { toStatus: "REJECTED" as const, action: "REJECT" as const },
-    ];
-  }
-  if (status === "TAKEN_DOWN") {
-    return [
-      { toStatus: "PENDING" as const, action: "SUBMIT" as const },
-      { toStatus: "LIVE" as const, action: "APPROVE" as const },
-      { toStatus: "TAKEN_DOWN" as const, action: "TAKE_DOWN" as const },
-    ];
-  }
-  if (status === "EXPIRED") {
-    return [
-      { toStatus: "PENDING" as const, action: "SUBMIT" as const },
-      { toStatus: "LIVE" as const, action: "APPROVE" as const },
-      { toStatus: "EXPIRED" as const, action: "EXPIRE" as const },
-    ];
-  }
-  if (status === "SOLD") {
-    return [
-      { toStatus: "PENDING" as const, action: "SUBMIT" as const },
-      { toStatus: "LIVE" as const, action: "APPROVE" as const },
-      { toStatus: "SOLD" as const, action: "MARK_SOLD" as const },
-    ];
-  }
-  return [
-    { toStatus: "PENDING" as const, action: "SUBMIT" as const },
-    { toStatus: "LIVE" as const, action: "APPROVE" as const },
-  ];
 }
 
 export async function applyMarketplacePlan(
@@ -193,23 +178,39 @@ export async function applyMarketplacePlan(
     plan: MarketplacePlan;
     preservedIdentities: PreservedIdentity[];
     now: Date;
+    stripPreservedDealerProfiles?: boolean;
+    resolveCatalogOnly?: boolean;
   },
 ) {
   const preservedUserIds = input.preservedIdentities.map((row) => row.id);
   await wipeMarketplace(tx, preservedUserIds);
-  const catalog = await upsertCatalog(tx);
+  if (input.stripPreservedDealerProfiles) {
+    await wipeRemainingDealerProfiles(tx);
+  }
+  const catalog = input.resolveCatalogOnly
+    ? await resolveCatalog(tx)
+    : await upsertCatalog(tx);
   const defaultRegionId = catalog.regions["iom-central"];
 
   const dealerIds = new Map<string, { userId: string; dealerId: string }>();
-  for (const dealer of input.plan.dealers) {
-    const ids = await upsertDealerUser(tx, dealer, defaultRegionId);
+  for (const [index, dealer] of input.plan.dealers.entries()) {
+    const createdAt = new Date(
+      input.now.getTime() - accountDaysAgo(index) * 86_400_000,
+    );
+    const ids = await upsertDealerUser(tx, dealer, defaultRegionId, createdAt);
     dealerIds.set(dealer.key, ids);
-    await writeEntitlement(tx, dealer, ids.dealerId, input.now);
+    await writeEntitlement(tx, dealer, ids.dealerId, input.now, createdAt);
   }
 
   const sellerIds = new Map<string, string>();
-  for (const seller of input.plan.sellers) {
-    sellerIds.set(seller.key, await upsertSellerUser(tx, seller, defaultRegionId));
+  for (const identity of input.preservedIdentities) {
+    sellerIds.set(`preserved-user-${identity.id}`, identity.id);
+  }
+  for (const [index, seller] of input.plan.sellers.entries()) {
+    const createdAt = new Date(
+      input.now.getTime() - accountDaysAgo(index + 20) * 86_400_000,
+    );
+    sellerIds.set(seller.key, await upsertSellerUser(tx, seller, defaultRegionId, createdAt));
   }
   for (const [key, ids] of dealerIds) {
     sellerIds.set(key, ids.userId);
@@ -223,11 +224,9 @@ export async function applyMarketplacePlan(
     const regionId = catalog.regions[listing.regionSlug];
     const createdAt = new Date(input.now.getTime() - listing.daysAgo * 86_400_000);
     const expiresAt =
-      listing.status === "EXPIRED"
-        ? new Date(input.now.getTime() - 5 * 86_400_000)
-        : listing.status === "LIVE" || listing.status === "SOLD"
-          ? new Date(input.now.getTime() + 45 * 86_400_000)
-          : null;
+      listing.expiresOffsetDays === null
+        ? null
+        : new Date(input.now.getTime() + listing.expiresOffsetDays * 86_400_000);
     const created = await tx.listing.create({
       data: {
         userId,
@@ -243,14 +242,14 @@ export async function applyMarketplacePlan(
         featured: listing.featured,
         expiresAt,
         soldAt:
-          listing.status === "SOLD"
-            ? new Date(input.now.getTime() - 3 * 86_400_000)
+          listing.status === "SOLD" && listing.soldDaysAgo
+            ? new Date(input.now.getTime() - listing.soldDaysAgo * 86_400_000)
             : null,
         trustDeclarationAccepted: listing.status !== "DRAFT",
         trustDeclarationAcceptedAt:
           listing.status !== "DRAFT" ? createdAt : null,
         createdAt,
-        viewCount: 10 + (listing.daysAgo % 80),
+        viewCount: listing.viewCount,
       },
     });
     listingIds.set(listing.key, created.id);
@@ -295,8 +294,20 @@ export async function applyMarketplacePlan(
       });
     }
 
+    const soldAt =
+      listing.status === "SOLD" && listing.soldDaysAgo
+        ? new Date(input.now.getTime() - listing.soldDaysAgo * 86_400_000)
+        : null;
+    const eventTimes = listingStatusEventTimes({
+      status: listing.status,
+      createdAt,
+      soldAt,
+      expiresAt,
+      now: input.now,
+    });
+    assertStatusEventTimes(eventTimes, createdAt);
     let fromStatus: Prisma.ListingStatusEventCreateInput["fromStatus"] = null;
-    for (const event of statusEvents(listing.status)) {
+    for (const [eventIndex, event] of listingStatusEvents(listing.status).entries()) {
       await tx.listingStatusEvent.create({
         data: {
           listingId: created.id,
@@ -305,6 +316,7 @@ export async function applyMarketplacePlan(
           source: event.toStatus === "EXPIRED" ? "SYSTEM" : "ADMIN",
           action: event.action,
           notes: "Demo seed lifecycle",
+          createdAt: eventTimes[eventIndex],
         },
       });
       fromStatus = event.toStatus;
@@ -324,7 +336,11 @@ export async function applyMarketplacePlan(
         rating: review.rating,
         comment: review.comment,
         status: review.status,
-        moderatedAt: review.status === "PENDING" ? null : input.now,
+        createdAt: new Date(input.now.getTime() - review.createdDaysAgo * 86_400_000),
+        moderatedAt:
+          review.status === "PENDING"
+            ? null
+            : new Date(input.now.getTime() - Math.max(1, review.createdDaysAgo - 3) * 86_400_000),
       },
     });
   }

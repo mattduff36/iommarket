@@ -26,6 +26,9 @@ export function assertWipePlanBoundaries() {
     "Region",
     "Category",
     "AttributeDefinition",
+    "VehicleMake",
+    "VehicleModel",
+    "VehicleModelAlias",
   ]) {
     if (!denied.has(required)) {
       throw new Error(`${required} must remain on the wipe denylist.`);
@@ -46,6 +49,11 @@ async function deleteNonPreserved(
   await delegate.deleteMany({
     where: { [userIdField]: { notIn: preservedUserIds } },
   });
+}
+
+export async function wipeRemainingDealerProfiles(tx: TransactionClient) {
+  await tx.dealerPreviewPack.deleteMany();
+  await tx.dealerProfile.deleteMany();
 }
 
 export async function wipeMarketplace(
@@ -70,6 +78,7 @@ export async function wipeMarketplace(
   await tx.listingImageUploadIntent.deleteMany();
   await tx.listingImageCleanupJob.deleteMany();
   await tx.listing.deleteMany();
+  await tx.dealerPreviewPack.deleteMany();
   await tx.dealerCancellationRequestEvent.deleteMany();
   await tx.dealerCancellationRequest.deleteMany();
   await tx.subscriptionCharge.deleteMany();

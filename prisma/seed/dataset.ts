@@ -1,5 +1,6 @@
 import { isEvCompatibleFuelType } from "../../lib/constants/fuel-types";
 import {
+  DATASET_VERSION,
   EXPIRED_COUNT,
   LIVE_COUNT,
   PENDING_COUNT,
@@ -12,12 +13,31 @@ import {
   TARGET_EXPIRED_MIN,
   TARGET_LIVE_MAX,
   TARGET_LIVE_MIN,
+  TARGET_PRIVATE_SELLERS,
   TARGET_PRO_DEALERS,
   TARGET_PUBLIC_DEALERS,
   TARGET_SOLD_MAX,
   TARGET_SOLD_MIN,
   TARGET_STARTER_DEALERS,
 } from "./constants";
+import {
+  BLOCKED_SAMPLE_NAMES,
+  dealerDescription,
+  listingTitle,
+  listingTown,
+  privateDescription,
+  reviewComment,
+} from "./copy";
+import { listingImageUrls, photoKindFor } from "./photos";
+import {
+  expiresOffsetDays,
+  expiredCreatedDaysAgo,
+  LIVE_MAX_AGE_DAYS,
+  liveCreatedDaysAgo,
+  soldCreatedDaysAgo,
+  soldDaysAgoFor,
+  viewCountFor,
+} from "./timeline";
 import { assertDealerCaps } from "./caps";
 import { isPublicDealerEntitled } from "./entitlement";
 import {
@@ -29,7 +49,6 @@ import {
 } from "./payments";
 import {
   IOM_REGION_SLUGS,
-  LISTING_IMAGES,
   VEHICLE_TEMPLATES,
   type VehicleCategory,
 } from "./vehicles";
@@ -96,6 +115,9 @@ export interface PlannedListing {
   status: ListingStatus;
   featured: boolean;
   daysAgo: number;
+  soldDaysAgo?: number;
+  expiresOffsetDays: number | null;
+  viewCount: number;
   dealerKey?: string;
   sellerKey: string;
   attributes: Record<string, string>;
@@ -108,6 +130,7 @@ export interface PlannedReview {
   rating: number;
   comment: string;
   status: "APPROVED" | "PENDING" | "HIDDEN";
+  createdDaysAgo: number;
 }
 
 export interface MarketplacePlan {
@@ -142,6 +165,20 @@ const FICTIONAL_SELLERS: PlannedSeller[] = [
   { key: "fiona-clague", authUserId: "00000000-0000-0000-0000-000000000206", email: "fiona.clague@example.im", name: "Fiona Clague" },
   { key: "tom-kewley", authUserId: "00000000-0000-0000-0000-000000000207", email: "tom.kewley@example.im", name: "Tom Kewley" },
   { key: "anna-moore", authUserId: "00000000-0000-0000-0000-000000000208", email: "anna.moore@example.im", name: "Anna Moore" },
+  { key: "peter-cain", authUserId: "00000000-0000-0000-0000-000000000209", email: "peter.cain@example.im", name: "Peter Cain" },
+  { key: "lucy-faragher", authUserId: "00000000-0000-0000-0000-000000000210", email: "lucy.faragher@example.im", name: "Lucy Faragher" },
+  { key: "james-gelling", authUserId: "00000000-0000-0000-0000-000000000211", email: "james.gelling@example.im", name: "James Gelling" },
+  { key: "rachel-teare", authUserId: "00000000-0000-0000-0000-000000000212", email: "rachel.teare@example.im", name: "Rachel Teare" },
+  { key: "ben-kissack", authUserId: "00000000-0000-0000-0000-000000000213", email: "ben.kissack@example.im", name: "Ben Kissack" },
+  { key: "hannah-crellin", authUserId: "00000000-0000-0000-0000-000000000214", email: "hannah.crellin@example.im", name: "Hannah Crellin" },
+  { key: "oliver-skillicorn", authUserId: "00000000-0000-0000-0000-000000000215", email: "oliver.skillicorn@example.im", name: "Oliver Skillicorn" },
+  { key: "nia-callister", authUserId: "00000000-0000-0000-0000-000000000216", email: "nia.callister@example.im", name: "Nia Callister" },
+  { key: "sam-quirk", authUserId: "00000000-0000-0000-0000-000000000217", email: "sam.quirk@example.im", name: "Sam Quirk" },
+  { key: "kate-bridson", authUserId: "00000000-0000-0000-0000-000000000218", email: "kate.bridson@example.im", name: "Kate Bridson" },
+  { key: "liam-cannell", authUserId: "00000000-0000-0000-0000-000000000219", email: "liam.cannell@example.im", name: "Liam Cannell" },
+  { key: "ellen-kneale", authUserId: "00000000-0000-0000-0000-000000000220", email: "ellen.kneale@example.im", name: "Ellen Kneale" },
+  { key: "ryan-cowin", authUserId: "00000000-0000-0000-0000-000000000221", email: "ryan.cowin@example.im", name: "Ryan Cowin" },
+  { key: "maya-lewthwaite", authUserId: "00000000-0000-0000-0000-000000000222", email: "maya.lewthwaite@example.im", name: "Maya Lewthwaite" },
 ];
 
 function slugKey(slug: string) {
@@ -152,8 +189,21 @@ function pad(value: number) {
   return String(value).padStart(3, "0");
 }
 
+const CATEGORY_WEIGHTS = [
+  ...Array.from({ length: 70 }, () => "car" as const),
+  ...Array.from({ length: 15 }, () => "van" as const),
+  ...Array.from({ length: 10 }, () => "motorbike" as const),
+  ...Array.from({ length: 5 }, () => "motorhome" as const),
+] as const;
+
+function templatesFor(category: VehicleCategory) {
+  return VEHICLE_TEMPLATES.filter((template) => template.category === category);
+}
+
 function templateAt(index: number) {
-  return VEHICLE_TEMPLATES[index % VEHICLE_TEMPLATES.length];
+  const category = CATEGORY_WEIGHTS[index % CATEGORY_WEIGHTS.length];
+  const pool = templatesFor(category);
+  return pool[Math.floor(index / CATEGORY_WEIGHTS.length) % pool.length] ?? pool[0];
 }
 
 function buildAttributes(
@@ -161,8 +211,9 @@ function buildAttributes(
   index: number,
   regionSlug: string,
 ): Record<string, string> {
-  const year = String(2014 + (index % 11));
-  const mileage = String(8000 + ((index * 3700) % 92000));
+  const year = String(2012 + (index % 13));
+  const age = Math.max(1, 2026 - Number(year));
+  const mileage = String(12000 * age + ((index * 1700) % 18000));
   const writtenOff = index % 23 === 0;
   const writeOffCategory = writtenOff ? (index % 2 === 0 ? "Category N" : "Category S") : "None";
   const electric = isEvCompatibleFuelType(template.fuel);
@@ -202,34 +253,81 @@ function buildAttributes(
   return attributes;
 }
 
+function createdDaysAgoFor(status: ListingStatus, index: number) {
+  if (status === "LIVE" || status === "PENDING" || status === "DRAFT") {
+    return liveCreatedDaysAgo(index);
+  }
+  if (status === "SOLD") return soldCreatedDaysAgo(index);
+  if (status === "EXPIRED") return expiredCreatedDaysAgo(index);
+  return 20 + (index % 40);
+}
+
+function imageCountFor(status: ListingStatus, isDealer: boolean, featured: boolean) {
+  if (status === "EXPIRED") return 2;
+  if (isDealer || featured) return 4 + (featured ? 2 : 0);
+  return 3;
+}
+
 function buildListing(input: {
   key: string;
   index: number;
   status: ListingStatus;
   sellerKey: string;
   dealerKey?: string;
+  dealerName?: string;
   featured?: boolean;
 }): PlannedListing {
   const template = templateAt(input.index);
   const regionSlug =
-    input.index % 11 === 0 ? "uk" : IOM_REGION_SLUGS[input.index % IOM_REGION_SLUGS.length];
-  const imageCount = 1 + (input.index % 3);
+    input.index % 21 === 0 ? "uk" : IOM_REGION_SLUGS[input.index % IOM_REGION_SLUGS.length];
+  const attributes = buildAttributes(template, input.index, regionSlug);
+  const year = attributes.year;
+  const featured = input.featured ?? input.index % 17 === 0;
+  const daysAgo = createdDaysAgoFor(input.status, input.index);
+  const town = listingTown(input.index);
+  const kind = photoKindFor({ category: template.category, bodyType: template.bodyType });
+  const imageCount = imageCountFor(input.status, Boolean(input.dealerKey), featured);
+  const description = input.dealerName
+    ? dealerDescription({
+        make: template.make,
+        model: template.model,
+        year,
+        mileage: attributes.mileage,
+        town,
+        dealerName: input.dealerName,
+        index: input.index,
+      })
+    : privateDescription({
+        make: template.make,
+        model: template.model,
+        year,
+        mileage: attributes.mileage,
+        town,
+        index: input.index,
+      });
   return {
     key: input.key,
-    title: `${2014 + (input.index % 11)} ${template.make} ${template.model}`,
-    description: `${template.make} ${template.model} in strong condition for island use. Service history available, recently inspected, and priced for a quick local sale.`,
+    title: listingTitle({
+      year,
+      make: template.make,
+      model: template.model,
+      index: input.index,
+    }),
+    description,
     category: template.category,
     regionSlug,
     pricePence: Math.round(template.pricePounds * 100),
     status: input.status,
-    featured: input.featured ?? input.index % 17 === 0,
-    daysAgo: 1 + (input.index % 40),
+    featured,
+    daysAgo,
+    soldDaysAgo:
+      input.status === "SOLD" ? soldDaysAgoFor(daysAgo, input.index) : undefined,
+    expiresOffsetDays: expiresOffsetDays({ status: input.status, createdDaysAgo: daysAgo }),
+    viewCount: viewCountFor(daysAgo, input.status),
     dealerKey: input.dealerKey,
     sellerKey: input.sellerKey,
-    attributes: buildAttributes(template, input.index, regionSlug),
-    imageUrls: Array.from({ length: imageCount }, (_, offset) =>
-      LISTING_IMAGES[(input.index + offset) % LISTING_IMAGES.length],
-    ),
+    attributes,
+    imageUrls: listingImageUrls({ kind, index: input.index, count: imageCount }),
   };
 }
 
@@ -319,6 +417,7 @@ function buildListings(
           status: "LIVE",
           sellerKey: dealer.key,
           dealerKey: dealer.key,
+          dealerName: dealer.name,
           featured: offset === 0,
         }),
       );
@@ -360,16 +459,13 @@ function buildListings(
     }
   }
 
-  const draftOwner =
-    preservedUsers.find((user) => user.role === "USER") ??
-    preservedUsers[0] ??
-    null;
+  const draftOwner = sellers.find((seller) => seller.preservedUserId) ?? sellers[0];
   listings.push(
     buildListing({
       key: "draft-001",
       index,
       status: "DRAFT",
-      sellerKey: draftOwner ? `preserved-user-${draftOwner.id}` : sellers[0].key,
+      sellerKey: draftOwner.key,
     }),
   );
 
@@ -397,23 +493,37 @@ function buildReviews(dealers: PlannedDealer[], sellers: PlannedSeller[]): Plann
     dealerKey: dealer.key,
     reviewerKey: reviewerPool[index % reviewerPool.length].key,
     rating: 4 + (index % 2),
-    comment: `Straightforward viewing at ${dealer.name}. Vehicle matched the advert.`,
+    comment: reviewComment({
+      dealerName: dealer.name,
+      rating: 4 + (index % 2),
+      index,
+    }),
     status: "APPROVED" as const,
+    createdDaysAgo: 40 + ((index * 13) % 280),
   }));
-  reviews[0] = { ...reviews[0], status: "APPROVED" };
   reviews.push({
     dealerKey: dealers[0].key,
     reviewerKey: reviewerPool[1 % reviewerPool.length].key,
     rating: 3,
-    comment: "Waiting for a callback after the test drive.",
+    comment: reviewComment({
+      dealerName: dealers[0].name,
+      rating: 3,
+      index: 21,
+    }),
     status: "PENDING",
+    createdDaysAgo: 12,
   });
   reviews.push({
     dealerKey: dealers[1]?.key ?? dealers[0].key,
     reviewerKey: reviewerPool[2 % reviewerPool.length].key,
     rating: 1,
-    comment: "Removed after moderation.",
+    comment: reviewComment({
+      dealerName: dealers[1]?.name ?? dealers[0].name,
+      rating: 1,
+      index: 22,
+    }),
     status: "HIDDEN",
+    createdDaysAgo: 90,
   });
   return reviews;
 }
@@ -431,7 +541,7 @@ export function buildMarketplacePlan(input: {
   const listings = buildListings(dealers, sellers, input.preservedUsers);
   const reviews = buildReviews(dealers, sellers);
   const plan = {
-    version: "DEMO-SEED-4A91C2.1",
+    version: DATASET_VERSION,
     dealers,
     sellers,
     listings,
@@ -442,7 +552,8 @@ export function buildMarketplacePlan(input: {
 }
 
 export function assertMarketplacePlan(plan: MarketplacePlan, now: Date) {
-  const live = plan.listings.filter((listing) => listing.status === "LIVE").length;
+  const liveListings = plan.listings.filter((listing) => listing.status === "LIVE");
+  const live = liveListings.length;
   const sold = plan.listings.filter((listing) => listing.status === "SOLD").length;
   const expired = plan.listings.filter((listing) => listing.status === "EXPIRED").length;
   const pending = plan.listings.filter((listing) => listing.status === "PENDING").length;
@@ -462,6 +573,81 @@ export function assertMarketplacePlan(plan: MarketplacePlan, now: Date) {
   if (!plan.reviews.some((review) => review.status === "APPROVED")) {
     throw new Error("Dataset must include an approved review.");
   }
+  const fictionalSellers = plan.sellers.filter((seller) => !seller.preservedUserId);
+  if (fictionalSellers.length < TARGET_PRIVATE_SELLERS) {
+    throw new Error(`Expected at least ${TARGET_PRIVATE_SELLERS} private sellers.`);
+  }
+  const sellerKeys = new Set([
+    ...plan.sellers.map((seller) => seller.key),
+    ...plan.dealers.map((dealer) => dealer.key),
+  ]);
+  for (const listing of plan.listings) {
+    if (!sellerKeys.has(listing.sellerKey)) {
+      throw new Error(`Listing ${listing.key} references missing seller ${listing.sellerKey}.`);
+    }
+  }
+
+  const descriptions = new Set(plan.listings.map((listing) => listing.description));
+  if (descriptions.size !== plan.listings.length) {
+    throw new Error("Listing descriptions must be unique.");
+  }
+  const banned = new Set(BLOCKED_SAMPLE_NAMES.map((name) => name.toLowerCase()));
+  if (
+    plan.dealers.some(
+      (dealer) => !dealer.preservedUserId && banned.has(dealer.name.toLowerCase()),
+    )
+  ) {
+    throw new Error("Plan must not include Morris motors or Ocean Motor Village.");
+  }
+  if (liveListings.some((listing) => listing.daysAgo > LIVE_MAX_AGE_DAYS)) {
+    throw new Error("LIVE listings must stay inside the 60-day window.");
+  }
+  const historic = plan.listings.filter(
+    (listing) => listing.status === "SOLD" || listing.status === "EXPIRED",
+  );
+  const oldest = Math.max(...historic.map((listing) => listing.daysAgo));
+  if (oldest < 300) {
+    throw new Error("Sold/expired history must span at least 300 days.");
+  }
+  for (const listing of plan.listings) {
+    if (
+      (listing.status === "LIVE" ||
+        listing.status === "PENDING" ||
+        listing.status === "SOLD") &&
+      listing.imageUrls.length < 2
+    ) {
+      throw new Error(`${listing.status} listings need at least 2 photos.`);
+    }
+  }
+  const share = (category: VehicleCategory) =>
+    plan.listings.filter((listing) => listing.category === category).length /
+    plan.listings.length;
+  if (share("car") < 0.65 || share("car") > 0.75) {
+    throw new Error(`Car share ${share("car")} is outside 0.65-0.75.`);
+  }
+  if (share("van") < 0.12 || share("van") > 0.18) {
+    throw new Error(`Van share ${share("van")} is outside 0.12-0.18.`);
+  }
+  if (share("motorbike") < 0.08 || share("motorbike") > 0.12) {
+    throw new Error(`Motorbike share ${share("motorbike")} is outside 0.08-0.12.`);
+  }
+  if (share("motorhome") < 0.03 || share("motorhome") > 0.07) {
+    throw new Error(`Motorhome share ${share("motorhome")} is outside 0.03-0.07.`);
+  }
+
+  const preservedBlocked = plan.dealers.some(
+    (dealer) => dealer.preservedUserId && banned.has(dealer.name.toLowerCase()),
+  );
+  if (!preservedBlocked) {
+    const blockedCopy = [...banned];
+    for (const listing of plan.listings) {
+      const haystack = listing.description.toLowerCase();
+      if (blockedCopy.some((name) => haystack.includes(name))) {
+        throw new Error("Listing copy must not mention Morris or Ocean identities.");
+      }
+    }
+  }
+
   assertDealerCaps(plan.dealers, plan.listings);
 
   if (plan.dealers.length === TARGET_PUBLIC_DEALERS) {

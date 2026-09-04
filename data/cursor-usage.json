@@ -1,54 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-31T21:19:54.322Z",
+  "generatedAt": "2026-09-04T20:08:11.202Z",
   "projectKey": "d-Websites-iommarket",
-  "windowStart": "2026-07-18T00:00:00.000Z",
-  "windowEnd": "2026-09-01T00:00:00.000Z",
+  "windowStart": "2026-07-22T00:00:00.000Z",
+  "windowEnd": "2026-09-05T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1105,
-    "unattributedEvents": 430,
-    "unattributedMicroCents": "46582341376"
+    "attributedEvents": 1378,
+    "unattributedEvents": 570,
+    "unattributedMicroCents": "63195190405"
   },
   "days": [
-    {
-      "date": "2026-07-20",
-      "identifiedMicroCents": "11442307526",
-      "project": {
-        "onDemandMicroCents": "3071782526",
-        "chargedMicroCents": "2983483226",
-        "inputTokens": 220338,
-        "outputTokens": 149987,
-        "cacheWriteTokens": 1900339,
-        "cacheReadTokens": 43642861,
-        "models": [
-          {
-            "model": "cursor-grok-4.5-high-fast",
-            "onDemandMicroCents": "176598600"
-          },
-          {
-            "model": "gpt-5.6-sol-high",
-            "onDemandMicroCents": "2017817435"
-          },
-          {
-            "model": "gpt-5.6-terra-high",
-            "onDemandMicroCents": "877366491"
-          }
-        ]
-      }
-    },
-    {
-      "date": "2026-07-21",
-      "identifiedMicroCents": "8008376295",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
     {
       "date": "2026-07-22",
       "identifiedMicroCents": "15250327990",
@@ -220,18 +181,75 @@
     },
     {
       "date": "2026-08-31",
-      "identifiedMicroCents": "13435788128",
+      "identifiedMicroCents": "14866325725",
       "project": {
-        "onDemandMicroCents": "8339843710",
-        "chargedMicroCents": "8339843710",
-        "inputTokens": 3334344,
-        "outputTokens": 437422,
+        "onDemandMicroCents": "8540139700",
+        "chargedMicroCents": "8540139700",
+        "inputTokens": 3337626,
+        "outputTokens": 439380,
         "cacheWriteTokens": 0,
-        "cacheReadTokens": 65005184,
+        "cacheReadTokens": 66971520,
         "models": [
           {
             "model": "cursor-grok-4.6-xhigh-fast",
-            "onDemandMicroCents": "8339843710"
+            "onDemandMicroCents": "8540139700"
+          }
+        ]
+      }
+    },
+    {
+      "date": "2026-09-01",
+      "identifiedMicroCents": "41734415709",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-02",
+      "identifiedMicroCents": "47631195723",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-03",
+      "identifiedMicroCents": "54107705556",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-04",
+      "identifiedMicroCents": "44521512474",
+      "project": {
+        "onDemandMicroCents": "2573149620",
+        "chargedMicroCents": "2573149620",
+        "inputTokens": 1040156,
+        "outputTokens": 164858,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 19592576,
+        "models": [
+          {
+            "model": "cursor-grok-4.6-xhigh-fast",
+            "onDemandMicroCents": "2573149620"
           }
         ]
       }

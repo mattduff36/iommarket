@@ -23,11 +23,12 @@ import {
 const APPROVED_KEEP_EMAILS = [
   "admin@mpdee.co.uk",
   "d.p.marshall@hotmail.co.uk",
+] as const;
+const APPROVED_DELETE_EMAILS = [
   "davooomarsh@hotmail.com",
   "mattduff36@gmail.com",
 ] as const;
-const APPROVED_DELETE_EMAILS = ["noreply@avsquires.co.uk"] as const;
-const APPROVED_DEALER_NAMES = ["Morris motors", "Ocean Motor Village"] as const;
+const APPROVED_DEALER_NAMES = [] as const;
 
 const previewDirect = "postgresql://postgres:x@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres";
 const previewPooler =
@@ -119,12 +120,12 @@ describe("WPE-HOST-001 preview wipe host allowlist", () => {
       id: `user-${index}`,
       email,
     }));
-    expect(resolvePreservedUserIds(users)).toEqual(["user-0", "user-1", "user-2", "user-3"]);
+    expect(resolvePreservedUserIds(users)).toEqual(["user-0", "user-1"]);
     expect(() => resolvePreservedUserIds(users.slice(1))).toThrow("Keep-list users missing");
 
     expect(() =>
       assertPreflightAuthRoster([...APPROVED_KEEP_EMAILS]),
-    ).toThrow("Kept emails mismatch");
+    ).not.toThrow();
     expect(() =>
       assertPreflightAuthRoster([...APPROVED_KEEP_EMAILS, ...APPROVED_DELETE_EMAILS]),
     ).not.toThrow();
@@ -132,34 +133,32 @@ describe("WPE-HOST-001 preview wipe host allowlist", () => {
     expect(() =>
       assertPreflightKeptDealers([
         { name: "Morris motors", ownerEmail: "d.p.marshall@hotmail.co.uk" },
-        { name: "Ocean Motor Village", ownerEmail: "mattduff36@gmail.com" },
-        { name: "Manx Motors Ltd", ownerEmail: "info@manxmotors.im" },
-      ]),
-    ).not.toThrow();
-    expect(() =>
-      assertPreflightKeptDealers([
-        { name: "Morris motors", ownerEmail: "mattduff36@gmail.com" },
-        { name: "Ocean Motor Village", ownerEmail: "d.p.marshall@hotmail.co.uk" },
       ]),
     ).toThrow("Kept dealer ownership mismatch");
+    expect(() => assertPreflightKeptDealers([])).not.toThrow();
     expect(
       assertPreviewWipePreflight({
-        users: APPROVED_KEEP_EMAILS.map((email, index) => ({
-          id: `user-${index}`,
-          email,
-          dealerName:
-            email === "d.p.marshall@hotmail.co.uk"
-              ? "Morris motors"
-              : email === "mattduff36@gmail.com"
-                ? "Ocean Motor Village"
-                : null,
-        })),
+        users: [
+          ...APPROVED_KEEP_EMAILS.map((email, index) => ({
+            id: `user-${index}`,
+            email,
+            dealerName: email === "d.p.marshall@hotmail.co.uk" ? "Morris motors" : "Admin (mpdee)",
+          })),
+          {
+            id: "user-ocean",
+            email: "mattduff36@gmail.com",
+            dealerName: "Ocean Motor Village",
+          },
+        ],
         authUsers: [
           ...APPROVED_KEEP_EMAILS.map((email, index) => ({ id: `auth-${index}`, email })),
-          { id: "auth-av", email: "noreply@avsquires.co.uk" },
+          ...APPROVED_DELETE_EMAILS.map((email, index) => ({
+            id: `auth-del-${index}`,
+            email,
+          })),
         ],
       }).preservedUserIds,
-    ).toEqual(["user-0", "user-1", "user-2", "user-3"]);
+    ).toEqual(["user-0", "user-1"]);
     expect(() =>
       assertPreviewWipePreflight({
         users: APPROVED_KEEP_EMAILS.map((email, index) => ({
@@ -168,7 +167,6 @@ describe("WPE-HOST-001 preview wipe host allowlist", () => {
         })),
         authUsers: [
           ...APPROVED_KEEP_EMAILS.map((email, index) => ({ id: `auth-${index}`, email })),
-          { id: "auth-av", email: "noreply@avsquires.co.uk" },
           { id: "auth-phone", email: null },
         ],
       }),

@@ -7,16 +7,14 @@ export const PREVIEW_POOLER_USER = `postgres.${PREVIEW_PROJECT_REF}`;
 export const KEEP_ACCOUNT_EMAILS = [
   "admin@mpdee.co.uk",
   "d.p.marshall@hotmail.co.uk",
+] as const;
+
+export const DELETE_AUTH_EMAILS = [
   "davooomarsh@hotmail.com",
   "mattduff36@gmail.com",
 ] as const;
 
-export const DELETE_AUTH_EMAILS = ["noreply@avsquires.co.uk"] as const;
-
-export const EXPECTED_KEPT_DEALERS = [
-  { name: "Morris motors", ownerEmail: "d.p.marshall@hotmail.co.uk" },
-  { name: "Ocean Motor Village", ownerEmail: "mattduff36@gmail.com" },
-] as const;
+export const EXPECTED_KEPT_DEALERS: readonly { name: string; ownerEmail: string }[] = [];
 
 export const EXPECTED_KEPT_DEALER_NAMES = EXPECTED_KEPT_DEALERS.map(
   (dealer) => dealer.name,
@@ -147,7 +145,15 @@ export function assertKeptEmails(
 }
 
 export function assertPreflightAuthRoster(emails: string[]) {
-  assertKeptEmails(emails, [...KEEP_ACCOUNT_EMAILS, ...DELETE_AUTH_EMAILS]);
+  const actual = [...emails.map((email) => email.trim().toLowerCase())].sort();
+  const before = [...KEEP_ACCOUNT_EMAILS, ...DELETE_AUTH_EMAILS].sort();
+  const after = [...KEEP_ACCOUNT_EMAILS].sort();
+  const matches =
+    (actual.length === before.length && actual.every((email, index) => email === before[index])) ||
+    (actual.length === after.length && actual.every((email, index) => email === after[index]));
+  if (!matches) {
+    throw new Error(`Kept emails mismatch: ${actual.join(", ") || "(none)"}`);
+  }
 }
 
 export function assertPreflightKeptDealers(
@@ -190,14 +196,6 @@ export function assertPreviewWipePreflight(input: {
   const preservedUserIds = resolvePreservedUserIds(input.users);
   assertPreflightAuthRoster(
     input.authUsers.map((user) => user.email ?? `__no_email__:${user.id}`),
-  );
-  assertPreflightKeptDealers(
-    input.users
-      .filter((user) => user.dealerName)
-      .map((user) => ({
-        name: user.dealerName!,
-        ownerEmail: user.email,
-      })),
   );
   return { preservedUserIds };
 }
