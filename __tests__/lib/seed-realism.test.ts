@@ -47,8 +47,11 @@ describe("SEED-REALISM-001", () => {
     expect(Math.max(...sold.map((listing) => listing.daysAgo), ...expired.map((listing) => listing.daysAgo))).toBeGreaterThanOrEqual(300);
 
     for (const listing of [...live, ...sold, ...plan.listings.filter((row) => row.status === "PENDING")]) {
-      expect(listing.imageUrls.length).toBeGreaterThanOrEqual(2);
+      expect(listing.imageUrls).toHaveLength(5);
       assertOriginalSampleImages(listing.imageUrls);
+      expect(
+        listing.imageUrls.slice(1).every((url) => url.startsWith("https://res.cloudinary.com/")),
+      ).toBe(true);
     }
 
     expect(plan.dealers.some((dealer) => BLOCKED_SAMPLE_NAMES.includes(dealer.name as (typeof BLOCKED_SAMPLE_NAMES)[number]))).toBe(false);

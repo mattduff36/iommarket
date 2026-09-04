@@ -481,10 +481,11 @@ describe("PREVIEW-VOLUME-001 PREVIEW-DATES-001 PREVIEW-MEDIA-001 PREVIEW-COPY-00
     for (const listing of plan.listings.filter((row) =>
       ["LIVE", "PENDING", "SOLD"].includes(row.status),
     )) {
-      expect(listing.imageUrls.length).toBeGreaterThanOrEqual(2);
-      expect(listing.imageUrls.every((url) => url.startsWith("https://images.unsplash.com/"))).toBe(
-        true,
-      );
+      expect(listing.imageUrls.length).toBeGreaterThanOrEqual(5);
+      expect(listing.imageUrls[0].startsWith("https://images.unsplash.com/")).toBe(true);
+      expect(
+        listing.imageUrls.slice(1).every((url) => url.startsWith("https://res.cloudinary.com/")),
+      ).toBe(true);
     }
 
     const descriptions = plan.listings.map((listing) => listing.description);

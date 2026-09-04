@@ -1,3 +1,4 @@
+import { LISTING_PHOTO_EXTRAS } from "./listing-photo-sets";
 import { LISTING_IMAGES } from "./vehicles";
 
 export type PhotoKind = "hatch" | "saloon" | "suv" | "estate" | "coupe" | "van" | "bike" | "motorhome";
@@ -22,15 +23,15 @@ export function listingImageUrls(input: {
   index: number;
   count: number;
 }): string[] {
-  return Array.from({ length: input.count }, (_, offset) => {
-    return LISTING_IMAGES[(input.index + offset) % LISTING_IMAGES.length];
-  });
+  const hero = LISTING_IMAGES[input.index % LISTING_IMAGES.length];
+  const extras = LISTING_PHOTO_EXTRAS[hero] ?? [];
+  return [hero, ...extras];
 }
 
 export function assertOriginalSampleImages(urls: string[]) {
   const original = new Set<string>(LISTING_IMAGES);
-  if (urls.some((url) => !original.has(url))) {
-    throw new Error("Photo URL is not from the original main-branch sample set.");
+  if (!urls[0] || !original.has(urls[0])) {
+    throw new Error("Hero photo URL is not from the original main-branch sample set.");
   }
 }
 

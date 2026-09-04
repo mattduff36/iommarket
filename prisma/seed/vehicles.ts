@@ -59,7 +59,6 @@ export const LISTING_IMAGES = [
   "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&h=600&fit=crop",
   "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&h=600&fit=crop",
   "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&h=600&fit=crop",
-  "https://images.unsplash.com/photo-1625047509168-a7026f36de04?w=800&h=600&fit=crop",
   "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&h=600&fit=crop",
   "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&h=600&fit=crop",
   "https://images.unsplash.com/photo-1609630875171-b1321377ee65?w=800&h=600&fit=crop",
