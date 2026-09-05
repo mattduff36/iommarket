@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getMarketplaceDealerWhere } from "@/lib/dealers/access";
+import { getMarketplaceDealerWhereWithSettings } from "@/lib/dealers/access";
 import {
   buildCategorySearchPath,
   buildDealerProfilePath,
@@ -23,7 +23,7 @@ export async function getPublicListingDealer(
   return db.dealerProfile.findFirst({
     where: {
       id: dealerId,
-      ...getMarketplaceDealerWhere(viewer, now),
+      ...(await getMarketplaceDealerWhereWithSettings(viewer, now)),
     },
     select: {
       name: true,

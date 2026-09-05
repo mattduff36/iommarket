@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/layout/site-header";
 
@@ -31,6 +32,22 @@ vi.mock("@/components/auth/header-auth-buttons", () => ({
   ),
 }));
 
+vi.mock("@/actions/admin/preview-packs", () => ({
+  enablePreviewPack: vi.fn(),
+  disablePreviewPack: vi.fn(),
+}));
+
+vi.mock("@/actions/admin/preview-controls", () => ({
+  getPreviewControls: vi.fn().mockResolvedValue({
+    data: {
+      packs: [],
+      samplePrivateVisible: true,
+      sampleDealerVisible: true,
+    },
+  }),
+  setSampleListingVisibility: vi.fn(),
+}));
+
 vi.mock("@/lib/supabase/client", () => ({
   createSupabaseBrowserClient: () => ({
     auth: {
@@ -55,6 +72,7 @@ describe("SiteHeader auth initialization", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -75,5 +93,52 @@ describe("SiteHeader auth initialization", () => {
       ).toBe(true);
     });
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("shows the mobile Preview packs expander for admins", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ name: "Admin", role: "ADMIN" }),
+      }),
+    );
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: { email: "admin@mpdee.co.uk" } } },
+    });
+
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await waitFor(() => {
+      expect(screen.getByTestId("header-auth-state").textContent).toBe("ready");
+    });
+    await user.click(screen.getByRole("button", { name: "Toggle menu" }));
+    await waitFor(() => {
+      expect(screen.getByText("Preview packs")).toBeTruthy();
+    });
+  });
+
+  it("hides the mobile Preview packs expander for members", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ name: "Member", role: "USER" }),
+      }),
+    );
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: { email: "user@example.com" } } },
+    });
+
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await waitFor(() => {
+      expect(screen.getByTestId("header-auth-state").textContent).toBe("ready");
+    });
+    await user.click(screen.getByRole("button", { name: "Toggle menu" }));
+    await waitFor(() => {
+      expect(screen.getByText("Account overview")).toBeTruthy();
+    });
+    expect(screen.queryByText("Preview packs")).toBeNull();
   });
 });

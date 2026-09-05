@@ -14,6 +14,9 @@ vi.mock("@/lib/db", () => ({
     dealerProfile: {
       findFirst: dealerFindFirstMock,
     },
+    siteSetting: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 

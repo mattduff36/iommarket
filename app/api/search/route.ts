@@ -5,7 +5,7 @@ import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import {
   expireStaleLiveListings,
 } from "@/lib/listings/expiry";
-import { marketplaceListingWhere, marketplaceListingBadge } from "@/lib/listings/marketplace";
+import { marketplaceListingWhereWithSettings, marketplaceListingBadge } from "@/lib/listings/marketplace";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
   getFuelTypeFilterValues,
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
     })),
   ];
 
-  const statusFilter = marketplaceListingWhere({
+  const statusFilter = await marketplaceListingWhereWithSettings({
     viewer: currentUser,
     includeSold,
     now,

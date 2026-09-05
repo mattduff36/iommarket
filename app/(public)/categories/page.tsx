@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { Bike, BusFront, Car, Tag, Truck } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { marketplaceListingWhere } from "@/lib/listings/marketplace";
+import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
@@ -36,7 +36,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default async function CategoriesPage() {
   await expireStaleLiveListings();
   const currentUser = await getCurrentUser();
-  const liveWhere = marketplaceListingWhere({ viewer: currentUser });
+  const liveWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser });
   const categories = await db.category.findMany({
     where: { active: true, parentId: null },
     orderBy: { sortOrder: "asc" },

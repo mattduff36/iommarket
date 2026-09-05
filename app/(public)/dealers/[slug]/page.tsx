@@ -15,7 +15,8 @@ import { Globe, Phone, Calendar } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { marketplaceListingBadge, marketplaceListingWhere } from "@/lib/listings/marketplace";
+import { marketplaceListingBadge, marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { getSampleVisibility, isHiddenSampleDealer } from "@/lib/listings/sample-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getDealerEntitlement } from "@/lib/dealers/entitlement";
 import { canViewMarketplaceDealerProfile } from "@/lib/dealers/access";
@@ -46,14 +47,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       tier: true,
       isAdminPreview: true,
       previewPack: { select: { enabled: true } },
-      user: { select: { role: true, disabledAt: true, deletedAt: true } },
+      user: { select: { role: true, authUserId: true, disabledAt: true, deletedAt: true } },
     },
   });
   if (
     !dealer ||
     (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
     dealer.user.disabledAt ||
-    dealer.user.deletedAt
+    dealer.user.deletedAt ||
+    isHiddenSampleDealer({
+      authUserId: dealer.user.authUserId,
+      isAdminPreview: dealer.isAdminPreview,
+      sampleVisibility: await getSampleVisibility(),
+    })
   ) {
     return {};
   }
@@ -90,7 +96,8 @@ export default async function DealerProfilePage({ params }: Props) {
   await expireStaleLiveListings();
   const { slug } = await params;
   const currentUser = await getCurrentUser();
-  const liveWhere = marketplaceListingWhere({ viewer: currentUser });
+  const sampleVisibility = await getSampleVisibility();
+  const liveWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser });
 
   const dealer = await db.dealerProfile.findUnique({
     where: { slug },
@@ -114,6 +121,7 @@ export default async function DealerProfilePage({ params }: Props) {
       user: {
         select: {
           role: true,
+          authUserId: true,
           disabledAt: true,
           deletedAt: true,
         },
@@ -126,7 +134,12 @@ export default async function DealerProfilePage({ params }: Props) {
     !dealer ||
     (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
     dealer.user.disabledAt ||
-    dealer.user.deletedAt
+    dealer.user.deletedAt ||
+    isHiddenSampleDealer({
+      authUserId: dealer.user.authUserId,
+      isAdminPreview: dealer.isAdminPreview,
+      sampleVisibility,
+    })
   ) {
     notFound();
   }

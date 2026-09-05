@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser, requireRole } from "@/lib/auth";
 import { getPublicDealerWhere } from "@/lib/dealers/access";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import {
   hasDealerAccountAccess,
   type DealerAccessSubject,
@@ -118,7 +119,7 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
   const dealer = await db.dealerProfile.findFirst({
     where: {
       id: parsed.data.dealerId,
-      ...getPublicDealerWhere(),
+      ...getPublicDealerWhere(new Date(), await getSampleVisibility()),
     },
     select: { id: true, slug: true },
   });

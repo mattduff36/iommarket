@@ -23,7 +23,7 @@ import {
 import {
   expireStaleLiveListings,
 } from "@/lib/listings/expiry";
-import { marketplaceListingWhere, marketplaceListingBadge } from "@/lib/listings/marketplace";
+import { marketplaceListingWhereWithSettings, marketplaceListingBadge } from "@/lib/listings/marketplace";
 import {
   FUEL_CONSUMPTION_MAX,
   FUEL_CONSUMPTION_MIN,
@@ -89,7 +89,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   const includeSold = sp.includeSold === "true";
   const now = new Date();
-  const liveVisibilityWhere = marketplaceListingWhere({ viewer: currentUser, now });
+  const liveVisibilityWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser, now });
   const currentYear = getCurrentYear();
   const minPrice = parseOptionalBoundedInteger(sp.minPrice, PRICE_MIN, PRICE_MAX);
   const maxPrice = parseOptionalBoundedInteger(sp.maxPrice, PRICE_MIN, PRICE_MAX);
@@ -218,7 +218,7 @@ export default async function SearchPage({ searchParams }: Props) {
     })),
   ];
 
-  const statusFilter = marketplaceListingWhere({
+  const statusFilter = await marketplaceListingWhereWithSettings({
     viewer: currentUser,
     includeSold,
     now,

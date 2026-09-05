@@ -13,6 +13,18 @@ vi.mock("@/lib/listings/expiry", () => ({
   liveListingWhere: () => ({ status: "LIVE" }),
 }));
 
+vi.mock("@/lib/listings/marketplace", () => ({
+  marketplaceListingWhereWithSettings: async () => ({ status: "LIVE" }),
+}));
+
+vi.mock("@/lib/listings/sample-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/listings/sample-visibility")>();
+  return {
+    ...actual,
+    getSampleVisibility: async () => ({ privateListings: true, dealerListings: true }),
+  };
+});
+
 vi.mock("@/lib/db", () => ({
   db: {
     listing: { findMany: mocks.listingFindMany },

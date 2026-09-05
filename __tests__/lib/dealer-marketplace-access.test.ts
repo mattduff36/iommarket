@@ -4,6 +4,7 @@ import {
   getMarketplaceDealerWhere,
   getPublicDealerWhere,
 } from "@/lib/dealers/access";
+import { sampleDealerProfileWhere } from "@/lib/listings/sample-visibility";
 
 describe("marketplace dealer access", () => {
   it("keeps preview dealers off the public directory", () => {
@@ -71,6 +72,20 @@ describe("marketplace dealer access", () => {
         hasEntitlement: false,
       }),
     ).toBe(false);
+  });
+
+  it("hides seed dealers when sample dealer listings are off and keeps preview packs", () => {
+    const now = new Date("2026-08-23T00:00:00.000Z");
+    const hidden = { privateListings: true, dealerListings: false };
+    expect(getPublicDealerWhere(now, hidden)).toEqual({
+      AND: [getPublicDealerWhere(now), { NOT: sampleDealerProfileWhere() }],
+    });
+    expect(getMarketplaceDealerWhere({ role: "ADMIN" }, now, hidden)).toEqual({
+      OR: [
+        getPublicDealerWhere(now, hidden),
+        { isAdminPreview: true, previewPack: { enabled: true } },
+      ],
+    });
   });
 });
 

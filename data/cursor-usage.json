@@ -1,28 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-04T22:39:55.476Z",
+  "generatedAt": "2026-09-05T00:09:02.262Z",
   "projectKey": "d-Websites-iommarket",
-  "windowStart": "2026-07-22T00:00:00.000Z",
-  "windowEnd": "2026-09-05T00:00:00.000Z",
+  "windowStart": "2026-07-23T00:00:00.000Z",
+  "windowEnd": "2026-09-06T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1412,
-    "unattributedEvents": 572,
-    "unattributedMicroCents": "63381603506"
+    "attributedEvents": 1335,
+    "unattributedEvents": 550,
+    "unattributedMicroCents": "62476187170"
   },
   "days": [
-    {
-      "date": "2026-07-22",
-      "identifiedMicroCents": "15250327990",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
     {
       "date": "2026-07-23",
       "identifiedMicroCents": "38251620362",
@@ -238,20 +225,33 @@
     },
     {
       "date": "2026-09-04",
-      "identifiedMicroCents": "50142324046",
+      "identifiedMicroCents": "56532973284",
       "project": {
-        "onDemandMicroCents": "5838795606",
-        "chargedMicroCents": "5838795606",
-        "inputTokens": 2317394,
-        "outputTokens": 401253,
+        "onDemandMicroCents": "8443020504",
+        "chargedMicroCents": "8443020504",
+        "inputTokens": 3169631,
+        "outputTokens": 501557,
         "cacheWriteTokens": 0,
-        "cacheReadTokens": 43575040,
+        "cacheReadTokens": 65061952,
         "models": [
           {
             "model": "cursor-grok-4.6-xhigh-fast",
-            "onDemandMicroCents": "5838795606"
+            "onDemandMicroCents": "8443020504"
           }
         ]
+      }
+    },
+    {
+      "date": "2026-09-05",
+      "identifiedMicroCents": "23990400",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
       }
     }
   ]

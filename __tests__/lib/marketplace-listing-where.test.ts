@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { marketplaceListingWhere } from "@/lib/listings/marketplace";
 import { liveListingWhere } from "@/lib/listings/expiry";
+import { sampleDealerListingWhere, samplePrivateListingWhere } from "@/lib/listings/sample-visibility";
 
 describe("marketplace listing visibility", () => {
   it("keeps public and dealer viewers on LIVE-only queries", () => {
@@ -38,5 +39,38 @@ describe("marketplace listing visibility", () => {
         ]),
       }),
     );
+  });
+
+  it("hides seed private listings without excluding preview-pack rows", () => {
+    const now = new Date("2026-08-23T00:00:00.000Z");
+    const where = marketplaceListingWhere({
+      viewer: { role: "ADMIN" },
+      now,
+      sampleVisibility: { privateListings: false, dealerListings: true },
+    });
+    expect(where).toEqual({
+      AND: [
+        {
+          OR: [
+            liveListingWhere(now),
+            { status: "ADMIN_PREVIEW", previewPack: { enabled: true } },
+          ],
+        },
+        { NOT: samplePrivateListingWhere() },
+      ],
+    });
+    expect(JSON.stringify(where)).not.toContain("preview-system:");
+  });
+
+  it("hides seed dealer listings without excluding preview-pack rows", () => {
+    const now = new Date("2026-08-23T00:00:00.000Z");
+    const where = marketplaceListingWhere({
+      viewer: null,
+      now,
+      sampleVisibility: { privateListings: true, dealerListings: false },
+    });
+    expect(where).toEqual({
+      AND: [liveListingWhere(now), { NOT: sampleDealerListingWhere() }],
+    });
   });
 });

@@ -38,7 +38,8 @@ import {
   isAdminPreviewListing,
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
-import { ADMIN_PREVIEW_BADGE, marketplaceListingWhere } from "@/lib/listings/marketplace";
+import { ADMIN_PREVIEW_BADGE, marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { getSampleVisibility, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
@@ -69,11 +70,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       status: true,
       expiresAt: true,
       userId: true,
+      dealerId: true,
+      user: { select: { authUserId: true } },
+      dealer: { select: { isAdminPreview: true } },
       previewPack: { select: { enabled: true } },
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
   if (!listing) return {};
+  const sampleVisibility = await getSampleVisibility();
+  if (
+    isHiddenSampleListing({
+      authUserId: listing.user.authUserId,
+      dealerId: listing.dealerId,
+      isAdminPreview: listing.dealer?.isAdminPreview === true,
+      sampleVisibility,
+    })
+  ) {
+    return {};
+  }
   if (
     !canViewListing({
       status: listing.status,
@@ -125,8 +140,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       images: { orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
-      user: { select: { name: true, email: true } },
-      dealer: { select: { name: true, slug: true, phone: true, verified: true } },
+      user: { select: { name: true, email: true, authUserId: true } },
+      dealer: { select: { name: true, slug: true, phone: true, verified: true, isAdminPreview: true } },
       previewPack: { select: { enabled: true } },
       attributeValues: {
         include: { attributeDefinition: true },
@@ -135,6 +150,17 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   });
 
   if (!listing) notFound();
+  const sampleVisibility = await getSampleVisibility();
+  if (
+    isHiddenSampleListing({
+      authUserId: listing.user.authUserId,
+      dealerId: listing.dealerId,
+      isAdminPreview: listing.dealer?.isAdminPreview === true,
+      sampleVisibility,
+    })
+  ) {
+    notFound();
+  }
 
   const writeOffCategory = writeOffFromAttributeValues(listing.attributeValues);
   const isExpired = isListingEffectivelyExpired({
@@ -257,7 +283,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   const similarListings = await db.listing.findMany({
     where: {
-      ...marketplaceListingWhere({ viewer: currentUser }),
+      ...(await marketplaceListingWhereWithSettings({ viewer: currentUser })),
       id: { not: listing.id },
       categoryId: listing.categoryId,
       regionId: listing.regionId,

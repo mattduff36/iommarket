@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { getAccountNavItems, PUBLIC_NAV_ITEMS } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Mail, ShieldCheck } from "lucide-react";
+import { PreviewPacksMobileExpander } from "@/components/auth/preview-packs-controls";
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
@@ -215,6 +216,7 @@ export function SiteHeader() {
                         <ShieldCheck className="h-4 w-4 shrink-0" />
                         {item.label}
                       </Link>
+                      {role === "ADMIN" ? <PreviewPacksMobileExpander /> : null}
                     </div>
                   ) : (
                     <Link
