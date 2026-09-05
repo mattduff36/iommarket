@@ -81,7 +81,11 @@ function main() {
     return;
   }
 
-  assertNoBlockingCursorActivity(REPO_ROOT, [process.pid, process.ppid].filter((pid): pid is number => Number.isFinite(pid)));
+  assertNoBlockingCursorActivity(
+    REPO_ROOT,
+    [process.pid, process.ppid].filter((pid): pid is number => Number.isFinite(pid)),
+    { ignoreFinalise: options.dryRun },
+  );
 
   const unmergedFiles = getUnmergedFiles(REPO_ROOT);
   if (unmergedFiles.length > 0) {

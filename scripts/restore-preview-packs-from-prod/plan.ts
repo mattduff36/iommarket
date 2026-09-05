@@ -3,6 +3,7 @@ import {
   isExcludedPreviewDealerKey,
   isPreviewSystemAuthUserId,
   isPreviewSystemEmail,
+  isProtectedPreviewOwnerEmail,
   previewDealerSlug,
   previewSystemAuthUserId,
   previewSystemEmail,
@@ -195,7 +196,10 @@ export function planRestore(input: {
   }
 
   for (const pack of input.source.packs) {
-    if (isExcludedPreviewDealerKey(pack.dealerKey, registryGroupKey(pack.dealerKey))) {
+    if (
+      isExcludedPreviewDealerKey(pack.dealerKey, registryGroupKey(pack.dealerKey)) ||
+      isProtectedPreviewOwnerEmail(pack.ownerEmail)
+    ) {
       skippedOcean.push(pack.dealerKey);
       continue;
     }

@@ -235,10 +235,6 @@ export async function previewPackExists(dealerKey: string) {
 }
 
 export async function setPreviewPackEnabled(dealerKey: string, enabled: boolean) {
-  assertPreviewDealerAllowed({
-    dealerKey,
-    groupKey: registryGroupKey(dealerKey),
-  });
   const pack = await db.dealerPreviewPack.findUnique({
     where: { dealerKey },
     include: { dealerProfile: { include: { user: { select: { email: true } } } } },
@@ -250,6 +246,7 @@ export async function setPreviewPackEnabled(dealerKey: string, enabled: boolean)
   assertPreviewDealerAllowed({
     dealerKey,
     displayName: pack.displayName,
+    groupKey: registryGroupKey(dealerKey),
     ownerEmail: pack.dealerProfile.user.email,
   });
   return db.dealerPreviewPack.update({

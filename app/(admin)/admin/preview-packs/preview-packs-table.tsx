@@ -83,7 +83,7 @@ export function PreviewPacksTable({
           {rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-text-tertiary">
-                No eligible archived dealers found. Ocean Motor Village is excluded on purpose.
+                No eligible archived dealers found.
               </TableCell>
             </TableRow>
           ) : null}

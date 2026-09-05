@@ -11,17 +11,27 @@ import {
 } from "@/lib/preview-packs/safety";
 
 describe("preview pack safety", () => {
-  it("excludes Ocean keys and group members", () => {
-    expect(isExcludedPreviewDealerKey("ocean-motor-village", null)).toBe(true);
+  it("allows Ocean Motor Village as a normal pack and still excludes other Ocean brands", () => {
+    expect(isExcludedPreviewDealerKey("ocean-motor-village", "ocean")).toBe(false);
     expect(isExcludedPreviewDealerKey("ocean-ford", "ocean")).toBe(true);
     expect(isExcludedPreviewDealerKey("athol-garage", null)).toBe(false);
+    expect(() =>
+      assertPreviewDealerAllowed({
+        dealerKey: "ocean-motor-village",
+        displayName: "Ocean Motor Village",
+        groupKey: "ocean",
+      }),
+    ).not.toThrow();
   });
 
-  it("protects the Ocean owner email and refuses Ocean materialize", () => {
+  it("protects the Ocean owner email and refuses attaching to the live Ocean dealer", () => {
     expect(isProtectedPreviewOwnerEmail("mattduff36@gmail.com")).toBe(true);
     expect(() =>
-      assertPreviewDealerAllowed({ dealerKey: "ocean-motor-village" }),
-    ).toThrow(/Ocean Motor Village/);
+      assertPreviewDealerAllowed({
+        dealerKey: "ocean-motor-village",
+        ownerEmail: "mattduff36@gmail.com",
+      }),
+    ).toThrow(/Ocean owner/);
     expect(() =>
       assertPreviewDealerAllowed({
         dealerKey: "athol-garage",

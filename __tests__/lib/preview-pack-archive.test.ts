@@ -52,12 +52,13 @@ afterEach(() => {
 });
 
 describe("preview pack archive index", () => {
-  it("lists every archived dealer from the newest snapshot and skips Ocean", async () => {
+  it("lists every archived dealer from the newest snapshot, including Ocean Motor Village", async () => {
     const root = makeArchive();
     const listed = await listAvailablePreviewArchives(root);
     expect(listed.dealers.map((dealer) => dealer.dealerKey).sort()).toEqual([
       "athol-garage",
       "mikes-motors",
+      "ocean-motor-village",
     ]);
     expect(listed.dealers.find((dealer) => dealer.dealerKey === "athol-garage")).toMatchObject({
       runId: "2026-08-22T22-00-00-000Z",
@@ -147,6 +148,49 @@ describe("preview pack archive index", () => {
       }),
     );
     expect(rows.map((row) => row.dealerKey)).toEqual(["mikes-motors"]);
+  });
+
+  it("merges a loaded Ocean Motor Village pack the same way as other dealers", () => {
+    const rows = mergePreviewPackRows({
+      archives: [
+        {
+          dealerKey: "ocean-motor-village",
+          displayName: "Ocean Motor Village",
+          runId: "run-ocean",
+          uniqueVehicles: 41,
+          importable: 41,
+        },
+        {
+          dealerKey: "athol-garage",
+          displayName: "Athol Garage",
+          runId: "run-a",
+          uniqueVehicles: 12,
+          importable: 12,
+        },
+      ],
+      packs: [
+        {
+          dealerKey: "ocean-motor-village",
+          displayName: "Ocean Motor Village",
+          enabled: false,
+          sourceRunId: "prod-live-omv-1",
+          listingCount: 41,
+          slug: "preview-ocean-motor-village",
+        },
+      ],
+    });
+    expect(rows.map((row) => row.dealerKey)).toEqual([
+      "athol-garage",
+      "ocean-motor-village",
+    ]);
+    expect(rows.find((row) => row.dealerKey === "ocean-motor-village")).toMatchObject({
+      loaded: true,
+      materialized: true,
+      listingCount: 41,
+      slug: "preview-ocean-motor-village",
+      importable: 41,
+      enabled: false,
+    });
   });
 
   it("marks empty database packs as loaded so Vercel can toggle them", () => {

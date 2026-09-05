@@ -39,10 +39,20 @@ describe("preview pack admin actions", () => {
     setPreviewPackEnabledMock.mockResolvedValue({ enabled: false });
   });
 
-  it("refuses Ocean keys before materialize", async () => {
+  it("enables Ocean Motor Village through the same materialize path as other packs", async () => {
     await expect(enablePreviewPack({ dealerKey: "ocean-motor-village" })).resolves.toEqual({
-      error: "Ocean Motor Village is excluded from preview packs.",
+      data: { created: 3, skipped: 0, packId: "pack-1" },
     });
+    expect(materializePreviewPackMock).toHaveBeenCalledWith("ocean-motor-village");
+  });
+
+  it("re-enables a loaded Ocean Motor Village pack without materialize", async () => {
+    previewPackExistsMock.mockResolvedValue(true);
+    setPreviewPackEnabledMock.mockResolvedValue({ enabled: true });
+    await expect(enablePreviewPack({ dealerKey: "ocean-motor-village" })).resolves.toEqual({
+      data: { enabled: true },
+    });
+    expect(setPreviewPackEnabledMock).toHaveBeenCalledWith("ocean-motor-village", true);
     expect(materializePreviewPackMock).not.toHaveBeenCalled();
   });
 

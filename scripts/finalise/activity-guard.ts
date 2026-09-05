@@ -108,10 +108,15 @@ export function formatBlockingActivity(activity: TerminalActivity) {
   return `${path.basename(activity.filePath)} (${labels || "unknown"}): ${activity.command || "no command recorded"}`;
 }
 
-export function assertNoBlockingCursorActivity(repoRoot: string, ignoredPids: number[] = []) {
+export function assertNoBlockingCursorActivity(
+  repoRoot: string,
+  ignoredPids: number[] = [],
+  options: { ignoreFinalise?: boolean } = {},
+) {
   const activityCheck = checkFinaliseBlockingActivity(repoRoot, ignoredPids);
   const nowMs = Date.now();
   const blockingActivities = activityCheck.blockingActivities.filter((activity) => {
+    if (options.ignoreFinalise && activity.isFinalise && !activity.isAgentReview) return false;
     if (!activity.isFinalise || activity.isAgentReview || !activity.startedAt) return true;
     const startedAtMs = Date.parse(activity.startedAt);
     if (Number.isNaN(startedAtMs)) return true;

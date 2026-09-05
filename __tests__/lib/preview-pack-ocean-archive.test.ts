@@ -32,10 +32,11 @@ describe("ocean archive cleanup", () => {
   it("lists only Ocean dealer folders and leaves other archives in place", () => {
     const root = makeArchive();
     const listed = listOceanArchiveDealerDirs(root);
-    expect(listed.some((dir) => dir.includes("ocean-motor-village"))).toBe(true);
+    expect(listed.some((dir) => dir.includes("ocean-motor-village"))).toBe(false);
+    expect(listed.some((dir) => dir.includes("ocean-ford"))).toBe(true);
     expect(listed.some((dir) => dir.includes("athol-garage"))).toBe(false);
     const deleted = deleteOceanArchiveDealerDirs(root);
-    expect(deleted.length).toBe(2);
+    expect(deleted.length).toBe(1);
     expect(listOceanArchiveDealerDirs(root)).toEqual([]);
   });
 
