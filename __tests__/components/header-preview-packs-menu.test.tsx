@@ -164,7 +164,10 @@ describe("header preview packs menu", () => {
   it("expands the mobile Preview packs control for admins", async () => {
     const user = userEvent.setup();
     render(<PreviewPacksMobileExpander />);
-    await user.click(screen.getByRole("button", { name: /Preview packs/ }));
+    const trigger = screen.getByRole("button", { name: /Preview packs/ });
+    expect(trigger.querySelector("svg")).toBeTruthy();
+    expect(trigger.textContent).not.toContain("+");
+    await user.click(trigger);
     expect(getPreviewControlsMock).toHaveBeenCalled();
     expect(await screen.findByText("Private sample listings")).toBeTruthy();
     expect(screen.getByText("Dealer sample listings")).toBeTruthy();

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { disablePreviewPack, enablePreviewPack } from "@/actions/admin/preview-packs";
 import {
   getPreviewControls,
@@ -230,7 +230,7 @@ export function PreviewPacksMobileExpander() {
         className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors"
       >
         <span className="flex-1 text-left">Preview packs</span>
-        <span aria-hidden>{open ? "−" : "+"}</span>
+        <ChevronDown className="ml-auto h-4 w-4 shrink-0" aria-hidden />
       </button>
       {open ? (
         <div className="max-h-80 overflow-y-auto pb-2">

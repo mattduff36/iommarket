@@ -99,6 +99,8 @@ export function SiteHeader() {
 
   const { user, role } = authState;
   const accountNavItems = getAccountNavItems(role);
+  const accountMenuItems = accountNavItems.filter((item) => item.href !== "/admin");
+  const adminMenuItem = accountNavItems.find((item) => item.href === "/admin");
 
   return (
     <>
@@ -180,14 +182,18 @@ export function SiteHeader() {
           <div className="relative z-40 md:hidden border-t border-border bg-surface/95 backdrop-blur-sm px-4 py-4 shadow-2xl">
 
             {/* ── Nav links ── */}
-            <nav className="flex flex-col gap-1 mb-3" aria-label="Mobile">
+            <nav
+              className="mb-3 grid grid-cols-2 gap-1"
+              aria-label="Mobile"
+              data-testid="mobile-menu-public"
+            >
               {PUBLIC_NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "px-3 py-2.5 text-sm font-medium rounded-sm transition-colors",
+                    "min-w-0 px-2.5 py-2.5 text-sm font-medium rounded-sm transition-colors",
                     pathname === item.href
                       ? "text-neon-blue-400 bg-neon-blue-500/10"
                       : "text-metallic-400 hover:text-text-primary hover:bg-surface-elevated",
@@ -203,39 +209,43 @@ export function SiteHeader() {
 
             {/* ── Account section ── */}
             {user ? (
-              <div className="flex flex-col gap-1">
-                {accountNavItems.map((item) =>
-                  item.href === "/admin" ? (
-                    <div key={item.href}>
-                      <div className="border-t border-border my-2" />
-                      <Link
-                        href={item.href}
-                        onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors"
-                      >
-                        <ShieldCheck className="h-4 w-4 shrink-0" />
-                        {item.label}
-                      </Link>
-                      {role === "ADMIN" ? <PreviewPacksMobileExpander /> : null}
-                    </div>
-                  ) : (
+              <>
+                <div
+                  className="grid grid-cols-2 gap-1"
+                  data-testid="mobile-menu-account"
+                >
+                  {accountMenuItems.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className="px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                      className="min-w-0 px-2.5 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
                     >
                       {item.label}
                     </Link>
-                  )
-                )}
-                <button
-                  onClick={handleSignOut}
-                  className="text-left px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                >
-                  Sign out
-                </button>
-              </div>
+                  ))}
+                </div>
+                <div className="border-t border-border my-3" />
+                <div className="flex flex-col gap-1" data-testid="mobile-menu-session">
+                  {adminMenuItem ? (
+                    <Link
+                      href={adminMenuItem.href}
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors"
+                    >
+                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                      {adminMenuItem.label}
+                    </Link>
+                  ) : null}
+                  {role === "ADMIN" ? <PreviewPacksMobileExpander /> : null}
+                  <button
+                    onClick={handleSignOut}
+                    className="text-left px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </>
             ) : (
               <div>
                 <Link

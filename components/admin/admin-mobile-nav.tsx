@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Menu, ArrowLeft } from "lucide-react";
+import { Menu } from "lucide-react";
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
 
 export function AdminMobileNav() {
@@ -18,7 +18,7 @@ export function AdminMobileNav() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <div className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-surface px-4 lg:hidden">
+      <div className="sticky top-16 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4 sm:top-20 lg:hidden">
         <DialogTrigger asChild>
           <Button
             type="button"
@@ -38,14 +38,7 @@ export function AdminMobileNav() {
           Browse the admin navigation links.
         </DialogDescription>
         <div className="flex h-16 shrink-0 items-center border-b border-border px-6 pr-14">
-          <Link
-            href="/"
-            onClick={() => setOpen(false)}
-            className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to site
-          </Link>
+          <span className="text-sm font-semibold text-text-primary">Admin</span>
         </div>
         <div
           role="region"

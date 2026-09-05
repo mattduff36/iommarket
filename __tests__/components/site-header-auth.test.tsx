@@ -141,4 +141,36 @@ describe("SiteHeader auth initialization", () => {
     });
     expect(screen.queryByText("Preview packs")).toBeNull();
   });
+
+  it("uses two columns for public and account links, and one column for session actions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ name: "Admin", role: "ADMIN" }),
+      }),
+    );
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: { email: "admin@mpdee.co.uk" } } },
+    });
+
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await waitFor(() => {
+      expect(screen.getByTestId("header-auth-state").textContent).toBe("ready");
+    });
+    await user.click(screen.getByRole("button", { name: "Toggle menu" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mobile-menu-account")).toBeTruthy();
+    });
+
+    expect(screen.getByTestId("mobile-menu-public").className).toContain("grid-cols-2");
+    expect(screen.getByTestId("mobile-menu-account").className).toContain("grid-cols-2");
+    expect(screen.getByTestId("mobile-menu-session").className).not.toContain("grid-cols-2");
+    expect(screen.getByTestId("mobile-menu-session").className).toContain("flex-col");
+    expect(screen.getByTestId("mobile-menu-session")).toHaveTextContent("Admin area");
+    expect(screen.getByTestId("mobile-menu-session")).toHaveTextContent("Sign out");
+    expect(screen.getByTestId("mobile-menu-account")).not.toHaveTextContent("Admin area");
+  });
 });

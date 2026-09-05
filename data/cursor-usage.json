@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-05T00:09:02.262Z",
+  "generatedAt": "2026-09-05T01:10:50.948Z",
   "projectKey": "d-Websites-iommarket",
   "windowStart": "2026-07-23T00:00:00.000Z",
   "windowEnd": "2026-09-06T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1335,
-    "unattributedEvents": 550,
-    "unattributedMicroCents": "62476187170"
+    "attributedEvents": 1355,
+    "unattributedEvents": 552,
+    "unattributedMicroCents": "62825785269"
   },
   "days": [
     {
@@ -225,33 +225,38 @@
     },
     {
       "date": "2026-09-04",
-      "identifiedMicroCents": "56532973284",
+      "identifiedMicroCents": "56610721285",
       "project": {
-        "onDemandMicroCents": "8443020504",
-        "chargedMicroCents": "8443020504",
-        "inputTokens": 3169631,
-        "outputTokens": 501557,
+        "onDemandMicroCents": "8520768505",
+        "chargedMicroCents": "8520768505",
+        "inputTokens": 3172867,
+        "outputTokens": 503151,
         "cacheWriteTokens": 0,
-        "cacheReadTokens": 65061952,
+        "cacheReadTokens": 65807360,
         "models": [
           {
             "model": "cursor-grok-4.6-xhigh-fast",
-            "onDemandMicroCents": "8443020504"
+            "onDemandMicroCents": "8520768505"
           }
         ]
       }
     },
     {
       "date": "2026-09-05",
-      "identifiedMicroCents": "23990400",
+      "identifiedMicroCents": "7573689956",
       "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
+        "onDemandMicroCents": "719221877",
+        "chargedMicroCents": "719221877",
+        "inputTokens": 136427,
+        "outputTokens": 34980,
         "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
+        "cacheReadTokens": 6278528,
+        "models": [
+          {
+            "model": "cursor-grok-4.6-xhigh-fast",
+            "onDemandMicroCents": "719221877"
+          }
+        ]
       }
     }
   ]
