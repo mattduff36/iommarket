@@ -125,6 +125,9 @@ export function rippleRejectTags(input: {
   rejectStage: "hmac" | "envelope";
   headers?: Headers | Record<string, string | undefined>;
   envReason?: string;
+  macBody?: 0 | 1;
+  macTsBody?: 0 | 1;
+  macTsHash?: 0 | 1;
 }): Record<string, string> {
   const auth = input.headers
     ? describeRippleWebhookAuth(input.headers)
@@ -142,5 +145,8 @@ export function rippleRejectTags(input: {
     authHdrs: auth.authHdrs,
     authOther: auth.authOther ? 1 : 0,
     envReason: input.envReason,
+    macBody: input.macBody,
+    macTsBody: input.macTsBody,
+    macTsHash: input.macTsHash,
   });
 }
