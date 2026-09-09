@@ -1,7 +1,7 @@
 import { getDealerListingCap } from "../../lib/config/dealer-tiers";
 import { readDealerSnapshot } from "./archive/read";
 import { mapReconciledVehicle } from "./map-listing";
-import { getDealer } from "./registry";
+import { archiveNameMatchesDealer, getDealer } from "./registry";
 
 export class ArchiveImportSafetyError extends Error {
   constructor(message: string) {
@@ -21,15 +21,15 @@ export function assertArchiveDealerMatch(input: {
       `Archive dealer ${input.archiveDealerKey} does not match requested dealer ${input.requestedDealerKey}`,
     );
   }
-  if (input.expectedName.trim() !== input.archiveDisplayName.trim()) {
-    throw new ArchiveImportSafetyError(
-      `Expected dealer name "${input.expectedName}" does not match archive "${input.archiveDisplayName}"`,
-    );
-  }
   const registry = getDealer(input.requestedDealerKey);
   if (registry.displayName.trim() !== input.expectedName.trim()) {
     throw new ArchiveImportSafetyError(
       `Expected dealer name "${input.expectedName}" does not match registry "${registry.displayName}"`,
+    );
+  }
+  if (!archiveNameMatchesDealer(registry, input.archiveDisplayName)) {
+    throw new ArchiveImportSafetyError(
+      `Archive dealer name "${input.archiveDisplayName}" does not match "${registry.displayName}"`,
     );
   }
 }

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { archiveRoot, dealerDir, runDir } from "../../scripts/dealer-stock-sync/archive/paths";
-import { getDealer, DEALER_REGISTRY } from "../../scripts/dealer-stock-sync/registry";
+import { canonicalDealerDisplayName, DEALER_REGISTRY } from "../../scripts/dealer-stock-sync/registry";
 import { isExcludedPreviewDealerKey } from "./safety";
 
 export function readLatestArchiveRunId(root?: string) {
@@ -89,12 +89,7 @@ export async function listAvailablePreviewArchives(root?: string) {
   const dealers: PreviewArchiveDealer[] = [];
   for (const [dealerKey, runId] of newestByDealer) {
     const manifest = readManifest(dealerKey, runId, root);
-    let displayName = manifest.displayName?.trim() || dealerKey;
-    try {
-      displayName = getDealer(dealerKey).displayName;
-    } catch {
-      // Keep archive display name when the registry entry is missing.
-    }
+    const displayName = canonicalDealerDisplayName(dealerKey, manifest.displayName);
     dealers.push({
       dealerKey,
       displayName,

@@ -33,6 +33,7 @@
     "dealer-stock:archive": "npx tsx scripts/dealer-stock-sync/cli.ts archive",
     "dealer-stock:import": "npx tsx scripts/dealer-stock-sync/cli.ts import",
     "dealer-stock:inspect": "npx tsx scripts/dealer-stock-sync/cli.ts inspect",
+    "founding-dealers:onboard": "npx tsx scripts/onboard-founding-dealers.ts",
     "tokens:generate": "npx tsx scripts/generate-ui-from-json.ts",
     "tokens:check": "npx tsx scripts/generate-ui-from-json.ts && echo 'Tokens up to date'",
     "dm-pack": "tsx scripts/generate-dm-policy-pack.ts",

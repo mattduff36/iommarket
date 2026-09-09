@@ -38,7 +38,7 @@ describe("preview pack materialize CLI args", () => {
       },
       {
         dealerKey: "mikes-motors",
-        displayName: "Mikes Motors",
+        displayName: "Mike's Motors",
         materialized: true,
       },
     ];

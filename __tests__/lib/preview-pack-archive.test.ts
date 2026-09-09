@@ -60,9 +60,9 @@ describe("preview pack archive index", () => {
       "mikes-motors",
       "ocean-motor-village",
     ]);
-    expect(listed.dealers.find((dealer) => dealer.dealerKey === "athol-garage")).toMatchObject({
-      runId: "2026-08-22T22-00-00-000Z",
-      importable: 14,
+    expect(listed.dealers.find((dealer) => dealer.dealerKey === "mikes-motors")).toMatchObject({
+      displayName: "Mike's Motors",
+      importable: 34,
     });
     expect(findLatestRunForDealer("athol-garage", root)).toBe("2026-08-22T22-00-00-000Z");
     expect(findLatestRunForDealer("ocean-motor-village", root)).toBe("2026-08-22T18-00-00-000Z");
@@ -80,7 +80,7 @@ describe("preview pack archive index", () => {
         },
         {
           dealerKey: "mikes-motors",
-          displayName: "Mikes Motors",
+          displayName: "Mike's Motors",
           runId: "run-m",
           uniqueVehicles: 34,
           importable: 34,
@@ -89,7 +89,7 @@ describe("preview pack archive index", () => {
       packs: [
         {
           dealerKey: "mikes-motors",
-          displayName: "Mikes Motors",
+          displayName: "Mike's Motors",
           enabled: true,
           sourceRunId: "run-m",
           listingCount: 34,
@@ -130,7 +130,7 @@ describe("preview pack archive index", () => {
         packs: [
           {
             dealerKey: "mikes-motors",
-            displayName: "Mikes Motors",
+            displayName: "Mike's Motors",
             enabled: true,
             sourceRunId: "run-m",
             listingCount: 34,

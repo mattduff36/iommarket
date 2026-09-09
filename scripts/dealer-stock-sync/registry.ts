@@ -365,7 +365,8 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
   }),
   dealer({
     key: "mikes-motors",
-    displayName: "Mikes Motors",
+    displayName: "Mike's Motors",
+    displayNameAliases: ["Mikes Motors"],
     status: "confirmed",
     website: "https://www.mikesmotors.im/",
     stockUrls: ["https://www.mikesmotors.im/used-cars"],
@@ -374,20 +375,20 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     groupKey: null,
     locations: [],
     sources: [
-      source("used-cars", "Mikes Motors used cars", "https://www.mikesmotors.im/used-cars", "click-dealer", {
+      source("used-cars", "Mike's Motors used cars", "https://www.mikesmotors.im/used-cars", "click-dealer", {
         headed: true,
         waitForSelector: ".listing, .results-vehicleresults",
         settleMs: 6_000,
         maxPages: 5,
       }),
-      source("used-vans", "Mikes Motors used vans", "https://www.mikesmotors.im/used-vans", "click-dealer", {
+      source("used-vans", "Mike's Motors used vans", "https://www.mikesmotors.im/used-vans", "click-dealer", {
         headed: true,
         required: false,
         waitForSelector: ".listing, .results-vehicleresults",
         settleMs: 6_000,
         maxPages: 3,
       }),
-      source("used-bikes", "Mikes Motors used bikes", "https://www.mikesmotors.im/used-bikes", "click-dealer", {
+      source("used-bikes", "Mike's Motors used bikes", "https://www.mikesmotors.im/used-bikes", "click-dealer", {
         headed: true,
         required: false,
         waitForSelector: ".listing, .results-vehicleresults",
@@ -666,6 +667,21 @@ export function getDealer(key: string) {
   const dealerRecord = DEALER_REGISTRY.find((item) => item.key === key);
   if (!dealerRecord) throw new Error(`Unknown dealer: ${key}`);
   return dealerRecord;
+}
+
+export function canonicalDealerDisplayName(key: string, fallback?: string) {
+  try {
+    return getDealer(key).displayName;
+  } catch {
+    const trimmed = fallback?.trim();
+    return trimmed || key;
+  }
+}
+
+export function archiveNameMatchesDealer(dealer: DealerRecord, archiveDisplayName: string) {
+  const name = archiveDisplayName.trim();
+  if (name === dealer.displayName.trim()) return true;
+  return (dealer.displayNameAliases ?? []).some((alias) => alias.trim() === name);
 }
 
 export function listDealers(filter?: { includeOptional?: boolean; includeUnverified?: boolean }) {

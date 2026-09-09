@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { mapReconciledVehicle } from "../../scripts/dealer-stock-sync/map-listing";
 import { readDealerSnapshot } from "../../scripts/dealer-stock-sync/archive/read";
-import { getDealer } from "../../scripts/dealer-stock-sync/registry";
+import { canonicalDealerDisplayName, getDealer } from "../../scripts/dealer-stock-sync/registry";
 import { dealerSnapshotPath, findLatestRunForDealer, registryGroupKey } from "./archive";
 import {
   assertNotOceanDealerProfile,
@@ -265,12 +265,13 @@ async function loadPreviewSnapshot(dealerKey: string) {
     throw new Error("Archive not on this host — enable once from local preview.");
   }
   const snapshot = await readDealerSnapshot({ dealerKey, runId });
+  const displayName = canonicalDealerDisplayName(dealerKey, snapshot.manifest.displayName);
   assertPreviewDealerAllowed({
     dealerKey,
-    displayName: snapshot.manifest.displayName,
+    displayName,
     groupKey: registryGroupKey(dealerKey),
   });
-  return { runId, snapshot };
+  return { runId, snapshot, displayName };
 }
 
 function mappedPreviewVehicles(
@@ -294,7 +295,7 @@ function mappedPreviewVehicles(
 }
 
 export async function inspectPreviewPack(dealerKey: string) {
-  const { snapshot } = await loadPreviewSnapshot(dealerKey);
+  const { snapshot, displayName } = await loadPreviewSnapshot(dealerKey);
   const existing = await db.dealerPreviewPack.findUnique({
     where: { dealerKey },
     select: { id: true, enabled: true, displayName: true },
@@ -308,7 +309,7 @@ export async function inspectPreviewPack(dealerKey: string) {
   });
   return {
     dealerKey,
-    displayName: snapshot.manifest.displayName,
+    displayName,
     skipped: snapshot.vehicles.length - vehicles.length,
     actions,
     summary: summarizePreviewResumePlan(actions),
@@ -356,7 +357,7 @@ async function applyResumeAction(input: {
 }
 
 export async function materializePreviewPack(dealerKey: string) {
-  const { runId, snapshot } = await loadPreviewSnapshot(dealerKey);
+  const { runId, snapshot, displayName } = await loadPreviewSnapshot(dealerKey);
   let website: string | null = null;
   try {
     website = getDealer(dealerKey).website;
@@ -371,7 +372,7 @@ export async function materializePreviewPack(dealerKey: string) {
   const catalog = await loadCatalog();
   const owners = await ensurePreviewDealer({
     dealerKey,
-    displayName: snapshot.manifest.displayName,
+    displayName,
     website,
   });
   const oceanDealer = await db.dealerProfile.findFirst({
@@ -387,7 +388,7 @@ export async function materializePreviewPack(dealerKey: string) {
     : await db.dealerPreviewPack.create({
         data: {
           dealerKey,
-          displayName: snapshot.manifest.displayName,
+          displayName,
           sourceRunId: runId,
           enabled: false,
           dealerProfileId: owners.dealerId,
@@ -418,7 +419,7 @@ export async function materializePreviewPack(dealerKey: string) {
 
   await db.dealerPreviewPack.update({
     where: { id: pack.id },
-    data: { enabled: true, sourceRunId: runId, displayName: snapshot.manifest.displayName },
+    data: { enabled: true, sourceRunId: runId, displayName },
   });
 
   return {
