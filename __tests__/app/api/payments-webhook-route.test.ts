@@ -11,6 +11,7 @@ import {
 
 const ingestVerifiedRippleWebhook = vi.fn();
 const captureException = vi.fn();
+const captureBusinessEvent = vi.fn();
 
 vi.mock("@/lib/payments/ripple-inbox", () => ({
   ingestVerifiedRippleWebhook: (...args: unknown[]) =>
@@ -19,6 +20,7 @@ vi.mock("@/lib/payments/ripple-inbox", () => ({
 
 vi.mock("@/lib/monitoring", () => ({
   captureException: (...args: unknown[]) => captureException(...args),
+  captureBusinessEvent: (...args: unknown[]) => captureBusinessEvent(...args),
 }));
 
 function signedWebhookRequest(body: string) {
@@ -55,5 +57,59 @@ describe("AUD-PAY-001 payments webhook persist ACK", () => {
     expect(response.status).toBeGreaterThanOrEqual(500);
     expect(response.status).toBeLessThan(600);
     await expect(response.json()).resolves.not.toEqual({ received: true });
+    expect(captureBusinessEvent).not.toHaveBeenCalled();
+  });
+
+  it("logs HMAC reject shape and keeps the 400 body unchanged", async () => {
+    const { POST } = await import("@/app/api/webhooks/payments/route");
+    const body = JSON.stringify(rippleEnvelope());
+    const response = await POST(
+      new NextRequest("http://localhost:4000/api/webhooks/payments", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-ripple-signature": `sha256=${createRippleWebhookSignature(
+            body,
+            RIPPLE_TEST_WEBHOOK_SECRET,
+          )}`,
+        },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid webhook" });
+    expect(ingestVerifiedRippleWebhook).not.toHaveBeenCalled();
+    expect(captureBusinessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "paymentsWebhookReject",
+        tags: expect.objectContaining({
+          rejectStage: "hmac",
+          hmacShape: "sha256eq",
+          authHdrs: "xrpl",
+        }),
+      }),
+    );
+  });
+
+  it("logs envelope reject reason after a valid HMAC", async () => {
+    const { POST } = await import("@/app/api/webhooks/payments/route");
+    const body = JSON.stringify(
+      rippleEnvelope({ data: { currency: undefined } }),
+    );
+    const response = await POST(signedWebhookRequest(body));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid webhook" });
+    expect(ingestVerifiedRippleWebhook).not.toHaveBeenCalled();
+    expect(captureBusinessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "paymentsWebhookReject",
+        tags: expect.objectContaining({
+          rejectStage: "envelope",
+          envReason: "ccy",
+        }),
+      }),
+    );
   });
 });
