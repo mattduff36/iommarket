@@ -1,9 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { captureException } from "@/lib/monitoring";
+import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
 import { ingestVerifiedRippleWebhook } from "@/lib/payments/ripple-inbox";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
+import {
+  classifyRippleEnvelopeReject,
+  rippleRejectTags,
+} from "@/lib/payments/ripple-webhook-reject";
 import { verifyProviderWebhookSignature } from "@/lib/payments/provider";
+
+function invalidWebhookResponse() {
+  return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
+}
+
+async function reportRippleWebhookReject(
+  tags: ReturnType<typeof rippleRejectTags>
+) {
+  await captureBusinessEvent({
+    source: "WEBHOOK",
+    severity: "LOW",
+    title: "Ripple webhook rejected",
+    message: "Ripple webhook failed HMAC or envelope checks before persist.",
+    action: "paymentsWebhookReject",
+    route: "/api/webhooks/payments",
+    requestPath: "/api/webhooks/payments",
+    tags,
+  });
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -11,14 +34,24 @@ export async function POST(req: NextRequest) {
   try {
     verifyProviderWebhookSignature(body, req.headers);
   } catch {
-    return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
+    await reportRippleWebhookReject(
+      rippleRejectTags({ rejectStage: "hmac", headers: req.headers })
+    );
+    return invalidWebhookResponse();
   }
 
   let parsed: ReturnType<typeof parseRippleWebhookEnvelope>;
   try {
     parsed = parseRippleWebhookEnvelope(JSON.parse(body));
-  } catch {
-    return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
+  } catch (error) {
+    await reportRippleWebhookReject(
+      rippleRejectTags({
+        rejectStage: "envelope",
+        headers: req.headers,
+        envReason: classifyRippleEnvelopeReject(error),
+      })
+    );
+    return invalidWebhookResponse();
   }
 
   try {
