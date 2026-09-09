@@ -8,6 +8,10 @@ import { db } from "@/lib/db";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  checkoutViewCopy,
+  resolveCheckoutViewState,
+} from "@/lib/payments/checkout-view";
 import { CheckoutStatusActions } from "./checkout-status-actions";
 import { RetryCheckoutButton } from "./retry-checkout-button";
 
@@ -76,33 +80,14 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
     },
   });
   const openedInNewTab = sp.opened === "1";
-  const isSubmitted = listing.status === "PENDING";
-  const isPaid = listingPayment?.status === "SUCCEEDED";
-  const hasFailedPayment = listingPayment?.status === "FAILED";
-  const isCancelled = !listingPayment && !openedInNewTab;
-  const isAwaitingPayment = !isSubmitted && !isPaid;
-  const heading = isSubmitted
-    ? "Listing submitted"
-    : isPaid
-      ? "Payment received"
-      : isCancelled
-        ? "Checkout cancelled"
-        : hasFailedPayment
-          ? "Payment failed"
-          : openedInNewTab
-            ? "Checkout opened in a new tab"
-            : "Complete your payment";
-  const message = isSubmitted
-    ? "Your listing has been submitted for moderation. You can safely close any extra payment tabs and continue on itrader."
-    : isPaid
-      ? "We have recorded your payment. If moderation has not updated yet, use the refresh button below and the original itrader tab will catch up."
-      : isCancelled
-        ? "The hosted payment was cancelled, but your saved draft and uploaded images are still waiting for you here in itrader."
-        : hasFailedPayment
-          ? "The hosted payment attempt failed. You can retry from this page without losing your saved draft."
-          : openedInNewTab
-            ? "Your hosted payment opened in a separate tab so this site tab keeps your saved draft and uploaded images intact."
-            : "Your draft is saved. Reopen payment in a separate tab when you're ready to continue.";
+  const viewState = resolveCheckoutViewState({
+    listingStatus: listing.status,
+    payment: listingPayment,
+    openedInNewTab,
+  });
+  const { heading, message, isAwaitingPayment } = checkoutViewCopy(viewState);
+  const isSubmitted = viewState === "submitted";
+  const hasFailedPayment = viewState === "failed";
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
@@ -141,7 +126,12 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
             ) : null}
           </div>
 
-          <CheckoutStatusActions isAwaitingPayment={isAwaitingPayment} />
+          <CheckoutStatusActions
+            listingId={listing.id}
+            flow={flow}
+            viewState={viewState}
+            isAwaitingPayment={isAwaitingPayment}
+          />
 
           {isSubmitted ? (
             <div className="space-y-3">

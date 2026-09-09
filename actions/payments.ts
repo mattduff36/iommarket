@@ -34,6 +34,7 @@ import { detachListingDealerIdIfNeeded } from "@/lib/listings/submit-dealer-acce
 import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
+import { persistPendingListingPayment } from "@/lib/payments/pending-listing-payment";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -295,6 +296,16 @@ export async function payForListing(input: PayForListingInput) {
       }),
       idempotencyKey: `listing-pay-${listing.id}-${Date.now()}`,
     });
+
+    const pendingPayment = await persistPendingListingPayment({
+      listingId: listing.id,
+      merchantReference: session.merchantReference,
+      amountPence: pricing.privateListingPence,
+      allowNewAfterSucceeded: isRenewal,
+    });
+    if (pendingPayment.alreadyPaid) {
+      return { data: { checkoutUrl: null, skippedPayment: true } };
+    }
 
     return { data: { checkoutUrl: session.url } };
   } catch (err) {

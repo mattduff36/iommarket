@@ -50,6 +50,8 @@ const {
     },
     payment: {
       findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
     },
     freeListingClaim: {
       findUnique: vi.fn(),
@@ -162,6 +164,15 @@ describe("payForListing", () => {
     mockDb.listingRevisionAttributeValue.findFirst.mockResolvedValue(null);
     mockDb.policyAcceptance.findUnique.mockResolvedValue(null);
     mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acceptance-1" });
+    mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.payment.create.mockResolvedValue({
+      id: "pending-pay",
+      status: "PENDING",
+    });
+    mockDb.payment.update.mockResolvedValue({
+      id: "pending-pay",
+      status: "PENDING",
+    });
     mockDb.listing.update.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",
       dealerId: null,
@@ -269,6 +280,35 @@ describe("payForListing", () => {
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
   });
 
+  it("RIP-PEND-002 does not return a new checkout if payment wins the open race", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.payment.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "paid-during-checkout", status: "SUCCEEDED" });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
+    createListingCheckoutMock.mockResolvedValue({
+      url: "https://checkout.example.com/listing-race",
+      merchantReference:
+        "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:race:mac",
+      provider: "RIPPLE",
+    });
+
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      data: {
+        checkoutUrl: null,
+        skippedPayment: true,
+      },
+    });
+
+    expect(createListingCheckoutMock).toHaveBeenCalledOnce();
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+  });
+
   it("does not charge after a paid pending submission is withdrawn and resubmitted", async () => {
     isPrivateListingFreeForUserMock.mockResolvedValue(false);
     mockDb.listing.findUnique.mockResolvedValue({
@@ -333,6 +373,8 @@ describe("payForListing", () => {
     });
     createListingCheckoutMock.mockResolvedValue({
       url: "https://checkout.example.com/listing-renewal",
+      merchantReference: "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n1:mac",
+      provider: "RIPPLE",
     });
 
     await expect(payForListing({
@@ -352,6 +394,15 @@ describe("payForListing", () => {
     expect(createListingCheckoutMock).toHaveBeenCalledWith(
       expect.objectContaining({ amountInPence: 749 }),
     );
+    expect(mockDb.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        status: "PENDING",
+        providerReference:
+          "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n1:mac",
+        type: "LISTING",
+      }),
+    });
   });
 
   it("returns a safe action error when an enforced receipt lookup fails", async () => {
@@ -460,6 +511,8 @@ describe("payForListing", () => {
 
     createListingCheckoutMock.mockResolvedValue({
       url: "https://checkout.example.com/listing-private",
+      merchantReference: "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n2:mac",
+      provider: "RIPPLE",
     });
     await expect(
       payForListing({
