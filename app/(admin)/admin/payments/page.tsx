@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { RefundButton } from "./payment-actions";
 import { CancelSubButton, RefundSubPaymentButton } from "./subscription-actions";
+import { UnmatchedInboxTab } from "./unmatched-inbox-tab";
 import {
   getPaymentProviderCapabilities,
   getPaymentProviderPortalUrl,
@@ -79,6 +80,45 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
     return `/admin/payments?${p.toString()}`;
   }
 
+  if (tab === "unmatched") {
+    const unmatched = await db.paymentWebhookInbox.findMany({
+      where: {
+        status: { in: ["FAILED", "QUARANTINED"] },
+        lastErrorCode: { in: ["MISSING_REFERENCE", "INVALID_REFERENCE"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        createdAt: true,
+        eventType: true,
+        linkCode: true,
+        packageName: true,
+        amountPence: true,
+        lastErrorCode: true,
+        paymentReference: true,
+      },
+    });
+
+    return (
+      <>
+        <h1 className="text-2xl font-bold text-text-primary mb-6">Payments & Subscriptions</h1>
+        <div className="flex gap-2 mb-6">
+          <Link href={buildUrl({ tab: "payments", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
+            Payments
+          </Link>
+          <Link href={buildUrl({ tab: "subscriptions", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
+            Subscriptions
+          </Link>
+          <Link href={buildUrl({ tab: "unmatched", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border bg-surface-elevated text-text-primary border-border">
+            Unmatched inbox
+          </Link>
+        </div>
+        <UnmatchedInboxTab rows={unmatched} />
+      </>
+    );
+  }
+
   if (tab === "subscriptions") {
     const subWhere: Prisma.SubscriptionWhereInput = {};
     if (statusFilter) subWhere.status = statusFilter as "ACTIVE" | "PAST_DUE" | "CANCELLED" | "INCOMPLETE";
@@ -106,6 +146,9 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           </Link>
           <Link href={buildUrl({ tab: "subscriptions", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border bg-surface-elevated text-text-primary border-border">
             Subscriptions
+          </Link>
+          <Link href={buildUrl({ tab: "unmatched", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
+            Unmatched inbox
           </Link>
         </div>
 
@@ -277,7 +320,10 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           Payments
         </Link>
         <Link href={buildUrl({ tab: "subscriptions", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-          Subscriptions
+            Subscriptions
+        </Link>
+        <Link href={buildUrl({ tab: "unmatched", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
+          Unmatched inbox
         </Link>
       </div>
 

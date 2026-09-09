@@ -11,13 +11,17 @@ import {
   useRippleDemoCheckout,
 } from "@/components/payments/ripple-demo-checkout-dialog";
 import { Check } from "lucide-react";
-import { createSelfServiceDealerProfile } from "@/actions/dealer";
+import {
+  acceptDealerSubscribeTerms,
+  createSelfServiceDealerProfile,
+} from "@/actions/dealer";
 import {
   createDealerSubscription,
   simulateDemoDealerSubscriptionOutcome,
 } from "@/actions/payments";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
+import { RippleDealerEmbed } from "@/components/payments/ripple-dealer-embed";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import {
@@ -45,6 +49,7 @@ export function SubscribeForm({
 }: SubscribeFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isRecordingTerms, startRecordingTerms] = useTransition();
   const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
@@ -58,6 +63,7 @@ export function SubscribeForm({
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
   const [acceptedDealerTerms, setAcceptedDealerTerms] = useState(false);
+  const [termsRecorded, setTermsRecorded] = useState(false);
 
   function handleCreateProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -85,7 +91,7 @@ export function SubscribeForm({
     setFieldErrors({});
     setNotice(null);
     setDemoOutcomeError(null);
-    if (!acceptedDealerTerms) {
+    if (!acceptedDealerTerms || !termsRecorded) {
       setFieldErrors({
         acceptedDealerTerms: [DEALER_TERMS_ACCEPTANCE_MESSAGE],
       });
@@ -227,8 +233,9 @@ export function SubscribeForm({
               Subscribe to {tierLabel}
             </h2>
             <p className="text-sm text-text-secondary mb-4">
-              A secure Ripple checkout will open in a new tab so you can keep
-              this subscription page open while you complete payment.
+              Accept the dealer terms, then complete Ripple&apos;s signup form
+              on this page. Card collection still happens on Cashflows. Listing
+              and featured payments stay on hosted Ripple pay links.
             </p>
             <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
             {notice && (
@@ -238,8 +245,36 @@ export function SubscribeForm({
             )}
             <Checkbox
               checked={acceptedDealerTerms}
-              onCheckedChange={(checked) => setAcceptedDealerTerms(checked === true)}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setAcceptedDealerTerms(next);
+                if (!next) {
+                  setTermsRecorded(false);
+                  return;
+                }
+                startRecordingTerms(async () => {
+                  try {
+                    const result = await acceptDealerSubscribeTerms();
+                    if (result.error) {
+                      setAcceptedDealerTerms(false);
+                      setTermsRecorded(false);
+                      setError(
+                        typeof result.error === "string"
+                          ? result.error
+                          : "Unable to record dealer terms acceptance.",
+                      );
+                      return;
+                    }
+                    setTermsRecorded(true);
+                  } catch {
+                    setAcceptedDealerTerms(false);
+                    setTermsRecorded(false);
+                    setError("Unable to record dealer terms acceptance.");
+                  }
+                });
+              }}
               required
+              disabled={isRecordingTerms}
               error={firstFieldError(fieldErrors, "acceptedDealerTerms")}
               label={
                 <>
@@ -258,12 +293,18 @@ export function SubscribeForm({
                 </>
               }
             />
+            {termsRecorded ? (
+              <div className="mt-4">
+                <RippleDealerEmbed />
+              </div>
+            ) : null}
             <Button
               onClick={handleSubscribe}
               className="w-full mt-4"
+              variant="ghost"
               loading={isPending}
             >
-              Subscribe - {tierPrice}/month
+              Use hosted checkout instead
             </Button>
             <div className="mt-4">
               <PaymentAwaitingStatus

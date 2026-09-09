@@ -91,3 +91,17 @@ export async function createSelfServiceDealerProfile(
 
   return { error: "Could not generate a unique URL slug. Try a different business name." };
 }
+
+export async function acceptDealerSubscribeTerms() {
+  const user = await requireAcceptedAuth();
+  if (!user.dealerProfile) {
+    return { error: "You must have a dealer profile to subscribe" };
+  }
+  const { recordAcceptance } = await import("@/lib/policy/acceptance");
+  await recordAcceptance(db, {
+    userId: user.id,
+    acceptanceType: "DEALER_BUNDLE",
+    source: "SUBSCRIBE",
+  });
+  return { data: { accepted: true as const } };
+}

@@ -31,6 +31,7 @@ describe("RIP-PRICE-001 fixed Ripple checkout URLs", () => {
       `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${RIPPLE_CANONICAL_PRODUCTS.listing.code}`
     );
     expect([...url.searchParams.keys()]).toEqual(["reference"]);
+    expect(url.pathname).not.toContain("embed-signup");
     expect(
       parseRippleReference(
         url.searchParams.get("reference"),
@@ -62,6 +63,22 @@ describe("RIP-PRICE-001 fixed Ripple checkout URLs", () => {
         cancelUrl: "https://example.com/cancel",
       })
     ).rejects.toThrow("amount must be 500 pence");
+  });
+
+  it("keeps featured upgrades on hosted /pay links instead of dealer embed-signup", async () => {
+    const result = await createFeaturedUpgradeCheckout({
+      listingId: "listing-1",
+      listingTitle: "Test",
+      amountInPence: 500,
+      successUrl: "https://example.com/success",
+      cancelUrl: "https://example.com/cancel",
+    });
+    const url = new URL(result.url);
+    expect(url.pathname).toBe(
+      `/card/codelabplatfdcf3a8/pay/${RIPPLE_CANONICAL_PRODUCTS.featured.code}`,
+    );
+    expect(url.pathname).not.toContain("embed-signup");
+    expect([...url.searchParams.keys()]).toEqual(["reference"]);
   });
 
   it("builds dealer links from the recurring payment codes", async () => {

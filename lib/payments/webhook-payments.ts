@@ -20,6 +20,14 @@ type ListingPaymentWrite = {
   applied: boolean;
 };
 
+function listingPaymentTypeFromEvent(
+  event: NormalizedProviderWebhookEvent,
+): "LISTING" | "FEATURED" | "SUPPORT" {
+  if (event.metadata.checkoutType === "featured_upgrade") return "FEATURED";
+  if (event.metadata.checkoutType === "listing_support") return "SUPPORT";
+  return "LISTING";
+}
+
 async function findPaymentByProviderEvent(
   event: NormalizedProviderWebhookEvent,
   client: PaymentDb = db
@@ -37,6 +45,18 @@ async function findPaymentByProviderEvent(
     throw new Error("Ambiguous Ripple payment correlation");
   }
   return matches[0] ?? null;
+}
+
+async function findExistingListingTypedPayment(
+  event: NormalizedProviderWebhookEvent,
+  listingId: string,
+  client: PaymentDb,
+) {
+  const type = listingPaymentTypeFromEvent(event);
+  return client.payment.findFirst({
+    where: { listingId, type, status: { in: ["PENDING", "FAILED"] } },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function submitPaidListingForReview(
@@ -243,8 +263,15 @@ export async function createOrUpdateListingPayment(
 
   const incomingAt = event.eventTimestamp ?? new Date();
   const incomingFingerprint = event.fingerprint ?? event.id;
-  const existing = await findPaymentByProviderEvent(event, client);
+  const existing =
+    (await findPaymentByProviderEvent(event, client)) ??
+    (status === "SUCCEEDED" && event.providerReference
+      ? await findExistingListingTypedPayment(event, listingId, client)
+      : null);
   if (existing) {
+    if (existing.status === "SUCCEEDED" && status !== "SUCCEEDED") {
+      return { payment: existing, applied: false };
+    }
     const decision = decideProviderEventApplication({
       existingAt: existing.lastProviderEventAt,
       existingType: existing.lastProviderEventType,
@@ -281,12 +308,7 @@ export async function createOrUpdateListingPayment(
       providerReference: event.providerReference,
       amount: event.amount ?? 0,
       currency: event.currency ?? "gbp",
-      type:
-        event.metadata.checkoutType === "featured_upgrade"
-          ? "FEATURED"
-          : event.metadata.checkoutType === "listing_support"
-            ? "SUPPORT"
-            : "LISTING",
+      type: listingPaymentTypeFromEvent(event),
       status,
       idempotencyKey: event.providerReference ?? `provider-webhook-${event.id}`,
       lastProviderEventAt: incomingAt,

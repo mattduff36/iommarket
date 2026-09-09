@@ -1,20 +1,34 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { usePaymentConfirmationPoll } from "@/components/payments/payment-awaiting-status";
+import type { CheckoutViewState } from "@/lib/payments/checkout-view";
 
 interface CheckoutStatusActionsProps {
+  listingId: string;
+  flow: "private" | "dealer";
+  viewState: CheckoutViewState;
   isAwaitingPayment: boolean;
 }
 
 export function CheckoutStatusActions({
+  listingId,
+  flow,
+  viewState,
   isAwaitingPayment,
 }: CheckoutStatusActionsProps) {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
   usePaymentConfirmationPoll(isAwaitingPayment);
+
+  useEffect(() => {
+    if (viewState !== "submitted" && viewState !== "paid") return;
+    router.replace(
+      `/sell/success?listing=${listingId}&flow=${flow}&payment=paid`,
+    );
+  }, [flow, listingId, router, viewState]);
 
   return (
     <div className="space-y-2">

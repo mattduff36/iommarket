@@ -5,6 +5,7 @@ import { installRippleTestEnv } from "./ripple-test-env";
 
 const {
   paymentFindMany,
+  paymentFindFirst,
   paymentCreate,
   paymentUpdate,
   listingFindUnique,
@@ -19,6 +20,7 @@ const {
   db,
 } = vi.hoisted(() => {
   const paymentFindMany = vi.fn();
+  const paymentFindFirst = vi.fn();
   const paymentCreate = vi.fn();
   const paymentUpdate = vi.fn();
   const listingFindUnique = vi.fn();
@@ -29,7 +31,12 @@ const {
   const policyAcceptanceFindUnique = vi.fn();
   const transactionMock = vi.fn();
   const db: {
-    payment: { findMany: typeof paymentFindMany; create: typeof paymentCreate; update: typeof paymentUpdate };
+    payment: {
+      findMany: typeof paymentFindMany;
+      findFirst: typeof paymentFindFirst;
+      create: typeof paymentCreate;
+      update: typeof paymentUpdate;
+    };
     listing: { findUnique: typeof listingFindUnique; updateMany: typeof listingUpdateMany };
     listingStatusEvent: { findFirst: typeof listingStatusEventFindFirst };
     listingImage: { count: typeof listingImageCount };
@@ -40,6 +47,7 @@ const {
   } = {
     payment: {
       findMany: paymentFindMany,
+      findFirst: paymentFindFirst,
       create: paymentCreate,
       update: paymentUpdate,
     },
@@ -66,6 +74,7 @@ const {
   };
   return {
     paymentFindMany,
+    paymentFindFirst,
     paymentCreate,
     paymentUpdate,
     listingFindUnique,
@@ -141,6 +150,7 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     vi.clearAllMocks();
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
     paymentFindMany.mockResolvedValue([]);
+    paymentFindFirst.mockResolvedValue(null);
     paymentCreate.mockResolvedValue({ id: "local-pay", listingId: "listing-1" });
     listingFindUnique.mockResolvedValue({
       id: "listing-1",
@@ -474,5 +484,117 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     releaseCommit?.();
     await expect(pending).resolves.toBeUndefined();
     expect(dispatchListingNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it("RIP-MISS-001 does not create or succeed a listing payment without a signed reference", async () => {
+    await expect(
+      processProviderWebhookEvent(
+        listingEvent({
+          providerReference: null,
+          metadata: {
+            checkoutType: "listing_payment",
+            listingId: null,
+            dealerId: null,
+            tier: null,
+          },
+        }),
+      ),
+    ).rejects.toThrow("Listing payment missing reference");
+    expect(paymentCreate).not.toHaveBeenCalled();
+    expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(transitionListingStatus).not.toHaveBeenCalled();
+  });
+
+  it("RIP-PEND-001 applies a replayed webhook onto the checkout PENDING row", async () => {
+    const pendingRow = {
+      id: "pending-pay",
+      listingId: "listing-1",
+      status: "PENDING",
+      providerReference: "v1:listing_payment:listing-1:nonce:mac",
+      lastProviderEventAt: null,
+      lastProviderEventType: null,
+      lastProviderEventFingerprint: null,
+      providerPaymentId: null,
+      amount: 499,
+      currency: "gbp",
+    };
+    paymentFindMany.mockResolvedValue([pendingRow]);
+    paymentUpdate.mockResolvedValue({ id: "pending-pay", listingId: "listing-1" });
+
+    await processProviderWebhookEvent(listingEvent());
+
+    expect(paymentCreate).not.toHaveBeenCalled();
+    expect(paymentUpdate).toHaveBeenCalledWith({
+      where: { id: "pending-pay" },
+      data: expect.objectContaining({
+        status: "SUCCEEDED",
+        providerReference: "v1:listing_payment:listing-1:nonce:mac",
+      }),
+    });
+    expect(transitionListingStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "SUBMIT" }),
+      expect.anything(),
+    );
+  });
+
+  it("RIP-PEND-003 records a distinct genuine charge without overwriting the earlier payment", async () => {
+    paymentFindMany.mockResolvedValue([]);
+    paymentFindFirst.mockResolvedValue(null);
+    listingFindUnique.mockResolvedValue({
+      id: "listing-1",
+      status: "PENDING",
+      trustDeclarationAccepted: true,
+      lifecycleRevision: 2,
+      userId: "user-1",
+      dealerId: null,
+    });
+    listingStatusEventFindFirst.mockResolvedValue({ action: "SUBMIT" });
+
+    await processProviderWebhookEvent(
+      listingEvent({
+        providerReference: "v1:listing_payment:listing-1:newer:mac",
+        fingerprint: "newer-fingerprint",
+      }),
+    );
+
+    expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(paymentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        providerPaymentId: "pay-1",
+        providerReference: "v1:listing_payment:listing-1:newer:mac",
+        status: "SUCCEEDED",
+      }),
+    });
+    expect(transitionListingStatus).not.toHaveBeenCalled();
+  });
+
+  it("does not downgrade a SUCCEEDED listing fee when a later failed event arrives", async () => {
+    const succeeded = {
+      id: "existing-pay",
+      listingId: "listing-1",
+      status: "SUCCEEDED",
+      providerReference: "v1:listing_payment:listing-1:nonce:mac",
+      lastProviderEventAt: new Date("2026-08-15T10:15:27.000Z"),
+      lastProviderEventType: "payment.received",
+      lastProviderEventFingerprint: "listing-fingerprint",
+      providerPaymentId: "pay-1",
+      amount: 499,
+      currency: "gbp",
+    };
+    paymentFindMany.mockResolvedValue([succeeded]);
+
+    await processProviderWebhookEvent(
+      listingEvent({
+        type: "payment.failed",
+        rawType: "payment.failed",
+        paymentStatus: "FAILED",
+        fingerprint: "failed-later",
+        eventTimestamp: new Date("2026-08-15T10:20:00.000Z"),
+      }),
+    );
+
+    expect(paymentCreate).not.toHaveBeenCalled();
+    expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(transitionListingStatus).not.toHaveBeenCalled();
   });
 });

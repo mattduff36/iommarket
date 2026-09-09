@@ -19,11 +19,17 @@ import {
   refundPaymentSchema,
   refundSubscriptionPaymentSchema,
   cancelSubscriptionSchema,
+  attachUnmatchedListingSchema,
   type SearchPaymentsInput,
   type RefundPaymentInput,
   type RefundSubscriptionPaymentInput,
   type CancelSubscriptionInput,
+  type AttachUnmatchedListingInput,
 } from "@/lib/validations/admin";
+import {
+  AttachUnmatchedListingError,
+  attachUnmatchedListingPayment,
+} from "@/lib/payments/attach-unmatched-listing";
 import type { Prisma } from "@prisma/client";
 
 export async function searchPayments(input: SearchPaymentsInput) {
@@ -262,6 +268,83 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
       },
     });
     const message = err instanceof Error ? err.message : "Failed to cancel subscription";
+    return { error: message };
+  }
+}
+
+export async function adminAttachUnmatchedListing(
+  input: AttachUnmatchedListingInput,
+) {
+  const admin = await requireRole("ADMIN");
+
+  const parsed = attachUnmatchedListingSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  try {
+    await logAdminAction({
+      adminId: admin.id,
+      action: "ATTACH_UNMATCHED_LISTING_PAYMENT_INTENT",
+      entityType: "PaymentWebhookInbox",
+      entityId: parsed.data.inboxId,
+      details: {
+        listingId: parsed.data.listingId,
+        inboxId: parsed.data.inboxId,
+      },
+    });
+
+    const result = await attachUnmatchedListingPayment(parsed.data);
+
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        action: "ATTACH_UNMATCHED_LISTING_PAYMENT",
+        entityType: "PaymentWebhookInbox",
+        entityId: result.inboxId,
+        details: {
+          listingId: result.listingId,
+          inboxId: result.inboxId,
+          merchantReference: result.merchantReference,
+          amountPence: result.amountPence,
+        },
+      });
+    } catch (auditError) {
+      await captureException({
+        source: "SERVER",
+        error: auditError,
+        action: "adminAttachUnmatchedListingAudit",
+        route: "/admin/payments",
+        requestPath: "/admin/payments",
+        userId: admin.id,
+        tags: {
+          inboxId: result.inboxId,
+          listingId: result.listingId,
+        },
+      });
+    }
+
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/revenue");
+    revalidatePath(`/sell/checkout?listing=${result.listingId}`);
+    revalidatePath(`/listings/${result.listingId}`);
+    return { data: result };
+  } catch (err) {
+    await captureException({
+      source: "SERVER",
+      error: err,
+      action: "adminAttachUnmatchedListing",
+      route: "/admin/payments",
+      requestPath: "/admin/payments",
+      userId: admin.id,
+      tags: {
+        inboxId: parsed.data.inboxId,
+        listingId: parsed.data.listingId,
+      },
+    });
+    if (err instanceof AttachUnmatchedListingError) {
+      return { error: err.message };
+    }
+    const message =
+      err instanceof Error ? err.message : "Failed to attach unmatched payment";
     return { error: message };
   }
 }
