@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-09T00:03:34.580Z",
+  "generatedAt": "2026-09-09T00:19:29.370Z",
   "projectKey": "d-Websites-iommarket",
   "windowStart": "2026-07-27T00:00:00.000Z",
   "windowEnd": "2026-09-10T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1195,
-    "unattributedEvents": 593,
-    "unattributedMicroCents": "88168465328"
+    "attributedEvents": 1199,
+    "unattributedEvents": 595,
+    "unattributedMicroCents": "89236522083"
   },
   "days": [
     {
@@ -253,18 +253,18 @@
     },
     {
       "date": "2026-09-09",
-      "identifiedMicroCents": "255726799",
+      "identifiedMicroCents": "808646799",
       "project": {
-        "onDemandMicroCents": "112448799",
-        "chargedMicroCents": "112448799",
-        "inputTokens": 18041,
-        "outputTokens": 3619,
+        "onDemandMicroCents": "512011194",
+        "chargedMicroCents": "512011194",
+        "inputTokens": 59440,
+        "outputTokens": 16948,
         "cacheWriteTokens": 0,
-        "cacheReadTokens": 1008896,
+        "cacheReadTokens": 4678976,
         "models": [
           {
             "model": "cursor-grok-4.6-xhigh-fast",
-            "onDemandMicroCents": "112448799"
+            "onDemandMicroCents": "512011194"
           }
         ]
       }

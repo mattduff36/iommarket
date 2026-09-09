@@ -7,6 +7,8 @@ import {
   classifyRippleEnvelopeReject,
   rippleRejectTags,
 } from "@/lib/payments/ripple-webhook-reject";
+import { getRippleWebhookSecret } from "@/lib/payments/ripple-config";
+import { describeRippleHmacCandidates } from "@/lib/payments/ripple-signature";
 import { verifyProviderWebhookSignature } from "@/lib/payments/provider";
 
 function invalidWebhookResponse() {
@@ -34,8 +36,22 @@ export async function POST(req: NextRequest) {
   try {
     verifyProviderWebhookSignature(body, req.headers);
   } catch {
+    let matches = {};
+    try {
+      matches = describeRippleHmacCandidates(
+        body,
+        req.headers,
+        getRippleWebhookSecret()
+      );
+    } catch {
+      matches = {};
+    }
     await reportRippleWebhookReject(
-      rippleRejectTags({ rejectStage: "hmac", headers: req.headers })
+      rippleRejectTags({
+        rejectStage: "hmac",
+        headers: req.headers,
+        ...matches,
+      })
     );
     return invalidWebhookResponse();
   }
