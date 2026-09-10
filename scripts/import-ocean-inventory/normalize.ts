@@ -1,3 +1,4 @@
+import { pickRecordImageUrl } from "../dealer-stock-sync/image-urls";
 import { mapEngineSize, normalizeImageUrl, poundsToPence } from "./map-vehicle";
 import type { OceanSourceKey } from "./sources";
 import type { NormalizedVehicle } from "./types";
@@ -74,11 +75,7 @@ function collectImages(raw: Record<string, unknown>, origin?: string | null) {
     for (const item of collection) {
       if (typeof item === "string") urls.push(item);
       const record = asRecord(item);
-      const url =
-        asString(record?.url) ??
-        asString(record?.src) ??
-        asString(record?.large) ??
-        asString(record?.original);
+      const url = pickRecordImageUrl(record);
       if (url) urls.push(url);
     }
   }

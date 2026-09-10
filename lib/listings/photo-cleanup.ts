@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { deleteImage } from "@/lib/upload/cloudinary";
 
 export async function enqueueListingImageCleanup({
@@ -19,16 +20,61 @@ export async function enqueueListingImageCleanup({
   });
 }
 
-const CLEANUP_CLAIM_WHERE = {
-  OR: [
-    { status: "PENDING" as const },
-    { status: "FAILED" as const, attempts: { lt: 5 } },
-  ],
-};
+const CLEANUP_PROCESSING_MARKER = "__PROCESSING_LISTING_IMAGE_CLEANUP__";
+const CLEANUP_CLAIM_TTL_MS = 5 * 60 * 1000;
+const CLEANUP_PUBLIC_ID_PREFIXES = [
+  `${IMAGE_CONSTRAINTS.folder}/staging/`,
+  `${IMAGE_CONSTRAINTS.folder}/import/`,
+  `${IMAGE_CONSTRAINTS.folder}/repair/`,
+  `${IMAGE_CONSTRAINTS.folder}/preview-packs/`,
+  `${IMAGE_CONSTRAINTS.folder}/founding/`,
+] as const;
+
+function cleanupClaimWhere(now: Date) {
+  return {
+    status: { in: ["PENDING" as const, "FAILED" as const] },
+    attempts: { lt: 5 },
+    OR: [
+      { lastError: null },
+      { lastError: { not: CLEANUP_PROCESSING_MARKER } },
+      {
+        lastError: CLEANUP_PROCESSING_MARKER,
+        updatedAt: { lt: new Date(now.getTime() - CLEANUP_CLAIM_TTL_MS) },
+      },
+    ],
+  };
+}
+
+function assertSafeCleanupTarget(job: { publicId: string; deliveryType: string }) {
+  if (
+    job.deliveryType !== IMAGE_CONSTRAINTS.deliveryType ||
+    !CLEANUP_PUBLIC_ID_PREFIXES.some((prefix) => job.publicId.startsWith(prefix))
+  ) {
+    throw new Error(`Refusing unsafe listing image cleanup target: ${job.publicId}`);
+  }
+}
+
+async function cleanupTargetIsReferenced(publicId: string) {
+  const [live, openRevision] = await Promise.all([
+    db.listingImage.findFirst({
+      where: { publicId },
+      select: { id: true },
+    }),
+    db.listingRevisionImage.findFirst({
+      where: {
+        publicId,
+        revision: { status: { in: ["DRAFT", "PENDING"] } },
+      },
+      select: { id: true },
+    }),
+  ]);
+  return Boolean(live || openRevision);
+}
 
 export async function processListingImageCleanupJobs(limit = 20) {
+  const now = new Date();
   const jobs = await db.listingImageCleanupJob.findMany({
-    where: CLEANUP_CLAIM_WHERE,
+    where: cleanupClaimWhere(now),
     orderBy: { createdAt: "asc" },
     take: limit,
   });
@@ -38,10 +84,13 @@ export async function processListingImageCleanupJobs(limit = 20) {
     const claimed = await db.listingImageCleanupJob.updateMany({
       where: {
         id: job.id,
-        ...CLEANUP_CLAIM_WHERE,
+        status: job.status,
+        attempts: job.attempts,
+        lastError: job.lastError,
       },
       data: {
         attempts: { increment: 1 },
+        lastError: CLEANUP_PROCESSING_MARKER,
       },
     });
     if (claimed.count !== 1) {
@@ -50,9 +99,29 @@ export async function processListingImageCleanupJobs(limit = 20) {
     processed += 1;
 
     try {
+      assertSafeCleanupTarget(job);
+      if (await cleanupTargetIsReferenced(job.publicId)) {
+        await db.listingImageCleanupJob.updateMany({
+          where: {
+            id: job.id,
+            attempts: job.attempts + 1,
+            lastError: CLEANUP_PROCESSING_MARKER,
+          },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            lastError: null,
+          },
+        });
+        continue;
+      }
       await deleteImage(job.publicId, job.deliveryType);
-      await db.listingImageCleanupJob.update({
-        where: { id: job.id },
+      await db.listingImageCleanupJob.updateMany({
+        where: {
+          id: job.id,
+          attempts: job.attempts + 1,
+          lastError: CLEANUP_PROCESSING_MARKER,
+        },
         data: {
           status: "COMPLETED",
           completedAt: new Date(),
@@ -62,8 +131,12 @@ export async function processListingImageCleanupJobs(limit = 20) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Cleanup failed";
       const alreadyGone = /not found/i.test(message);
-      await db.listingImageCleanupJob.update({
-        where: { id: job.id },
+      await db.listingImageCleanupJob.updateMany({
+        where: {
+          id: job.id,
+          attempts: job.attempts + 1,
+          lastError: CLEANUP_PROCESSING_MARKER,
+        },
         data: {
           status: alreadyGone ? "COMPLETED" : "FAILED",
           completedAt: alreadyGone ? new Date() : null,

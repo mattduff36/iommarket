@@ -84,6 +84,15 @@ function pathnameOf(url: string) {
   }
 }
 
+function hostAndPathOf(url: string) {
+  try {
+    const parsed = new URL(url.startsWith("//") ? `https:${url}` : url);
+    return `${parsed.hostname.toLowerCase()}${parsed.pathname}`;
+  } catch {
+    return url.split("?")[0] ?? url;
+  }
+}
+
 function stripWordpressSize(path: string) {
   return path
     .replace(WORDPRESS_SIZE, "$3")
@@ -118,7 +127,7 @@ export function imageIdentityKey(url: string) {
   const path = pathnameOf(url);
   const ndstock = ndstockKeyFromPath(path);
   if (ndstock) return stripSizeVariantPath(ndstock);
-  return stripSizeVariantPath(path).toLowerCase();
+  return stripSizeVariantPath(hostAndPathOf(url)).toLowerCase();
 }
 
 export function imageQualityScore(url: string) {

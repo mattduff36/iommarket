@@ -1,19 +1,6 @@
 import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
+import { uniqueImageUrls } from "./image-urls";
 import { normalizeImageUrl, resolveMaybeUrl } from "./json";
-
-function decodeNetDirectorImageKey(url: string) {
-  try {
-    const token = url.split("/").pop()?.split("?")[0];
-    if (!token) return url;
-    const padded = token.replace(/-/g, "+").replace(/_/g, "/");
-    const parsed = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as {
-      key?: string;
-    };
-    return parsed.key ?? url.split("?")[0];
-  } catch {
-    return url.split("?")[0];
-  }
-}
 
 export function isIgnoredImageUrl(url: string) {
   const lower = url.toLowerCase();
@@ -42,20 +29,11 @@ export function extractGalleryFromHtml(html: string, origin?: string | null) {
   const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i);
   if (og?.[1]) found.push(og[1]);
 
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of found) {
-    const url = resolveMaybeUrl(raw, origin) ?? normalizeImageUrl(raw);
-    if (!url || isIgnoredImageUrl(url)) continue;
-    const key = url.includes("images.netdirector.auto")
-      ? decodeNetDirectorImageKey(url)
-      : url.split("?")[0];
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(url);
-    if (unique.length >= FEATURED_LISTING_PHOTO_LIMIT) break;
-  }
-  return unique;
+  const resolved = found
+    .map((raw) => resolveMaybeUrl(raw, origin) ?? normalizeImageUrl(raw))
+    .filter((url): url is string => Boolean(url))
+    .filter((url) => !isIgnoredImageUrl(url));
+  return uniqueImageUrls(resolved, FEATURED_LISTING_PHOTO_LIMIT);
 }
 
 export function extractDescriptionFromHtml(html: string) {

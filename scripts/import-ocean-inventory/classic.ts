@@ -1,4 +1,5 @@
-import { uniqueImageUrls } from "./map-vehicle";
+import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
+import { uniqueImageUrls } from "../dealer-stock-sync/image-urls";
 import { resolveMaybeUrl } from "./normalize";
 
 const BROWSER_UA =
@@ -22,20 +23,6 @@ export function transitUsedVansUrl(startUrl: string) {
   return new URL("/transit-centre/used-vans/", startUrl).toString();
 }
 
-function decodeNetDirectorImageKey(url: string) {
-  try {
-    const token = url.split("/").pop()?.split("?")[0];
-    if (!token) return url;
-    const padded = token.replace(/-/g, "+").replace(/_/g, "/");
-    const parsed = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as {
-      key?: string;
-    };
-    return parsed.key ?? url.split("?")[0];
-  } catch {
-    return url.split("?")[0];
-  }
-}
-
 export function extractGalleryFromHtml(html: string, origin?: string | null) {
   const found: string[] = [];
   const patterns = [
@@ -51,24 +38,12 @@ export function extractGalleryFromHtml(html: string, origin?: string | null) {
   const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i);
   if (og?.[1]) found.push(og[1]);
 
-  const unique = uniqueImageUrls(
+  return uniqueImageUrls(
     found
       .map((url) => resolveMaybeUrl(url, origin))
       .filter((url): url is string => Boolean(url)),
-    40,
+    FEATURED_LISTING_PHOTO_LIMIT,
   );
-  const seenKeys = new Set<string>();
-  const deduped: string[] = [];
-  for (const url of unique) {
-    const key = url.includes("images.netdirector.auto")
-      ? decodeNetDirectorImageKey(url)
-      : url.split("?")[0];
-    if (seenKeys.has(key)) continue;
-    seenKeys.add(key);
-    deduped.push(url);
-    if (deduped.length >= 20) break;
-  }
-  return deduped;
 }
 
 export function extractDescriptionFromHtml(html: string) {

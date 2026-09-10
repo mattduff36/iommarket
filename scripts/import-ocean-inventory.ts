@@ -32,7 +32,11 @@ import {
   scrapeAllOceanSources,
 } from "./import-ocean-inventory/scrape";
 import { normalizeNetDirectorVehicle } from "./import-ocean-inventory/normalize";
-import { uploadListingImages } from "./import-ocean-inventory/upload";
+import {
+  enqueueImportedListingImageCleanup,
+  uploadListingImages,
+  type UploadedListingImage,
+} from "./import-ocean-inventory/upload";
 import type { NormalizedVehicle } from "./import-ocean-inventory/types";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.local") });
@@ -140,6 +144,7 @@ async function main() {
     for (const outcome of pipeline.selected) {
       const listing = outcome.listing;
       if (!listing) continue;
+      let unadoptedImages: UploadedListingImage[] = [];
       try {
         const listingKey =
           outcome.reconciled.vehicle.stockId ??
@@ -152,6 +157,7 @@ async function main() {
                 imageUrls: listing.imageUrls,
               })
             : [];
+        unadoptedImages = images;
         await prisma.$transaction(async (tx) => {
           await insertLiveListing(tx, {
             userId: dealer.userId,
@@ -161,11 +167,27 @@ async function main() {
             catalog,
           });
         });
+        unadoptedImages = [];
         inserted += 1;
       } catch (error) {
+        let cleanupError: unknown = null;
+        try {
+          await enqueueImportedListingImageCleanup(
+            prisma,
+            unadoptedImages,
+            `ocean-import-unadopted:${listing.title}`,
+          );
+        } catch (caught) {
+          cleanupError = caught;
+        }
         failed += 1;
         process.stderr.write(
-          `Failed to import ${listing.title}: ${error instanceof Error ? error.message : String(error)}\n`,
+          [
+            `Failed to import ${listing.title}: ${error instanceof Error ? error.message : String(error)}`,
+            cleanupError
+              ? `Owned upload cleanup enqueue also failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+              : null,
+          ].filter(Boolean).join(". ") + "\n",
         );
       }
     }
