@@ -5,16 +5,18 @@ const {
   intentUpdateMany,
   cleanupCreate,
   cleanupFindMany,
-  cleanupUpdate,
   cleanupUpdateMany,
+  listingImageFindFirst,
+  revisionImageFindFirst,
   deleteImage,
 } = vi.hoisted(() => ({
   intentFindMany: vi.fn(),
   intentUpdateMany: vi.fn(),
   cleanupCreate: vi.fn(),
   cleanupFindMany: vi.fn(),
-  cleanupUpdate: vi.fn(),
   cleanupUpdateMany: vi.fn(),
+  listingImageFindFirst: vi.fn(),
+  revisionImageFindFirst: vi.fn(),
   deleteImage: vi.fn(),
 }));
 
@@ -26,13 +28,14 @@ vi.mock("@/lib/db", () => {
   const listingImageCleanupJob = {
     create: cleanupCreate,
     findMany: cleanupFindMany,
-    update: cleanupUpdate,
     updateMany: cleanupUpdateMany,
   };
   return {
     db: {
       listingImageUploadIntent,
       listingImageCleanupJob,
+      listingImage: { findFirst: listingImageFindFirst },
+      listingRevisionImage: { findFirst: revisionImageFindFirst },
       $transaction: async (
         callback: (tx: {
           listingImageUploadIntent: typeof listingImageUploadIntent;
@@ -57,8 +60,9 @@ describe("PHOTO-ORPHAN-001 listing photo cleanup", () => {
     vi.clearAllMocks();
     intentUpdateMany.mockResolvedValue({ count: 1 });
     cleanupCreate.mockResolvedValue({});
-    cleanupUpdate.mockResolvedValue({});
     cleanupUpdateMany.mockResolvedValue({ count: 1 });
+    listingImageFindFirst.mockResolvedValue(null);
+    revisionImageFindFirst.mockResolvedValue(null);
   });
 
   it("expires abandoned verified intents and queues deletion", async () => {
@@ -145,21 +149,29 @@ describe("PHOTO-ORPHAN-001 listing photo cleanup", () => {
     cleanupFindMany.mockResolvedValue([
       {
         id: "job-retry",
-        publicId: "iommarket/listings/retry",
+        publicId: "iommarket/listings/staging/user/retry",
         deliveryType: "private",
         status: "FAILED",
         attempts: 2,
+        lastError: "previous failure",
       },
     ]);
     deleteImage.mockResolvedValue(undefined);
 
     await expect(processListingImageCleanupJobs()).resolves.toEqual({ processed: 1 });
     expect(cleanupUpdateMany).toHaveBeenCalledWith({
-      where: expect.objectContaining({ id: "job-retry" }),
-      data: { attempts: { increment: 1 } },
+      where: expect.objectContaining({
+        id: "job-retry",
+        attempts: 2,
+        lastError: "previous failure",
+      }),
+      data: {
+        attempts: { increment: 1 },
+        lastError: "__PROCESSING_LISTING_IMAGE_CLEANUP__",
+      },
     });
-    expect(cleanupUpdate).toHaveBeenCalledWith({
-      where: { id: "job-retry" },
+    expect(cleanupUpdateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-retry", attempts: 3 }),
       data: expect.objectContaining({
         status: "COMPLETED",
         lastError: null,
@@ -171,18 +183,72 @@ describe("PHOTO-ORPHAN-001 listing photo cleanup", () => {
     cleanupFindMany.mockResolvedValue([
       {
         id: "job-1",
-        publicId: "iommarket/listings/gone",
+        publicId: "iommarket/listings/staging/user/gone",
         deliveryType: "private",
+        status: "PENDING",
+        attempts: 0,
+        lastError: null,
       },
     ]);
     deleteImage.mockRejectedValue(new Error("Resource not found"));
 
     await expect(processListingImageCleanupJobs()).resolves.toEqual({ processed: 1 });
-    expect(cleanupUpdate).toHaveBeenCalledWith({
-      where: { id: "job-1" },
+    expect(cleanupUpdateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-1", attempts: 1 }),
       data: expect.objectContaining({
         status: "COMPLETED",
       }),
+    });
+  });
+
+  it("CLEANUP-RACE-001 does not delete an asset that became referenced", async () => {
+    cleanupFindMany.mockResolvedValue([{
+      id: "job-live",
+      publicId: "iommarket/listings/repair/run/listing/0",
+      deliveryType: "private",
+      status: "PENDING",
+      attempts: 0,
+      lastError: null,
+    }]);
+    listingImageFindFirst.mockResolvedValue({ id: "image-live" });
+
+    await expect(processListingImageCleanupJobs()).resolves.toEqual({ processed: 1 });
+
+    expect(deleteImage).not.toHaveBeenCalled();
+    expect(cleanupUpdateMany).toHaveBeenLastCalledWith({
+      where: expect.objectContaining({ id: "job-live", attempts: 1 }),
+      data: expect.objectContaining({ status: "COMPLETED", lastError: null }),
+    });
+  });
+
+  it("CLEANUP-SAFE-001 refuses non-owned folders and exclusively claims each attempt", async () => {
+    cleanupFindMany.mockResolvedValue([{
+      id: "job-foreign",
+      publicId: "iommarket/listings/unrelated/image",
+      deliveryType: "private",
+      status: "PENDING",
+      attempts: 0,
+      lastError: null,
+    }]);
+
+    await expect(processListingImageCleanupJobs()).resolves.toEqual({ processed: 1 });
+
+    expect(deleteImage).not.toHaveBeenCalled();
+    expect(cleanupUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: "job-foreign",
+        status: "PENDING",
+        attempts: 0,
+        lastError: null,
+      },
+      data: {
+        attempts: { increment: 1 },
+        lastError: "__PROCESSING_LISTING_IMAGE_CLEANUP__",
+      },
+    });
+    expect(cleanupUpdateMany).toHaveBeenLastCalledWith({
+      where: expect.objectContaining({ id: "job-foreign", attempts: 1 }),
+      data: expect.objectContaining({ status: "FAILED" }),
     });
   });
 });

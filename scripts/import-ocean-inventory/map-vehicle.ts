@@ -1,8 +1,10 @@
 import { FUEL_TYPE_OPTIONS } from "../../lib/constants/fuel-types";
-import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
+import { uniqueImageUrls } from "../dealer-stock-sync/image-urls";
 import { IMPORT_REGION_SLUG } from "./target";
 import type { CanonicalOceanLocation } from "./locations";
 import type { MappedListing, MappingOutcome, NormalizedVehicle, ReconciledVehicle } from "./types";
+
+export { uniqueImageUrls };
 
 const BODY_TYPES = [
   "Hatchback",
@@ -49,19 +51,6 @@ export function stripHtml(value: string) {
     .replace(/&amp;/gi, "&")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-export function uniqueImageUrls(urls: string[], max = FEATURED_LISTING_PHOTO_LIMIT) {
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const raw of urls) {
-    const url = normalizeImageUrl(raw);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    unique.push(url);
-    if (unique.length >= max) break;
-  }
-  return unique;
 }
 
 export function normalizeImageUrl(value: string | null | undefined) {

@@ -10,6 +10,7 @@ import {
   poundsToPence,
   resolveMaybeUrl,
 } from "../../json";
+import { pickRecordImageUrl } from "../../image-urls";
 
 function collectImages(raw: Record<string, unknown>, origin?: string | null) {
   const urls: string[] = [];
@@ -28,11 +29,7 @@ function collectImages(raw: Record<string, unknown>, origin?: string | null) {
     for (const item of collection) {
       if (typeof item === "string") urls.push(item);
       const record = asRecord(item);
-      const url =
-        asString(record?.url) ??
-        asString(record?.src) ??
-        asString(record?.large) ??
-        asString(record?.original);
+      const url = pickRecordImageUrl(record);
       if (url) urls.push(url);
     }
   }

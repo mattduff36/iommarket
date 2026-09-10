@@ -1,4 +1,5 @@
 import { identityFor, vehicleContentHash } from "./identity";
+import { uniqueImageUrls } from "./image-urls";
 import type { CanonicalVehicle, ReconciledVehicle, SourceListResult } from "./types";
 
 function completeness(vehicle: CanonicalVehicle) {
@@ -37,7 +38,7 @@ function mergeVehicles(records: CanonicalVehicle[]): CanonicalVehicle {
     description:
       records.slice().sort((left, right) => right.description.length - left.description.length)[0]
         ?.description ?? preferred.description,
-    imageUrls: [...new Set(records.flatMap((record) => record.imageUrls))],
+    imageUrls: uniqueImageUrls(records.flatMap((record) => record.imageUrls), 99),
     fuel: preferred.fuel ?? records.find((record) => record.fuel)?.fuel ?? null,
     transmission:
       preferred.transmission ?? records.find((record) => record.transmission)?.transmission ?? null,

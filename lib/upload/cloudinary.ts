@@ -160,9 +160,19 @@ export async function deleteImage(
       }).toString(),
     },
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete image: ${response.statusText}`);
+  const payload = (await response.json().catch(() => null)) as {
+    result?: string;
+    error?: { message?: string };
+  } | null;
+  if (
+    !response.ok ||
+    !payload ||
+    (payload.result !== "ok" && payload.result !== "not found")
+  ) {
+    throw new Error(
+      payload?.error?.message ??
+        `Failed to delete image: ${payload?.result ?? response.statusText}`,
+    );
   }
 }
 
