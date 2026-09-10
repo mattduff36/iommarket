@@ -96,6 +96,20 @@ describe("finalise activity guard", () => {
     expect(() => assertNoBlockingCursorActivity(tmpdir(), [])).not.toThrow();
   });
 
+  it("does not treat another finalise as blocking during dry-run", () => {
+    process.env.CURSOR_TERMINALS_DIR = writeTerminal([
+      "---",
+      "pid: 1001",
+      "command: npm run finalise:push",
+      "started_at: 2020-01-01T00:00:00.000Z",
+      "running_for_ms: 900000",
+      "---",
+      "Starting finalise workflow (push)",
+    ].join("\n"));
+
+    expect(() => assertNoBlockingCursorActivity(tmpdir(), [], { ignoreFinalise: true })).not.toThrow();
+  });
+
   it("blocks an older running finalise and any Agent Review", () => {
     process.env.CURSOR_TERMINALS_DIR = writeTerminal([
       "---",
