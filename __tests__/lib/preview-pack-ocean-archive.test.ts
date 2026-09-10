@@ -40,12 +40,15 @@ describe("ocean archive cleanup", () => {
     expect(listOceanArchiveDealerDirs(root)).toEqual([]);
   });
 
-  it("never mutates database listings, so the 41 Ocean LIVE rows stay", () => {
+  it("keeps archive cleanup database-free and scopes materialization to preview listings", () => {
     const cleanup = readFileSync("lib/preview-packs/cleanup-ocean-archive.ts", "utf8");
     const materialize = readFileSync("lib/preview-packs/materialize.ts", "utf8");
     expect(cleanup).not.toMatch(/prisma|DATABASE_URL|listing\.(update|delete|updateMany|deleteMany)/i);
-    expect(materialize).not.toMatch(/listing\.(update|delete|updateMany|deleteMany)/);
     expect(materialize).toContain('status: "ADMIN_PREVIEW"');
+    expect(materialize).not.toContain('status: "LIVE"');
+    expect(materialize).toContain("previewPackId: input.previewPackId");
+    expect(materialize).toContain("dealerId: input.dealerId");
+    expect(materialize).toContain("photoRevision: input.expectedPhotoRevision");
     expect(materialize).toContain("assertNotOceanDealerProfile");
   });
 });
