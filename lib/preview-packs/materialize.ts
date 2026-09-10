@@ -1,6 +1,8 @@
 import { existsSync } from "fs";
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { mapReconciledVehicle } from "../../scripts/dealer-stock-sync/map-listing";
 import { readDealerSnapshot } from "../../scripts/dealer-stock-sync/archive/read";
 import { canonicalDealerDisplayName, getDealer } from "../../scripts/dealer-stock-sync/registry";
@@ -18,9 +20,16 @@ import { PREVIEW_PACK_VEHICLE_CONCURRENCY } from "./limits";
 import {
   planPreviewPackResume,
   summarizePreviewResumePlan,
+  sanitizePreviewSegment,
   type PreviewResumeAction,
 } from "./resume";
-import { previewImageSources, uploadPreviewPackImages } from "./upload";
+import {
+  cleanupPreviewUploadedImages,
+  enqueuePreviewUploadedImageCleanup,
+  previewImageSources,
+  uploadPreviewPackImages,
+  type PreviewUploadedImage,
+} from "./upload";
 
 async function loadCatalog() {
   const [categories, region, attributes] = await Promise.all([
@@ -115,17 +124,46 @@ export async function ensurePreviewDealer(input: {
   });
 }
 
-async function insertPreviewListing(
+export async function insertPreviewListing(
   tx: Prisma.TransactionClient,
   input: {
     userId: string;
     dealerId: string;
     previewPackId: string;
+    dealerKey: string;
+    sourceRunId: string;
+    identityKey: string;
     listing: NonNullable<ReturnType<typeof mapReconciledVehicle>["listing"]>;
     images: Awaited<ReturnType<typeof uploadPreviewPackImages>>;
     catalog: Awaited<ReturnType<typeof loadCatalog>>;
   },
 ) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.previewPackId}))`;
+  const pack = await tx.dealerPreviewPack.findFirst({
+    where: {
+      id: input.previewPackId,
+      dealerKey: input.dealerKey,
+      dealerProfileId: input.dealerId,
+      sourceRunId: input.sourceRunId,
+    },
+    select: { id: true },
+  });
+  if (!pack) return null;
+  if (input.images.length === 0) return null;
+  const identityPrefix =
+    `${IMAGE_CONSTRAINTS.folder}/preview-packs/` +
+    `${sanitizePreviewSegment(input.dealerKey)}/` +
+    `${sanitizePreviewSegment(input.identityKey)}/`;
+  const existing = await tx.listing.findFirst({
+    where: {
+      previewPackId: input.previewPackId,
+      dealerId: input.dealerId,
+      status: "ADMIN_PREVIEW",
+      images: { some: { publicId: { startsWith: identityPrefix } } },
+    },
+    select: { id: true },
+  });
+  if (existing) return null;
   const categoryId = input.catalog.categories[input.listing.categorySlug];
   if (!categoryId) throw new Error(`Missing category ${input.listing.categorySlug}`);
   const now = new Date();
@@ -181,25 +219,82 @@ async function insertPreviewListing(
   return created.id;
 }
 
-async function attachPreviewImages(
-  listingId: string,
-  images: Awaited<ReturnType<typeof uploadPreviewPackImages>>,
-) {
-  if (images.length === 0) return;
-  await db.listingImage.createMany({
-    data: images.map((image) => ({
-      listingId,
-      url: image.url,
-      publicId: image.publicId,
-      order: image.order,
-      provider: "CLOUDINARY",
-      assetId: image.assetId,
-      version: image.version,
-      width: image.width,
-      height: image.height,
-      format: image.format,
-      bytes: image.bytes,
-    })),
+export async function attachPreviewImages(input: {
+  listingId: string;
+  previewPackId: string;
+  dealerId: string;
+  dealerKey: string;
+  sourceRunId: string;
+  expectedPhotoRevision: number;
+  expectedPublicIds: string[];
+  images: PreviewUploadedImage[];
+}) {
+  if (input.images.length === 0) return false;
+  return db.$transaction(async (tx) => {
+    const pack = await tx.dealerPreviewPack.findFirst({
+      where: {
+        id: input.previewPackId,
+        dealerKey: input.dealerKey,
+        dealerProfileId: input.dealerId,
+        sourceRunId: input.sourceRunId,
+      },
+      select: { id: true },
+    });
+    const current = await tx.listing.findFirst({
+      where: {
+        id: input.listingId,
+        previewPackId: input.previewPackId,
+        dealerId: input.dealerId,
+        status: "ADMIN_PREVIEW",
+        photoRevision: input.expectedPhotoRevision,
+      },
+      select: {
+        images: {
+          orderBy: { order: "asc" },
+          select: { publicId: true },
+        },
+        revisions: {
+          where: { status: { in: ["DRAFT", "PENDING"] } },
+          select: { id: true },
+        },
+      },
+    });
+    if (
+      !pack ||
+      !current ||
+      current.revisions.length > 0 ||
+      JSON.stringify(current.images.map((image) => image.publicId)) !==
+        JSON.stringify(input.expectedPublicIds)
+    ) {
+      return false;
+    }
+    const claimed = await tx.listing.updateMany({
+      where: {
+        id: input.listingId,
+        previewPackId: input.previewPackId,
+        dealerId: input.dealerId,
+        status: "ADMIN_PREVIEW",
+        photoRevision: input.expectedPhotoRevision,
+      },
+      data: { photoRevision: { increment: 1 } },
+    });
+    if (claimed.count !== 1) return false;
+    await tx.listingImage.createMany({
+      data: input.images.map((image) => ({
+        listingId: input.listingId,
+        url: image.url,
+        publicId: image.publicId,
+        order: image.order,
+        provider: "CLOUDINARY",
+        assetId: image.assetId,
+        version: image.version,
+        width: image.width,
+        height: image.height,
+        format: image.format,
+        bytes: image.bytes,
+      })),
+    });
+    return true;
   });
 }
 
@@ -210,6 +305,7 @@ async function loadExistingPreviewListings(previewPackId: string) {
       id: true,
       title: true,
       price: true,
+      photoRevision: true,
       images: { select: { publicId: true, order: true } },
       attributeValues: {
         where: { attributeDefinition: { slug: "mileage" } },
@@ -222,6 +318,7 @@ async function loadExistingPreviewListings(previewPackId: string) {
     title: listing.title,
     pricePence: listing.price,
     mileage: listing.attributeValues[0]?.value ?? null,
+    photoRevision: listing.photoRevision,
     images: listing.images,
   }));
 }
@@ -322,37 +419,78 @@ async function applyResumeAction(input: {
   mapped: ReturnType<typeof mappedPreviewVehicles>[number];
   owners: { userId: string; dealerId: string };
   packId: string;
+  sourceRunId: string;
   catalog: Awaited<ReturnType<typeof loadCatalog>>;
 }) {
   if (input.action.kind === "complete") {
     return { created: 0, skipped: 0, backfilled: 0 };
+  }
+  if (input.action.kind === "skip") {
+    return { created: 0, skipped: 1, backfilled: 0 };
   }
   const sources = input.action.kind === "backfill"
     ? input.mapped.sources
       .map((source, order) => ({ ...source, order }))
       .filter((source) => input.action.kind === "backfill" && input.action.missingOrders.includes(source.order))
     : input.mapped.sources;
+  if (sources.length === 0) {
+    return { created: 0, skipped: 1, backfilled: 0 };
+  }
   const images = sources.length > 0
     ? await uploadPreviewPackImages({
         dealerKey: input.dealerKey,
         identityKey: input.mapped.identityKey,
         sources,
+        attemptId: randomUUID(),
       }).catch(() => [])
     : [];
+  if (images.length !== sources.length) {
+    await cleanupPreviewUploadedImages(images);
+    return { created: 0, skipped: 1, backfilled: 0 };
+  }
   if (input.action.kind === "backfill") {
-    await attachPreviewImages(input.action.listingId, images);
+    const attached = await attachPreviewImages({
+      listingId: input.action.listingId,
+      previewPackId: input.packId,
+      dealerId: input.owners.dealerId,
+      dealerKey: input.dealerKey,
+      sourceRunId: input.sourceRunId,
+      expectedPhotoRevision: input.action.expectedPhotoRevision,
+      expectedPublicIds: input.action.expectedPublicIds,
+      images,
+    });
+    if (!attached) {
+      await cleanupPreviewUploadedImages(images);
+      return { created: 0, skipped: 1, backfilled: 0 };
+    }
     return { created: 0, skipped: 0, backfilled: images.length };
   }
-  await db.$transaction((tx) =>
-    insertPreviewListing(tx, {
-      userId: input.owners.userId,
-      dealerId: input.owners.dealerId,
-      previewPackId: input.packId,
-      listing: input.mapped.listing,
+  try {
+    const createdId = await db.$transaction((tx) =>
+      insertPreviewListing(tx, {
+        userId: input.owners.userId,
+        dealerId: input.owners.dealerId,
+        previewPackId: input.packId,
+        dealerKey: input.dealerKey,
+        sourceRunId: input.sourceRunId,
+        identityKey: input.mapped.identityKey,
+        listing: input.mapped.listing,
+        images,
+        catalog: input.catalog,
+      }),
+    );
+    if (!createdId) {
+      await cleanupPreviewUploadedImages(images);
+      return { created: 0, skipped: 1, backfilled: 0 };
+    }
+  } catch (error) {
+    await enqueuePreviewUploadedImageCleanup(
+      db,
       images,
-      catalog: input.catalog,
-    }),
-  );
+      `preview-materialize-transaction-uncertain:${input.dealerKey}:${input.sourceRunId}`,
+    );
+    throw error;
+  }
   return { created: 1, skipped: 0, backfilled: 0 };
 }
 
@@ -367,8 +505,13 @@ export async function materializePreviewPack(dealerKey: string) {
 
   const existing = await db.dealerPreviewPack.findUnique({
     where: { dealerKey },
-    select: { id: true },
+    select: { id: true, sourceRunId: true, dealerProfileId: true },
   });
+  if (existing && existing.sourceRunId !== runId) {
+    throw new Error(
+      "Refusing preview materialization: the existing pack belongs to a different source run.",
+    );
+  }
   const catalog = await loadCatalog();
   const owners = await ensurePreviewDealer({
     dealerKey,
@@ -383,6 +526,9 @@ export async function materializePreviewPack(dealerKey: string) {
     dealerId: owners.dealerId,
     oceanDealerId: oceanDealer?.id,
   });
+  if (existing && existing.dealerProfileId !== owners.dealerId) {
+    throw new Error("Refusing preview materialization: pack dealer ownership changed.");
+  }
   const pack = existing
     ? existing
     : await db.dealerPreviewPack.create({
@@ -413,18 +559,30 @@ export async function materializePreviewPack(dealerKey: string) {
       mapped: item,
       owners,
       packId: pack.id,
+      sourceRunId: pack.sourceRunId,
       catalog,
     });
   });
 
-  await db.dealerPreviewPack.update({
-    where: { id: pack.id },
-    data: { enabled: true, sourceRunId: runId, displayName },
+  const updatedPack = await db.dealerPreviewPack.updateMany({
+    where: {
+      id: pack.id,
+      dealerKey,
+      dealerProfileId: owners.dealerId,
+      sourceRunId: runId,
+    },
+    data: { enabled: true, displayName },
   });
+  if (updatedPack.count !== 1) {
+    throw new Error("Refusing preview materialization: pack source changed during apply.");
+  }
 
   return {
     created: outcomes.reduce((sum, row) => sum + row.created, 0),
-    skipped: snapshot.vehicles.length - mapped.length,
+    skipped:
+      snapshot.vehicles.length -
+      mapped.length +
+      outcomes.reduce((sum, row) => sum + row.skipped, 0),
     backfilled: outcomes.reduce((sum, row) => sum + row.backfilled, 0),
     packId: pack.id,
   };
