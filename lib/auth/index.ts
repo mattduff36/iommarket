@@ -1,6 +1,11 @@
 import { db } from "@/lib/db";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { findBlockingOnboardingInvite, OnboardingIncompleteError } from "@/lib/dealers/onboarding/access-gate";
+import {
+  isOnboardingSessionStale,
+  readOnboardingSessionInvalidBefore,
+} from "@/lib/dealers/onboarding/session-cutoff";
 import type { UserRole } from "@prisma/client";
 
 export class AuthenticationRequiredError extends Error {
@@ -10,6 +15,8 @@ export class AuthenticationRequiredError extends Error {
     this.name = "AuthenticationRequiredError";
   }
 }
+
+export { OnboardingIncompleteError };
 
 export class AccountDisabledError extends Error {
   readonly statusCode = 403 as const;
@@ -33,6 +40,14 @@ export async function getCurrentUser() {
     data: { user: authUser },
   } = await supabase.auth.getUser();
   if (!authUser) return null;
+  if (readOnboardingSessionInvalidBefore(authUser.app_metadata) !== null) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (isOnboardingSessionStale(authUser.app_metadata, session?.access_token)) {
+      return null;
+    }
+  }
 
   const user = await db.user.findUnique({
     where: { authUserId: authUser.id },
@@ -128,6 +143,9 @@ export async function requireAuth() {
   }
   if (user.disabledAt) {
     throw new AccountDisabledError();
+  }
+  if (await findBlockingOnboardingInvite(user.id)) {
+    throw new OnboardingIncompleteError();
   }
   return user;
 }

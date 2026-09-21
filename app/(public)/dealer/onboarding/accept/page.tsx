@@ -1,0 +1,77 @@
+import type { Metadata } from "next";
+import { db } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readOnboardingClaimCookie } from "@/lib/dealers/onboarding/claim-cookie";
+import { formatIsleOfManDateTime } from "@/lib/dealers/onboarding/campaign-window";
+import { hashOnboardingToken, onboardingTokenMatches } from "@/lib/dealers/onboarding/tokens";
+import { OnboardingAcceptForm } from "./onboarding-accept-form";
+
+export const metadata: Metadata = { title: "Accept dealer terms" };
+
+export default async function DealerOnboardingAcceptPage() {
+  const token = await readOnboardingClaimCookie();
+  if (!token) {
+    return (
+      <OnboardingMessage
+        title="Use your invitation email"
+        body="Open the dealer onboarding email and press Continue securely before accepting the documents."
+      />
+    );
+  }
+
+  const invite = await db.dealerOnboardingInvite.findUnique({
+    where: { tokenHash: hashOnboardingToken(token) },
+    include: { dealer: { select: { name: true } } },
+  });
+  if (!invite || !onboardingTokenMatches(token, invite.tokenHash)) {
+    return (
+      <OnboardingMessage
+        title="This invitation is not valid"
+        body="Ask iTrader to send a new onboarding email."
+      />
+    );
+  }
+  if (invite.status === "COMPLETED") {
+    return (
+      <OnboardingMessage
+        title="This account is already active"
+        body="Sign in with the owner email and the password you chose."
+      />
+    );
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || user.id !== invite.targetAuthUserId) {
+    return (
+      <OnboardingMessage
+        title="Continue from the invitation"
+        body="The secure sign-in step has not finished. Open the email and press Continue securely again."
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-xl px-4 py-12">
+      <h1 className="text-2xl font-bold text-text-primary">Activate {invite.dealer.name}</h1>
+      <p className="mt-3 text-sm text-text-secondary">
+        Complimentary Dealer Pro runs from {formatIsleOfManDateTime(invite.campaignStartsAt)} until{" "}
+        {formatIsleOfManDateTime(invite.campaignEndsAt)}. Your existing dealer profile and listings stay on this account.
+      </p>
+      <div className="mt-6">
+        <OnboardingAcceptForm />
+      </div>
+    </div>
+  );
+}
+
+function OnboardingMessage({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="mx-auto max-w-xl px-4 py-12">
+      <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
+      <p className="mt-3 text-sm text-text-secondary">{body}</p>
+    </div>
+  );
+}

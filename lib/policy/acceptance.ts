@@ -44,7 +44,7 @@ export async function recordAcceptance(
   input: {
     userId: string;
     acceptanceType: PolicyAcceptanceType;
-    source: "SIGNUP" | "GATE" | "LISTING" | "SUBSCRIBE";
+    source: "SIGNUP" | "GATE" | "LISTING" | "SUBSCRIBE" | "ONBOARDING";
   },
 ) {
   const bundleVersion = buildBundleVersion(input.acceptanceType);

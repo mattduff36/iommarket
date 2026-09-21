@@ -4,15 +4,24 @@ export function renderBrandedEmail(input: {
   title: string;
   intro: string;
   bodyLines: string[];
+  actionHref?: string;
+  actionLabel?: string;
 }): { text: string; html: string } {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
     /\/$/,
     "",
   );
   const logoUrl = `${appUrl}/images/logo-itrader-hq.png`;
-  const text = [input.title, "", input.intro, "", ...input.bodyLines, "", "iTrader.im"].join(
-    "\n",
-  );
+  const text = [
+    input.title,
+    "",
+    input.intro,
+    "",
+    ...input.bodyLines,
+    ...(input.actionHref ? ["", input.actionLabel ?? "Continue", input.actionHref] : []),
+    "",
+    "iTrader.im",
+  ].join("\n");
   const bodyHtml = input.bodyLines
     .map(
       (line) =>
@@ -42,6 +51,11 @@ export function renderBrandedEmail(input: {
                         ${escapeHtml(input.intro)}
                       </p>
                       ${bodyHtml}
+                      ${
+                        input.actionHref
+                          ? `<p style="margin:18px 0 0 0;"><a href="${escapeHtml(input.actionHref)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#2f86ff;color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(input.actionLabel ?? "Continue")}</a></p>`
+                          : ""
+                      }
                     </td>
                   </tr>
                 </table>

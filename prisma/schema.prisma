@@ -89,6 +89,10 @@ model User {
   cancellationRequestsProcessed DealerCancellationRequest[] @relation("CancellationProcessedBy")
   cancellationRequestEvents DealerCancellationRequestEvent[]
   accountDeletionJob AccountDeletionJob?
+  promotionCampaignsCreated DealerPromotionCampaign[] @relation("PromotionCampaignCreatedBy")
+  onboardingInvites DealerOnboardingInvite[] @relation("OnboardingInviteSubject")
+  onboardingInvitesCreated DealerOnboardingInvite[] @relation("OnboardingInviteCreatedBy")
+  onboardingInviteEvents DealerOnboardingInviteEvent[]
 
   @@index([authUserId])
   @@index([email])
@@ -115,6 +119,7 @@ model DealerProfile {
   reviews       DealerReview[]
   cancellationRequests DealerCancellationRequest[]
   previewPack   DealerPreviewPack?
+  onboardingInvites DealerOnboardingInvite[]
 
   @@index([slug])
 }
@@ -717,6 +722,7 @@ model Subscription {
   grantEndsAt                    DateTime?
   grantedByAdminId               String?
   revokedAt                      DateTime?
+  promotionCampaignId            String?
   cancelAtPeriodEnd              Boolean                        @default(false)
   providerLifecycle              SubscriptionProviderLifecycle  @default(NONE)
   customerEmailNorm              String?
@@ -727,10 +733,12 @@ model Subscription {
   updatedAt                      DateTime                       @updatedAt
 
   dealer  DealerProfile         @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  promotionCampaign DealerPromotionCampaign? @relation(fields: [promotionCampaignId], references: [id], onDelete: Restrict)
   charges SubscriptionCharge[]
   cancellationRequests DealerCancellationRequest[]
 
   @@index([dealerId])
+  @@index([promotionCampaignId])
   @@index([dealerId, source, status, grantEndsAt])
   @@index([paymentProvider])
   @@index([providerSubscriptionId])
@@ -1237,6 +1245,94 @@ enum PolicyAcceptanceSource {
   GATE
   LISTING
   SUBSCRIBE
+  ONBOARDING
+}
+
+enum DealerOnboardingInviteStatus {
+  SEND_FAILED
+  SENT
+  CLAIMING
+  FINALIZING_AUTH
+  COMPLETED
+  REVOKED
+  EXPIRED
+}
+
+model DealerPromotionCampaign {
+  id               String     @id @default(cuid())
+  key              String     @unique
+  timezone         String
+  startsAt         DateTime
+  endsAt           DateTime
+  tier             DealerTier @default(PRO)
+  createdByAdminId String
+  lockedAt         DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  createdByAdmin User                     @relation("PromotionCampaignCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  invites        DealerOnboardingInvite[]
+  subscriptions  Subscription[]
+
+  @@index([createdByAdminId])
+}
+
+model DealerOnboardingInvite {
+  id                  String                       @id @default(cuid())
+  campaignId          String
+  userId              String
+  dealerId            String
+  targetAuthUserId    String
+  originalEmail       String
+  recipientEmailNorm  String
+  tokenHash           String                       @unique
+  expiresAt           DateTime
+  status              DealerOnboardingInviteStatus
+  campaignStartsAt    DateTime
+  campaignEndsAt      DateTime
+  campaignTier        DealerTier
+  sentAt              DateTime?
+  claimedAt           DateTime?
+  finalizingAt        DateTime?
+  completedAt         DateTime?
+  revokedAt           DateTime?
+  sendAttemptCount    Int                          @default(0)
+  lastError           String?
+  leaseToken          String?
+  leaseExpiresAt      DateTime?
+  resendMessageId     String?
+  createdByAdminId    String
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  campaign       DealerPromotionCampaign       @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  user           User                          @relation("OnboardingInviteSubject", fields: [userId], references: [id], onDelete: Restrict)
+  dealer         DealerProfile                 @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  createdByAdmin User                          @relation("OnboardingInviteCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  events         DealerOnboardingInviteEvent[]
+
+  @@index([userId, status])
+  @@index([dealerId, status])
+  @@index([recipientEmailNorm])
+  @@index([status, expiresAt])
+  @@index([createdByAdminId])
+}
+
+model DealerOnboardingInviteEvent {
+  id             String                        @id @default(cuid())
+  inviteId       String
+  fromStatus     DealerOnboardingInviteStatus?
+  toStatus       DealerOnboardingInviteStatus
+  actorUserId    String?
+  source         String
+  policySnapshot Json?
+  metadata       Json?
+  createdAt      DateTime                      @default(now())
+
+  invite DealerOnboardingInvite @relation(fields: [inviteId], references: [id], onDelete: Restrict)
+  actor  User?                  @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([inviteId, createdAt])
 }
 
 model PolicyAcceptance {
