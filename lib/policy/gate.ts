@@ -6,6 +6,10 @@ import {
   requireAuth,
 } from "@/lib/auth";
 import {
+  findBlockingOnboardingInvite,
+  OnboardingIncompleteError,
+} from "@/lib/dealers/onboarding/access-gate";
+import {
   ACCEPTANCE_REQUIRED_REDIRECT,
   requireAccountAcceptance,
 } from "@/lib/policy/acceptance";
@@ -29,6 +33,7 @@ export class PolicyAcceptanceVerificationError extends Error {
 export function acceptedAuthHttpStatus(error: unknown): 401 | 403 | 500 {
   if (error instanceof AuthenticationRequiredError) return 401;
   if (error instanceof AccountDisabledError) return 403;
+  if (error instanceof OnboardingIncompleteError) return 403;
   if (error instanceof PolicyAcceptanceRequiredError) return 403;
   if (error instanceof PolicyAcceptanceVerificationError) return 500;
   return 500;
@@ -42,6 +47,12 @@ export async function requireAcceptedUser(nextPath: string) {
   const user = await getCurrentUser();
   if (!user) {
     redirect(withNext("/sign-up", nextPath));
+  }
+  if (
+    !nextPath.startsWith("/dealer/onboarding") &&
+    (await findBlockingOnboardingInvite(user.id))
+  ) {
+    redirect("/dealer/onboarding/accept");
   }
   const gate = await requireAccountAcceptance(user.id);
   if (!gate.ok) {

@@ -1,67 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-09T22:39:02.057Z",
+  "generatedAt": "2026-09-21T21:26:45.861Z",
   "projectKey": "d-Websites-iommarket",
-  "windowStart": "2026-07-27T00:00:00.000Z",
-  "windowEnd": "2026-09-10T00:00:00.000Z",
+  "windowStart": "2026-08-08T00:00:00.000Z",
+  "windowEnd": "2026-09-22T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 518,
-    "unattributedEvents": 612,
-    "unattributedMicroCents": "108426372041"
+    "attributedEvents": 1106,
+    "unattributedEvents": 664,
+    "unattributedMicroCents": "165648075331"
   },
   "days": [
-    {
-      "date": "2026-07-28",
-      "identifiedMicroCents": "549246021",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
-    {
-      "date": "2026-07-29",
-      "identifiedMicroCents": "4198626644",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
-    {
-      "date": "2026-08-06",
-      "identifiedMicroCents": "15289737254",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
-    {
-      "date": "2026-08-07",
-      "identifiedMicroCents": "6013117159",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
     {
       "date": "2026-08-08",
       "identifiedMicroCents": "7325289616",
@@ -264,18 +212,170 @@
     },
     {
       "date": "2026-09-09",
-      "identifiedMicroCents": "12747554904",
+      "identifiedMicroCents": "19029124994",
       "project": {
-        "onDemandMicroCents": "11084276148",
-        "chargedMicroCents": "11084276148",
-        "inputTokens": 4244933,
-        "outputTokens": 476948,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 88209088,
+        "onDemandMicroCents": "12219628702",
+        "chargedMicroCents": "12219628702",
+        "inputTokens": 4719085,
+        "outputTokens": 523089,
+        "cacheWriteTokens": 296078,
+        "cacheReadTokens": 107159682,
         "models": [
           {
             "model": "cursor-grok-4.6-xhigh-fast",
-            "onDemandMicroCents": "11084276148"
+            "onDemandMicroCents": "11270367746"
+          },
+          {
+            "model": "gpt-5.6-sol-high",
+            "onDemandMicroCents": "949260956"
+          }
+        ]
+      }
+    },
+    {
+      "date": "2026-09-10",
+      "identifiedMicroCents": "22802342120",
+      "project": {
+        "onDemandMicroCents": "2678421374",
+        "chargedMicroCents": "1006611025",
+        "inputTokens": 182431,
+        "outputTokens": 118575,
+        "cacheWriteTokens": 581149,
+        "cacheReadTokens": 46596219,
+        "models": [
+          {
+            "model": "cursor-grok-4.6-high-fast",
+            "onDemandMicroCents": "460430786"
+          },
+          {
+            "model": "gpt-5.6-sol-high",
+            "onDemandMicroCents": "2217990588"
+          }
+        ]
+      }
+    },
+    {
+      "date": "2026-09-11",
+      "identifiedMicroCents": "31866603447",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-12",
+      "identifiedMicroCents": "34495489706",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-13",
+      "identifiedMicroCents": "9272653647",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-14",
+      "identifiedMicroCents": "15806072696",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-15",
+      "identifiedMicroCents": "13530044464",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-17",
+      "identifiedMicroCents": "4170221163",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-19",
+      "identifiedMicroCents": "1076973625",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-20",
+      "identifiedMicroCents": "3912410512",
+      "project": {
+        "onDemandMicroCents": "0",
+        "chargedMicroCents": "0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReadTokens": 0,
+        "models": []
+      }
+    },
+    {
+      "date": "2026-09-21",
+      "identifiedMicroCents": "7162842151",
+      "project": {
+        "onDemandMicroCents": "5560220806",
+        "chargedMicroCents": "5560220806",
+        "inputTokens": 2812039,
+        "outputTokens": 276281,
+        "cacheWriteTokens": 137411,
+        "cacheReadTokens": 41610707,
+        "models": [
+          {
+            "model": "gpt-5.6-sol-high",
+            "onDemandMicroCents": "185828261"
+          },
+          {
+            "model": "grok-4.7-xhigh-fast",
+            "onDemandMicroCents": "5374392545"
           }
         ]
       }

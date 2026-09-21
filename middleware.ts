@@ -2,9 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { shouldEnforceDevGate } from "@/lib/dev-gate";
 import { resolvePreviewAccessPath } from "@/lib/preview-access";
+import {
+  isOnboardingSessionStale,
+  readOnboardingSessionInvalidBefore,
+} from "@/lib/dealers/onboarding/session-cutoff";
 
 function isPublicPath(pathname: string): boolean {
-  if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/preview") return true;
+  if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/preview" || pathname.startsWith("/dealer/onboarding")) return true;
   if (pathname.startsWith("/categories") || pathname.startsWith("/listings") || pathname.startsWith("/search") || pathname.startsWith("/pricing") || pathname.startsWith("/dealers") || pathname.startsWith("/uidemo") || pathname.startsWith("/vehicle-check") || pathname === "/privacy" || pathname === "/terms" || pathname === "/cookies" || pathname === "/dealer-terms" || pathname === "/private-seller-terms" || pathname === "/acceptable-use" || pathname === "/refunds" || pathname === "/vehicle-check-terms" || pathname === "/contact" || pathname === "/safety") return true;
   return false;
 }
@@ -60,7 +64,8 @@ export default async function middleware(request: NextRequest) {
     pathname === "/refunds" ||
     pathname === "/vehicle-check-terms" ||
     pathname === "/contact" ||
-    pathname === "/safety";
+    pathname === "/safety" ||
+    pathname.startsWith("/dealer/onboarding");
 
   if (shouldEnforceDevGate() && !devAuth) {
     if (pathname === "/") {
@@ -104,7 +109,15 @@ export default async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !isPublicPath(pathname)) {
+  let sessionIsStale = false;
+  if (user && readOnboardingSessionInvalidBefore(user.app_metadata) !== null) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    sessionIsStale = isOnboardingSessionStale(user.app_metadata, session?.access_token);
+  }
+
+  if ((!user || sessionIsStale) && !isPublicPath(pathname)) {
     const signUpUrl = new URL("/sign-up", request.url);
     const nextTarget = `${pathname}${request.nextUrl.search}`;
     signUpUrl.searchParams.set("next", nextTarget);

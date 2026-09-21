@@ -34,6 +34,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, group: "core" },
   { label: "Users", href: "/admin/users", icon: Users, group: "core" },
   { label: "Dealers", href: "/admin/dealers", icon: Store, group: "core" },
+  { label: "Dealer onboarding", href: "/admin/dealer-onboarding", icon: Mail, group: "core" },
   { label: "Preview packs", href: "/admin/preview-packs", icon: Eye, group: "core" },
   { label: "Listings", href: "/admin/listings", icon: ClipboardList, group: "core" },
   { label: "Categories", href: "/admin/categories", icon: FolderTree, group: "core" },

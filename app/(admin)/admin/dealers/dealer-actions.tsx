@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AdminActionBar,
@@ -111,6 +112,12 @@ export function DealerActions({
             Grant free access
           </AdminActionButton>
         ) : null}
+        <Link
+          href={`/admin/dealer-onboarding?dealer=${dealerId}`}
+          className="inline-flex h-8 items-center justify-center rounded-md border border-neon-blue-500/25 bg-neon-blue-500/10 px-3 text-xs font-medium text-neon-blue-400 hover:bg-neon-blue-500/15"
+        >
+          Onboarding email
+        </Link>
 
         {!showConfirm ? (
           <AdminActionButton
