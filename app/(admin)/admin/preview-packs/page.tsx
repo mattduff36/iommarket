@@ -7,12 +7,14 @@ import {
   listablePreviewPackRows,
   mergePreviewPackRows,
 } from "@/lib/preview-packs/archive";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { PreviewPacksTable } from "./preview-packs-table";
+import { SampleListingToggles } from "./sample-listing-toggles";
 
 export const metadata: Metadata = { title: "Preview packs | Admin" };
 
 export default async function PreviewPacksPage() {
-  const [archive, packs] = await Promise.all([
+  const [archive, packs, sampleVisibility] = await Promise.all([
     listAvailablePreviewArchives(),
     db.dealerPreviewPack.findMany({
       include: {
@@ -21,6 +23,7 @@ export default async function PreviewPacksPage() {
       },
       orderBy: { displayName: "asc" },
     }),
+    getSampleVisibility(),
   ]);
   const rows = listablePreviewPackRows(
     mergePreviewPackRows({
@@ -52,6 +55,11 @@ export default async function PreviewPacksPage() {
           {archive.archiveAvailable ? "" : " · archive not on this host"}
         </p>
       </div>
+
+      <SampleListingToggles
+        samplePrivateVisible={sampleVisibility.privateListings}
+        sampleDealerVisible={sampleVisibility.dealerListings}
+      />
 
       <PreviewPacksTable
         rows={rows}

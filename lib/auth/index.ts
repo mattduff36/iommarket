@@ -26,6 +26,14 @@ export class AccountDisabledError extends Error {
   }
 }
 
+export class InsufficientPermissionsError extends Error {
+  readonly statusCode = 403 as const;
+  constructor(message = "Insufficient permissions") {
+    super(message);
+    this.name = "InsufficientPermissionsError";
+  }
+}
+
 /**
  * Get the current authenticated user from DB, syncing from Supabase Auth if needed.
  * Returns null if not authenticated or Supabase Auth is not configured.
@@ -156,7 +164,7 @@ export async function requireAuth() {
 export async function requireRole(role: UserRole) {
   const user = await requireAuth();
   if (user.role !== role && user.role !== "ADMIN") {
-    throw new Error("Insufficient permissions");
+    throw new InsufficientPermissionsError();
   }
   return user;
 }

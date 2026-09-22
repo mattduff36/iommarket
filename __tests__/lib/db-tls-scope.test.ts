@@ -25,6 +25,33 @@ describe("database TLS scope", () => {
       "postgresql://user:password@example.com:5432/app",
     );
     expect(options.ssl).toEqual({ rejectUnauthorized: false });
+
+    const certificate = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----";
+    const verified = buildDatabasePoolOptions(
+      "postgresql://user:password@db.example.supabase.co:5432/postgres",
+      { NODE_ENV: "test", SUPABASE_DB_CA_CERT: certificate } as NodeJS.ProcessEnv,
+    );
+    expect(verified.ssl).toEqual({ ca: certificate, rejectUnauthorized: true });
+    expect(() =>
+      buildDatabasePoolOptions("postgresql://user:password@db.example.supabase.co:5432/postgres", {
+        NODE_ENV: "production",
+      }),
+    ).toThrow(/SUPABASE_DB_CA_CERT is required/);
+    expect(() =>
+      buildDatabasePoolOptions("postgresql://user:password@db.example.supabase.co:5432/postgres", {}),
+    ).toThrow(/SUPABASE_DB_CA_CERT is required/);
+    expect(
+      buildDatabasePoolOptions("postgresql://user:password@db.example.supabase.co:5432/postgres", {
+        NODE_ENV: "development",
+      }).ssl,
+    ).toEqual({ rejectUnauthorized: false });
+    expect(() =>
+      buildDatabasePoolOptions("postgresql://user:password@example.com:5432/app", {
+        NODE_ENV: "production",
+        VERCEL_ENV: "production",
+        SUPABASE_DB_CA_CERT: "not-a-certificate",
+      }),
+    ).toThrow(/SUPABASE_DB_CA_CERT is invalid/);
     expect(options.max).toBe(5);
 
     await import("@/lib/db");

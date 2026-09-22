@@ -357,8 +357,22 @@ export async function handleOneOffPaymentReceived(
   if (notifications.length > 0) {
     try {
       await dispatchListingNotifications(notifications);
-    } catch {
-      // Email is best-effort after the payment webhook commit.
+    } catch (error) {
+      await captureBusinessEvent({
+        source: "BUSINESS",
+        severity: "HIGH",
+        title: "Listing notification failed after payment",
+        message: "The payment was committed, but the listing notification email failed.",
+        action: "handleOneOffPaymentReceived",
+        route: "/api/webhooks/payments",
+        requestPath: "/api/webhooks/payments",
+        tags: {
+          checkoutType: event.metadata.checkoutType ?? "unknown",
+        },
+        extra: {
+          errorName: error instanceof Error ? error.name : "unknown",
+        },
+      });
     }
   }
 }

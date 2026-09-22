@@ -12,6 +12,10 @@ describe("AdminMobileNav", () => {
   it("keeps every navigation group in an independently scrollable menu region", async () => {
     render(<AdminMobileNav />);
 
+    const adminBar = screen.getByRole("button", { name: "Open admin menu" }).parentElement;
+    expect(adminBar?.className).toContain("top-16");
+    expect(adminBar?.className).toContain("sm:top-20");
+
     fireEvent.click(screen.getByRole("button", { name: "Open admin menu" }));
 
     const dialog = await screen.findByRole("dialog", {
@@ -31,6 +35,7 @@ describe("AdminMobileNav", () => {
         .getByRole("link", { name: "Checklist" })
         .getAttribute("href"),
     ).toBe("/admin/checklist");
+    expect(within(dialog).queryByRole("link", { name: "Back to site" })).toBeNull();
   });
 
   it("returns focus to the menu trigger and can reopen", async () => {

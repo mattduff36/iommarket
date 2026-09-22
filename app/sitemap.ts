@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { getPublicDealerWhere } from "@/lib/dealers/access";
-import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { buildLaunchSitemap } from "@/lib/launch/public-metadata";
+import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import {
   buildCategorySearchPath,
   buildDealerProfilePath,
@@ -11,8 +13,7 @@ import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  await expireStaleLiveListings();
+async function loadLiveSitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = [
     "/",
     "/search",
@@ -32,15 +33,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/safety",
   ];
 
+  const sampleVisibility = await getSampleVisibility();
   const [listings, dealers, categories] = await Promise.all([
     db.listing.findMany({
-      where: liveListingWhere(),
+      where: await marketplaceListingWhereWithSettings({}),
       select: { id: true, updatedAt: true },
       take: 2000,
       orderBy: { updatedAt: "desc" },
     }),
     db.dealerProfile.findMany({
-      where: getPublicDealerWhere(),
+      where: getPublicDealerWhere(new Date(), sampleVisibility),
       select: { slug: true, updatedAt: true },
       take: 2000,
       orderBy: { updatedAt: "desc" },
@@ -70,4 +72,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: category.createdAt,
     })),
   ];
+}
+
+export default function sitemap(): Promise<MetadataRoute.Sitemap> {
+  return buildLaunchSitemap(process.env, loadLiveSitemap);
 }

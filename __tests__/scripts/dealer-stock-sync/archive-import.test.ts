@@ -99,7 +99,15 @@ describe("partial dealer failure and blocked sources", () => {
 });
 
 describe("dry-run archive importer", () => {
-  it("refuses a mismatched dealer name or key", () => {
+  it("accepts the Mike's Motors registry name against a legacy Mikes Motors archive", () => {
+    expect(() =>
+      assertArchiveDealerMatch({
+        archiveDealerKey: "mikes-motors",
+        archiveDisplayName: "Mikes Motors",
+        requestedDealerKey: "mikes-motors",
+        expectedName: "Mike's Motors",
+      }),
+    ).not.toThrow();
     expect(() =>
       assertArchiveDealerMatch({
         archiveDealerKey: "athol-garage",

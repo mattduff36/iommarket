@@ -17,6 +17,11 @@ import {
 } from "@/lib/listings/submit-dealer-access";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
+  RATE_LIMIT_UNAVAILABLE_MESSAGE,
+  rateLimitActionError,
+  type RateLimitResult,
+} from "@/lib/rate-limit-result";
+import {
   createListingSchema,
   updateListingSchema,
   reportListingSchema,
@@ -83,17 +88,23 @@ const USER_LIFECYCLE_RATE_LIMIT = {
 const LISTING_LIFECYCLE_RATE_LIMIT_ERROR =
   "Too many listing status changes. Please wait a few minutes and try again.";
 
-function canChangeListingLifecycle(userId: string, listingId: string) {
-  const userCheck = checkRateLimit(
+async function canChangeListingLifecycle(userId: string, listingId: string): Promise<RateLimitResult> {
+  const userCheck = await checkRateLimit(
     makeRateLimitKey("listing-lifecycle-user", userId),
-    USER_LIFECYCLE_RATE_LIMIT,
+    { ...USER_LIFECYCLE_RATE_LIMIT, policy: "listing-lifecycle-user" },
   );
-  if (!userCheck.allowed) return false;
+  if (!userCheck.allowed) return userCheck;
 
   return checkRateLimit(
     makeRateLimitKey("listing-lifecycle", `${userId}:${listingId}`),
-    LISTING_LIFECYCLE_RATE_LIMIT,
-  ).allowed;
+    { ...LISTING_LIFECYCLE_RATE_LIMIT, policy: "listing-lifecycle" },
+  );
+}
+
+function listingLifecycleRateError(result: RateLimitResult): string | null {
+  if (result.unavailable) return RATE_LIMIT_UNAVAILABLE_MESSAGE;
+  if (!result.allowed) return LISTING_LIFECYCLE_RATE_LIMIT_ERROR;
+  return null;
 }
 
 function expectedListingActionError(
@@ -155,13 +166,15 @@ export async function createListing(input: CreateListingInput) {
     }
   }
 
-  const rateCheck = checkRateLimit(`create-listing:${user.id}`, {
-    windowMs: 60_000,
-    maxRequests: 5,
-  });
-  if (!rateCheck.allowed) {
-    return { error: "Too many requests. Please try again shortly." };
-  }
+  const createRateError = rateLimitActionError(
+    await checkRateLimit(`create-listing:${user.id}`, {
+      windowMs: 60_000,
+      maxRequests: 5,
+      policy: "create-listing",
+    }),
+    "Too many requests. Please try again shortly.",
+  );
+  if (createRateError) return { error: createRateError };
 
   const {
     attributes,
@@ -457,9 +470,10 @@ export async function submitListingForReview(
     return { error: parsedInput.error.flatten().fieldErrors };
   }
   const { listingId, privateSellerTermsAccepted } = parsedInput.data;
-  if (!canChangeListingLifecycle(user.id, listingId)) {
-    return { error: LISTING_LIFECYCLE_RATE_LIMIT_ERROR };
-  }
+  const submitRateError = listingLifecycleRateError(
+    await canChangeListingLifecycle(user.id, listingId),
+  );
+  if (submitRateError) return { error: submitRateError };
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -841,9 +855,10 @@ export async function withdrawListingSubmission(input: unknown) {
   }
 
   const { listingId, expectedRevision } = parsed.data;
-  if (!canChangeListingLifecycle(user.id, listingId)) {
-    return { error: LISTING_LIFECYCLE_RATE_LIMIT_ERROR };
-  }
+  const withdrawRateError = listingLifecycleRateError(
+    await canChangeListingLifecycle(user.id, listingId),
+  );
+  if (withdrawRateError) return { error: withdrawRateError };
 
   try {
     const listing = await db.listing.findUnique({
@@ -964,13 +979,14 @@ export async function reportListing(input: ReportListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const rateCheck = checkRateLimit(
-    makeRateLimitKey("report", parsed.data.reporterEmail),
-    { windowMs: 300_000, maxRequests: 3 }
+  const reportRateError = rateLimitActionError(
+    await checkRateLimit(
+      makeRateLimitKey("report", parsed.data.reporterEmail),
+      { windowMs: 300_000, maxRequests: 3, policy: "report-listing" },
+    ),
+    "Too many reports. Please try again later.",
   );
-  if (!rateCheck.allowed) {
-    return { error: "Too many reports. Please try again later." };
-  }
+  if (reportRateError) return { error: reportRateError };
 
   const targetListing = await db.listing.findUnique({
     where: { id: parsed.data.listingId },
@@ -1052,13 +1068,14 @@ export async function contactSeller(input: ContactSellerInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const rateCheck = checkRateLimit(
-    makeRateLimitKey("contact-seller", parsed.data.email),
-    { windowMs: 300_000, maxRequests: 5 }
+  const contactRateError = rateLimitActionError(
+    await checkRateLimit(
+      makeRateLimitKey("contact-seller", parsed.data.email),
+      { windowMs: 300_000, maxRequests: 5, policy: "contact-seller" },
+    ),
+    "Too many messages sent. Please try again later.",
   );
-  if (!rateCheck.allowed) {
-    return { error: "Too many messages sent. Please try again later." };
-  }
+  if (contactRateError) return { error: contactRateError };
   if (parsed.data.website) {
     return { error: "Spam detected." };
   }

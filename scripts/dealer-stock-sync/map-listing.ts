@@ -1,7 +1,8 @@
-import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
 import { FUEL_TYPE_OPTIONS } from "../../lib/constants/fuel-types";
-import { normalizeImageUrl } from "./json";
+import { uniqueImageUrls } from "./image-urls";
 import type { CanonicalVehicle, ReconciledVehicle } from "./types";
+
+export { uniqueImageUrls };
 
 const MIN_PRICE_PENCE = 100;
 const MAX_PRICE_PENCE = 100_000_000;
@@ -14,7 +15,7 @@ export interface MappedArchiveListing {
   title: string;
   description: string;
   pricePence: number;
-  categorySlug: "car" | "van";
+  categorySlug: "car" | "van" | "motorbike";
   attributes: Record<string, string>;
   imageUrls: string[];
 }
@@ -23,19 +24,6 @@ export interface MappingOutcome {
   reconciled: ReconciledVehicle;
   listing: MappedArchiveListing | null;
   skipReason: string | null;
-}
-
-export function uniqueImageUrls(urls: string[], max = FEATURED_LISTING_PHOTO_LIMIT) {
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const raw of urls) {
-    const url = normalizeImageUrl(raw);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    unique.push(url);
-    if (unique.length >= max) break;
-  }
-  return unique;
 }
 
 export function mapFuelType(value: string | null | undefined) {
@@ -69,10 +57,21 @@ export function mapTransmission(value: string | null | undefined) {
   return null;
 }
 
-export function resolveCategorySlug(vehicle: CanonicalVehicle): "car" | "van" {
+export function resolveCategorySlug(vehicle: CanonicalVehicle): "car" | "van" | "motorbike" {
   const type = vehicle.vehicleType?.toLowerCase() ?? "";
+  const source = vehicle.sourceKey?.toLowerCase() ?? "";
+  const location = (vehicle.locationName ?? "").toLowerCase();
+  if (
+    type.includes("bike") ||
+    type.includes("motorc") ||
+    type.includes("scooter") ||
+    type.includes("two-wheel") ||
+    source.includes("bike")
+  ) {
+    return "motorbike";
+  }
   if (type.includes("van") || type.includes("commercial") || type === "lcv") return "van";
-  if ((vehicle.locationName ?? "").toLowerCase().includes("transit")) return "van";
+  if (location.includes("transit")) return "van";
   return "car";
 }
 

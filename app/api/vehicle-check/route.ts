@@ -5,6 +5,7 @@ import {
   VehicleLookupError,
 } from "@/lib/services/vehicle-check-error";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { vehicleCheckSchema } from "@/lib/validations/vehicle-check";
 import { reportHandledException } from "@/lib/monitoring";
 import { normalizeVehicleCheckCatalogue } from "@/lib/vehicle-catalogue/identity";
@@ -42,13 +43,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 
-  const rate = checkRateLimit(
-    makeRateLimitKey("vehicle-check", getRequesterKey(request)),
-    { windowMs: 60_000, maxRequests: 10 }
+  const rateDenial = toRateLimitDenial(
+    await checkRateLimit(
+      makeRateLimitKey("vehicle-check", getRequesterKey(request)),
+      { windowMs: 60_000, maxRequests: 10, policy: "vehicle-check" },
+    ),
+    "Rate limit exceeded",
   );
-
-  if (!rate.allowed) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  if (rateDenial) {
+    return NextResponse.json(
+      { error: rateDenial.message },
+      { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds) } },
+    );
   }
 
   let payload: unknown;

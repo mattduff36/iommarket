@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getAccountNavItems, getRoleLabel, type AuthRole } from "@/lib/navigation";
@@ -8,9 +9,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ShieldCheck } from "lucide-react";
+import { ChevronDown, Eye, ShieldCheck } from "lucide-react";
+import {
+  PreviewPacksControlList,
+  usePreviewControls,
+} from "@/components/auth/preview-packs-controls";
 
 export interface AuthState {
   user: { email?: string | null } | null;
@@ -24,9 +32,40 @@ interface Props {
   authState: AuthState;
 }
 
+type FlyoutSide = "left" | "right" | "bottom";
+
+const PREVIEW_FLYOUT_WIDTH = 288;
+
+export function resolveFlyoutSide(trigger: HTMLElement | null): FlyoutSide {
+  if (!trigger) return "left";
+  const rect = trigger.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return "left";
+  const spaceLeft = rect.left;
+  const spaceRight = window.innerWidth - rect.right;
+  if (spaceLeft >= PREVIEW_FLYOUT_WIDTH) return "left";
+  if (spaceRight >= PREVIEW_FLYOUT_WIDTH) return "right";
+  return "bottom";
+}
+
 export function HeaderAuthButtons({ authState }: Props) {
   const { user, displayName, role, loading, handleSignOut } = authState;
   const accountNavItems = getAccountNavItems(role);
+  const previewControls = usePreviewControls();
+  const isAdmin = role === "ADMIN";
+  const previewTriggerRef = useRef<HTMLDivElement | null>(null);
+  const [flyoutSide, setFlyoutSide] = useState<FlyoutSide>("left");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  const updateFlyoutSide = useCallback(() => {
+    setFlyoutSide(resolveFlyoutSide(previewTriggerRef.current));
+  }, []);
+
+  useEffect(() => {
+    if (!accountMenuOpen || !isAdmin) return;
+    updateFlyoutSide();
+    window.addEventListener("resize", updateFlyoutSide);
+    return () => window.removeEventListener("resize", updateFlyoutSide);
+  }, [accountMenuOpen, isAdmin, updateFlyoutSide]);
 
   if (loading) {
     return (
@@ -70,9 +109,22 @@ export function HeaderAuthButtons({ authState }: Props) {
       </div>
 
       {/* Desktop: full dropdown */}
-      <DropdownMenu>
+      <DropdownMenu
+        open={accountMenuOpen}
+        onOpenChange={(open) => {
+          setAccountMenuOpen(open);
+          if (open && isAdmin) {
+            void previewControls.ensureLoaded();
+            requestAnimationFrame(updateFlyoutSide);
+          }
+        }}
+      >
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-1 h-auto py-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden md:inline-flex gap-1 h-auto py-1 outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          >
             <span className="flex flex-col items-end leading-tight">
               <span className="max-w-[180px] truncate">
                 {displayName ?? user.email ?? "Account"}
@@ -84,7 +136,11 @@ export function HeaderAuthButtons({ authState }: Props) {
             <ChevronDown className="h-4 w-4 shrink-0" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent
+          align="end"
+          className="w-56"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
           {accountNavItems.map((item) =>
             item.href === "/admin" ? (
               [
@@ -99,6 +155,36 @@ export function HeaderAuthButtons({ authState }: Props) {
                     {item.label}
                   </Link>
                 </DropdownMenuItem>,
+                <DropdownMenuSub key="preview-packs">
+                  <DropdownMenuSubTrigger
+                    ref={previewTriggerRef}
+                    chevron={flyoutSide === "bottom" ? "down" : flyoutSide}
+                    className="!text-red-400 hover:!text-red-300 font-medium"
+                  >
+                    <Eye className="mr-2 h-4 w-4 shrink-0" />
+                    Preview packs
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    side={flyoutSide === "bottom" ? "bottom" : flyoutSide}
+                    align={flyoutSide === "bottom" ? "end" : "start"}
+                    className="max-h-96 w-72 overflow-y-auto p-1"
+                  >
+                    <PreviewPacksControlList
+                      asMenuItems
+                      state={previewControls.state}
+                      error={previewControls.error}
+                      pendingKey={previewControls.pendingKey}
+                      onTogglePack={(pack) => {
+                        setAccountMenuOpen(false);
+                        previewControls.togglePack(pack);
+                      }}
+                      onToggleSample={(kind) => {
+                        setAccountMenuOpen(false);
+                        previewControls.toggleSample(kind);
+                      }}
+                    />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>,
               ]
             ) : (
               <DropdownMenuItem key={item.href} asChild>

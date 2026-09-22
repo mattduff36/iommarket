@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -40,7 +40,9 @@ const DropdownMenuItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-pointer select-none items-center rounded-md px-2 py-2 text-sm text-text-primary",
-      "hover:bg-surface-elevated focus:bg-surface-elevated focus:outline-none",
+      "hover:bg-surface-elevated hover:outline hover:outline-2 hover:outline-offset-2 hover:outline-neon-blue-500",
+      "focus:bg-surface-elevated focus:outline-none",
+      "data-[highlighted]:outline data-[highlighted]:outline-2 data-[highlighted]:outline-offset-2 data-[highlighted]:outline-neon-blue-500",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className,
@@ -109,27 +111,43 @@ const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
     inset?: boolean;
+    chevron?: "left" | "right" | "down";
   }
->(({ className, inset, children, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubTrigger
-    ref={ref}
-    className={cn(
-      "flex cursor-pointer select-none items-center rounded-md px-2 py-2 text-sm text-text-primary",
-      "hover:bg-surface-elevated focus:bg-surface-elevated focus:outline-none",
-      inset && "pl-8",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <ChevronRight className="ml-auto h-4 w-4" />
-  </DropdownMenuPrimitive.SubTrigger>
-));
+>(({ className, inset, children, chevron = "right", ...props }, ref) => {
+  const ChevronIcon =
+    chevron === "left" ? ChevronLeft : chevron === "down" ? ChevronDown : ChevronRight;
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      ref={ref}
+      data-chevron={chevron}
+      className={cn(
+        "flex cursor-pointer select-none items-center rounded-md px-2 py-2 text-sm text-text-primary",
+        "hover:bg-surface-elevated hover:outline hover:outline-2 hover:outline-offset-2 hover:outline-neon-blue-500",
+        "focus:bg-surface-elevated focus:outline-none",
+        "data-[state=open]:outline data-[state=open]:outline-2 data-[state=open]:outline-offset-2 data-[state=open]:outline-neon-blue-500",
+        inset && "pl-8",
+        className,
+      )}
+      {...props}
+    >
+      {chevron === "left" ? <ChevronIcon className="mr-2 h-4 w-4 shrink-0" /> : null}
+      {children}
+      {chevron !== "left" ? <ChevronIcon className="ml-auto h-4 w-4 shrink-0" /> : null}
+    </DropdownMenuPrimitive.SubTrigger>
+  );
+});
 DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
+
+type SubContentProps = React.ComponentPropsWithoutRef<
+  typeof DropdownMenuPrimitive.SubContent
+> & {
+  side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
+};
 
 const DropdownMenuSubContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubContent>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
+  SubContentProps
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.SubContent
     ref={ref}

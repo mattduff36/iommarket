@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { captureException } from "@/lib/monitoring";
 import { capClientIngestSeverity } from "@/lib/monitoring/severity";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { ingestMonitoringClientEventSchema } from "@/lib/validations/monitoring";
 
 const MAX_BODY_BYTES = 64_000;
@@ -38,14 +39,17 @@ export async function POST(req: NextRequest) {
   const ip = forwarded?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip");
   const userAgent = req.headers.get("user-agent") ?? "unknown";
 
-  const rate = checkRateLimit(
-    makeRateLimitKey("monitoring-client", `${ip ?? "unknown"}:${userAgent}`),
-    { windowMs: 60_000, maxRequests: 20 }
+  const rateDenial = toRateLimitDenial(
+    await checkRateLimit(
+      makeRateLimitKey("monitoring-client", `${ip ?? "unknown"}:${userAgent}`),
+      { windowMs: 60_000, maxRequests: 20, policy: "monitoring-client" },
+    ),
+    "Rate limit exceeded",
   );
-  if (!rate.allowed) {
+  if (rateDenial) {
     return NextResponse.json(
-      { error: "Rate limit exceeded" },
-      { status: 429 }
+      { error: rateDenial.message },
+      { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds) } },
     );
   }
 

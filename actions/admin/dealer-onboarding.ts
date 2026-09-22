@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { captureException } from "@/lib/monitoring";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { buildDealerOnboardingEmail } from "@/lib/email/dealer-onboarding";
@@ -40,9 +41,14 @@ export async function createLaunchPromotionCampaign(input: { launchAtLocal: stri
   const admin = await requireRole("ADMIN");
   const parsed = createLaunchCampaignSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
-  if (!checkRateLimit(`dealer-onboarding-campaign:${admin.id}`, SEND_RATE).allowed) {
-    return { error: "Too many campaign updates. Wait a few minutes and try again." };
-  }
+  const campaignRateError = rateLimitActionError(
+    await checkRateLimit(`dealer-onboarding-campaign:${admin.id}`, {
+      ...SEND_RATE,
+      policy: "dealer-onboarding-campaign",
+    }),
+    "Too many campaign updates. Wait a few minutes and try again.",
+  );
+  if (campaignRateError) return { error: campaignRateError };
 
   try {
     const window = buildLaunchCampaignWindow(parsed.data.launchAtLocal);
@@ -124,9 +130,14 @@ export async function sendDealerOnboardingInvite(input: {
   const admin = await requireRole("ADMIN");
   const parsed = sendDealerOnboardingSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
-  if (!checkRateLimit(`dealer-onboarding-send:${admin.id}`, SEND_RATE).allowed) {
-    return { error: "Too many onboarding emails. Wait a few minutes and try again." };
-  }
+  const sendRateError = rateLimitActionError(
+    await checkRateLimit(`dealer-onboarding-send:${admin.id}`, {
+      ...SEND_RATE,
+      policy: "dealer-onboarding-send",
+    }),
+    "Too many onboarding emails. Wait a few minutes and try again.",
+  );
+  if (sendRateError) return { error: sendRateError };
 
   const recipientEmailNorm = parsed.data.recipientEmail.trim().toLowerCase();
   try {

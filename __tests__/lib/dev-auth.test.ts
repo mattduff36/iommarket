@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideDevAuth, isHttpUrl, passwordsMatch } from "@/lib/dev-auth";
+import { decideDevAuth, isHttpUrl, isSafePreviewRedirect, passwordsMatch } from "@/lib/dev-auth";
 
 const env = {
   devPass: "dev-secret",
@@ -62,6 +62,24 @@ describe("decideDevAuth", () => {
       kind: "preview",
       redirect: env.previewUrl,
     });
+  });
+
+  it("rejects preview redirects that are not credential-free https URLs", () => {
+    expect(isSafePreviewRedirect("https://preview.example.com/app")).toBe(true);
+    expect(isSafePreviewRedirect("http://preview.example.com/app")).toBe(false);
+    expect(isSafePreviewRedirect("https://user:pass@preview.example.com/app")).toBe(false);
+    expect(
+      decideDevAuth("preview-secret", {
+        ...env,
+        previewUrl: "http://preview.example.com/app",
+      }),
+    ).toEqual({ kind: "unauthorized" });
+    expect(
+      decideDevAuth("preview-secret", {
+        ...env,
+        previewUrl: "https://user:pass@preview.example.com/app",
+      }),
+    ).toEqual({ kind: "unauthorized" });
   });
 
   it("rejects PREVIEW_PASS when PREVIEW_URL is missing or unsafe", () => {

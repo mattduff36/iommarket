@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +13,18 @@ vi.mock("@/lib/listings/expiry", () => ({
   liveListingWhere: () => ({ status: "LIVE" }),
 }));
 
+vi.mock("@/lib/listings/marketplace", () => ({
+  marketplaceListingWhereWithSettings: async () => ({ status: "LIVE" }),
+}));
+
+vi.mock("@/lib/listings/sample-visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/listings/sample-visibility")>();
+  return {
+    ...actual,
+    getSampleVisibility: async () => ({ privateListings: true, dealerListings: true }),
+  };
+});
+
 vi.mock("@/lib/db", () => ({
   db: {
     listing: { findMany: mocks.listingFindMany },
@@ -24,7 +36,19 @@ vi.mock("@/lib/db", () => ({
 const { default: sitemap } = await import("@/app/sitemap");
 
 describe("sitemap", () => {
+  const originalLaunch = process.env.PRODUCTION_LAUNCH_ENABLED;
+  const originalVercel = process.env.VERCEL_ENV;
+
+  afterEach(() => {
+    if (originalLaunch === undefined) delete process.env.PRODUCTION_LAUNCH_ENABLED;
+    else process.env.PRODUCTION_LAUNCH_ENABLED = originalLaunch;
+    if (originalVercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = originalVercel;
+  });
+
   beforeEach(() => {
+    process.env.VERCEL_ENV = "preview";
+    delete process.env.PRODUCTION_LAUNCH_ENABLED;
     vi.clearAllMocks();
     mocks.expireStaleLiveListings.mockResolvedValue(undefined);
     mocks.listingFindMany.mockResolvedValue([
@@ -92,5 +116,16 @@ describe("sitemap", () => {
       select: { slug: true, createdAt: true },
       orderBy: { sortOrder: "asc" },
     });
+    expect(mocks.expireStaleLiveListings).not.toHaveBeenCalled();
+  });
+
+  it("omits catalogue URLs and does not query the database while production is gated", async () => {
+    process.env.VERCEL_ENV = "production";
+    delete process.env.PRODUCTION_LAUNCH_ENABLED;
+    const entries = await sitemap();
+    expect(entries).toEqual([]);
+    expect(mocks.listingFindMany).not.toHaveBeenCalled();
+    expect(mocks.dealerFindMany).not.toHaveBeenCalled();
+    expect(mocks.categoryFindMany).not.toHaveBeenCalled();
   });
 });

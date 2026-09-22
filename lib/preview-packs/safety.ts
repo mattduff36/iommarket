@@ -26,8 +26,9 @@ export function previewDealerSlug(dealerKey: string) {
 
 export function isExcludedPreviewDealerKey(dealerKey: string, groupKey?: string | null) {
   const key = dealerKey.trim().toLowerCase();
-  if (key === OCEAN_DEALER_KEY || key.startsWith("ocean-")) return true;
-  return groupKey?.trim().toLowerCase() === "ocean";
+  if (key === OCEAN_DEALER_KEY) return false;
+  if (key.startsWith("ocean-")) return true;
+  return groupKey?.trim().toLowerCase() === "ocean" && key !== OCEAN_DEALER_KEY;
 }
 
 export function isProtectedPreviewOwnerEmail(email: string) {
@@ -50,10 +51,7 @@ export function assertPreviewDealerAllowed(input: {
   ownerEmail?: string | null;
 }) {
   if (isExcludedPreviewDealerKey(input.dealerKey, input.groupKey)) {
-    throw new Error("Ocean Motor Village is excluded from preview packs.");
-  }
-  if (input.displayName?.trim().toLowerCase() === OCEAN_DEALER_NAME.toLowerCase()) {
-    throw new Error("Ocean Motor Village is excluded from preview packs.");
+    throw new Error("Ocean brand archives are excluded from preview packs.");
   }
   if (input.ownerEmail && isProtectedPreviewOwnerEmail(input.ownerEmail)) {
     throw new Error("Refuse to attach preview listings to the Ocean owner account.");

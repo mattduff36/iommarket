@@ -1,3 +1,4 @@
+import { databaseSslOptions } from "../lib/db/pool-options";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
@@ -51,7 +52,7 @@ async function main() {
 
   const pool = new pg.Pool({
     connectionString: cleanUrl(connectionString),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 

@@ -4,6 +4,7 @@
  *
  * Loads .env.local then .env (same as seed:admin).
  */
+import { databaseSslOptions } from "../lib/db/pool-options";
 import dotenv from "dotenv";
 import { resolve } from "path";
 import pg from "pg";
@@ -55,7 +56,7 @@ ALTER TYPE "UserRole_new" RENAME TO "UserRole";
 async function main() {
   const client = new pg.Client({
     connectionString: cleanUrl(raw),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(raw),
   });
   await client.connect();
   try {

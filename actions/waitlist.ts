@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { rateLimitActionError } from "@/lib/rate-limit-result";
 import {
   joinWaitlistSchema,
   type JoinWaitlistInput,
@@ -32,13 +33,15 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const rateCheck = checkRateLimit(makeRateLimitKey("waitlist", parsed.data.email), {
-    windowMs: 300_000,
-    maxRequests: 5,
-  });
-  if (!rateCheck.allowed) {
-    return { error: "Too many submissions. Please try again shortly." };
-  }
+  const waitlistRateError = rateLimitActionError(
+    await checkRateLimit(makeRateLimitKey("waitlist", parsed.data.email), {
+      windowMs: 300_000,
+      maxRequests: 5,
+      policy: "waitlist",
+    }),
+    "Too many submissions. Please try again shortly.",
+  );
+  if (waitlistRateError) return { error: waitlistRateError };
 
   const interests = parsed.data.interests;
   const interestLabels = formatWaitlistInterests(interests);

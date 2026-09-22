@@ -10,7 +10,8 @@ import {
 } from "@/lib/dealers/spotlights";
 import { getCurrentUser } from "@/lib/auth";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { marketplaceListingWhere } from "@/lib/listings/marketplace";
+import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
@@ -23,10 +24,12 @@ export const metadata: Metadata = {
 export default async function DealersPage() {
   await expireStaleLiveListings();
   const currentUser = await getCurrentUser();
+  const sampleVisibility = await getSampleVisibility();
   const dealers = await db.dealerProfile.findMany(
     getMarketplaceDealerDirectoryQuery(
-      marketplaceListingWhere({ viewer: currentUser }),
+      await marketplaceListingWhereWithSettings({ viewer: currentUser }),
       currentUser,
+      sampleVisibility,
     ),
   );
   const sortedDealers = sortDealersAlphabetically(dealers);

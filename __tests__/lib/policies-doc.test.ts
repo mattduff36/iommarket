@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { classifyLaunchRoute } from "@/lib/launch/route-class";
 import { FOOTER_NAV_ITEMS } from "@/lib/navigation";
 import { getAllPolicyDocuments } from "@/lib/policies/loader";
 import {
@@ -95,10 +96,11 @@ describe("POL-DOC-001 canonical policy corpus", () => {
     );
   });
 
-  it("exposes legal routes in navigation, sitemap, and middleware", () => {
+  it("exposes legal routes in navigation, sitemap, and the launch gate", () => {
     for (const href of LEGAL_ROUTES) {
       expect(FOOTER_NAV_ITEMS.some((item) => item.href === href)).toBe(true);
       expect(isLegalRoute(href)).toBe(true);
+      expect(classifyLaunchRoute(href)).toBe("legal");
     }
     expect(LEGAL_NAV_ITEMS).toHaveLength(8);
 
@@ -106,13 +108,8 @@ describe("POL-DOC-001 canonical policy corpus", () => {
       resolve(process.cwd(), "app", "sitemap.ts"),
       "utf8",
     );
-    const middleware = readFileSync(
-      resolve(process.cwd(), "middleware.ts"),
-      "utf8",
-    );
     for (const href of LEGAL_ROUTES) {
       expect(sitemap).toContain(`"${href}"`);
-      expect(middleware).toContain(`pathname === "${href}"`);
     }
   });
 

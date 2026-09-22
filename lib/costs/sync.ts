@@ -37,6 +37,17 @@ export interface CostSyncResult {
   errorCode?: string;
 }
 
+export function classifyCostSyncFailure(error: unknown): string {
+  if (error instanceof CostProviderUnavailableError) return error.code;
+  if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code;
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return "COST_SYNC_TIMEOUT";
+  }
+  if (error instanceof Error && /timeout/i.test(error.message)) return "COST_SYNC_TIMEOUT";
+  if (error instanceof Error && error.name) return error.name;
+  return "COST_SYNC_FAILED";
+}
+
 function syncWindow(startedAt: Date, now: Date) {
   const earliest = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
   const from = startedAt > earliest ? startedAt : earliest;
@@ -339,14 +350,7 @@ async function executeCostSync(
       quarantinedCount,
     };
   } catch (error) {
-    const errorCode =
-      error instanceof CostProviderUnavailableError
-        ? error.code
-        : error instanceof Prisma.PrismaClientKnownRequestError
-          ? error.code
-          : error instanceof Error
-            ? error.name
-            : "COST_SYNC_FAILED";
+    const errorCode = classifyCostSyncFailure(error);
     await db.costSyncRun.update({
       where: { id: run.id },
       data: {

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
@@ -12,9 +13,11 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { marketplaceListingWhere } from "@/lib/listings/marketplace";
+import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
   getMarketplaceDealerSpotlightQuery,
@@ -33,10 +36,15 @@ function shuffleListings<T>(items: T[]): T[] {
   return shuffled;
 }
 
+export const metadata: Metadata = {
+  alternates: { canonical: buildCanonicalUrl("/") },
+};
+
 export default async function HomePage() {
   await expireStaleLiveListings();
   const currentUser = await getCurrentUser();
-  const liveWhere = marketplaceListingWhere({ viewer: currentUser });
+  const sampleVisibility = await getSampleVisibility();
+  const liveWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser });
   /* Fetch categories and dealer/search datasets */
   const [categories, regions, makeDefs, modelDefs, dealerResults, soldCount, pricing] = await Promise.all([
     db.category.findMany({
@@ -58,7 +66,9 @@ export default async function HomePage() {
       where: { slug: "model" },
       select: { id: true },
     }),
-    db.dealerProfile.findMany(getMarketplaceDealerSpotlightQuery(liveWhere, currentUser)),
+    db.dealerProfile.findMany(
+      getMarketplaceDealerSpotlightQuery(liveWhere, currentUser, sampleVisibility),
+    ),
     db.listing.count({ where: { status: "SOLD" } }),
     getMarketplacePricing(),
   ]);
@@ -128,7 +138,7 @@ export default async function HomePage() {
     },
   });
 
-  const featuredCarouselListings = shuffleListings(featuredListings).slice(0, 8).map((listing) => ({
+  const featuredCarouselListings = shuffleListings(featuredListings).map((listing) => ({
     id: listing.id,
     title: listing.title,
     price: listing.price / 100,

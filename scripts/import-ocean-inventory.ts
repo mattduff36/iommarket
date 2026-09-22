@@ -5,6 +5,7 @@
  * Dry-run: npx tsx scripts/import-ocean-inventory.ts --dry-run
  * Live:    npx tsx scripts/import-ocean-inventory.ts
  */
+import { databaseSslOptions } from "../lib/db/pool-options";
 import dotenv from "dotenv";
 import { resolve } from "path";
 import { PrismaClient } from "@prisma/client";
@@ -67,7 +68,7 @@ function createPrisma() {
   });
   const pool = new pg.Pool({
     connectionString: cleanUrl(connectionString ?? ""),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString ?? ""),
   });
   return {
     prisma: new PrismaClient({ adapter: new PrismaPg(pool) }),

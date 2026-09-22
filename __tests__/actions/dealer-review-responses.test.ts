@@ -31,6 +31,7 @@ const {
       updateMany: vi.fn(),
     },
     dealerReviewDisputeEvent: { create: vi.fn() },
+    siteSetting: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),
   };
   return {

@@ -20,6 +20,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 import { ADMIN_USER } from "./fixtures/test-users";
 import { assertEnvCheckSafety } from "./env-check-safety";
+import { issueLaunchGateCookie, LAUNCH_GATE_COOKIE } from "../lib/launch/session";
 
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? ADMIN_USER.email;
 const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? ADMIN_USER.password;
@@ -38,15 +39,19 @@ test.beforeAll(() => {
 });
 
 test.beforeEach(async ({ context }) => {
-  const target = new URL(ENV_CHECK_BASE_URL);
+  const issued = issueLaunchGateCookie({
+    secret: process.env.DEV_GATE_SECRET,
+    environment: "development",
+  });
+  if (!issued) return;
   await context.addCookies([
     {
-      name: "dev-auth",
-      value: "true",
-      domain: target.hostname,
+      name: LAUNCH_GATE_COOKIE,
+      value: issued.value,
+      domain: new URL(ENV_CHECK_BASE_URL).hostname,
       path: "/",
-      httpOnly: false,
-      secure: target.protocol === "https:",
+      httpOnly: true,
+      secure: true,
       sameSite: "Lax",
     },
   ]);
@@ -474,7 +479,7 @@ test.describe("[AppConfig] Application-level env vars", () => {
     expect(goodRes.status()).toBe(200);
     // Response should set the dev-auth cookie
     const setCookie = goodRes.headers()["set-cookie"] ?? "";
-    expect(setCookie).toMatch(/dev-auth/);
+    expect(setCookie).toMatch(/__Host-dev-gate=/);
 
     const previewPass = process.env.PREVIEW_PASS;
     const previewUrl = process.env.PREVIEW_URL;
@@ -490,7 +495,7 @@ test.describe("[AppConfig] Application-level env vars", () => {
     const previewBody = (await previewRes.json()) as { redirect?: string };
     expect(previewBody.redirect).toBe(previewUrl);
     const previewCookie = previewRes.headers()["set-cookie"] ?? "";
-    expect(previewCookie).not.toMatch(/dev-auth/);
+    expect(previewCookie).not.toMatch(/__Host-dev-gate=/);
   });
 });
 

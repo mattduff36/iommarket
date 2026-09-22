@@ -37,6 +37,9 @@ vi.mock("@/lib/db", () => ({
       findUnique: dealerFindUniqueMock,
       findFirst: dealerFindUniqueMock,
     },
+    siteSetting: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     $transaction: transactionMock,
   },
 }));

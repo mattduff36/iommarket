@@ -57,6 +57,7 @@ export interface DealerSourceConfig {
 export interface DealerRecord {
   key: string;
   displayName: string;
+  displayNameAliases?: readonly string[];
   status: DealerStatus;
   website: string | null;
   stockUrls: string[];

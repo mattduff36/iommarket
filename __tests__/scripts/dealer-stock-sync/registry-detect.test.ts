@@ -15,7 +15,8 @@ describe("dealer registry", () => {
     expect(getDealer("automann").status).toBe("no_public_site");
     expect(getDealer("im8-vehicle-sales").website).toBeNull();
     expect(getDealer("pextray").status).toBe("specialist_optional");
-    expect(getDealer("ocean-motor-village").sources.map((item) => item.key)).toContain("ocean-citroen");
+    expect(getDealer("mikes-motors").displayName).toBe("Mike's Motors");
+    expect(getDealer("mikes-motors").displayNameAliases).toEqual(["Mikes Motors"]);
     expect(
       DEALER_REGISTRY.filter((item) => item.status === "confirmed" || item.status === "no_public_site"),
     ).toHaveLength(33);

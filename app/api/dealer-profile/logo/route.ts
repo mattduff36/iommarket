@@ -6,6 +6,7 @@ import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { db } from "@/lib/db";
 import { captureException } from "@/lib/monitoring";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   createDealerLogoStoragePath,
@@ -94,12 +95,18 @@ export async function POST(request: NextRequest) {
   }
   const user = authorized.user;
 
-  const rate = checkRateLimit(
-    makeRateLimitKey("dealer-logo-upload", user.id),
-    { windowMs: 60_000, maxRequests: 10 },
+  const uploadRateDenial = toRateLimitDenial(
+    await checkRateLimit(
+      makeRateLimitKey("dealer-logo-upload", user.id),
+      { windowMs: 60_000, maxRequests: 10, policy: "dealer-logo-upload" },
+    ),
+    "Too many upload attempts. Try again shortly.",
   );
-  if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many upload attempts. Try again shortly." }, { status: 429 });
+  if (uploadRateDenial) {
+    return NextResponse.json(
+      { error: uploadRateDenial.message },
+      { status: uploadRateDenial.status, headers: { "Retry-After": String(uploadRateDenial.retryAfterSeconds) } },
+    );
   }
 
   let formData: FormData;
@@ -194,12 +201,18 @@ export async function DELETE(request: NextRequest) {
   }
   const user = authorized.user;
 
-  const rate = checkRateLimit(
-    makeRateLimitKey("dealer-logo-remove", user.id),
-    { windowMs: 60_000, maxRequests: 10 },
+  const removeRateDenial = toRateLimitDenial(
+    await checkRateLimit(
+      makeRateLimitKey("dealer-logo-remove", user.id),
+      { windowMs: 60_000, maxRequests: 10, policy: "dealer-logo-remove" },
+    ),
+    "Too many removal attempts. Try again shortly.",
   );
-  if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many removal attempts. Try again shortly." }, { status: 429 });
+  if (removeRateDenial) {
+    return NextResponse.json(
+      { error: removeRateDenial.message },
+      { status: removeRateDenial.status, headers: { "Retry-After": String(removeRateDenial.retryAfterSeconds) } },
+    );
   }
 
   const previousLogoUrl = user.dealerProfile.logoUrl;

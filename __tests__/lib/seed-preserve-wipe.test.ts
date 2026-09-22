@@ -74,6 +74,9 @@ describe("SEED-WIPE-001", () => {
         "Region",
         "Category",
         "AttributeDefinition",
+        "VehicleMake",
+        "VehicleModel",
+        "VehicleModelAlias",
       ]),
     );
     expect(() => assertWipePlanBoundaries()).not.toThrow();

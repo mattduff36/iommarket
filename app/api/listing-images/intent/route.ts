@@ -3,6 +3,7 @@ import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { issueListingImageUploadIntent } from "@/lib/listings/photo-upload";
 import { captureException } from "@/lib/monitoring";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { toRateLimitDenial } from "@/lib/rate-limit-result";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,12 +28,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const rate = checkRateLimit(makeRateLimitKey("listing-image-intent", user.id), {
-    windowMs: 60_000,
-    maxRequests: 20,
-  });
-  if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many upload attempts. Try again shortly." }, { status: 429 });
+  const rateDenial = toRateLimitDenial(
+    await checkRateLimit(makeRateLimitKey("listing-image-intent", user.id), {
+      windowMs: 60_000,
+      maxRequests: 20,
+      policy: "listing-image-intent",
+    }),
+    "Too many upload attempts. Try again shortly.",
+  );
+  if (rateDenial) {
+    return NextResponse.json(
+      { error: rateDenial.message },
+      { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds) } },
+    );
   }
 
   try {

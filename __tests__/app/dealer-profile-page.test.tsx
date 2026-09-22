@@ -40,7 +40,13 @@ vi.mock("@/lib/listings/expiry", () => ({
 
 vi.mock("@/lib/listings/marketplace", () => ({
   marketplaceListingWhere: marketplaceListingWhereMock,
+  marketplaceListingWhereWithSettings: async () => marketplaceListingWhereMock(),
   marketplaceListingBadge: () => undefined,
+}));
+
+vi.mock("@/lib/listings/sample-visibility", () => ({
+  getSampleVisibility: async () => ({ privateListings: true, dealerListings: true }),
+  isHiddenSampleDealer: () => false,
 }));
 
 vi.mock("@/lib/db", () => ({

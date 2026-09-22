@@ -1,5 +1,11 @@
 import type { Prisma, UserRole } from "@prisma/client";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
+import {
+  applySampleDealerVisibility,
+  DEFAULT_SAMPLE_VISIBILITY,
+  getSampleVisibility,
+  type SampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 interface DealerAccessSubject {
   role: UserRole;
@@ -53,12 +59,20 @@ export function getEnabledPreviewDealerWhere(): Prisma.DealerProfileWhereInput {
 export function getMarketplaceDealerWhere(
   viewer?: { role: string } | null,
   now = new Date(),
+  sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
 ): Prisma.DealerProfileWhereInput {
-  const publicWhere = getPublicDealerWhere(now);
+  const publicWhere = getPublicDealerWhere(now, sampleVisibility);
   if (viewer?.role !== "ADMIN") return publicWhere;
   return {
     OR: [publicWhere, getEnabledPreviewDealerWhere()],
   };
+}
+
+export async function getMarketplaceDealerWhereWithSettings(
+  viewer?: { role: string } | null,
+  now = new Date(),
+) {
+  return getMarketplaceDealerWhere(viewer, now, await getSampleVisibility());
 }
 
 export function canViewMarketplaceDealerProfile(input: {
@@ -75,9 +89,10 @@ export function canViewMarketplaceDealerProfile(input: {
 }
 
 export function getPublicDealerWhere(
-  now = new Date()
+  now = new Date(),
+  sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
 ): Prisma.DealerProfileWhereInput {
-  return {
+  return applySampleDealerVisibility({
     subscriptions: {
       some: {
         OR: [
@@ -99,7 +114,7 @@ export function getPublicDealerWhere(
       disabledAt: null,
       deletedAt: null,
     },
-  };
+  }, sampleVisibility);
 }
 
 type DealerProfileClient = {
