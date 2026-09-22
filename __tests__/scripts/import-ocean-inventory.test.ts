@@ -495,7 +495,7 @@ describe("import ocean inventory pipeline report", () => {
 
 describe("import ocean inventory target", () => {
   it("refuses production and keeps the Ocean Motor Village import identity", () => {
-    expect(IMPORT_DEALER_EMAIL).toBe("mattduff36@gmail.com");
+    expect(IMPORT_DEALER_EMAIL).toBe("oceanmotorvillage@itrader.im.preview");
     expect(IMPORT_DEALER_NAME).toBe("Ocean Motor Village");
     expect(EXPECTED_PRO_CAP).toBe(100);
     expect(() =>

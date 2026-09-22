@@ -59,14 +59,14 @@ export function isFoundingEmail(email: string) {
   return foundingEmails().some((item) => item === value);
 }
 
-export function isProtectedGmailOwner(email: string) {
-  return /^mattduff36(\+.*)?@gmail\.com$/i.test(email.trim());
+export function isProtectedOceanOwnerEmail(email: string) {
+  return email.trim().toLowerCase() === OCEAN_OWNER_EMAIL;
 }
 
 export function assertFoundingEmailAllowed(email: string) {
   const value = email.trim().toLowerCase();
-  if (isProtectedGmailOwner(value) || value === OCEAN_OWNER_EMAIL) {
-    throw new Error("Refusing founding onboard: Ocean owner Gmail is not allowed.");
+  if (isProtectedOceanOwnerEmail(value)) {
+    throw new Error("Refusing founding onboard: Ocean owner email is not allowed.");
   }
   if (value.endsWith("@preview.internal")) {
     throw new Error("Refusing founding onboard: preview-system emails are not allowed.");

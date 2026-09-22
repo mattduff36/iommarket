@@ -8,7 +8,7 @@ import {
   FOUNDING_DEALERS,
   foundingEmails,
   isFoundingEmail,
-  isProtectedGmailOwner,
+  isProtectedOceanOwnerEmail,
 } from "../../scripts/onboard-founding-dealers/allowlist";
 import { planFoundingProfile } from "../../scripts/onboard-founding-dealers/accounts";
 import { planFoundingListings, assertFoundingListingProvenance } from "../../scripts/onboard-founding-dealers/apply";
@@ -190,10 +190,11 @@ describe("FDP-EMAIL-001 fake founding emails", () => {
       expect(() => assertFoundingEmailAllowed(email)).not.toThrow();
       expect(isFoundingEmail(email)).toBe(true);
       expect(isPreviewSystemEmail(email)).toBe(false);
-      expect(isProtectedGmailOwner(email)).toBe(false);
+      expect(isProtectedOceanOwnerEmail(email)).toBe(false);
     }
-    expect(() => assertFoundingEmailAllowed("mattduff36@gmail.com")).toThrow(/Gmail/);
-    expect(() => assertFoundingEmailAllowed("mattduff36+athol-garage@gmail.com")).toThrow(/Gmail/);
+    expect(() =>
+      assertFoundingEmailAllowed("oceanmotorvillage@itrader.im.preview"),
+    ).toThrow(/Ocean owner/);
     expect(() => assertFoundingEmailAllowed("preview+athol-garage@preview.internal")).toThrow(
       /preview-system/,
     );

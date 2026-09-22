@@ -11,7 +11,7 @@ export const KEEP_ACCOUNT_EMAILS = [
 
 export const DELETE_AUTH_EMAILS = [
   "davooomarsh@hotmail.com",
-  "mattduff36@gmail.com",
+  "oceanmotorvillage@itrader.im.preview",
 ] as const;
 
 export const EXPECTED_KEPT_DEALERS: readonly { name: string; ownerEmail: string }[] = [];

@@ -1,4 +1,4 @@
-export const OCEAN_OWNER_EMAIL = "mattduff36@gmail.com";
+export const OCEAN_OWNER_EMAIL = "oceanmotorvillage@itrader.im.preview";
 export const OCEAN_DEALER_NAME = "Ocean Motor Village";
 export const OCEAN_DEALER_KEY = "ocean-motor-village";
 export const PREVIEW_EMAIL_DOMAIN = "preview.internal";

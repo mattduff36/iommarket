@@ -26,7 +26,7 @@ const APPROVED_KEEP_EMAILS = [
 ] as const;
 const APPROVED_DELETE_EMAILS = [
   "davooomarsh@hotmail.com",
-  "mattduff36@gmail.com",
+  "oceanmotorvillage@itrader.im.preview",
 ] as const;
 const APPROVED_DEALER_NAMES = [] as const;
 
@@ -146,7 +146,7 @@ describe("WPE-HOST-001 preview wipe host allowlist", () => {
           })),
           {
             id: "user-ocean",
-            email: "mattduff36@gmail.com",
+            email: "oceanmotorvillage@itrader.im.preview",
             dealerName: "Ocean Motor Village",
           },
         ],
