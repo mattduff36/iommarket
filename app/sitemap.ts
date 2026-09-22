@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { getPublicDealerWhere } from "@/lib/dealers/access";
-import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { buildLaunchSitemap } from "@/lib/launch/public-metadata";
 import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import {
@@ -13,8 +13,7 @@ import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  await expireStaleLiveListings();
+async function loadLiveSitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = [
     "/",
     "/search",
@@ -73,4 +72,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: category.createdAt,
     })),
   ];
+}
+
+export default function sitemap(): Promise<MetadataRoute.Sitemap> {
+  return buildLaunchSitemap(process.env, loadLiveSitemap);
 }

@@ -31,6 +31,7 @@ import { reportHandledException } from "@/lib/monitoring";
 import { logAdminAction } from "@/lib/admin/audit";
 import { dispatchDealerReviewNotifications } from "@/lib/email/dealer-review-notifications";
 import { invalidateDealerReviewWorkflows } from "@/lib/reviews/dealer-response-lifecycle";
+import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { dealerReviewRateAllowed as reviewRateAllowed } from "@/lib/reviews/dealer-review-rate-limit";
 import { moderateDealerReviewAction } from "@/actions/admin/dealer-review-moderation";
 
@@ -106,15 +107,15 @@ export async function submitDealerReview(input: CreateDealerReviewInput) {
 
   const deviceId = currentUser ? null : await getOrCreateReviewDeviceId();
   const actor = currentUser ? `user:${currentUser.id}` : `device:${deviceId}`;
-  if (
-    !reviewRateAllowed({
+  const submitRateError = rateLimitActionError(
+    await reviewRateAllowed({
       action: "submit",
       actor,
       target: parsed.data.dealerId,
-    })
-  ) {
-    return { error: "Too many review updates. Please wait and try again." };
-  }
+    }),
+    "Too many review updates. Please wait and try again.",
+  );
+  if (submitRateError) return { error: submitRateError };
 
   const dealer = await db.dealerProfile.findFirst({
     where: {
@@ -292,15 +293,15 @@ export async function saveDealerReviewResponseDraft(
     return { error: parsed.error.flatten().fieldErrors };
   }
   const user = await requireAcceptedAuth();
-  if (
-    !reviewRateAllowed({
+  const draftRateError = rateLimitActionError(
+    await reviewRateAllowed({
       action: "draft",
       actor: `user:${user.id}`,
       target: parsed.data.reviewId,
-    })
-  ) {
-    return { error: "Too many response saves. Please wait and try again." };
-  }
+    }),
+    "Too many response saves. Please wait and try again.",
+  );
+  if (draftRateError) return { error: draftRateError };
 
   try {
     const result = await db.$transaction(async (tx) => {
@@ -398,15 +399,15 @@ export async function submitDealerReviewResponse(
     return { error: parsed.error.flatten().fieldErrors };
   }
   const user = await requireAcceptedAuth();
-  if (
-    !reviewRateAllowed({
+  const responseRateError = rateLimitActionError(
+    await reviewRateAllowed({
       action: "response-submit",
       actor: `user:${user.id}`,
       target: parsed.data.reviewId,
-    })
-  ) {
-    return { error: "Too many response submissions. Please wait and try again." };
-  }
+    }),
+    "Too many response submissions. Please wait and try again.",
+  );
+  if (responseRateError) return { error: responseRateError };
 
   try {
     const result = await db.$transaction(async (tx) => {
@@ -641,15 +642,15 @@ export async function openDealerReviewDispute(
     return { error: parsed.error.flatten().fieldErrors };
   }
   const user = await requireAcceptedAuth();
-  if (
-    !reviewRateAllowed({
+  const disputeRateError = rateLimitActionError(
+    await reviewRateAllowed({
       action: "dispute",
       actor: `user:${user.id}`,
       target: parsed.data.reviewId,
-    })
-  ) {
-    return { error: "Too many dispute requests. Please wait and try again." };
-  }
+    }),
+    "Too many dispute requests. Please wait and try again.",
+  );
+  if (disputeRateError) return { error: disputeRateError };
 
   try {
     const dispute = await db.$transaction(async (tx) => {

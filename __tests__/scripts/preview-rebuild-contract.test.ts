@@ -206,6 +206,7 @@ describe("PREVIEW-CONFIRM-001", () => {
 
     const result = await runPreviewRebuild({
       confirm: undefined,
+      write: () => {},
       hooks: {
         verifyBackups: () => ({
           preview: backup("preview", PREVIEW_PROJECT_REF, "p1"),

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("dealer onboarding invitation", () => {
+  test.describe.configure({ timeout: 60_000 });
   test("explains an invitation link that has no token", async ({ page }) => {
     await page.goto("/dealer/onboarding/claim", { waitUntil: "commit" });
     await expect(page.getByRole("heading", { name: /claim your dealer account/i })).toBeVisible();

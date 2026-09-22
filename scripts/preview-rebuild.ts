@@ -5,6 +5,7 @@
  * Default: verify backups, print the snapshot card, exit without writes.
  * Apply:   npx tsx scripts/preview-rebuild.ts --confirm="<token from card>"
  */
+import { databaseSslOptions } from "../lib/db/pool-options";
 import dotenv from "dotenv";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -86,7 +87,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   const pool = new pg.Pool({
     connectionString: cleanUrl(connectionString),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
   const admin = createClient(supabaseUrl, serviceRoleKey, {

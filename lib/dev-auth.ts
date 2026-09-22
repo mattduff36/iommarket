@@ -28,6 +28,19 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
+export function isSafePreviewRedirect(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.username === "" &&
+      parsed.password === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function decideDevAuth(
   password: unknown,
   env: DevAuthEnv,
@@ -44,7 +57,7 @@ export function decideDevAuth(
   const isPreviewPassword =
     previewConfigured && passwordsMatch(password, previewPass);
   const canRedirectPreview =
-    typeof previewUrl === "string" && isHttpUrl(previewUrl);
+    typeof previewUrl === "string" && isSafePreviewRedirect(previewUrl);
 
   if (isDev) {
     return { kind: "dev" };

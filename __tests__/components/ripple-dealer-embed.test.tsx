@@ -12,7 +12,7 @@ import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 
 vi.mock("next/script", () => ({
   default: ({ src }: { src: string }) => (
-    <script data-testid="ripple-embed-script" src={src} />
+    <div data-testid="ripple-embed-script" data-src={src} />
   ),
 }));
 

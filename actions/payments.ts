@@ -36,6 +36,7 @@ import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { persistPendingListingPayment } from "@/lib/payments/pending-listing-payment";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { rateLimitActionError } from "@/lib/rate-limit-result";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -112,15 +113,14 @@ export async function payForListing(input: PayForListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
   const { listingId, privateSellerTermsAccepted } = parsed.data;
-  const checkoutRate = checkRateLimit(
-    makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
-    { windowMs: 5 * 60_000, maxRequests: 5 }
+  const checkoutRateError = rateLimitActionError(
+    await checkRateLimit(
+      makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
+      { windowMs: 5 * 60_000, maxRequests: 5, policy: "checkout-listing" },
+    ),
+    "Too many checkout attempts. Please wait a few minutes and try again.",
   );
-  if (!checkoutRate.allowed) {
-    return {
-      error: "Too many checkout attempts. Please wait a few minutes and try again.",
-    };
-  }
+  if (checkoutRateError) return { error: checkoutRateError };
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -334,16 +334,14 @@ export async function createDealerSubscription(input: {
   acceptedDealerTerms: boolean;
 }) {
   const user = await requireAcceptedAuth();
-  const subscriptionRate = checkRateLimit(
-    makeRateLimitKey("checkout-dealer-subscription", user.id),
-    { windowMs: 10 * 60_000, maxRequests: 4 }
+  const subscriptionRateError = rateLimitActionError(
+    await checkRateLimit(
+      makeRateLimitKey("checkout-dealer-subscription", user.id),
+      { windowMs: 10 * 60_000, maxRequests: 4, policy: "checkout-dealer-subscription" },
+    ),
+    "Too many subscription checkout attempts. Please wait a few minutes and try again.",
   );
-  if (!subscriptionRate.allowed) {
-    return {
-      error:
-        "Too many subscription checkout attempts. Please wait a few minutes and try again.",
-    };
-  }
+  if (subscriptionRateError) return { error: subscriptionRateError };
 
   if (!user.dealerProfile) {
     return { error: "You must have a dealer profile to subscribe" };
@@ -410,15 +408,14 @@ export async function createDealerSubscription(input: {
 
 export async function upgradeFeatured(listingId: string) {
   const user = await requireAcceptedAuth();
-  const featuredRate = checkRateLimit(
-    makeRateLimitKey("checkout-featured-upgrade", `${user.id}:${listingId}`),
-    { windowMs: 5 * 60_000, maxRequests: 5 }
+  const featuredRateError = rateLimitActionError(
+    await checkRateLimit(
+      makeRateLimitKey("checkout-featured-upgrade", `${user.id}:${listingId}`),
+      { windowMs: 5 * 60_000, maxRequests: 5, policy: "checkout-featured-upgrade" },
+    ),
+    "Too many featured upgrade attempts. Please wait and try again.",
   );
-  if (!featuredRate.allowed) {
-    return {
-      error: "Too many featured upgrade attempts. Please wait and try again.",
-    };
-  }
+  if (featuredRateError) return { error: featuredRateError };
 
   const parsed = createCheckoutSchema.safeParse({ listingId });
   if (!parsed.success) {

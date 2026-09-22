@@ -1,3 +1,4 @@
+import { databaseSslOptions } from "../lib/db/pool-options";
 import { existsSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -38,7 +39,7 @@ function parseEnvFile(filePath: string) {
 function createPrisma(connectionString: string) {
   const pool = new pg.Pool({
     connectionString: cleanUrl(connectionString),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
   });
   return {
     prisma: new PrismaClient({ adapter: new PrismaPg(pool) }),

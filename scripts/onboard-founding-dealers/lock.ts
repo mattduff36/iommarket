@@ -1,3 +1,4 @@
+import { databaseSslOptions } from "../../lib/db/pool-options";
 import pg from "pg";
 import { FOUNDING_ADVISORY_LOCK } from "./safety";
 
@@ -19,7 +20,7 @@ export async function withFoundingAdvisoryLock<T>(
 ): Promise<T> {
   const client = new pg.Client({
     connectionString: cleanUrl(databaseUrl),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(databaseUrl),
   });
   await client.connect();
   await client.query("SELECT pg_advisory_lock($1)", [FOUNDING_ADVISORY_LOCK]);

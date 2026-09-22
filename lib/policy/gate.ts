@@ -3,6 +3,7 @@ import {
   AccountDisabledError,
   AuthenticationRequiredError,
   getCurrentUser,
+  InsufficientPermissionsError,
   requireAuth,
 } from "@/lib/auth";
 import {
@@ -34,6 +35,7 @@ export function acceptedAuthHttpStatus(error: unknown): 401 | 403 | 500 {
   if (error instanceof AuthenticationRequiredError) return 401;
   if (error instanceof AccountDisabledError) return 403;
   if (error instanceof OnboardingIncompleteError) return 403;
+  if (error instanceof InsufficientPermissionsError) return 403;
   if (error instanceof PolicyAcceptanceRequiredError) return 403;
   if (error instanceof PolicyAcceptanceVerificationError) return 500;
   return 500;

@@ -3,6 +3,10 @@ import { loadEnvConfig } from "@next/env";
 
 loadEnvConfig(process.cwd());
 
+if (!process.env.DEV_GATE_SECRET || process.env.DEV_GATE_SECRET.trim().length < 32) {
+  process.env.DEV_GATE_SECRET = "local-playwright-launch-gate-secret-32b";
+}
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:4000";
 
 export default defineConfig({
@@ -60,5 +64,9 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: true,
     timeout: 120_000,
+    env: {
+      DEV_GATE_SECRET: process.env.DEV_GATE_SECRET,
+      PRODUCTION_LAUNCH_ENABLED: process.env.PRODUCTION_LAUNCH_ENABLED ?? "0",
+    },
   },
 });

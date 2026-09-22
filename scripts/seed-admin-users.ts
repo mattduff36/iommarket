@@ -6,6 +6,7 @@
  *
  * Run: npm run seed:admin (loads .env.local then .env)
  */
+import { databaseSslOptions } from "../lib/db/pool-options";
 import dotenv from "dotenv";
 import { resolve } from "path";
 
@@ -51,7 +52,7 @@ async function main() {
 
   const pool = new pg.Pool({
     connectionString: cleanUrl(raw),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(raw),
   });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });

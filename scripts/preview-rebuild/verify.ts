@@ -1,6 +1,7 @@
 /**
  * Read-only post-rebuild verification. Does not mutate.
  */
+import { databaseSslOptions } from "../../lib/db/pool-options";
 import dotenv from "dotenv";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -30,7 +31,7 @@ async function main() {
   if (!supabaseUrl || !serviceRoleKey) throw new Error("Missing Supabase env.");
   const pool = new pg.Pool({
     connectionString: cleanUrl(connectionString),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
   const admin = createClient(supabaseUrl, serviceRoleKey, {

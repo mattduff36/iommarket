@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { captureException } from "@/lib/monitoring";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
@@ -43,9 +44,14 @@ export async function beginDealerOnboardingClaim(input: { token: string }) {
   const parsed = onboardingClaimSchema.safeParse(input);
   if (!parsed.success) return { error: "This invitation link is not valid." };
   const tokenHash = hashOnboardingToken(parsed.data.token);
-  if (!checkRateLimit(`dealer-onboarding-bootstrap:${tokenHash}`, CLAIM_RATE).allowed) {
-    return { error: "Too many attempts. Wait a few minutes and try again." };
-  }
+  const bootstrapRateError = rateLimitActionError(
+    await checkRateLimit(`dealer-onboarding-bootstrap:${tokenHash}`, {
+      ...CLAIM_RATE,
+      policy: "dealer-onboarding-bootstrap",
+    }),
+    "Too many attempts. Wait a few minutes and try again.",
+  );
+  if (bootstrapRateError) return { error: bootstrapRateError };
 
   try {
     const invite = await db.dealerOnboardingInvite.findUnique({ where: { tokenHash } });
@@ -109,9 +115,14 @@ export async function completeDealerOnboardingClaim(input: {
     return { error: "Open the invitation email and continue securely again." };
   }
   const tokenHash = hashOnboardingToken(cookieToken);
-  if (!checkRateLimit(`dealer-onboarding-submit:${tokenHash}`, CLAIM_RATE).allowed) {
-    return { error: "Too many attempts. Wait a few minutes and try again." };
-  }
+  const submitRateError = rateLimitActionError(
+    await checkRateLimit(`dealer-onboarding-submit:${tokenHash}`, {
+      ...CLAIM_RATE,
+      policy: "dealer-onboarding-submit",
+    }),
+    "Too many attempts. Wait a few minutes and try again.",
+  );
+  if (submitRateError) return { error: submitRateError };
 
   const invite = await db.dealerOnboardingInvite.findUnique({ where: { tokenHash } });
   if (!invite || !onboardingTokenMatches(cookieToken, invite.tokenHash)) {

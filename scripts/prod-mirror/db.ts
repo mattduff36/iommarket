@@ -1,3 +1,4 @@
+import { databaseSslOptions } from "../../lib/db/pool-options";
 import pg from "pg";
 import type { WaitlistSnapshotRow } from "./waitlist";
 
@@ -16,7 +17,7 @@ export function cleanUrl(raw: string) {
 export function createReadPool(connectionString: string) {
   return new pg.Pool({
     connectionString: cleanUrl(connectionString),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
     max: 2,
   });
 }
@@ -24,7 +25,7 @@ export function createReadPool(connectionString: string) {
 export function createWritePool(connectionString: string) {
   return new pg.Pool({
     connectionString: cleanUrl(connectionString),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
     max: 2,
   });
 }

@@ -7,6 +7,7 @@
  * Accept model mismatch: --accept-model-mismatch path.json
  * Rollback: npx tsx scripts/enrich-ocean-listings.ts --rollback path/to/snapshot.json
  */
+import { databaseSslOptions } from "../lib/db/pool-options";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
@@ -83,7 +84,7 @@ function createPrisma() {
   });
   const pool = new pg.Pool({
     connectionString: cleanUrl(connectionString ?? ""),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString ?? ""),
   });
   return {
     prisma: new PrismaClient({ adapter: new PrismaPg(pool) }),

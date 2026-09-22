@@ -20,7 +20,8 @@ import {
   getPaymentProviderName,
   getPaymentProviderPortalUrl,
 } from "@/lib/payments/provider";
-import { isNonProductionRuntime } from "@/lib/payments/ripple-config";
+import { notFound } from "next/navigation";
+import { isNonProductionRuntime, isRippleLiveCheckoutEnabled } from "@/lib/payments/ripple-config";
 
 export const metadata: Metadata = {
   title: "Ripple Payments Demo",
@@ -59,6 +60,7 @@ function getReturnBanner(
 }
 
 export default async function DemoPaymentsPage({ searchParams }: Props) {
+  if (process.env.VERCEL_ENV === "production") notFound();
   const sp = await searchParams;
   const pricing = await getMarketplacePricing();
   const listingFee = pricing.privateListingPence;
@@ -67,7 +69,7 @@ export default async function DemoPaymentsPage({ searchParams }: Props) {
   const portalUrl = getPaymentProviderPortalUrl();
   const capabilities = getPaymentProviderCapabilities();
 
-  const checkoutEnabled = isNonProductionRuntime();
+  const checkoutEnabled = isRippleLiveCheckoutEnabled() || isNonProductionRuntime();
   const [listingCheckout, featuredCheckout, starterCheckout, proCheckout] =
     checkoutEnabled
       ? await Promise.all([

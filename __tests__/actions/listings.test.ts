@@ -203,7 +203,7 @@ describe("submitListingForReview", () => {
     );
     expect(checkRateLimitMock).toHaveBeenCalledWith(
       "listing-lifecycle-user:user_123",
-      { windowMs: 600_000, maxRequests: 12 },
+      { windowMs: 600_000, maxRequests: 12, policy: "listing-lifecycle-user" },
     );
     expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
       "listing-lifecycle",
@@ -211,7 +211,7 @@ describe("submitListingForReview", () => {
     );
     expect(checkRateLimitMock).toHaveBeenCalledWith(
       "listing-lifecycle:user_123:listing_123",
-      { windowMs: 600_000, maxRequests: 6 },
+      { windowMs: 600_000, maxRequests: 6, policy: "listing-lifecycle" },
     );
     expect(mockDb.listing.findUnique).not.toHaveBeenCalled();
     expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
@@ -1113,7 +1113,7 @@ describe("withdrawListingSubmission", () => {
     );
     expect(checkRateLimitMock).toHaveBeenCalledWith(
       "listing-lifecycle-user:user_123",
-      { windowMs: 600_000, maxRequests: 12 },
+      { windowMs: 600_000, maxRequests: 12, policy: "listing-lifecycle-user" },
     );
     expect(makeRateLimitKeyMock).toHaveBeenCalledWith(
       "listing-lifecycle",
@@ -1121,7 +1121,7 @@ describe("withdrawListingSubmission", () => {
     );
     expect(checkRateLimitMock).toHaveBeenCalledWith(
       `listing-lifecycle:user_123:${listingId}`,
-      { windowMs: 600_000, maxRequests: 6 },
+      { windowMs: 600_000, maxRequests: 6, policy: "listing-lifecycle" },
     );
     expect(mockDb.listing.findUnique).not.toHaveBeenCalled();
     expect(transitionListingStatusMock).not.toHaveBeenCalled();

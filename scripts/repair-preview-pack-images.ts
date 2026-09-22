@@ -7,6 +7,7 @@
  *   --dealer=rex-motor-company --snapshot=<runId> --plan-fingerprint=<sha> --plan-count=<n> \
  *   --apply --confirm="yes repair preview pack images <preview>"
  */
+import { databaseSslOptions } from "../lib/db/pool-options";
 import dotenv from "dotenv";
 import { resolve } from "path";
 import { PrismaClient } from "@prisma/client";
@@ -44,7 +45,7 @@ async function main(argv = process.argv.slice(2)) {
   const databaseUrl = loadPreviewEnv();
   const pool = new pg.Pool({
     connectionString: cleanUrl(databaseUrl),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(databaseUrl),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
   try {

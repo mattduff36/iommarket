@@ -1,3 +1,4 @@
+import { databaseSslOptions } from "../../lib/db/pool-options";
 import pg from "pg";
 import { requireNonPoolingConnectionString, sanitiseConnectionString } from "./env";
 import type { PgClientLike } from "./types";
@@ -15,7 +16,7 @@ export function createFixerrorsClient(
     database: url.pathname.replace(/^\/+/u, "") || "postgres",
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
-    ssl: { rejectUnauthorized: false },
+    ssl: databaseSslOptions(connectionString),
   });
 }
 
