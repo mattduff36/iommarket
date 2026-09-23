@@ -12,6 +12,7 @@ import {
   isOnboardingSessionStale,
   readOnboardingSessionInvalidBefore,
 } from "@/lib/dealers/onboarding/session-cutoff";
+import { shouldBypassSupabaseSessionRefresh } from "@/lib/supabase/proxy-routing";
 
 function isPublicPath(pathname: string): boolean {
   if (
@@ -110,6 +111,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next();
     }
     return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (shouldBypassSupabaseSessionRefresh(pathname)) {
+    return NextResponse.next();
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
