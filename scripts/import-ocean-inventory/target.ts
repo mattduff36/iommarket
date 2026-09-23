@@ -1,4 +1,4 @@
-export const IMPORT_DEALER_EMAIL = "mattduff36@gmail.com";
+export const IMPORT_DEALER_EMAIL = "oceanmotorvillage@itrader.im.preview";
 export const IMPORT_DEALER_NAME = "Ocean Motor Village";
 export const IMPORT_REGION_SLUG = "iom-east";
 export const EXPECTED_PRO_CAP = 100;

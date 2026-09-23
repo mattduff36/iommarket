@@ -1,3 +1,6 @@
+export const ONBOARDING_PRO_ENDS_AT = new Date("2027-01-01T00:00:00.000Z");
+export const ONBOARDING_PRO_END_LABEL = "23:59 on 31 December 2026 (Isle of Man time)";
+
 export interface PromotionGrantSnapshot {
   source: "PAYMENT" | "ADMIN_GRANT";
   status: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "INCOMPLETE";
@@ -7,11 +10,10 @@ export interface PromotionGrantSnapshot {
   currentPeriodEnd: Date | null;
 }
 
-export interface PlannedPromotionGrant {
-  startsAt: Date;
-  endsAt: Date;
-  preservedLongerGrant: boolean;
-}
+export type OnboardingGrantPlan =
+  | { kind: "create"; startsAt: Date; endsAt: Date }
+  | { kind: "preserve"; endsAt: Date }
+  | { blocked: "paid-subscription" | "promotion-ended" };
 
 export function hasActivePaidSubscription(
   subscriptions: PromotionGrantSnapshot[],
@@ -26,39 +28,39 @@ export function hasActivePaidSubscription(
   );
 }
 
+function coversPromotionEnd(subscription: PromotionGrantSnapshot, now: Date) {
+  return (
+    subscription.source === "ADMIN_GRANT" &&
+    subscription.status === "ACTIVE" &&
+    subscription.revokedAt === null &&
+    subscription.grantStartsAt !== null &&
+    subscription.grantStartsAt.getTime() <= now.getTime() &&
+    subscription.grantEndsAt !== null &&
+    subscription.grantEndsAt.getTime() >= ONBOARDING_PRO_ENDS_AT.getTime()
+  );
+}
+
 export function planPromotionGrant(input: {
   subscriptions: PromotionGrantSnapshot[];
-  campaignStartsAt: Date;
-  campaignEndsAt: Date;
   now: Date;
-}): PlannedPromotionGrant | { blocked: "paid-subscription" } {
+}): OnboardingGrantPlan {
+  if (input.now.getTime() >= ONBOARDING_PRO_ENDS_AT.getTime()) {
+    return { blocked: "promotion-ended" };
+  }
   if (hasActivePaidSubscription(input.subscriptions, input.now)) {
     return { blocked: "paid-subscription" };
   }
 
-  const activeGrant = input.subscriptions.find(
-    (subscription) =>
-      subscription.source === "ADMIN_GRANT" &&
-      subscription.status === "ACTIVE" &&
-      subscription.revokedAt === null &&
-      subscription.grantStartsAt !== null &&
-      subscription.grantStartsAt.getTime() <= input.now.getTime() &&
-      subscription.grantEndsAt !== null &&
-      subscription.grantEndsAt.getTime() > input.now.getTime(),
+  const coveringGrant = input.subscriptions.find((subscription) =>
+    coversPromotionEnd(subscription, input.now),
   );
-  if (!activeGrant?.grantEndsAt) {
-    return {
-      startsAt: input.campaignStartsAt,
-      endsAt: input.campaignEndsAt,
-      preservedLongerGrant: false,
-    };
+  if (coveringGrant?.grantEndsAt) {
+    return { kind: "preserve", endsAt: coveringGrant.grantEndsAt };
   }
 
-  const preservedLongerGrant =
-    activeGrant.grantEndsAt.getTime() > input.campaignEndsAt.getTime();
   return {
-    startsAt: activeGrant.grantStartsAt ?? input.campaignStartsAt,
-    endsAt: preservedLongerGrant ? activeGrant.grantEndsAt : input.campaignEndsAt,
-    preservedLongerGrant,
+    kind: "create",
+    startsAt: input.now,
+    endsAt: ONBOARDING_PRO_ENDS_AT,
   };
 }

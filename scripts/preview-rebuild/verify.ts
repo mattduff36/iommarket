@@ -77,7 +77,7 @@ async function main() {
             /morris|ocean/i.test(dealer.name),
           ),
           blockedUsers: users.filter((user) =>
-            /davooomarsh|mattduff36/i.test(user.email),
+            /davooomarsh|oceanmotorvillage/i.test(user.email),
           ),
         },
         null,

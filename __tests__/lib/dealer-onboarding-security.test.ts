@@ -6,7 +6,16 @@ import {
   onboardingTokenMatches,
   sanitizeOnboardingError,
 } from "@/lib/dealers/onboarding/tokens";
-import { assertSupabaseActionLink, buildOnboardingRedirectUrl } from "@/lib/dealers/onboarding/recovery-link";
+import {
+  assertRecoveryRedirectTarget,
+  assertSupabaseActionLink,
+  buildOnboardingClaimUrl,
+  buildOnboardingRedirectUrl,
+} from "@/lib/dealers/onboarding/recovery-link";
+import {
+  OnboardingOriginError,
+  resolveOnboardingOrigin,
+} from "@/lib/dealers/onboarding/deployment-origin";
 import { displayOnboardingStatus } from "@/lib/dealers/onboarding/statuses";
 
 describe("onboarding tokens", () => {
@@ -39,6 +48,66 @@ describe("recovery links", () => {
     expect(buildOnboardingRedirectUrl("https://itrader.im")).toBe(
       "https://itrader.im/auth/callback?next=%2Fdealer%2Fonboarding%2Faccept",
     );
+  });
+
+  it("rejects a recovery link that falls back to a different callback", () => {
+    const expected = buildOnboardingRedirectUrl("https://preview.example.vercel.app");
+    const accepted =
+      "https://project.supabase.co/auth/v1/verify?token=secret&type=recovery&redirect_to=" +
+      encodeURIComponent(expected);
+    expect(() => assertRecoveryRedirectTarget(accepted, expected)).not.toThrow();
+    expect(() =>
+      assertRecoveryRedirectTarget(
+        "https://project.supabase.co/auth/v1/verify?token=secret&redirect_to=" +
+          encodeURIComponent("https://itrader.im/auth/callback?next=%2Fdealer%2Fonboarding%2Faccept"),
+        expected,
+      ),
+    ).toThrow("Recovery link was rejected.");
+    expect(() =>
+      assertRecoveryRedirectTarget("https://project.supabase.co/auth/v1/verify?token=secret", expected),
+    ).toThrow("Recovery link was rejected.");
+  });
+});
+
+describe("onboarding deployment origin", () => {
+  const previewEnv = {
+    VERCEL_ENV: "preview",
+    VERCEL_URL: "iommarket-git-preview.vercel.app",
+    NEXT_PUBLIC_APP_URL: "https://itrader.im",
+    VERCEL_PROJECT_PRODUCTION_URL: "itrader.im",
+    NODE_ENV: "production",
+  };
+
+  it("uses the preview deployment instead of the canonical production origin", () => {
+    const origin = resolveOnboardingOrigin(previewEnv).origin;
+    const token = "claim-token-claim-token-claim-token-xyz";
+    expect(origin).toBe("https://iommarket-git-preview.vercel.app");
+    expect(new URL(buildOnboardingClaimUrl(origin, token)).origin).toBe(origin);
+    expect(new URL(buildOnboardingRedirectUrl(origin)).origin).toBe(origin);
+  });
+
+  it("keeps production on the canonical custom domain", () => {
+    expect(
+      resolveOnboardingOrigin({
+        ...previewEnv,
+        VERCEL_ENV: "production",
+      }).origin,
+    ).toBe("https://itrader.im");
+  });
+
+  it("rejects a missing or malformed preview origin", () => {
+    expect(() => resolveOnboardingOrigin({ ...previewEnv, VERCEL_URL: "" })).toThrow(
+      OnboardingOriginError,
+    );
+    expect(() =>
+      resolveOnboardingOrigin({ ...previewEnv, VERCEL_URL: "https://user:pass@preview.example" }),
+    ).toThrow(OnboardingOriginError);
+    expect(() =>
+      resolveOnboardingOrigin({ ...previewEnv, VERCEL_URL: "https://preview.example/dealer" }),
+    ).toThrow(OnboardingOriginError);
+    expect(() =>
+      resolveOnboardingOrigin({ ...previewEnv, VERCEL_URL: "http://preview.example" }),
+    ).toThrow(OnboardingOriginError);
   });
 });
 

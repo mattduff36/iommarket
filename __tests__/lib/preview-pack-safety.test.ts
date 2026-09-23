@@ -25,20 +25,20 @@ describe("preview pack safety", () => {
   });
 
   it("protects the Ocean owner email and refuses attaching to the live Ocean dealer", () => {
-    expect(isProtectedPreviewOwnerEmail("mattduff36@gmail.com")).toBe(true);
+    expect(isProtectedPreviewOwnerEmail("oceanmotorvillage@itrader.im.preview")).toBe(true);
     expect(() =>
       assertPreviewDealerAllowed({
         dealerKey: "ocean-motor-village",
-        ownerEmail: "mattduff36@gmail.com",
+        ownerEmail: "oceanmotorvillage@itrader.im.preview",
       }),
     ).toThrow(/Ocean owner/);
     expect(() =>
       assertPreviewDealerAllowed({
         dealerKey: "athol-garage",
-        ownerEmail: "mattduff36@gmail.com",
+        ownerEmail: "oceanmotorvillage@itrader.im.preview",
       }),
     ).toThrow(/Ocean owner/);
-    expect(previewSystemEmail("athol-garage")).not.toContain("mattduff36");
+    expect(previewSystemEmail("athol-garage")).not.toContain("oceanmotorvillage");
     expect(previewSystemAuthUserId("athol-garage")).toBe("preview-system:athol-garage");
     expect(isPreviewSystemEmail("preview+pextray@preview.internal")).toBe(true);
     expect(isPreviewSystemEmail("sales@manxmotors.im")).toBe(false);

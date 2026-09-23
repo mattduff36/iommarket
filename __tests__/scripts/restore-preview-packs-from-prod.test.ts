@@ -117,7 +117,7 @@ function sourceFixture() {
         sourceRunId: "run-1",
         enabled: true,
         website: "https://ocean.example",
-        ownerEmail: "mattduff36@gmail.com",
+        ownerEmail: "oceanmotorvillage@itrader.im.preview",
         ownerAuthUserId: "auth-ocean",
         listings: [
           {

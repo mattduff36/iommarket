@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readOnboardingClaimCookie } from "@/lib/dealers/onboarding/claim-cookie";
-import { formatIsleOfManDateTime } from "@/lib/dealers/onboarding/campaign-window";
+import { ONBOARDING_PRO_END_LABEL } from "@/lib/dealers/onboarding/grant-plan";
 import { hashOnboardingToken, onboardingTokenMatches } from "@/lib/dealers/onboarding/tokens";
 import { OnboardingAcceptForm } from "./onboarding-accept-form";
 
@@ -57,8 +57,7 @@ export default async function DealerOnboardingAcceptPage() {
     <div className="mx-auto max-w-xl px-4 py-12">
       <h1 className="text-2xl font-bold text-text-primary">Activate {invite.dealer.name}</h1>
       <p className="mt-3 text-sm text-text-secondary">
-        Complimentary Dealer Pro runs from {formatIsleOfManDateTime(invite.campaignStartsAt)} until{" "}
-        {formatIsleOfManDateTime(invite.campaignEndsAt)}. Your existing dealer profile and listings stay on this account.
+        Complimentary Dealer Pro starts when you accept and ends at {ONBOARDING_PRO_END_LABEL}. Your existing dealer profile and listings stay on this account.
       </p>
       <div className="mt-6">
         <OnboardingAcceptForm />

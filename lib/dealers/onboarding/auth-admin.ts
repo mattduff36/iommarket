@@ -1,7 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { assertSupabaseActionLink } from "@/lib/dealers/onboarding/recovery-link";
+import {
+  assertRecoveryRedirectTarget,
+  assertSupabaseActionLink,
+} from "@/lib/dealers/onboarding/recovery-link";
 import { ONBOARDING_SESSION_INVALID_BEFORE } from "@/lib/dealers/onboarding/session-cutoff";
 
 const MAX_AUTH_PAGES = 20;
@@ -10,9 +13,12 @@ const AUTH_PAGE_SIZE = 200;
 export interface AuthUserMatch {
   id: string;
   email: string | null;
+  appMetadata: Record<string, unknown>;
 }
 
-export async function findAuthUserByEmail(email: string): Promise<AuthUserMatch | null> {
+export async function findAuthUserByEmail(
+  email: string,
+): Promise<AuthUserMatch | null> {
   const admin = createSupabaseAdminClient();
   const needle = email.trim().toLowerCase();
   for (let page = 1; page <= MAX_AUTH_PAGES; page += 1) {
@@ -24,8 +30,16 @@ export async function findAuthUserByEmail(email: string): Promise<AuthUserMatch 
       throw new Error("Unable to confirm that email is available.");
     }
     const users = data.users ?? [];
-    const match = users.find((user) => (user.email ?? "").trim().toLowerCase() === needle);
-    if (match) return { id: match.id, email: match.email ?? null };
+    const match = users.find(
+      (user) => (user.email ?? "").trim().toLowerCase() === needle,
+    );
+    if (match) {
+      return {
+        id: match.id,
+        email: match.email ?? null,
+        appMetadata: match.app_metadata ?? {},
+      };
+    }
     if (users.length < AUTH_PAGE_SIZE) return null;
   }
   throw new Error("Unable to confirm that email is available.");
@@ -46,18 +60,29 @@ export async function generateDealerRecoveryLink(input: {
   if (error || !data.properties?.action_link || !data.user?.id) {
     throw new Error("Unable to start secure account claim.");
   }
+  const actionLink = assertSupabaseActionLink(
+    data.properties.action_link,
+    supabaseUrl,
+  );
+  assertRecoveryRedirectTarget(actionLink, input.redirectTo);
   return {
-    actionLink: assertSupabaseActionLink(data.properties.action_link, supabaseUrl),
+    actionLink,
     authUserId: data.user.id,
   };
 }
 
-export async function updateAuthUserEmail(input: { authUserId: string; email: string }) {
+export async function updateAuthUserEmail(input: {
+  authUserId: string;
+  email: string;
+}) {
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.auth.admin.updateUserById(input.authUserId, {
-    email: input.email,
-    email_confirm: true,
-  });
+  const { data, error } = await admin.auth.admin.updateUserById(
+    input.authUserId,
+    {
+      email: input.email,
+      email_confirm: true,
+    },
+  );
   if (error || !data.user) {
     throw new Error(error?.message ?? "Unable to update the account email.");
   }
@@ -88,9 +113,15 @@ export async function invalidateDealerAuthSessions(authUserId: string) {
   });
   if (error) throw new Error("Unable to revoke the dealer session.");
 
-  await deleteAuthRows(Prisma.sql`DELETE FROM auth.sessions WHERE user_id = CAST(${authUserId} AS uuid)`);
-  await deleteAuthRows(Prisma.sql`DELETE FROM auth.refresh_tokens WHERE user_id = ${authUserId}`);
-  await deleteAuthRows(Prisma.sql`DELETE FROM auth.one_time_tokens WHERE user_id = CAST(${authUserId} AS uuid)`);
+  await deleteAuthRows(
+    Prisma.sql`DELETE FROM auth.sessions WHERE user_id = CAST(${authUserId} AS uuid)`,
+  );
+  await deleteAuthRows(
+    Prisma.sql`DELETE FROM auth.refresh_tokens WHERE user_id = ${authUserId}`,
+  );
+  await deleteAuthRows(
+    Prisma.sql`DELETE FROM auth.one_time_tokens WHERE user_id = CAST(${authUserId} AS uuid)`,
+  );
 }
 
 async function deleteAuthRows(query: Prisma.Sql) {
@@ -103,8 +134,14 @@ async function deleteAuthRows(query: Prisma.Sql) {
 }
 
 function isMissingAuthRelation(error: unknown) {
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010") {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2010"
+  ) {
     return String(error.meta?.code) === "42P01";
   }
-  return error instanceof Error && error.message.toLowerCase().includes("does not exist");
+  return (
+    error instanceof Error &&
+    error.message.toLowerCase().includes("does not exist")
+  );
 }

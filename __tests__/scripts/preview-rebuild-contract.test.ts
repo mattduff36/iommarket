@@ -101,7 +101,7 @@ function liveState() {
       "admin@mpdee.co.uk",
       "d.p.marshall@hotmail.co.uk",
       "davooomarsh@hotmail.com",
-      "mattduff36@gmail.com",
+      "oceanmotorvillage@itrader.im.preview",
     ],
     listingCount: 408,
     listingByStatus: { LIVE: 41, ADMIN_PREVIEW: 367 },
@@ -173,7 +173,10 @@ describe("PREVIEW-CONFIRM-001", () => {
     const calls: string[] = [];
     const snapshot = buildRebuildSnapshot({
       ...liveState(),
-      deleteAuthEmails: ["davooomarsh@hotmail.com", "mattduff36@gmail.com"],
+      deleteAuthEmails: [
+        "davooomarsh@hotmail.com",
+        "oceanmotorvillage@itrader.im.preview",
+      ],
       backups: {
         preview: backup("preview", PREVIEW_PROJECT_REF, "p1"),
         production: backup("production", PRODUCTION_PROJECT_REF, "prod1"),
@@ -193,7 +196,10 @@ describe("PREVIEW-CONFIRM-001", () => {
     const stale = buildRebuildSnapshot({
       ...liveState(),
       listingCount: 1,
-      deleteAuthEmails: ["davooomarsh@hotmail.com", "mattduff36@gmail.com"],
+      deleteAuthEmails: [
+        "davooomarsh@hotmail.com",
+        "oceanmotorvillage@itrader.im.preview",
+      ],
       backups: {
         preview: backup("preview", PREVIEW_PROJECT_REF, "p1"),
         production: backup("production", PRODUCTION_PROJECT_REF, "prod1"),
@@ -237,9 +243,12 @@ describe("PREVIEW-AUTH-001", () => {
       plannedAuthDeletions([
         ...KEEP_ACCOUNT_EMAILS,
         "davooomarsh@hotmail.com",
-        "mattduff36@gmail.com",
+        "oceanmotorvillage@itrader.im.preview",
       ]),
-    ).toEqual(["davooomarsh@hotmail.com", "mattduff36@gmail.com"]);
+    ).toEqual([
+      "davooomarsh@hotmail.com",
+      "oceanmotorvillage@itrader.im.preview",
+    ]);
     expect(() =>
       assertApprovedAuthDeletion({
         snapshotDeleteEmails: ["davooomarsh@hotmail.com"],
@@ -256,13 +265,13 @@ describe("PREVIEW-AUTH-001", () => {
       resolveAuthUsersToDelete(
         [
           { id: "1", email: "davooomarsh@hotmail.com" },
-          { id: "2", email: "mattduff36@gmail.com" },
+          { id: "2", email: "oceanmotorvillage@itrader.im.preview" },
         ],
-        ["davooomarsh@hotmail.com", "mattduff36@gmail.com"],
+        ["davooomarsh@hotmail.com", "oceanmotorvillage@itrader.im.preview"],
       ),
     ).toEqual([
       { id: "1", email: "davooomarsh@hotmail.com" },
-      { id: "2", email: "mattduff36@gmail.com" },
+      { id: "2", email: "oceanmotorvillage@itrader.im.preview" },
     ]);
     expect(
       plannedAuthDeletions([...KEEP_ACCOUNT_EMAILS]),

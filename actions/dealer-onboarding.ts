@@ -7,7 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { captureException } from "@/lib/monitoring";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
+import { resolveOnboardingOrigin } from "@/lib/dealers/onboarding/deployment-origin";
 import {
   commitOnboardingClaim,
   markOnboardingCompleted,
@@ -250,7 +250,7 @@ async function generateRecoveryForInvite(invite: {
     try {
       const recovery = await generateDealerRecoveryLink({
         email,
-        redirectTo: buildOnboardingRedirectUrl(getCanonicalBaseUrl().origin),
+        redirectTo: buildOnboardingRedirectUrl(resolveOnboardingOrigin().origin),
       });
       if (recovery.authUserId === invite.targetAuthUserId) return recovery;
     } catch (error) {
