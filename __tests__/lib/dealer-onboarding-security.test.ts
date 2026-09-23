@@ -10,6 +10,7 @@ import {
   assertRecoveryRedirectTarget,
   assertSupabaseActionLink,
   buildOnboardingClaimUrl,
+  buildOnboardingRecoveryVerificationUrl,
   buildOnboardingRedirectUrl,
 } from "@/lib/dealers/onboarding/recovery-link";
 import {
@@ -66,6 +67,26 @@ describe("recovery links", () => {
     expect(() =>
       assertRecoveryRedirectTarget("https://project.supabase.co/auth/v1/verify?token=secret", expected),
     ).toThrow("Recovery link was rejected.");
+  });
+
+  it("builds a server-readable one-time recovery callback", () => {
+    const callback = buildOnboardingRecoveryVerificationUrl(
+      buildOnboardingRedirectUrl("https://itrader.im"),
+      "hashed-recovery-token-that-is-long-enough",
+    );
+    const parsed = new URL(callback);
+    expect(parsed.origin).toBe("https://itrader.im");
+    expect(parsed.pathname).toBe("/auth/callback");
+    expect(parsed.searchParams.get("token_hash")).toBe(
+      "hashed-recovery-token-that-is-long-enough",
+    );
+    expect(parsed.searchParams.get("type")).toBe("recovery");
+    expect(parsed.searchParams.get("next")).toBe(
+      "/dealer/onboarding/accept",
+    );
+    expect(parsed.hash).toBe("");
+    expect(callback).not.toContain("access_token");
+    expect(callback).not.toContain("refresh_token");
   });
 });
 

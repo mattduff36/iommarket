@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   assertRecoveryRedirectTarget,
   assertSupabaseActionLink,
+  buildOnboardingRecoveryVerificationUrl,
 } from "@/lib/dealers/onboarding/recovery-link";
 import { ONBOARDING_SESSION_INVALID_BEFORE } from "@/lib/dealers/onboarding/session-cutoff";
 
@@ -57,7 +58,13 @@ export async function generateDealerRecoveryLink(input: {
     email: input.email,
     options: { redirectTo: input.redirectTo },
   });
-  if (error || !data.properties?.action_link || !data.user?.id) {
+  if (
+    error ||
+    !data.properties?.action_link ||
+    !data.properties.hashed_token ||
+    data.properties.verification_type !== "recovery" ||
+    !data.user?.id
+  ) {
     throw new Error("Unable to start secure account claim.");
   }
   const actionLink = assertSupabaseActionLink(
@@ -66,7 +73,10 @@ export async function generateDealerRecoveryLink(input: {
   );
   assertRecoveryRedirectTarget(actionLink, input.redirectTo);
   return {
-    actionLink,
+    actionLink: buildOnboardingRecoveryVerificationUrl(
+      input.redirectTo,
+      data.properties.hashed_token,
+    ),
     authUserId: data.user.id,
   };
 }

@@ -1,5 +1,8 @@
 import type { Prisma } from "@prisma/client";
-import { foundingEmailsForKeys } from "@/lib/dealers/onboarding/founding-allowlist";
+import {
+  foundingEmails,
+  foundingEmailsForKeys,
+} from "@/lib/dealers/onboarding/founding-allowlist";
 import { onboardingTestEmailsForEnvironment } from "@/lib/dealers/onboarding/test-accounts";
 import {
   isPlaceholderAuthUserId,
@@ -7,6 +10,7 @@ import {
 } from "@/lib/listings/sample-visibility";
 import {
   isPreviewSystemAuthUserId,
+  OCEAN_OWNER_EMAIL,
   PREVIEW_AUTH_USER_ID_PREFIX,
 } from "@/lib/preview-packs/safety";
 
@@ -86,6 +90,13 @@ function eligibleEmails(
   if (environment === "preview") {
     return [
       ...foundingEmailsForKeys(enabledPackKeys),
+      ...onboardingTestEmailsForEnvironment(environment, enabledPackKeys),
+    ];
+  }
+  if (environment === "production") {
+    return [
+      ...foundingEmails(),
+      OCEAN_OWNER_EMAIL,
       ...onboardingTestEmailsForEnvironment(environment, enabledPackKeys),
     ];
   }

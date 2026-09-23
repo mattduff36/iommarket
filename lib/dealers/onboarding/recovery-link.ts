@@ -25,6 +25,35 @@ export function buildOnboardingRedirectUrl(origin: string) {
   return redirect.toString();
 }
 
+export function buildOnboardingRecoveryVerificationUrl(
+  redirectTo: string,
+  tokenHash: string,
+) {
+  let callback: URL;
+  try {
+    callback = new URL(redirectTo);
+  } catch {
+    throw new Error("Recovery link was rejected.");
+  }
+  if (
+    callback.pathname !== "/auth/callback" ||
+    callback.searchParams.get("next") !== "/dealer/onboarding/accept" ||
+    callback.username ||
+    callback.password ||
+    callback.hash ||
+    tokenHash.length < 32 ||
+    tokenHash.length > 2048 ||
+    /[\u0000-\u001f\u007f]/.test(tokenHash)
+  ) {
+    throw new Error("Recovery link was rejected.");
+  }
+  const verification = new URL(callback.pathname, callback.origin);
+  verification.searchParams.set("token_hash", tokenHash);
+  verification.searchParams.set("type", "recovery");
+  verification.searchParams.set("next", "/dealer/onboarding/accept");
+  return verification.toString();
+}
+
 export function buildOnboardingClaimUrl(origin: string, token: string) {
   const claim = new URL("/dealer/onboarding/claim", origin);
   claim.searchParams.set("token", token);

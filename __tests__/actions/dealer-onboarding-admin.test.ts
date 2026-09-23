@@ -241,6 +241,21 @@ describe("sendDealerOnboardingInvite", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
+  it("keeps real founding dealers eligible in production without Preview Packs", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    mockDb.dealerPreviewPack.findMany.mockResolvedValue([]);
+    sendMock.mockResolvedValue({ id: "message-1" });
+
+    await expect(
+      sendDealerOnboardingInvite({
+        dealerId: dealer.id,
+        recipientEmail: "owner@athol.im",
+      }),
+    ).resolves.toEqual({
+      data: { inviteId: "clinvitexxxxxxxxxxxxxxxxx", status: "SENT" },
+    });
+  });
+
   it("requires immutable Auth provenance for a generic Preview test dealer", async () => {
     const previewDealer = {
       ...dealer,

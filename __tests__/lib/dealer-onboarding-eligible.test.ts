@@ -68,20 +68,39 @@ describe("dealer onboarding eligibility", () => {
     ).toContain("previewdealer2@itrader.im.preview");
   });
 
-  it("allows only the dedicated production test dealer in production", () => {
+  it("allows the five real dealers and dedicated test dealer in production", () => {
     const productionDealer = dealer({
       user: {
         ...dealer().user,
         email: "productiondealer@itrader.im.preview",
       },
     });
+    const oceanDealer = dealer({
+      user: {
+        ...dealer().user,
+        email: "oceanmotorvillage@itrader.im.preview",
+      },
+    });
+    const unknownDealer = dealer({
+      user: {
+        ...dealer().user,
+        email: "unknown@itrader.im.preview",
+      },
+    });
     expect(isOnboardingEligibleDealer(productionDealer, [], "production")).toBe(
       true,
     );
-    expect(isOnboardingEligibleDealer(dealer(), [], "production")).toBe(false);
+    expect(isOnboardingEligibleDealer(dealer(), [], "production")).toBe(true);
+    expect(isOnboardingEligibleDealer(oceanDealer, [], "production")).toBe(true);
+    expect(isOnboardingEligibleDealer(unknownDealer, [], "production")).toBe(
+      false,
+    );
     expect(
       JSON.stringify(onboardingEligibleDealerWhere([], now, "production")),
     ).toContain("productiondealer@itrader.im.preview");
+    expect(
+      JSON.stringify(onboardingEligibleDealerWhere([], now, "production")),
+    ).toContain("oceanmotorvillage@itrader.im.preview");
   });
 
   it("fails closed outside explicit Preview and Production environments", () => {
