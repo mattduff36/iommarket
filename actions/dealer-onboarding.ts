@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -86,9 +85,8 @@ export async function beginDealerOnboardingClaim(input: { token: string }) {
         data: { status: "CLAIMING", claimedAt: invite.claimedAt ?? now },
       });
     }
-    redirect(recovery.actionLink);
+    return { data: { actionLink: recovery.actionLink } };
   } catch (error) {
-    if (isNextRedirect(error)) throw error;
     await captureException({
       source: "SERVER",
       error,
@@ -304,13 +302,4 @@ async function runSerializable<T>(callback: (tx: Prisma.TransactionClient) => Pr
     }
   }
   throw lastError;
-}
-
-function isNextRedirect(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "digest" in error &&
-    String(error.digest).startsWith("NEXT_REDIRECT")
-  );
 }

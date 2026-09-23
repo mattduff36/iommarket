@@ -4,6 +4,30 @@ import { useState, useTransition } from "react";
 import { beginDealerOnboardingClaim } from "@/actions/dealer-onboarding";
 import { Button } from "@/components/ui/button";
 
+export function safeOnboardingRecoveryUrl(
+  value: string,
+  currentOrigin: string,
+) {
+  try {
+    const recovery = new URL(value);
+    if (
+      recovery.origin !== currentOrigin ||
+      recovery.pathname !== "/auth/callback" ||
+      recovery.searchParams.get("type") !== "recovery" ||
+      !recovery.searchParams.get("token_hash") ||
+      recovery.searchParams.get("next") !== "/dealer/onboarding/accept" ||
+      recovery.username ||
+      recovery.password ||
+      recovery.hash
+    ) {
+      return null;
+    }
+    return recovery.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function OnboardingClaimForm({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -16,7 +40,21 @@ export function OnboardingClaimForm({ token }: { token: string }) {
         setError(null);
         startTransition(async () => {
           const result = await beginDealerOnboardingClaim({ token });
-          if (result?.error) setError(result.error);
+          if (result?.error) {
+            setError(result.error);
+            return;
+          }
+          const recoveryUrl =
+            result?.data?.actionLink &&
+            safeOnboardingRecoveryUrl(
+              result.data.actionLink,
+              window.location.origin,
+            );
+          if (!recoveryUrl) {
+            setError("Unable to continue this invitation. Try the email link again.");
+            return;
+          }
+          window.location.assign(recoveryUrl);
         });
       }}
     >

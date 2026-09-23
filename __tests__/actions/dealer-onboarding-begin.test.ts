@@ -21,14 +21,6 @@ vi.mock("@/lib/dealers/onboarding/claim-cookie", () => ({
   clearOnboardingClaimCookie: vi.fn(),
 }));
 vi.mock("@/lib/monitoring", () => ({ captureException: vi.fn() }));
-vi.mock("next/navigation", () => ({
-  redirect: (url: string) => {
-    const error = new Error("NEXT_REDIRECT");
-    Object.assign(error, { digest: `NEXT_REDIRECT;${url}` });
-    throw error;
-  },
-}));
-
 import { beginDealerOnboardingClaim } from "@/actions/dealer-onboarding";
 import { buildOnboardingRedirectUrl } from "@/lib/dealers/onboarding/recovery-link";
 import { resolveOnboardingOrigin } from "@/lib/dealers/onboarding/deployment-origin";
@@ -52,14 +44,20 @@ describe("beginDealerOnboardingClaim", () => {
     mockDb.dealerOnboardingInvite.findUnique.mockResolvedValue(invite);
     mockDb.dealerOnboardingInvite.updateMany.mockResolvedValue({ count: 1 });
     recoveryMock.mockResolvedValue({
-      actionLink: "https://project.supabase.co/auth/v1/verify?token=secret",
+      actionLink:
+        "https://itrader.im/auth/callback?token_hash=hashed-recovery-token&type=recovery&next=%2Fdealer%2Fonboarding%2Faccept",
       authUserId: "auth-1",
     });
     writeCookieMock.mockResolvedValue(undefined);
   });
 
   it("continues a stored invitation on the current onboarding origin", async () => {
-    await expect(beginDealerOnboardingClaim({ token })).rejects.toThrow(/NEXT_REDIRECT/);
+    await expect(beginDealerOnboardingClaim({ token })).resolves.toEqual({
+      data: {
+        actionLink:
+          "https://itrader.im/auth/callback?token_hash=hashed-recovery-token&type=recovery&next=%2Fdealer%2Fonboarding%2Faccept",
+      },
+    });
     expect(writeCookieMock).toHaveBeenCalledWith(token);
     expect(recoveryMock).toHaveBeenCalledWith({
       email: invite.originalEmail,

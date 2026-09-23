@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OnboardingClaimForm } from "@/app/(public)/dealer/onboarding/claim/onboarding-claim-form";
+import {
+  OnboardingClaimForm,
+  safeOnboardingRecoveryUrl,
+} from "@/app/(public)/dealer/onboarding/claim/onboarding-claim-form";
 import { OnboardingAcceptForm } from "@/app/(public)/dealer/onboarding/accept/onboarding-accept-form";
 
 const beginMock = vi.fn();
@@ -29,6 +32,24 @@ describe("dealer onboarding pages", () => {
     render(<OnboardingClaimForm token={"a".repeat(43)} />);
     fireEvent.click(screen.getByRole("button", { name: /continue securely/i }));
     expect(await screen.findByText(/expired/i)).toBeTruthy();
+  });
+
+  it("allows only the same-origin recovery callback for full-page navigation", () => {
+    const valid =
+      "https://itrader.im/auth/callback?token_hash=hashed-token&type=recovery&next=%2Fdealer%2Fonboarding%2Faccept";
+    expect(safeOnboardingRecoveryUrl(valid, "https://itrader.im")).toBe(valid);
+    expect(
+      safeOnboardingRecoveryUrl(
+        valid.replace("https://itrader.im", "https://attacker.example"),
+        "https://itrader.im",
+      ),
+    ).toBeNull();
+    expect(
+      safeOnboardingRecoveryUrl(
+        "https://itrader.im/auth/callback?token_hash=x&type=recovery&next=%2Faccount",
+        "https://itrader.im",
+      ),
+    ).toBeNull();
   });
 
   it("completes only after password and all three checks", async () => {
