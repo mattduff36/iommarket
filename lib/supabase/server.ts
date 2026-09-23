@@ -1,5 +1,22 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { NextRequest, NextResponse } from "next/server";
+
+type PendingCookie = {
+  name: string;
+  value: string;
+  options?: Record<string, unknown>;
+};
+
+export function applySupabaseResponseCookies(
+  response: NextResponse,
+  pendingCookies: readonly PendingCookie[],
+) {
+  pendingCookies.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options);
+  });
+  return response;
+}
 
 /**
  * Create a Supabase server client for use in Server Components, Route Handlers, and Server Actions.
@@ -28,4 +45,29 @@ export async function createSupabaseServerClient() {
       },
     }
   );
+}
+
+export function createSupabaseRouteHandlerClient(request: NextRequest) {
+  const pendingCookies: PendingCookie[] = [];
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: PendingCookie[]) {
+          pendingCookies.push(...cookiesToSet);
+        },
+      },
+    },
+  );
+
+  return {
+    supabase,
+    applyCookies(response: NextResponse) {
+      return applySupabaseResponseCookies(response, pendingCookies);
+    },
+  };
 }

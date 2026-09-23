@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 
 function getSafeNextPath(nextPath: string | null): string {
   if (
@@ -33,7 +33,7 @@ function getSafeOtpType(type: string | null): EmailOtpType | null {
  * Handles redirect from Supabase after email confirmation or password recovery.
  * Exchanges code for session and redirects to ?next= or /.
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const nextUrl = getSafeNextPath(searchParams.get("next"));
   const code = searchParams.get("code");
@@ -41,21 +41,27 @@ export async function GET(request: Request) {
   const otpType = getSafeOtpType(searchParams.get("type"));
 
   if (tokenHash && otpType) {
-    const supabase = await createSupabaseServerClient();
+    const { supabase, applyCookies } =
+      createSupabaseRouteHandlerClient(request);
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: otpType,
     });
     if (!error) {
-      return NextResponse.redirect(new URL(nextUrl, request.url));
+      return applyCookies(
+        NextResponse.redirect(new URL(nextUrl, request.url)),
+      );
     }
   }
 
   if (code) {
-    const supabase = await createSupabaseServerClient();
+    const { supabase, applyCookies } =
+      createSupabaseRouteHandlerClient(request);
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(new URL(nextUrl, request.url));
+      return applyCookies(
+        NextResponse.redirect(new URL(nextUrl, request.url)),
+      );
     }
   }
 

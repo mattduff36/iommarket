@@ -12,6 +12,7 @@ const sendInviteEmail = vi.fn();
 const reportHandledException = vi.fn();
 const verifyOtp = vi.fn();
 const exchangeCodeForSession = vi.fn();
+const applyRouteCookies = vi.fn((response: unknown) => response);
 
 vi.mock("@/lib/email/resend", () => ({
   sendSignupConfirmationEmail,
@@ -32,6 +33,15 @@ vi.mock("@/lib/supabase/server", () => ({
       exchangeCodeForSession,
     },
   }),
+  createSupabaseRouteHandlerClient: vi.fn(() => ({
+    supabase: {
+      auth: {
+        verifyOtp,
+        exchangeCodeForSession,
+      },
+    },
+    applyCookies: applyRouteCookies,
+  })),
 }));
 
 const secretBytes = Buffer.from("0123456789abcdef0123456789abcdef");
@@ -222,7 +232,7 @@ describe("auth callback redirects", () => {
   it("preserves a safe root-relative next path", async () => {
     const { GET } = await import("@/app/(public)/auth/callback/route");
     const response = await GET(
-      new Request(
+      new NextRequest(
         "https://itrader.im/auth/callback?token_hash=token&type=signup&next=%2Faccount%3Ftab%3Dsecurity",
       ),
     );
@@ -230,12 +240,13 @@ describe("auth callback redirects", () => {
     expect(response.headers.get("location")).toBe(
       "https://itrader.im/account?tab=security",
     );
+    expect(applyRouteCookies).toHaveBeenCalledWith(response);
   });
 
   it("rejects backslash-based origin escapes", async () => {
     const { GET } = await import("@/app/(public)/auth/callback/route");
     const response = await GET(
-      new Request(
+      new NextRequest(
         "https://itrader.im/auth/callback?token_hash=token&type=signup&next=%2F%5Cattacker.example",
       ),
     );
@@ -246,7 +257,7 @@ describe("auth callback redirects", () => {
   it("rejects control characters in the next path", async () => {
     const { GET } = await import("@/app/(public)/auth/callback/route");
     const response = await GET(
-      new Request(
+      new NextRequest(
         "https://itrader.im/auth/callback?token_hash=token&type=signup&next=%2Faccount%0D%0ALocation%3A%20https%3A%2F%2Fattacker.example",
       ),
     );
