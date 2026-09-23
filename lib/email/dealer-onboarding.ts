@@ -7,7 +7,7 @@ export function buildDealerOnboardingEmail(input: {
   claimUrl: string;
   expiresAt: Date;
 }) {
-  const subject = "Activate your iTrader dealer account";
+  const subject = `Activate your iTrader dealer account — expires ${formatIsleOfManDateTime(input.expiresAt)}`;
   const intro = `${input.dealerName} has a complimentary Dealer Pro place on iTrader.im. Use the button below to claim the existing account, choose a password, and accept the dealer documents.`;
   const bodyLines = [
     `Complimentary Pro access starts when you accept this invitation and ends at ${ONBOARDING_PRO_END_LABEL}.`,

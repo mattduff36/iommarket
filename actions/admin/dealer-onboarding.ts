@@ -83,6 +83,9 @@ export async function sendDealerOnboardingInvite(input: {
         subject: email.subject,
         text: email.text,
         html: email.html,
+        headers: {
+          "X-Entity-Ref-ID": `dealer-onboarding-${prepared.inviteId}-${prepared.expiresAt.getTime()}`,
+        },
       });
     } catch (error) {
       const lastError = sanitizeOnboardingError(error);

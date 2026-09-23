@@ -176,6 +176,11 @@ describe("sendDealerOnboardingInvite", () => {
     expect(created.originalEmail).toBe("atholgarage@itrader.im.preview");
     expect(created.campaignEndsAt).toEqual(ONBOARDING_PRO_ENDS_AT);
     expect(sendMock.mock.calls[0][0].text).toContain("31 December 2026");
+    expect(sendMock.mock.calls[0][0].headers).toEqual({
+      "X-Entity-Ref-ID": expect.stringMatching(
+        /^dealer-onboarding-clinvite[a-z0-9]+-\d+$/,
+      ),
+    });
   });
 
   it("emails the preview deployment that created the invitation", async () => {

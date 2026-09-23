@@ -5,6 +5,7 @@ export async function sendStrictResendEmail(input: {
   subject: string;
   text: string;
   html?: string;
+  headers?: Record<string, string>;
 }): Promise<{ id: string }> {
   const resend = getResendClient();
   if (!resend) {
@@ -16,6 +17,7 @@ export async function sendStrictResendEmail(input: {
     subject: input.subject,
     text: input.text,
     html: input.html,
+    headers: input.headers,
   });
   if (result.error || !result.data?.id) {
     throw new Error(result.error?.message ?? "Email delivery failed.");
