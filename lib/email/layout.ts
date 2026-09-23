@@ -1,5 +1,7 @@
 import { escapeHtml } from "@/lib/email/client";
 
+export const EMAIL_LOGO_URL = "https://itrader.im/images/logo-itrader-hq.png";
+
 export function renderBrandedEmail(input: {
   title: string;
   intro: string;
@@ -7,18 +9,15 @@ export function renderBrandedEmail(input: {
   actionHref?: string;
   actionLabel?: string;
 }): { text: string; html: string } {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
-  const logoUrl = `${appUrl}/images/logo-itrader-hq.png`;
   const text = [
     input.title,
     "",
     input.intro,
     "",
     ...input.bodyLines,
-    ...(input.actionHref ? ["", input.actionLabel ?? "Continue", input.actionHref] : []),
+    ...(input.actionHref
+      ? ["", input.actionLabel ?? "Continue", input.actionHref]
+      : []),
     "",
     "iTrader.im",
   ].join("\n");
@@ -39,7 +38,7 @@ export function renderBrandedEmail(input: {
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;border:1px solid #1e2a46;border-radius:14px;background:#0f1628;">
                   <tr>
                     <td align="center" style="padding:26px 24px 14px 24px;">
-                      <img src="${logoUrl}" alt="iTrader.im" width="230" style="display:block;width:230px;max-width:100%;height:auto;border:0;" />
+                      <img src="${EMAIL_LOGO_URL}" alt="iTrader.im" width="230" style="display:block;width:230px;max-width:100%;height:auto;border:0;" />
                     </td>
                   </tr>
                   <tr>

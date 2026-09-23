@@ -10,12 +10,19 @@ import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { captureException } from "@/lib/monitoring";
 import { buildDealerOnboardingEmail } from "@/lib/email/dealer-onboarding";
 import { sendStrictResendEmail } from "@/lib/email/send-strict";
-import { findAuthUserByEmail, invalidateDealerAuthSessions } from "@/lib/dealers/onboarding/auth-admin";
+import {
+  findAuthUserByEmail,
+  invalidateDealerAuthSessions,
+} from "@/lib/dealers/onboarding/auth-admin";
 import { ensureOnboardingCampaign } from "@/lib/dealers/onboarding/campaign-record";
 import { resolveOnboardingOrigin } from "@/lib/dealers/onboarding/deployment-origin";
 import { isOnboardingEligibleDealer } from "@/lib/dealers/onboarding/eligible-dealers";
 import { planPromotionGrant } from "@/lib/dealers/onboarding/grant-plan";
 import { buildOnboardingClaimUrl } from "@/lib/dealers/onboarding/recovery-link";
+import {
+  getOnboardingTestAccount,
+  hasOnboardingTestProvenance,
+} from "@/lib/dealers/onboarding/test-accounts";
 import {
   canResendOnboardingInvite,
   canRevokeOnboardingInvite,
@@ -59,7 +66,10 @@ export async function sendDealerOnboardingInvite(input: {
     });
     if ("error" in prepared) return { error: prepared.error };
 
-    const claimUrl = buildOnboardingClaimUrl(resolveOnboardingOrigin().origin, prepared.token);
+    const claimUrl = buildOnboardingClaimUrl(
+      resolveOnboardingOrigin().origin,
+      prepared.token,
+    );
     const email = buildDealerOnboardingEmail({
       dealerName: prepared.dealerName,
       claimUrl,
@@ -90,7 +100,10 @@ export async function sendDealerOnboardingInvite(input: {
           metadata: { reason: lastError },
         },
       });
-      return { error: "The invitation email was not sent. No acceptance has been recorded." };
+      return {
+        error:
+          "The invitation email was not sent. No acceptance has been recorded.",
+      };
     }
 
     try {
@@ -137,7 +150,9 @@ export async function sendDealerOnboardingInvite(input: {
 
     await logAdminAction({
       adminId: admin.id,
-      action: prepared.resent ? "RESEND_DEALER_ONBOARDING_INVITE" : "SEND_DEALER_ONBOARDING_INVITE",
+      action: prepared.resent
+        ? "RESEND_DEALER_ONBOARDING_INVITE"
+        : "SEND_DEALER_ONBOARDING_INVITE",
       entityType: "DealerOnboardingInvite",
       entityId: prepared.inviteId,
       details: {
@@ -163,7 +178,9 @@ export async function sendDealerOnboardingInvite(input: {
   }
 }
 
-export async function revokeDealerOnboardingInvite(input: { inviteId: string }) {
+export async function revokeDealerOnboardingInvite(input: {
+  inviteId: string;
+}) {
   const admin = await requireRole("ADMIN");
   const parsed = onboardingInviteIdSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
@@ -264,6 +281,7 @@ async function prepareInvite(input: {
     !isOnboardingEligibleDealer(
       dealer,
       enabledPacks.map((pack) => pack.dealerKey),
+      process.env.VERCEL_ENV,
     )
   ) {
     return { error: "Choose an active dealer account." };
@@ -290,7 +308,8 @@ async function prepareInvite(input: {
     },
     select: { id: true },
   });
-  if (localOwner) return { error: "That email address is already used by another account." };
+  if (localOwner)
+    return { error: "That email address is already used by another account." };
 
   const authOwner = await findAuthUserByEmail(input.recipientEmailNorm);
   if (authOwner && authOwner.id !== dealer.user.authUserId) {
@@ -300,7 +319,18 @@ async function prepareInvite(input: {
   if (
     !foundingAuth ||
     foundingAuth.id !== dealer.user.authUserId ||
-    (foundingAuth.email ?? "").trim().toLowerCase() !== dealer.user.email.trim().toLowerCase()
+    (foundingAuth.email ?? "").trim().toLowerCase() !==
+      dealer.user.email.trim().toLowerCase()
+  ) {
+    return { error: "This dealer account cannot be invited." };
+  }
+  const testAccount = getOnboardingTestAccount(
+    dealer.user.email,
+    process.env.VERCEL_ENV,
+  );
+  if (
+    testAccount &&
+    !hasOnboardingTestProvenance(foundingAuth.appMetadata, testAccount)
   ) {
     return { error: "This dealer account cannot be invited." };
   }
@@ -309,7 +339,10 @@ async function prepareInvite(input: {
   const tokenHash = hashOnboardingToken(token);
   const expiresAt = new Date(now.getTime() + ONBOARDING_INVITE_TTL_MS);
   const existing = await db.dealerOnboardingInvite.findFirst({
-    where: { dealerId: dealer.id, status: { in: [...LIVE_ONBOARDING_STATUSES] } },
+    where: {
+      dealerId: dealer.id,
+      status: { in: [...LIVE_ONBOARDING_STATUSES] },
+    },
   });
   if (existing?.status === "FINALIZING_AUTH") {
     return { error: "This dealer has already started activation." };
@@ -373,7 +406,10 @@ async function prepareInvite(input: {
       resent: Boolean(existing),
     };
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
       return { error: "That dealer or email already has an open invitation." };
     }
     throw error;
@@ -415,7 +451,10 @@ async function lockCampaignForSend(campaign: {
     data: { lockedAt },
   });
   if (locked.count !== 1) {
-    return { ok: false, error: "The launch campaign changed. Refresh and try again." };
+    return {
+      ok: false,
+      error: "The launch campaign changed. Refresh and try again.",
+    };
   }
   return {
     ok: true,

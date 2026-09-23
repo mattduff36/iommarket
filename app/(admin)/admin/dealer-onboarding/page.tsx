@@ -4,7 +4,10 @@ import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { formatIsleOfManDateTime } from "@/lib/dealers/onboarding/campaign-window";
 import { onboardingEligibleDealerWhere } from "@/lib/dealers/onboarding/eligible-dealers";
-import { ONBOARDING_PRO_END_LABEL, planPromotionGrant } from "@/lib/dealers/onboarding/grant-plan";
+import {
+  ONBOARDING_PRO_END_LABEL,
+  planPromotionGrant,
+} from "@/lib/dealers/onboarding/grant-plan";
 import {
   canResendOnboardingInvite,
   canRevokeOnboardingInvite,
@@ -28,7 +31,9 @@ interface Props {
   searchParams: Promise<{ dealer?: string }>;
 }
 
-export default async function AdminDealerOnboardingPage({ searchParams }: Props) {
+export default async function AdminDealerOnboardingPage({
+  searchParams,
+}: Props) {
   const params = await searchParams;
   const now = new Date();
   const [enabledPacks, invites] = await Promise.all([
@@ -46,6 +51,7 @@ export default async function AdminDealerOnboardingPage({ searchParams }: Props)
     where: onboardingEligibleDealerWhere(
       enabledPacks.map((pack) => pack.dealerKey),
       now,
+      process.env.VERCEL_ENV,
     ),
     orderBy: { name: "asc" },
     select: {
@@ -99,26 +105,39 @@ export default async function AdminDealerOnboardingPage({ searchParams }: Props)
 
   return (
     <>
-      <h1 className="mb-2 text-2xl font-bold text-text-primary">Dealer onboarding</h1>
+      <h1 className="mb-2 text-2xl font-bold text-text-primary">
+        Dealer onboarding
+      </h1>
       <p className="mb-6 max-w-3xl text-sm text-text-secondary">
-        Send one email that lets a dealer claim an existing account, set a password, and accept the account and dealer documents. The profile and listings stay on the same account.
+        Send one email that lets a dealer claim an existing account, set a
+        password, and accept the account and dealer documents. The profile and
+        listings stay on the same account.
       </p>
       <OnboardingManager
         selectedDealerId={
-          params.dealer && dealerOptions.some((dealer) => dealer.id === params.dealer)
+          params.dealer &&
+          dealerOptions.some((dealer) => dealer.id === params.dealer)
             ? params.dealer
             : null
         }
         dealers={dealerOptions}
         invites={invites.map((invite) => {
-          const status = displayOnboardingStatus(invite.status, invite.expiresAt, now);
+          const status = displayOnboardingStatus(
+            invite.status,
+            invite.expiresAt,
+            now,
+          );
           return {
             id: invite.id,
             dealerId: invite.dealerId,
             dealerName: invite.dealer.name,
             recipientEmail: invite.recipientEmailNorm,
             statusLabel: STATUS_LABELS[status],
-            canResend: canResendOnboardingInvite(invite.status, invite.expiresAt, now),
+            canResend: canResendOnboardingInvite(
+              invite.status,
+              invite.expiresAt,
+              now,
+            ),
             canRevoke: canRevokeOnboardingInvite(invite.status),
             expiresLabel: formatIsleOfManDateTime(invite.expiresAt),
             error: invite.lastError,

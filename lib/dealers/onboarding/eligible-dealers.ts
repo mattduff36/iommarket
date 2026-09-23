@@ -1,7 +1,14 @@
 import type { Prisma } from "@prisma/client";
 import { foundingEmailsForKeys } from "@/lib/dealers/onboarding/founding-allowlist";
-import { isPlaceholderAuthUserId, PLACEHOLDER_AUTH_PREFIX } from "@/lib/listings/sample-visibility";
-import { isPreviewSystemAuthUserId, PREVIEW_AUTH_USER_ID_PREFIX } from "@/lib/preview-packs/safety";
+import { onboardingTestEmailsForEnvironment } from "@/lib/dealers/onboarding/test-accounts";
+import {
+  isPlaceholderAuthUserId,
+  PLACEHOLDER_AUTH_PREFIX,
+} from "@/lib/listings/sample-visibility";
+import {
+  isPreviewSystemAuthUserId,
+  PREVIEW_AUTH_USER_ID_PREFIX,
+} from "@/lib/preview-packs/safety";
 
 export interface OnboardingDealerIdentity {
   isAdminPreview: boolean;
@@ -17,21 +24,34 @@ export interface OnboardingDealerIdentity {
 export function isOnboardingEligibleDealer(
   dealer: OnboardingDealerIdentity,
   enabledPackKeys: readonly string[],
+  environment: string | undefined,
 ) {
   if (dealer.isAdminPreview) return false;
-  if (dealer.user.role !== "DEALER" || dealer.user.disabledAt || dealer.user.deletedAt) return false;
+  if (
+    dealer.user.role !== "DEALER" ||
+    dealer.user.disabledAt ||
+    dealer.user.deletedAt
+  )
+    return false;
   const authUserId = dealer.user.authUserId;
   if (!authUserId) return false;
-  if (isPlaceholderAuthUserId(authUserId) || isPreviewSystemAuthUserId(authUserId)) return false;
+  if (
+    isPlaceholderAuthUserId(authUserId) ||
+    isPreviewSystemAuthUserId(authUserId)
+  )
+    return false;
   const email = dealer.user.email.trim().toLowerCase();
-  return foundingEmailsForKeys(enabledPackKeys).some((item) => item === email);
+  return eligibleEmails(enabledPackKeys, environment).some(
+    (item) => item === email,
+  );
 }
 
 export function onboardingEligibleDealerWhere(
   enabledPackKeys: readonly string[],
   now = new Date(),
+  environment = process.env.VERCEL_ENV,
 ): Prisma.DealerProfileWhereInput {
-  const emails = foundingEmailsForKeys(enabledPackKeys);
+  const emails = eligibleEmails(enabledPackKeys, environment);
   if (emails.length === 0) return { id: { in: [] } };
   return {
     isAdminPreview: false,
@@ -57,4 +77,17 @@ export function onboardingEligibleDealerWhere(
       ],
     },
   };
+}
+
+function eligibleEmails(
+  enabledPackKeys: readonly string[],
+  environment: string | undefined,
+) {
+  if (environment === "preview") {
+    return [
+      ...foundingEmailsForKeys(enabledPackKeys),
+      ...onboardingTestEmailsForEnvironment(environment, enabledPackKeys),
+    ];
+  }
+  return onboardingTestEmailsForEnvironment(environment, enabledPackKeys);
 }
