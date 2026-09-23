@@ -17,6 +17,7 @@ const dealerKeySchema = z.object({
 
 function revalidatePreviewSurfaces() {
   revalidatePath("/admin/preview-packs");
+  revalidatePath("/admin/dealer-onboarding");
   revalidatePath("/");
   revalidatePath("/search");
   revalidatePath("/dealers");

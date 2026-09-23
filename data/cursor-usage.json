@@ -1,28 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-22T13:20:02.827Z",
+  "generatedAt": "2026-09-23T12:07:55.667Z",
   "projectKey": "d-Websites-iommarket",
-  "windowStart": "2026-08-09T00:00:00.000Z",
-  "windowEnd": "2026-09-23T00:00:00.000Z",
+  "windowStart": "2026-08-10T00:00:00.000Z",
+  "windowEnd": "2026-09-24T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1084,
-    "unattributedEvents": 639,
-    "unattributedMicroCents": "163202997258"
+    "attributedEvents": 1092,
+    "unattributedEvents": 638,
+    "unattributedMicroCents": "163128506302"
   },
   "days": [
-    {
-      "date": "2026-08-09",
-      "identifiedMicroCents": "1357028225",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
     {
       "date": "2026-08-10",
       "identifiedMicroCents": "11300960050",
@@ -369,22 +356,48 @@
     },
     {
       "date": "2026-09-22",
-      "identifiedMicroCents": "6312894020",
+      "identifiedMicroCents": "6471463706",
       "project": {
-        "onDemandMicroCents": "6312894020",
-        "chargedMicroCents": "6312894020",
-        "inputTokens": 2163141,
-        "outputTokens": 266026,
-        "cacheWriteTokens": 985489,
-        "cacheReadTokens": 61013477,
+        "onDemandMicroCents": "6471463706",
+        "chargedMicroCents": "6471463706",
+        "inputTokens": 2163195,
+        "outputTokens": 270534,
+        "cacheWriteTokens": 1117401,
+        "cacheReadTokens": 63102879,
         "models": [
           {
             "model": "gpt-5.6-sol-high",
-            "onDemandMicroCents": "1674955478"
+            "onDemandMicroCents": "1833525164"
           },
           {
             "model": "grok-4.7-xhigh-fast",
             "onDemandMicroCents": "4637938542"
+          }
+        ]
+      }
+    },
+    {
+      "date": "2026-09-23",
+      "identifiedMicroCents": "1844844182",
+      "project": {
+        "onDemandMicroCents": "1844844182",
+        "chargedMicroCents": "1844844182",
+        "inputTokens": 502537,
+        "outputTokens": 96309,
+        "cacheWriteTokens": 225851,
+        "cacheReadTokens": 16057506,
+        "models": [
+          {
+            "model": "gpt-5.6-sol-high",
+            "onDemandMicroCents": "202007744"
+          },
+          {
+            "model": "grok-4.7-high",
+            "onDemandMicroCents": "103182402"
+          },
+          {
+            "model": "grok-4.7-xhigh-fast",
+            "onDemandMicroCents": "1539654036"
           }
         ]
       }

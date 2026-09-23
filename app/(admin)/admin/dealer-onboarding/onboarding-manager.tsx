@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  createLaunchPromotionCampaign,
   revokeDealerOnboardingInvite,
   sendDealerOnboardingInvite,
 } from "@/actions/admin/dealer-onboarding";
+import { ONBOARDING_PRO_END_LABEL } from "@/lib/dealers/onboarding/grant-plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -32,25 +32,20 @@ interface InviteRow {
 }
 
 interface OnboardingManagerProps {
-  campaign: {
-    startsLabel: string;
-    endsLabel: string;
-    locked: boolean;
-  } | null;
   dealers: DealerOption[];
   invites: InviteRow[];
   selectedDealerId: string | null;
 }
 
 export function OnboardingManager({
-  campaign,
   dealers,
   invites,
   selectedDealerId,
 }: OnboardingManagerProps) {
   const router = useRouter();
-  const [launchAtLocal, setLaunchAtLocal] = useState("");
-  const [dealerId, setDealerId] = useState(selectedDealerId ?? dealers[0]?.id ?? "");
+  const [dealerId, setDealerId] = useState(
+    dealers.some((dealer) => dealer.id === selectedDealerId) ? selectedDealerId ?? "" : dealers[0]?.id ?? "",
+  );
   const [recipientEmail, setRecipientEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,44 +69,10 @@ export function OnboardingManager({
   return (
     <div className="space-y-8">
       <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-lg font-semibold text-text-primary">Launch campaign</h2>
-        {campaign ? (
-          <div className="mt-3 space-y-1 text-sm text-text-secondary">
-            <p>Starts {campaign.startsLabel}</p>
-            <p>Dealer Pro runs until {campaign.endsLabel}</p>
-            <p>{campaign.locked ? "Dates are locked." : "Dates can still be changed before the first invitation is prepared."}</p>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-text-secondary">
-            Enter the exact Isle of Man launch date and time. Pro access ends three calendar months later.
-          </p>
-        )}
-        {!campaign?.locked ? (
-          <form
-            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
-            onSubmit={(event) => {
-              event.preventDefault();
-              run(
-                () => createLaunchPromotionCampaign({ launchAtLocal }),
-                "Launch campaign saved.",
-              );
-            }}
-          >
-            <label className="text-sm text-text-primary">
-              Launch date and time
-              <input
-                required
-                type="datetime-local"
-                value={launchAtLocal}
-                onChange={(event) => setLaunchAtLocal(event.target.value)}
-                className="mt-1 block h-10 rounded-md border border-border bg-canvas px-3 text-sm"
-              />
-            </label>
-            <Button type="submit" disabled={isPending}>
-              {campaign ? "Update campaign" : "Create campaign"}
-            </Button>
-          </form>
-        ) : null}
+        <h2 className="text-lg font-semibold text-text-primary">Complimentary Pro</h2>
+        <p className="mt-2 text-sm text-text-secondary">
+          Pro access starts when the dealer accepts the invitation and ends at {ONBOARDING_PRO_END_LABEL}.
+        </p>
       </section>
 
       <section className="rounded-lg border border-border bg-surface p-4">
@@ -134,6 +95,9 @@ export function OnboardingManager({
               onChange={(event) => setDealerId(event.target.value)}
               className="mt-1 block h-10 w-full rounded-md border border-border bg-canvas px-3 text-sm"
             >
+              {dealers.length === 0 ? (
+                <option value="">No claimable dealers selected</option>
+              ) : null}
               {dealers.map((dealer) => (
                 <option key={dealer.id} value={dealer.id}>
                   {dealer.name} ({dealer.currentEmail})
@@ -141,6 +105,11 @@ export function OnboardingManager({
               ))}
             </select>
           </label>
+          {dealers.length === 0 ? (
+            <p className="text-sm text-text-secondary">
+              Only dealers selected in Preview Packs with a claimable account appear here.
+            </p>
+          ) : null}
           {selected ? (
             <div className="rounded-md border border-border bg-canvas/40 p-3 text-sm text-text-secondary">
               <p>Current package: {selected.tier}</p>
@@ -156,12 +125,9 @@ export function OnboardingManager({
             value={recipientEmail}
             onChange={(event) => setRecipientEmail(event.target.value)}
           />
-          <Button type="submit" disabled={isPending || !campaign}>
+          <Button type="submit" disabled={isPending || !selected}>
             Send onboarding email
           </Button>
-          {!campaign ? (
-            <p className="text-sm text-text-secondary">Create the launch campaign before sending email.</p>
-          ) : null}
         </form>
       </section>
 

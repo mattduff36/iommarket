@@ -1,7 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { assertSupabaseActionLink } from "@/lib/dealers/onboarding/recovery-link";
+import {
+  assertRecoveryRedirectTarget,
+  assertSupabaseActionLink,
+} from "@/lib/dealers/onboarding/recovery-link";
 import { ONBOARDING_SESSION_INVALID_BEFORE } from "@/lib/dealers/onboarding/session-cutoff";
 
 const MAX_AUTH_PAGES = 20;
@@ -46,8 +49,10 @@ export async function generateDealerRecoveryLink(input: {
   if (error || !data.properties?.action_link || !data.user?.id) {
     throw new Error("Unable to start secure account claim.");
   }
+  const actionLink = assertSupabaseActionLink(data.properties.action_link, supabaseUrl);
+  assertRecoveryRedirectTarget(actionLink, input.redirectTo);
   return {
-    actionLink: assertSupabaseActionLink(data.properties.action_link, supabaseUrl),
+    actionLink,
     authUserId: data.user.id,
   };
 }

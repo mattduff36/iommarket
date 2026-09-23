@@ -4,6 +4,7 @@ import {
   markOnboardingCompleted,
   OnboardingClaimError,
 } from "@/lib/dealers/onboarding/activate";
+import { ONBOARDING_PRO_ENDS_AT } from "@/lib/dealers/onboarding/grant-plan";
 
 const userUpdate = vi.fn();
 const acceptanceUpsert = vi.fn();
@@ -50,6 +51,7 @@ const dealer = {
       grantEndsAt: new Date("2026-12-01T00:00:00.000Z"),
       revokedAt: null,
       currentPeriodEnd: new Date("2026-12-01T00:00:00.000Z"),
+      promotionCampaignId: null as string | null,
     },
   ],
   listings: [{ id: "listing-1", userId: "user-1", dealerId: "dealer-1" }],
@@ -86,6 +88,11 @@ describe("dealer onboarding activation", () => {
     invite.status = "SENT";
     dealer.listings = [{ id: "listing-1", userId: "user-1", dealerId: "dealer-1" }];
     dealer.subscriptions[0].source = "ADMIN_GRANT";
+    dealer.subscriptions[0].grantStartsAt = new Date("2026-09-01T00:00:00.000Z");
+    dealer.subscriptions[0].grantEndsAt = new Date("2026-12-01T00:00:00.000Z");
+    dealer.subscriptions[0].currentPeriodEnd = new Date("2026-12-01T00:00:00.000Z");
+    dealer.subscriptions[0].promotionCampaignId = null;
+    dealer.subscriptions[0].revokedAt = null;
     inviteUpdateMany.mockResolvedValue({ count: 1 });
     acceptanceUpsert.mockResolvedValue({ id: "acceptance" });
     userUpdate.mockResolvedValue({});
@@ -94,12 +101,13 @@ describe("dealer onboarding activation", () => {
     eventCreate.mockResolvedValue({});
   });
 
-  it("preserves identities, records every current policy, and keeps the later grant end", async () => {
+  it("preserves identities, records every current policy, and starts Pro at acceptance", async () => {
+    const acceptedAt = new Date("2026-10-15T00:00:00.000Z");
     const result = await commitOnboardingClaim(tx() as never, {
       inviteId: invite.id,
       tokenHash: invite.tokenHash,
       leaseToken: "lease-1",
-      now: new Date("2026-10-15T00:00:00.000Z"),
+      now: acceptedAt,
       leaseExpiresAt: new Date("2026-10-15T00:02:00.000Z"),
       recipientEmailNorm: invite.recipientEmailNorm,
       actorUserId: "user-1",
@@ -115,16 +123,16 @@ describe("dealer onboarding activation", () => {
       where: { id: "dealer-1" },
       data: { tier: "PRO" },
     });
-    expect(subscriptionUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "grant-1" },
-        data: expect.objectContaining({
-          grantEndsAt: new Date("2027-01-01T09:00:00.000Z"),
-          promotionCampaignId: "campaign-1",
-        }),
+    expect(subscriptionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        dealerId: "dealer-1",
+        source: "ADMIN_GRANT",
+        grantStartsAt: acceptedAt,
+        grantEndsAt: ONBOARDING_PRO_ENDS_AT,
+        promotionCampaignId: "campaign-1",
       }),
-    );
-    expect(subscriptionCreate).not.toHaveBeenCalled();
+    });
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
     expect(eventCreate.mock.calls[0][0].data.policySnapshot.versions.DEALER_BUNDLE).toBeTruthy();
     expect(eventCreate.mock.calls[0][0].data.metadata).toMatchObject({
       preservedUserId: "user-1",
@@ -132,6 +140,44 @@ describe("dealer onboarding activation", () => {
       preservedDealerId: "dealer-1",
       listingCount: 1,
     });
+  });
+
+  it("leaves a longer complimentary grant unchanged and reuses only the campaign grant", async () => {
+    dealer.subscriptions[0].grantEndsAt = new Date("2027-06-01T00:00:00.000Z");
+    await expect(
+      commitOnboardingClaim(tx() as never, {
+        inviteId: invite.id,
+        tokenHash: invite.tokenHash,
+        leaseToken: "lease-1",
+        now: new Date("2026-10-15T00:00:00.000Z"),
+        leaseExpiresAt: new Date("2026-10-15T00:02:00.000Z"),
+        recipientEmailNorm: invite.recipientEmailNorm,
+        actorUserId: "user-1",
+      }),
+    ).resolves.toMatchObject({ kind: "finalizing" });
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+
+    dealer.subscriptions[0].grantEndsAt = new Date("2026-12-01T00:00:00.000Z");
+    dealer.subscriptions[0].promotionCampaignId = "campaign-1";
+    await commitOnboardingClaim(tx() as never, {
+      inviteId: invite.id,
+      tokenHash: invite.tokenHash,
+      leaseToken: "lease-2",
+      now: new Date("2026-10-16T00:00:00.000Z"),
+      leaseExpiresAt: new Date("2026-10-16T00:02:00.000Z"),
+      recipientEmailNorm: invite.recipientEmailNorm,
+      actorUserId: "user-1",
+    });
+    expect(subscriptionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "grant-1" },
+        data: expect.objectContaining({
+          grantStartsAt: new Date("2026-10-16T00:00:00.000Z"),
+          grantEndsAt: ONBOARDING_PRO_ENDS_AT,
+        }),
+      }),
+    );
   });
 
   it("does not change a paid subscription or mismatched listing ownership", async () => {
@@ -149,8 +195,25 @@ describe("dealer onboarding activation", () => {
       }),
     ).rejects.toBeInstanceOf(OnboardingClaimError);
     expect(userUpdate).not.toHaveBeenCalled();
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
 
     dealer.subscriptions[0].source = "ADMIN_GRANT";
+    dealer.subscriptions[0].currentPeriodEnd = new Date("2026-12-01T00:00:00.000Z");
+    const originalExpiry = invite.expiresAt;
+    invite.expiresAt = new Date("2027-02-01T00:00:00.000Z");
+    await expect(
+      commitOnboardingClaim(tx() as never, {
+        inviteId: invite.id,
+        tokenHash: invite.tokenHash,
+        leaseToken: "lease-ended",
+        now: ONBOARDING_PRO_ENDS_AT,
+        leaseExpiresAt: new Date("2027-01-01T00:02:00.000Z"),
+        recipientEmailNorm: invite.recipientEmailNorm,
+        actorUserId: "user-1",
+      }),
+    ).rejects.toThrow("Complimentary Pro access has ended.");
+    invite.expiresAt = originalExpiry;
     dealer.listings = [{ id: "listing-1", userId: "other-user", dealerId: "dealer-1" }];
     await expect(
       commitOnboardingClaim(tx() as never, {

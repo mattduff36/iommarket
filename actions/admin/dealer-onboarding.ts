@@ -8,16 +8,14 @@ import { logAdminAction } from "@/lib/admin/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { captureException } from "@/lib/monitoring";
-import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { buildDealerOnboardingEmail } from "@/lib/email/dealer-onboarding";
 import { sendStrictResendEmail } from "@/lib/email/send-strict";
 import { findAuthUserByEmail, invalidateDealerAuthSessions } from "@/lib/dealers/onboarding/auth-admin";
-import {
-  buildLaunchCampaignWindow,
-  InvalidLaunchDateError,
-  LAUNCH_PROMOTION_KEY,
-} from "@/lib/dealers/onboarding/campaign-window";
+import { ensureOnboardingCampaign } from "@/lib/dealers/onboarding/campaign-record";
+import { resolveOnboardingOrigin } from "@/lib/dealers/onboarding/deployment-origin";
+import { isOnboardingEligibleDealer } from "@/lib/dealers/onboarding/eligible-dealers";
 import { planPromotionGrant } from "@/lib/dealers/onboarding/grant-plan";
+import { buildOnboardingClaimUrl } from "@/lib/dealers/onboarding/recovery-link";
 import {
   canResendOnboardingInvite,
   canRevokeOnboardingInvite,
@@ -30,98 +28,11 @@ import {
   sanitizeOnboardingError,
 } from "@/lib/dealers/onboarding/tokens";
 import {
-  createLaunchCampaignSchema,
   onboardingInviteIdSchema,
   sendDealerOnboardingSchema,
 } from "@/lib/validations/dealer-onboarding";
 
 const SEND_RATE = { windowMs: 10 * 60_000, maxRequests: 10 };
-
-export async function createLaunchPromotionCampaign(input: { launchAtLocal: string }) {
-  const admin = await requireRole("ADMIN");
-  const parsed = createLaunchCampaignSchema.safeParse(input);
-  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
-  const campaignRateError = rateLimitActionError(
-    await checkRateLimit(`dealer-onboarding-campaign:${admin.id}`, {
-      ...SEND_RATE,
-      policy: "dealer-onboarding-campaign",
-    }),
-    "Too many campaign updates. Wait a few minutes and try again.",
-  );
-  if (campaignRateError) return { error: campaignRateError };
-
-  try {
-    const window = buildLaunchCampaignWindow(parsed.data.launchAtLocal);
-    const existing = await db.dealerPromotionCampaign.findUnique({
-      where: { key: LAUNCH_PROMOTION_KEY },
-      include: { invites: { select: { sentAt: true }, take: 1, where: { sentAt: { not: null } } } },
-    });
-    if (existing?.lockedAt || (existing?.invites.length ?? 0) > 0) {
-      return { error: "The launch campaign is locked because an invitation has been sent." };
-    }
-
-    const campaign = existing
-      ? await (async () => {
-          const updated = await db.dealerPromotionCampaign.updateMany({
-            where: { id: existing.id, lockedAt: null },
-            data: {
-              timezone: window.timezone,
-              startsAt: window.startsAt,
-              endsAt: window.endsAt,
-              tier: "PRO",
-            },
-          });
-          if (updated.count !== 1) {
-            return null;
-          }
-          return db.dealerPromotionCampaign.findUniqueOrThrow({ where: { id: existing.id } });
-        })()
-      : await db.dealerPromotionCampaign.create({
-          data: {
-            key: window.key,
-            timezone: window.timezone,
-            startsAt: window.startsAt,
-            endsAt: window.endsAt,
-            tier: "PRO",
-            createdByAdminId: admin.id,
-          },
-        });
-    if (!campaign) {
-      return { error: "The launch campaign is locked because an invitation has been sent." };
-    }
-
-    await logAdminAction({
-      adminId: admin.id,
-      action: existing ? "UPDATE_DEALER_PROMOTION_CAMPAIGN" : "CREATE_DEALER_PROMOTION_CAMPAIGN",
-      entityType: "DealerPromotionCampaign",
-      entityId: campaign.id,
-      details: {
-        startsAt: campaign.startsAt.toISOString(),
-        endsAt: campaign.endsAt.toISOString(),
-        timezone: campaign.timezone,
-      },
-    });
-    revalidatePath("/admin/dealer-onboarding");
-    return {
-      data: {
-        id: campaign.id,
-        startsAt: campaign.startsAt.toISOString(),
-        endsAt: campaign.endsAt.toISOString(),
-      },
-    };
-  } catch (error) {
-    if (error instanceof InvalidLaunchDateError) return { error: error.message };
-    await captureException({
-      source: "SERVER",
-      error,
-      action: "createLaunchPromotionCampaign",
-      route: "/admin/dealer-onboarding",
-      requestPath: "/admin/dealer-onboarding",
-      userId: admin.id,
-    });
-    return { error: "Unable to save the launch campaign." };
-  }
-}
 
 export async function sendDealerOnboardingInvite(input: {
   dealerId: string;
@@ -148,14 +59,11 @@ export async function sendDealerOnboardingInvite(input: {
     });
     if ("error" in prepared) return { error: prepared.error };
 
-    const origin = getCanonicalBaseUrl().origin;
-    const claimUrl = `${origin}/dealer/onboarding/claim?token=${encodeURIComponent(prepared.token)}`;
+    const claimUrl = buildOnboardingClaimUrl(resolveOnboardingOrigin().origin, prepared.token);
     const email = buildDealerOnboardingEmail({
       dealerName: prepared.dealerName,
       claimUrl,
       expiresAt: prepared.expiresAt,
-      campaignStartsAt: prepared.campaignStartsAt,
-      campaignEndsAt: prepared.campaignEndsAt,
     });
 
     let sent: { id: string };
@@ -321,11 +229,11 @@ async function prepareInvite(input: {
   recipientEmailNorm: string;
   adminId: string;
 }) {
-  const campaign = await db.dealerPromotionCampaign.findUnique({
-    where: { key: LAUNCH_PROMOTION_KEY },
+  const campaign = await ensureOnboardingCampaign(input.adminId);
+  const enabledPacks = await db.dealerPreviewPack.findMany({
+    where: { enabled: true },
+    select: { dealerKey: true },
   });
-  if (!campaign) return { error: "Create the launch campaign before sending invitations." };
-
   const dealer = await db.dealerProfile.findUnique({
     where: { id: input.dealerId },
     include: {
@@ -351,27 +259,28 @@ async function prepareInvite(input: {
       },
     },
   });
-  if (!dealer || dealer.isAdminPreview) {
-    return { error: "Choose an active dealer account." };
-  }
   if (
-    dealer.user.role !== "DEALER" ||
-    dealer.user.disabledAt ||
-    dealer.user.deletedAt ||
-    !dealer.user.authUserId
+    !dealer ||
+    !isOnboardingEligibleDealer(
+      dealer,
+      enabledPacks.map((pack) => pack.dealerKey),
+    )
   ) {
-    return { error: "This dealer account cannot be invited." };
+    return { error: "Choose an active dealer account." };
   }
 
   const now = new Date();
   const grant = planPromotionGrant({
     subscriptions: dealer.subscriptions,
-    campaignStartsAt: campaign.startsAt,
-    campaignEndsAt: campaign.endsAt,
     now,
   });
   if ("blocked" in grant) {
-    return { error: "This dealer has a paid subscription, so onboarding was not sent." };
+    return {
+      error:
+        grant.blocked === "paid-subscription"
+          ? "This dealer has a paid subscription, so onboarding was not sent."
+          : "Complimentary Pro access has ended.",
+    };
   }
 
   const localOwner = await db.user.findFirst({
@@ -386,6 +295,14 @@ async function prepareInvite(input: {
   const authOwner = await findAuthUserByEmail(input.recipientEmailNorm);
   if (authOwner && authOwner.id !== dealer.user.authUserId) {
     return { error: "That email address is already used by another account." };
+  }
+  const foundingAuth = await findAuthUserByEmail(dealer.user.email);
+  if (
+    !foundingAuth ||
+    foundingAuth.id !== dealer.user.authUserId ||
+    (foundingAuth.email ?? "").trim().toLowerCase() !== dealer.user.email.trim().toLowerCase()
+  ) {
+    return { error: "This dealer account cannot be invited." };
   }
 
   const token = createOnboardingToken();

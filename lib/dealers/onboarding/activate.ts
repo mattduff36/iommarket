@@ -108,6 +108,7 @@ export async function commitOnboardingClaim(
           grantEndsAt: true,
           revokedAt: true,
           currentPeriodEnd: true,
+          promotionCampaignId: true,
         },
       },
       listings: { select: { id: true, userId: true, dealerId: true } },
@@ -142,12 +143,14 @@ export async function commitOnboardingClaim(
 
   const grant = planPromotionGrant({
     subscriptions: dealer.subscriptions as PromotionGrantSnapshot[],
-    campaignStartsAt: invite.campaignStartsAt,
-    campaignEndsAt: invite.campaignEndsAt,
     now: input.now,
   });
   if ("blocked" in grant) {
-    throw new OnboardingClaimError("This dealer already has a paid subscription.");
+    throw new OnboardingClaimError(
+      grant.blocked === "paid-subscription"
+        ? "This dealer already has a paid subscription."
+        : "Complimentary Pro access has ended.",
+    );
   }
 
   await tx.user.update({
@@ -192,24 +195,30 @@ export async function commitOnboardingClaim(
     data: { tier: "PRO" },
   });
 
-  const grantData = {
-    paymentProvider: "ADMIN" as const,
-    source: "ADMIN_GRANT" as const,
-    status: "ACTIVE" as const,
-    currentPeriodEnd: grant.endsAt,
-    grantStartsAt: grant.startsAt,
-    grantEndsAt: grant.endsAt,
-    revokedAt: null,
-    promotionCampaignId: invite.campaignId,
-    grantedByAdminId: invite.createdByAdminId,
-  };
-  const activeGrant = dealer.subscriptions.find(
-    (subscription) => subscription.source === "ADMIN_GRANT" && subscription.status === "ACTIVE",
-  );
-  if (activeGrant) {
-    await tx.subscription.update({ where: { id: activeGrant.id }, data: grantData });
-  } else {
-    await tx.subscription.create({ data: { dealerId: dealer.id, ...grantData } });
+  if (grant.kind === "create") {
+    const grantData = {
+      paymentProvider: "ADMIN" as const,
+      source: "ADMIN_GRANT" as const,
+      status: "ACTIVE" as const,
+      currentPeriodEnd: grant.endsAt,
+      grantStartsAt: grant.startsAt,
+      grantEndsAt: grant.endsAt,
+      revokedAt: null,
+      promotionCampaignId: invite.campaignId,
+      grantedByAdminId: invite.createdByAdminId,
+    };
+    const campaignGrant = dealer.subscriptions.find(
+      (subscription) =>
+        subscription.source === "ADMIN_GRANT" &&
+        subscription.status === "ACTIVE" &&
+        subscription.revokedAt === null &&
+        subscription.promotionCampaignId === invite.campaignId,
+    );
+    if (campaignGrant) {
+      await tx.subscription.update({ where: { id: campaignGrant.id }, data: grantData });
+    } else {
+      await tx.subscription.create({ data: { dealerId: dealer.id, ...grantData } });
+    }
   }
 
   const finalized = await tx.dealerOnboardingInvite.updateMany({
@@ -233,8 +242,9 @@ export async function commitOnboardingClaim(
         preservedAuthUserId: invite.targetAuthUserId,
         preservedDealerId: dealer.id,
         listingCount: dealer.listings.length,
-        grantStartsAt: grant.startsAt.toISOString(),
+        grantStartsAt: grant.kind === "create" ? grant.startsAt.toISOString() : null,
         grantEndsAt: grant.endsAt.toISOString(),
+        preservedExistingGrant: grant.kind === "preserve",
       },
     },
   });

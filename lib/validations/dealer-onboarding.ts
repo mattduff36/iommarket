@@ -1,15 +1,6 @@
 import { z } from "zod";
 import { emailField } from "@/lib/validations/email";
 
-export const launchDateTimeField = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Enter the Isle of Man launch date and time.");
-
-export const createLaunchCampaignSchema = z.object({
-  launchAtLocal: launchDateTimeField,
-});
-
 export const sendDealerOnboardingSchema = z.object({
   dealerId: z.string().cuid("Choose a dealer account."),
   recipientEmail: emailField,

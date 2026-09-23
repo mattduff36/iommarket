@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireRoleMock, mockDb, sendMock, findAuthUserMock, logAdminActionMock } = vi.hoisted(() => ({
+const { requireRoleMock, mockDb, sendMock, findAuthUserMock, logAdminActionMock, originMock } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
   sendMock: vi.fn(),
   findAuthUserMock: vi.fn(),
   logAdminActionMock: vi.fn(),
+  originMock: vi.fn(() => new URL("https://itrader.im")),
   mockDb: {
     dealerPromotionCampaign: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
+    dealerPreviewPack: { findMany: vi.fn() },
     dealerProfile: { findUnique: vi.fn() },
     user: { findFirst: vi.fn() },
     dealerOnboardingInvite: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
@@ -21,19 +23,24 @@ vi.mock("@/lib/admin/audit", () => ({ logAdminAction: logAdminActionMock }));
 vi.mock("@/lib/monitoring", () => ({ captureException: vi.fn() }));
 vi.mock("@/lib/email/send-strict", () => ({ sendStrictResendEmail: sendMock }));
 vi.mock("@/lib/dealers/onboarding/auth-admin", () => ({ findAuthUserByEmail: findAuthUserMock }));
-vi.mock("@/lib/seo/structured-data", () => ({
-  getCanonicalBaseUrl: () => new URL("https://itrader.im"),
+vi.mock("@/lib/dealers/onboarding/deployment-origin", () => ({
+  resolveOnboardingOrigin: () => originMock(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { sendDealerOnboardingInvite } from "@/actions/admin/dealer-onboarding";
+import { LAUNCH_PROMOTION_TIMEZONE } from "@/lib/dealers/onboarding/campaign-window";
+import { ONBOARDING_PRO_ENDS_AT } from "@/lib/dealers/onboarding/grant-plan";
 
 const campaign = {
   id: "campaign-1",
   key: "launch-pro",
+  timezone: LAUNCH_PROMOTION_TIMEZONE,
   startsAt: new Date("2026-10-01T08:00:00.000Z"),
-  endsAt: new Date("2027-01-01T09:00:00.000Z"),
+  endsAt: ONBOARDING_PRO_ENDS_AT,
+  tier: "PRO" as const,
   lockedAt: null,
+  createdByAdminId: "cladminxxxxxxxxxxxxxxxxxx",
 };
 
 const dealer = {
@@ -56,12 +63,20 @@ describe("sendDealerOnboardingInvite", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireRoleMock.mockResolvedValue({ id: "cladminxxxxxxxxxxxxxxxxxx", role: "ADMIN" });
+    originMock.mockReset();
+    originMock.mockImplementation(() => new URL("https://itrader.im"));
     mockDb.dealerPromotionCampaign.findUnique.mockResolvedValue(campaign);
     mockDb.dealerPromotionCampaign.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.dealerPreviewPack.findMany.mockResolvedValue([{ dealerKey: "athol-garage" }]);
     mockDb.dealerOnboardingInvite.count.mockResolvedValue(0);
     mockDb.dealerProfile.findUnique.mockResolvedValue(dealer);
     mockDb.user.findFirst.mockResolvedValue(null);
-    findAuthUserMock.mockResolvedValue(null);
+    findAuthUserMock.mockImplementation(async (email: string) => {
+      if (email.toLowerCase() === dealer.user.email) {
+        return { id: dealer.user.authUserId, email: dealer.user.email };
+      }
+      return null;
+    });
     mockDb.dealerOnboardingInvite.findFirst.mockResolvedValue(null);
     mockDb.dealerOnboardingInvite.create.mockImplementation(async ({ data }) => ({
       id: "clinvitexxxxxxxxxxxxxxxxx",
@@ -116,6 +131,75 @@ describe("sendDealerOnboardingInvite", () => {
     expect(created.tokenHash).not.toBe(token);
     expect(created.recipientEmailNorm).toBe("owner@athol.im");
     expect(created.originalEmail).toBe("atholgarage@itrader.im.preview");
+    expect(created.campaignEndsAt).toEqual(ONBOARDING_PRO_ENDS_AT);
+    expect(sendMock.mock.calls[0][0].text).toContain("31 December 2026");
+  });
+
+  it("emails the preview deployment that created the invitation", async () => {
+    originMock.mockReturnValue(new URL("https://iommarket-git-preview.vercel.app"));
+    sendMock.mockResolvedValue({ id: "message-1" });
+    await sendDealerOnboardingInvite({
+      dealerId: dealer.id,
+      recipientEmail: "owner@athol.im",
+    });
+    const claimUrl = sendMock.mock.calls[0][0].text as string;
+    expect(claimUrl).toContain("https://iommarket-git-preview.vercel.app/dealer/onboarding/claim?token=");
+    expect(claimUrl).not.toContain("https://itrader.im/dealer/onboarding/claim");
+  });
+
+  it("rejects sample, unmatched, and synthetic dealers before sending email", async () => {
+    mockDb.dealerPreviewPack.findMany.mockResolvedValue([]);
+    await expect(
+      sendDealerOnboardingInvite({ dealerId: dealer.id, recipientEmail: "owner@athol.im" }),
+    ).resolves.toEqual({ error: "Choose an active dealer account." });
+
+    mockDb.dealerPreviewPack.findMany.mockResolvedValue([{ dealerKey: "athol-garage" }]);
+    mockDb.dealerProfile.findUnique.mockResolvedValue({
+      ...dealer,
+      user: {
+        ...dealer.user,
+        email: "info@manxmotors.im",
+        authUserId: "00000000-0000-0000-0000-000000000101",
+      },
+    });
+    await expect(
+      sendDealerOnboardingInvite({ dealerId: dealer.id, recipientEmail: "owner@athol.im" }),
+    ).resolves.toEqual({ error: "Choose an active dealer account." });
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(mockDb.dealerOnboardingInvite.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a founding account whose authentication identity does not match", async () => {
+    findAuthUserMock.mockImplementation(async (email: string) => {
+      if (email.toLowerCase() === dealer.user.email) return { id: "other-auth", email };
+      return null;
+    });
+    await expect(
+      sendDealerOnboardingInvite({ dealerId: dealer.id, recipientEmail: "owner@athol.im" }),
+    ).resolves.toEqual({ error: "This dealer account cannot be invited." });
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a dealer with a paid subscription", async () => {
+    mockDb.dealerProfile.findUnique.mockResolvedValue({
+      ...dealer,
+      subscriptions: [
+        {
+          source: "PAYMENT",
+          status: "ACTIVE",
+          grantStartsAt: null,
+          grantEndsAt: null,
+          revokedAt: null,
+          currentPeriodEnd: new Date("2027-06-01T00:00:00.000Z"),
+        },
+      ],
+    });
+    await expect(
+      sendDealerOnboardingInvite({ dealerId: dealer.id, recipientEmail: "owner@athol.im" }),
+    ).resolves.toEqual({
+      error: "This dealer has a paid subscription, so onboarding was not sent.",
+    });
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("rejects an email already used by another account", async () => {
