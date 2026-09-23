@@ -52,15 +52,16 @@ describe("dealer onboarding pages", () => {
     ).toBeNull();
   });
 
-  it("completes only after password and all three checks", async () => {
+  it("uses one age check and one combined policy check", async () => {
     render(<OnboardingAcceptForm />);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+
     fireEvent.change(screen.getByLabelText(/^New password/), { target: { value: "new-password" } });
     fireEvent.change(screen.getByLabelText(/Confirm new password/), {
       target: { value: "new-password" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /18 or over/i }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /I acknowledge/i }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /Dealer Terms/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /I acknowledge and accept/i }));
     fireEvent.click(screen.getByRole("button", { name: /accept and activate/i }));
     expect(await screen.findByText(/dealer account is ready/i)).toBeTruthy();
     expect(completeMock).toHaveBeenCalledWith(
@@ -70,5 +71,21 @@ describe("dealer onboarding pages", () => {
         dealerPoliciesAccepted: true,
       }),
     );
+  });
+
+  it("opens every onboarding policy document in a new tab", () => {
+    render(<OnboardingAcceptForm />);
+
+    for (const name of [
+      "Terms",
+      "Dealer Terms",
+      "Acceptable Use Policy",
+      "Privacy Policy",
+      "Refund Policy",
+    ]) {
+      const link = screen.getByRole("link", { name });
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    }
   });
 });

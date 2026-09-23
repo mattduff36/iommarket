@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/button";
 import { readOnboardingClaimCookie } from "@/lib/dealers/onboarding/claim-cookie";
 import { ONBOARDING_PRO_END_LABEL } from "@/lib/dealers/onboarding/grant-plan";
 import { hashOnboardingToken, onboardingTokenMatches } from "@/lib/dealers/onboarding/tokens";
@@ -33,10 +35,15 @@ export default async function DealerOnboardingAcceptPage() {
   }
   if (invite.status === "COMPLETED") {
     return (
-      <OnboardingMessage
-        title="This account is already active"
-        body="Sign in with the owner email and the password you chose."
-      />
+      <div className="mx-auto max-w-xl space-y-4 px-4 py-12">
+        <h1 className="text-2xl font-bold text-text-primary">Your dealer account is ready</h1>
+        <p className="text-sm text-text-secondary">
+          Sign in with the owner email and the password you chose.
+        </p>
+        <Button asChild>
+          <Link href="/sign-in">Sign in</Link>
+        </Button>
+      </div>
     );
   }
 

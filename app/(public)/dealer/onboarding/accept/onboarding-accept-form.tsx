@@ -11,8 +11,7 @@ export function OnboardingAcceptForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [ageAttested, setAgeAttested] = useState(false);
-  const [accountPoliciesAccepted, setAccountPoliciesAccepted] = useState(false);
-  const [dealerPoliciesAccepted, setDealerPoliciesAccepted] = useState(false);
+  const [policiesAccepted, setPoliciesAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -42,8 +41,8 @@ export function OnboardingAcceptForm() {
             password,
             confirmPassword,
             ageAttested,
-            accountPoliciesAccepted,
-            dealerPoliciesAccepted,
+            accountPoliciesAccepted: policiesAccepted,
+            dealerPoliciesAccepted: policiesAccepted,
           });
           if (result.error) {
             setError(typeof result.error === "string" ? result.error : "Check the form and try again.");
@@ -72,29 +71,21 @@ export function OnboardingAcceptForm() {
       <Checkbox
         checked={ageAttested}
         onCheckedChange={(value) => setAgeAttested(value === true)}
+        required
         label="I confirm I am 18 or over."
       />
       <Checkbox
-        checked={accountPoliciesAccepted}
-        onCheckedChange={(value) => setAccountPoliciesAccepted(value === true)}
+        checked={policiesAccepted}
+        onCheckedChange={(value) => setPoliciesAccepted(value === true)}
+        required
         label={
           <span>
-            I acknowledge the current{" "}
-            <Link href="/terms" className="text-text-trust hover:underline">Terms</Link>,{" "}
-            <Link href="/acceptable-use" className="text-text-trust hover:underline">Acceptable Use Policy</Link>, and{" "}
-            <Link href="/privacy" className="text-text-trust hover:underline">Privacy Policy</Link>.
-          </span>
-        }
-      />
-      <Checkbox
-        checked={dealerPoliciesAccepted}
-        onCheckedChange={(value) => setDealerPoliciesAccepted(value === true)}
-        label={
-          <span>
-            I accept the{" "}
-            <Link href="/dealer-terms" className="text-text-trust hover:underline">Dealer Terms</Link>,{" "}
-            <Link href="/acceptable-use" className="text-text-trust hover:underline">Acceptable Use Policy</Link>, and{" "}
-            <Link href="/refunds" className="text-text-trust hover:underline">Refund Policy</Link>.
+            I acknowledge and accept the current{" "}
+            <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-text-trust hover:underline">Terms</Link>,{" "}
+            <Link href="/dealer-terms" target="_blank" rel="noopener noreferrer" className="text-text-trust hover:underline">Dealer Terms</Link>,{" "}
+            <Link href="/acceptable-use" target="_blank" rel="noopener noreferrer" className="text-text-trust hover:underline">Acceptable Use Policy</Link>,{" "}
+            <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-text-trust hover:underline">Privacy Policy</Link>, and{" "}
+            <Link href="/refunds" target="_blank" rel="noopener noreferrer" className="text-text-trust hover:underline">Refund Policy</Link>.
           </span>
         }
       />

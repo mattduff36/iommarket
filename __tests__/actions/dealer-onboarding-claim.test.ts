@@ -11,6 +11,7 @@ const {
   updateAuthEmailMock,
   revokeMock,
   invalidateMock,
+  clearCookieMock,
   rawToken,
 } = vi.hoisted(() => ({
   mockDb: {
@@ -26,6 +27,7 @@ const {
   updateAuthEmailMock: vi.fn(),
   revokeMock: vi.fn(),
   invalidateMock: vi.fn(),
+  clearCookieMock: vi.fn(),
   rawToken: "claim-token-claim-token-claim-token-xyz",
 }));
 
@@ -33,7 +35,7 @@ vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/dealers/onboarding/claim-cookie", () => ({
   readOnboardingClaimCookie: vi.fn(async () => rawToken),
   writeOnboardingClaimCookie: vi.fn(),
-  clearOnboardingClaimCookie: vi.fn(),
+  clearOnboardingClaimCookie: clearCookieMock,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: async () => ({
@@ -144,7 +146,7 @@ describe("completeDealerOnboardingClaim", () => {
     expect(markMock).not.toHaveBeenCalled();
   });
 
-  it("finishes email transfer and revokes the old session", async () => {
+  it("finishes email transfer without clearing the short-lived completion context", async () => {
     const result = await completeDealerOnboardingClaim({
       password: "new-password",
       confirmPassword: "new-password",
@@ -159,5 +161,6 @@ describe("completeDealerOnboardingClaim", () => {
     });
     expect(revokeMock).toHaveBeenCalledWith("access-token");
     expect(signOutMock).toHaveBeenCalledWith({ scope: "global" });
+    expect(clearCookieMock).not.toHaveBeenCalled();
   });
 });

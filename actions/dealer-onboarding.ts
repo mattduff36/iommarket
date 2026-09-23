@@ -19,7 +19,6 @@ import {
   updateAuthUserEmail,
 } from "@/lib/dealers/onboarding/auth-admin";
 import {
-  clearOnboardingClaimCookie,
   readOnboardingClaimCookie,
   writeOnboardingClaimCookie,
 } from "@/lib/dealers/onboarding/claim-cookie";
@@ -190,7 +189,6 @@ export async function completeDealerOnboardingClaim(input: {
     if (signedOut.error) {
       throw new Error("Unable to finish signing out the old session.");
     }
-    await clearOnboardingClaimCookie();
     if (invite.status !== "COMPLETED") {
       await runSerializable((tx) =>
         markOnboardingCompleted(tx, {
