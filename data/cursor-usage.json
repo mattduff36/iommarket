@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-24T21:57:38.990Z",
+  "generatedAt": "2026-09-24T21:58:25.418Z",
   "projectKey": "d-Websites-iommarket",
   "windowStart": "2026-08-11T00:00:00.000Z",
   "windowEnd": "2026-09-25T00:00:00.000Z",
@@ -391,18 +391,18 @@
     },
     {
       "date": "2026-09-24",
-      "identifiedMicroCents": "9854318131",
+      "identifiedMicroCents": "9873380494",
       "project": {
-        "onDemandMicroCents": "3573870466",
-        "chargedMicroCents": "3573870466",
-        "inputTokens": 430155,
-        "outputTokens": 129982,
-        "cacheWriteTokens": 1166473,
-        "cacheReadTokens": 49322231,
+        "onDemandMicroCents": "3592932829",
+        "chargedMicroCents": "3592932829",
+        "inputTokens": 430167,
+        "outputTokens": 131443,
+        "cacheWriteTokens": 1169121,
+        "cacheReadTokens": 49692520,
         "models": [
           {
             "model": "gpt-5.6-sol-high",
-            "onDemandMicroCents": "2228480864"
+            "onDemandMicroCents": "2247543227"
           },
           {
             "model": "gpt-5.6-sol-medium",
