@@ -43,6 +43,11 @@ const TONE_STYLES = {
   },
 };
 
+const CLEAR_STYLES = {
+  card: "border-emerald-500/20 hover:border-emerald-500/35 hover:bg-emerald-500/5",
+  icon: "text-emerald-500/70",
+} as const;
+
 export function buildAdminActionQueueItems(
   counts: AdminActionQueueCounts,
 ): AdminActionQueueItem[] {
@@ -92,7 +97,7 @@ export function buildAdminActionQueueItems(
 
 export function AdminActionQueue({ items }: { items: AdminActionQueueItem[] }) {
   return (
-    <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {items.map((item) => {
         const Icon = item.icon;
         const needsAction = item.count > 0;
@@ -102,19 +107,19 @@ export function AdminActionQueue({ items }: { items: AdminActionQueueItem[] }) {
           <Card
             key={item.href}
             className={cn(
-              "group relative min-h-24 transition-colors",
-              needsAction ? tone.card : "border-border hover:bg-surface-elevated",
+              "group relative min-h-24 overflow-hidden transition-colors",
+              needsAction ? tone.card : CLEAR_STYLES.card,
             )}
           >
             <CardOverlayLink
               href={item.href}
               label={`${item.count.toLocaleString()} ${item.label}`}
             />
-            <CardContent className="flex h-full flex-col gap-3 p-4">
+            <CardContent className="flex h-full flex-col justify-between gap-3 p-4">
               <div className="flex items-start justify-between gap-3">
                 <Badge
-                  variant={needsAction ? tone.badge : "neutral"}
-                  className="h-9 min-w-9 shrink-0 justify-center px-2.5 text-sm font-bold tabular-nums"
+                  variant={needsAction ? tone.badge : "success"}
+                  className="h-8 min-w-8 shrink-0 justify-center px-2.5 text-xs font-bold tabular-nums"
                 >
                   {needsAction ? item.count.toLocaleString() : "Clear"}
                 </Badge>
@@ -122,13 +127,17 @@ export function AdminActionQueue({ items }: { items: AdminActionQueueItem[] }) {
                   aria-hidden
                   className={cn(
                     "mt-1 h-3.5 w-3.5 shrink-0",
-                    needsAction ? tone.icon : "text-text-tertiary",
+                    needsAction ? tone.icon : CLEAR_STYLES.icon,
                   )}
                 />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-text-primary">{item.label}</p>
-                <p className="mt-0.5 text-xs text-text-secondary">{item.subtitle}</p>
+                <p className="text-sm font-semibold leading-5 text-text-primary">
+                  {item.label}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
+                  {item.subtitle}
+                </p>
               </div>
             </CardContent>
           </Card>

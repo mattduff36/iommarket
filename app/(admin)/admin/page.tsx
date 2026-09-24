@@ -14,6 +14,8 @@ import {
   AdminDashboardStats,
   buildAdminDashboardStats,
 } from "@/components/admin/admin-dashboard-stats";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -159,16 +161,18 @@ export default async function AdminDashboardPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-          <p className="text-sm text-text-tertiary mt-1">Actions requiring attention, then site overview</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-emerald-500" />
-          <span className="text-sm text-emerald-500 font-medium">{newUsers7d} new users this week</span>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Dashboard"
+        description="Prioritise work that needs attention, then review marketplace activity."
+        actions={
+          <div className="flex h-9 items-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3">
+            <TrendingUp className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+            <span className="text-xs font-medium text-emerald-500">
+              {newUsers7d} new {newUsers7d === 1 ? "user" : "users"} this week
+            </span>
+          </div>
+        }
+      />
 
       <AdminActionQueue
         items={buildAdminActionQueueItems({
@@ -194,24 +198,24 @@ export default async function AdminDashboardPage() {
       />
 
       {/* Activity feeds */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Recent listings */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-neon-blue-400" />
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 px-4 py-3.5">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <ClipboardList className="h-4 w-4 text-neon-blue-400" aria-hidden="true" />
               Recent Listings
             </CardTitle>
-            <Link href="/admin/listings" className="text-xs text-neon-blue-400 hover:underline inline-flex items-center gap-1">
-              View all <ArrowRight className="h-3 w-3" />
+            <Link href="/admin/listings" className="inline-flex items-center gap-1 text-xs font-medium text-neon-blue-400 hover:underline">
+              View all <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="p-0">
             {recentListings.map((listing) => (
-              <div key={listing.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+              <div key={listing.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-text-primary truncate">{listing.title}</p>
-                  <p className="text-xs text-text-tertiary">
+                  <p className="truncate text-sm font-medium text-text-primary">{listing.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-text-tertiary">
                     {listing.dealer?.name ?? listing.user.name ?? listing.user.email}
                     {" \u00b7 "}
                     {listing.createdAt.toLocaleDateString("en-GB")}
@@ -223,30 +227,35 @@ export default async function AdminDashboardPage() {
               </div>
             ))}
             {recentListings.length === 0 && (
-              <p className="text-sm text-text-tertiary text-center py-4">No listings yet</p>
+              <AdminEmptyState
+                compact
+                title="No listings yet"
+                description="New listings will appear here."
+                className="m-4 min-h-28"
+              />
             )}
           </CardContent>
         </Card>
 
         {/* Recent users */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <Users className="h-4 w-4 text-emerald-500" />
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 px-4 py-3.5">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <Users className="h-4 w-4 text-emerald-500" aria-hidden="true" />
               New Users
             </CardTitle>
-            <Link href="/admin/users" className="text-xs text-neon-blue-400 hover:underline inline-flex items-center gap-1">
-              View all <ArrowRight className="h-3 w-3" />
+            <Link href="/admin/users" className="inline-flex items-center gap-1 text-xs font-medium text-neon-blue-400 hover:underline">
+              View all <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="p-0">
             {recentUsers.map((user) => (
-              <div key={user.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+              <div key={user.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <Link href={`/admin/users/${user.id}`} className="text-sm text-text-primary hover:underline truncate block">
+                  <Link href={`/admin/users/${user.id}`} className="block truncate text-sm font-medium text-text-primary hover:underline">
                     {user.name ?? user.email}
                   </Link>
-                  <p className="text-xs text-text-tertiary">
+                  <p className="mt-0.5 truncate text-xs text-text-tertiary">
                     {user.email}
                     {" \u00b7 "}
                     {user.createdAt.toLocaleDateString("en-GB")}
@@ -258,57 +267,70 @@ export default async function AdminDashboardPage() {
               </div>
             ))}
             {recentUsers.length === 0 && (
-              <p className="text-sm text-text-tertiary text-center py-4">No users yet</p>
+              <AdminEmptyState
+                compact
+                title="No users yet"
+                description="New registrations will appear here."
+                className="m-4 min-h-28"
+              />
             )}
           </CardContent>
         </Card>
 
         {/* Open reports */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <ShieldAlert className={`h-4 w-4 ${openReports > 0 ? "text-neon-red-400" : "text-text-tertiary"}`} />
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 px-4 py-3.5">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <ShieldAlert
+                aria-hidden="true"
+                className={`h-4 w-4 ${openReports > 0 ? "text-neon-red-400" : "text-emerald-500"}`}
+              />
               Open Reports
             </CardTitle>
-            <Link href="/admin/reports" className="text-xs text-neon-blue-400 hover:underline inline-flex items-center gap-1">
-              View all <ArrowRight className="h-3 w-3" />
+            <Link href="/admin/reports" className="inline-flex items-center gap-1 text-xs font-medium text-neon-blue-400 hover:underline">
+              View all <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="p-0">
             {recentReports.map((report) => (
-              <div key={report.id} className="flex items-start justify-between py-2 border-b border-border/50 last:border-0">
+              <div key={report.id} className="flex min-h-14 items-start justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-text-primary truncate">{report.listing.title}</p>
-                  <p className="text-xs text-text-tertiary truncate">{report.reason}</p>
+                  <p className="truncate text-sm font-medium text-text-primary">{report.listing.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-text-tertiary">{report.reason}</p>
                 </div>
-                <span className="text-[11px] text-text-tertiary shrink-0 ml-2">
+                <span className="shrink-0 text-[11px] tabular-nums text-text-tertiary">
                   {report.createdAt.toLocaleDateString("en-GB")}
                 </span>
               </div>
             ))}
             {recentReports.length === 0 && (
-              <p className="text-sm text-emerald-500 text-center py-4">No open reports</p>
+              <AdminEmptyState
+                compact
+                title="No open reports"
+                description="The moderation queue is clear."
+                className="m-4 min-h-28 border-emerald-500/25"
+              />
             )}
           </CardContent>
         </Card>
 
         {/* Recent payments */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-premium-gold-400" />
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 px-4 py-3.5">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <CreditCard className="h-4 w-4 text-premium-gold-400" aria-hidden="true" />
               Recent Payments
             </CardTitle>
-            <Link href="/admin/payments" className="text-xs text-neon-blue-400 hover:underline inline-flex items-center gap-1">
-              View all <ArrowRight className="h-3 w-3" />
+            <Link href="/admin/payments" className="inline-flex items-center gap-1 text-xs font-medium text-neon-blue-400 hover:underline">
+              View all <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="p-0">
             {recentPaymentsList.map((payment) => (
-              <div key={payment.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+              <div key={payment.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-text-primary truncate">{payment.listing.title}</p>
-                  <p className="text-xs text-text-tertiary">
+                  <p className="truncate text-sm font-medium text-text-primary">{payment.listing.title}</p>
+                  <p className="mt-0.5 text-xs tabular-nums text-text-tertiary">
                     &pound;{(payment.amount / 100).toFixed(2)}
                     {" \u00b7 "}
                     {payment.createdAt.toLocaleDateString("en-GB")}
@@ -320,7 +342,12 @@ export default async function AdminDashboardPage() {
               </div>
             ))}
             {recentPaymentsList.length === 0 && (
-              <p className="text-sm text-text-tertiary text-center py-4">No payments yet</p>
+              <AdminEmptyState
+                compact
+                title="No payments yet"
+                description="Successful and pending payments will appear here."
+                className="m-4 min-h-28"
+              />
             )}
           </CardContent>
         </Card>

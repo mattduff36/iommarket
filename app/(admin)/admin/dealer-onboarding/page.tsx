@@ -13,6 +13,7 @@ import {
   canRevokeOnboardingInvite,
   displayOnboardingStatus,
 } from "@/lib/dealers/onboarding/statuses";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { OnboardingManager } from "./onboarding-manager";
 
 export const metadata: Metadata = { title: "Dealer onboarding | Admin" };
@@ -105,14 +106,10 @@ export default async function AdminDealerOnboardingPage({
 
   return (
     <>
-      <h1 className="mb-2 text-2xl font-bold text-text-primary">
-        Dealer onboarding
-      </h1>
-      <p className="mb-6 max-w-3xl text-sm text-text-secondary">
-        Send one email that lets a dealer claim an existing account, set a
-        password, and accept the account and dealer documents. The profile and
-        listings stay on the same account.
-      </p>
+      <AdminPageHeader
+        title="Dealer onboarding"
+        description="Send one email that lets a dealer claim an existing account, set a password, and accept the account and dealer documents. The profile and listings stay on the same account."
+      />
       <OnboardingManager
         selectedDealerId={
           params.dealer &&

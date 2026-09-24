@@ -3,10 +3,18 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Activity } from "lucide-react";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -61,24 +69,26 @@ export default async function MonitoringIssuePage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-text-tertiary">
-            Monitoring Issue
-          </p>
-          <h1 className="text-2xl font-bold text-text-primary">{issue.title}</h1>
-          <p className="text-xs text-text-secondary mt-1">
-            <span className="font-mono">{issue.id}</span>
-            {" · "}
-            first seen {issue.firstSeenAt.toLocaleString("en-GB")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={statusVariant(issue.status)}>{issue.status}</Badge>
-          <Badge variant={severityVariant(issue.severity)}>{issue.severity}</Badge>
-          <Badge variant="neutral">{issue.source}</Badge>
-        </div>
-      </div>
+      <AdminPageHeader
+        title={issue.title}
+        description={`First seen ${issue.firstSeenAt.toLocaleString("en-GB")}`}
+        meta={
+          <>
+            <Badge variant={statusVariant(issue.status)}>{issue.status}</Badge>
+            <Badge variant={severityVariant(issue.severity)}>{issue.severity}</Badge>
+            <Badge variant="neutral">{issue.source}</Badge>
+            <span className="break-all font-mono">{issue.id}</span>
+          </>
+        }
+        actions={
+          <Link
+            href="/admin/monitoring"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary"
+          >
+            &larr; All issues
+          </Link>
+        }
+      />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
@@ -190,7 +200,12 @@ export default async function MonitoringIssuePage({ params }: Props) {
             </div>
           ))}
           {issue.events.length === 0 && (
-            <p className="text-sm text-text-secondary">No events recorded yet.</p>
+            <AdminEmptyState
+              icon={Activity}
+              title="No events recorded yet"
+              description="New occurrences for this issue will appear here."
+              compact
+            />
           )}
         </CardContent>
       </Card>
@@ -200,7 +215,7 @@ export default async function MonitoringIssuePage({ params }: Props) {
           <CardTitle>Alert Deliveries</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <AdminTable minWidth="wide">
             <TableHeader>
               <TableRow>
                 <TableHead>Channel</TableHead>
@@ -216,27 +231,25 @@ export default async function MonitoringIssuePage({ params }: Props) {
                   <TableCell>{delivery.channel}</TableCell>
                   <TableCell className="font-mono text-xs">{delivery.target}</TableCell>
                   <TableCell>{delivery.status}</TableCell>
-                  <TableCell>{delivery.attempts}</TableCell>
-                  <TableCell>{delivery.createdAt.toLocaleString("en-GB")}</TableCell>
+                  <TableCell className={adminNumericCellClass}>
+                    {delivery.attempts}
+                  </TableCell>
+                  <TableCell className={adminDateCellClass}>
+                    {delivery.createdAt.toLocaleString("en-GB")}
+                  </TableCell>
                 </TableRow>
               ))}
               {issue.alertDeliveries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-sm text-text-secondary">
-                    No alerts sent for this issue yet.
-                  </TableCell>
+                  <AdminTableEmpty colSpan={5}>
+                    No alerts have been sent for this issue yet.
+                  </AdminTableEmpty>
                 </TableRow>
               )}
             </TableBody>
-          </Table>
+          </AdminTable>
         </CardContent>
       </Card>
-
-      <div>
-        <Link href="/admin/monitoring" className="text-sm text-text-trust hover:underline">
-          Back to monitoring list
-        </Link>
-      </div>
     </div>
   );
 }

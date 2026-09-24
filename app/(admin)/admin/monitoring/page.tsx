@@ -1,9 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+  adminSearchButtonClass,
+  adminSearchInputClass,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { MonitoringIssueCard } from "@/components/admin/monitoring-issue-card";
 
 export const metadata: Metadata = { title: "Monitoring | Admin" };
@@ -92,91 +99,99 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
   ]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Monitoring</h1>
-        <p className="text-sm text-text-secondary mt-1">
-          Centralized error and anomaly triage for production and staging issues.
-        </p>
-      </div>
+    <>
+      <AdminPageHeader
+        title="Monitoring"
+        description="Centralized error and anomaly triage for production and staging issues."
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface p-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-low">
           <p className="text-xs uppercase tracking-wider text-text-tertiary">Open Issues</p>
           <p className="mt-2 text-2xl font-bold text-text-primary">{openCount}</p>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-low">
           <p className="text-xs uppercase tracking-wider text-text-tertiary">Critical Active</p>
           <p className="mt-2 text-2xl font-bold text-text-energy">{criticalOpenCount}</p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <p className="text-xs uppercase tracking-wider text-text-tertiary mb-2">Filters</p>
-        <div className="flex flex-wrap gap-2">
-          <Link
+      <AdminFilterBar
+        count={`${issues.length} matching ${issues.length === 1 ? "issue" : "issues"}`}
+      >
+        <form
+          action="/admin/monitoring"
+          method="get"
+          className="flex min-w-0 gap-2"
+        >
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Search issues..."
+            aria-label="Search monitoring issues"
+            className={adminSearchInputClass}
+          />
+          {status ? <input type="hidden" name="status" value={status} /> : null}
+          {severity ? <input type="hidden" name="severity" value={severity} /> : null}
+          {source ? <input type="hidden" name="source" value={source} /> : null}
+          <button type="submit" className={adminSearchButtonClass}>
+            Search
+          </button>
+        </form>
+
+        <div className="flex flex-wrap gap-1" aria-label="Issue status">
+          <AdminFilterChip
             href={buildFilterHref({ q })}
-            className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:text-text-primary"
+            active={!status && !severity && !source}
           >
             All
-          </Link>
+          </AdminFilterChip>
           {STATUS_OPTIONS.map((option) => (
-            <Link
+            <AdminFilterChip
               key={option}
               href={buildFilterHref({ status: option, severity, source, q })}
-              className={`rounded-md border px-2 py-1 text-xs ${
-                status === option
-                  ? "border-neon-blue-500 text-neon-blue-400"
-                  : "border-border text-text-secondary hover:text-text-primary"
-              }`}
+              active={status === option}
             >
               {option}
-            </Link>
+            </AdminFilterChip>
           ))}
         </div>
-        <div className="flex flex-wrap gap-2 mt-2">
+
+        <div className="flex flex-wrap gap-1" aria-label="Issue severity and source">
           {SEVERITY_OPTIONS.map((option) => (
-            <Link
+            <AdminFilterChip
               key={option}
               href={buildFilterHref({ status, severity: option, source, q })}
-              className={`rounded-md border px-2 py-1 text-xs ${
-                severity === option
-                  ? "border-premium-gold-500 text-premium-gold-400"
-                  : "border-border text-text-secondary hover:text-text-primary"
-              }`}
+              active={severity === option}
+              activeTone="warning"
             >
               {option}
-            </Link>
+            </AdminFilterChip>
           ))}
           {SOURCE_OPTIONS.map((option) => (
-            <Link
+            <AdminFilterChip
               key={option}
               href={buildFilterHref({ status, severity, source: option, q })}
-              className={`rounded-md border px-2 py-1 text-xs ${
-                source === option
-                  ? "border-emerald-500 text-emerald-400"
-                  : "border-border text-text-secondary hover:text-text-primary"
-              }`}
+              active={source === option}
+              activeTone="success"
             >
               {option}
-            </Link>
+            </AdminFilterChip>
           ))}
         </div>
-      </div>
+      </AdminFilterBar>
 
       <div className="space-y-3">
         {issues.map((issue) => (
           <MonitoringIssueCard key={issue.id} issue={issue} />
         ))}
         {issues.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-surface px-6 py-12 text-center">
-            <p className="text-sm font-medium text-text-primary">No matching issues</p>
-            <p className="mt-1 text-sm text-text-secondary">
-              Adjust the current filters to see other monitoring issues.
-            </p>
-          </div>
+          <AdminEmptyState
+            title="No matching issues"
+            description="Adjust the current filters to see other monitoring issues."
+          />
         ) : null}
       </div>
-    </div>
+    </>
   );
 }

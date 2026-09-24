@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
-import { Plus, StickyNote, Trash2 } from "lucide-react";
+import { CheckCircle2, Plus, StickyNote, Trash2 } from "lucide-react";
 import {
   saveChecklist,
   updateChecklistCompletion,
@@ -16,6 +16,7 @@ import {
   type ChecklistLabel,
 } from "@/lib/admin/checklist";
 import { AdminActionButton } from "@/components/admin/admin-action-controls";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -207,8 +208,8 @@ export function ChecklistBoard({
 
   return (
     <div className="rounded-lg border border-border bg-surface shadow-low">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <p className="text-sm text-text-secondary">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+        <p className="text-sm tabular-nums text-text-secondary">
           <span className="font-medium text-text-primary">{remaining}</span>{" "}
           remaining
           {items.length > 0 ? ` of ${items.length}` : ""}
@@ -224,16 +225,23 @@ export function ChecklistBoard({
 
       <ul className="divide-y divide-border">
         {visibleItems.length === 0 ? (
-          <li className="px-4 py-8 text-center text-sm text-text-secondary">
-            {items.length === 0
-              ? "Nothing here yet. Add the first item below."
-              : "All caught up."}
+          <li className="p-4 sm:p-5">
+            <AdminEmptyState
+              icon={CheckCircle2}
+              title={items.length === 0 ? "No checklist items yet" : "All caught up"}
+              description={
+                items.length === 0
+                  ? "Add the first shared task using the form below."
+                  : "Every checklist item is complete. Show completed items to review them."
+              }
+              compact
+            />
           </li>
         ) : (
           visibleItems.map((item) => {
             const expanded = expandedId === item.id;
             return (
-              <li key={item.id} className="px-4 py-3">
+              <li key={item.id} className="px-4 py-3 sm:px-5">
                 <div className="flex items-start gap-3">
                   <div className="pt-1">
                     <Checkbox
@@ -331,8 +339,14 @@ export function ChecklistBoard({
 
       <form
         onSubmit={handleAdd}
-        className="space-y-3 border-t border-border p-4"
+        className="space-y-3 border-t border-border p-4 sm:p-5"
       >
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary">Add an item</h2>
+          <p className="mt-0.5 text-xs text-text-tertiary">
+            Add a shared task and optionally assign it before saving.
+          </p>
+        </div>
         <Input
           value={newTitle}
           onChange={(event) => setNewTitle(event.target.value)}
@@ -340,9 +354,9 @@ export function ChecklistBoard({
           aria-label="New checklist item"
           maxLength={500}
         />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <fieldset className="flex items-center gap-4">
-            <legend className="text-xs font-medium text-text-secondary">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <legend className="mb-1 w-full text-xs font-medium text-text-secondary">
               Assign
             </legend>
             {CHECKLIST_ASSIGNEES.map((assignee) => (
@@ -369,7 +383,7 @@ export function ChecklistBoard({
       </form>
 
       {error ? (
-        <p className="px-4 pb-4 text-sm text-text-error">{error}</p>
+        <p role="alert" className="px-4 pb-4 text-sm text-text-error sm:px-5 sm:pb-5">{error}</p>
       ) : null}
     </div>
   );

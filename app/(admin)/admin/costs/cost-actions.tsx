@@ -102,7 +102,13 @@ export function OwnerCostControls({
 
   return (
     <div className="space-y-4">
-      <form action={handleManual} className="grid gap-3 sm:grid-cols-2">
+      <div>
+        <h3 className="text-sm font-semibold text-text-primary">Record a manual cost</h3>
+        <p className="mt-1 text-sm leading-6 text-text-secondary">
+          Add a provider charge in its source currency. The period is used to group it in the dashboard.
+        </p>
+      </div>
+      <form action={handleManual} className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-text-primary">Category</span>
           <select
@@ -130,7 +136,7 @@ export function OwnerCostControls({
         <Input name="displayLabel" label="Label" required />
         <Input name="periodStart" label="Period start" type="datetime-local" required />
         <Input name="periodEnd" label="Period end" type="datetime-local" required />
-        <AdminActionBar className="sm:col-span-2">
+        <AdminActionBar className="border-t border-border pt-4 sm:col-span-2">
           <AdminActionButton type="submit" tone="primary" disabled={isPending}>
             Record cost
           </AdminActionButton>
@@ -177,8 +183,10 @@ export function OwnerCostControls({
           ) : null}
         </AdminActionBar>
       </form>
-      {error ? <p className="text-sm text-text-error">{error}</p> : null}
-      {success ? <p className="text-sm text-emerald-500">{success}</p> : null}
+      <div aria-live="polite" className="min-h-5">
+        {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+        {success ? <p role="status" className="text-sm text-emerald-500">{success}</p> : null}
+      </div>
     </div>
   );
 }

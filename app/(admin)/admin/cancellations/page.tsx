@@ -5,13 +5,20 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+} from "@/components/admin/admin-table";
 import { CancellationActions } from "./cancellation-actions";
 
 export const metadata: Metadata = { title: "Cancellation Requests" };
@@ -46,20 +53,20 @@ export default async function AdminCancellationsPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-2">
-        Dealer cancellation requests
-      </h1>
-      <p className="mb-6 text-sm text-text-secondary">
-        Acknowledge means staff have started or verified the Ripple change. Do
-        not treat Acknowledge as an in-app provider cancellation. Completion
-        requires provider cancellation and an expired paid period. See the{" "}
-        <Link href="/refunds" className="text-text-trust hover:underline">
-          Refund Policy
-        </Link>
-        .
-      </p>
+      <AdminPageHeader
+        title="Dealer cancellation requests"
+        description="Acknowledge means staff have started or verified the Ripple change; it is not an in-app provider cancellation. Completion still requires provider cancellation and an expired paid period."
+        meta={
+          <>
+            <span>{requests.length} most recent requests</span>
+            <Link href="/refunds" className="text-text-trust hover:underline">
+              Refund Policy
+            </Link>
+          </>
+        }
+      />
 
-      <Table>
+      <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
             <TableHead>Dealer</TableHead>
@@ -67,36 +74,41 @@ export default async function AdminCancellationsPage() {
             <TableHead>Period end</TableHead>
             <TableHead>Provider</TableHead>
             <TableHead>Requested</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {requests.map((request) => (
             <TableRow key={request.id}>
               <TableCell>
-                <Link
-                  href={`/dealers/${request.dealer.slug}`}
-                  className="text-text-trust hover:underline"
-                >
-                  {request.dealer.name}
-                </Link>
+                <AdminDataCell
+                  title={
+                    <Link
+                      href={`/dealers/${request.dealer.slug}`}
+                      className="text-text-trust hover:underline"
+                    >
+                      {request.dealer.name}
+                    </Link>
+                  }
+                  subtitle={request.dealer.slug}
+                />
               </TableCell>
               <TableCell>
                 <Badge variant={STATUS_VARIANT[request.status] ?? "neutral"}>
                   {request.status}
                 </Badge>
               </TableCell>
-              <TableCell>
+              <TableCell className={adminDateCellClass}>
                 {request.periodEndAt.toLocaleDateString("en-GB")}
               </TableCell>
               <TableCell className="text-xs text-text-secondary">
                 {request.subscription.status}
                 {request.subscription.cancelAtPeriodEnd ? " · period-end" : ""}
               </TableCell>
-              <TableCell>
+              <TableCell className={adminDateCellClass}>
                 {request.requestedAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell className="min-w-[220px]">
+              <TableCell className={`${adminActionsCellClass} min-w-[220px]`}>
                 <CancellationActions
                   requestId={request.id}
                   status={request.status}
@@ -104,8 +116,15 @@ export default async function AdminCancellationsPage() {
               </TableCell>
             </TableRow>
           ))}
+          {requests.length === 0 ? (
+            <TableRow>
+              <AdminTableEmpty colSpan={6}>
+                No dealer cancellation requests found.
+              </AdminTableEmpty>
+            </TableRow>
+          ) : null}
         </TableBody>
-      </Table>
+      </AdminTable>
     </>
   );
 }

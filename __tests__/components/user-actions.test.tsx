@@ -55,6 +55,22 @@ describe("UserActions", () => {
     confirm.mockRestore();
   });
 
+  it("keeps paid-subscription guidance out of compact table rows", () => {
+    render(
+      <UserActions
+        variant="row"
+        userId="user-1"
+        currentRole="DEALER"
+        isDisabled={false}
+        userLabel="Alice"
+        currentTier="PRO"
+        hasActivePaidSubscription
+      />,
+    );
+
+    expect(screen.queryByText(/paid subscription/i)).not.toBeInTheDocument();
+  });
+
   it("keeps visible controls and the dealer promotion dialog on the detail page", async () => {
     const user = userEvent.setup();
     render(

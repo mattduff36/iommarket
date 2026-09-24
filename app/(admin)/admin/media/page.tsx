@@ -1,9 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Images } from "lucide-react";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminPager } from "@/components/admin/admin-pager";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
 import { toListingPhotoSource } from "@/lib/images/photo";
 import {
@@ -68,31 +75,30 @@ export default async function AdminMediaPage({ searchParams }: Props) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Media Library</h1>
+      <AdminPageHeader
+        title="Media library"
+        description="Review listing images and remove assets that should no longer remain attached to a listing."
+      />
 
-      <div className="flex items-center gap-3 mb-6 rounded-lg border border-border bg-canvas/30 p-3">
-        <Link
+      <AdminFilterBar count={`${total} ${total === 1 ? "image" : "images"}`}>
+        <AdminFilterChip
           href="/admin/media"
-          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            !filter ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
-          }`}
+          active={!filter}
         >
-          All Images
-        </Link>
-        <Link
+          All images
+        </AdminFilterChip>
+        <AdminFilterChip
           href="/admin/media?filter=orphan"
-          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            filter === "orphan" ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
-          }`}
+          active={filter === "orphan"}
+          activeTone="warning"
         >
           Orphaned (expired/taken down)
-        </Link>
-        <span className="text-xs text-text-tertiary ml-auto">{total} images</span>
-      </div>
+        </AdminFilterChip>
+      </AdminFilterBar>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
         {images.map((img) => (
-          <div key={img.id} className="relative overflow-hidden rounded-lg border border-border bg-surface">
+          <article key={img.id} className="relative overflow-hidden rounded-lg border border-border bg-surface shadow-low">
             <CardOverlayLink
               href={`/listings/${img.listing.id}`}
               label={img.listing.title}
@@ -120,35 +126,29 @@ export default async function AdminMediaPage({ searchParams }: Props) {
                 <DeleteImageButton imageId={img.id} listingTitle={img.listing.title} />
               </div>
             </div>
-          </div>
+          </article>
         ))}
       </div>
 
       {images.length === 0 && (
-        <p className="text-center text-text-tertiary py-12">No images found.</p>
+        <AdminEmptyState
+          icon={Images}
+          title={filter === "orphan" ? "No orphaned images" : "No images found"}
+          description={
+            filter === "orphan"
+              ? "Expired and taken-down listings do not currently have images to review."
+              : "Listing images will appear here when they are uploaded."
+          }
+        />
       )}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          {page > 1 && (
-            <Link
-              href={`/admin/media?${filter ? `filter=${filter}&` : ""}page=${page - 1}`}
-              className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border"
-            >
-              Previous
-            </Link>
-          )}
-          <span className="text-sm text-text-tertiary">Page {page} of {totalPages}</span>
-          {page < totalPages && (
-            <Link
-              href={`/admin/media?${filter ? `filter=${filter}&` : ""}page=${page + 1}`}
-              className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border"
-            >
-              Next
-            </Link>
-          )}
-        </div>
-      )}
+      <AdminPager
+        page={page}
+        totalPages={totalPages}
+        hrefForPage={(nextPage) =>
+          `/admin/media?${filter ? `filter=${filter}&` : ""}page=${nextPage}`
+        }
+      />
     </>
   );
 }

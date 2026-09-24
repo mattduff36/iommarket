@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iTrader.im preview confirmation – 24 September 2026</title>
+  <style>
+    :root {
+      --navy: #0a0a0b;
+      --ink: #1c1c1e;
+      --muted: #636366;
+      --line: #d8d8de;
+      --gold: #c5a059;
+      --gold-deep: #8e6f36;
+      --paper: #ffffff;
+      --wash: #f7f5f0;
+      --warn: #fff6e8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #ececee;
+      color: var(--ink);
+      font: 15px/1.5 "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    .sheet {
+      max-width: 820px;
+      margin: 24px auto;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    header, main, footer { padding: 28px 36px; }
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding-bottom: 24px;
+    }
+    .brand {
+      margin: 0;
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.2; font-weight: 650; }
+    .sub { margin: 8px 0 0; color: #ebebf5; }
+    .howto, .status, .note, .decision, .other {
+      margin: 22px 0;
+    }
+    .howto, .status {
+      padding: 14px 16px;
+      background: var(--wash);
+      border-left: 4px solid var(--gold);
+    }
+    h2 { margin: 32px 0 8px; color: var(--navy); font-size: 22px; }
+    h3 { margin: 0 0 8px; color: var(--navy); font-size: 18px; }
+    p, li { margin: 0 0 10px; }
+    ul { margin: 0 0 10px; padding-left: 20px; }
+    .quote { margin: 12px 0; }
+    .quote figcaption {
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    blockquote {
+      margin: 0;
+      padding: 10px 12px;
+      border-left: 3px solid var(--gold);
+      background: var(--wash);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .quote.before figcaption { color: #9f1239; }
+    .quote.before blockquote { border-left-color: #e11d48; background: #fff1f2; }
+    .quote.after figcaption { color: #166534; }
+    .quote.after blockquote { border-left-color: #16a34a; background: #f0fdf4; }
+    blockquote p:last-child { margin-bottom: 0; }
+    .tick, .reason label, .field label {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-weight: 650;
+    }
+    textarea, input[type="text"], input[type="date"] {
+      width: 100%;
+      margin-top: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .reason { margin-top: 10px; }
+    .decision:has(.approve:checked) .reason { display: none; }
+    .decision {
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      break-inside: avoid;
+    }
+    .decision-head { break-inside: avoid; }
+    .decision-confirm { margin-top: 14px; break-inside: avoid; }
+    .needs-reason { background: var(--warn); outline: 2px solid var(--gold-deep); outline-offset: 6px; }
+    button {
+      border: 0;
+      background: var(--navy);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+    button:hover { background: #121214; }
+    .actions { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+    .warning { display: none; color: var(--gold-deep); font-weight: 700; }
+    .warning.show { display: block; }
+    .print-mirror { display: none; }
+    footer { color: var(--muted); font-size: 13px; border-top: 4px solid var(--gold); }
+    @page { size: A4; margin: 14mm; }
+    @media print {
+      body { background: #fff; }
+      .sheet { max-width: none; margin: 0; }
+      header, main, footer { padding: 0; }
+      .no-print { display: none !important; }
+      .js .screen-field { display: none !important; }
+      .js .print-mirror { display: block; margin-top: 8px; font-weight: 650; }
+      .decision, .quote { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <article class="sheet">
+    <header>
+      <p class="brand">iTrader.im</p>
+      <h1>Preview update for confirmation</h1>
+      <p class="sub">24 September 2026. Please tick each decision, save this page as a PDF, and email the PDF back.</p>
+    </header>
+    <main>
+      <section class="howto no-print">
+        <p>Open this file in a browser. Tick “I confirm this for production” only where you agree. If you leave a box unticked, write the reason in the box underneath. Then press “Print / Save as PDF”, choose Save as PDF, and email that PDF back. If the tick marks do not appear in the PDF, turn on background graphics in the print dialog.</p>
+        <p>JavaScript in this file only prepares the printable copy. It does not send or store anything.</p>
+        <noscript><p>JavaScript is off. You can still tick the boxes and use the browser’s Print command.</p></noscript>
+      </section>
+      <p class="status">These changes are on the preview site. They are not yet on the production site.</p>
+
+      <section>
+        <h2>FAQ</h2>
+        <p>A public FAQ is available on preview at <a href="https://itrader.im/faq">itrader.im/faq</a>. It is linked in the footer between Buyer Safety and Contact, included in the sitemap, and remains reachable while the launch holding page is on. Contact, Pricing, and Dealers also link to it.</p>
+        <p>It has 10 categories and 38 questions: About iTrader, Buying a Vehicle, Selling Privately, Vehicle Listings, Payments, Featured Listings &amp; Refunds, Dealers, Accounts, Vehicle Check, Safety &amp; Moderation, and Support. The answers are written for buyers, private sellers, and dealers. Prices are not repeated there; they point to the pricing page. Listing length, photo limits, and dealer listing caps come from the product settings. Search works on the page, and each question has a stable link. There is no separate content system.</p>
+        <p>The page title is “Frequently Asked Questions – Buying &amp; Selling Vehicles on the Isle of Man”. Its canonical address is https://itrader.im/faq, and the page can be indexed. Breadcrumb information is included. FAQ rich-result markup was not added, because Google stopped showing that search treatment from 7 May 2026. A Q&amp;A markup type was not used either, because Google reserves that for a page about one question where users can submit answers.</p>
+      </section>
+
+      <section>
+        <h2>Which documents changed</h2>
+        <p>The public legal pages are served from the current policy documents. There is not a second, older set on the site.</p>
+        <p>The policies were aligned across several updates in August 2026: the full set was first published on 15 August, safety and moderation wording was updated on 17 August, and punctuation was normalised on 22 August. That August work did not remove the nine differences below. The earlier Terms still quoted fixed prices, included trailers and parts, required an Isle of Man location, and said a dealer could cancel in account settings.</p>
+        <p>Immediately before last night, those four documents did not share one version. Terms and Dealer Terms were version 2026-08-17.2. Private Seller Terms was version 2026-08-17.1. The Refund Policy was version 2026-08-14.1. The “before” wording below is the production wording from that point. Last night changed only these four documents, now version 2026-09-23.1, effective 23 September 2026:</p>
+        <ul>
+          <li>Terms and Conditions</li>
+          <li>Private Seller Terms</li>
+          <li>Dealer Terms</li>
+          <li>Refund Policy</li>
+        </ul>
+        <p>Privacy Policy (version 2026-08-17.2), Cookie Policy (version 2026-08-17.1), Acceptable Use Policy (version 2026-08-17.2), and Vehicle Check Terms (version 2026-08-17.1) were not changed. Acceptable Use already prohibits parts and number plates unless iTrader later permits them. The £100 liability floor in Terms clause 17.3 was not changed.</p>
+        <p>These nine choices were selected during development so the public wording matches how the site already behaves. They are not a separate written approval from you. Please confirm them before they are promoted from preview to production. No payment-provider cancellation, review-time promise, or new vehicle category was built.</p>
+        <p class="note">If the site is later switched on to require acceptance of the current documents, a signed-in person may be asked to accept the relevant account, listing, or dealer bundle again when they reach an action that requires it. That check is currently off, so visitors are not all being prompted now.</p>
+      </section>
+
+      <section>
+        <h2>Decisions</h2>
+
+        <article class="decision" data-decision="prices">
+          <div class="decision-head">
+            <h3>1. Prices</h3>
+            <p>The legal documents now follow the price displayed at checkout, including a current launch offer. Listing caps remain 30 for Dealer Starter, 100 for Dealer Pro, and 60 days for a private listing.</p>
+          </div>
+          <figure class="quote before"><figcaption>Before · Terms and Conditions, clause 5.1</figcaption><blockquote><p>Private Sellers may purchase a single Vehicle advert for a fee, currently £4.99, which entitles the Private Seller to a Listing that remains live on the Platform for 60 days from the date of publication, unless removed earlier in accordance with these Terms.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Terms and Conditions, clause 5.1</figcaption><blockquote><p>Private Sellers may purchase a single Vehicle advert at the price displayed at checkout, including any launch offer then available. That purchase entitles the Private Seller to a Listing that remains live on the Platform for 60 days from the date of publication, unless removed earlier in accordance with these Terms.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Terms and Conditions, clause 5.2</figcaption><blockquote><p>Private Sellers may purchase optional upgrades, including a "Featured" placement, currently £5.00 per vehicle, designed to increase the visibility of a Listing. Featured status does not guarantee views, enquiries, or a sale. We may introduce further optional paid upgrades from time to time, and the features, availability, and pricing of any upgrade may change.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Terms and Conditions, clause 5.2</figcaption><blockquote><p>Private Sellers may purchase optional upgrades, including a "Featured" placement, at the price displayed at checkout. Featured status is designed to increase the visibility of a Listing. It does not guarantee views, enquiries, or a sale. Where checkout offers an optional support payment, that payment is the amount displayed there and is not required in order to advertise. We may introduce further optional paid upgrades from time to time, and the features, availability, and pricing of any upgrade may change.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Private Seller Terms, clause 3.1</figcaption><blockquote><p>A standard private Listing costs £4.99 per vehicle and remains available for up to 60 days.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Private Seller Terms, clause 3.1</figcaption><blockquote><p>A standard private Listing is charged at the price displayed at checkout, including any launch offer then available, and remains available for up to 60 days.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Private Seller Terms, clause 3.4</figcaption><blockquote><p>Featured status may be purchased for an additional £5.00 per vehicle.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Private Seller Terms, clause 3.4</figcaption><blockquote><p>Featured status may be purchased at the additional price displayed at checkout. Where checkout offers an optional support payment, that payment is the amount displayed there and is not required in order to advertise.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Private Seller Terms, clause 14</figcaption><blockquote><p>The standard private Listing fee is £4.99 per vehicle for 60 days and Featured status is £5.00 per vehicle. Refunds are governed by the iTrader.im Refund Policy. Nothing in these Terms excludes statutory rights that cannot lawfully be excluded.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Private Seller Terms, clause 14</figcaption><blockquote><p>Private Listing and Featured fees are the prices displayed at checkout, including any launch offer then available. A standard private Listing runs for 60 days. Refunds are governed by the iTrader.im Refund Policy. Nothing in these Terms excludes statutory rights that cannot lawfully be excluded.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Refund Policy, section 2</figcaption><blockquote><p>The standard private vehicle Listing fee is £4.99 per vehicle for up to 60 days. Once a Listing has been purchased and the advertising service has commenced, the provisions below apply subject to statutory rights.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Refund Policy, section 2</figcaption><blockquote><p>A private vehicle Listing is charged at the price displayed at checkout, including any launch offer then available, and runs for up to 60 days. Once a Listing has been purchased and the advertising service has commenced, the provisions below apply subject to statutory rights.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Refund Policy, clause 8.1</figcaption><blockquote><p>Featured status costs £5.00 per vehicle and does not guarantee views, search position, enquiries, leads or a sale.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Refund Policy, clause 8.1</figcaption><blockquote><p>Featured status is charged at the price displayed at checkout and does not guarantee views, search position, enquiries, leads or a sale. Where checkout offers an optional support payment, that payment is the amount displayed there and is not required in order to advertise.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Refund Policy, section 9</figcaption><blockquote><p>Dealer Starter costs £29.99 per month for up to 30 Active Listings. Dealer Pro costs £49.99 per month for up to 100 Active Listings. Dealer subscriptions automatically renew monthly unless cancelled.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Refund Policy, section 9</figcaption><blockquote><p>Dealer Starter and Dealer Pro are charged at the monthly prices displayed at checkout, including any current offer. Starter allows up to 30 Active Listings and Pro allows up to 100 Active Listings. Dealer subscriptions automatically renew monthly unless cancelled.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Dealer Terms, section 4</figcaption><blockquote>
+            <p>Dealer Starter - £29.99 per month</p>
+            <p>Up to 30 Active Listings.</p>
+            <p>Up to 20 photographs per Listing.</p>
+            <p>Dealer telephone number displayed.</p>
+            <p>Dedicated Dealer profile page.</p>
+            <p>Priority moderation.</p>
+            <p>Dealer Pro - £49.99 per month</p>
+            <p>Up to 100 Active Listings.</p>
+            <p>Up to 20 photographs per Listing.</p>
+            <p>Dealer telephone number displayed.</p>
+            <p>Dedicated Dealer profile page.</p>
+            <p>Priority moderation.</p>
+          </blockquote></figure>
+          <figure class="quote after"><figcaption>After · Dealer Terms, section 4</figcaption><blockquote><p>Dealer Starter and Dealer Pro are charged at the monthly prices displayed at checkout, including any current offer. Starter allows up to 30 Active Listings. Pro allows up to 100 Active Listings. Both plans include up to 20 photographs per Listing, a dealer telephone number on listings, a dedicated Dealer profile page, and the dealer dashboard while the subscription gives operational access.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Dealer Terms, clause 6.1</figcaption><blockquote><p>Dealers may purchase Featured status for individual Listings for £5.00 per vehicle.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Dealer Terms, clause 6.1</figcaption><blockquote><p>Dealers may purchase Featured status for individual Listings at the price displayed at checkout.</p></blockquote></figure>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field">
+              <label>If you do not confirm this, say why<textarea></textarea></label>
+            </div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="vehicles">
+          <div class="decision-head">
+            <h3>2. What can be advertised</h3>
+            <p>The public categories were already cars, vans, motorbikes, and motorhomes. Terms now uses that same scope.</p>
+          </div>
+          <figure class="quote before"><figcaption>Before · Terms and Conditions, definition of Vehicle</figcaption><blockquote><p>"Vehicle" means any car, van, motorcycle, motorhome, trailer, or other vehicle (and any associated parts or accessories) advertised on the Platform.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Terms and Conditions, definition of Vehicle</figcaption><blockquote><p>"Vehicle" means a car, van, motorbike or motorhome advertised on the Platform. It does not include a trailer, number plate, part or accessory.</p></blockquote></figure>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="location">
+          <div class="decision-head">
+            <h3>3. Where a vehicle can be located</h3>
+            <p>iTrader remains an Isle of Man marketplace. A vehicle may be located in the Isle of Man or the United Kingdom, which is what search and the sell form already allowed. The pricing page and the FAQ answer “Is iTrader only for the Isle of Man?” now say the same thing.</p>
+          </div>
+          <figure class="quote before"><figcaption>Before · Terms and Conditions, clause 1.3</figcaption><blockquote><p>iTrader.im operates an online marketplace through which private individuals and motor dealers based in, or with vehicles located in, the Isle of Man may advertise vehicles for sale, and through which prospective buyers may search for and make contact with sellers (the "Service").</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Terms and Conditions, clause 1.3</figcaption><blockquote><p>iTrader.im is an Isle of Man marketplace through which private individuals and motor dealers may advertise cars, vans, motorbikes and motorhomes for sale, and through which prospective buyers may search for and contact sellers (the "Service"). A vehicle may be located in the Isle of Man or the United Kingdom.</p></blockquote></figure>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="edits">
+          <div class="decision-head">
+            <h3>4. Editing a live advert</h3>
+            <p>Submitting an edit keeps the last approved advert online until the change is checked. iTrader may still unpublish it during review. The same replacement was made in Private Seller Terms, section 4, and Dealer Terms, clause 8.2.</p>
+          </div>
+          <figure class="quote before"><figcaption>Before · Private Seller Terms, section 4</figcaption><blockquote><p>Sellers may edit Listings where permitted. Edited Listings must return through validation or moderation before changes are published and may be temporarily unpublished during review. Editing does not reset the 60-day period unless expressly stated.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Private Seller Terms, section 4</figcaption><blockquote><p>Sellers may edit Listings where permitted. A change is checked before it replaces the public advert. Until that check is complete, the Listing stays live with its last approved details. iTrader may unpublish the Listing during review. Editing does not reset the 60-day period unless expressly stated.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Dealer Terms, clause 8.2</figcaption><blockquote><p>A Listing may be temporarily unpublished while changes are reviewed. Editing does not extend any applicable advertising period unless expressly stated.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Dealer Terms, clause 8.2</figcaption><blockquote><p>A change is checked before it replaces the public advert. Until that check is complete, the Listing stays live with its last approved details. iTrader may unpublish the Listing during review. Editing does not extend any applicable advertising period unless expressly stated.</p></blockquote></figure>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="timing">
+          <div class="decision-head">
+            <h3>5. Review timing</h3>
+            <p>The pricing cards said “Moderation within 1-2 days” and “Priority moderation”. The page shown after a listing is submitted said the team would check it within 1-2 business days. Nothing in the product enforces that timing or a dealer priority queue, and no service promise was built.</p>
+            <p>Pricing cards now say “Listings are checked before or after publication”. “Priority moderation” was removed from both Starter and Pro. The submission page now says iTrader checks listings before or after publication and does not promise a review time.</p>
+          </div>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="cancellation">
+          <div class="decision-head">
+            <h3>6. Cancelling a dealer subscription</h3>
+            <p>The site cannot cancel the payment-provider subscription itself. A dealer emails hello@itrader.im and may also use the dashboard request where that option is shown. Staff complete the provider cancellation. It takes effect at the end of the paid period, with no pro-rata refund. The dashboard request appears only when that option is switched on; it is currently off.</p>
+          </div>
+          <figure class="quote before"><figcaption>Before · Terms and Conditions, clause 12.3</figcaption><blockquote><p>Dealers may cancel a recurring subscription at any time through their Account settings or by written notice to hello@itrader.im, to take effect at the end of the then-current subscription period. Cancellation does not entitle a Dealer to a refund of fees already paid for the current period, but will prevent any further renewal charge.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Terms and Conditions, clause 12.3</figcaption><blockquote><p>Dealers may cancel a recurring subscription by email to hello@itrader.im. Where the dealer dashboard shows a cancellation request, the Dealer may use that request as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete the provider cancellation. Cancellation takes effect at the end of the then-current subscription period. It does not entitle a Dealer to a refund of fees already paid for the current period, but it prevents any further renewal charge.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Dealer Terms, clause 4.2</figcaption><blockquote><p>There is no minimum subscription period. You may cancel at any time, with cancellation taking effect at the end of the current paid billing period.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Dealer Terms, clause 4.2</figcaption><blockquote><p>There is no minimum subscription period. Cancel by email to hello@itrader.im. Where the dealer dashboard shows a cancellation request, you may use that request as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete the provider cancellation. Cancellation takes effect at the end of the current paid billing period.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Refund Policy, section 10</figcaption><blockquote><p>A Dealer may cancel at any time. Unless otherwise required by law or expressly agreed, cancellation stops future renewals, the current paid period continues to its scheduled end, and no pro-rata refund is provided. Existing Listings may remain live until the end of the paid period, subject to moderation rights.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Refund Policy, section 10</figcaption><blockquote><p>A Dealer may cancel by email to hello@itrader.im. Where the dealer dashboard shows a cancellation request, the Dealer may use that request as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete the provider cancellation. Unless otherwise required by law or expressly agreed, cancellation stops future renewals, the current paid period continues to its scheduled end, and no pro-rata refund is provided. Existing Listings may remain live until the end of the paid period, subject to moderation rights.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · FAQ, “How do I cancel a dealer subscription?”</figcaption><blockquote><p>Email hello@itrader.im to cancel. When the dealer dashboard shows a cancellation request, you can use that as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete that cancellation. Cancellation takes effect at the end of the period already paid for. You keep dealer access until then, and a pro-rata refund is not normally given.</p></blockquote></figure>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="messages">
+          <div class="decision-head">
+            <h3>7. Buyer messages</h3>
+            <p>Anyone can browse a listing. Sending a message through Contact Seller now requires a signed-in account, both on the page and before the message is checked or sent. The FAQ already said sign-in was required.</p>
+          </div>
+          <figure class="quote before"><figcaption>Before · Dealer Terms, section 11</figcaption><blockquote><p>Buyers may browse Listings and submit contact-form enquiries without an iTrader account. Dealers are responsible for handling enquiries. iTrader does not guarantee that an enquiry will result in a sale.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Dealer Terms, section 11</figcaption><blockquote><p>Buyers may browse Listings without an account. Sending a message through Contact Seller requires the buyer to sign in. Dealers are responsible for handling enquiries. iTrader does not guarantee that an enquiry will result in a sale.</p></blockquote></figure>
+          <figure class="quote before"><figcaption>Before · Private Seller Terms, section 11</figcaption><blockquote><p>Buyers may browse Listings and use the contact form without creating an account. Sellers are responsible for responding. iTrader does not guarantee that enquiries are genuine or will result in a completed purchase.</p></blockquote></figure>
+          <figure class="quote after"><figcaption>After · Private Seller Terms, section 11</figcaption><blockquote><p>Buyers may browse Listings without an account. Sending a message through Contact Seller requires the buyer to sign in. Sellers are responsible for responding. iTrader does not guarantee that enquiries are genuine or will result in a completed purchase.</p></blockquote></figure>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="roles">
+          <div class="decision-head">
+            <h3>8. Dealer accounts and private listings</h3>
+            <p>Sign-up and account wording said private selling stayed available on the same account. The site already rejects a private listing from a dealer account, and a dealer listing from a private account. That separation was kept. A dealer account now says it advertises through dealer listings, and the private-seller launch offer is no longer shown on the dealer sign-up path. Becoming a dealer moves the account onto dealer listings.</p>
+          </div>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+
+        <article class="decision" data-decision="dashboard">
+          <div class="decision-head">
+            <h3>9. Dealer dashboard</h3>
+            <p>Pricing presented the dealer dashboard as a Pro feature. Access already allows a Starter or Pro dealer with an active entitlement. The marketing now lists the dealer dashboard on both plans. Access was not restricted to Pro.</p>
+          </div>
+                  <div class="decision-confirm">
+            <label class="tick screen-field"><input class="approve" type="checkbox"> I confirm this for production</label>
+            <div class="reason screen-field"><label>If you do not confirm this, say why<textarea></textarea></label></div>
+            <p class="print-mirror approval-mirror"></p>
+            <p class="print-mirror reason-mirror"></p>
+          </div>
+        </article>
+      </section>
+
+      <section class="other">
+        <h2>Also completed</h2>
+        <h3>Dealer onboarding, already on production</h3>
+        <p>Invitation links now open on the site that sent them. Sign-in recovery, the return to onboarding, and saving a completed onboarding were fixed. An invitation sent before that correction cannot be reused and must be sent again. Onboarding emails show the full message rather than collapsing it, and they use the iTrader logo. Complimentary Pro access starts when the invitation is accepted and runs through 31 December 2026, so a launch date is not required.</p>
+        <p>On preview, the onboarding list follows the selected preview packs and a matched account that can be claimed. Four preview test accounts are available for that testing. On production, the five real dealer accounts remain. A temporary production test account used for the checks was removed afterwards.</p>
+        <h3>Admin and email, on preview only</h3>
+        <p>Admin lists for users, dealers, listings, regions, categories, the waiting list, and media now use one compact Actions menu. Payment, report, review, cancellation, and other specialist screens were left as they were. Outbound emails share one branded design. Account permissions, review rules, sign-in links, cancellation handling, and email delivery were not changed. No database migration was run, and this work was not sent as a live email campaign.</p>
+      </section>
+      <div class="actions no-print">
+        <button type="button" id="print-button">Print / Save as PDF</button>
+        <p id="print-warning" class="warning"></p>
+      </div>
+    </main>
+    <footer>
+      <p>iTrader.im confirmation sheet, 24 September 2026. Return the saved PDF by email.</p>
+    </footer>
+  </article>
+  <script>
+    const decisions = Array.from(document.querySelectorAll(".decision"));
+    const warning = document.querySelector("#print-warning");
+
+    function reasonText(scope) {
+      const field = scope.querySelector("textarea");
+      return field ? field.value.trim() : "";
+    }
+
+    function mirror(scope, checked, reason) {
+      scope.querySelector(".approval-mirror").textContent = checked
+        ? "Confirmed for production."
+        : "Not confirmed for production.";
+      const reasonMirror = scope.querySelector(".reason-mirror");
+      reasonMirror.textContent = checked ? "" : (reason || "No reason given.");
+    }
+
+    function refresh() {
+      decisions.forEach((decision) => {
+        const checked = decision.querySelector(".approve").checked;
+        decision.classList.toggle("needs-reason", !checked && reasonText(decision) === "");
+        mirror(decision, checked, reasonText(decision));
+      });
+      const missing = decisions.filter((decision) => decision.classList.contains("needs-reason")).length;
+      warning.textContent = missing
+        ? missing + (missing === 1 ? " unticked item has no reason." : " unticked items have no reason.")
+        : "";
+      warning.classList.toggle("show", missing > 0);
+    }
+
+    function printSheet() {
+      refresh();
+      window.print();
+    }
+
+    document.documentElement.classList.add("js");
+    decisions.forEach((decision) => {
+      decision.querySelector(".approve").addEventListener("change", refresh);
+      decision.querySelector("textarea").addEventListener("input", refresh);
+    });
+    document.querySelector("#print-button").addEventListener("click", printSheet);
+    window.addEventListener("beforeprint", refresh);
+    refresh();
+  </script>
+</body>
+</html>

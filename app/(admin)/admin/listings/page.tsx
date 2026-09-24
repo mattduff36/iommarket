@@ -6,13 +6,19 @@ import type { ReactNode } from "react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { Badge } from "@/components/ui/badge";
 import { ModerationActions } from "./moderation-actions";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
@@ -185,21 +191,23 @@ export default async function AdminListingsPage({
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">
-        Listing Moderation
-      </h1>
+      <AdminPageHeader
+        title="Listing moderation"
+        description="Review listing state, pending edits, and reports without leaving the queue."
+        meta={<span>{total} {total === 1 ? "listing" : "listings"}</span>}
+      />
       <AdminListingFilters query={query} status={status} />
 
-      <Table>
+      <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
             <TableHead>Title</TableHead>
             <TableHead>Seller</TableHead>
             <TableHead>Category</TableHead>
-            <TableHead>Price</TableHead>
+            <TableHead className="text-right">Price</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Reports</TableHead>
-            <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+            <TableHead className="text-right">Reports</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -230,12 +238,12 @@ export default async function AdminListingsPage({
                   </ListingReviewLink>
                 </TableCell>
                 <TableCell className="p-0">
-                  <ListingReviewLink href={reviewHref}>
+                  <ListingReviewLink href={reviewHref} className="text-right font-medium tabular-nums">
                     £{(listing.price / 100).toLocaleString()}
                   </ListingReviewLink>
                 </TableCell>
                 <TableCell className="p-0">
-                  <ListingReviewLink href={reviewHref}>
+                  <ListingReviewLink href={reviewHref} className={adminNumericCellClass}>
                     <Badge variant={STATUS_VARIANT[listing.status] ?? "neutral"}>
                       {listing.status}
                     </Badge>
@@ -255,7 +263,7 @@ export default async function AdminListingsPage({
                     )}
                   </ListingReviewLink>
                 </TableCell>
-                <TableCell className="w-[1%] whitespace-nowrap">
+                <TableCell className={adminActionsCellClass}>
                   <ModerationActions
                     listingId={listing.id}
                     listingTitle={listing.title}
@@ -275,14 +283,13 @@ export default async function AdminListingsPage({
               </TableRow>
             );
           })}
+          {listings.length === 0 ? (
+            <TableRow>
+              <AdminTableEmpty colSpan={7}>No listings match these filters.</AdminTableEmpty>
+            </TableRow>
+          ) : null}
         </TableBody>
-      </Table>
-
-      {listings.length === 0 && (
-        <p className="text-center py-8 text-text-secondary">
-          No listings to moderate.
-        </p>
-      )}
+      </AdminTable>
       <AdminPager
         page={page}
         totalPages={totalPages}

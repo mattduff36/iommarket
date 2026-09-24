@@ -40,12 +40,30 @@ export function SiteHeader() {
         credentials: "same-origin",
         cache: "no-store",
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setAuthState((s) => ({
+          ...s,
+          displayName: userEmail || null,
+          loading: false,
+        }));
+        return;
+      }
       const data = await res.json();
-      const displayName = data.name?.trim() || userEmail || null;
-      setAuthState((s) => ({ ...s, role: data.role ?? null, displayName }));
+      const displayName =
+        (typeof data.name === "string" ? data.name.trim() : "") ||
+        userEmail ||
+        null;
+      const role =
+        data.role === "USER" || data.role === "DEALER" || data.role === "ADMIN"
+          ? data.role
+          : null;
+      setAuthState((s) => ({ ...s, role, displayName, loading: false }));
     } catch {
-      // silently fail
+      setAuthState((s) => ({
+        ...s,
+        displayName: userEmail || null,
+        loading: false,
+      }));
     }
   }
 
@@ -66,8 +84,9 @@ export function SiteHeader() {
         setAuthState((s) => ({
           ...s,
           user: u,
-          loading: false,
-          displayName: u?.email ?? null,
+          role: null,
+          loading: Boolean(u),
+          displayName: null,
         }));
         if (u) fetchMe(u.email);
       })
@@ -81,9 +100,21 @@ export function SiteHeader() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null;
       if (!u) {
-        setAuthState((s) => ({ ...s, user: null, role: null, displayName: null }));
+        setAuthState((s) => ({
+          ...s,
+          user: null,
+          role: null,
+          displayName: null,
+          loading: false,
+        }));
       } else {
-        setAuthState((s) => ({ ...s, user: u, displayName: u.email ?? null }));
+        setAuthState((s) => ({
+          ...s,
+          user: u,
+          role: null,
+          displayName: null,
+          loading: true,
+        }));
         fetchMe(u.email);
       }
     });

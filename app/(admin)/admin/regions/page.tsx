@@ -4,13 +4,21 @@ import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { RegionActions } from "./region-actions";
 import { CreateRegionForm } from "./create-region-form";
 
@@ -26,42 +34,46 @@ export default async function AdminRegionsPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Regions</h1>
+      <AdminPageHeader
+        title="Regions"
+        description="Manage the locations available to users and marketplace listings."
+        meta={`${regions.length} ${regions.length === 1 ? "region" : "regions"}`}
+      />
 
       <div className="mb-8">
         <CreateRegionForm />
       </div>
 
-      <Table>
+      <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Slug</TableHead>
-            <TableHead>Order</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Users</TableHead>
-            <TableHead>Listings</TableHead>
+            <TableHead className="text-right">Order</TableHead>
+            <TableHead className="text-right">Users</TableHead>
+            <TableHead className="text-right">Listings</TableHead>
             <TableHead>Created</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {regions.map((region) => (
             <TableRow key={region.id}>
-              <TableCell className="font-medium text-text-primary">{region.name}</TableCell>
-              <TableCell className="text-sm text-text-tertiary font-mono">{region.slug}</TableCell>
-              <TableCell className="text-sm text-text-secondary">{region.sortOrder}</TableCell>
+              <TableCell>
+                <AdminDataCell title={region.name} subtitle={region.slug} />
+              </TableCell>
               <TableCell>
                 <Badge variant={region.active ? "success" : "neutral"}>
                   {region.active ? "Active" : "Inactive"}
                 </Badge>
               </TableCell>
-              <TableCell className="text-sm text-text-secondary">{region._count.users}</TableCell>
-              <TableCell className="text-sm text-text-secondary">{region._count.listings}</TableCell>
-              <TableCell className="text-sm text-text-tertiary">
+              <TableCell className={adminNumericCellClass}>{region.sortOrder}</TableCell>
+              <TableCell className={adminNumericCellClass}>{region._count.users}</TableCell>
+              <TableCell className={adminNumericCellClass}>{region._count.listings}</TableCell>
+              <TableCell className={adminDateCellClass}>
                 {region.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell>
+              <TableCell className={adminActionsCellClass}>
                 <RegionActions
                   regionId={region.id}
                   regionName={region.name}
@@ -73,13 +85,11 @@ export default async function AdminRegionsPage() {
           ))}
           {regions.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
-                No regions found. Add one above.
-              </TableCell>
+              <AdminTableEmpty colSpan={7}>No regions found. Add one above.</AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
     </>
   );
 }

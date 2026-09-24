@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
+import { AdminNavLink } from "@/components/admin/admin-nav-link";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
 
@@ -30,14 +30,11 @@ export default async function AdminLayout({
                   </p>
                   <nav className="flex flex-col gap-0.5" aria-label={group.label}>
                     {items.map((item) => (
-                      <Link
+                      <AdminNavLink
                         key={item.href}
-                        href={item.href}
-                        className="group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                      >
-                        <item.icon className={`h-4 w-4 ${group.accent} opacity-50 group-hover:opacity-100 transition-opacity`} />
-                        {item.label}
-                      </Link>
+                        item={item}
+                        accentClass={group.accent}
+                      />
                     ))}
                   </nav>
                 </div>

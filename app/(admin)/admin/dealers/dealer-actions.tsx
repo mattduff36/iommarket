@@ -132,11 +132,6 @@ export function DealerActions({
         actions={actions}
         pendingLabel={pendingLabel ?? undefined}
       />
-      {hasActivePaidSubscription ? (
-        <p className="text-xs text-text-tertiary">
-          Package is set by the paid subscription and cannot be changed.
-        </p>
-      ) : null}
       {error ? (
         <p className="text-xs text-text-error" role="alert">
           {error}

@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-24T00:31:38.112Z",
+  "generatedAt": "2026-09-24T21:57:38.990Z",
   "projectKey": "d-Websites-iommarket",
   "windowStart": "2026-08-11T00:00:00.000Z",
   "windowEnd": "2026-09-25T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1083,
-    "unattributedEvents": 620,
-    "unattributedMicroCents": "160448179204"
+    "attributedEvents": 1134,
+    "unattributedEvents": 644,
+    "unattributedMicroCents": "163026557435"
   },
   "days": [
     {
@@ -365,14 +365,14 @@
     },
     {
       "date": "2026-09-23",
-      "identifiedMicroCents": "12288191143",
+      "identifiedMicroCents": "12313017559",
       "project": {
-        "onDemandMicroCents": "12288191143",
-        "chargedMicroCents": "12288191143",
-        "inputTokens": 2818338,
-        "outputTokens": 549442,
+        "onDemandMicroCents": "12313017559",
+        "chargedMicroCents": "12313017559",
+        "inputTokens": 2820651,
+        "outputTokens": 550021,
         "cacheWriteTokens": 1044841,
-        "cacheReadTokens": 125977273,
+        "cacheReadTokens": 126209337,
         "models": [
           {
             "model": "gpt-5.6-sol-high",
@@ -384,7 +384,37 @@
           },
           {
             "model": "grok-4.7-xhigh-fast",
-            "onDemandMicroCents": "9645509187"
+            "onDemandMicroCents": "9670335603"
+          }
+        ]
+      }
+    },
+    {
+      "date": "2026-09-24",
+      "identifiedMicroCents": "9854318131",
+      "project": {
+        "onDemandMicroCents": "3573870466",
+        "chargedMicroCents": "3573870466",
+        "inputTokens": 430155,
+        "outputTokens": 129982,
+        "cacheWriteTokens": 1166473,
+        "cacheReadTokens": 49322231,
+        "models": [
+          {
+            "model": "gpt-5.6-sol-high",
+            "onDemandMicroCents": "2228480864"
+          },
+          {
+            "model": "gpt-5.6-sol-medium",
+            "onDemandMicroCents": "82577202"
+          },
+          {
+            "model": "grok-4.7-high-fast",
+            "onDemandMicroCents": "422368806"
+          },
+          {
+            "model": "grok-4.7-xhigh-fast",
+            "onDemandMicroCents": "840443594"
           }
         ]
       }

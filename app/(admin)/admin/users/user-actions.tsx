@@ -300,7 +300,7 @@ export function UserActions({
         </AdminActionBar>
       )}
 
-      {currentTier && hasActivePaidSubscription ? (
+      {variant === "detail" && currentTier && hasActivePaidSubscription ? (
         <p className="text-xs text-text-tertiary">
           Package is set by the paid subscription and cannot be changed.
         </p>

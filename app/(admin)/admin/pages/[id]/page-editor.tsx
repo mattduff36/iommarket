@@ -83,68 +83,88 @@ export function PageEditor({ page }: PageEditorProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-      <Input
-        label="Title"
-        name="title"
-        required
-        defaultValue={page?.title ?? ""}
-        maxLength={200}
-      />
+    <form onSubmit={handleSubmit} className="max-w-4xl space-y-6">
+      <section className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
+        <div>
+          <h2 className="text-lg font-semibold text-text-primary">Page content</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            The slug controls the public URL. Content supports Markdown formatting.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Title"
+            name="title"
+            required
+            defaultValue={page?.title ?? ""}
+            maxLength={200}
+          />
 
-      <Input
-        label="Slug"
-        name="slug"
-        required
-        defaultValue={page?.slug ?? ""}
-        maxLength={100}
-        placeholder="e.g. terms"
-      />
+          <Input
+            label="Slug"
+            name="slug"
+            required
+            defaultValue={page?.slug ?? ""}
+            maxLength={100}
+            placeholder="e.g. terms"
+          />
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="markdown" className="text-sm font-medium text-text-primary">
-          Content (Markdown)
-        </label>
-        <AdminActionTextarea
-          id="markdown"
-          name="markdown"
-          required
-          rows={20}
-          defaultValue={page?.markdown ?? ""}
-          className="text-sm font-mono"
-        />
-      </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="markdown" className="text-sm font-medium text-text-primary">
+            Content (Markdown)
+          </label>
+          <AdminActionTextarea
+            id="markdown"
+            name="markdown"
+            required
+            rows={20}
+            defaultValue={page?.markdown ?? ""}
+            className="font-mono text-sm"
+          />
+        </div>
+      </section>
 
-      <Input
-        label="Meta Title (optional)"
-        name="metaTitle"
-        defaultValue={page?.metaTitle ?? ""}
-        maxLength={200}
-      />
+      <section className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
+        <div>
+          <h2 className="text-lg font-semibold text-text-primary">Search and publication</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Optional metadata can override the page title and description used by search engines.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Meta title (optional)"
+            name="metaTitle"
+            defaultValue={page?.metaTitle ?? ""}
+            maxLength={200}
+          />
 
-      <Input
-        label="Meta Description (optional)"
-        name="metaDescription"
-        defaultValue={page?.metaDescription ?? ""}
-        maxLength={500}
-      />
+          <Input
+            label="Meta description (optional)"
+            name="metaDescription"
+            defaultValue={page?.metaDescription ?? ""}
+            maxLength={500}
+          />
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="status" className="text-sm font-medium text-text-primary">
-          Status
-        </label>
-        <AdminActionSelect
-          id="status"
-          name="status"
-          defaultValue={page?.status ?? "DRAFT"}
-          className="h-10 w-48 text-sm"
-        >
-          <option value="DRAFT">Draft</option>
-          <option value="PUBLISHED">Published</option>
-        </AdminActionSelect>
-      </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="status" className="text-sm font-medium text-text-primary">
+            Status
+          </label>
+          <AdminActionSelect
+            id="status"
+            name="status"
+            defaultValue={page?.status ?? "DRAFT"}
+            className="h-10 w-full text-sm sm:w-48"
+          >
+            <option value="DRAFT">Draft</option>
+            <option value="PUBLISHED">Published</option>
+          </AdminActionSelect>
+        </div>
+      </section>
 
-      {error && <p className="text-sm text-text-error">{error}</p>}
+      {error && <p role="alert" className="text-sm text-text-error">{error}</p>}
 
       <AdminActionBar>
         <AdminActionButton type="submit" disabled={isPending} tone="primary">

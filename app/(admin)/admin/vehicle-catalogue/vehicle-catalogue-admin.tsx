@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { SearchX } from "lucide-react";
 import {
   exportVehicleCatalogue,
   importVehicleCatalogue,
@@ -11,6 +12,7 @@ import {
 } from "@/actions/vehicle-catalogue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 
 interface CatalogueAlias {
   id: string;
@@ -117,8 +119,8 @@ function EntityEditor({
       onSubmit={handleSubmit}
       className={
         compact
-          ? "grid gap-2 border-t border-border/70 pt-3 sm:grid-cols-[minmax(10rem,1fr)_6rem_minmax(8rem,0.8fr)_minmax(8rem,0.8fr)_auto]"
-          : "grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1fr)_7rem_minmax(10rem,0.8fr)_minmax(10rem,0.8fr)_auto]"
+          ? "grid gap-2 border-t border-border/70 pt-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1fr)_6rem_minmax(8rem,0.8fr)_minmax(8rem,0.8fr)_auto]"
+          : "grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_7rem_minmax(10rem,0.8fr)_minmax(10rem,0.8fr)_auto]"
       }
     >
       <Input
@@ -160,7 +162,7 @@ function EntityEditor({
         aria-label={compact ? `${label} source version` : undefined}
         className="text-base sm:text-sm"
       />
-      <div className="flex items-center gap-2 self-end pb-1">
+      <div className="flex flex-wrap items-center gap-2 self-end pb-1">
         <label className="inline-flex min-h-10 items-center gap-2 text-sm text-text-secondary">
           <input
             type="checkbox"
@@ -277,9 +279,14 @@ export function VehicleCatalogueAdmin({
   }
 
   return (
-    <>
-      <section className="space-y-4 rounded-lg border border-border p-4">
-        <h2 className="text-lg font-semibold text-text-primary">Find and add makes</h2>
+    <div className="space-y-8">
+      <section className="space-y-5 rounded-lg border border-border bg-surface p-4 shadow-low sm:p-5">
+        <div>
+          <h2 className="text-lg font-semibold text-text-primary">Find and add makes</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Search the existing hierarchy or add a new canonical make.
+          </p>
+        </div>
         <form method="get" className="flex flex-col gap-2 sm:flex-row">
           <Input
             name="q"
@@ -296,14 +303,20 @@ export function VehicleCatalogueAdmin({
 
       <section className="space-y-3" aria-label="Vehicle catalogue records">
         {makes.length === 0 ? (
-          <p className="rounded-lg border border-border p-4 text-sm text-text-secondary">
-            No catalogue records match this search.
-          </p>
+          <AdminEmptyState
+            icon={SearchX}
+            title="No catalogue records found"
+            description={
+              query
+                ? `No makes, models, or aliases match “${query}”.`
+                : "Add the first make using the form above."
+            }
+          />
         ) : null}
         {makes.map((make) => (
           <details
             key={make.id}
-            className="rounded-lg border border-border bg-surface p-4"
+            className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-5"
           >
             <summary className="cursor-pointer text-base font-semibold text-text-primary">
               {make.name} · {make.active ? "Active" : "Inactive"} ·{" "}
@@ -367,7 +380,7 @@ export function VehicleCatalogueAdmin({
         ))}
       </section>
 
-      <section className="space-y-4 rounded-lg border border-border p-4">
+      <section className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-low sm:p-5">
         <div>
           <h2 className="text-lg font-semibold text-text-primary">JSON import / export</h2>
           <p className="mt-1 text-sm text-text-secondary">
@@ -436,9 +449,9 @@ export function VehicleCatalogueAdmin({
         </div>
       </section>
 
-      <p aria-live="polite" className="text-sm text-text-secondary">
+      <p aria-live="polite" className="min-h-5 text-sm text-text-secondary">
         {status}
       </p>
-    </>
+    </div>
   );
 }

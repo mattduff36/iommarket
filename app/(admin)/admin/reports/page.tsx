@@ -1,8 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { db } from "@/lib/db";
+import { ShieldCheck } from "lucide-react";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { Badge } from "@/components/ui/badge";
 import {
   CARD_OVERLAY_CONTROL_CLASS,
@@ -53,38 +59,53 @@ export default async function AdminReportsPage({
   const totalPages = adminTotalPages(total, PAGE_SIZE);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Fraud Reports</h1>
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
+    <>
+      <AdminPageHeader
+        title="Fraud reports"
+        description="Review reported listings, record the decision, and take down unsafe content when required."
+      />
+      <AdminFilterBar count={`${total} ${total === 1 ? "report" : "reports"}`}>
         {STATUS_FILTERS.map((value) => (
-          <Link
+          <AdminFilterChip
             key={value}
             href={`/admin/reports?status=${value}`}
-            className={value === status ? "text-text-primary" : "text-text-secondary"}
+            active={value === status}
+            activeTone={
+              value === "OPEN"
+                ? "warning"
+                : value === "ACTIONED"
+                  ? "success"
+                  : "neutral"
+            }
           >
             {value}
-          </Link>
+          </AdminFilterChip>
         ))}
-      </div>
-      <div className="space-y-4">
+      </AdminFilterBar>
+      <div className="space-y-3">
         {reports.map((report) => (
-          <div key={report.id} className="relative rounded-lg border border-border p-4 bg-surface">
+          <article
+            key={report.id}
+            className="relative overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-low"
+          >
             <CardOverlayLink
               href={`/listings/${report.listing.id}?adminReview=1`}
               label={report.listing.title}
             />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="font-medium text-text-primary">{report.listing.title}</p>
-                <p className="text-xs text-text-secondary mt-1">
+                <p className="mt-1 text-xs leading-5 text-text-tertiary">
                   {report.reporterEmail} · {report.createdAt.toLocaleDateString("en-GB")}
                   {report.reasonCode ? ` · ${report.reasonCode}` : ""}
                 </p>
               </div>
               <Badge variant={STATUS_VARIANT[report.status] ?? "neutral"}>{report.status}</Badge>
             </div>
-            <p className="mt-3 text-sm text-text-secondary">{report.reason}</p>
-            <div className={`mt-3 max-w-md ${CARD_OVERLAY_CONTROL_CLASS}`}>
+            <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-text-secondary">
+              {report.reason}
+            </p>
+            <div className={`mt-4 max-w-xl ${CARD_OVERLAY_CONTROL_CLASS}`}>
               <ReportActions
                 reportId={report.id}
                 currentStatus={report.status}
@@ -94,14 +115,25 @@ export default async function AdminReportsPage({
                 reportReasonCode={report.reasonCode}
               />
             </div>
-          </div>
+          </article>
         ))}
+        {reports.length === 0 ? (
+          <AdminEmptyState
+            icon={ShieldCheck}
+            title={status === "OPEN" ? "No open reports" : "No reports match this status"}
+            description={
+              status === "OPEN"
+                ? "The fraud-report queue is clear."
+                : "Choose another status to review a different part of the queue."
+            }
+          />
+        ) : null}
       </div>
       <AdminPager
         page={page}
         totalPages={totalPages}
         hrefForPage={(nextPage) => `/admin/reports?status=${status}&page=${nextPage}`}
       />
-    </div>
+    </>
   );
 }

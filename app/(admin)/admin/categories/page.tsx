@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
@@ -11,6 +10,14 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { CreateCategoryForm } from "./create-category-form";
 import { AddAttributeForm } from "./add-attribute-form";
 import { AttributeDeleteButton, CategoryRowActions } from "./category-actions";
@@ -38,34 +45,30 @@ export default async function AdminCategoriesPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">Categories</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Manage categories and their filterable attributes.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Categories"
+        description="Manage marketplace categories and their filterable attributes."
+        meta={`${categories.length} ${categories.length === 1 ? "category" : "categories"}`}
+      />
 
       <div className="grid gap-8 lg:grid-cols-3">
-        {/* ── Table ── */}
-        <div className="lg:col-span-2 overflow-x-auto">
-          <Table>
+        <div className="min-w-0 lg:col-span-2">
+          <AdminTable minWidth="wide">
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Slug</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Attributes</TableHead>
-                <TableHead>Listings</TableHead>
+                <TableHead className="text-right">Listings</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-28">Actions</TableHead>
+                <TableHead className={adminActionsCellClass}>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {categories.map((cat) => (
                 <TableRow key={cat.id}>
-                  <TableCell className="font-medium">{cat.name}</TableCell>
-                  <TableCell className="text-text-secondary font-mono text-xs">
-                    {cat.slug}
+                  <TableCell>
+                    <AdminDataCell title={cat.name} subtitle={cat.slug} />
                   </TableCell>
                   <TableCell className="text-text-secondary text-sm">
                     {cat.parent?.name ?? "-"}
@@ -94,13 +97,15 @@ export default async function AdminCategoriesPage() {
                       <span className="text-text-tertiary text-xs">None</span>
                     )}
                   </TableCell>
-                  <TableCell>{cat._count.listings}</TableCell>
+                  <TableCell className={adminNumericCellClass}>
+                    {cat._count.listings}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={cat.active ? "success" : "neutral"}>
                       {cat.active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={adminActionsCellClass}>
                     <CategoryRowActions
                       categoryId={cat.id}
                       categoryName={cat.name}
@@ -110,11 +115,17 @@ export default async function AdminCategoriesPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {categories.length === 0 ? (
+                <TableRow>
+                  <AdminTableEmpty colSpan={6}>
+                    No categories found. Add one from the form.
+                  </AdminTableEmpty>
+                </TableRow>
+              ) : null}
             </TableBody>
-          </Table>
+          </AdminTable>
         </div>
 
-        {/* ── Right panel ── */}
         <div className="flex flex-col gap-6">
           <CreateCategoryForm
             parentCategories={topLevelCategories.map((c) => ({ id: c.id, name: c.name }))}

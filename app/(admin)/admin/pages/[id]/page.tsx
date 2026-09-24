@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { PageEditor } from "./page-editor";
 
 export const metadata: Metadata = { title: "Edit Page | Admin" };
@@ -18,12 +19,18 @@ export default async function AdminPageEditPage({ params }: Props) {
   if (id === "new") {
     return (
       <>
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/admin/pages" className="text-sm text-text-secondary hover:text-text-primary">
-            &larr; Pages
-          </Link>
-          <h1 className="text-2xl font-bold text-text-primary">New Page</h1>
-        </div>
+        <AdminPageHeader
+          title="New page"
+          description="Create a marketplace content page and choose when it is ready to publish."
+          actions={
+            <Link
+              href="/admin/pages"
+              className="text-sm font-medium text-text-secondary hover:text-text-primary"
+            >
+              &larr; All pages
+            </Link>
+          }
+        />
         <PageEditor />
       </>
     );
@@ -34,12 +41,19 @@ export default async function AdminPageEditPage({ params }: Props) {
 
   return (
     <>
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/admin/pages" className="text-sm text-text-secondary hover:text-text-primary">
-          &larr; Pages
-        </Link>
-        <h1 className="text-2xl font-bold text-text-primary">Edit: {page.title}</h1>
-      </div>
+      <AdminPageHeader
+        title={page.title}
+        description="Edit page content, search metadata, and publication status."
+        meta={<span>{page.status === "PUBLISHED" ? "Published" : "Draft"}</span>}
+        actions={
+          <Link
+            href="/admin/pages"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary"
+          >
+            &larr; All pages
+          </Link>
+        }
+      />
       <PageEditor page={page} />
     </>
   );

@@ -1,7 +1,14 @@
+import { ReceiptText } from "lucide-react";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -24,9 +31,18 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-3">Costs</h1>
+      <AdminPageHeader
+        title="Costs"
+        description="Review live project costs, invoiceable totals, provider sync health, and invoice requests."
+        actions={
+          <RequestInvoiceButton
+            label={dashboard.requestButtonLabel}
+            disabled={!dashboard.canRequestInvoice}
+          />
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-text-secondary">
@@ -75,15 +91,13 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
         </p>
       ) : null}
 
-      <div className="mb-8">
-        <RequestInvoiceButton
-          label={dashboard.requestButtonLabel}
-          disabled={!dashboard.canRequestInvoice}
-        />
-      </div>
-
       {dashboard.enabled && dashboard.sections.length === 0 ? (
-        <p className="mb-8 text-sm text-text-secondary">{COST_EMPTY_HELP}</p>
+        <AdminEmptyState
+          icon={ReceiptText}
+          title="No cost lines yet"
+          description={COST_EMPTY_HELP}
+          className="mb-8"
+        />
       ) : null}
 
       {dashboard.sections.map((section) => (
@@ -94,7 +108,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
             </h2>
             <p className="text-sm text-text-secondary">{section.amountLabel}</p>
           </div>
-          <Table>
+          <AdminTable>
             <TableHeader>
               <TableRow>
                 <TableHead>Period</TableHead>
@@ -106,11 +120,13 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
             <TableBody>
               {section.lines.map((line) => (
                 <TableRow key={line.id}>
-                  <TableCell>
+                  <TableCell className={adminDateCellClass}>
                     {new Date(line.periodStart).toLocaleDateString("en-GB")}
                   </TableCell>
                   <TableCell>{line.label}</TableCell>
-                  <TableCell>{line.amountLabel}</TableCell>
+                  <TableCell className={adminNumericCellClass}>
+                    {line.amountLabel}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={line.provisional ? "warning" : "neutral"}>
                       {line.provisional ? "Provisional" : "Invoiceable"}
@@ -119,13 +135,13 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </AdminTable>
         </section>
       ))}
 
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold text-text-primary mb-3">Total</h2>
-        <p className="text-2xl font-bold text-text-primary">
+      <div className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-low">
+        <h2 className="text-sm font-medium text-text-secondary">Projected total</h2>
+        <p className="mt-2 text-2xl font-bold tabular-nums text-text-primary">
           {dashboard.projectedTotalLabel}
         </p>
       </div>
@@ -135,7 +151,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
           <h2 className="text-lg font-semibold text-text-primary mb-3">
             Invoice requests
           </h2>
-          <Table>
+          <AdminTable>
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -147,10 +163,12 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
             <TableBody>
               {dashboard.requests.map((request) => (
                 <TableRow key={request.id}>
-                  <TableCell>
+                  <TableCell className={adminDateCellClass}>
                     {new Date(request.createdAt).toLocaleDateString("en-GB")}
                   </TableCell>
-                  <TableCell>{request.amountLabel}</TableCell>
+                  <TableCell className={adminNumericCellClass}>
+                    {request.amountLabel}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={
@@ -164,22 +182,27 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </AdminTable>
         </section>
       ) : null}
 
       {dashboard.isOwner ? (
-        <section>
-          <h2 className="text-lg font-semibold text-text-primary mb-3">
+        <section className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
+          <h2 className="mb-1 text-lg font-semibold text-text-primary">
             Owner controls
           </h2>
+          <p className="mb-5 text-sm leading-6 text-text-secondary">
+            Record manual charges, refresh provider costs, or retry a failed invoice notification.
+          </p>
           <OwnerCostControls
             canRetryEmail={dashboard.pendingRequest?.emailStatus === "FAILED"}
             outboxId={dashboard.pendingRequest?.outboxId ?? undefined}
           />
         </section>
       ) : (
-        <p className="text-sm text-text-secondary">{COST_NON_OWNER_HELP}</p>
+        <p className="rounded-lg border border-border bg-surface p-4 text-sm leading-6 text-text-secondary">
+          {COST_NON_OWNER_HELP}
+        </p>
       )}
     </>
   );

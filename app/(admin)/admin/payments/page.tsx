@@ -5,13 +5,28 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+  adminSearchButtonClass,
+  adminSearchInputClass,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminPager } from "@/components/admin/admin-pager";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { RefundButton } from "./payment-actions";
 import { CancelSubButton, RefundSubPaymentButton } from "./subscription-actions";
 import { UnmatchedInboxTab } from "./unmatched-inbox-tab";
@@ -53,6 +68,28 @@ const SUB_STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neut
 };
 
 const PAGE_SIZE = 25;
+
+function PaymentTabs({
+  activeTab,
+  hrefForTab,
+}: {
+  activeTab: string;
+  hrefForTab: (tab: string) => string;
+}) {
+  return (
+    <AdminFilterBar label="Payment views">
+      <AdminFilterChip href={hrefForTab("payments")} active={activeTab === "payments"}>
+        Payments
+      </AdminFilterChip>
+      <AdminFilterChip href={hrefForTab("subscriptions")} active={activeTab === "subscriptions"}>
+        Subscriptions
+      </AdminFilterChip>
+      <AdminFilterChip href={hrefForTab("unmatched")} active={activeTab === "unmatched"} activeTone="warning">
+        Unmatched inbox
+      </AdminFilterChip>
+    </AdminFilterBar>
+  );
+}
 
 export default async function AdminPaymentsPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -102,18 +139,14 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
     return (
       <>
-        <h1 className="text-2xl font-bold text-text-primary mb-6">Payments & Subscriptions</h1>
-        <div className="flex gap-2 mb-6">
-          <Link href={buildUrl({ tab: "payments", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-            Payments
-          </Link>
-          <Link href={buildUrl({ tab: "subscriptions", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-            Subscriptions
-          </Link>
-          <Link href={buildUrl({ tab: "unmatched", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border bg-surface-elevated text-text-primary border-border">
-            Unmatched inbox
-          </Link>
-        </div>
+        <AdminPageHeader
+          title="Payments & subscriptions"
+          description="Review charges, recurring billing, refunds, and unmatched provider events."
+        />
+        <PaymentTabs
+          activeTab={tab}
+          hrefForTab={(nextTab) => buildUrl({ tab: nextTab, page: "1" })}
+        />
         <UnmatchedInboxTab rows={unmatched} />
       </>
     );
@@ -138,34 +171,26 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
     return (
       <>
-        <h1 className="text-2xl font-bold text-text-primary mb-6">Payments & Subscriptions</h1>
+        <AdminPageHeader
+          title="Payments & subscriptions"
+          description="Review charges, recurring billing, refunds, and unmatched provider events."
+        />
+        <PaymentTabs
+          activeTab={tab}
+          hrefForTab={(nextTab) => buildUrl({ tab: nextTab, page: "1" })}
+        />
 
-        <div className="flex gap-2 mb-6">
-          <Link href={buildUrl({ tab: "payments", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-            Payments
-          </Link>
-          <Link href={buildUrl({ tab: "subscriptions", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border bg-surface-elevated text-text-primary border-border">
-            Subscriptions
-          </Link>
-          <Link href={buildUrl({ tab: "unmatched", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-            Unmatched inbox
-          </Link>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 mb-4">
+        <AdminFilterBar count={`${subTotal} subscriptions`}>
           {(["ACTIVE", "PAST_DUE", "CANCELLED", "INCOMPLETE"] as const).map((s) => (
-            <Link
+            <AdminFilterChip
               key={s}
               href={buildUrl({ status: statusFilter === s ? undefined : s, page: "1" })}
-              className={`h-8 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-                statusFilter === s ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
-              }`}
+              active={statusFilter === s}
             >
               {s}
-            </Link>
+            </AdminFilterChip>
           ))}
-          <span className="text-xs text-text-tertiary ml-auto">{subTotal} subscriptions</span>
-        </div>
+        </AdminFilterBar>
 
         <div className="mb-4 rounded-md border border-border bg-surface-elevated px-4 py-3 text-xs text-text-secondary">
           {capabilities.supportsInAppSubscriptionCancellation ? (
@@ -204,7 +229,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           )}
         </div>
 
-        <Table>
+        <AdminTable minWidth="wide">
           <TableHeader>
             <TableRow>
               <TableHead>Dealer</TableHead>
@@ -214,17 +239,19 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               <TableHead>Provider Ref</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className={adminActionsCellClass}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {subscriptions.map((sub) => (
               <TableRow key={sub.id}>
-                <TableCell className="font-medium text-text-primary">{sub.dealer.name}</TableCell>
+                <TableCell>
+                  <AdminDataCell title={sub.dealer.name} subtitle={sub.dealer.slug} />
+                </TableCell>
                 <TableCell>
                   <Badge variant={SUB_STATUS_VARIANT[sub.status] ?? "neutral"}>{sub.status}</Badge>
                 </TableCell>
-                <TableCell className="text-sm text-text-secondary">
+                <TableCell className={adminDateCellClass}>
                   {(sub.source === "ADMIN_GRANT"
                     ? sub.grantEndsAt
                     : sub.currentPeriodEnd
@@ -239,10 +266,10 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               <TableCell className="text-xs text-text-tertiary">
                 {getProviderLabel(sub.paymentProvider)}
                 </TableCell>
-                <TableCell className="text-sm text-text-tertiary">
+                <TableCell className={adminDateCellClass}>
                   {sub.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
-                <TableCell>
+                <TableCell className={adminActionsCellClass}>
                   {sub.source === "PAYMENT" ? (
                     <div className="flex flex-wrap items-center gap-1">
                       <CancelSubButton
@@ -265,19 +292,19 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             ))}
             {subscriptions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-text-tertiary py-8">No subscriptions found.</TableCell>
+                <AdminTableEmpty colSpan={8}>
+                  No subscriptions match this filter.
+                </AdminTableEmpty>
               </TableRow>
             )}
           </TableBody>
-        </Table>
+        </AdminTable>
 
-        {subPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-6">
-            {page > 1 && <Link href={buildUrl({ page: String(page - 1) })} className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border">Previous</Link>}
-            <span className="text-sm text-text-tertiary">Page {page} of {subPages}</span>
-            {page < subPages && <Link href={buildUrl({ page: String(page + 1) })} className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border">Next</Link>}
-          </div>
-        )}
+        <AdminPager
+          page={page}
+          totalPages={subPages}
+          hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
+        />
       </>
     );
   }
@@ -313,82 +340,75 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Payments & Subscriptions</h1>
+      <AdminPageHeader
+        title="Payments & subscriptions"
+        description="Review charges, recurring billing, refunds, and unmatched provider events."
+      />
+      <PaymentTabs
+        activeTab={tab}
+        hrefForTab={(nextTab) => buildUrl({ tab: nextTab, page: "1" })}
+      />
 
-      <div className="flex gap-2 mb-6">
-        <Link href={buildUrl({ tab: "payments", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border bg-surface-elevated text-text-primary border-border">
-          Payments
-        </Link>
-        <Link href={buildUrl({ tab: "subscriptions", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-            Subscriptions
-        </Link>
-        <Link href={buildUrl({ tab: "unmatched", page: "1" })} className="h-9 inline-flex items-center px-4 rounded-md text-sm font-medium border text-text-secondary border-transparent hover:bg-surface-elevated">
-          Unmatched inbox
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <form method="get" action="/admin/payments" className="flex gap-2">
-          <input name="q" defaultValue={query} placeholder="Search provider ID, listing, or email..." className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus" />
+      <AdminFilterBar count={`${payTotal} payments`}>
+        <form method="get" action="/admin/payments" className="flex min-w-0 gap-2">
+          <input
+            name="q"
+            defaultValue={query}
+            placeholder="Search provider ID, listing, or email..."
+            aria-label="Search payments"
+            className={adminSearchInputClass}
+          />
           <input type="hidden" name="tab" value="payments" />
-          <button type="submit" className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border">Search</button>
+          <button type="submit" className={adminSearchButtonClass}>Search</button>
         </form>
 
         {(["SUCCEEDED", "PENDING", "FAILED", "REFUNDED"] as const).map((s) => (
-          <Link
+          <AdminFilterChip
             key={s}
             href={buildUrl({ status: statusFilter === s ? undefined : s, page: "1" })}
-            className={`h-8 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-              statusFilter === s ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
-            }`}
+            active={statusFilter === s}
           >
             {s}
-          </Link>
+          </AdminFilterChip>
         ))}
         {(["LISTING", "FEATURED", "SUPPORT"] as const).map((t) => (
-          <Link
+          <AdminFilterChip
             key={t}
             href={buildUrl({ type: typeFilter === t ? undefined : t, page: "1" })}
-            className={`h-8 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-              typeFilter === t ? "bg-surface-elevated text-text-primary border-border" : "text-text-secondary border-transparent hover:bg-surface-elevated"
-            }`}
+            active={typeFilter === t}
           >
             {t}
-          </Link>
+          </AdminFilterChip>
         ))}
-        <span className="text-xs text-text-tertiary ml-auto">{payTotal} payments</span>
-      </div>
+      </AdminFilterBar>
 
-      <Table>
+      <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
             <TableHead>Date</TableHead>
             <TableHead>Listing</TableHead>
-            <TableHead>Customer</TableHead>
             <TableHead>Type</TableHead>
-            <TableHead>Amount</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Provider Ref</TableHead>
             <TableHead>Provider</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {payments.map((payment) => (
             <TableRow key={payment.id}>
-              <TableCell className="text-sm text-text-tertiary">
+              <TableCell className={adminDateCellClass}>
                 {payment.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell className="max-w-[200px] truncate text-sm text-text-primary">
-                {payment.listing.title}
+              <TableCell>
+                <AdminDataCell
+                  title={<span className="block max-w-[200px] truncate">{payment.listing.title}</span>}
+                  subtitle={payment.listing.user.email}
+                />
               </TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {payment.listing.user.email}
-              </TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {payment.type}
-              </TableCell>
-              <TableCell className="text-sm text-text-primary">
+              <TableCell className="text-sm text-text-secondary">{payment.type}</TableCell>
+              <TableCell className={adminNumericCellClass}>
                 £{(payment.amount / 100).toFixed(2)}
               </TableCell>
               <TableCell>
@@ -402,7 +422,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               <TableCell className="text-xs text-text-tertiary">
                 {getProviderLabel(payment.paymentProvider)}
               </TableCell>
-              <TableCell>
+              <TableCell className={adminActionsCellClass}>
                 <RefundButton
                   paymentId={payment.id}
                   status={payment.status}
@@ -414,19 +434,17 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           ))}
           {payments.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-text-tertiary py-8">No payments found.</TableCell>
+              <AdminTableEmpty colSpan={8}>No payments match these filters.</AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
 
-      {payPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          {page > 1 && <Link href={buildUrl({ page: String(page - 1) })} className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border">Previous</Link>}
-          <span className="text-sm text-text-tertiary">Page {page} of {payPages}</span>
-          {page < payPages && <Link href={buildUrl({ page: String(page + 1) })} className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border">Next</Link>}
-        </div>
-      )}
+      <AdminPager
+        page={page}
+        totalPages={payPages}
+        hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
+      />
     </>
   );
 }

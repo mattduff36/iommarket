@@ -5,13 +5,28 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+  adminSearchButtonClass,
+  adminSearchInputClass,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminPager } from "@/components/admin/admin-pager";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { UserAccountStatusBadge } from "@/components/admin/user-account-status-badge";
 import { UserActions } from "./user-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
@@ -33,6 +48,12 @@ const ROLE_BADGE: Record<string, "neutral" | "info" | "warning" | "error"> = {
   USER: "neutral",
   DEALER: "info",
   ADMIN: "warning",
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  USER: "User",
+  DEALER: "Dealer",
+  ADMIN: "Admin",
 };
 
 const PAGE_SIZE = 25;
@@ -103,141 +124,151 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Users</h1>
+      <AdminPageHeader
+        title="Users"
+        description="Manage account roles, dealer access, and account status."
+      />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6 rounded-lg border border-border bg-canvas/30 p-3">
-        <form method="get" action="/admin/users" className="flex gap-2">
+      <AdminFilterBar count={`${total} ${total === 1 ? "user" : "users"}`}>
+        <form method="get" action="/admin/users" className="flex min-w-0 gap-2">
           <input
             name="q"
             defaultValue={query}
             placeholder="Search email or name..."
-            className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
+            aria-label="Search users"
+            className={adminSearchInputClass}
           />
           {roleFilter && <input type="hidden" name="role" value={roleFilter} />}
           <button
             type="submit"
-            className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border"
+            className={adminSearchButtonClass}
           >
             Search
           </button>
         </form>
 
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {(["USER", "DEALER", "ADMIN"] as const).map((r) => (
-            <Link
+            <AdminFilterChip
               key={r}
               href={buildUrl({ role: roleFilter === r ? undefined : r, page: "1" })}
-              className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-                roleFilter === r
-                  ? "bg-surface-elevated text-text-primary border-border"
-                  : "text-text-secondary border-transparent hover:bg-surface-elevated"
-              }`}
+              active={roleFilter === r}
             >
-              {r}
-            </Link>
+              {ROLE_LABEL[r]}
+            </AdminFilterChip>
           ))}
         </div>
 
-        <Link
+        <AdminFilterChip
           href={buildUrl({
             disabled: disabledFilter === true ? undefined : "true",
             page: "1",
           })}
-          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            disabledFilter === true
-              ? "bg-surface-elevated text-text-primary border-border"
-              : "text-text-secondary border-transparent hover:bg-surface-elevated"
-          }`}
+          active={disabledFilter === true}
+          activeTone="warning"
         >
-          Disabled only
-        </Link>
-        <Link
+          Disabled
+        </AdminFilterChip>
+        <AdminFilterChip
           href={buildUrl({
             disabled: params.disabled === "deleted" ? undefined : "deleted",
             page: "1",
           })}
-          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            params.disabled === "deleted"
-              ? "bg-surface-elevated text-text-primary border-border"
-              : "text-text-secondary border-transparent hover:bg-surface-elevated"
-          }`}
+          active={params.disabled === "deleted"}
+          activeTone="warning"
         >
-          Deleted only
-        </Link>
+          Deleted
+        </AdminFilterChip>
+      </AdminFilterBar>
 
-        <span className="text-xs text-text-tertiary ml-auto">{total} users</span>
-      </div>
-
-      {/* Table */}
-      <Table>
+      <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
             <TableHead>User</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Package</TableHead>
+            <TableHead>Access</TableHead>
             <TableHead>Region</TableHead>
             <TableHead>Dealer</TableHead>
-            <TableHead>Listings</TableHead>
+            <TableHead className="text-right">Listings</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {users.map((user) => (
             <TableRow key={user.id}>
               <TableCell>
-                <Link
-                  href={`/admin/users/${user.id}`}
-                  className="font-medium text-text-primary hover:underline"
-                >
-                  {user.name ?? "-"}
-                </Link>
-                <p className="text-xs text-text-tertiary">{user.email}</p>
-                <UserAccountStatusBadge
-                  deletedAt={user.deletedAt}
-                  disabledAt={user.disabledAt}
+                <AdminDataCell
+                  title={
+                    <Link
+                      href={`/admin/users/${user.id}`}
+                      className="block max-w-56 truncate hover:text-neon-blue-400 hover:underline"
+                    >
+                      {user.name ?? "Unnamed user"}
+                    </Link>
+                  }
+                  subtitle={<span className="block max-w-56 truncate">{user.email}</span>}
+                  badges={
+                    <UserAccountStatusBadge
+                      deletedAt={user.deletedAt}
+                      disabledAt={user.disabledAt}
+                    />
+                  }
                 />
               </TableCell>
               <TableCell>
-                <Badge variant={ROLE_BADGE[user.role] ?? "neutral"}>
-                  {user.role}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {user.dealerProfile ? (
-                  <Badge variant={user.dealerProfile.tier === "PRO" ? "info" : "neutral"}>
-                    {getDealerPackageLabel(user.dealerProfile.tier)}
+                <div className="flex max-w-48 flex-wrap gap-1.5">
+                  <Badge variant={ROLE_BADGE[user.role] ?? "neutral"}>
+                    {ROLE_LABEL[user.role] ?? user.role}
                   </Badge>
-                ) : (
-                  <span className="text-text-tertiary text-sm">-</span>
-                )}
+                  {user.dealerProfile ? (
+                    <Badge variant={user.dealerProfile.tier === "PRO" ? "info" : "neutral"}>
+                      {getDealerPackageLabel(user.dealerProfile.tier)}
+                    </Badge>
+                  ) : null}
+                  {user.dealerProfile?.subscriptions.some(
+                    (subscription) => subscription.source === "PAYMENT",
+                  ) ? (
+                    <Badge variant="success">Paid</Badge>
+                  ) : user.dealerProfile?.subscriptions.some(
+                      (subscription) => subscription.source === "ADMIN_GRANT",
+                    ) ? (
+                    <Badge variant="warning">Free grant</Badge>
+                  ) : null}
+                </div>
               </TableCell>
               <TableCell className="text-sm text-text-secondary">
-                {user.region?.name ?? "-"}
+                {user.region?.name ?? (
+                  <span className="text-text-tertiary">Not assigned</span>
+                )}
               </TableCell>
               <TableCell>
                 {user.dealerProfile ? (
-                  <Link
-                    href={`/admin/dealers?id=${user.dealerProfile.id}`}
-                    className="text-sm text-neon-blue-400 hover:underline"
-                  >
-                    {user.dealerProfile.name}
-                    {user.dealerProfile.verified && (
-                      <Badge variant="success" className="ml-1">Verified</Badge>
-                    )}
-                  </Link>
+                  <AdminDataCell
+                    title={
+                      <Link
+                        href={`/admin/dealers?id=${user.dealerProfile.id}`}
+                        className="block max-w-44 truncate text-neon-blue-400 hover:underline"
+                      >
+                        {user.dealerProfile.name}
+                      </Link>
+                    }
+                    badges={
+                      <Badge variant={user.dealerProfile.verified ? "success" : "neutral"}>
+                        {user.dealerProfile.verified ? "Verified" : "Unverified"}
+                      </Badge>
+                    }
+                  />
                 ) : (
-                  <span className="text-text-tertiary text-sm">-</span>
+                  <span className="text-sm text-text-tertiary">Not a dealer</span>
                 )}
               </TableCell>
-              <TableCell className="text-sm text-text-secondary">
+              <TableCell className={adminNumericCellClass}>
                 {user._count.listings}
               </TableCell>
-              <TableCell className="text-sm text-text-tertiary">
+              <TableCell className={adminDateCellClass}>
                 {user.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell className="w-[1%] whitespace-nowrap">
+              <TableCell className={adminActionsCellClass}>
                 <UserActions
                   variant="row"
                   userId={user.id}
@@ -262,38 +293,17 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           ))}
           {users.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
-                No users found.
-              </TableCell>
+              <AdminTableEmpty colSpan={7}>No users match these filters.</AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          {page > 1 && (
-            <Link
-              href={buildUrl({ page: String(page - 1) })}
-              className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border"
-            >
-              Previous
-            </Link>
-          )}
-          <span className="text-sm text-text-tertiary">
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages && (
-            <Link
-              href={buildUrl({ page: String(page + 1) })}
-              className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border"
-            >
-              Next
-            </Link>
-          )}
-        </div>
-      )}
+      <AdminPager
+        page={page}
+        totalPages={totalPages}
+        hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
+      />
     </>
   );
 }

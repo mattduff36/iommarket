@@ -5,13 +5,28 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+  adminSearchButtonClass,
+  adminSearchInputClass,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminPager } from "@/components/admin/admin-pager";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { DealerActions } from "./dealer-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
@@ -93,61 +108,53 @@ export default async function AdminDealersPage({ searchParams }: Props) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Dealers</h1>
+      <AdminPageHeader
+        title="Dealers"
+        description="Review dealer identity, verification, plans, and current access."
+      />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6 rounded-lg border border-border bg-canvas/30 p-3">
-        <form method="get" action="/admin/dealers" className="flex gap-2">
+      <AdminFilterBar count={`${total} ${total === 1 ? "dealer" : "dealers"}`}>
+        <form method="get" action="/admin/dealers" className="flex min-w-0 gap-2">
           <input
             name="q"
             defaultValue={query}
             placeholder="Search name, slug, or email..."
-            className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
+            aria-label="Search dealers"
+            className={adminSearchInputClass}
           />
           <button
             type="submit"
-            className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border"
+            className={adminSearchButtonClass}
           >
             Search
           </button>
         </form>
 
-        <Link
+        <AdminFilterChip
           href={buildUrl({ verified: verifiedFilter === true ? undefined : "true", page: "1" })}
-          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            verifiedFilter === true
-              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
-              : "text-text-secondary border-transparent hover:bg-surface-elevated"
-          }`}
+          active={verifiedFilter === true}
+          activeTone="success"
         >
           Verified
-        </Link>
-        <Link
+        </AdminFilterChip>
+        <AdminFilterChip
           href={buildUrl({ verified: verifiedFilter === false ? undefined : "false", page: "1" })}
-          className={`h-9 inline-flex items-center px-3 rounded-md text-xs font-medium border transition-colors ${
-            verifiedFilter === false
-              ? "bg-surface-elevated text-text-primary border-border"
-              : "text-text-secondary border-transparent hover:bg-surface-elevated"
-          }`}
+          active={verifiedFilter === false}
         >
           Unverified
-        </Link>
+        </AdminFilterChip>
+      </AdminFilterBar>
 
-        <span className="text-xs text-text-tertiary ml-auto">{total} dealers</span>
-      </div>
-
-      {/* Table */}
-      <Table>
+      <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
             <TableHead>Dealer</TableHead>
             <TableHead>Owner</TableHead>
             <TableHead>Verified</TableHead>
-            <TableHead>Package</TableHead>
-            <TableHead>Subscription</TableHead>
-            <TableHead>Listings</TableHead>
+            <TableHead>Plan &amp; access</TableHead>
+            <TableHead className="text-right">Listings</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -156,38 +163,17 @@ export default async function AdminDealersPage({ searchParams }: Props) {
           ))}
           {dealers.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-text-tertiary py-8">
-                No dealers found.
-              </TableCell>
+              <AdminTableEmpty colSpan={7}>No dealers match these filters.</AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          {page > 1 && (
-            <Link
-              href={buildUrl({ page: String(page - 1) })}
-              className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border"
-            >
-              Previous
-            </Link>
-          )}
-          <span className="text-sm text-text-tertiary">
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages && (
-            <Link
-              href={buildUrl({ page: String(page + 1) })}
-              className="h-9 px-3 rounded-md text-sm font-medium text-text-secondary hover:bg-surface-elevated border border-border"
-            >
-              Next
-            </Link>
-          )}
-        </div>
-      )}
+      <AdminPager
+        page={page}
+        totalPages={totalPages}
+        hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
+      />
     </>
   );
 }
@@ -237,67 +223,72 @@ function DealerRow({ dealer }: DealerRowProps) {
 
   return (
     <TableRow>
-              <TableCell>
-                <span className="font-medium text-text-primary">{dealer.name}</span>
-                <p className="text-xs text-text-tertiary">{dealer.slug}</p>
-              </TableCell>
-              <TableCell>
-                <Link
-                  href={`/admin/users/${dealer.user.id}`}
-                  className="text-sm text-neon-blue-400 hover:underline"
-                >
-                  {dealer.user.name ?? dealer.user.email}
-                </Link>
-                {dealer.user.disabledAt && (
-                  <Badge variant="error" className="ml-1">Disabled</Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                <Badge variant={dealer.verified ? "success" : "neutral"}>
-                  {dealer.verified ? "Verified" : "Unverified"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
-                  {getDealerPackageLabel(dealer.tier)}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {access ? (
-                  <div className="space-y-1">
-                    <Badge variant="success">
-                      {access.source === "ADMIN_GRANT" ? "Free grant" : "Paid"}
-                    </Badge>
-                    <p className="text-xs text-text-tertiary">
-                      ends{" "}
-                      {(access.source === "ADMIN_GRANT"
-                        ? access.grantEndsAt
-                        : access.currentPeriodEnd
-                      )?.toLocaleDateString("en-GB") ?? "-"}
-                    </p>
-                  </div>
-                ) : (
-                  <Badge variant="neutral">None</Badge>
-                )}
-              </TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {dealer._count.listings}
-              </TableCell>
-              <TableCell className="text-sm text-text-tertiary">
-                {dealer.createdAt.toLocaleDateString("en-GB")}
-              </TableCell>
-              <TableCell className="w-[1%] whitespace-nowrap">
-                <DealerActions
-                  dealerId={dealer.id}
-                  dealerName={dealer.name}
-                  userId={dealer.user.id}
-                  userLabel={dealer.user.name ?? dealer.user.email}
-                  verified={dealer.verified}
-                  canGrantAccess={dealer.user.role === "DEALER"}
-                  currentTier={dealer.tier}
-                  hasActivePaidSubscription={Boolean(paidSubscription)}
-                />
-              </TableCell>
+      <TableCell>
+        <AdminDataCell
+          title={<span className="block max-w-52 truncate">{dealer.name}</span>}
+          subtitle={dealer.slug}
+        />
+      </TableCell>
+      <TableCell>
+        <AdminDataCell
+          title={
+            <Link
+              href={`/admin/users/${dealer.user.id}`}
+              className="block max-w-52 truncate text-neon-blue-400 hover:underline"
+            >
+              {dealer.user.name ?? dealer.user.email}
+            </Link>
+          }
+          subtitle={
+            dealer.user.name ? (
+              <span className="block max-w-52 truncate">{dealer.user.email}</span>
+            ) : undefined
+          }
+          badges={dealer.user.disabledAt ? <Badge variant="error">Disabled</Badge> : null}
+        />
+      </TableCell>
+      <TableCell>
+        <Badge variant={dealer.verified ? "success" : "neutral"}>
+          {dealer.verified ? "Verified" : "Unverified"}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="flex max-w-48 flex-wrap gap-1.5">
+          <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
+            {getDealerPackageLabel(dealer.tier)}
+          </Badge>
+          <Badge variant={access ? (access.source === "ADMIN_GRANT" ? "warning" : "success") : "neutral"}>
+            {access ? (access.source === "ADMIN_GRANT" ? "Free grant" : "Paid") : "No access"}
+          </Badge>
+        </div>
+        {access ? (
+          <p className="mt-1 text-xs tabular-nums text-text-tertiary">
+            Ends{" "}
+            {(access.source === "ADMIN_GRANT"
+              ? access.grantEndsAt
+              : access.currentPeriodEnd
+            )?.toLocaleDateString("en-GB") ?? "not set"}
+          </p>
+        ) : null}
+      </TableCell>
+      <TableCell className={adminNumericCellClass}>
+        {dealer._count.listings}
+      </TableCell>
+      <TableCell className={adminDateCellClass}>
+        {dealer.createdAt.toLocaleDateString("en-GB")}
+      </TableCell>
+      <TableCell className={adminActionsCellClass}>
+        <DealerActions
+          dealerId={dealer.id}
+          dealerName={dealer.name}
+          userId={dealer.user.id}
+          userLabel={dealer.user.name ?? dealer.user.email}
+          verified={dealer.verified}
+          canGrantAccess={dealer.user.role === "DEALER"}
+          currentTier={dealer.tier}
+          hasActivePaidSubscription={Boolean(paidSubscription)}
+        />
+      </TableCell>
     </TableRow>
   );
 }

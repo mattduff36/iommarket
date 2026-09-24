@@ -81,7 +81,7 @@ export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
   };
 
   return (
-    <section className="mb-8 max-w-2xl rounded-lg border border-neon-blue-500/25 bg-surface p-4 sm:p-6">
+    <section className="mb-8 max-w-3xl rounded-lg border border-neon-blue-500/25 bg-surface p-4 shadow-low sm:p-6">
       <div className="mb-5">
         <h2 className="text-lg font-semibold text-text-primary">Marketplace pricing</h2>
         <p className="mt-1 text-sm text-text-secondary">
@@ -90,11 +90,12 @@ export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
         </p>
       </div>
 
-      <form action={handleSubmit} className="space-y-4">
-        {PRICE_FIELDS.map((field) => {
-          const pence = values[field.name];
-          return (
-            <div key={field.name} className="rounded-md border border-border p-3">
+      <form action={handleSubmit} className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {PRICE_FIELDS.map((field) => {
+            const pence = values[field.name];
+            return (
+              <div key={field.name} className="rounded-md border border-border bg-canvas/30 p-3">
               <label
                 htmlFor={field.name}
                 className="block text-sm font-medium text-text-primary"
@@ -114,15 +115,20 @@ export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
                 className="mt-2"
                 required
               />
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
+        </div>
 
-        {error ? <p className="text-sm text-text-error" role="alert">{error}</p> : null}
-        {success ? <p className="text-sm text-emerald-500" role="status">{success}</p> : null}
-        <AdminActionButton type="submit" disabled={isPending} tone="primary">
-          Save marketplace prices
-        </AdminActionButton>
+        <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div aria-live="polite" className="min-h-5">
+            {error ? <p className="text-sm text-text-error" role="alert">{error}</p> : null}
+            {success ? <p className="text-sm text-emerald-500" role="status">{success}</p> : null}
+          </div>
+          <AdminActionButton type="submit" disabled={isPending} tone="primary">
+            Save marketplace prices
+          </AdminActionButton>
+        </div>
       </form>
     </section>
   );

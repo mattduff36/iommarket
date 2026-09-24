@@ -8,6 +8,7 @@ import {
 } from "@/lib/config/marketplace";
 import { SETTING_KEYS } from "@/lib/config/site-settings";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { SettingsForm } from "./settings-form";
 import { PricingSettingsForm } from "./pricing-settings-form";
 
@@ -38,10 +39,10 @@ export default async function AdminSettingsPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-2">Site Settings</h1>
-      <p className="text-sm text-text-secondary mb-8">
-        Marketplace prices are database-managed below. Other settings can override their environment or code defaults.
-      </p>
+      <AdminPageHeader
+        title="Site settings"
+        description="Manage marketplace pricing and operational overrides. Settings without a database override continue to use their environment or code default."
+      />
       <PricingSettingsForm pricing={pricing} />
       <SettingsForm settings={settings} envDefaults={envDefaults} />
     </>

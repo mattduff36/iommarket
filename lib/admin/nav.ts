@@ -1,59 +1,59 @@
-import {
-  LayoutDashboard,
-  ClipboardList,
-  FolderTree,
-  DollarSign,
-  ShieldAlert,
-  Users,
-  Store,
-  Eye,
-  MapPin,
-  CreditCard,
-  Ban,
-  Star,
-  FileText,
-  Receipt,
-  Settings,
-  Image,
-  BarChart3,
-  Mail,
-  Bug,
-  ListTodo,
-  CarFront,
-  type LucideIcon,
-} from "lucide-react";
+export type AdminNavIcon =
+  | "analytics"
+  | "audit"
+  | "cancellations"
+  | "categories"
+  | "checklist"
+  | "costs"
+  | "dashboard"
+  | "dealer-onboarding"
+  | "dealers"
+  | "listings"
+  | "media"
+  | "monitoring"
+  | "pages"
+  | "payments"
+  | "preview-packs"
+  | "regions"
+  | "reports"
+  | "revenue"
+  | "reviews"
+  | "settings"
+  | "users"
+  | "vehicle-catalogue"
+  | "waitlist";
 
 export interface AdminNavItem {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon: AdminNavIcon;
   group: "core" | "operations" | "content" | "insights";
 }
 
 export const ADMIN_NAV: AdminNavItem[] = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard, group: "core" },
-  { label: "Users", href: "/admin/users", icon: Users, group: "core" },
-  { label: "Dealers", href: "/admin/dealers", icon: Store, group: "core" },
-  { label: "Dealer onboarding", href: "/admin/dealer-onboarding", icon: Mail, group: "core" },
-  { label: "Preview packs", href: "/admin/preview-packs", icon: Eye, group: "core" },
-  { label: "Listings", href: "/admin/listings", icon: ClipboardList, group: "core" },
-  { label: "Categories", href: "/admin/categories", icon: FolderTree, group: "core" },
-  { label: "Vehicle Catalogue", href: "/admin/vehicle-catalogue", icon: CarFront, group: "core" },
-  { label: "Regions", href: "/admin/regions", icon: MapPin, group: "core" },
-  { label: "Reports", href: "/admin/reports", icon: ShieldAlert, group: "operations" },
-  { label: "Reviews", href: "/admin/reviews", icon: Star, group: "operations" },
-  { label: "Waitlist", href: "/admin/waitlist", icon: Mail, group: "operations" },
-  { label: "Checklist", href: "/admin/checklist", icon: ListTodo, group: "operations" },
-  { label: "Payments", href: "/admin/payments", icon: CreditCard, group: "operations" },
-  { label: "Cancellations", href: "/admin/cancellations", icon: Ban, group: "operations" },
-  { label: "Revenue", href: "/admin/revenue", icon: DollarSign, group: "operations" },
-  { label: "Costs", href: "/admin/costs", icon: Receipt, group: "operations" },
-  { label: "Pages", href: "/admin/pages", icon: FileText, group: "content" },
-  { label: "Media", href: "/admin/media", icon: Image, group: "content" },
-  { label: "Audit", href: "/admin/audit", icon: FileText, group: "insights" },
-  { label: "Analytics", href: "/admin/analytics", icon: BarChart3, group: "insights" },
-  { label: "Monitoring", href: "/admin/monitoring", icon: Bug, group: "insights" },
-  { label: "Settings", href: "/admin/settings", icon: Settings, group: "insights" },
+  { label: "Dashboard", href: "/admin", icon: "dashboard", group: "core" },
+  { label: "Users", href: "/admin/users", icon: "users", group: "core" },
+  { label: "Dealers", href: "/admin/dealers", icon: "dealers", group: "core" },
+  { label: "Dealer onboarding", href: "/admin/dealer-onboarding", icon: "dealer-onboarding", group: "core" },
+  { label: "Preview packs", href: "/admin/preview-packs", icon: "preview-packs", group: "core" },
+  { label: "Listings", href: "/admin/listings", icon: "listings", group: "core" },
+  { label: "Categories", href: "/admin/categories", icon: "categories", group: "core" },
+  { label: "Vehicle Catalogue", href: "/admin/vehicle-catalogue", icon: "vehicle-catalogue", group: "core" },
+  { label: "Regions", href: "/admin/regions", icon: "regions", group: "core" },
+  { label: "Reports", href: "/admin/reports", icon: "reports", group: "operations" },
+  { label: "Reviews", href: "/admin/reviews", icon: "reviews", group: "operations" },
+  { label: "Waitlist", href: "/admin/waitlist", icon: "waitlist", group: "operations" },
+  { label: "Checklist", href: "/admin/checklist", icon: "checklist", group: "operations" },
+  { label: "Payments", href: "/admin/payments", icon: "payments", group: "operations" },
+  { label: "Cancellations", href: "/admin/cancellations", icon: "cancellations", group: "operations" },
+  { label: "Revenue", href: "/admin/revenue", icon: "revenue", group: "operations" },
+  { label: "Costs", href: "/admin/costs", icon: "costs", group: "operations" },
+  { label: "Pages", href: "/admin/pages", icon: "pages", group: "content" },
+  { label: "Media", href: "/admin/media", icon: "media", group: "content" },
+  { label: "Audit", href: "/admin/audit", icon: "audit", group: "insights" },
+  { label: "Analytics", href: "/admin/analytics", icon: "analytics", group: "insights" },
+  { label: "Monitoring", href: "/admin/monitoring", icon: "monitoring", group: "insights" },
+  { label: "Settings", href: "/admin/settings", icon: "settings", group: "insights" },
 ];
 
 export const ADMIN_NAV_GROUPS = [

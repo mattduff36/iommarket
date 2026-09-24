@@ -27,7 +27,7 @@ describe("DealerActions", () => {
     vi.clearAllMocks();
   });
 
-  it("explains when a paid subscription blocks package changes", async () => {
+  it("omits package controls and row-height helper copy for paid subscriptions", async () => {
     const user = userEvent.setup();
     render(
       <DealerActions
@@ -42,7 +42,7 @@ describe("DealerActions", () => {
       />,
     );
 
-    expect(screen.getByText(/paid subscription/i)).toBeInTheDocument();
+    expect(screen.queryByText(/paid subscription/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Actions for TD Car Centre" }));
     expect(screen.getByRole("menuitem", { name: "Unverify dealer" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Change package" })).not.toBeInTheDocument();

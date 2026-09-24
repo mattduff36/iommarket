@@ -4,13 +4,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import {
+  AdminFilterBar,
+  AdminFilterChip,
+  adminSearchButtonClass,
+  adminSearchInputClass,
+} from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+} from "@/components/admin/admin-table";
 import { WaitlistRowActions } from "./waitlist-row-actions";
 
 export const metadata: Metadata = { title: "Waitlist | Admin" };
@@ -82,56 +95,51 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Waitlist</h1>
-          <p className="mt-1 text-sm text-text-tertiary">
-            Pre-launch signups from the coming soon page.
-          </p>
-        </div>
-        <Link
-          href="/api/admin/waitlist/export"
-          className="h-9 inline-flex items-center px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border"
-        >
-          Export CSV
-        </Link>
-      </div>
+      <AdminPageHeader
+        title="Waitlist"
+        description="Review pre-launch signups captured from the coming soon page."
+        actions={
+          <Link
+            href="/api/admin/waitlist/export"
+            className={adminSearchButtonClass}
+          >
+            Export CSV
+          </Link>
+        }
+      />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <form method="get" action="/admin/waitlist" className="flex gap-2">
+      <AdminFilterBar
+        count={`${waitlistUsers.length} ${waitlistUsers.length === 1 ? "entry" : "entries"}`}
+      >
+        <form method="get" action="/admin/waitlist" className="flex min-w-0 gap-2">
           <input
             name="q"
             defaultValue={query}
             placeholder="Search by email..."
-            className="h-9 w-64 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
+            aria-label="Search waitlist"
+            className={adminSearchInputClass}
           />
           {showDeleted ? <input type="hidden" name="deleted" value="1" /> : null}
-          <button
-            type="submit"
-            className="h-9 px-3 rounded-md bg-surface-elevated text-sm font-medium text-text-primary hover:bg-surface border border-border"
-          >
+          <button type="submit" className={adminSearchButtonClass}>
             Search
           </button>
         </form>
-        <Link
+        <AdminFilterChip
           href={showDeleted ? "/admin/waitlist" : "/admin/waitlist?deleted=1"}
-          className="text-sm text-text-secondary hover:text-text-primary"
+          active={showDeleted}
+          activeTone="warning"
         >
-          {showDeleted ? "Active entries" : "Deleted entries"}
-        </Link>
-        <span className="ml-auto text-xs text-text-tertiary">
-          {waitlistUsers.length} {waitlistUsers.length === 1 ? "entry" : "entries"}
-        </span>
-      </div>
+          Deleted entries
+        </AdminFilterChip>
+      </AdminFilterBar>
 
-      <Table>
+      <AdminTable>
         <TableHeader>
           <TableRow>
             <TableHead>Email</TableHead>
             <TableHead>Interests</TableHead>
             <TableHead>Date joined</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -139,15 +147,16 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
             const interests = parseInterests(user.interests).map(formatInterestLabel);
             return (
               <TableRow key={user.id}>
-                <TableCell className="font-medium text-text-primary">{user.email}</TableCell>
+                <TableCell>
+                  <AdminDataCell title={user.email} subtitle={user.source} />
+                </TableCell>
                 <TableCell className="text-sm text-text-secondary">
                   {interests.length > 0 ? interests.join(", ") : "-"}
                 </TableCell>
-                <TableCell className="text-sm text-text-tertiary">
+                <TableCell className={adminDateCellClass}>
                   {user.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
-                <TableCell className="text-xs text-text-tertiary">{user.source}</TableCell>
-                <TableCell className="w-[1%] whitespace-nowrap">
+                <TableCell className={adminActionsCellClass}>
                   <WaitlistRowActions
                     id={user.id}
                     email={user.email}
@@ -159,13 +168,11 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
           })}
           {waitlistUsers.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-text-tertiary">
-                No waitlist entries found.
-              </TableCell>
+              <AdminTableEmpty colSpan={4}>No waitlist entries match these filters.</AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
     </>
   );
 }
