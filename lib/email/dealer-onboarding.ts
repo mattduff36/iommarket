@@ -12,8 +12,6 @@ export function buildDealerOnboardingEmail(input: {
   const bodyLines = [
     `Complimentary Pro access starts when you accept this invitation and ends at ${ONBOARDING_PRO_END_LABEL}.`,
     "The link opens a secure page. It does not sign anyone in until you choose to continue.",
-    `This invitation expires on ${formatIsleOfManDateTime(input.expiresAt)}.`,
-    "If you were not expecting this email, you can ignore it.",
   ];
   return {
     subject,
@@ -23,6 +21,7 @@ export function buildDealerOnboardingEmail(input: {
       bodyLines,
       actionHref: input.claimUrl,
       actionLabel: "Review and accept",
+      notice: `This invitation expires on ${formatIsleOfManDateTime(input.expiresAt)}. If you were not expecting this email, you can ignore it.`,
     }),
   };
 }

@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import {
-  AdminActionBar,
-  AdminActionButton,
-  AdminSegmentedControl,
-} from "@/components/admin/admin-action-controls";
+  AdminRowActions,
+  compactAdminRowActions,
+} from "@/components/admin/admin-row-actions";
 import { verifyDealer, downgradeDealerToUser } from "@/actions/admin/dealers";
 import { setDealerTier } from "@/actions/admin/dealer-tier";
 import { DealerAccessDialog } from "../users/dealer-access-dialog";
@@ -15,6 +14,7 @@ import type { DealerTier } from "@prisma/client";
 
 interface DealerActionsProps {
   dealerId: string;
+  dealerName?: string;
   userId: string;
   userLabel: string;
   verified: boolean;
@@ -23,8 +23,18 @@ interface DealerActionsProps {
   hasActivePaidSubscription: boolean;
 }
 
+const PACKAGES = [
+  { value: "STARTER", label: "Dealer Starter" },
+  { value: "PRO", label: "Dealer Pro" },
+] satisfies Array<{ value: DealerTier; label: string }>;
+
+function readError(error: unknown, fallback: string) {
+  return typeof error === "string" ? error : fallback;
+}
+
 export function DealerActions({
   dealerId,
+  dealerName,
   userId,
   userLabel,
   verified,
@@ -35,124 +45,103 @@ export function DealerActions({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
+  const [confirmDowngrade, setConfirmDowngrade] = useState(false);
   const [isDealerAccessDialogOpen, setIsDealerAccessDialogOpen] = useState(false);
+  const entityLabel = dealerName ?? userLabel;
 
-  function handleVerify() {
+  function runAction(
+    label: string,
+    action: () => Promise<{ error?: unknown }>,
+    fallback: string,
+  ) {
     setError(null);
+    setPendingLabel(label);
     startTransition(async () => {
-      const result = await verifyDealer(dealerId, !verified);
-      if (result.error) {
-        setError(typeof result.error === "string" ? result.error : "Failed");
-      } else {
+      try {
+        const result = await action();
+        if (result.error) {
+          setError(readError(result.error, fallback));
+          return;
+        }
+        setConfirmDowngrade(false);
         router.refresh();
+      } finally {
+        setPendingLabel(null);
       }
     });
   }
 
-  function handlePackageChange(tier: DealerTier) {
-    if (tier === currentTier) return;
-
-    setError(null);
-    startTransition(async () => {
-      const result = await setDealerTier({ userId, tier });
-      if (result.error) {
-        setError(
-          typeof result.error === "string"
-            ? result.error
-            : "Failed to update dealer package"
-        );
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  function handleDowngrade() {
-    setError(null);
-    startTransition(async () => {
-      const result = await downgradeDealerToUser(dealerId);
-      if (result.error) {
-        setError(typeof result.error === "string" ? result.error : "Failed");
-        return;
-      }
-      setShowConfirm(false);
-      router.refresh();
-    });
-  }
+  const actions = compactAdminRowActions([
+    {
+      kind: "command",
+      id: "verify",
+      label: verified ? "Unverify dealer" : "Verify dealer",
+      onSelect: () =>
+        runAction(
+          verified ? "Removing verification…" : "Verifying…",
+          () => verifyDealer(dealerId, !verified),
+          "Failed to update verification",
+        ),
+    },
+    hasActivePaidSubscription
+      ? null
+      : {
+          kind: "menu",
+          id: "package",
+          label: "Change package",
+          value: currentTier,
+          choices: PACKAGES,
+          onSelect: (value) => {
+            const tier = value as DealerTier;
+            if (tier === currentTier) return;
+            runAction(
+              "Updating package…",
+              () => setDealerTier({ userId, tier }),
+              "Failed to update dealer package",
+            );
+          },
+        },
+    canGrantAccess
+      ? {
+          kind: "command",
+          id: "grant",
+          label: "Grant free access",
+          onSelect: () => setIsDealerAccessDialogOpen(true),
+        }
+      : null,
+    {
+      kind: "link",
+      id: "onboarding",
+      label: "Onboarding email",
+      href: `/admin/dealer-onboarding?dealer=${dealerId}`,
+    },
+    {
+      kind: "command",
+      id: "downgrade",
+      label: "Downgrade to user",
+      destructive: true,
+      onSelect: () => setConfirmDowngrade(true),
+    },
+  ]);
 
   return (
     <div className="space-y-2">
-      <AdminActionBar>
-        <AdminSegmentedControl
-          label="Package"
-          value={currentTier}
-          options={[
-            { value: "STARTER", label: "Starter" },
-            { value: "PRO", label: "Pro" },
-          ]}
-          onChange={handlePackageChange}
-          disabled={isPending || hasActivePaidSubscription}
-        />
-
-        <AdminActionButton
-          onClick={handleVerify}
-          disabled={isPending}
-          tone={verified ? "neutral" : "success"}
-        >
-          {verified ? "Unverify" : "Verify"}
-        </AdminActionButton>
-
-        {canGrantAccess ? (
-          <AdminActionButton
-            onClick={() => setIsDealerAccessDialogOpen(true)}
-            disabled={isPending}
-            tone="success"
-          >
-            Grant free access
-          </AdminActionButton>
-        ) : null}
-        <Link
-          href={`/admin/dealer-onboarding?dealer=${dealerId}`}
-          className="inline-flex h-8 items-center justify-center rounded-md border border-neon-blue-500/25 bg-neon-blue-500/10 px-3 text-xs font-medium text-neon-blue-400 hover:bg-neon-blue-500/15"
-        >
-          Onboarding email
-        </Link>
-
-        {!showConfirm ? (
-          <AdminActionButton
-            onClick={() => setShowConfirm(true)}
-            disabled={isPending}
-            tone="danger"
-          >
-            Downgrade
-          </AdminActionButton>
-        ) : (
-          <AdminActionBar className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-1.5">
-            <span className="px-1 text-xs text-text-error">Downgrade?</span>
-            <AdminActionButton
-              onClick={handleDowngrade}
-              disabled={isPending}
-              tone="danger"
-            >
-              Confirm
-            </AdminActionButton>
-            <AdminActionButton
-              onClick={() => setShowConfirm(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </AdminActionButton>
-          </AdminActionBar>
-        )}
-      </AdminActionBar>
-
+      <AdminRowActions
+        label={`Actions for ${entityLabel}`}
+        actions={actions}
+        pendingLabel={pendingLabel ?? undefined}
+      />
       {hasActivePaidSubscription ? (
         <p className="text-xs text-text-tertiary">
           Package is set by the paid subscription and cannot be changed.
         </p>
       ) : null}
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {error ? (
+        <p className="text-xs text-text-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <DealerAccessDialog
         userId={userId}
         userLabel={userLabel}
@@ -160,6 +149,22 @@ export function DealerActions({
         open={isDealerAccessDialogOpen}
         onOpenChange={setIsDealerAccessDialogOpen}
         onCompleted={() => router.refresh()}
+      />
+      <AdminConfirmDialog
+        open={confirmDowngrade}
+        onOpenChange={setConfirmDowngrade}
+        title={`Downgrade ${entityLabel}?`}
+        description="The owner becomes a user, complimentary access is revoked, and a paid subscription is set to end at the current period."
+        confirmLabel="Downgrade to user"
+        destructive
+        pending={isPending}
+        onConfirm={() =>
+          runAction(
+            "Downgrading…",
+            () => downgradeDealerToUser(dealerId),
+            "Failed to downgrade dealer",
+          )
+        }
       />
     </div>
   );

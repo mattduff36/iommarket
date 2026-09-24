@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { getAdminDealerWhere } from "@/lib/dealers/access";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -16,6 +15,7 @@ import {
 import { DealerActions } from "./dealer-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Dealers | Admin" };
@@ -25,6 +25,7 @@ interface Props {
     q?: string;
     verified?: string;
     page?: string;
+    id?: string;
   }>;
 }
 
@@ -37,15 +38,11 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const now = new Date();
 
-  const where: Prisma.DealerProfileWhereInput = getAdminDealerWhere();
-  if (query) {
-    where.OR = [
-      { name: { contains: query, mode: "insensitive" } },
-      { slug: { contains: query, mode: "insensitive" } },
-      { user: { email: { contains: query, mode: "insensitive" } } },
-    ];
-  }
-  if (verifiedFilter !== undefined) where.verified = verifiedFilter;
+  const where: Prisma.DealerProfileWhereInput = buildAdminDealersWhere({
+    query,
+    verified: verifiedFilter,
+    id: params.id,
+  });
 
   const [dealers, total] = await Promise.all([
     db.dealerProfile.findMany({
@@ -87,7 +84,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
 
   function buildUrl(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
-    const merged = { q: query || undefined, verified: params.verified, page: String(page), ...overrides };
+    const merged = { q: query || undefined, verified: params.verified, id: params.id, page: String(page), ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v && v !== "undefined") p.set(k, v);
     }
@@ -150,7 +147,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
             <TableHead>Subscription</TableHead>
             <TableHead>Listings</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead className="min-w-[220px]">Actions</TableHead>
+            <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -289,9 +286,10 @@ function DealerRow({ dealer }: DealerRowProps) {
               <TableCell className="text-sm text-text-tertiary">
                 {dealer.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell className="min-w-[220px]">
+              <TableCell className="w-[1%] whitespace-nowrap">
                 <DealerActions
                   dealerId={dealer.id}
+                  dealerName={dealer.name}
                   userId={dealer.user.id}
                   userLabel={dealer.user.name ?? dealer.user.email}
                   verified={dealer.verified}

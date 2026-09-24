@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   getFreeLaunchSlotsRemaining,
   getFreeLaunchSlotsTotal,
@@ -43,7 +44,15 @@ export default async function PricingPage() {
           Simple, Transparent Pricing
         </h1>
         <p className="mt-4 text-lg text-text-secondary max-w-xl mx-auto">
-          No hidden fees. Just straightforward pricing for Isle of Man sellers.
+          Straightforward pricing for an Isle of Man marketplace, including vehicles located in the United Kingdom. The price shown at checkout applies, including any current launch offer.
+        </p>
+        <p className="mt-3 text-sm text-text-secondary">
+          <Link
+            href="/faq#payments-featured-listings-and-refunds"
+            className="text-text-trust hover:underline"
+          >
+            Questions about pricing, featured listings or refunds
+          </Link>
         </p>
       </div>
 

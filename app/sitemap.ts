@@ -31,6 +31,7 @@ async function loadLiveSitemap(): Promise<MetadataRoute.Sitemap> {
     "/refunds",
     "/vehicle-check-terms",
     "/safety",
+    "/faq",
   ];
 
   const sampleVisibility = await getSampleVisibility();

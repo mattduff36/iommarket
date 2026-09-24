@@ -65,7 +65,7 @@ describe("PricingCards", () => {
       "60-day listing duration",
       "Up to 10 photos",
       "Contact form included",
-      "Moderation within 1-2 days",
+      "Listings are checked before or after publication",
       "Renew for another £7.49",
       "Upgrade to featured listing for £8.75",
     ]);
@@ -78,5 +78,9 @@ describe("PricingCards", () => {
   it("advertises dealer listing caps from the shared tier helper", () => {
     expect(DEALER_STARTER_FEATURES[0]).toBe(getDealerListingCapFeature("STARTER"));
     expect(DEALER_PRO_FEATURES[0]).toBe(getDealerListingCapFeature("PRO"));
+    expect(DEALER_STARTER_FEATURES).toContain("Dealer dashboard");
+    expect(DEALER_PRO_FEATURES).toContain("Dealer dashboard");
+    expect(DEALER_STARTER_FEATURES.join(" ")).not.toMatch(/priority moderation/i);
+    expect(DEALER_PRO_FEATURES.join(" ")).not.toMatch(/priority moderation/i);
   });
 });

@@ -18,7 +18,7 @@ const PRIVATE_SELLER_LISTING_BENEFITS = [
   "60-day listing duration",
   "Up to 10 photos",
   "Contact form included",
-  "Moderation within 1-2 days",
+  "Listings are checked before or after publication",
 ];
 
 export function getSellerFeatures(pricing: MarketplacePricing): string[] {
@@ -34,7 +34,7 @@ export const DEALER_STARTER_FEATURES = [
   getDealerListingCapFeature("STARTER"),
   "Dedicated dealer profile page",
   "Up to 20 photos per listing",
-  "Priority moderation",
+  "Dealer dashboard",
   "Phone number displayed",
   "Cancel anytime",
 ];
@@ -42,7 +42,6 @@ export const DEALER_STARTER_FEATURES = [
 export const DEALER_PRO_FEATURES = [
   getDealerListingCapFeature("PRO"),
   "All Starter features",
-  "Priority moderation",
   "Dealer dashboard",
   "Ideal for larger inventories",
   "Cancel anytime",

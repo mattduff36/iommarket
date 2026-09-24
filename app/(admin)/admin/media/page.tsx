@@ -117,7 +117,7 @@ export default async function AdminMediaPage({ searchParams }: Props) {
                 {img.listing.dealer?.name ?? img.listing.user.email}
               </p>
               <div className={CARD_OVERLAY_CONTROL_CLASS}>
-                <DeleteImageButton imageId={img.id} />
+                <DeleteImageButton imageId={img.id} listingTitle={img.listing.title} />
               </div>
             </div>
           </div>

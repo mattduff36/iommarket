@@ -103,6 +103,7 @@ export default async function AdminCategoriesPage() {
                   <TableCell>
                     <CategoryRowActions
                       categoryId={cat.id}
+                      categoryName={cat.name}
                       active={cat.active}
                       listingCount={cat._count.listings}
                     />

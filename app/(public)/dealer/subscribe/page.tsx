@@ -23,7 +23,7 @@ const TIER_DETAILS = {
       getDealerListingCapFeature("STARTER"),
       "Dedicated dealer profile page",
       "Up to 20 photos per listing",
-      "Priority moderation",
+      "Dealer dashboard",
       "Phone number displayed",
       "Cancel anytime",
     ],
@@ -32,7 +32,6 @@ const TIER_DETAILS = {
     features: [
       getDealerListingCapFeature("PRO"),
       "All Starter features",
-      "Priority moderation",
       "Dealer dashboard",
       "Ideal for larger inventories",
       "Cancel anytime",

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAcceptedAuth } from "@/lib/policy/gate";
+import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import {
   hasDealerAccountAccess,
@@ -1060,9 +1060,19 @@ export async function reportListing(input: ReportListingInput) {
 }
 
 // ---------------------------------------------------------------------------
-// Contact Seller (public; account not required)
+// Contact Seller (signed-in account required)
 // ---------------------------------------------------------------------------
 export async function contactSeller(input: ContactSellerInput) {
+  try {
+    await requireAcceptedAuth();
+  } catch (error) {
+    const status = acceptedAuthHttpStatus(error);
+    if (status === 401 || status === 403) {
+      return { error: "Sign in to message the seller." };
+    }
+    throw error;
+  }
+
   const parsed = contactSellerSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
@@ -1111,6 +1121,7 @@ export async function contactSeller(input: ContactSellerInput) {
     await sendContactConfirmationEmail({
       buyerEmail: parsed.data.email,
       listingTitle: listing.title,
+      listingUrl,
     });
     return { data: { sent: true } };
   } catch (err) {

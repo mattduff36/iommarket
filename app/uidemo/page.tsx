@@ -61,6 +61,8 @@ import { SearchBar } from "@/components/marketplace/search-bar";
 import { FilterPanel } from "@/components/marketplace/filter-panel";
 
 /* ---- Icons ---- */
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { AdminRowActions } from "@/components/admin/admin-row-actions";
 import { ChevronDown, Plus, Zap, Shield, Crown } from "lucide-react";
 
 /* ================================================================== */
@@ -114,6 +116,7 @@ export default function UIDemoPage() {
   const [cats, setCats] = React.useState<string[]>([]);
   const [conds, setConds] = React.useState<string[]>([]);
   const [priceRange, setPriceRange] = React.useState<[number, number]>([0, 10000]);
+  const [adminConfirmOpen, setAdminConfirmOpen] = React.useState(false);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -397,6 +400,45 @@ export default function UIDemoPage() {
               <DropdownMenuItem className="text-text-energy">Delete</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </Section>
+
+        <Section title="Admin row actions">
+          <Row label="Compact menu">
+            <AdminRowActions
+              label="Actions for TD Car Centre"
+              actions={[
+                { kind: "link", id: "view", label: "View account", href: "/uidemo" },
+                {
+                  kind: "menu",
+                  id: "role",
+                  label: "Change role",
+                  value: "DEALER",
+                  choices: [
+                    { value: "USER", label: "User" },
+                    { value: "DEALER", label: "Dealer" },
+                    { value: "ADMIN", label: "Admin" },
+                  ],
+                  onSelect: () => undefined,
+                },
+                {
+                  kind: "command",
+                  id: "disable",
+                  label: "Disable",
+                  destructive: true,
+                  onSelect: () => setAdminConfirmOpen(true),
+                },
+              ]}
+            />
+          </Row>
+          <AdminConfirmDialog
+            open={adminConfirmOpen}
+            onOpenChange={setAdminConfirmOpen}
+            title="Disable TD Car Centre?"
+            description="The account cannot be used until an administrator enables it."
+            confirmLabel="Disable account"
+            destructive
+            onConfirm={() => setAdminConfirmOpen(false)}
+          />
         </Section>
 
         {/* ---- Tabs ---- */}

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DealerDirectory } from "@/components/dealers/dealer-directory";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { db } from "@/lib/db";
@@ -49,6 +50,11 @@ export default async function DealersPage() {
           Explore active local dealers, their latest stock, and public profiles.
           Admin-verified businesses are clearly marked. Dealers are listed
           alphabetically.
+        </p>
+        <p className="mt-3 text-sm text-text-secondary">
+          <Link href="/faq#dealers" className="text-text-trust hover:underline">
+            Questions about dealer accounts
+          </Link>
         </p>
         <p className="mt-3 text-sm text-metallic-400">
           {sortedDealers.length}{" "}

@@ -12,6 +12,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { UserAccountStatusBadge } from "@/components/admin/user-account-status-badge";
 import { UserActions } from "./user-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
@@ -67,9 +68,19 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             verified: true,
             tier: true,
             subscriptions: {
-              where: paidEntitlementWhere,
-              select: { id: true },
-              take: 1,
+              where: {
+                OR: [
+                  paidEntitlementWhere,
+                  {
+                    source: "ADMIN_GRANT",
+                    status: "ACTIVE",
+                    revokedAt: null,
+                    grantStartsAt: { lte: now },
+                    grantEndsAt: { gt: now },
+                  },
+                ],
+              },
+              select: { id: true, source: true },
             },
           },
         },
@@ -169,7 +180,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             <TableHead>Dealer</TableHead>
             <TableHead>Listings</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead className="min-w-[320px]">Actions</TableHead>
+            <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -183,14 +194,10 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   {user.name ?? "-"}
                 </Link>
                 <p className="text-xs text-text-tertiary">{user.email}</p>
-                {user.deletedAt ? (
-                  <Badge variant="error">Deleted</Badge>
-                ) : user.disabledAt ? (
-                  <Badge variant="warning">Disabled</Badge>
-                ) : null}
-                {user.disabledAt && (
-                  <Badge variant="error" className="mt-1">Disabled</Badge>
-                )}
+                <UserAccountStatusBadge
+                  deletedAt={user.deletedAt}
+                  disabledAt={user.disabledAt}
+                />
               </TableCell>
               <TableCell>
                 <Badge variant={ROLE_BADGE[user.role] ?? "neutral"}>
@@ -230,16 +237,24 @@ export default async function AdminUsersPage({ searchParams }: Props) {
               <TableCell className="text-sm text-text-tertiary">
                 {user.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell className="min-w-[320px]">
+              <TableCell className="w-[1%] whitespace-nowrap">
                 <UserActions
+                  variant="row"
                   userId={user.id}
                   currentRole={user.role}
                   isDisabled={!!user.disabledAt}
                   isDeleted={!!user.deletedAt}
                   userLabel={user.name ?? user.email}
+                  hasActiveAdminGrant={
+                    user.dealerProfile?.subscriptions.some(
+                      (subscription) => subscription.source === "ADMIN_GRANT",
+                    ) ?? false
+                  }
                   currentTier={user.dealerProfile?.tier ?? null}
                   hasActivePaidSubscription={
-                    (user.dealerProfile?.subscriptions.length ?? 0) > 0
+                    user.dealerProfile?.subscriptions.some(
+                      (subscription) => subscription.source === "PAYMENT",
+                    ) ?? false
                   }
                 />
               </TableCell>

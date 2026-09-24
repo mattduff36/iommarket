@@ -2,7 +2,28 @@ import { db } from "@/lib/db";
 import { getCostOwnerNotificationEmail } from "@/lib/costs/config";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { sendResendEmail } from "@/lib/email/client";
+import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
+
+export function buildCostInvoiceRequestEmail(input: {
+  requestId: string;
+  amountLabel: string;
+  confirmUrl: string;
+}) {
+  return {
+    subject: `Invoice request for ${input.amountLabel}`,
+    ...renderBrandedEmail({
+      title: "Invoice request received",
+      intro: `An admin requested an invoice for ${input.amountLabel}. Confirming acknowledges that you will raise the invoice for this frozen amount.`,
+      details: [
+        { label: "Request", value: input.requestId },
+        { label: "Amount", value: input.amountLabel },
+      ],
+      actionHref: input.confirmUrl,
+      actionLabel: "Confirm invoice request",
+    }),
+  };
+}
 
 export async function deliverCostOutbox(outboxId: string): Promise<void> {
   const outbox = await db.costEmailOutbox.findUnique({
@@ -23,22 +44,17 @@ export async function deliverCostOutbox(outboxId: string): Promise<void> {
 
   try {
     const to = getCostOwnerNotificationEmail();
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:4000").replace(/\/$/, "");
-    const confirmUrl = `${appUrl}/admin/costs/confirm/${outbox.request.id}`;
+    const confirmUrl = `${getEmailAppOrigin()}/admin/costs/confirm/${outbox.request.id}`;
     const amountLabel = formatMarkedGbp(outbox.request.frozenGbpMinor);
-    const email = renderBrandedEmail({
-      title: "Invoice request received",
-      intro: `An admin requested an invoice for ${amountLabel}. Confirming acknowledges that you will raise the invoice for this frozen amount.`,
-      bodyLines: [
-        `Request: ${outbox.request.id}`,
-        `Amount: ${amountLabel}`,
-        `Confirm: ${confirmUrl}`,
-      ],
+    const email = buildCostInvoiceRequestEmail({
+      requestId: outbox.request.id,
+      amountLabel,
+      confirmUrl,
     });
 
     await sendResendEmail({
       to,
-      subject: `Invoice request for ${amountLabel}`,
+      subject: email.subject,
       text: email.text,
       html: email.html,
     });

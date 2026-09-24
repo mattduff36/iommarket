@@ -1,6 +1,7 @@
 import * as React from "react";
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
   CARD_OVERLAY_CONTROL_CLASS,
@@ -161,12 +162,14 @@ describe("CardOverlayLink", () => {
       </div>,
     );
 
+    const user = userEvent.setup();
     const primaryLink = screen.getByRole("link", { name: "Listing photo" });
-    const deleteButton = screen.getByRole("button", { name: "Delete" });
-    expect(primaryLink.contains(deleteButton)).toBe(false);
+    const actionsButton = screen.getByRole("button", { name: "Actions for this listing" });
+    expect(primaryLink.contains(actionsButton)).toBe(false);
 
-    fireEvent.click(deleteButton);
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await user.click(actionsButton);
+    await user.click(screen.getByRole("menuitem", { name: "Delete image" }));
+    await user.click(screen.getByRole("button", { name: "Delete image" }));
 
     await waitFor(() => {
       expect(adminDeleteImageMock).toHaveBeenCalledWith("img-1");

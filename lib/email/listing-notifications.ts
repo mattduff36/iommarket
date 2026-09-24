@@ -1,6 +1,7 @@
 import type { ListingLifecycleAction, ListingModerationReason } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getModerationInbox, sendResendEmail } from "@/lib/email/client";
+import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
 import {
   getModerationSubReason,
@@ -14,11 +15,15 @@ import {
 } from "@/lib/listings/notification-intents";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 
-function getAppUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
+function listingLinks(listingId?: string) {
+  if (!listingId) return {};
+  const origin = getEmailAppOrigin();
+  return {
+    actionHref: `${origin}/listings/${listingId}`,
+    actionLabel: "View listing",
+    secondaryHref: `${origin}/account/listings`,
+    secondaryLabel: "Manage my listings",
+  };
 }
 
 const SELLER_COPY: Record<
@@ -108,13 +113,6 @@ export function buildListingStatusEmail(input: {
     input.moderationSubReason,
   );
   const bodyLines = [`Listing: ${input.listingTitle}`];
-  if (input.listingId) {
-    const appUrl = getAppUrl();
-    bodyLines.push(
-      `Open listing: ${appUrl}/listings/${input.listingId}`,
-      `Your listings: ${appUrl}/account/listings`,
-    );
-  }
   if (reasonLabel) {
     bodyLines.push(`Reason: ${reasonLabel}`);
   }
@@ -135,7 +133,9 @@ export function buildListingStatusEmail(input: {
     ...renderBrandedEmail({
       title: copy.title,
       intro: copy.intro,
+      details: [{ label: "Listing", value: input.listingTitle }],
       bodyLines,
+      ...listingLinks(input.listingId),
     }),
   };
 }
@@ -146,7 +146,7 @@ export function buildAdminSubmissionEmail(input: {
   isResubmit: boolean;
   isRevision: boolean;
 }) {
-  const appUrl = getAppUrl();
+  const origin = getEmailAppOrigin();
   const title = input.isRevision
     ? "Live listing changes awaiting review"
     : input.isResubmit
@@ -157,11 +157,12 @@ export function buildAdminSubmissionEmail(input: {
     ...renderBrandedEmail({
       title,
       intro: "A listing is waiting in the moderation queue.",
-      bodyLines: [
-        `Listing: ${input.listingTitle}`,
-        `ID: ${input.listingId}`,
-        `Review: ${appUrl}/admin/listings`,
+      details: [
+        { label: "Listing", value: input.listingTitle },
+        { label: "ID", value: input.listingId },
       ],
+      actionHref: `${origin}/admin/listings`,
+      actionLabel: "Review listing",
     }),
   };
 }

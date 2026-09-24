@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getModerationInbox, sendResendEmail } from "@/lib/email/client";
+import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 
@@ -8,13 +9,6 @@ export type DealerReviewNotificationIntent =
   | { kind: "RESPONSE_DECIDED"; revisionId: string }
   | { kind: "DISPUTE_OPENED"; disputeId: string }
   | { kind: "DISPUTE_DECIDED"; disputeId: string };
-
-function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
-}
 
 export function buildDealerReviewAdminEmail(input: {
   kind: "RESPONSE_SUBMITTED" | "DISPUTE_OPENED";
@@ -32,11 +26,12 @@ export function buildDealerReviewAdminEmail(input: {
       intro: isResponse
         ? "A dealer response is waiting in the moderation queue."
         : "A dealer has opened a review dispute for administrator assessment.",
-      bodyLines: [
-        `Dealer: ${input.dealerName}`,
-        `Reference: ${input.entityId}`,
-        `Review: ${appUrl()}/admin/reviews`,
+      details: [
+        { label: "Dealer", value: input.dealerName },
+        { label: "Reference", value: input.entityId },
       ],
+      actionHref: `${getEmailAppOrigin()}/admin/reviews`,
+      actionLabel: "Review in admin",
     }),
   };
 }
@@ -55,12 +50,6 @@ export function buildDealerReviewDecisionEmail(input: {
     : input.status === "RESOLVED"
       ? "Your review dispute was resolved"
       : "Your review dispute was rejected";
-  const bodyLines = [
-    `Dealer: ${input.dealerName}`,
-    `Status: ${input.status}`,
-    `Review management: ${appUrl()}/dealer/dashboard#review-management`,
-  ];
-  if (input.reasonCode) bodyLines.push(`Reason: ${input.reasonCode}`);
   return {
     subject: title,
     ...renderBrandedEmail({
@@ -68,7 +57,13 @@ export function buildDealerReviewDecisionEmail(input: {
       intro: isResponse
         ? "An administrator has completed moderation of your response."
         : "An administrator has completed assessment of your dispute.",
-      bodyLines,
+      details: [
+        { label: "Dealer", value: input.dealerName },
+        { label: "Status", value: input.status },
+      ],
+      paragraphs: input.reasonCode ? [`Reason: ${input.reasonCode}`] : [],
+      actionHref: `${getEmailAppOrigin()}/dealer/dashboard#review-management`,
+      actionLabel: "Manage reviews",
     }),
   };
 }

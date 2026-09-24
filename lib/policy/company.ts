@@ -9,13 +9,6 @@ export const COMPANY = {
   policyVersion: "2026-08-14.1",
 } as const;
 
-export const MARKETPLACE_PUBLIC_PRICES = {
-  privateListing: "£4.99",
-  featured: "£5.00",
-  dealerStarter: "£29.99",
-  dealerPro: "£49.99",
-} as const;
-
 export function getDataControllerReference(
   env: Record<string, string | undefined> = process.env,
 ) {

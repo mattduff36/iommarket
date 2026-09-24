@@ -20,6 +20,7 @@ const EXACT_TRUSTED_HOOKS = new Set([
 const PUBLIC_WHILE_GATED = [
   "/contact",
   "/safety",
+  "/faq",
   "/vehicle-check",
   "/dealer/onboarding",
 ];

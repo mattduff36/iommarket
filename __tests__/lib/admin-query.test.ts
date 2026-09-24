@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
 import {
   ADMIN_LISTING_STATUS_FILTERS,
   adminTotalPages,
@@ -80,5 +81,23 @@ describe("admin users list", () => {
       ],
       role: "DEALER",
     });
+  });
+});
+
+describe("admin dealers list", () => {
+  it("honours an exact dealer id without dropping search or verification filters", () => {
+    expect(
+      buildAdminDealersWhere({ id: " dealer-1 ", query: "td", verified: false }),
+    ).toMatchObject({
+      id: "dealer-1",
+      isAdminPreview: false,
+      verified: false,
+      OR: [
+        { name: { contains: "td", mode: "insensitive" } },
+        { slug: { contains: "td", mode: "insensitive" } },
+        { user: { email: { contains: "td", mode: "insensitive" } } },
+      ],
+    });
+    expect(buildAdminDealersWhere({ id: "   " })).not.toHaveProperty("id");
   });
 });

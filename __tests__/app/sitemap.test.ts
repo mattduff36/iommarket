@@ -77,6 +77,7 @@ describe("sitemap", () => {
 
     expect(urls).toContain(buildCanonicalUrl("/dealers"));
     expect(urls).toContain(buildCanonicalUrl("/contact"));
+    expect(urls).toContain(buildCanonicalUrl("/faq"));
     expect(urls).toContain(buildCanonicalUrl("/vehicle-check"));
     expect(urls).toContain(
       buildCanonicalUrl("/listings/listing%2Fone"),

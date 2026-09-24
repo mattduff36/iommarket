@@ -64,6 +64,7 @@ export default async function AdminRegionsPage() {
               <TableCell>
                 <RegionActions
                   regionId={region.id}
+                  regionName={region.name}
                   active={region.active}
                   hasReferences={region._count.users > 0 || region._count.listings > 0}
                 />

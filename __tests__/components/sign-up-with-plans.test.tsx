@@ -131,4 +131,32 @@ describe("SignUpWithPlans", () => {
       policiesAccepted: true,
     });
   });
+
+  it("hides the private launch offer during dealer signup", () => {
+    render(
+      <SignUpWithPlans
+        showFreeOffer
+        slotsRemaining={12}
+        isFreeWindowActive
+        dealerTierIntent="STARTER"
+      />,
+    );
+
+    expect(screen.queryByText(/Private seller listings are free during launch/i)).toBeNull();
+    expect(screen.queryByText(/free private seller launch spots left/i)).toBeNull();
+    expect(screen.getByText(/does not also post private listings/i)).toBeTruthy();
+  });
+
+  it("shows the private launch offer for a private signup", () => {
+    render(
+      <SignUpWithPlans
+        showFreeOffer
+        slotsRemaining={3}
+        isFreeWindowActive={false}
+        dealerTierIntent={null}
+      />,
+    );
+
+    expect(screen.getByText(/3 free private seller launch spots left/i)).toBeTruthy();
+  });
 });

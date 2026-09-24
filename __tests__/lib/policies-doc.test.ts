@@ -14,7 +14,6 @@ import {
 import { POLICY_SLUGS } from "@/lib/policies/types";
 import {
   COMPANY,
-  MARKETPLACE_PUBLIC_PRICES,
   getDataControllerReference,
 } from "@/lib/policy/company";
 
@@ -25,7 +24,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
   it("publishes all policies with per-document versions and hashes", () => {
     expect(documents.map((doc) => doc.slug)).toEqual([...POLICY_SLUGS]);
     for (const doc of documents) {
-      expect(doc.version).toMatch(/^2026-08-\d{2}\.\d+$/);
+      expect(doc.version).toMatch(/^2026-(08-\d{2}|09-23)\.\d+$/);
       expect(doc.markdown.length).toBeGreaterThan(400);
       expect(doc.contentHash).toMatch(/^[a-f0-9]{64}$/);
       expect(doc.markdown).toContain(COMPANY.companyNumber);
@@ -34,16 +33,15 @@ describe("POL-DOC-001 canonical policy corpus", () => {
       expect(doc.markdown).toContain("Port Erin");
       expect(doc.markdown).toContain("IM9 6NA");
       expect(doc.markdown).toContain(COMPANY.email);
-      expect(doc.effectiveDate).toMatch(/^(14 August 2026|on launch)$/);
+      expect(doc.effectiveDate).toMatch(/^(14 August 2026|23 September 2026|on launch)$/);
     }
   });
 
-  it("uses confirmed prices and treats N/S as the written-off exception", () => {
+  it("POL-PRICE-001 uses displayed checkout prices and treats N/S as the written-off exception", () => {
     const joined = documents.map((doc) => doc.markdown).join("\n");
-    expect(joined).toContain(MARKETPLACE_PUBLIC_PRICES.privateListing);
-    expect(joined).toContain(MARKETPLACE_PUBLIC_PRICES.featured);
-    expect(joined).toContain(MARKETPLACE_PUBLIC_PRICES.dealerStarter);
-    expect(joined).toContain(MARKETPLACE_PUBLIC_PRICES.dealerPro);
+    expect(joined).toMatch(/price displayed at checkout/i);
+    expect(joined).toMatch(/launch offer/i);
+    expect(joined).not.toMatch(/£4\.99|£5\.00|£29\.99|£49\.99/);
     expect(joined).not.toMatch(/standard private (vehicle )?Listing (fee )?is £5\b/i);
     expect(joined).toMatch(/permitted exception/);
     expect(joined).toContain("Vehicle Check");
@@ -56,6 +54,17 @@ describe("POL-DOC-001 canonical policy corpus", () => {
     expect(joined).not.toContain(
       "By continuing to use the Platform, and where relevant by providing your consent",
     );
+    expect(joined).toMatch(/car, van, motorbike or motorhome/i);
+    expect(joined).not.toMatch(/trailer, or other vehicle/i);
+    const terms = documents.find((doc) => doc.slug === "terms")?.markdown ?? "";
+    expect(terms).toMatch(/Isle of Man or the United Kingdom/);
+    expect(joined).toMatch(/United Kingdom/);
+    expect(joined).toMatch(/last approved details/);
+    expect(joined).toMatch(/requires the buyer to sign in/);
+    expect(joined).toMatch(/Staff complete the provider cancellation/);
+    expect(joined).not.toMatch(/Account settings/);
+    expect(joined).not.toMatch(/Priority moderation/);
+    expect(joined).not.toMatch(/1-2 days|1–2 days/);
   });
 
   it("contains no unresolved legal placeholders", () => {
@@ -69,13 +78,13 @@ describe("POL-DOC-001 canonical policy corpus", () => {
   it("builds deterministic bundle versions in registry order", () => {
     expect(buildBundleVersion("AGE_18")).toBe("AGE_18:1");
     expect(buildBundleVersion("ACCOUNT_BUNDLE")).toBe(
-      "ACCOUNT_BUNDLE:privacy=2026-08-17.2|terms=2026-08-17.2|acceptable-use=2026-08-17.2",
+      "ACCOUNT_BUNDLE:privacy=2026-08-17.2|terms=2026-09-23.1|acceptable-use=2026-08-17.2",
     );
     expect(buildBundleVersion("LISTING_BUNDLE")).toBe(
-      "LISTING_BUNDLE:private-seller-terms=2026-08-17.1|acceptable-use=2026-08-17.2|refunds=2026-08-14.1",
+      "LISTING_BUNDLE:private-seller-terms=2026-09-23.1|acceptable-use=2026-08-17.2|refunds=2026-09-23.1",
     );
     expect(buildBundleVersion("DEALER_BUNDLE")).toBe(
-      "DEALER_BUNDLE:dealer-terms=2026-08-17.2|acceptable-use=2026-08-17.2|refunds=2026-08-14.1",
+      "DEALER_BUNDLE:dealer-terms=2026-09-23.1|acceptable-use=2026-08-17.2|refunds=2026-09-23.1",
     );
   });
 

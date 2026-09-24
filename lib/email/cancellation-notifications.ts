@@ -1,4 +1,5 @@
 import { sendResendEmail } from "@/lib/email/client";
+import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
 import { captureException } from "@/lib/monitoring";
 import type { CancellationRequestStatus } from "@prisma/client";
@@ -39,6 +40,30 @@ function copyForStatus(status: CancellationRequestStatus) {
   };
 }
 
+export function buildCancellationStatusEmail(input: {
+  dealerName: string;
+  status: CancellationRequestStatus;
+  periodEndAt?: Date | null;
+}) {
+  const copy = copyForStatus(input.status);
+  return {
+    subject: copy.subject,
+    ...renderBrandedEmail({
+      title: copy.subject,
+      intro: copy.intro,
+      details: [{ label: "Dealer", value: input.dealerName }],
+      paragraphs: [
+        input.periodEndAt
+          ? `Paid period ends: ${input.periodEndAt.toLocaleDateString("en-GB")}`
+          : "Paid period end: see your dealer dashboard.",
+        "See the Refund Policy at /refunds for refund rules.",
+      ],
+      actionHref: `${getEmailAppOrigin()}/dealer/dashboard`,
+      actionLabel: "Open dealer dashboard",
+    }),
+  };
+}
+
 export async function sendCancellationStatusEmail(input: {
   to: string;
   dealerName: string;
@@ -46,21 +71,10 @@ export async function sendCancellationStatusEmail(input: {
   periodEndAt?: Date | null;
 }) {
   try {
-    const copy = copyForStatus(input.status);
-    const email = renderBrandedEmail({
-      title: copy.subject,
-      intro: copy.intro,
-      bodyLines: [
-        `Dealer: ${input.dealerName}`,
-        input.periodEndAt
-          ? `Paid period ends: ${input.periodEndAt.toLocaleDateString("en-GB")}`
-          : "Paid period end: see your dealer dashboard.",
-        "See the Refund Policy at /refunds for refund rules.",
-      ],
-    });
+    const email = buildCancellationStatusEmail(input);
     await sendResendEmail({
       to: input.to,
-      subject: copy.subject,
+      subject: email.subject,
       text: email.text,
       html: email.html,
     });

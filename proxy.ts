@@ -14,7 +14,7 @@ import {
 } from "@/lib/dealers/onboarding/session-cutoff";
 import { shouldBypassSupabaseSessionRefresh } from "@/lib/supabase/proxy-routing";
 
-function isPublicPath(pathname: string): boolean {
+export function isPublicPath(pathname: string): boolean {
   if (
     pathname === "/" ||
     pathname === "/sign-in" ||
@@ -43,7 +43,8 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/refunds" ||
     pathname === "/vehicle-check-terms" ||
     pathname === "/contact" ||
-    pathname === "/safety"
+    pathname === "/safety" ||
+    pathname === "/faq"
   );
 }
 

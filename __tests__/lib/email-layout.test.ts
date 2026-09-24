@@ -23,4 +23,30 @@ describe("branded email layout", () => {
       'href="https://preview.itrader.im/dealer/onboarding/claim?token=test"',
     );
   });
+
+  it("escapes content and omits optional sections that were not provided", () => {
+    const rendered = renderBrandedEmail({
+      title: "Hello <script>",
+      intro: "Body & more",
+      actionHref: "https://itrader.im/reset?token=fake",
+      actionLabel: "Reset password",
+    });
+
+    expect(rendered.html).toContain("Hello &lt;script&gt;");
+    expect(rendered.html).toContain("Body &amp; more");
+    expect(rendered.html).not.toContain("Hello <script>");
+    expect(rendered.html).toContain(">Reset password</a>");
+    expect(rendered.text).toContain("https://itrader.im/reset?token=fake");
+    expect(rendered.html).not.toContain("Your interests");
+    expect(rendered.text).toContain("iTrader.im");
+    expect(rendered.text).toContain("Buy • Sell • Upgrade");
+    expect(
+      renderBrandedEmail({
+        title: "Unsafe",
+        intro: "Ignore this link.",
+        actionHref: "javascript:alert(1)",
+        actionLabel: "Continue",
+      }).html,
+    ).not.toContain("javascript:");
+  });
 });

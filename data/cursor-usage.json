@@ -1,28 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-23T20:28:59.322Z",
+  "generatedAt": "2026-09-24T00:31:38.112Z",
   "projectKey": "d-Websites-iommarket",
-  "windowStart": "2026-08-10T00:00:00.000Z",
-  "windowEnd": "2026-09-24T00:00:00.000Z",
+  "windowStart": "2026-08-11T00:00:00.000Z",
+  "windowEnd": "2026-09-25T00:00:00.000Z",
   "attributionCoverage": {
-    "attributedEvents": 1096,
-    "unattributedEvents": 640,
-    "unattributedMicroCents": "163325726769"
+    "attributedEvents": 1083,
+    "unattributedEvents": 620,
+    "unattributedMicroCents": "160448179204"
   },
   "days": [
-    {
-      "date": "2026-08-10",
-      "identifiedMicroCents": "11300960050",
-      "project": {
-        "onDemandMicroCents": "0",
-        "chargedMicroCents": "0",
-        "inputTokens": 0,
-        "outputTokens": 0,
-        "cacheWriteTokens": 0,
-        "cacheReadTokens": 0,
-        "models": []
-      }
-    },
     {
       "date": "2026-08-11",
       "identifiedMicroCents": "19381961175",
@@ -378,18 +365,18 @@
     },
     {
       "date": "2026-09-23",
-      "identifiedMicroCents": "3218724875",
+      "identifiedMicroCents": "12288191143",
       "project": {
-        "onDemandMicroCents": "3218724875",
-        "chargedMicroCents": "3218724875",
-        "inputTokens": 652739,
-        "outputTokens": 158324,
-        "cacheWriteTokens": 581532,
-        "cacheReadTokens": 31137344,
+        "onDemandMicroCents": "12288191143",
+        "chargedMicroCents": "12288191143",
+        "inputTokens": 2818338,
+        "outputTokens": 549442,
+        "cacheWriteTokens": 1044841,
+        "cacheReadTokens": 125977273,
         "models": [
           {
             "model": "gpt-5.6-sol-high",
-            "onDemandMicroCents": "744939018"
+            "onDemandMicroCents": "2529368555"
           },
           {
             "model": "grok-4.7-high",
@@ -397,7 +384,7 @@
           },
           {
             "model": "grok-4.7-xhigh-fast",
-            "onDemandMicroCents": "2360472456"
+            "onDemandMicroCents": "9645509187"
           }
         ]
       }

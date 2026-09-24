@@ -11,9 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CopyEmailButton } from "./copy-email-button";
-import { DeleteWaitlistButton } from "./delete-waitlist-button";
-import { RestoreWaitlistButton } from "./restore-waitlist-button";
+import { WaitlistRowActions } from "./waitlist-row-actions";
 
 export const metadata: Metadata = { title: "Waitlist | Admin" };
 
@@ -149,15 +147,12 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
                   {user.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
                 <TableCell className="text-xs text-text-tertiary">{user.source}</TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-1">
-                    <CopyEmailButton email={user.email} />
-                    {user.deletedAt ? (
-                      <RestoreWaitlistButton id={user.id} />
-                    ) : (
-                      <DeleteWaitlistButton id={user.id} email={user.email} />
-                    )}
-                  </span>
+                <TableCell className="w-[1%] whitespace-nowrap">
+                  <WaitlistRowActions
+                    id={user.id}
+                    email={user.email}
+                    deleted={Boolean(user.deletedAt)}
+                  />
                 </TableCell>
               </TableRow>
             );
