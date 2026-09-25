@@ -25,7 +25,7 @@ import { runSerializable } from "@/lib/costs/transaction";
 import {
   CostProviderUnavailableError,
   fetchFocusCharges,
-  listActiveProductionProjectIds,
+  listActiveProductionProjectIdsByPeriod,
 } from "@/lib/costs/vercel";
 import { costDb } from "@/lib/costs/db";
 
@@ -238,8 +238,22 @@ async function executeCostSync(
       );
     }
 
-    const sharedMembershipCache = new Map<string, string[]>();
     const ledgerCharges = aggregateClassifiedCharges(classified.classified);
+    const sharedPeriods = [
+      ...new Map(
+        ledgerCharges
+          .filter((charge) => charge.kind === "shared")
+          .map((charge) => {
+            const key = `${charge.periodStart.toISOString()}:${charge.periodEnd.toISOString()}`;
+            return [key, { key, to: charge.periodEnd }] as const;
+          }),
+      ).values(),
+    ];
+    const sharedMembershipByPeriod =
+      await listActiveProductionProjectIdsByPeriod({
+        periods: sharedPeriods,
+        env,
+      });
 
     for (const charge of ledgerCharges) {
       await renewCostSyncLock(lockHolder);
@@ -253,15 +267,8 @@ async function executeCostSync(
         | null = null;
       if (charge.kind === "shared") {
         const membershipKey = `${charge.periodStart.toISOString()}:${charge.periodEnd.toISOString()}`;
-        let membership = sharedMembershipCache.get(membershipKey);
-        if (!membership) {
-          membership = await listActiveProductionProjectIds({
-            from: charge.periodStart,
-            to: charge.periodEnd,
-            env,
-          });
-          sharedMembershipCache.set(membershipKey, membership);
-        }
+        const membership =
+          sharedMembershipByPeriod.get(membershipKey) ?? [];
         const markedTotal = computeMarkedGbpMinor(charge.nativeAmount, fx.rate);
         sharedAllocation = allocateSharedPence(
           markedTotal,
