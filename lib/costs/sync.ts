@@ -247,25 +247,32 @@ async function executeCostSync(
         continue;
       }
 
+      const fx = await getOrCreateUsdGbpRate(costDb, charge.periodStart);
+      let sharedAllocation:
+        | ReturnType<typeof allocateSharedPence>
+        | null = null;
+      if (charge.kind === "shared") {
+        const membershipKey = `${charge.periodStart.toISOString()}:${charge.periodEnd.toISOString()}`;
+        let membership = sharedMembershipCache.get(membershipKey);
+        if (!membership) {
+          membership = await listActiveProductionProjectIds({
+            from: charge.periodStart,
+            to: charge.periodEnd,
+            env,
+          });
+          sharedMembershipCache.set(membershipKey, membership);
+        }
+        const markedTotal = computeMarkedGbpMinor(charge.nativeAmount, fx.rate);
+        sharedAllocation = allocateSharedPence(
+          markedTotal,
+          membership,
+          billing.projectId,
+        );
+      }
+
       await runSerializable(async (tx) => {
-        const fx = await getOrCreateUsdGbpRate(tx, charge.periodStart);
-        if (charge.kind === "shared") {
-          const membershipKey = `${charge.periodStart.toISOString()}:${charge.periodEnd.toISOString()}`;
-          let membership = sharedMembershipCache.get(membershipKey);
-          if (!membership) {
-            membership = await listActiveProductionProjectIds({
-              from: charge.periodStart,
-              to: charge.periodEnd,
-              env,
-            });
-            sharedMembershipCache.set(membershipKey, membership);
-          }
-          const markedTotal = computeMarkedGbpMinor(charge.nativeAmount, fx.rate);
-          const allocation = allocateSharedPence(
-            markedTotal,
-            membership,
-            billing.projectId,
-          );
+        if (charge.kind === "shared" && sharedAllocation) {
+          const allocation = sharedAllocation;
           if (allocation.denominator === 0 || allocation.share === BigInt(0)) {
             await recordQuarantine(tx, {
               sourceKind: "VERCEL_FOCUS",
