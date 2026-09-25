@@ -108,19 +108,22 @@ export function getVercelBillingConfig(env: NodeJS.ProcessEnv = process.env) {
   const projectId = env.COST_VERCEL_PROJECT_ID?.trim();
   const databaseResourceId = env.COST_VERCEL_DATABASE_RESOURCE_ID?.trim();
   const previewDatabaseResourceId = env.COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID?.trim();
-  if (!token || !teamId || !projectId || !databaseResourceId || !previewDatabaseResourceId) {
+  if (!token || !teamId || !projectId || !databaseResourceId) {
     throw new CostConfigError("Vercel billing identifiers are not fully configured.");
   }
-  if (databaseResourceId === previewDatabaseResourceId) {
+  if (previewDatabaseResourceId && databaseResourceId === previewDatabaseResourceId) {
     throw new CostConfigError("Preview and production database resource ids must differ.");
   }
+  const databaseResourceIds = previewDatabaseResourceId
+    ? [databaseResourceId, previewDatabaseResourceId]
+    : [databaseResourceId];
   return {
     token,
     teamId,
     projectId,
     databaseResourceId,
     previewDatabaseResourceId,
-    databaseResourceIds: [databaseResourceId, previewDatabaseResourceId],
+    databaseResourceIds,
   };
 }
 

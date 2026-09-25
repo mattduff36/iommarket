@@ -113,6 +113,12 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     ).toThrow(/COST_SYNC_ALLOW_NON_PROD/);
   });
 
+  it("allows the optional preview database resource id to be absent", () => {
+    const env = parseDotenv(validProductionEnv());
+    delete env.COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID;
+    expect(() => validateProductionEnv(env)).not.toThrow();
+  });
+
   it("decodes escaped quotes without emitting values in drift reports", () => {
     const parsed = parseDotenv('COST_OWNER_NOTIFICATION_EMAIL="say \\"hello\\""\n');
     expect(parsed.COST_OWNER_NOTIFICATION_EMAIL).toBe('say "hello"');

@@ -102,6 +102,15 @@ describe("cost ledger connection", () => {
     ]);
   });
 
+  it("keeps production database classification when the preview store is not configured", () => {
+    expect(
+      getVercelBillingConfig({
+        ...billingEnv,
+        COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID: undefined,
+      }).databaseResourceIds,
+    ).toEqual(["store_prod"]);
+  });
+
   it("rejects identical production and preview database resource ids", () => {
     expect(() =>
       getVercelBillingConfig({
