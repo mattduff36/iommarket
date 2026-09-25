@@ -1,7 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-import { CostConfigError } from "@/lib/costs/config";
+import {
+  assertLedgerConfigMatchesEnvironment,
+  CostConfigError,
+} from "@/lib/costs/config";
 import { db } from "@/lib/db";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
 import type { RuntimeEnv } from "@/lib/runtime-env";
@@ -20,12 +23,13 @@ export type CostLedgerConnection =
   | { mode: "app" }
   | { mode: "ledger"; url: string };
 
-function databaseIdentity(raw: string): string {
+export function costDatabaseIdentity(raw: string): string {
   const trimmed = raw.trim();
   try {
     const parsed = new URL(trimmed);
     const pathname = parsed.pathname.replace(/\/$/, "");
-    return `${parsed.hostname.toLowerCase()}:${pathname}`;
+    const username = decodeURIComponent(parsed.username);
+    return `${username}@${parsed.hostname.toLowerCase()}:${pathname}`;
   } catch {
     return trimmed;
   }
@@ -34,8 +38,21 @@ function databaseIdentity(raw: string): string {
 function marketplaceIdentities(env: RuntimeEnv): string[] {
   return MARKETPLACE_URL_KEYS.flatMap((key) => {
     const value = env[key]?.trim();
-    return value ? [databaseIdentity(value)] : [];
+    return value ? [costDatabaseIdentity(value)] : [];
   });
+}
+
+export function assertPreviewCostLedgerReady(
+  config: { startedAt: Date; policyVersion: string } | null,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (env.VERCEL_ENV !== "preview") return;
+  if (!config) {
+    throw new CostConfigError(
+      "The configured preview cost ledger is not initialized.",
+    );
+  }
+  assertLedgerConfigMatchesEnvironment({ ...config, env });
 }
 
 export function resolveCostLedgerConnection(
@@ -52,7 +69,7 @@ export function resolveCostLedgerConnection(
     );
   }
 
-  const ledgerIdentity = databaseIdentity(ledgerUrl);
+  const ledgerIdentity = costDatabaseIdentity(ledgerUrl);
   if (marketplaceIdentities(env).includes(ledgerIdentity)) {
     throw new CostConfigError(
       "COST_LEDGER_DATABASE_URL must not be the preview marketplace database.",

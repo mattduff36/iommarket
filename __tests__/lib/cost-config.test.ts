@@ -8,7 +8,11 @@ import {
   isProductionRuntime,
   parseCostLedgerStartedAt,
 } from "@/lib/costs/config";
-import { resolveCostLedgerConnection } from "@/lib/costs/db";
+import {
+  assertPreviewCostLedgerReady,
+  costDatabaseIdentity,
+  resolveCostLedgerConnection,
+} from "@/lib/costs/db";
 import { COST_POLICY_VERSION } from "@/lib/costs/money";
 
 describe("cost ledger configuration T1", () => {
@@ -145,9 +149,20 @@ describe("cost ledger connection", () => {
       resolveCostLedgerConnection({
         VERCEL_ENV: "preview",
         DATABASE_URL: previewDatabase,
-        COST_LEDGER_DATABASE_URL: "postgres://other:secret@preview.example:6543/postgres",
+        COST_LEDGER_DATABASE_URL: "postgres://user:secret@preview.example:6543/postgres",
       }),
     ).toThrow(/preview marketplace database/);
+
+    expect(
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "preview",
+        DATABASE_URL: previewDatabase,
+        COST_LEDGER_DATABASE_URL: "postgres://other:secret@preview.example:6543/postgres",
+      }),
+    ).toEqual({
+      mode: "ledger",
+      url: "postgres://other:secret@preview.example:6543/postgres",
+    });
 
     expect(
       resolveCostLedgerConnection({
@@ -157,5 +172,47 @@ describe("cost ledger connection", () => {
         COST_LEDGER_DATABASE_URL: productionDatabase,
       }),
     ).toEqual({ mode: "ledger", url: productionDatabase });
+  });
+
+  it("identifies shared pooler databases by username, host and database", () => {
+    expect(
+      costDatabaseIdentity("postgres://project_a:first@pool.example:5432/postgres"),
+    ).toBe(
+      costDatabaseIdentity("postgres://project_a:second@pool.example:6543/postgres"),
+    );
+    expect(
+      costDatabaseIdentity("postgres://project_a:first@pool.example:5432/postgres"),
+    ).not.toBe(
+      costDatabaseIdentity("postgres://project_b:first@pool.example:5432/postgres"),
+    );
+  });
+
+  it("fails closed when the preview ledger sentinel is absent or drifted", () => {
+    const env = {
+      VERCEL_ENV: "preview",
+      COST_LEDGER_STARTED_AT: COST_LEDGER_STARTED_AT_ISO,
+    } as unknown as NodeJS.ProcessEnv;
+
+    expect(() => assertPreviewCostLedgerReady(null, env)).toThrow(
+      /not initialized/,
+    );
+    expect(() =>
+      assertPreviewCostLedgerReady(
+        {
+          startedAt: new Date(COST_LEDGER_STARTED_AT_ISO),
+          policyVersion: "wrong-policy",
+        },
+        env,
+      ),
+    ).toThrow(CostConfigError);
+    expect(() =>
+      assertPreviewCostLedgerReady(
+        {
+          startedAt: new Date(COST_LEDGER_STARTED_AT_ISO),
+          policyVersion: COST_POLICY_VERSION,
+        },
+        env,
+      ),
+    ).not.toThrow();
   });
 });

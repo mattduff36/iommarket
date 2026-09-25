@@ -1,4 +1,5 @@
 import type { CostCategory, Prisma } from "@prisma/client";
+import { assertPreviewCostLedgerReady } from "@/lib/costs/db";
 import {
   buildRequestButtonLabel,
   COST_SECTION_LABELS,
@@ -87,8 +88,12 @@ export async function getCostDashboard(input: {
     };
   }
 
-  const [config, entries, pending, requests, latestSync, quarantinedCount] = await Promise.all([
-    input.db.costLedgerConfig.findUnique({ where: { id: "default" } }),
+  const config = await input.db.costLedgerConfig.findUnique({
+    where: { id: "default" },
+  });
+  assertPreviewCostLedgerReady(config);
+
+  const [entries, pending, requests, latestSync, quarantinedCount] = await Promise.all([
     input.db.costEntry.findMany({
       where: { settlement: { is: null } },
       orderBy: [{ servicePeriodStart: "asc" }, { createdAt: "asc" }],
