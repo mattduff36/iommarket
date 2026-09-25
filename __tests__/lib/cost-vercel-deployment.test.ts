@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { CostConfigError } from "@/lib/costs/config";
 import {
+  activeProjectIdsByPeriod,
   CostDeploymentError,
   normalizeDeploymentUrl,
   verifyProductionDeployment,
@@ -134,5 +135,48 @@ describe("verified Vercel deployments T3", () => {
         env: {} as unknown as NodeJS.ProcessEnv,
       }),
     ).rejects.toBeInstanceOf(CostConfigError);
+  });
+
+  it("plans shared membership per period from one deployment inventory", () => {
+    const deployments = new Map([
+      [
+        "prj_early",
+        [
+          {
+            uid: "dpl_early",
+            readyState: "READY",
+            target: "production",
+            created: Date.parse("2026-09-01T00:00:00.000Z"),
+          },
+        ],
+      ],
+      [
+        "prj_late",
+        [
+          {
+            uid: "dpl_late",
+            state: "READY",
+            target: "production",
+            createdAt: Date.parse("2026-09-20T00:00:00.000Z"),
+          },
+        ],
+      ],
+    ]);
+
+    expect(
+      activeProjectIdsByPeriod({
+        projectIds: ["prj_late", "prj_early"],
+        deploymentsByProject: deployments,
+        periods: [
+          { key: "early", to: new Date("2026-09-10T00:00:00.000Z") },
+          { key: "late", to: new Date("2026-09-25T00:00:00.000Z") },
+        ],
+      }),
+    ).toEqual(
+      new Map([
+        ["early", ["prj_early"]],
+        ["late", ["prj_early", "prj_late"]],
+      ]),
+    );
   });
 });

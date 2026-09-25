@@ -13,6 +13,7 @@ export interface VercelDeploymentSummary {
   readyState?: string;
   target?: string | null;
   createdAt?: number;
+  created?: number;
 }
 
 export class CostDeploymentError extends Error {
@@ -319,4 +320,113 @@ export async function listActiveProductionProjectIds(input: {
     }
   }
   return active.sort();
+}
+
+export interface CostProjectActivityPeriod {
+  key: string;
+  to: Date;
+}
+
+export function activeProjectIdsByPeriod(input: {
+  projectIds: readonly string[];
+  deploymentsByProject: ReadonlyMap<string, readonly VercelDeploymentSummary[]>;
+  periods: readonly CostProjectActivityPeriod[];
+}): Map<string, string[]> {
+  return new Map(
+    input.periods.map((period) => [
+      period.key,
+      input.projectIds
+        .filter((projectId) =>
+          (input.deploymentsByProject.get(projectId) ?? []).some((deployment) => {
+            const state = deployment.readyState ?? deployment.state;
+            const createdAt = deployment.createdAt ?? deployment.created ?? 0;
+            return (
+              state === "READY" &&
+              (deployment.target === "production" || !deployment.target) &&
+              createdAt <= period.to.getTime()
+            );
+          }),
+        )
+        .sort(),
+    ]),
+  );
+}
+
+async function listProjectProductionDeployments(input: {
+  projectId: string;
+  earliestPeriodEnd: Date;
+  latestPeriodEnd: Date;
+  env?: NodeJS.ProcessEnv;
+}): Promise<VercelDeploymentSummary[]> {
+  const config = getVercelBillingConfig(input.env);
+  const deployments: VercelDeploymentSummary[] = [];
+  let until = input.latestPeriodEnd.getTime();
+
+  for (let page = 0; page < 20; page += 1) {
+    const search = new URLSearchParams({
+      teamId: config.teamId,
+      projectId: input.projectId,
+      target: "production",
+      limit: "100",
+      until: String(until),
+    });
+    const body = await vercelGet<{
+      deployments?: VercelDeploymentSummary[];
+      pagination?: { next?: number | null };
+    }>(`/v6/deployments?${search.toString()}`, config.token, config.teamId);
+    const batch = body.deployments ?? [];
+    deployments.push(...batch);
+    if (
+      batch.length === 0 ||
+      batch.some(
+        (deployment) =>
+          (deployment.createdAt ?? deployment.created ?? 0) <=
+          input.earliestPeriodEnd.getTime(),
+      ) ||
+      !body.pagination?.next
+    ) {
+      break;
+    }
+    until = body.pagination.next;
+  }
+
+  return deployments;
+}
+
+export async function listActiveProductionProjectIdsByPeriod(input: {
+  periods: readonly CostProjectActivityPeriod[];
+  env?: NodeJS.ProcessEnv;
+}): Promise<Map<string, string[]>> {
+  if (input.periods.length === 0) return new Map();
+  const projects = await listTeamProjects(input.env);
+  const sortedPeriods = [...input.periods].sort(
+    (left, right) => left.to.getTime() - right.to.getTime(),
+  );
+  const deploymentsByProject = new Map<
+    string,
+    readonly VercelDeploymentSummary[]
+  >();
+
+  for (let index = 0; index < projects.length; index += 5) {
+    const batch = projects.slice(index, index + 5);
+    const deployments = await Promise.all(
+      batch.map((project) =>
+        listProjectProductionDeployments({
+          projectId: project.id,
+          earliestPeriodEnd: sortedPeriods[0].to,
+          latestPeriodEnd: sortedPeriods.at(-1)!.to,
+          env: input.env,
+        }),
+      ),
+    );
+    batch.forEach((project, batchIndex) => {
+      deploymentsByProject.set(project.id, deployments[batchIndex]);
+    });
+  }
+
+  return activeProjectIdsByPeriod({
+    projectIds: projects.map((project) => project.id),
+    deploymentsByProject,
+    periods: input.periods,
+  });
 }
