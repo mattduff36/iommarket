@@ -35,6 +35,7 @@ function validProductionEnv(overrides: Record<string, string> = {}): string {
     COST_VERCEL_TEAM_ID: PRODUCTION_VERCEL_TEAM_ID,
     COST_VERCEL_PROJECT_ID: PRODUCTION_VERCEL_PROJECT_ID,
     COST_VERCEL_DATABASE_RESOURCE_ID: "store_test",
+    COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID: "store_preview",
     DATABASE_URL: "postgres://user:pass@db.mpdee.co.uk:5432/postgres",
     POSTGRES_URL: "postgres://user:pass@db.mpdee.co.uk:6543/postgres",
     POSTGRES_URL_NON_POOLING: "postgres://user:pass@db.mpdee.co.uk:5432/postgres",

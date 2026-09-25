@@ -11,6 +11,7 @@ const env = {
   COST_VERCEL_TEAM_ID: "team_nNF8inhmRhFvWkaLOl2cwdE6",
   COST_VERCEL_PROJECT_ID: "prj_TFAfJkG9P0osjQpsH2gaNrSPWbCr",
   COST_VERCEL_DATABASE_RESOURCE_ID: "store_1",
+  COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID: "store_preview",
 } as unknown as NodeJS.ProcessEnv;
 
 function jsonResponse(body: unknown, status = 200) {

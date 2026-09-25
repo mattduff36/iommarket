@@ -4,9 +4,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { isCostOwner, isCostsEnabled } from "@/lib/costs/config";
 import { formatMarkedGbp } from "@/lib/costs/format";
-import { db } from "@/lib/db";
+import { costDb } from "@/lib/costs/db";
 import { ConfirmInvoiceForm } from "./confirm-form";
 
 export const metadata: Metadata = { title: "Confirm invoice | Admin" };
@@ -20,7 +21,7 @@ export default async function ConfirmProjectInvoicePage({ params }: Props) {
   const { id } = await params;
   if (!isCostsEnabled()) notFound();
 
-  const request = await db.invoiceRequest.findUnique({
+  const request = await costDb.invoiceRequest.findUnique({
     where: { id },
   });
   if (!request) notFound();
@@ -29,32 +30,31 @@ export default async function ConfirmProjectInvoicePage({ params }: Props) {
   const owner = isCostOwner(admin.authUserId);
 
   return (
-    <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">
-        Confirm invoice request
-      </h1>
-      <p className="mb-4 text-text-secondary">
-        Confirming acknowledges that you will raise an invoice for {amountLabel}.
-        This deducts that frozen amount from the live outstanding total.
-      </p>
-      <div className="mb-6">
-        <Badge variant={request.status === "CONFIRMED" ? "success" : "warning"}>
-          {request.status}
-        </Badge>
-      </div>
-      {request.status === "PENDING" && owner ? (
-        <ConfirmInvoiceForm requestId={request.id} amountLabel={amountLabel} />
-      ) : null}
-      {request.status === "PENDING" && !owner ? (
-        <p className="text-sm text-text-secondary">
-          Only the configured owner can confirm this request.
-        </p>
-      ) : null}
-      {request.status === "CONFIRMED" ? (
-        <p className="text-sm text-text-secondary">
-          This request has already been confirmed.
-        </p>
-      ) : null}
-    </>
+    <div className="max-w-2xl">
+      <AdminPageHeader
+        title="Confirm invoice request"
+        description={`Confirming acknowledges that you will raise an invoice for ${amountLabel}. This deducts that frozen amount from the live outstanding total.`}
+        meta={
+          <Badge variant={request.status === "CONFIRMED" ? "success" : "warning"}>
+            {request.status}
+          </Badge>
+        }
+      />
+      <section className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
+        {request.status === "PENDING" && owner ? (
+          <ConfirmInvoiceForm requestId={request.id} amountLabel={amountLabel} />
+        ) : null}
+        {request.status === "PENDING" && !owner ? (
+          <p className="text-sm leading-6 text-text-secondary">
+            Only the configured owner can confirm this request.
+          </p>
+        ) : null}
+        {request.status === "CONFIRMED" ? (
+          <p className="text-sm leading-6 text-text-secondary">
+            This request has already been confirmed.
+          </p>
+        ) : null}
+      </section>
+    </div>
   );
 }

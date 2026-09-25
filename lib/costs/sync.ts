@@ -27,7 +27,7 @@ import {
   fetchFocusCharges,
   listActiveProductionProjectIds,
 } from "@/lib/costs/vercel";
-import { db } from "@/lib/db";
+import { costDb } from "@/lib/costs/db";
 
 export interface CostSyncResult {
   status: "skipped" | "locked" | "succeeded" | "failed";
@@ -65,7 +65,7 @@ export async function runCostSync(input: {
   }
 
   if (input.eventId) {
-    const existing = await db.costSyncRun.findUnique({
+    const existing = await costDb.costSyncRun.findUnique({
       where: { eventId: input.eventId },
     });
     if (existing?.status === "SUCCEEDED") {
@@ -160,10 +160,10 @@ async function executeCostSync(
 
   const window = syncWindow(config.startedAt, now);
   const existingRun = input.eventId
-    ? await db.costSyncRun.findUnique({ where: { eventId: input.eventId } })
+    ? await costDb.costSyncRun.findUnique({ where: { eventId: input.eventId } })
     : null;
   const run = existingRun
-    ? await db.costSyncRun.update({
+    ? await costDb.costSyncRun.update({
         where: { id: existingRun.id },
         data: {
           trigger: input.trigger,
@@ -174,7 +174,7 @@ async function executeCostSync(
           completedAt: null,
         },
       })
-    : await db.costSyncRun.create({
+    : await costDb.costSyncRun.create({
         data: {
           trigger: input.trigger,
           status: "RUNNING",
@@ -204,7 +204,7 @@ async function executeCostSync(
     });
     const classified = classifyFocusRows(charges.rows, {
       projectId: billing.projectId,
-      databaseResourceId: billing.databaseResourceId,
+      databaseResourceIds: billing.databaseResourceIds,
       now,
     });
 
@@ -332,7 +332,7 @@ async function executeCostSync(
       .update(`${classifiedCount}:${quarantinedCount}:${window.from.toISOString()}`)
       .digest("hex");
 
-    await db.costSyncRun.update({
+    await costDb.costSyncRun.update({
       where: { id: run.id },
       data: {
         status: "SUCCEEDED",
@@ -351,7 +351,7 @@ async function executeCostSync(
     };
   } catch (error) {
     const errorCode = classifyCostSyncFailure(error);
-    await db.costSyncRun.update({
+    await costDb.costSyncRun.update({
       where: { id: run.id },
       data: {
         status: "FAILED",

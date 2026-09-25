@@ -1,17 +1,17 @@
-import { db } from "@/lib/db";
+import { costDb } from "@/lib/costs/db";
 import { getCostOwnerNotificationEmail } from "@/lib/costs/config";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { sendResendEmail } from "@/lib/email/client";
 import { renderBrandedEmail } from "@/lib/email/layout";
 
 export async function deliverCostOutbox(outboxId: string): Promise<void> {
-  const outbox = await db.costEmailOutbox.findUnique({
+  const outbox = await costDb.costEmailOutbox.findUnique({
     where: { id: outboxId },
     include: { request: true },
   });
   if (!outbox || outbox.status === "SENT") return;
 
-  const claimed = await db.costEmailOutbox.updateMany({
+  const claimed = await costDb.costEmailOutbox.updateMany({
     where: { id: outbox.id, status: { in: ["PENDING", "FAILED"] } },
     data: {
       status: "SENDING",
@@ -43,7 +43,7 @@ export async function deliverCostOutbox(outboxId: string): Promise<void> {
       html: email.html,
     });
 
-    await db.costEmailOutbox.update({
+    await costDb.costEmailOutbox.update({
       where: { id: outbox.id },
       data: {
         status: "SENT",
@@ -53,7 +53,7 @@ export async function deliverCostOutbox(outboxId: string): Promise<void> {
       },
     });
   } catch (error) {
-    await db.costEmailOutbox.update({
+    await costDb.costEmailOutbox.update({
       where: { id: outbox.id },
       data: {
         status: "FAILED",
@@ -66,7 +66,7 @@ export async function deliverCostOutbox(outboxId: string): Promise<void> {
 }
 
 export async function retryPendingCostEmails(limit = 20): Promise<number> {
-  const pending = await db.costEmailOutbox.findMany({
+  const pending = await costDb.costEmailOutbox.findMany({
     where: {
       OR: [
         {
