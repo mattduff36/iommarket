@@ -4,9 +4,11 @@ import {
   COST_LEDGER_STARTED_AT_ISO,
   CostConfigError,
   getCostLedgerStartedAt,
+  getVercelBillingConfig,
   isProductionRuntime,
   parseCostLedgerStartedAt,
 } from "@/lib/costs/config";
+import { resolveCostLedgerConnection } from "@/lib/costs/db";
 import { COST_POLICY_VERSION } from "@/lib/costs/money";
 
 describe("cost ledger configuration T1", () => {
@@ -81,5 +83,70 @@ describe("cost ledger configuration T1", () => {
       }),
     ).toBe(true);
     expect(isProductionRuntime({ NODE_ENV: "production" })).toBe(true);
+  });
+});
+
+describe("cost ledger connection", () => {
+  const billingEnv = {
+    VERCEL_BILLING_TOKEN: "token",
+    COST_VERCEL_TEAM_ID: "team_1",
+    COST_VERCEL_PROJECT_ID: "prj_1",
+    COST_VERCEL_DATABASE_RESOURCE_ID: "store_prod",
+    COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID: "store_preview",
+  } as unknown as NodeJS.ProcessEnv;
+
+  it("classifies both database stores for this project", () => {
+    expect(getVercelBillingConfig(billingEnv).databaseResourceIds).toEqual([
+      "store_prod",
+      "store_preview",
+    ]);
+  });
+
+  it("rejects identical production and preview database resource ids", () => {
+    expect(() =>
+      getVercelBillingConfig({
+        ...billingEnv,
+        COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID: "store_prod",
+      }),
+    ).toThrow(CostConfigError);
+  });
+
+  it("uses the app database outside preview", () => {
+    expect(resolveCostLedgerConnection({ NODE_ENV: "production" })).toEqual({ mode: "app" });
+    expect(
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "production",
+        COST_LEDGER_DATABASE_URL: "postgres://user:pass@prod.example:5432/postgres",
+      }),
+    ).toEqual({ mode: "app" });
+  });
+
+  it("requires a distinct production ledger URL on preview", () => {
+    const previewDatabase = "postgres://user:pass@preview.example:5432/postgres";
+    const productionDatabase = "postgres://user:pass@prod.example:5432/postgres";
+
+    expect(() =>
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "preview",
+        DATABASE_URL: previewDatabase,
+      }),
+    ).toThrow(CostConfigError);
+
+    expect(() =>
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "preview",
+        DATABASE_URL: previewDatabase,
+        COST_LEDGER_DATABASE_URL: "postgres://other:secret@preview.example:6543/postgres",
+      }),
+    ).toThrow(/preview marketplace database/);
+
+    expect(
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "preview",
+        DATABASE_URL: previewDatabase,
+        POSTGRES_URL: "postgres://user:pass@preview.example:6543/postgres",
+        COST_LEDGER_DATABASE_URL: productionDatabase,
+      }),
+    ).toEqual({ mode: "ledger", url: productionDatabase });
   });
 });

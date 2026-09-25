@@ -32,7 +32,7 @@ export interface QuarantinedFocusCharge {
 
 export interface FocusClassificationConfig {
   projectId: string;
-  databaseResourceId: string;
+  databaseResourceIds: readonly string[];
   now?: Date;
 }
 
@@ -93,7 +93,8 @@ export function classifyFocusRow(
   const matchedResourceId = resourceId(row);
   const matchedProjectId = projectId(row);
 
-  if (matchedResourceId && matchedResourceId === config.databaseResourceId) {
+  const databaseResourceIds = new Set(config.databaseResourceIds);
+  if (matchedResourceId && databaseResourceIds.has(matchedResourceId)) {
     return {
       kind: "database",
       category: "DATABASE",
@@ -113,7 +114,7 @@ export function classifyFocusRow(
     };
   }
 
-  if (matchedResourceId && matchedResourceId !== config.databaseResourceId) {
+  if (matchedResourceId && !databaseResourceIds.has(matchedResourceId)) {
     return {
       kind: "ignored",
       category: null,

@@ -1,5 +1,5 @@
 import { COST_LEDGER_CONFIG_ID } from "@/lib/costs/config";
-import { db } from "@/lib/db";
+import { costDb } from "@/lib/costs/db";
 
 const LOCK_TTL_MS = 30 * 60 * 1000;
 
@@ -10,7 +10,7 @@ export async function withCostSyncLock<T>(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LOCK_TTL_MS);
 
-  await db.costSyncLock.upsert({
+  await costDb.costSyncLock.upsert({
     where: { id: COST_LEDGER_CONFIG_ID },
     update: {},
     create: {
@@ -20,7 +20,7 @@ export async function withCostSyncLock<T>(
     },
   });
 
-  const claimed = await db.costSyncLock.updateMany({
+  const claimed = await costDb.costSyncLock.updateMany({
     where: {
       id: COST_LEDGER_CONFIG_ID,
       expiresAt: { lte: now },
@@ -34,7 +34,7 @@ export async function withCostSyncLock<T>(
   try {
     return { acquired: true, result: await fn(holder) };
   } finally {
-    await db.costSyncLock.updateMany({
+    await costDb.costSyncLock.updateMany({
       where: { id: COST_LEDGER_CONFIG_ID, holder },
       data: { expiresAt: new Date(0) },
     });
@@ -42,7 +42,7 @@ export async function withCostSyncLock<T>(
 }
 
 export async function renewCostSyncLock(holder: string): Promise<boolean> {
-  const renewed = await db.costSyncLock.updateMany({
+  const renewed = await costDb.costSyncLock.updateMany({
     where: { id: COST_LEDGER_CONFIG_ID, holder },
     data: { expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
   });

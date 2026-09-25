@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
+import { costDb } from "@/lib/costs/db";
 
 export function isTransactionConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
@@ -11,7 +11,7 @@ export async function runSerializable<T>(
 ): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await db.$transaction(fn, {
+      return await costDb.$transaction(fn, {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {

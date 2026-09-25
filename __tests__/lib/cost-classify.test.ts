@@ -8,7 +8,7 @@ import type { FocusChargeRow } from "@/lib/costs/focus";
 
 const config = {
   projectId: "prj_iom",
-  databaseResourceId: "store_db",
+  databaseResourceIds: ["store_db", "store_preview"],
   now: new Date("2026-09-15T00:00:00.000Z"),
 };
 
@@ -48,6 +48,21 @@ describe("COST-CLASS-001 FOCUS classification", () => {
       config,
     );
     const shared = classifyFocusRow(row({ Tags: {} }), config);
+    const previewDatabase = classifyFocusRow(
+      row({
+        ServiceName: "Supabase",
+        ServiceCategory: "Databases",
+        Tags: { ResourceId: "store_preview" },
+      }),
+      config,
+    );
+    const otherStore = classifyFocusRow(
+      row({
+        ServiceName: "Supabase",
+        Tags: { ResourceId: "store_other" },
+      }),
+      config,
+    );
     const otherProject = classifyFocusRow(row({ Tags: { ProjectId: "prj_other" } }), config);
     const credit = classifyFocusRow(row({ ChargeCategory: "Credit", BilledCost: -2 }), config);
     const tax = classifyFocusRow(row({ ChargeCategory: "Tax", BilledCost: 1.2 }), config);
@@ -55,6 +70,8 @@ describe("COST-CLASS-001 FOCUS classification", () => {
 
     expect(hosting).toMatchObject({ kind: "hosting", category: "VERCEL_HOSTING" });
     expect(database).toMatchObject({ kind: "database", category: "DATABASE" });
+    expect(previewDatabase).toMatchObject({ kind: "database", category: "DATABASE" });
+    expect(otherStore).toMatchObject({ kind: "ignored" });
     expect(shared).toMatchObject({ kind: "shared", category: "SHARED_VERCEL" });
     expect(otherProject).toMatchObject({ kind: "ignored" });
     expect(credit).toMatchObject({ kind: "hosting" });

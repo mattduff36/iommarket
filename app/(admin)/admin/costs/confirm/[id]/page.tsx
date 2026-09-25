@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { isCostOwner, isCostsEnabled } from "@/lib/costs/config";
 import { formatMarkedGbp } from "@/lib/costs/format";
-import { db } from "@/lib/db";
+import { costDb } from "@/lib/costs/db";
 import { ConfirmInvoiceForm } from "./confirm-form";
 
 export const metadata: Metadata = { title: "Confirm invoice | Admin" };
@@ -21,7 +21,7 @@ export default async function ConfirmProjectInvoicePage({ params }: Props) {
   const { id } = await params;
   if (!isCostsEnabled()) notFound();
 
-  const request = await db.invoiceRequest.findUnique({
+  const request = await costDb.invoiceRequest.findUnique({
     where: { id },
   });
   if (!request) notFound();
