@@ -68,6 +68,13 @@ export interface CostDashboardDto {
   }>;
   requests: InvoiceRequestDto[];
   sync: CostSyncHealthDto;
+  unavailableReason: string | null;
+  infrastructureMarkupLabel: string;
+  cursorPolicyLabel: string;
+  allowanceLabel: string;
+  affectsLiveLedger: boolean;
+  ledgerRevision: string | null;
+  ledgerAsOf: string | null;
 }
 
 export function toCostLineDto(input: {

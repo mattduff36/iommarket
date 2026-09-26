@@ -9,15 +9,17 @@ import {
   classifyFocusRows,
   sharedMembershipChecksum,
 } from "@/lib/costs/classify";
-import {
-  getCursorSubscriptionUsdMinor,
-  parseCursorUsageLog,
-  planCursorCharges,
-} from "@/lib/costs/cursor";
 import { isOnOrAfterLaunch } from "@/lib/costs/dates";
-import cursorUsageLog from "@/data/cursor-usage.json";
 import { getOrCreateUsdGbpRate } from "@/lib/costs/fx";
-import { applyClassifiedCharge, ensureLedgerConfig, recordQuarantine } from "@/lib/costs/ledger";
+import { focusCoversMarketplaceLine } from "@/lib/costs/marketplace-import";
+import { nextInfrastructureSlice } from "@/lib/costs/sync-window";
+import {
+  applyClassifiedCharge,
+  ensureLedgerConfig,
+  listLatestBucketRevisions,
+  recordQuarantine,
+} from "@/lib/costs/ledger";
+import { planLedgerRevision } from "@/lib/costs/ledger-plan";
 import { renewCostSyncLock, withCostSyncLock } from "@/lib/costs/lock";
 import { allocateSharedPence } from "@/lib/costs/shared";
 import { computeMarkedGbpMinor } from "@/lib/costs/money";
@@ -46,12 +48,6 @@ export function classifyCostSyncFailure(error: unknown): string {
   if (error instanceof Error && /timeout/i.test(error.message)) return "COST_SYNC_TIMEOUT";
   if (error instanceof Error && error.name) return error.name;
   return "COST_SYNC_FAILED";
-}
-
-function syncWindow(startedAt: Date, now: Date) {
-  const earliest = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const from = startedAt > earliest ? startedAt : earliest;
-  return { from, to: now };
 }
 
 export async function runCostSync(input: {
@@ -94,55 +90,6 @@ export async function runCostSync(input: {
   return locked.result;
 }
 
-/**
- * Allocates this project's fair share of the flat Cursor subscription from the
- * committed usage log. Absent configuration or an empty log is not a failure:
- * the Vercel importer must still complete.
- */
-async function importCursorSubscriptionShare(input: {
-  startedAt: Date;
-  now: Date;
-  env: NodeJS.ProcessEnv;
-  lockHolder: string;
-}): Promise<number> {
-  const monthlyUsdMinor = getCursorSubscriptionUsdMinor(input.env);
-  if (!monthlyUsdMinor) return 0;
-
-  const log = parseCursorUsageLog(cursorUsageLog);
-  const charges = planCursorCharges({
-    log,
-    startedAt: input.startedAt,
-    now: input.now,
-    monthlyUsdMinor,
-  });
-
-  let applied = 0;
-  for (const charge of charges) {
-    await renewCostSyncLock(input.lockHolder);
-    await runSerializable(async (tx) => {
-      const fx = await getOrCreateUsdGbpRate(tx, charge.periodStart);
-      const result = await applyClassifiedCharge(tx, {
-        sourceKind: "CURSOR_USAGE",
-        bucketKey: charge.bucketKey,
-        checksum: charge.checksum,
-        category: "CURSOR",
-        invoiceability: "INVOICEABLE",
-        nativeAmount: charge.nativeAmount,
-        nativeCurrency: charge.nativeCurrency,
-        rate: fx.rate,
-        fxRateSnapshotId: fx.id,
-        periodStart: charge.periodStart,
-        periodEnd: charge.periodEnd,
-        displayLabel: charge.displayLabel,
-        metadata: charge.metadata,
-        startedAt: input.startedAt,
-      });
-      if (result !== "skipped") applied += 1;
-    });
-  }
-  return applied;
-}
-
 async function executeCostSync(
   input: {
     trigger: CostSyncTrigger;
@@ -158,7 +105,15 @@ async function executeCostSync(
     return { status: "skipped" };
   }
 
-  const window = syncWindow(config.startedAt, now);
+  const lastSuccess = await costDb.costSyncRun.findFirst({
+    where: { status: "SUCCEEDED" },
+    orderBy: { queryTo: "desc" },
+  });
+  const window = nextInfrastructureSlice({
+    startedAt: config.startedAt,
+    now,
+    lastSuccessfulTo: lastSuccess?.queryTo ?? null,
+  });
   const existingRun = input.eventId
     ? await costDb.costSyncRun.findUnique({ where: { eventId: input.eventId } })
     : null;
@@ -187,15 +142,6 @@ async function executeCostSync(
   let classifiedCount = 0;
 
   try {
-    // Cursor allocation comes from a committed local log, so it must not be held
-    // hostage by a provider outage on the Vercel side of the same run.
-    classifiedCount += await importCursorSubscriptionShare({
-      startedAt: config.startedAt,
-      now,
-      env,
-      lockHolder,
-    });
-
     const billing = getVercelBillingConfig(env);
     const charges = await fetchFocusCharges({
       from: window.from,
@@ -204,41 +150,18 @@ async function executeCostSync(
     });
     const classified = classifyFocusRows(charges.rows, {
       projectId: billing.projectId,
+      projectIds: billing.projectIds,
+      previewProjectId: billing.previewProjectId,
       databaseResourceIds: billing.databaseResourceIds,
       now,
+      untaggedPolicy: env.COST_FOCUS_UNTAGGED_POLICY === "unresolved" ? "unresolved" : "shared",
     });
 
     let quarantinedCount = charges.quarantined.length + classified.quarantined.length;
 
-    for (const item of charges.quarantined) {
-      await runSerializable((tx) =>
-        recordQuarantine(tx, {
-          sourceKind: "VERCEL_FOCUS",
-          bucketKey: `vercel:quarantine:parse:${item.rawIndex}`,
-          checksum: createHash("sha256").update(item.reason).digest("hex"),
-          periodStart: window.from,
-          periodEnd: window.to,
-          reason: item.reason,
-        }),
-      );
-    }
-
-    for (const item of classified.quarantined) {
-      await runSerializable((tx) =>
-        recordQuarantine(tx, {
-          sourceKind: "VERCEL_FOCUS",
-          bucketKey: `vercel:quarantine:${item.rawIndex ?? "unknown"}`,
-          checksum: createHash("sha256")
-            .update(item.reason + (item.row ? item.row.ServiceName : ""))
-            .digest("hex"),
-          periodStart: item.row ? new Date(item.row.ChargePeriodStart) : window.from,
-          periodEnd: item.row ? new Date(item.row.ChargePeriodEnd) : window.to,
-          reason: item.reason,
-        }),
-      );
-    }
-
-    const ledgerCharges = aggregateClassifiedCharges(classified.classified);
+    const ledgerCharges = aggregateClassifiedCharges(classified.classified).filter(
+      (charge) => isOnOrAfterLaunch(charge.periodStart, config.startedAt),
+    );
     const sharedPeriods = [
       ...new Map(
         ledgerCharges
@@ -249,96 +172,209 @@ async function executeCostSync(
           }),
       ).values(),
     ];
-    const sharedMembershipByPeriod =
-      await listActiveProductionProjectIdsByPeriod({
+    const [sharedMembershipByPeriod, existingRevisions, manualDatabase] = await Promise.all([
+      listActiveProductionProjectIdsByPeriod({
         periods: sharedPeriods,
         env,
-      });
+      }),
+      listLatestBucketRevisions(
+        costDb,
+        "VERCEL_FOCUS",
+        ledgerCharges.map((charge) => charge.bucketKey),
+      ),
+      costDb.costEntry.findMany({
+        where: { category: "DATABASE", sourceKind: "MANUAL", kind: "CHARGE" },
+        select: {
+          nativeAmount: true,
+          servicePeriodStart: true,
+          servicePeriodEnd: true,
+          displayLabel: true,
+        },
+      }),
+    ]);
+
+    const pendingWrites: Array<{
+      charge: (typeof ledgerCharges)[number];
+      checksum: string;
+      invoiceability: NonNullable<(typeof ledgerCharges)[number]["invoiceability"]>;
+      sharedAllocation: ReturnType<typeof allocateSharedPence> | null;
+    }> = [];
 
     for (const charge of ledgerCharges) {
-      await renewCostSyncLock(lockHolder);
-      if (!isOnOrAfterLaunch(charge.periodStart, config.startedAt)) {
+      if (
+        charge.kind === "database" &&
+        manualDatabase.some((manual) =>
+          focusCoversMarketplaceLine(
+            {
+              invoiceId: "recorded",
+              lineId: "recorded",
+              nativeAmount: manual.nativeAmount.toString(),
+              nativeCurrency: "USD",
+              periodStart: manual.servicePeriodStart,
+              periodEnd: manual.servicePeriodEnd,
+              serviceName: manual.displayLabel,
+            },
+            [
+              {
+                nativeAmount: charge.nativeAmount,
+                periodStart: charge.periodStart,
+                periodEnd: charge.periodEnd,
+                serviceName: charge.displayLabel,
+              },
+            ],
+          ),
+        )
+      ) {
+        quarantinedCount += 1;
         continue;
       }
-
-      const fx = await getOrCreateUsdGbpRate(costDb, charge.periodStart);
-      let sharedAllocation:
-        | ReturnType<typeof allocateSharedPence>
-        | null = null;
+      let checksum = charge.checksum;
+      let sharedAllocation: ReturnType<typeof allocateSharedPence> | null = null;
       if (charge.kind === "shared") {
         const membershipKey = `${charge.periodStart.toISOString()}:${charge.periodEnd.toISOString()}`;
-        const membership =
-          sharedMembershipByPeriod.get(membershipKey) ?? [];
-        const markedTotal = computeMarkedGbpMinor(charge.nativeAmount, fx.rate);
+        const membership = sharedMembershipByPeriod.get(membershipKey) ?? [];
         sharedAllocation = allocateSharedPence(
-          markedTotal,
+          BigInt(0),
           membership,
           billing.projectId,
         );
-      }
-
-      await runSerializable(async (tx) => {
-        if (charge.kind === "shared" && sharedAllocation) {
-          const allocation = sharedAllocation;
-          if (allocation.denominator === 0 || allocation.share === BigInt(0)) {
-            await recordQuarantine(tx, {
+        if (sharedAllocation.denominator === 0) {
+          await runSerializable((tx) =>
+            recordQuarantine(tx, {
               sourceKind: "VERCEL_FOCUS",
               bucketKey: `${charge.bucketKey}:unallocated`,
               checksum: charge.checksum,
               periodStart: charge.periodStart,
               periodEnd: charge.periodEnd,
               reason: "Shared charge could not be allocated to an active project.",
+            }),
+          );
+          quarantinedCount += 1;
+          continue;
+        }
+        checksum = sharedMembershipChecksum(
+          charge.checksum,
+          sharedAllocation.membership,
+          charge.invoiceability ?? "PROVISIONAL",
+        );
+      }
+
+      const invoiceability = charge.invoiceability ?? "INVOICEABLE";
+      const plan = planLedgerRevision(existingRevisions.get(charge.bucketKey) ?? null, {
+        checksum,
+        invoiceability,
+      });
+      if (plan.type === "skip") continue;
+      pendingWrites.push({ charge, checksum, invoiceability, sharedAllocation });
+    }
+
+    const fxByPeriod = new Map<string, Awaited<ReturnType<typeof getOrCreateUsdGbpRate>>>();
+    for (const item of pendingWrites) {
+      const periodKey = item.charge.periodStart.toISOString();
+      if (!fxByPeriod.has(periodKey)) {
+        fxByPeriod.set(
+          periodKey,
+          await getOrCreateUsdGbpRate(costDb, item.charge.periodStart),
+        );
+      }
+    }
+
+    for (let index = 0; index < pendingWrites.length; index += 15) {
+      const batch = pendingWrites.slice(index, index + 15);
+      await renewCostSyncLock(lockHolder);
+      await runSerializable(async (tx) => {
+        for (const item of batch) {
+          const fx = fxByPeriod.get(item.charge.periodStart.toISOString());
+          if (!fx) continue;
+          if (item.charge.kind === "shared" && item.sharedAllocation) {
+            const markedTotal = computeMarkedGbpMinor(item.charge.nativeAmount, fx.rate);
+            const allocation = allocateSharedPence(
+              markedTotal,
+              item.sharedAllocation.membership,
+              billing.projectId,
+            );
+            if (allocation.denominator === 0 || allocation.share === BigInt(0)) {
+              await recordQuarantine(tx, {
+                sourceKind: "VERCEL_FOCUS",
+                bucketKey: `${item.charge.bucketKey}:unallocated`,
+                checksum: item.charge.checksum,
+                periodStart: item.charge.periodStart,
+                periodEnd: item.charge.periodEnd,
+                reason: "Shared charge could not be allocated to an active project.",
+              });
+              quarantinedCount += 1;
+              continue;
+            }
+            const result = await applyClassifiedCharge(tx, {
+              sourceKind: "VERCEL_FOCUS",
+              bucketKey: item.charge.bucketKey,
+              checksum: item.checksum,
+              category: "SHARED_VERCEL",
+              invoiceability: item.invoiceability,
+              nativeAmount: item.charge.nativeAmount,
+              nativeCurrency: item.charge.nativeCurrency,
+              rate: fx.rate,
+              fxRateSnapshotId: fx.id,
+              periodStart: item.charge.periodStart,
+              periodEnd: item.charge.periodEnd,
+              displayLabel: item.charge.displayLabel,
+              metadata: {
+                projectIds: allocation.membership,
+                denominator: allocation.denominator,
+                remainderMethod: "sorted-project-id",
+                infrastructureMarkupPercent: 20,
+              },
+              startedAt: config.startedAt,
+              markedGbpMinor: allocation.share,
             });
-            quarantinedCount += 1;
-            return;
+            if (result !== "skipped") classifiedCount += 1;
+            continue;
           }
 
-          const checksum = sharedMembershipChecksum(
-            charge.checksum,
-            allocation.membership,
-            charge.invoiceability ?? "PROVISIONAL",
-          );
           const result = await applyClassifiedCharge(tx, {
             sourceKind: "VERCEL_FOCUS",
-            bucketKey: charge.bucketKey,
-            checksum,
-            category: "SHARED_VERCEL",
-            invoiceability: charge.invoiceability ?? "PROVISIONAL",
-            nativeAmount: charge.nativeAmount,
-            nativeCurrency: charge.nativeCurrency,
+            bucketKey: item.charge.bucketKey,
+            checksum: item.checksum,
+            category: item.charge.category!,
+            invoiceability: item.invoiceability,
+            nativeAmount: item.charge.nativeAmount,
+            nativeCurrency: item.charge.nativeCurrency,
             rate: fx.rate,
             fxRateSnapshotId: fx.id,
-            periodStart: charge.periodStart,
-            periodEnd: charge.periodEnd,
-            displayLabel: charge.displayLabel,
-            metadata: {
-              projectIds: allocation.membership,
-              denominator: allocation.denominator,
-              remainderMethod: "sorted-project-id",
-            },
+            periodStart: item.charge.periodStart,
+            periodEnd: item.charge.periodEnd,
+            displayLabel: item.charge.displayLabel,
+            metadata: { infrastructureMarkupPercent: 20 },
             startedAt: config.startedAt,
-            markedGbpMinor: allocation.share,
           });
           if (result !== "skipped") classifiedCount += 1;
-          return;
         }
+      });
+    }
 
-        const result = await applyClassifiedCharge(tx, {
-          sourceKind: "VERCEL_FOCUS",
-          bucketKey: charge.bucketKey,
-          checksum: charge.checksum,
-          category: charge.category!,
-          invoiceability: charge.invoiceability ?? "INVOICEABLE",
-          nativeAmount: charge.nativeAmount,
-          nativeCurrency: charge.nativeCurrency,
-          rate: fx.rate,
-          fxRateSnapshotId: fx.id,
-          periodStart: charge.periodStart,
-          periodEnd: charge.periodEnd,
-          displayLabel: charge.displayLabel,
-          startedAt: config.startedAt,
-        });
-        if (result !== "skipped") classifiedCount += 1;
+    const quarantineSamples = [
+      ...new Map(
+        [
+          ...charges.quarantined.map((item) => item.reason),
+          ...classified.quarantined.map((item) => item.reason),
+        ]
+          .filter(Boolean)
+          .map((reason) => [reason, reason] as const),
+      ).values(),
+    ].slice(0, 10);
+    if (quarantineSamples.length > 0) {
+      await runSerializable(async (tx) => {
+        for (const reason of quarantineSamples) {
+          const checksum = createHash("sha256").update(`sample:${reason}`).digest("hex");
+          await recordQuarantine(tx, {
+            sourceKind: "VERCEL_FOCUS",
+            bucketKey: `vercel:quarantine:${checksum}`,
+            checksum,
+            periodStart: window.from,
+            periodEnd: window.to,
+            reason,
+          });
+        }
       });
     }
 

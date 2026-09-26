@@ -1685,3 +1685,75 @@ model CostEmailOutbox {
 
   @@index([status, nextAttemptAt])
 }
+
+model CostUsageEvent {
+  id                 String   @id
+  providerAccountRef String
+  projectId          String?
+  attributionStatus  String
+  occurredAt         DateTime @db.Timestamptz(3)
+  fundingStatus      String
+  model              String
+  nominalUsd         Decimal? @db.Decimal(20, 8)
+  providerChargeUsd  Decimal? @db.Decimal(20, 8)
+  clientUsd          Decimal? @db.Decimal(20, 8)
+  policyVersion      String?
+  sourceQuality      String
+  rawKind            String?
+  checksum           String
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([providerAccountRef, occurredAt])
+  @@index([projectId, occurredAt])
+}
+
+model CostIngestBatch {
+  id                 String    @id
+  providerAccountRef String
+  status             String
+  queryFrom          DateTime  @db.Timestamptz(3)
+  queryTo            DateTime  @db.Timestamptz(3)
+  classifiedCount    Int       @default(0)
+  unresolvedCount    Int       @default(0)
+  errorCode          String?
+  startedAt          DateTime  @default(now()) @db.Timestamptz(3)
+  completedAt        DateTime? @db.Timestamptz(3)
+
+  @@index([status, startedAt])
+}
+
+model CostAllowanceObservation {
+  id                   String   @id @default(cuid())
+  providerAccountRef   String
+  observedAt           DateTime  @db.Timestamptz(3)
+  cycleStart           DateTime? @db.Timestamptz(3)
+  cycleEnd             DateTime? @db.Timestamptz(3)
+  poolLabel            String?
+  reportedAllowanceUsd Decimal? @db.Decimal(20, 8)
+  remainingUsd         Decimal? @db.Decimal(20, 8)
+  accountNominalUsd    Decimal? @db.Decimal(20, 8)
+  accountOnDemandUsd   Decimal? @db.Decimal(20, 8)
+  quality              String
+  expectationUsd       Decimal  @db.Decimal(20, 8)
+  expectationCrossed   Boolean
+  confirmedOnDemand    Boolean
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([providerAccountRef, observedAt])
+}
+
+model CostClientPolicy {
+  id                    String   @id
+  projectId             String
+  version               String
+  effectiveFrom         DateTime @db.Timestamptz(3)
+  includedNumerator     Int
+  includedDenominator   Int
+  onDemandNumerator     Int
+  onDemandDenominator   Int
+  exemptFromInfraMarkup Boolean
+  createdAt             DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([projectId, version])
+}

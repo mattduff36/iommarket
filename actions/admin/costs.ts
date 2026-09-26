@@ -4,10 +4,14 @@ import { requireRole } from "@/lib/auth";
 import { revalidateCostPages } from "@/actions/admin/revalidate-costs";
 import { logAdminAction } from "@/lib/admin/audit";
 import {
+  CostConfigError,
   getCostOwnerAuthUserId,
   isCostOwner,
   isCostsEnabled,
 } from "@/lib/costs/config";
+import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
+import { assertCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
+import { requestRemoteInvoice } from "@/lib/costs/remote-ledger";
 import { deliverCostOutbox } from "@/lib/costs/email";
 import { getOrCreateIdentityGbpRate, getOrCreateUsdGbpRate } from "@/lib/costs/fx";
 import {
@@ -34,6 +38,16 @@ function costsDisabledError() {
   return { error: "Project cost tracking is not enabled." };
 }
 
+function canonicalWriterError(): { error: string } | null {
+  try {
+    assertCanonicalLedgerWriter();
+    return null;
+  } catch (error) {
+    if (error instanceof CostConfigError) return { error: error.message };
+    throw error;
+  }
+}
+
 async function requireCostOwnerAdmin() {
   const admin = await requireRole("ADMIN");
   if (!isCostOwner(admin.authUserId)) {
@@ -45,6 +59,27 @@ async function requireCostOwnerAdmin() {
 export async function requestProjectInvoice() {
   const admin = await requireRole("ADMIN");
   if (!isCostsEnabled()) return costsDisabledError();
+  const access = resolveLedgerAccess();
+  if (access.mode === "unavailable") return { error: access.reason };
+  if (access.mode === "remote") {
+    try {
+      const created = await requestRemoteInvoice(access.origin);
+      await logAdminAction({
+        adminId: admin.id,
+        action: "REQUEST_PROJECT_INVOICE",
+        entityType: "InvoiceRequest",
+        entityId: created.requestId,
+        details: { origin: "preview", affectsLiveLedger: true },
+      });
+      revalidateCostPages();
+      return { data: { requestId: created.requestId } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to request an invoice.";
+      return { error: message };
+    }
+  }
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
 
   try {
     const created = await createInvoiceRequest({ requesterUserId: admin.id });
@@ -81,6 +116,8 @@ export async function requestProjectInvoice() {
 export async function confirmProjectInvoice(input: ConfirmInvoiceRequestInput) {
   const admin = await requireCostOwnerAdmin();
   if (!isCostsEnabled()) return costsDisabledError();
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
   const parsed = confirmInvoiceRequestSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -119,6 +156,8 @@ export async function confirmProjectInvoice(input: ConfirmInvoiceRequestInput) {
 export async function recordManualProjectCost(input: RecordManualCostInput) {
   const admin = await requireCostOwnerAdmin();
   if (!isCostsEnabled()) return costsDisabledError();
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
   const parsed = recordManualCostSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -146,6 +185,13 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
         periodEnd,
         displayLabel: parsed.data.displayLabel,
         startedAt: config.startedAt,
+        metadata:
+          parsed.data.category === "DATABASE"
+            ? {
+                infrastructureMarkupPercent: 20,
+                providerInvoiceId: parsed.data.externalRef,
+              }
+            : { infrastructureMarkupPercent: 20 },
       });
     });
 
@@ -174,6 +220,8 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
 export async function retryProjectCostEmail(input: RetryCostEmailInput) {
   await requireCostOwnerAdmin();
   if (!isCostsEnabled()) return costsDisabledError();
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
   const parsed = retryCostEmailSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -193,6 +241,13 @@ export async function retryProjectCostEmail(input: RetryCostEmailInput) {
 
 export async function runManualCostSync() {
   await requireCostOwnerAdmin();
+  const writerError = canonicalWriterError();
+  if (writerError) {
+    return {
+      error: writerError.error,
+      data: { status: "failed" as const, message: writerError.error },
+    };
+  }
   if (!isCostsEnabled()) {
     return {
       error: costsDisabledError().error,

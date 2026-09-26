@@ -23,17 +23,6 @@ export function isCostsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.COSTS_ENABLED === "true";
 }
 
-export function isCostSyncNonProdAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.COST_SYNC_ALLOW_NON_PROD === "1";
-}
-
-export function isProductionRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.VERCEL_ENV) {
-    return env.VERCEL_ENV === "production";
-  }
-  return env.NODE_ENV === "production";
-}
-
 export function getCostOwnerAuthUserId(env: NodeJS.ProcessEnv = process.env): string {
   const value = env.COST_OWNER_AUTH_USER_ID?.trim();
   if (!value) {
@@ -117,10 +106,20 @@ export function getVercelBillingConfig(env: NodeJS.ProcessEnv = process.env) {
   const databaseResourceIds = previewDatabaseResourceId
     ? [databaseResourceId, previewDatabaseResourceId]
     : [databaseResourceId];
+  const previewProjectId = env.COST_VERCEL_PREVIEW_PROJECT_ID?.trim();
+  const extraProjectIds = (env.COST_VERCEL_PROJECT_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const projectIds = [
+    ...new Set([projectId, previewProjectId, ...extraProjectIds].filter((value): value is string => Boolean(value))),
+  ];
   return {
     token,
     teamId,
     projectId,
+    previewProjectId,
+    projectIds,
     databaseResourceId,
     previewDatabaseResourceId,
     databaseResourceIds,

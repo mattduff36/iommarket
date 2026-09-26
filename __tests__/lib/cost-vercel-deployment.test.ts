@@ -3,6 +3,7 @@ import { CostConfigError } from "@/lib/costs/config";
 import {
   activeProjectIdsByPeriod,
   CostDeploymentError,
+  listActiveProductionProjectIdsByPeriod,
   normalizeDeploymentUrl,
   verifyProductionDeployment,
 } from "@/lib/costs/vercel";
@@ -178,5 +179,116 @@ describe("verified Vercel deployments T3", () => {
         ["late", ["prj_early", "prj_late"]],
       ]),
     );
+  });
+
+  it("stops deployment pagination when inventory predates every period", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v9/projects")) {
+        return jsonResponse({
+          projects: [{ id: "prj_old", name: "old" }],
+        });
+      }
+      if (url.includes("/v6/deployments")) {
+        const parsed = new URL(url);
+        expect(parsed.searchParams.get("limit")).toBe("100");
+        return jsonResponse({
+          deployments: [
+            {
+              uid: "dpl_old",
+              readyState: "READY",
+              target: "production",
+              createdAt: Date.parse("2026-08-01T00:00:00.000Z"),
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchImpl as unknown as typeof fetch;
+
+    try {
+      await expect(
+        listActiveProductionProjectIdsByPeriod({
+          periods: [
+            { key: "early", to: new Date("2026-09-10T00:00:00.000Z") },
+            { key: "late", to: new Date("2026-09-25T00:00:00.000Z") },
+          ],
+          env,
+        }),
+      ).resolves.toEqual(
+        new Map([
+          ["early", ["prj_old"]],
+          ["late", ["prj_old"]],
+        ]),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains an initial activation when a later redeploy is on the first page", async () => {
+    let deploymentPage = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v9/projects")) {
+        return jsonResponse({
+          projects: [{ id: "prj_redeployed", name: "redeployed" }],
+        });
+      }
+      if (url.includes("/v6/deployments")) {
+        deploymentPage += 1;
+        if (deploymentPage === 1) {
+          return jsonResponse({
+            deployments: [
+              {
+                uid: "dpl_latest",
+                readyState: "READY",
+                target: "production",
+                createdAt: Date.parse("2026-09-20T00:00:00.000Z"),
+              },
+            ],
+            pagination: { next: Date.parse("2026-09-19T23:59:59.999Z") },
+          });
+        }
+        return jsonResponse({
+          deployments: [
+            {
+              uid: "dpl_initial",
+              readyState: "READY",
+              target: "production",
+              createdAt: Date.parse("2026-09-05T00:00:00.000Z"),
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchImpl as unknown as typeof fetch;
+
+    try {
+      await expect(
+        listActiveProductionProjectIdsByPeriod({
+          periods: [
+            { key: "early", to: new Date("2026-09-10T00:00:00.000Z") },
+            { key: "late", to: new Date("2026-09-25T00:00:00.000Z") },
+          ],
+          env,
+        }),
+      ).resolves.toEqual(
+        new Map([
+          ["early", ["prj_redeployed"]],
+          ["late", ["prj_redeployed"]],
+        ]),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(deploymentPage).toBe(2);
   });
 });

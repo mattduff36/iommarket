@@ -18,6 +18,7 @@ import {
 import {
   COST_EMPTY_HELP,
   COST_INVOICE_HELP,
+  COST_LIVE_LEDGER_REQUEST,
   COST_NON_OWNER_HELP,
   syncHealthDetail,
   syncHealthLabel,
@@ -28,6 +29,20 @@ import { OwnerCostControls, RequestInvoiceButton } from "./cost-actions";
 export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }) {
   const syncLabel = syncHealthLabel(dashboard.sync);
   const syncDetail = syncHealthDetail(dashboard.sync);
+
+  if (dashboard.unavailableReason) {
+    return (
+      <>
+        <AdminPageHeader
+          title="Costs"
+          description="The canonical ledger could not be read. Totals are hidden so an empty local database is not shown as a zero balance."
+        />
+        <p className="rounded-lg border border-border bg-surface p-4 text-sm leading-6 text-text-secondary">
+          {dashboard.unavailableReason}
+        </p>
+      </>
+    );
+  }
 
   return (
     <>
@@ -41,6 +56,19 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
           />
         }
       />
+
+      <div className="mb-6 space-y-2 text-sm leading-6 text-text-secondary">
+        <p>{dashboard.cursorPolicyLabel}</p>
+        <p>{dashboard.infrastructureMarkupLabel}</p>
+        <p>{dashboard.allowanceLabel}</p>
+        {dashboard.affectsLiveLedger ? <p>{COST_LIVE_LEDGER_REQUEST}</p> : null}
+        {dashboard.ledgerAsOf ? (
+          <p>
+            Ledger revision {dashboard.ledgerRevision ?? "unrecorded"} as of{" "}
+            {new Date(dashboard.ledgerAsOf).toLocaleString("en-GB", { timeZone: "Europe/London" })}.
+          </p>
+        ) : null}
+      </div>
 
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card>
@@ -186,7 +214,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
         </section>
       ) : null}
 
-      {dashboard.isOwner ? (
+      {dashboard.isOwner && !dashboard.affectsLiveLedger ? (
         <section className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
           <h2 className="mb-1 text-lg font-semibold text-text-primary">
             Owner controls

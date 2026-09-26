@@ -60,6 +60,13 @@ function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto 
       completedAt: null,
       errorCode: null,
     },
+    unavailableReason: null,
+    infrastructureMarkupLabel: "Vercel hosting and database charges include a 20% markup.",
+    cursorPolicyLabel: "Cursor charges are 60% of included nominal value and 110% of on-demand value.",
+    allowanceLabel: "Crossing $400 is not confirmed on-demand usage.",
+    affectsLiveLedger: false,
+    ledgerRevision: null,
+    ledgerAsOf: null,
     ...overrides,
   };
 }
@@ -70,6 +77,8 @@ describe("admin costs dashboard T5", () => {
     expect(hasSensitiveCostField(data)).toBe(false);
     render(<CostDashboardView dashboard={data} />);
     expect(screen.getByText(COST_EMPTY_HELP)).not.toBeNull();
+    expect(screen.getByText(/20% markup/i)).not.toBeNull();
+    expect(screen.getByText(/60% of included nominal value/i)).not.toBeNull();
     expect(screen.getByText(COST_NON_OWNER_HELP)).not.toBeNull();
     expect(screen.getByText(/No refresh yet/i)).not.toBeNull();
     expect(screen.queryByText(/Ledger start:/i)).toBeNull();

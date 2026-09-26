@@ -5,7 +5,6 @@ import {
   CostConfigError,
   getCostLedgerStartedAt,
   getVercelBillingConfig,
-  isProductionRuntime,
   parseCostLedgerStartedAt,
 } from "@/lib/costs/config";
 import {
@@ -13,6 +12,7 @@ import {
   costDatabaseIdentity,
   resolveCostLedgerConnection,
 } from "@/lib/costs/db";
+import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
 import { COST_POLICY_VERSION } from "@/lib/costs/money";
 
 describe("cost ledger configuration T1", () => {
@@ -72,22 +72,6 @@ describe("cost ledger configuration T1", () => {
       }),
     ).not.toThrow();
   });
-
-  it("treats Vercel preview runtimes as non-production", () => {
-    expect(
-      isProductionRuntime({
-        VERCEL_ENV: "preview",
-        NODE_ENV: "production",
-      }),
-    ).toBe(false);
-    expect(
-      isProductionRuntime({
-        VERCEL_ENV: "production",
-        NODE_ENV: "production",
-      }),
-    ).toBe(true);
-    expect(isProductionRuntime({ NODE_ENV: "production" })).toBe(true);
-  });
 });
 
 describe("cost ledger connection", () => {
@@ -124,54 +108,67 @@ describe("cost ledger connection", () => {
     ).toThrow(CostConfigError);
   });
 
-  it("uses the app database outside preview", () => {
-    expect(resolveCostLedgerConnection({ NODE_ENV: "production" })).toEqual({ mode: "app" });
+  it("uses the app database for the canonical writer and refuses a direct ledger URL", () => {
     expect(
       resolveCostLedgerConnection({
-        VERCEL_ENV: "production",
-        COST_LEDGER_DATABASE_URL: "postgres://user:pass@prod.example:5432/postgres",
+        COST_LEDGER_ROLE: "canonical",
+        NODE_ENV: "production",
       }),
     ).toEqual({ mode: "app" });
+    expect(() =>
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "production",
+        COST_LEDGER_ROLE: "canonical",
+        COST_LEDGER_DATABASE_URL: "postgres://user:pass@prod.example:5432/postgres",
+      }),
+    ).toThrow(/not allowed/);
   });
 
-  it("requires a distinct production ledger URL on preview", () => {
-    const previewDatabase = "postgres://user:pass@preview.example:5432/postgres";
-    const productionDatabase = "postgres://user:pass@prod.example:5432/postgres";
-
-    expect(() =>
-      resolveCostLedgerConnection({
-        VERCEL_ENV: "preview",
-        DATABASE_URL: previewDatabase,
-      }),
-    ).toThrow(CostConfigError);
-
-    expect(() =>
-      resolveCostLedgerConnection({
-        VERCEL_ENV: "preview",
-        DATABASE_URL: previewDatabase,
-        COST_LEDGER_DATABASE_URL: "postgres://user:secret@preview.example:6543/postgres",
-      }),
-    ).toThrow(/preview marketplace database/);
-
+  it("routes local development through the canonical API unless explicitly made the writer", () => {
     expect(
-      resolveCostLedgerConnection({
-        VERCEL_ENV: "preview",
-        DATABASE_URL: previewDatabase,
-        COST_LEDGER_DATABASE_URL: "postgres://other:secret@preview.example:6543/postgres",
+      resolveLedgerAccess({
+        COST_LEDGER_ROLE: "reader",
+        COST_LEDGER_ORIGIN: "https://itrader.im",
       }),
-    ).toEqual({
-      mode: "ledger",
-      url: "postgres://other:secret@preview.example:6543/postgres",
+    ).toEqual({ mode: "remote", origin: "https://itrader.im" });
+    expect(resolveLedgerAccess({ COST_LEDGER_ROLE: "reader" })).toMatchObject({
+      mode: "unavailable",
     });
+  });
 
-    expect(
+  it("refuses preview direct access even when that deployment's Vercel environment is production", () => {
+    const previewDatabase = "postgres://user:pass@preview.example:5432/postgres";
+
+    expect(() =>
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "production",
+        VERCEL_PROJECT_ID: "prj_staging",
+        COST_LEDGER_ROLE: "canonical",
+        COST_CANONICAL_VERCEL_PROJECT_ID: "prj_live",
+        DATABASE_URL: previewDatabase,
+      }),
+    ).toThrow(/not the canonical ledger/);
+
+    expect(() =>
       resolveCostLedgerConnection({
         VERCEL_ENV: "preview",
+        VERCEL_PROJECT_ID: "prj_preview",
+        COST_LEDGER_ROLE: "canonical",
+        COST_CANONICAL_VERCEL_PROJECT_ID: "prj_preview",
+        COST_LEDGER_ORIGIN: "https://itrader.im",
         DATABASE_URL: previewDatabase,
-        POSTGRES_URL: "postgres://user:pass@preview.example:6543/postgres",
-        COST_LEDGER_DATABASE_URL: productionDatabase,
+        COST_LEDGER_DATABASE_URL: "postgres://user:secret@prod.example:5432/postgres",
       }),
-    ).toEqual({ mode: "ledger", url: productionDatabase });
+    ).toThrow(/not allowed/);
+
+    expect(() =>
+      resolveCostLedgerConnection({
+        VERCEL_ENV: "production",
+        VERCEL_PROJECT_ID: "prj_staging",
+        COST_LEDGER_ORIGIN: "https://itrader.im",
+        DATABASE_URL: previewDatabase,
+      }),
+    ).toThrow(/canonical ledger API/);
   });
 
   it("identifies shared pooler databases by username, host and database", () => {
@@ -187,14 +184,15 @@ describe("cost ledger connection", () => {
     );
   });
 
-  it("fails closed when the preview ledger sentinel is absent or drifted", () => {
+  it("fails closed when a hosted non-canonical deployment reads the local ledger", () => {
     const env = {
-      VERCEL_ENV: "preview",
+      VERCEL_ENV: "production",
+      VERCEL_PROJECT_ID: "prj_staging",
       COST_LEDGER_STARTED_AT: COST_LEDGER_STARTED_AT_ISO,
     } as unknown as NodeJS.ProcessEnv;
 
     expect(() => assertPreviewCostLedgerReady(null, env)).toThrow(
-      /not initialized/,
+      /canonical ledger/,
     );
     expect(() =>
       assertPreviewCostLedgerReady(
@@ -211,7 +209,10 @@ describe("cost ledger connection", () => {
           startedAt: new Date(COST_LEDGER_STARTED_AT_ISO),
           policyVersion: COST_POLICY_VERSION,
         },
-        env,
+        {
+          COST_LEDGER_ROLE: "canonical",
+          COST_LEDGER_STARTED_AT: COST_LEDGER_STARTED_AT_ISO,
+        },
       ),
     ).not.toThrow();
   });

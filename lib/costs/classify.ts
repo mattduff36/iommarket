@@ -21,6 +21,7 @@ export interface ClassifiedFocusCharge {
   periodStart: Date;
   periodEnd: Date;
   displayLabel: string;
+  deploymentTarget?: "main" | "preview" | "shared";
   row: FocusChargeRow;
 }
 
@@ -32,8 +33,27 @@ export interface QuarantinedFocusCharge {
 
 export interface FocusClassificationConfig {
   projectId: string;
+  projectIds?: readonly string[];
+  previewProjectId?: string;
   databaseResourceIds: readonly string[];
   now?: Date;
+  untaggedPolicy?: "shared" | "unresolved";
+}
+
+function allowedProjectIds(config: FocusClassificationConfig): Set<string> {
+  const ids = config.projectIds && config.projectIds.length > 0
+    ? config.projectIds
+    : [config.projectId];
+  return new Set(ids);
+}
+
+function deploymentTargetFor(
+  project: string,
+  config: FocusClassificationConfig,
+): "main" | "preview" | "shared" {
+  if (config.previewProjectId && project === config.previewProjectId) return "preview";
+  if (project === config.projectId) return "main";
+  return "shared";
 }
 
 function tagValue(row: FocusChargeRow, keys: string[]): string | null {
@@ -130,7 +150,7 @@ export function classifyFocusRow(
     };
   }
 
-  if (matchedProjectId && matchedProjectId === config.projectId) {
+  if (matchedProjectId && allowedProjectIds(config).has(matchedProjectId)) {
     return {
       kind: "hosting",
       category: "VERCEL_HOSTING",
@@ -146,11 +166,12 @@ export function classifyFocusRow(
       periodStart,
       periodEnd,
       displayLabel: row.ServiceName,
+      deploymentTarget: deploymentTargetFor(matchedProjectId, config),
       row,
     };
   }
 
-  if (matchedProjectId && matchedProjectId !== config.projectId) {
+  if (matchedProjectId && !allowedProjectIds(config).has(matchedProjectId)) {
     return {
       kind: "ignored",
       category: null,
@@ -167,6 +188,9 @@ export function classifyFocusRow(
   }
 
   if (!matchedProjectId && !matchedResourceId) {
+    if (config.untaggedPolicy === "unresolved") {
+      return { reason: "Untagged FOCUS row is unresolved until mapped.", row };
+    }
     return {
       kind: "shared",
       category: "SHARED_VERCEL",
@@ -228,13 +252,14 @@ export function aggregateClassifiedCharges(
   }
 
   return [...groups.entries()].map(([, group]) => {
-    if (group.length === 1) return group[0];
-    const nativeAmount = addDecimalStrings(group.map((item) => item.nativeAmount));
+    const distinct = [...new Map(group.map((item) => [item.checksum, item])).values()];
+    if (distinct.length === 1) return distinct[0];
+    const nativeAmount = addDecimalStrings(distinct.map((item) => item.nativeAmount));
     return {
-      ...group[0],
+      ...distinct[0],
       nativeAmount,
       checksum: createHash("sha256")
-        .update(group.map((item) => item.checksum).sort().join(":"))
+        .update(distinct.map((item) => item.checksum).sort().join(":"))
         .digest("hex"),
     };
   });

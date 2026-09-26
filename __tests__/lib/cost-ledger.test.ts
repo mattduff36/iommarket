@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { isOnOrAfterLaunch } from "@/lib/costs/dates";
-import { applyClassifiedCharge, CostLedgerError, ensureLedgerConfig } from "@/lib/costs/ledger";
+import {
+  applyClassifiedCharge,
+  CostLedgerError,
+  ensureLedgerConfig,
+  listLatestBucketRevisions,
+} from "@/lib/costs/ledger";
 import { planLedgerRevision } from "@/lib/costs/ledger-plan";
 
 const existing = {
@@ -171,5 +176,57 @@ describe("COST-LAUNCH-001 launch boundary", () => {
         },
       ),
     ).rejects.toBeInstanceOf(CostLedgerError);
+  });
+});
+
+describe("listLatestBucketRevisions", () => {
+  it("keeps the highest classified revision per bucket", async () => {
+    const client = {
+      costSourceSnapshot: {
+        findMany: vi.fn(async () => [
+          {
+            bucketKey: "vercel:DATABASE:store_db",
+            revision: 2,
+            checksum: "newer",
+            entries: [
+              {
+                id: "entry_2",
+                invoiceability: "INVOICEABLE",
+                markedGbpMinor: 400n,
+                fxRateSnapshotId: "fx_2",
+                nativeAmount: "4",
+                nativeCurrency: "USD",
+              },
+            ],
+          },
+          {
+            bucketKey: "vercel:DATABASE:store_db",
+            revision: 1,
+            checksum: "older",
+            entries: [
+              {
+                id: "entry_1",
+                invoiceability: "INVOICEABLE",
+                markedGbpMinor: 200n,
+                fxRateSnapshotId: "fx_1",
+                nativeAmount: "2",
+                nativeCurrency: "USD",
+              },
+            ],
+          },
+        ]),
+      },
+    };
+
+    const latest = await listLatestBucketRevisions(client as never, "VERCEL_FOCUS", [
+      "vercel:DATABASE:store_db",
+    ]);
+
+    expect(latest.get("vercel:DATABASE:store_db")).toMatchObject({
+      revision: 2,
+      checksum: "newer",
+      chargeEntryId: "entry_2",
+    });
+    expect(client.costSourceSnapshot.findMany).toHaveBeenCalledTimes(1);
   });
 });

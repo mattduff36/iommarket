@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isCostsEnabled } from "@/lib/costs/config";
+import { CostConfigError, isCostsEnabled } from "@/lib/costs/config";
+import { assertCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
 import { retryPendingCostEmails } from "@/lib/costs/email";
 import { runCostSync } from "@/lib/costs/sync";
 import { isCronAuthorized } from "@/lib/ops/safety";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// The Vercel FOCUS billing endpoint streams slowly and is retried up to three times.
+// A bounded FOCUS slice can stream slowly and is retried by the adapter.
 export const maxDuration = 180;
 
 function syncStatusCode(status: "skipped" | "locked" | "succeeded" | "failed"): number {
@@ -18,6 +19,15 @@ function syncStatusCode(status: "skipped" | "locked" | "succeeded" | "failed"): 
 export async function GET(request: NextRequest) {
   if (!isCronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+  }
+
+  try {
+    assertCanonicalLedgerWriter();
+  } catch (error) {
+    if (error instanceof CostConfigError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+    throw error;
   }
 
   if (!isCostsEnabled()) {

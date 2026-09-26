@@ -14,7 +14,7 @@ const decimalAmount = z
 
 export const recordManualCostSchema = z
   .object({
-    category: z.enum(["CURSOR", "OTHER"]),
+    category: z.enum(["DATABASE", "OTHER"]),
     externalRef: z.string().trim().min(3).max(120),
     nativeAmount: decimalAmount,
     nativeCurrency: z.enum(["USD", "GBP"]),

@@ -1,27 +1,13 @@
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
+import { db } from "@/lib/db";
+import type { RuntimeEnv } from "@/lib/runtime-env";
 import {
   assertLedgerConfigMatchesEnvironment,
   CostConfigError,
 } from "@/lib/costs/config";
-import { db } from "@/lib/db";
-import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
-import type { RuntimeEnv } from "@/lib/runtime-env";
-
-const MARKETPLACE_URL_KEYS = [
-  "DATABASE_URL",
-  "POSTGRES_URL",
-  "POSTGRES_URL_NON_POOLING",
-] as const;
-
-const globalForCostLedger = globalThis as unknown as {
-  costLedgerPrisma: PrismaClient | undefined;
-};
-
-export type CostLedgerConnection =
-  | { mode: "app" }
-  | { mode: "ledger"; url: string };
+import {
+  assertNoDirectLedgerDatabase,
+  resolveLedgerAccess,
+} from "@/lib/costs/ledger-access";
 
 export function costDatabaseIdentity(raw: string): string {
   const trimmed = raw.trim();
@@ -35,69 +21,36 @@ export function costDatabaseIdentity(raw: string): string {
   }
 }
 
-function marketplaceIdentities(env: RuntimeEnv): string[] {
-  return MARKETPLACE_URL_KEYS.flatMap((key) => {
-    const value = env[key]?.trim();
-    return value ? [costDatabaseIdentity(value)] : [];
-  });
-}
-
 export function assertPreviewCostLedgerReady(
   config: { startedAt: Date; policyVersion: string } | null,
-  env: NodeJS.ProcessEnv = process.env,
+  env: RuntimeEnv = process.env,
 ): void {
-  if (env.VERCEL_ENV !== "preview") return;
-  if (!config) {
+  const access = resolveLedgerAccess(env);
+  if (access.mode !== "local") {
     throw new CostConfigError(
-      "The configured preview cost ledger is not initialized.",
+      access.mode === "unavailable"
+        ? access.reason
+        : "This deployment must read the canonical ledger API.",
     );
   }
-  assertLedgerConfigMatchesEnvironment({ ...config, env });
+  if (config) {
+    assertLedgerConfigMatchesEnvironment({ ...config, env: env as NodeJS.ProcessEnv });
+  }
 }
 
 export function resolveCostLedgerConnection(
   env: RuntimeEnv = process.env,
-): CostLedgerConnection {
-  if (env.VERCEL_ENV !== "preview") {
-    return { mode: "app" };
-  }
-
-  const ledgerUrl = env.COST_LEDGER_DATABASE_URL?.trim();
-  if (!ledgerUrl) {
+): { mode: "app" } {
+  assertNoDirectLedgerDatabase(env);
+  const access = resolveLedgerAccess(env);
+  if (access.mode !== "local") {
     throw new CostConfigError(
-      "COST_LEDGER_DATABASE_URL is required on preview.",
+      access.mode === "unavailable"
+        ? access.reason
+        : "This deployment must read the canonical ledger API.",
     );
   }
-
-  const ledgerIdentity = costDatabaseIdentity(ledgerUrl);
-  if (marketplaceIdentities(env).includes(ledgerIdentity)) {
-    throw new CostConfigError(
-      "COST_LEDGER_DATABASE_URL must not be the preview marketplace database.",
-    );
-  }
-
-  return { mode: "ledger", url: ledgerUrl };
+  return { mode: "app" };
 }
 
-function createLedgerClient(url: string): PrismaClient {
-  const pool = new pg.Pool(buildDatabasePoolOptions(url));
-  const adapter = new PrismaPg(pool);
-  return new PrismaClient({ adapter });
-}
-
-function ledgerClient(): PrismaClient {
-  const connection = resolveCostLedgerConnection();
-  if (connection.mode === "app") {
-    return db;
-  }
-  if (!globalForCostLedger.costLedgerPrisma) {
-    globalForCostLedger.costLedgerPrisma = createLedgerClient(connection.url);
-  }
-  return globalForCostLedger.costLedgerPrisma;
-}
-
-export const costDb = new Proxy({} as PrismaClient, {
-  get(_target, prop) {
-    return Reflect.get(ledgerClient(), prop);
-  },
-});
+export const costDb = db;

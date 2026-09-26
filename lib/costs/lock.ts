@@ -1,7 +1,7 @@
 import { COST_LEDGER_CONFIG_ID } from "@/lib/costs/config";
 import { costDb } from "@/lib/costs/db";
 
-const LOCK_TTL_MS = 30 * 60 * 1000;
+const LOCK_TTL_MS = 6 * 60 * 1000;
 
 export async function withCostSyncLock<T>(
   fn: (holder: string) => Promise<T>,

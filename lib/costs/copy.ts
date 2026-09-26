@@ -12,6 +12,18 @@ export const COST_EMPTY_HELP =
 export const COST_NON_OWNER_HELP =
   "Ask the configured owner to refresh costs, add manual entries, or request invoices.";
 
+export const COST_INFRASTRUCTURE_MARKUP_LABEL =
+  "Vercel hosting and database charges include a 20% markup.";
+
+export const COST_CURSOR_POLICY_LABEL =
+  "Cursor charges are 60% of included nominal value and 110% of on-demand value. This includes time and has no extra markup.";
+
+export const COST_LIVE_LEDGER_REQUEST =
+  "Requesting an invoice from this site updates the live ledger.";
+
+export const COST_ALLOWANCE_LABEL =
+  "Cursor allowance is measured across the whole account and billing cycle. Only usage attributed to iTrader is billed. Crossing $400 is not confirmed on-demand usage.";
+
 export function interpretManualCostSyncResult(result: {
   error?: unknown;
   data?: { status?: string; message?: string };

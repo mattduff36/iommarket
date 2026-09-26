@@ -44,7 +44,6 @@ describe("internal cost sync route T3", () => {
   let previous: {
     secret: string | undefined;
     enabled: string | undefined;
-    allow: string | undefined;
     vercelEnv: string | undefined;
   };
 
@@ -52,13 +51,14 @@ describe("internal cost sync route T3", () => {
     previous = {
       secret: process.env.COST_SYNC_SECRET,
       enabled: process.env.COSTS_ENABLED,
-      allow: process.env.COST_SYNC_ALLOW_NON_PROD,
       vercelEnv: process.env.VERCEL_ENV,
     };
     vi.clearAllMocks();
     process.env.COST_SYNC_SECRET = "sync-secret";
     process.env.COSTS_ENABLED = "true";
-    process.env.COST_SYNC_ALLOW_NON_PROD = "1";
+    process.env.COST_LEDGER_ROLE = "canonical";
+    delete process.env.VERCEL_PROJECT_ID;
+    delete process.env.COST_CANONICAL_VERCEL_PROJECT_ID;
     process.env.VERCEL_ENV = "development";
     runCostSync.mockResolvedValue({ status: "succeeded", runId: "run_1" });
     verifyProductionDeployment.mockResolvedValue({
@@ -71,7 +71,6 @@ describe("internal cost sync route T3", () => {
   afterEach(() => {
     restoreEnv("COST_SYNC_SECRET", previous.secret);
     restoreEnv("COSTS_ENABLED", previous.enabled);
-    restoreEnv("COST_SYNC_ALLOW_NON_PROD", previous.allow);
     restoreEnv("VERCEL_ENV", previous.vercelEnv);
   });
 
@@ -87,9 +86,11 @@ describe("internal cost sync route T3", () => {
     expect(runCostSync).not.toHaveBeenCalled();
   });
 
-  it("rejects a Vercel preview runtime even when NODE_ENV is production", async () => {
-    process.env.VERCEL_ENV = "preview";
-    delete process.env.COST_SYNC_ALLOW_NON_PROD;
+  it("rejects a hosted deployment that is not the pinned canonical writer", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.COST_LEDGER_ROLE = "canonical";
+    process.env.VERCEL_PROJECT_ID = "prj_staging";
+    process.env.COST_CANONICAL_VERCEL_PROJECT_ID = "prj_live";
     const { POST } = await import("@/app/api/internal/cost-sync/route");
     const response = await POST(
       new NextRequest("http://localhost:4000/api/internal/cost-sync", {

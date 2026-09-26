@@ -327,6 +327,15 @@ export interface CostProjectActivityPeriod {
   to: Date;
 }
 
+function isReadyProductionDeployment(deployment: VercelDeploymentSummary): boolean {
+  const state = deployment.readyState ?? deployment.state;
+  return state === "READY" && (deployment.target === "production" || !deployment.target);
+}
+
+function deploymentCreatedAt(deployment: VercelDeploymentSummary): number {
+  return deployment.createdAt ?? deployment.created ?? 0;
+}
+
 export function activeProjectIdsByPeriod(input: {
   projectIds: readonly string[];
   deploymentsByProject: ReadonlyMap<string, readonly VercelDeploymentSummary[]>;
@@ -337,15 +346,11 @@ export function activeProjectIdsByPeriod(input: {
       period.key,
       input.projectIds
         .filter((projectId) =>
-          (input.deploymentsByProject.get(projectId) ?? []).some((deployment) => {
-            const state = deployment.readyState ?? deployment.state;
-            const createdAt = deployment.createdAt ?? deployment.created ?? 0;
-            return (
-              state === "READY" &&
-              (deployment.target === "production" || !deployment.target) &&
-              createdAt <= period.to.getTime()
-            );
-          }),
+          (input.deploymentsByProject.get(projectId) ?? []).some(
+            (deployment) =>
+              isReadyProductionDeployment(deployment) &&
+              deploymentCreatedAt(deployment) <= period.to.getTime(),
+          ),
         )
         .sort(),
     ]),
@@ -380,7 +385,7 @@ async function listProjectProductionDeployments(input: {
       batch.length === 0 ||
       batch.some(
         (deployment) =>
-          (deployment.createdAt ?? deployment.created ?? 0) <=
+          deploymentCreatedAt(deployment) <=
           input.earliestPeriodEnd.getTime(),
       ) ||
       !body.pagination?.next
@@ -407,8 +412,8 @@ export async function listActiveProductionProjectIdsByPeriod(input: {
     readonly VercelDeploymentSummary[]
   >();
 
-  for (let index = 0; index < projects.length; index += 5) {
-    const batch = projects.slice(index, index + 5);
+  for (let index = 0; index < projects.length; index += 10) {
+    const batch = projects.slice(index, index + 10);
     const deployments = await Promise.all(
       batch.map((project) =>
         listProjectProductionDeployments({

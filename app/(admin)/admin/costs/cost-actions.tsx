@@ -82,7 +82,9 @@ export function OwnerCostControls({
     setSuccess(null);
     startTransition(async () => {
       const result = await recordManualProjectCost({
-        category: String(formData.get("category") ?? "CURSOR") as "CURSOR" | "OTHER",
+        category: String(formData.get("category") ?? "DATABASE") as
+          | "DATABASE"
+          | "OTHER",
         externalRef: String(formData.get("externalRef") ?? ""),
         nativeAmount: String(formData.get("nativeAmount") ?? ""),
         nativeCurrency: String(formData.get("nativeCurrency") ?? "USD") as "USD" | "GBP",
@@ -106,6 +108,7 @@ export function OwnerCostControls({
         <h3 className="text-sm font-semibold text-text-primary">Record a manual cost</h3>
         <p className="mt-1 text-sm leading-6 text-text-secondary">
           Add a provider charge in its source currency. The period is used to group it in the dashboard.
+          Use Database for a Supabase marketplace invoice line missing from automatic billing, and put the invoice line id in the reference so it is not imported twice.
         </p>
       </div>
       <form action={handleManual} className="grid gap-4 sm:grid-cols-2">
@@ -114,9 +117,9 @@ export function OwnerCostControls({
           <select
             name="category"
             className="h-10 rounded-md border border-border bg-surface px-3 text-sm"
-            defaultValue="CURSOR"
+            defaultValue="DATABASE"
           >
-            <option value="CURSOR">Development</option>
+            <option value="DATABASE">Database</option>
             <option value="OTHER">Other</option>
           </select>
         </label>

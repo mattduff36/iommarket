@@ -8,7 +8,9 @@ function normalizePath(filePath: string) {
 }
 
 export function isSecretPath(filePath: string) {
-  return SECRET_PATH.test(normalizePath(filePath));
+  const normalized = normalizePath(filePath);
+  if (/(^|\/)\.env\.example$/i.test(normalized)) return false;
+  return SECRET_PATH.test(normalized);
 }
 
 export function isSchemaPath(filePath: string) {
