@@ -326,7 +326,8 @@ describe("iTrader Cursor 60/110 policy", () => {
       path.join(process.cwd(), "scripts/cursor-usage/collect.mjs"),
       "utf8",
     );
-    expect(collector).toContain('.update(row.payload)');
+    expect(collector).toContain(".update(row.rawPayload)");
+    expect(collector).toContain("status = 'review'");
     const hooks = readFileSync(path.join(process.cwd(), ".cursor/hooks.json"), "utf8");
     expect(hooks).toContain("sessionEnd");
     expect(hooks).not.toContain("followup_message");

@@ -205,53 +205,96 @@ function storeEvents(db, events, projectKey, providerAccountRef) {
   return { itrader };
 }
 
-async function flush(db, quality, providerAccountRef) {
+function pendingBatches(db, maxBatches) {
+  const rows = db
+    .prepare("SELECT id, payload FROM events WHERE status = 'pending' ORDER BY id LIMIT 1000")
+    .all();
+  const byDay = new Map();
+  for (const row of rows) {
+    const payload = JSON.parse(row.payload);
+    const day = String(payload.timestamp ?? "").slice(0, 10) || "unknown";
+    const current = byDay.get(day) ?? [];
+    current.push({ ...row, payload, rawPayload: row.payload });
+    byDay.set(day, current);
+  }
+  return [...byDay.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .flatMap(([, dayRows]) => {
+      const chunks = [];
+      for (let index = 0; index < dayRows.length; index += 200) {
+        chunks.push(dayRows.slice(index, index + 200));
+      }
+      return chunks;
+    })
+    .slice(0, maxBatches);
+}
+
+function uploadIdempotencyKey(batch) {
+  return `collect-${createHash("sha256")
+    .update(
+      batch
+        .map(
+          (row) =>
+            `${row.id}:${createHash("sha256").update(row.rawPayload).digest("hex")}`,
+        )
+        .sort()
+        .join("|"),
+    )
+    .digest("hex")
+    .slice(0, 40)}`;
+}
+
+async function flush(db, quality, providerAccountRef, maxBatches) {
   const origin = process.env.COST_LEDGER_ORIGIN?.trim().replace(/\/$/, "");
   const secret = process.env.COST_LEDGER_INGEST_SECRET?.trim();
-  const pending = db.prepare("SELECT id, payload FROM events WHERE status = 'pending' LIMIT 200").all();
+  const batches = pendingBatches(db, maxBatches);
   if (!origin || !secret) {
-    report(`collection saved locally; upload waiting for ledger origin. Pending ${pending.length}. Quality ${quality}.`);
+    report(`collection saved locally; upload waiting for ledger origin. Quality ${quality}.`);
     return;
   }
-  if (pending.length === 0) {
+  if (batches.length === 0) {
     report(`no pending iTrader events. Quality ${quality}.`);
     return;
   }
-  const response = await fetch(`${origin}/api/internal/cost-ledger/events`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${secret}`,
-      "content-type": "application/json",
-      "idempotency-key": `collect-${createHash("sha256")
-        .update(
-          pending
-            .map((row) => `${row.id}:${createHash("sha256").update(row.payload).digest("hex")}`)
-            .sort()
-            .join("|"),
-        )
-        .digest("hex")
-        .slice(0, 40)}`,
-    },
-    body: JSON.stringify({
-      contractVersion: "cost-ledger-v1",
-      projectId: "itrader",
-      providerAccountRef,
-      sourceQuality: quality === "complete" ? "complete" : "partial",
-      events: pending.map((row) => JSON.parse(row.payload)),
-    }),
-  });
-  if (!response.ok) {
-    report(`upload unavailable (${response.status}). Pending ${pending.length} left in the local outbox.`);
-    return;
-  }
-  const result = await response.json();
-  if (!["succeeded", "duplicate"].includes(result?.data?.status)) {
-    report(`upload not acknowledged. Pending ${pending.length} left in the local outbox.`);
-    return;
-  }
   const mark = db.prepare("UPDATE events SET status = 'uploaded' WHERE id = ?");
-  for (const row of pending) mark.run(row.id);
-  report(`uploaded ${pending.length} iTrader events. Quality ${quality}.`);
+  const review = db.prepare("UPDATE events SET status = 'review' WHERE id = ?");
+  for (const batch of batches) {
+    const response = await fetch(`${origin}/api/internal/cost-ledger/events`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${secret}`,
+        "content-type": "application/json",
+        "idempotency-key": uploadIdempotencyKey(batch),
+      },
+      body: JSON.stringify({
+        contractVersion: "cost-ledger-v1",
+        projectId: "itrader",
+        providerAccountRef,
+        sourceQuality: quality === "complete" ? "complete" : "partial",
+        events: batch.map((row) => row.payload),
+      }),
+    });
+    const result = await response.json().catch(() => null);
+    if (
+      response.status === 409 &&
+      typeof result?.error === "string" &&
+      result.error.startsWith("Legacy Cursor subscription-share lines")
+    ) {
+      for (const row of batch) review.run(row.id);
+      report(`held ${batch.length} legacy-overlap events for review.`);
+      continue;
+    }
+    if (!response.ok) {
+      report(`upload unavailable (${response.status}). ${batch.length} events remain pending.`);
+      continue;
+    }
+    if (!["succeeded", "duplicate"].includes(result?.data?.status)) {
+      report(`upload not acknowledged. ${batch.length} events remain pending.`);
+      continue;
+    }
+    for (const row of batch) mark.run(row.id);
+    report(`uploaded ${batch.length} iTrader events. Quality ${quality}.`);
+  }
 }
 
 async function main() {
@@ -290,10 +333,16 @@ async function main() {
     }
     db.prepare("INSERT INTO meta (key, value) VALUES ('quality', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
       .run(fetched.quality);
+    await flush(
+      db,
+      fetched.quality,
+      credentials.providerAccountRef,
+      bounded ? 4 : 20,
+    );
     const pending = db.prepare("SELECT COUNT(*) AS count FROM events WHERE status = 'pending'").get();
-    await flush(db, fetched.quality, credentials.providerAccountRef);
+    const review = db.prepare("SELECT COUNT(*) AS count FROM events WHERE status = 'review'").get();
     report(
-      `account events ${fetched.events.length}/${fetched.reported ?? "unknown"}, iTrader attributed ${stored.itrader}, pending ${pending?.count ?? 0}, quality ${fetched.quality}.`,
+      `account events ${fetched.events.length}/${fetched.reported ?? "unknown"}, iTrader attributed ${stored.itrader}, pending ${pending?.count ?? 0}, review ${review?.count ?? 0}, quality ${fetched.quality}.`,
     );
   } finally {
     db.close();
