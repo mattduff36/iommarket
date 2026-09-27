@@ -57,7 +57,9 @@ export function CostSectionTable({
   const [showLedgerEntries, setShowLedgerEntries] = useState(false);
   const lines = showLedgerEntries ? rawLines : summaryLines;
   const paged = useMemo(() => paginateCostLines(lines, page), [lines, page]);
-  const help = COST_SECTION_HELP[label];
+  const help =
+    COST_SECTION_HELP[label] ??
+    "Manual costs recorded in this category. Matching charges are combined and net amounts below £0.01 are hidden.";
 
   return (
     <section className="mb-8">

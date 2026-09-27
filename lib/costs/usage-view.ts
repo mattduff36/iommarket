@@ -153,7 +153,14 @@ export function lineSeriesKey(line: CostLineDto): string {
   if (line.category === "SHARED_VERCEL") {
     return COST_USAGE_SHARED_SERIES;
   }
+  if (line.category === "OTHER") return line.section || COST_SECTION_LABELS.OTHER;
   return COST_SECTION_LABELS[line.category];
+}
+
+const MANUAL_SERIES_COLORS = ["#F59E0B", "#EC4899", "#14B8A6", "#8B5CF6", "#F97316", "#06B6D4"];
+
+export function costSeriesColor(key: string, index = 0): string {
+  return COST_USAGE_SERIES_COLORS[key] ?? MANUAL_SERIES_COLORS[index % MANUAL_SERIES_COLORS.length] ?? "#8E8E93";
 }
 
 export function usageRangeBounds(
@@ -216,9 +223,14 @@ export function buildCostUsageModel(input: {
         return day >= bounds.fromDay && day <= bounds.toDay;
       })
     : [];
-  const seriesKeys = SERIES_ORDER.filter((key) =>
+  const knownSeries = new Set<string>(SERIES_ORDER);
+  const seriesKeys: string[] = SERIES_ORDER.filter((key) =>
     filteredLines.some((line) => lineSeriesKey(line) === key),
   );
+  for (const line of filteredLines) {
+    const key = lineSeriesKey(line);
+    if (!knownSeries.has(key) && !seriesKeys.includes(key)) seriesKeys.push(key);
+  }
   const days = bounds ? daysInRange(bounds.fromDay, bounds.toDay) : [];
   const dailyByDay = new Map<string, Record<string, number>>();
   for (const day of days) {

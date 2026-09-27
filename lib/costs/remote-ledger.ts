@@ -1,4 +1,5 @@
 import type { CostDashboardDto } from "@/lib/costs/dto";
+import type { ManualCostCategory } from "@/lib/costs/manual-categories";
 import type { RecordManualCostInput } from "@/lib/validations/costs";
 
 export async function fetchRemoteCostDashboard(
@@ -123,4 +124,35 @@ export async function requestRemoteManualCost(
   if (!response.ok) {
     throw new Error(body?.error || "The live ledger could not record the manual cost.");
   }
+}
+
+export async function requestRemoteManualCategory(
+  origin: string,
+  label: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ category: ManualCostCategory; categories: ManualCostCategory[] }> {
+  const secret = env.COST_LEDGER_REQUEST_SECRET?.trim();
+  if (!secret) {
+    throw new Error("The canonical ledger request credential is not configured.");
+  }
+  const response = await fetch(`${origin}/api/internal/cost-ledger/manual-categories`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ label }),
+    cache: "no-store",
+  });
+  const body = (await response.json().catch(() => null)) as {
+    data?: { category: ManualCostCategory; categories: ManualCostCategory[] };
+    error?: string;
+  } | null;
+  if (response.status === 404) {
+    throw new Error("The live manual category endpoint is not deployed.");
+  }
+  if (!response.ok || !body?.data?.category) {
+    throw new Error(body?.error || "The live ledger could not add the category.");
+  }
+  return body.data;
 }

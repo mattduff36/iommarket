@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { faceValueChecksum } from "@/lib/costs/classify";
 import { costDb } from "@/lib/costs/db";
+import { listManualCostCategories } from "@/lib/costs/manual-categories";
 import { getOrCreateIdentityGbpRate, getOrCreateUsdGbpRate } from "@/lib/costs/fx";
-import { applyClassifiedCharge, ensureLedgerConfig } from "@/lib/costs/ledger";
+import { applyClassifiedCharge, CostLedgerError, ensureLedgerConfig } from "@/lib/costs/ledger";
 import { computeUnmarkedGbpMinor } from "@/lib/costs/money";
 import { runSerializable } from "@/lib/costs/transaction";
 import type { RecordManualCostInput } from "@/lib/validations/costs";
@@ -9,6 +11,13 @@ import type { RecordManualCostInput } from "@/lib/validations/costs";
 const MANUAL_REPRICE_LIMIT = 75;
 
 export async function recordManualLedgerCost(input: RecordManualCostInput): Promise<void> {
+  const categories = await listManualCostCategories();
+  const selected = categories.find((category) => category.slug === input.categorySlug);
+  if (!selected) {
+    throw new CostLedgerError("Choose a cost category.");
+  }
+  const externalRef = `gen-${randomUUID()}`;
+
   await runSerializable(async (tx) => {
     const config = await ensureLedgerConfig(tx);
     const periodStart = new Date(input.periodStart);
@@ -20,11 +29,11 @@ export async function recordManualLedgerCost(input: RecordManualCostInput): Prom
 
     await applyClassifiedCharge(tx, {
       sourceKind: "MANUAL",
-      bucketKey: `manual:${input.category}:${input.externalRef}`,
+      bucketKey: `manual:${selected.slug}:${externalRef}`,
       checksum: faceValueChecksum(
-        `manual:${input.category}:${input.externalRef}:${input.nativeAmount}:${input.nativeCurrency}`,
+        `manual:${selected.slug}:${externalRef}:${input.nativeAmount}:${input.nativeCurrency}`,
       ),
-      category: input.category,
+      category: "OTHER",
       invoiceability: "INVOICEABLE",
       nativeAmount: input.nativeAmount,
       nativeCurrency: input.nativeCurrency,
@@ -34,10 +43,10 @@ export async function recordManualLedgerCost(input: RecordManualCostInput): Prom
       periodEnd,
       displayLabel: input.displayLabel,
       startedAt: config.startedAt,
-      metadata:
-        input.category === "DATABASE"
-          ? { providerInvoiceId: input.externalRef }
-          : undefined,
+      metadata: {
+        manualCategorySlug: selected.slug,
+        manualCategoryLabel: selected.label,
+      },
     });
   });
 }

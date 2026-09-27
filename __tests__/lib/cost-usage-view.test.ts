@@ -51,6 +51,15 @@ describe("cost usage view", () => {
         }),
       ),
     ).toBe("Shared Vercel services");
+    expect(
+      lineSeriesKey(
+        line({
+          category: "OTHER",
+          section: "Manual Adjustment",
+          label: "Exclude costs page work",
+        }),
+      ),
+    ).toBe("Manual Adjustment");
   });
 
   it("builds inclusive 7d, MTD, and last-month bounds from a fixed now", () => {
@@ -191,5 +200,25 @@ describe("cost usage view", () => {
     expect(summarized.reduce((total, item) => total + item.amountMinor, 0)).toBe(
       lines.reduce((total, item) => total + item.amountMinor, 0),
     );
+  });
+
+  it("keeps a manual category as its own chart series", () => {
+    const model = buildCostUsageModel({
+      now: new Date("2026-09-26T12:00:00.000Z"),
+      range: "7d",
+      lines: [
+        line({
+          id: "manual",
+          category: "OTHER",
+          section: "Software & Subscriptions",
+          label: "Domain tools",
+          periodStart: "2026-09-24T00:00:00.000Z",
+          amountMinor: 250,
+        }),
+      ],
+    });
+
+    expect(model.seriesKeys).toContain("Software & Subscriptions");
+    expect(model.series.map((item) => item.key)).toEqual(["Software & Subscriptions"]);
   });
 });

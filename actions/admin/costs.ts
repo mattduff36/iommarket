@@ -14,8 +14,13 @@ import { assertCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
 import {
   requestRemoteCostRefresh,
   requestRemoteInvoice,
+  requestRemoteManualCategory,
   requestRemoteManualCost,
 } from "@/lib/costs/remote-ledger";
+import {
+  createManualCostCategory,
+  ManualCategoryError,
+} from "@/lib/costs/manual-categories";
 import { deliverCostOutbox } from "@/lib/costs/email";
 import {
   confirmInvoiceRequest,
@@ -30,9 +35,11 @@ import { runCostSync } from "@/lib/costs/sync";
 import { reportHandledException } from "@/lib/monitoring";
 import {
   confirmInvoiceRequestSchema,
+  createManualCostCategorySchema,
   recordManualCostSchema,
   retryCostEmailSchema,
   type ConfirmInvoiceRequestInput,
+  type CreateManualCostCategoryInput,
   type RecordManualCostInput,
   type RetryCostEmailInput,
 } from "@/lib/validations/costs";
@@ -171,9 +178,9 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
         adminId: admin.id,
         action: "RECORD_MANUAL_PROJECT_COST",
         entityType: "CostEntry",
-        entityId: parsed.data.externalRef,
+        entityId: parsed.data.categorySlug,
         details: {
-          category: parsed.data.category,
+          category: parsed.data.categorySlug,
           origin: "preview",
           affectsLiveLedger: true,
         },
@@ -195,8 +202,8 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
       adminId: admin.id,
       action: "RECORD_MANUAL_PROJECT_COST",
       entityType: "CostEntry",
-      entityId: parsed.data.externalRef,
-      details: { category: parsed.data.category },
+      entityId: parsed.data.categorySlug,
+      details: { category: parsed.data.categorySlug },
     });
     revalidateCostPages();
     return { data: { recorded: true } };
@@ -210,6 +217,47 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
       route: "/admin/costs",
     });
     return { error: "Failed to record the cost." };
+  }
+}
+
+export async function addManualCostCategory(input: CreateManualCostCategoryInput) {
+  const admin = await requireCostOwnerAdmin();
+  if (!isCostsEnabled()) return costsDisabledError();
+  const parsed = createManualCostCategorySchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const access = resolveLedgerAccess();
+  if (access.mode === "unavailable") return { error: access.reason };
+  if (access.mode !== "remote") {
+    const writerError = canonicalWriterError();
+    if (writerError) return writerError;
+  }
+  try {
+    const created =
+      access.mode === "remote"
+        ? await requestRemoteManualCategory(access.origin, parsed.data.label)
+        : await createManualCostCategory(parsed.data.label);
+    await logAdminAction({
+      adminId: admin.id,
+      action: "RECORD_MANUAL_PROJECT_COST",
+      entityType: "SiteSetting",
+      entityId: created.category.slug,
+      details: {
+        label: created.category.label,
+        origin: access.mode === "remote" ? "preview" : "canonical",
+      },
+    });
+    revalidateCostPages();
+    return { data: created };
+  } catch (error) {
+    if (error instanceof ManualCategoryError) return { error: error.message };
+    if (access.mode === "remote" && error instanceof Error) return { error: error.message };
+    await reportHandledException({
+      error,
+      action: "addManualCostCategory",
+      route: "/admin/costs",
+    });
+    return { error: "Failed to add the category." };
   }
 }
 

@@ -5,8 +5,7 @@ describe("cost input validation", () => {
   it("rejects zero amounts and inverted periods", () => {
     expect(
       recordManualCostSchema.safeParse({
-        category: "DATABASE",
-        externalRef: "database-1",
+        categorySlug: "manual-adjustment",
         nativeAmount: "0.00",
         nativeCurrency: "USD",
         displayLabel: "Database",
@@ -16,8 +15,7 @@ describe("cost input validation", () => {
     ).toBe(false);
     expect(
       recordManualCostSchema.safeParse({
-        category: "OTHER",
-        externalRef: "domain-1",
+        categorySlug: "domains-licences",
         nativeAmount: "12.50",
         nativeCurrency: "GBP",
         displayLabel: "Domain",
@@ -27,11 +25,10 @@ describe("cost input validation", () => {
     ).toBe(false);
   });
 
-  it("accepts a negative reduction and rejects Cursor manual imports", () => {
+  it("accepts a negative reduction and rejects a provider category slug", () => {
     expect(
       recordManualCostSchema.safeParse({
-        category: "OTHER",
-        externalRef: "exclude-costs-page",
+        categorySlug: "manual-adjustment",
         nativeAmount: "-12.50",
         nativeCurrency: "GBP",
         displayLabel: "Exclude costs page work",
@@ -41,8 +38,7 @@ describe("cost input validation", () => {
     ).toBe(true);
     expect(
       recordManualCostSchema.safeParse({
-        category: "CURSOR",
-        externalRef: "cursor-1",
+        categorySlug: "CURSOR",
         nativeAmount: "100.00",
         nativeCurrency: "USD",
         displayLabel: "Cursor",

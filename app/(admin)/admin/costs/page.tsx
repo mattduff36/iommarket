@@ -8,6 +8,7 @@ import { getCostDashboard } from "@/lib/costs/queries";
 import { costDb } from "@/lib/costs/db";
 import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
 import { fetchRemoteCostDashboard } from "@/lib/costs/remote-ledger";
+import { DEFAULT_MANUAL_COST_CATEGORIES } from "@/lib/costs/manual-categories";
 import type { CostDashboardDto } from "@/lib/costs/dto";
 import { CostDashboardView } from "./cost-dashboard";
 
@@ -38,6 +39,7 @@ function unavailableDashboard(reason: string, isOwner: boolean): CostDashboardDt
     affectsLiveLedger: false,
     ledgerRevision: null,
     ledgerAsOf: null,
+    manualCategories: [...DEFAULT_MANUAL_COST_CATEGORIES],
   };
 }
 
@@ -69,7 +71,14 @@ export default async function AdminCostsPage() {
     }
     return (
       <CostDashboardView
-        dashboard={{ ...dashboard, isOwner, affectsLiveLedger: true }}
+        dashboard={{
+          ...dashboard,
+          isOwner,
+          affectsLiveLedger: true,
+          manualCategories: dashboard.manualCategories?.length
+            ? dashboard.manualCategories
+            : [...DEFAULT_MANUAL_COST_CATEGORIES],
+        }}
       />
     );
   }

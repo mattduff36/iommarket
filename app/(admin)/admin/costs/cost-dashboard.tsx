@@ -158,10 +158,11 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
             Developer controls
           </h2>
           <p className="mb-5 text-sm leading-6 text-text-secondary">
-            Record manual charges, refresh provider costs, or retry a failed invoice notification.
+            Record manual charges or retry a failed invoice notification.
           </p>
           <OwnerCostControls
             canRetryEmail={dashboard.pendingRequest?.emailStatus === "FAILED"}
+            categories={dashboard.manualCategories}
             outboxId={dashboard.pendingRequest?.outboxId ?? undefined}
           />
         </section>

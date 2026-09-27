@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CostConfigError, isBearerSecretAuthorized, isCostsEnabled } from "@/lib/costs/config";
-import { costDb } from "@/lib/costs/db";
-import { CostLedgerError } from "@/lib/costs/ledger";
 import { assertCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
-import { recordManualLedgerCost } from "@/lib/costs/manual-entry";
-import { recordManualCostSchema } from "@/lib/validations/costs";
+import {
+  createManualCostCategory,
+  ManualCategoryError,
+} from "@/lib/costs/manual-categories";
+import { createManualCostCategorySchema } from "@/lib/validations/costs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,32 +35,21 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Enter a valid manual cost." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a category name." }, { status: 400 });
   }
 
-  const parsed = recordManualCostSchema.safeParse(body);
+  const parsed = createManualCostCategorySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Enter a valid manual cost." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a category name." }, { status: 400 });
   }
 
   try {
-    await recordManualLedgerCost(parsed.data);
-    await costDb.costWorkflowEvent.create({
-      data: {
-        type: "PREVIEW_MANUAL_COST",
-        payload: {
-          origin: "preview",
-          category: parsed.data.categorySlug,
-        },
-      },
-    });
-    return NextResponse.json({
-      data: { recorded: true, affectsLiveLedger: true },
-    });
+    const created = await createManualCostCategory(parsed.data.label);
+    return NextResponse.json({ data: created });
   } catch (error) {
-    if (error instanceof CostLedgerError) {
+    if (error instanceof ManualCategoryError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
-    return NextResponse.json({ error: "Failed to record the cost." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to add the category." }, { status: 500 });
   }
 }

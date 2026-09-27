@@ -66,6 +66,7 @@ function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto 
     affectsLiveLedger: false,
     ledgerRevision: null,
     ledgerAsOf: null,
+    manualCategories: [{ slug: "manual-adjustment", label: "Manual Adjustment" }],
     ...overrides,
   };
 }
