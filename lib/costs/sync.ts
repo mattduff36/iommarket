@@ -22,7 +22,10 @@ import {
 } from "@/lib/costs/ledger";
 import { planLedgerRevision } from "@/lib/costs/ledger-plan";
 import { renewCostSyncLock, withCostSyncLock } from "@/lib/costs/lock";
-import { allocateSharedPence } from "@/lib/costs/shared";
+import {
+  allocateSharedPence,
+  sharedAllocationStatus,
+} from "@/lib/costs/shared";
 import { computeUnmarkedGbpMinor } from "@/lib/costs/money";
 import { repriceManualChargesToFaceValue } from "@/lib/costs/manual-entry";
 import { recordVercelMembershipShare } from "@/lib/costs/vercel-membership";
@@ -392,7 +395,8 @@ async function executeCostSync(
               item.sharedAllocation.membership,
               billing.projectId,
             );
-            if (allocation.denominator === 0 || allocation.share === BigInt(0)) {
+            const allocationStatus = sharedAllocationStatus(allocation);
+            if (allocationStatus === "unallocated") {
               await recordQuarantine(tx, {
                 sourceKind: "VERCEL_FOCUS",
                 bucketKey: `${item.charge.bucketKey}:unallocated`,
@@ -418,6 +422,7 @@ async function executeCostSync(
               periodEnd: item.charge.periodEnd,
               displayLabel: item.charge.displayLabel,
               metadata: {
+                allocationStatus,
                 projectIds: allocation.membership,
                 denominator: allocation.denominator,
                 remainderMethod: "sorted-project-id",
