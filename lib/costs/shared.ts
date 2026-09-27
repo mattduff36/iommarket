@@ -20,3 +20,11 @@ export function allocateSharedPence(
 
   return { share, denominator, membership };
 }
+
+export function sharedAllocationStatus(
+  allocation: Pick<ReturnType<typeof allocateSharedPence>, "share" | "denominator">,
+): "unallocated" | "zero-share" | "allocated" {
+  if (allocation.denominator === 0) return "unallocated";
+  if (allocation.share === BigInt(0)) return "zero-share";
+  return "allocated";
+}

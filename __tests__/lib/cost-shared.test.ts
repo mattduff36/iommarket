@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { allocateSharedPence } from "@/lib/costs/shared";
+import {
+  allocateSharedPence,
+  sharedAllocationStatus,
+} from "@/lib/costs/shared";
 
 describe("COST-SHARED-001 equal project allocation", () => {
   it("conserves marked pence with deterministic remainders", () => {
@@ -18,5 +21,17 @@ describe("COST-SHARED-001 equal project allocation", () => {
 
     const negative = ["prj_z", "prj_a"].map((id) => allocateSharedPence(-5n, ["prj_z", "prj_a"], id));
     expect(negative[0].share + negative[1].share).toBe(-5n);
+  });
+
+  it("distinguishes a valid zero-pence share from an unallocatable row", () => {
+    const roundedToZero = allocateSharedPence(1n, ["prj_a", "prj_b"], "prj_b");
+    const noProjects = allocateSharedPence(1n, [], "prj_a");
+
+    expect(roundedToZero).toMatchObject({ share: 0n, denominator: 2 });
+    expect(sharedAllocationStatus(roundedToZero)).toBe("zero-share");
+    expect(sharedAllocationStatus(noProjects)).toBe("unallocated");
+    expect(
+      sharedAllocationStatus(allocateSharedPence(1n, ["prj_a"], "prj_a")),
+    ).toBe("allocated");
   });
 });
