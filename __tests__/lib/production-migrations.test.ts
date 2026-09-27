@@ -102,6 +102,28 @@ describe("production migration contract MIG-001", () => {
     expect(startedAt).toContain("financial or provenance rows exist");
   });
 
+  it("adds private dealer correspondence settings", () => {
+    const correspondence = readMigration("20260927190000_dealer_correspondence_settings");
+    expect(correspondence).toContain('CREATE TYPE "DealerEmailCategory"');
+    expect(correspondence).toContain('CREATE TABLE "DealerCorrespondenceSettings"');
+    expect(correspondence).toContain(
+      'CREATE UNIQUE INDEX "DealerCorrespondenceSettings_dealerId_key"',
+    );
+    expect(correspondence).toContain(
+      'CREATE UNIQUE INDEX "DealerCorrespondenceSettings_verificationTokenHash_key"',
+    );
+    expect(correspondence).toContain(
+      'DEFAULT ARRAY[]::"DealerEmailCategory"[]',
+    );
+    expect(correspondence).toContain(
+      '"copyAssignedToPrimary" BOOLEAN NOT NULL DEFAULT false',
+    );
+    expect(correspondence).toContain("DealerCorrespondenceSettings_pending_check");
+    expect(correspondence).toContain(
+      'ALTER TABLE "public"."DealerCorrespondenceSettings" ENABLE ROW LEVEL SECURITY',
+    );
+  });
+
   it("adds the vehicle catalogue without constraining listing EAV values", () => {
     const catalogue = readMigration("20260817014500_vehicle_catalogue");
     for (const table of ["VehicleMake", "VehicleModel", "VehicleModelAlias"]) {

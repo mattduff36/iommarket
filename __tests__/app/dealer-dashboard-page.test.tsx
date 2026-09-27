@@ -14,6 +14,7 @@ const getMarketplacePricingMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => redirectMock(path),
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 vi.mock("@/lib/policy/gate", () => ({
