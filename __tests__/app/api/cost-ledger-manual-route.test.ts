@@ -34,8 +34,7 @@ function restore(name: string, value: string | undefined) {
 }
 
 const manualCost = {
-  category: "OTHER",
-  externalRef: "exclude-costs-page",
+  categorySlug: "manual-adjustment",
   nativeAmount: "-12.50",
   nativeCurrency: "GBP",
   displayLabel: "Exclude costs page work",
@@ -77,8 +76,7 @@ describe("canonical manual cost API", () => {
         type: "PREVIEW_MANUAL_COST",
         payload: {
           origin: "preview",
-          category: "OTHER",
-          externalRef: "exclude-costs-page",
+          category: "manual-adjustment",
         },
       }),
     });

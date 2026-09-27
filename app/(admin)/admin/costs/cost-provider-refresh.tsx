@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { refreshProviderCosts } from "@/actions/admin/costs";
 import { BrandedSpinner } from "@/components/ui/branded-spinner";
+import { AdminActionButton } from "@/components/admin/admin-action-controls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { COST_REFRESH_HELP } from "@/lib/costs/copy";
 import type { CostSyncHealthDto } from "@/lib/costs/dto";
@@ -101,6 +102,29 @@ export function CostProviderRefresh({
           <p className="text-sm text-text-secondary">
             {sync.quarantinedCount} provider rows could not be classified.
           </p>
+        ) : null}
+        {isOwner ? (
+          <AdminActionButton
+            type="button"
+            disabled={phase === "refreshing"}
+            onClick={() => {
+              setPhase("refreshing");
+              setDetail(null);
+              void (async () => {
+                const result = await refreshProviderCosts();
+                if (result?.error) {
+                  setDetail(typeof result.error === "string" ? result.error : "Provider refresh failed.");
+                  setPhase("failed");
+                  return;
+                }
+                setDetail(result?.data?.message ?? "Provider costs updated.");
+                setPhase(result?.data?.status === "failed" ? "failed" : "updated");
+                refreshPage();
+              })();
+            }}
+          >
+            Refresh provider costs
+          </AdminActionButton>
         ) : null}
       </CardContent>
     </Card>

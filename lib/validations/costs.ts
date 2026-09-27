@@ -14,8 +14,12 @@ const decimalAmount = z
 
 export const recordManualCostSchema = z
   .object({
-    category: z.enum(["DATABASE", "OTHER"]),
-    externalRef: z.string().trim().min(3).max(120),
+    categorySlug: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Choose a cost category.")
+      .min(2)
+      .max(60),
     nativeAmount: decimalAmount,
     nativeCurrency: z.enum(["USD", "GBP"]),
     displayLabel: z.string().trim().min(2).max(120),
@@ -38,6 +42,11 @@ export const costSyncRequestSchema = z.object({
   path: ["deploymentUrl"],
 });
 export type RecordManualCostInput = z.infer<typeof recordManualCostSchema>;
+
+export const createManualCostCategorySchema = z.object({
+  label: z.string().trim().min(2).max(40),
+});
+export type CreateManualCostCategoryInput = z.infer<typeof createManualCostCategorySchema>;
 
 export const confirmInvoiceRequestSchema = z.object({
   requestId: z.string().cuid(),

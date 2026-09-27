@@ -7,6 +7,7 @@ const {
   reportHandledExceptionMock,
   requestRemoteCostRefreshMock,
   requestRemoteManualCostMock,
+  requestRemoteManualCategoryMock,
 } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
   confirmInvoiceRequestMock: vi.fn(),
@@ -14,6 +15,7 @@ const {
   reportHandledExceptionMock: vi.fn(),
   requestRemoteCostRefreshMock: vi.fn(),
   requestRemoteManualCostMock: vi.fn(),
+  requestRemoteManualCategoryMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -44,6 +46,7 @@ vi.mock("@/lib/costs/remote-ledger", () => ({
   requestRemoteInvoice: vi.fn(),
   requestRemoteCostRefresh: requestRemoteCostRefreshMock,
   requestRemoteManualCost: requestRemoteManualCostMock,
+  requestRemoteManualCategory: requestRemoteManualCategoryMock,
 }));
 
 vi.mock("@/lib/monitoring", () => ({
@@ -213,8 +216,7 @@ describe("provider cost refresh", () => {
     requestRemoteManualCostMock.mockResolvedValue(undefined);
     const { recordManualProjectCost } = await loadCostActions();
     const input = {
-      category: "OTHER" as const,
-      externalRef: "exclude-costs-page",
+      categorySlug: "manual-adjustment",
       nativeAmount: "-12.50",
       nativeCurrency: "GBP" as const,
       displayLabel: "Exclude costs page work",
@@ -225,6 +227,26 @@ describe("provider cost refresh", () => {
       data: { recorded: true },
     });
     expect(requestRemoteManualCostMock).toHaveBeenCalledWith("https://itrader.im", input);
+  });
+
+  it("saves a new manual category on the canonical ledger", async () => {
+    process.env.COST_LEDGER_ROLE = "reader";
+    process.env.COST_LEDGER_ORIGIN = "https://itrader.im";
+    requestRemoteManualCategoryMock.mockResolvedValue({
+      category: { slug: "office-supplies", label: "Office Supplies" },
+      categories: [{ slug: "office-supplies", label: "Office Supplies" }],
+    });
+    const { addManualCostCategory } = await loadCostActions();
+    await expect(addManualCostCategory({ label: "Office Supplies" })).resolves.toEqual({
+      data: {
+        category: { slug: "office-supplies", label: "Office Supplies" },
+        categories: [{ slug: "office-supplies", label: "Office Supplies" }],
+      },
+    });
+    expect(requestRemoteManualCategoryMock).toHaveBeenCalledWith(
+      "https://itrader.im",
+      "Office Supplies",
+    );
   });
 
   it("rejects a non-owner before either refresh path", async () => {

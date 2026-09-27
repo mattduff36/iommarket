@@ -74,6 +74,7 @@ export interface CostDashboardDto {
   affectsLiveLedger: boolean;
   ledgerRevision: string | null;
   ledgerAsOf: string | null;
+  manualCategories: Array<{ slug: string; label: string }>;
 }
 
 export function toCostLineDto(input: {
@@ -85,10 +86,15 @@ export function toCostLineDto(input: {
   invoiceability: CostInvoiceability;
   servicePeriodStart: Date;
   servicePeriodEnd: Date;
+  manualSection?: string | null;
 }): CostLineDto {
+  const manualSection = input.manualSection?.trim();
   return {
     id: input.id,
-    section: COST_SECTION_LABELS[input.category],
+    section:
+      input.category === "OTHER" && manualSection
+        ? manualSection
+        : COST_SECTION_LABELS[input.category],
     category: input.category,
     label: input.displayLabel,
     amountLabel: formatMarkedGbp(input.markedGbpMinor),
@@ -126,4 +132,49 @@ export function toInvoiceRequestDto(input: {
 
 export function buildRequestButtonLabel(invoiceableMinor: bigint): string {
   return formatInvoiceRequestLabel(invoiceableMinor);
+}
+
+const PROVIDER_SECTION_ORDER: CostCategory[] = [
+  "CURSOR",
+  "VERCEL_HOSTING",
+  "DATABASE",
+  "SHARED_VERCEL",
+];
+
+export function groupCostSections(lines: CostLineDto[]): CostDashboardDto["sections"] {
+  const provider = PROVIDER_SECTION_ORDER.flatMap((category) => {
+    const categoryLines = lines.filter((line) => line.category === category);
+    if (categoryLines.length === 0) return [];
+    const amountMinor = categoryLines.reduce((total, line) => total + line.amountMinor, 0);
+    return [{
+      key: category,
+      label: COST_SECTION_LABELS[category],
+      amountLabel: formatMarkedGbp(BigInt(amountMinor)),
+      provisional: category === "SHARED_VERCEL" && categoryLines.some((line) => line.provisional),
+      lines: categoryLines,
+    }];
+  });
+
+  const manualLabels: string[] = [];
+  for (const line of lines) {
+    if (line.category === "OTHER" && !manualLabels.includes(line.section)) {
+      manualLabels.push(line.section);
+    }
+  }
+  const manual = manualLabels.flatMap((label) => {
+    const categoryLines = lines.filter(
+      (line) => line.category === "OTHER" && line.section === label,
+    );
+    if (categoryLines.length === 0) return [];
+    const amountMinor = categoryLines.reduce((total, line) => total + line.amountMinor, 0);
+    return [{
+      key: `manual:${label}`,
+      label,
+      amountLabel: formatMarkedGbp(BigInt(amountMinor)),
+      provisional: false,
+      lines: categoryLines,
+    }];
+  });
+
+  return [...provider, ...manual];
 }

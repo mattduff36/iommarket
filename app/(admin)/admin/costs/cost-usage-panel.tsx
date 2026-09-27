@@ -7,7 +7,7 @@ import type { CostLineDto } from "@/lib/costs/dto";
 import {
   COST_USAGE_RANGE_LABELS,
   COST_USAGE_RANGES,
-  COST_USAGE_SERIES_COLORS,
+  costSeriesColor,
   buildCostUsageModel,
   summarizeCostLines,
   type CostUsageRange,
@@ -98,11 +98,11 @@ export function CostUsagePanel({
           <CostUsageChart points={model.points} seriesKeys={model.seriesKeys} />
           {model.seriesKeys.length > 0 ? (
             <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-secondary">
-              {model.seriesKeys.map((key) => (
+              {model.seriesKeys.map((key, index) => (
                 <li key={key} className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: COST_USAGE_SERIES_COLORS[key] }}
+                    style={{ backgroundColor: costSeriesColor(key, index) }}
                     aria-hidden
                   />
                   {key}

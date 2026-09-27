@@ -1,4 +1,4 @@
-import { COST_USAGE_SERIES_COLORS, type CostUsageDayPoint } from "@/lib/costs/usage-view";
+import { costSeriesColor, type CostUsageDayPoint } from "@/lib/costs/usage-view";
 import { formatMarkedGbp } from "@/lib/costs/format";
 
 const WIDTH = 800;
@@ -91,11 +91,11 @@ export function CostUsageChart({
           </text>
         </g>
       ))}
-      {paths.map((path) => (
+      {paths.map((path, index) => (
         <path
           key={path.key}
           d={path.d}
-          fill={COST_USAGE_SERIES_COLORS[path.key] ?? "#8E8E93"}
+          fill={costSeriesColor(path.key, index)}
           fillOpacity={0.85}
         />
       ))}

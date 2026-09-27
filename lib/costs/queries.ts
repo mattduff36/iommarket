@@ -1,13 +1,16 @@
-import type { CostCategory, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { assertPreviewCostLedgerReady } from "@/lib/costs/db";
 import {
   buildRequestButtonLabel,
-  COST_SECTION_LABELS,
+  groupCostSections,
   toCostLineDto,
   toInvoiceRequestDto,
   type CostDashboardDto,
-  type CostLineDto,
 } from "@/lib/costs/dto";
+import {
+  DEFAULT_MANUAL_COST_CATEGORIES,
+  listManualCostCategories,
+} from "@/lib/costs/manual-categories";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { minorToSafeNumber, sumMinor, ZERO_MINOR } from "@/lib/costs/money";
 
@@ -32,28 +35,10 @@ export async function listInvoiceableEntries(client: Prisma.TransactionClient | 
   });
 }
 
-function groupSections(lines: CostLineDto[]) {
-  const order: CostCategory[] = [
-    "CURSOR",
-    "VERCEL_HOSTING",
-    "DATABASE",
-    "OTHER",
-    "SHARED_VERCEL",
-  ];
-  return order
-    .map((category) => {
-      const categoryLines = lines.filter((line) => line.category === category);
-      const amountMinor = categoryLines.reduce((total, line) => total + line.amountMinor, 0);
-      const provisional = category === "SHARED_VERCEL" && categoryLines.some((line) => line.provisional);
-      return {
-        key: category,
-        label: COST_SECTION_LABELS[category],
-        amountLabel: formatMarkedGbp(BigInt(amountMinor)),
-        provisional,
-        lines: categoryLines,
-      };
-    })
-    .filter((section) => section.lines.length > 0);
+function manualSectionLabel(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const label = "manualCategoryLabel" in metadata ? metadata.manualCategoryLabel : null;
+  return typeof label === "string" && label.trim() ? label.trim() : null;
 }
 
 export async function getCostDashboard(input: {
@@ -86,6 +71,7 @@ export async function getCostDashboard(input: {
       affectsLiveLedger: false,
       ledgerRevision: null,
       ledgerAsOf: null,
+      manualCategories: [...DEFAULT_MANUAL_COST_CATEGORIES],
     };
   }
 
@@ -94,10 +80,11 @@ export async function getCostDashboard(input: {
   });
   assertPreviewCostLedgerReady(config);
 
-  const [entries, pending, requests, latestSync] = await Promise.all([
+  const [entries, pending, requests, latestSync, manualCategories] = await Promise.all([
     input.db.costEntry.findMany({
       where: { settlement: { is: null } },
       orderBy: [{ servicePeriodStart: "asc" }, { createdAt: "asc" }],
+      include: { sourceSnapshot: { select: { metadata: true } } },
     }),
     input.db.invoiceRequest.findFirst({
       where: { status: "PENDING" },
@@ -111,6 +98,7 @@ export async function getCostDashboard(input: {
     input.db.costSyncRun.findFirst({
       orderBy: { startedAt: "desc" },
     }),
+    listManualCostCategories(),
   ]);
 
   const projected = sumMinor(entries.map((entry) => entry.markedGbpMinor));
@@ -147,7 +135,14 @@ export async function getCostDashboard(input: {
     requestButtonLabel: buildRequestButtonLabel(invoiceable),
     canRequestInvoice: !pending && invoiceable > ZERO_MINOR,
     pendingRequest: pendingDto,
-    sections: groupSections(entries.map(toCostLineDto)),
+    sections: groupCostSections(
+      entries.map((entry) =>
+        toCostLineDto({
+          ...entry,
+          manualSection: manualSectionLabel(entry.sourceSnapshot.metadata),
+        }),
+      ),
+    ),
     requests: requests.map((request) =>
       toInvoiceRequestDto({
         ...request,
@@ -166,5 +161,6 @@ export async function getCostDashboard(input: {
     affectsLiveLedger: false,
     ledgerRevision: latestSync?.checksum ?? latestSync?.id ?? null,
     ledgerAsOf: syncCompletedAt?.toISOString() ?? null,
+    manualCategories,
   };
 }

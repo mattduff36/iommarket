@@ -57,8 +57,7 @@ describe("remote manual cost", () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ data: { recorded: true } }));
     vi.stubGlobal("fetch", fetchMock);
     const input = {
-      category: "OTHER" as const,
-      externalRef: "exclude-costs-page",
+      categorySlug: "manual-adjustment",
       nativeAmount: "-12.50",
       nativeCurrency: "GBP" as const,
       displayLabel: "Exclude costs page work",
@@ -84,8 +83,7 @@ describe("remote manual cost", () => {
       requestRemoteManualCost(
         "https://itrader.im",
         {
-          category: "OTHER",
-          externalRef: "exclude-costs-page",
+          categorySlug: "manual-adjustment",
           nativeAmount: "-12.50",
           nativeCurrency: "GBP",
           displayLabel: "Exclude costs page work",
@@ -107,8 +105,7 @@ describe("remote manual cost", () => {
       requestRemoteManualCost(
         "https://itrader.im",
         {
-          category: "OTHER",
-          externalRef: "exclude-costs-page",
+          categorySlug: "manual-adjustment",
           nativeAmount: "-1.00",
           nativeCurrency: "GBP",
           displayLabel: "Exclude costs page work",
