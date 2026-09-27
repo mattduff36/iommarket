@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
@@ -20,6 +21,13 @@ export default function ContactPage() {
         <a className="text-text-trust hover:underline" href="mailto:hello@itrader.im">
           hello@itrader.im
         </a>
+        .
+      </p>
+      <p className="mt-4 text-sm text-text-secondary">
+        Many common questions are answered in the{" "}
+        <Link href="/faq" className="text-text-trust hover:underline">
+          frequently asked questions
+        </Link>
         .
       </p>
     </div>

@@ -38,6 +38,7 @@ import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getPolicyFlags } from "@/lib/policy/flags";
 import { CancellationRequestCard } from "./cancellation-request-card";
+import { DealerCorrespondenceSettingsCard } from "./dealer-correspondence-settings";
 import { DealerReviewResponseManager } from "./dealer-review-response-manager";
 import { toManagedDealerReview } from "@/lib/reviews/dealer-review-client";
 
@@ -124,6 +125,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     pricing,
     openCancellation,
     responseEligibleReviews,
+    correspondence,
   ] = await Promise.all([
     db.listing.findMany({
       where: listingWhere,
@@ -196,6 +198,16 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
             decisionReasonCode: true,
           },
         },
+      },
+    }),
+    db.dealerCorrespondenceSettings.findUnique({
+      where: { dealerId: user.dealerProfile.id },
+      select: {
+        verifiedEmail: true,
+        pendingEmail: true,
+        verificationExpiresAt: true,
+        categories: true,
+        copyAssignedToPrimary: true,
       },
     }),
   ]);
@@ -356,6 +368,15 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           existingStatus={openCancellation?.status ?? null}
         />
       ) : null}
+
+      <DealerCorrespondenceSettingsCard
+        primaryEmail={user.email}
+        verifiedEmail={correspondence?.verifiedEmail ?? null}
+        pendingEmail={correspondence?.pendingEmail ?? null}
+        verificationExpiresAt={correspondence?.verificationExpiresAt?.toISOString() ?? null}
+        categories={correspondence?.categories ?? []}
+        copyAssignedToPrimary={correspondence?.copyAssignedToPrimary ?? false}
+      />
 
       <DealerReviewResponseManager reviews={managedReviews} />
 

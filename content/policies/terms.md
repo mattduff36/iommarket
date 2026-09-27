@@ -1,6 +1,6 @@
 # TERMS AND CONDITIONS OF USE
 *iTrader.im - Online Vehicle Marketplace*
-*Effective on launch*
+*Effective 23 September 2026*
 iTrader.im is a trading name of Code Lab Platforms Limited.
 
 
@@ -10,7 +10,7 @@ iTrader.im is a trading name of Code Lab Platforms Limited.
 
 **1.2** When you create an account, place a listing, or otherwise use the Platform, you are entering into a legally binding agreement with Code Lab Platforms Limited, not with any unincorporated trading style or third party.
 
-**1.3** iTrader.im operates an online marketplace through which private individuals and motor dealers based in, or with vehicles located in, the Isle of Man may advertise vehicles for sale, and through which prospective buyers may search for and make contact with sellers (the "Service").
+**1.3** iTrader.im is an Isle of Man marketplace through which private individuals and motor dealers may advertise cars, vans, motorbikes and motorhomes for sale, and through which prospective buyers may search for and contact sellers (the "Service"). A vehicle may be located in the Isle of Man or the United Kingdom.
 
 **1.4** These terms and conditions, together with our Privacy Policy, Cookie Policy, Acceptable Use Policy, Refund Policy, and, where applicable, the Private Seller Terms or Dealer Terms (each as amended from time to time and each incorporated into these Terms by reference), (together, the "Terms") govern your access to and use of the Platform, whether as a private seller, a dealer, a buyer, or a visitor who is simply browsing.
 
@@ -39,7 +39,7 @@ iTrader.im is a trading name of Code Lab Platforms Limited.
 
 "User" means any person who accesses or uses the Platform, whether as a Buyer, Seller, or otherwise, and whether or not they hold an Account.
 
-"Vehicle" means any car, van, motorcycle, motorhome, trailer, or other vehicle (and any associated parts or accessories) advertised on the Platform.
+"Vehicle" means a car, van, motorbike or motorhome advertised on the Platform. It does not include a trailer, number plate, part or accessory.
 
 "Payment Provider" means Ripple, or any successor or additional third-party payment processor engaged by us from time to time to process payments made through the Platform.
 
@@ -88,9 +88,9 @@ verify the accuracy of any Listing, mileage, registration history, or condition 
 
 ## 5. PRIVATE LISTINGS
 
-**5.1** Private Sellers may purchase a single Vehicle advert for a fee, currently £4.99, which entitles the Private Seller to a Listing that remains live on the Platform for 60 days from the date of publication, unless removed earlier in accordance with these Terms.
+**5.1** Private Sellers may purchase a single Vehicle advert at the price displayed at checkout, including any launch offer then available. That purchase entitles the Private Seller to a Listing that remains live on the Platform for 60 days from the date of publication, unless removed earlier in accordance with these Terms.
 
-**5.2** Private Sellers may purchase optional upgrades, including a "Featured" placement, currently £5.00 per vehicle, designed to increase the visibility of a Listing. Featured status does not guarantee views, enquiries, or a sale. We may introduce further optional paid upgrades from time to time, and the features, availability, and pricing of any upgrade may change.
+**5.2** Private Sellers may purchase optional upgrades, including a "Featured" placement, at the price displayed at checkout. Featured status is designed to increase the visibility of a Listing. It does not guarantee views, enquiries, or a sale. Where checkout offers an optional support payment, that payment is the amount displayed there and is not required in order to advertise. We may introduce further optional paid upgrades from time to time, and the features, availability, and pricing of any upgrade may change.
 
 **5.3** Prices for private Listings and upgrades are as displayed on the Platform at the point of purchase and may be changed by us at any time, save that a change in price will not affect a Listing already purchased and paid for.
 
@@ -243,7 +243,7 @@ refuse to provide the Service, in whole or in part, to any person where we reaso
 
 **12.2** Where a Listing fee has been charged in error, where we remove a Listing other than for a breach of these Terms, or where the Platform experiences a technical fault that prevents a paid Listing from being published, we will, at our discretion, either provide a replacement Listing of equivalent value or refund the fee paid.
 
-**12.3** Dealers may cancel a recurring subscription at any time through their Account settings or by written notice to hello@itrader.im, to take effect at the end of the then-current subscription period. Cancellation does not entitle a Dealer to a refund of fees already paid for the current period, but will prevent any further renewal charge.
+**12.3** Dealers may cancel a recurring subscription by email to hello@itrader.im. Where the dealer dashboard shows a cancellation request, the Dealer may use that request as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete the provider cancellation. Cancellation takes effect at the end of the then-current subscription period. It does not entitle a Dealer to a refund of fees already paid for the current period, but it prevents any further renewal charge.
 
 **12.4** Featured upgrades and other one-off paid enhancements are non-refundable once applied to a Listing, save where the enhancement was not delivered due to our fault.
 

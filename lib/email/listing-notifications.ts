@@ -13,6 +13,7 @@ import {
   shouldNotifySellerStatusChange,
   type ListingNotificationIntent,
 } from "@/lib/listings/notification-intents";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 
 function listingLinks(listingId?: string) {
@@ -173,6 +174,7 @@ async function sendOneNotification(intent: ListingNotificationIntent) {
     select: {
       id: true,
       title: true,
+      dealerId: true,
       user: { select: { email: true } },
     },
   });
@@ -187,13 +189,20 @@ async function sendOneNotification(intent: ListingNotificationIntent) {
       moderationSubReason: intent.moderationSubReason,
       moderationTaxonomyVersion: intent.moderationTaxonomyVersion,
     });
-    if (sellerEmail && listing.user.email) {
-      await sendResendEmail({
-        to: listing.user.email,
-        subject: sellerEmail.subject,
-        text: sellerEmail.text,
-        html: sellerEmail.html,
+    if (sellerEmail) {
+      const recipients = await resolveDealerMailRecipients({
+        dealerId: listing.dealerId,
+        primaryEmail: listing.user.email,
+        category: "LISTING_UPDATES",
       });
+      if (recipients.length > 0) {
+        await sendResendEmail({
+          to: recipients,
+          subject: sellerEmail.subject,
+          text: sellerEmail.text,
+          html: sellerEmail.html,
+        });
+      }
     }
   }
 

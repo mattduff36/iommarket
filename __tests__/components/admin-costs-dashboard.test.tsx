@@ -13,6 +13,7 @@ vi.mock("@/actions/admin/costs", () => ({
   recordManualProjectCost: vi.fn(),
   retryProjectCostEmail: vi.fn(),
   runManualCostSync: vi.fn(),
+  refreshProviderCosts: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -62,9 +63,6 @@ function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto 
       errorCode: null,
     },
     unavailableReason: null,
-    infrastructureMarkupLabel: "Vercel hosting and database charges include a 20% markup.",
-    cursorPolicyLabel: "Cursor charges are 60% of included nominal value and 110% of on-demand value.",
-    allowanceLabel: "Crossing $400 is not confirmed on-demand usage.",
     affectsLiveLedger: false,
     ledgerRevision: null,
     ledgerAsOf: null,
@@ -79,10 +77,13 @@ describe("admin costs dashboard T5", () => {
     render(<CostDashboardView dashboard={data} />);
     expect(screen.getByText(COST_EMPTY_HELP)).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
-    expect(screen.getByText(/20% markup/i)).not.toBeNull();
-    expect(screen.getByText(/60% of included nominal value/i)).not.toBeNull();
+    expect(screen.queryByText(/20% markup/i)).toBeNull();
+    expect(screen.queryByText(/60% of included nominal value/i)).toBeNull();
+    expect(screen.queryByText(/Crossing \$400/i)).toBeNull();
+    expect(screen.queryByText(/updates the live ledger/i)).toBeNull();
     expect(screen.getByText(COST_NON_OWNER_HELP)).not.toBeNull();
-    expect(screen.getByText(/No refresh yet/i)).not.toBeNull();
+    expect(screen.getByText(/No provider refresh recorded yet/i)).not.toBeNull();
+    expect(screen.queryByText(/Refresh is overdue/i)).toBeNull();
     expect(screen.queryByText(/Ledger start:/i)).toBeNull();
     expect(screen.queryByText(/business-day|split equally|provisional shared hosting/i)).toBeNull();
     expect(screen.queryByText(/nativeAmount|fxRate|billedCost/i)).toBeNull();
@@ -114,8 +115,9 @@ describe("admin costs dashboard T5", () => {
         })}
       />,
     );
-    expect(screen.getByText(/Last refresh failed/i)).not.toBeNull();
-    expect(screen.getByText(/2 provider rows could not be classified/i)).not.toBeNull();
+    expect(screen.getByText(/Refreshing provider costs/i)).not.toBeNull();
+    expect(screen.queryByText(/Refresh is overdue/i)).toBeNull();
+    expect(screen.queryByText(/2 provider rows could not be classified/i)).toBeNull();
     expect(screen.getByText(/notification email failed/i)).not.toBeNull();
     expect(screen.queryByText("CostFxError")).toBeNull();
   });
@@ -132,7 +134,7 @@ describe("admin costs dashboard T5", () => {
       sections: [
         {
           key: "VERCEL_HOSTING",
-          label: "Vercel Hosting",
+          label: "Website hosting (Vercel)",
           amountLabel: "£8.00",
           provisional: false,
           lines: [
@@ -143,6 +145,7 @@ describe("admin costs dashboard T5", () => {
               label: "Hosting",
               amountLabel: "£8.00",
               amountMinor: 800,
+              kind: "CHARGE",
               invoiceability: "INVOICEABLE",
               periodStart: "2026-08-14T00:00:00.000Z",
               periodEnd: "2026-08-15T00:00:00.000Z",
@@ -152,7 +155,7 @@ describe("admin costs dashboard T5", () => {
         },
         {
           key: "SHARED_VERCEL",
-          label: "Shared Hosting",
+          label: "Shared Vercel services",
           amountLabel: "£4.00",
           provisional: true,
           lines: [
@@ -163,6 +166,7 @@ describe("admin costs dashboard T5", () => {
               label: "Shared team charge",
               amountLabel: "£4.00",
               amountMinor: 400,
+              kind: "CHARGE",
               invoiceability: "PROVISIONAL",
               periodStart: "2026-08-01T00:00:00.000Z",
               periodEnd: "2026-09-01T00:00:00.000Z",
@@ -181,13 +185,21 @@ describe("admin costs dashboard T5", () => {
     });
     expect(hasSensitiveCostField(data)).toBe(false);
     render(<CostDashboardView dashboard={data} />);
-    expect(screen.getByText("Up to date")).not.toBeNull();
-    expect(screen.getByText(/Last completed/i)).not.toBeNull();
+    expect(screen.getByText(/Refreshing provider costs/i)).not.toBeNull();
+    expect(screen.queryByText(/Refresh is overdue/i)).toBeNull();
     expect(screen.getByRole("heading", { name: "Usage" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("img", { name: /cumulative project costs/i })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Vercel Hosting" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Shared Hosting" })).not.toBeNull();
+    expect(
+      screen.getAllByRole("heading", { name: "Website hosting (Vercel)" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("heading", { name: "Shared Vercel services" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/Vercel services used directly by the iTrader website/i)).not.toBeNull();
+    expect(screen.getByText(/equal share across active production projects/i)).not.toBeNull();
+    expect(screen.queryByText("Included")).toBeNull();
+    expect(screen.queryByText("On-demand")).toBeNull();
     expect(screen.getByText("Provisional")).not.toBeNull();
     expect(screen.getByText("Invoiceable")).not.toBeNull();
     expect(screen.queryByText(COST_EMPTY_HELP)).toBeNull();
@@ -203,6 +215,7 @@ describe("admin costs dashboard T5", () => {
       label: `Cursor 2026-09-${String(26 - index).padStart(2, "0")} included`,
       amountLabel: "£1.00",
       amountMinor: 100,
+      kind: "CHARGE" as const,
       invoiceability: "INVOICEABLE" as const,
       periodStart: `2026-09-${String(26 - index).padStart(2, "0")}T00:00:00.000Z`,
       periodEnd: `2026-09-${String(27 - index).padStart(2, "0")}T00:00:00.000Z`,
@@ -214,7 +227,7 @@ describe("admin costs dashboard T5", () => {
           sections: [
             {
               key: "CURSOR",
-              label: "Development",
+              label: "Development (Cursor)",
               amountLabel: "£12.00",
               provisional: false,
               lines,
@@ -223,13 +236,75 @@ describe("admin costs dashboard T5", () => {
         })}
       />,
     );
+    expect(screen.getByText(/Daily Cursor usage used to build and maintain iTrader/i)).not.toBeNull();
+    expect(screen.getByText("12 cost items combined from 12 ledger entries")).not.toBeNull();
     expect(screen.getByText("Showing 1–10 of 12")).not.toBeNull();
-    expect(screen.getByText("Cursor 2026-09-26 included")).not.toBeNull();
-    expect(screen.queryByText("Cursor 2026-09-16 included")).toBeNull();
+    expect(screen.getByText(/26 Sept? 2026/)).not.toBeNull();
+    expect(screen.queryByText(/16 Sept? 2026/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Page 2" }));
     expect(screen.getByText("Showing 11–12 of 12")).not.toBeNull();
-    expect(screen.getByText("Cursor 2026-09-16 included")).not.toBeNull();
-    expect(screen.queryByText("Cursor 2026-09-26 included")).toBeNull();
+    expect(screen.getByText(/16 Sept? 2026/)).not.toBeNull();
+    expect(screen.queryByText(/26 Sept? 2026/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "7d" }));
+    expect(screen.queryByText("Showing 11–12 of 12")).toBeNull();
+    expect(screen.getByText(/26 Sept? 2026/)).not.toBeNull();
+  });
+
+  it("keeps zero-value ledger detail out of the client view but available to the owner", async () => {
+    const user = userEvent.setup();
+    const baseLine = {
+      section: "Website hosting (Vercel)",
+      category: "VERCEL_HOSTING" as const,
+      label: "Functions",
+      invoiceability: "INVOICEABLE" as const,
+      periodStart: "2026-09-26T00:00:00.000Z",
+      periodEnd: "2026-09-27T00:00:00.000Z",
+      provisional: false,
+    };
+    render(
+      <CostDashboardView
+        dashboard={dashboard({
+          isOwner: true,
+          sections: [
+            {
+              key: "VERCEL_HOSTING",
+              label: "Website hosting (Vercel)",
+              amountLabel: "£0.00",
+              provisional: false,
+              lines: [
+                {
+                  ...baseLine,
+                  id: "charge",
+                  amountLabel: "£0.05",
+                  amountMinor: 5,
+                  kind: "CHARGE",
+                },
+                {
+                  ...baseLine,
+                  id: "reversal",
+                  amountLabel: "-£0.05",
+                  amountMinor: -5,
+                  kind: "REVERSAL",
+                },
+                {
+                  ...baseLine,
+                  id: "zero",
+                  amountLabel: "£0.00",
+                  amountMinor: 0,
+                  kind: "CHARGE",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("0 cost items combined from 3 ledger entries")).not.toBeNull();
+    expect(screen.getByText(/No individual cost item is £0.01 or more/i)).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show all ledger entries" }));
+    expect(screen.getAllByText("Functions")).toHaveLength(3);
+    expect(screen.getByText("Adjustment")).not.toBeNull();
   });
 
   it("does not show implementation details when costs are disabled", () => {

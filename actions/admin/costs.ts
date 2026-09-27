@@ -11,7 +11,7 @@ import {
 } from "@/lib/costs/config";
 import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
 import { assertCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
-import { requestRemoteInvoice } from "@/lib/costs/remote-ledger";
+import { requestRemoteCostRefresh, requestRemoteInvoice } from "@/lib/costs/remote-ledger";
 import { deliverCostOutbox } from "@/lib/costs/email";
 import { getOrCreateIdentityGbpRate, getOrCreateUsdGbpRate } from "@/lib/costs/fx";
 import {
@@ -239,6 +239,63 @@ export async function retryProjectCostEmail(input: RetryCostEmailInput) {
   }
 }
 
+export async function refreshProviderCosts() {
+  await requireCostOwnerAdmin();
+  if (!isCostsEnabled()) {
+    const message = manualCostSyncMessage({ status: "skipped" });
+    return { data: { status: "skipped" as const, message } };
+  }
+  const access = resolveLedgerAccess();
+  if (access.mode === "unavailable") {
+    return {
+      error: access.reason,
+      data: { status: "failed" as const, message: access.reason },
+    };
+  }
+  if (access.mode === "remote") {
+    try {
+      const result = await requestRemoteCostRefresh(access.origin);
+      if (result.status === "failed") {
+        return { error: result.message, data: result };
+      }
+      return { data: result };
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : manualCostSyncMessage({ status: "failed" });
+      return { error: message, data: { status: "failed" as const, message } };
+    }
+  }
+
+  const writerError = canonicalWriterError();
+  if (writerError) {
+    return {
+      error: writerError.error,
+      data: { status: "failed" as const, message: writerError.error },
+    };
+  }
+
+  try {
+    const result = await runCostSync({
+      trigger: "MANUAL",
+      eventId: `manual:${crypto.randomUUID()}`,
+    });
+    const message = manualCostSyncMessage(result);
+    if (result.status === "failed" || result.status === "skipped") {
+      return { error: message, data: { ...result, message } };
+    }
+    return { data: { ...result, message } };
+  } catch (error) {
+    await reportHandledException({
+      error,
+      action: "refreshProviderCosts",
+      route: "/admin/costs",
+    });
+    const message = manualCostSyncMessage({ status: "failed" });
+    return { error: message, data: { status: "failed" as const, message } };
+  }
+}
+
 export async function runManualCostSync() {
   await requireCostOwnerAdmin();
   const writerError = canonicalWriterError();
@@ -262,7 +319,7 @@ export async function runManualCostSync() {
     });
     revalidateCostPages();
     const message = manualCostSyncMessage(result);
-    if (result.status === "succeeded") {
+    if (result.status === "succeeded" || result.status === "partial") {
       return { data: { status: result.status, message } };
     }
     return { error: message, data: { status: result.status, message } };

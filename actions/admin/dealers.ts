@@ -14,6 +14,7 @@ import {
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
 import { reportHandledException } from "@/lib/monitoring";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 
 export async function listDealers(input: { query?: string; verified?: boolean; page?: number; pageSize?: number }) {
   await requireRole("ADMIN");
@@ -184,11 +185,18 @@ export async function verifyDealer(dealerId: string, verified: boolean) {
       const { sendDealerVerificationEmail } = await import(
         "@/lib/email/dealer-notifications"
       );
-      await sendDealerVerificationEmail({
-        to: result.email,
-        dealerName: result.name,
-        verified,
+      const recipients = await resolveDealerMailRecipients({
+        dealerId,
+        primaryEmail: result.email,
+        category: "DEALER_ACCOUNT",
       });
+      if (recipients.length > 0) {
+        await sendDealerVerificationEmail({
+          to: recipients,
+          dealerName: result.name,
+          verified,
+        });
+      }
     }
 
     revalidatePath("/admin/dealers");

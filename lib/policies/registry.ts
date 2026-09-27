@@ -1,4 +1,3 @@
-import { COMPANY } from "@/lib/policy/company";
 import {
   POLICY_BUNDLES,
   POLICY_SLUGS,
@@ -7,10 +6,10 @@ import {
   type PolicySlug,
 } from "@/lib/policies/types";
 
-const CURRENT_VERSION = COMPANY.policyVersion;
-const CURRENT_EFFECTIVE_DATE = COMPANY.policyEffectiveDate;
 const LAUNCH_VERSION = "2026-08-17.1";
 const DEALER_REVIEW_VERSION = "2026-08-17.2";
+const POLICY_ALIGNMENT_VERSION = "2026-09-23.1";
+const POLICY_ALIGNMENT_EFFECTIVE_DATE = "23 September 2026";
 const EFFECTIVE_ON_LAUNCH = "on launch";
 
 export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
@@ -34,24 +33,24 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "terms",
     title: "Terms and Conditions",
     route: "/terms",
-    version: DEALER_REVIEW_VERSION,
-    effectiveDate: EFFECTIVE_ON_LAUNCH,
+    version: POLICY_ALIGNMENT_VERSION,
+    effectiveDate: POLICY_ALIGNMENT_EFFECTIVE_DATE,
     fileName: "terms.md",
   },
   "dealer-terms": {
     slug: "dealer-terms",
     title: "Dealer Terms",
     route: "/dealer-terms",
-    version: DEALER_REVIEW_VERSION,
-    effectiveDate: EFFECTIVE_ON_LAUNCH,
+    version: POLICY_ALIGNMENT_VERSION,
+    effectiveDate: POLICY_ALIGNMENT_EFFECTIVE_DATE,
     fileName: "dealer-terms.md",
   },
   "private-seller-terms": {
     slug: "private-seller-terms",
     title: "Private Seller Terms",
     route: "/private-seller-terms",
-    version: LAUNCH_VERSION,
-    effectiveDate: EFFECTIVE_ON_LAUNCH,
+    version: POLICY_ALIGNMENT_VERSION,
+    effectiveDate: POLICY_ALIGNMENT_EFFECTIVE_DATE,
     fileName: "private-seller-terms.md",
   },
   "acceptable-use": {
@@ -66,8 +65,8 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "refunds",
     title: "Refund Policy",
     route: "/refunds",
-    version: CURRENT_VERSION,
-    effectiveDate: CURRENT_EFFECTIVE_DATE,
+    version: POLICY_ALIGNMENT_VERSION,
+    effectiveDate: POLICY_ALIGNMENT_EFFECTIVE_DATE,
     fileName: "refunds.md",
   },
   "vehicle-check-terms": {

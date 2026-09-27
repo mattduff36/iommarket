@@ -42,9 +42,14 @@ export async function withCostSyncLock<T>(
 }
 
 export async function renewCostSyncLock(holder: string): Promise<boolean> {
+  const now = new Date();
   const renewed = await costDb.costSyncLock.updateMany({
-    where: { id: COST_LEDGER_CONFIG_ID, holder },
-    data: { expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
+    where: {
+      id: COST_LEDGER_CONFIG_ID,
+      holder,
+      expiresAt: { gt: now },
+    },
+    data: { expiresAt: new Date(now.getTime() + LOCK_TTL_MS) },
   });
   return renewed.count === 1;
 }

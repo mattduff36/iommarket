@@ -1,5 +1,5 @@
 # iTrader.im Refund Policy
-*Last updated: 14 August 2026*
+*Last updated: 23 September 2026*
 
 ## 1. About this Policy
 
@@ -10,7 +10,7 @@ Nothing in this Policy excludes, restricts or limits any statutory right or reme
 
 ## 2. Private Listings
 
-The standard private vehicle Listing fee is £4.99 per vehicle for up to 60 days. Once a Listing has been purchased and the advertising service has commenced, the provisions below apply subject to statutory rights.
+A private vehicle Listing is charged at the price displayed at checkout, including any launch offer then available, and runs for up to 60 days. Once a Listing has been purchased and the advertising service has commenced, the provisions below apply subject to statutory rights.
 
 
 ## 3. Selling a vehicle early
@@ -40,7 +40,7 @@ Where iTrader confirms that a duplicate payment has occurred, the duplicate amou
 
 ## 8. Featured Listings
 
-**8.1** Featured status costs £5.00 per vehicle and does not guarantee views, search position, enquiries, leads or a sale.
+**8.1** Featured status is charged at the price displayed at checkout and does not guarantee views, search position, enquiries, leads or a sale. Where checkout offers an optional support payment, that payment is the amount displayed there and is not required in order to advertise.
 
 **8.2** Selling the vehicle early does not ordinarily create an entitlement to a Featured refund.
 
@@ -51,12 +51,12 @@ Where iTrader confirms that a duplicate payment has occurred, the duplicate amou
 
 ## 9. Dealer subscriptions
 
-Dealer Starter costs £29.99 per month for up to 30 Active Listings. Dealer Pro costs £49.99 per month for up to 100 Active Listings. Dealer subscriptions automatically renew monthly unless cancelled.
+Dealer Starter and Dealer Pro are charged at the monthly prices displayed at checkout, including any current offer. Starter allows up to 30 Active Listings and Pro allows up to 100 Active Listings. Dealer subscriptions automatically renew monthly unless cancelled.
 
 
 ## 10. Dealer cancellation
 
-A Dealer may cancel at any time. Unless otherwise required by law or expressly agreed, cancellation stops future renewals, the current paid period continues to its scheduled end, and no pro-rata refund is provided. Existing Listings may remain live until the end of the paid period, subject to moderation rights.
+A Dealer may cancel by email to hello@itrader.im. Where the dealer dashboard shows a cancellation request, the Dealer may use that request as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete the provider cancellation. Unless otherwise required by law or expressly agreed, cancellation stops future renewals, the current paid period continues to its scheduled end, and no pro-rata refund is provided. Existing Listings may remain live until the end of the paid period, subject to moderation rights.
 
 
 ## 11. Dealer account suspension or termination

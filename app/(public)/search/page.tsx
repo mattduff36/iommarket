@@ -54,7 +54,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   return {
     title: sp.q ? `Search: ${sp.q}` : "Search",
     description:
-      "Search vehicles on itrader.im. Cars, vans, motorbikes, and motorhomes across the Isle of Man.",
+      "Search cars, vans, motorbikes and motorhomes on iTrader.im, including vehicles located in the Isle of Man and the United Kingdom.",
     alternates: {
       canonical: buildCanonicalUrl(seo.canonicalPath),
     },

@@ -36,10 +36,10 @@ export default async function SellSuccessPage({ searchParams }: Props) {
         : "Payment Successful";
   const message =
     payment === "skipped"
-      ? "Your listing has been submitted for review. Our moderation team will check it within 1-2 business days."
+      ? "Your listing has been submitted for review. iTrader checks listings before or after publication and does not promise a review time."
       : payment === "support"
         ? "Your optional support payment was successful. Your listing has been submitted for review."
-        : "Your payment was successful. Your listing will be submitted for moderation shortly and reviewed within 1-2 business days.";
+        : "Your payment was successful. Your listing will be submitted for review. iTrader checks listings before or after publication and does not promise a review time.";
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8 text-center">

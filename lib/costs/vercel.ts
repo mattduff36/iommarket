@@ -37,6 +37,7 @@ export class CostProviderUnavailableError extends Error {
 const FOCUS_ATTEMPT_TIMEOUT_MS = 25_000;
 const FOCUS_MAX_ATTEMPTS = 3;
 const FOCUS_RETRY_DELAY_MS = 2_000;
+const VERCEL_API_TIMEOUT_MS = 10_000;
 
 export type VerifiedDeployment =
   | {
@@ -144,6 +145,7 @@ async function vercelGet<T>(
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(VERCEL_API_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Vercel API ${path} returned ${response.status}.`);

@@ -245,8 +245,9 @@ export function SignUpWithPlans({
             {loading ? "Creating account…" : submitLabel}
           </Button>
           <p className="text-xs leading-5 text-text-secondary">
-            Use buyer tools now, then move into private or dealer selling later on the same
-            account.
+            {isDealerSignup
+              ? "A dealer account advertises through dealer listings. It does not also post private listings."
+              : "A private account can advertise a private vehicle. Becoming a dealer moves the account onto dealer listings."}
           </p>
         </div>
       </form>
@@ -282,11 +283,15 @@ export function SignUpWithPlans({
                 <Check className="h-3 w-3" />
               </div>
               <div>
-                <p className="font-medium text-text-primary">Private selling stays available</p>
-                <p className="mt-1">
-                  Use the same account to post a private listing at any time.
+                <p className="font-medium text-text-primary">
+                  {isDealerSignup ? "Dealer listings" : "Private listings"}
                 </p>
-                {showFreeOffer ? (
+                <p className="mt-1">
+                  {isDealerSignup
+                    ? "This account advertises through the dealer flow."
+                    : "Use this account to post a private listing. A dealer account uses dealer listings instead."}
+                </p>
+                {showFreeOffer && !isDealerSignup ? (
                   <p className="mt-2 text-xs text-premium-gold-500">
                     {isFreeWindowActive
                       ? "Private seller listings are free during launch."

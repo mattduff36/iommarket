@@ -12,23 +12,24 @@ export const COST_EMPTY_HELP =
 export const COST_NON_OWNER_HELP =
   "Ask the configured owner to refresh costs, add manual entries, or request invoices.";
 
-export const COST_INFRASTRUCTURE_MARKUP_LABEL =
-  "Vercel hosting and database charges include a 20% markup.";
-
-export const COST_CURSOR_POLICY_LABEL =
-  "Cursor charges are 60% of included nominal value and 110% of on-demand value. This includes time and has no extra markup.";
-
-export const COST_LIVE_LEDGER_REQUEST =
-  "Requesting an invoice from this site updates the live ledger.";
-
-export const COST_ALLOWANCE_LABEL =
-  "Cursor allowance is measured across the whole account and billing cycle. Only usage attributed to iTrader is billed. Crossing $400 is not confirmed on-demand usage.";
+export const COST_SECTION_HELP: Record<string, string> = {
+  "Development (Cursor)":
+    "Daily Cursor usage used to build and maintain iTrader. Matching entries are combined and net amounts below £0.01 are hidden.",
+  "Website hosting (Vercel)":
+    "Vercel services used directly by the iTrader website. Matching service charges are combined and net amounts below £0.01 are hidden.",
+  Database:
+    "Database services used by iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
+  "Shared Vercel services":
+    "Team-level Vercel services that cannot be assigned to one project. iTrader receives an equal share across active production projects; current-period costs remain provisional until billing closes.",
+  Other:
+    "Other costs recorded for iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
+};
 
 export function interpretManualCostSyncResult(result: {
   error?: unknown;
   data?: { status?: string; message?: string };
 }): { ok: boolean; message: string } {
-  if (result.data?.status === "succeeded") {
+  if (result.data?.status === "succeeded" || result.data?.status === "partial") {
     return {
       ok: true,
       message: result.data.message || manualCostSyncMessage({ status: "succeeded" }),
@@ -45,7 +46,12 @@ export function interpretManualCostSyncResult(result: {
 
 export function manualCostSyncMessage(result: CostSyncResult): string {
   if (result.status === "succeeded") {
-    return "Provider costs were refreshed.";
+    return result.caughtUp === false
+      ? "Provider costs were refreshed. More history remains for the next refresh."
+      : "Provider costs were refreshed.";
+  }
+  if (result.status === "partial") {
+    return "Provider costs were partly refreshed. More history remains for the next refresh.";
   }
   if (result.status === "locked") {
     return "A cost refresh is already running. Try again in a few minutes.";
@@ -53,44 +59,15 @@ export function manualCostSyncMessage(result: CostSyncResult): string {
   if (result.status === "skipped") {
     return "Cost refresh was skipped because tracking is disabled or the ledger start date is still in the future.";
   }
-  return "Provider cost refresh failed. Check the sync card for the latest status.";
+  if (result.errorCode === "VERCEL_BILLING_UNAVAILABLE") {
+    return "Vercel billing is temporarily unavailable.";
+  }
+  if (result.errorCode === "COST_SYNC_TIMEOUT") {
+    return "Provider refresh timed out before it could finish.";
+  }
+  if (result.errorCode === "CostConfigError") {
+    return "Provider refresh configuration is incomplete.";
+  }
+  return "Provider refresh failed.";
 }
 
-export function syncHealthLabel(input: {
-  status: string;
-  stale: boolean;
-}): string {
-  if (input.stale && input.status === "FAILED") return "Last refresh failed";
-  if (input.stale && input.status === "NONE") return "No refresh yet";
-  if (input.stale) return "Refresh is overdue";
-  if (input.status === "SUCCEEDED") return "Up to date";
-  if (input.status === "RUNNING") return "Refresh in progress";
-  return input.status;
-}
-
-export function syncHealthDetail(input: {
-  status: string;
-  stale: boolean;
-  completedAt: string | null;
-  quarantinedCount: number;
-}): string {
-  const completed = input.completedAt
-    ? `Last completed ${new Date(input.completedAt).toLocaleString("en-GB", {
-        timeZone: "Europe/London",
-      })}.`
-    : "No successful refresh has been recorded.";
-  const quarantine =
-    input.quarantinedCount > 0
-      ? ` ${input.quarantinedCount} provider rows could not be classified.`
-      : "";
-  if (input.status === "FAILED") {
-    return `The latest refresh failed. ${completed}${quarantine}`;
-  }
-  if (input.stale && input.status === "NONE") {
-    return `No provider costs yet. ${COST_REFRESH_HELP}`;
-  }
-  if (input.stale) {
-    return `The ledger is waiting for a newer refresh. ${completed}${quarantine}`;
-  }
-  return `${completed}${quarantine}`;
-}

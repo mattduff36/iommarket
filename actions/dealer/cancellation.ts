@@ -9,6 +9,7 @@ import {
   createDealerCancellationRequest,
 } from "@/lib/policy/cancellation";
 import { sendCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { requestDealerCancellationSchema } from "@/lib/validations/cancellation";
 import { reportHandledException } from "@/lib/monitoring";
 
@@ -29,12 +30,19 @@ export async function requestDealerCancellation(input: { confirmation: boolean }
       requestedByUserId: user.id,
     });
     if (result.created) {
-      await sendCancellationStatusEmail({
-        to: user.email,
-        dealerName: user.dealerProfile.name,
-        status: result.request.status,
-        periodEndAt: result.request.periodEndAt,
+      const recipients = await resolveDealerMailRecipients({
+        dealerId: user.dealerProfile.id,
+        primaryEmail: user.email,
+        category: "SUBSCRIPTION",
       });
+      if (recipients.length > 0) {
+        await sendCancellationStatusEmail({
+          to: recipients,
+          dealerName: user.dealerProfile.name,
+          status: result.request.status,
+          periodEndAt: result.request.periodEndAt,
+        });
+      }
     }
     revalidatePath("/dealer/dashboard");
     return { data: { id: result.request.id, status: result.request.status } };

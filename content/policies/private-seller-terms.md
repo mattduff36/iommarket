@@ -1,5 +1,5 @@
 # iTrader.im Private Seller Terms
-*Effective on launch*
+*Effective 23 September 2026*
 
 ## 1. About these Terms
 
@@ -19,18 +19,18 @@ Before submitting a new Listing, resubmitting a rejected or removed Listing, or 
 
 ## 3. Private advertising
 
-**3.1** A standard private Listing costs £4.99 per vehicle and remains available for up to 60 days.
+**3.1** A standard private Listing is charged at the price displayed at checkout, including any launch offer then available, and remains available for up to 60 days.
 
 **3.2** Each vehicle requires its own Listing. Multiple Listings are permitted and encouraged where a seller has multiple vehicles.
 
 **3.3** A seller may renew after the 60-day period.
 
-**3.4** Featured status may be purchased for an additional £5.00 per vehicle.
+**3.4** Featured status may be purchased at the additional price displayed at checkout. Where checkout offers an optional support payment, that payment is the amount displayed there and is not required in order to advertise.
 
 
 ## 4. Editing Listings
 
-Sellers may edit Listings where permitted. Edited Listings must return through validation or moderation before changes are published and may be temporarily unpublished during review. Editing does not reset the 60-day period unless expressly stated.
+Sellers may edit Listings where permitted. A change is checked before it replaces the public advert. Until that check is complete, the Listing stays live with its last approved details. iTrader may unpublish the Listing during review. Editing does not reset the 60-day period unless expressly stated.
 
 
 ## 5. Marking a vehicle as sold
@@ -87,7 +87,7 @@ A Private Seller account may only be used by a genuine private seller. It must n
 
 ## 11. Buyer enquiries
 
-Buyers may browse Listings and use the contact form without creating an account. Sellers are responsible for responding. iTrader does not guarantee that enquiries are genuine or will result in a completed purchase.
+Buyers may browse Listings without an account. Sending a message through Contact Seller requires the buyer to sign in. Sellers are responsible for responding. iTrader does not guarantee that enquiries are genuine or will result in a completed purchase.
 
 
 ## 12. Disputes Between Buyers and Sellers
@@ -128,7 +128,7 @@ taking appropriate action against a Listing or account where a breach of iTrader
 
 ## 14. Fees and refunds
 
-The standard private Listing fee is £4.99 per vehicle for 60 days and Featured status is £5.00 per vehicle. Refunds are governed by the iTrader.im Refund Policy. Nothing in these Terms excludes statutory rights that cannot lawfully be excluded.
+Private Listing and Featured fees are the prices displayed at checkout, including any launch offer then available. A standard private Listing runs for 60 days. Refunds are governed by the iTrader.im Refund Policy. Nothing in these Terms excludes statutory rights that cannot lawfully be excluded.
 
 
 ## 15. Intellectual property and privacy

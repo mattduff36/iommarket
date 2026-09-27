@@ -8,6 +8,7 @@ import {
   transitionDealerCancellationRequest,
 } from "@/lib/policy/cancellation";
 import { sendCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { staffCancellationActionSchema } from "@/lib/validations/cancellation";
 import { reportHandledException } from "@/lib/monitoring";
 
@@ -40,16 +41,25 @@ export async function processDealerCancellationRequest(input: {
     const request = await db.dealerCancellationRequest.findUnique({
       where: { id: result.request.id },
       include: {
-        dealer: { select: { name: true, user: { select: { email: true } } } },
+        dealer: {
+          select: { id: true, name: true, user: { select: { email: true } } },
+        },
       },
     });
     if (request) {
-      await sendCancellationStatusEmail({
-        to: request.dealer.user.email,
-        dealerName: request.dealer.name,
-        status: request.status,
-        periodEndAt: request.periodEndAt,
+      const recipients = await resolveDealerMailRecipients({
+        dealerId: request.dealer.id,
+        primaryEmail: request.dealer.user.email,
+        category: "SUBSCRIPTION",
       });
+      if (recipients.length > 0) {
+        await sendCancellationStatusEmail({
+          to: recipients,
+          dealerName: request.dealer.name,
+          status: request.status,
+          periodEndAt: request.periodEndAt,
+        });
+      }
     }
     revalidatePath("/admin/cancellations");
     revalidatePath("/admin/payments");

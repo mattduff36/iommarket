@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sendResendEmailMock, captureExceptionMock, listingFindUnique } = vi.hoisted(
+const { sendResendEmailMock, captureExceptionMock, listingFindUnique, correspondenceFindUnique } = vi.hoisted(
   () => ({
     sendResendEmailMock: vi.fn(),
     captureExceptionMock: vi.fn(),
     listingFindUnique: vi.fn(),
+    correspondenceFindUnique: vi.fn(),
   }),
 );
 
@@ -23,6 +24,9 @@ vi.mock("@/lib/db", () => ({
     listing: {
       findUnique: listingFindUnique,
     },
+    dealerCorrespondenceSettings: {
+      findUnique: correspondenceFindUnique,
+    },
   },
 }));
 
@@ -34,8 +38,10 @@ describe("listing notification dispatch ALR-MAIL-002", () => {
     listingFindUnique.mockResolvedValue({
       id: "listing-1",
       title: "Test van",
+      dealerId: null,
       user: { email: "seller@example.com" },
     });
+    correspondenceFindUnique.mockResolvedValue(null);
   });
 
   it("does not throw when Resend is unset or rejects", async () => {

@@ -1,5 +1,6 @@
 import type {
   CostCategory,
+  CostEntryKind,
   CostInvoiceability,
   CostSyncStatus,
   InvoiceRequestStatus,
@@ -8,10 +9,10 @@ import { formatInvoiceRequestLabel, formatMarkedGbp } from "@/lib/costs/format";
 import { minorToSafeNumber } from "@/lib/costs/money";
 
 export const COST_SECTION_LABELS: Record<CostCategory, string> = {
-  CURSOR: "Development",
-  VERCEL_HOSTING: "Vercel Hosting",
+  CURSOR: "Development (Cursor)",
+  VERCEL_HOSTING: "Website hosting (Vercel)",
   DATABASE: "Database",
-  SHARED_VERCEL: "Shared Hosting",
+  SHARED_VERCEL: "Shared Vercel services",
   OTHER: "Other",
 };
 
@@ -22,6 +23,7 @@ export interface CostLineDto {
   label: string;
   amountLabel: string;
   amountMinor: number;
+  kind: CostEntryKind;
   invoiceability: CostInvoiceability;
   periodStart: string;
   periodEnd: string;
@@ -69,9 +71,6 @@ export interface CostDashboardDto {
   requests: InvoiceRequestDto[];
   sync: CostSyncHealthDto;
   unavailableReason: string | null;
-  infrastructureMarkupLabel: string;
-  cursorPolicyLabel: string;
-  allowanceLabel: string;
   affectsLiveLedger: boolean;
   ledgerRevision: string | null;
   ledgerAsOf: string | null;
@@ -80,6 +79,7 @@ export interface CostDashboardDto {
 export function toCostLineDto(input: {
   id: string;
   category: CostCategory;
+  kind: CostEntryKind;
   displayLabel: string;
   markedGbpMinor: bigint;
   invoiceability: CostInvoiceability;
@@ -93,6 +93,7 @@ export function toCostLineDto(input: {
     label: input.displayLabel,
     amountLabel: formatMarkedGbp(input.markedGbpMinor),
     amountMinor: minorToSafeNumber(input.markedGbpMinor),
+    kind: input.kind,
     invoiceability: input.invoiceability,
     periodStart: input.servicePeriodStart.toISOString(),
     periodEnd: input.servicePeriodEnd.toISOString(),

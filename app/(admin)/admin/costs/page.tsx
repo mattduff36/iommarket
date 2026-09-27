@@ -1,13 +1,9 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth";
 import { isCostOwner, isCostsEnabled } from "@/lib/costs/config";
-import {
-  COST_ALLOWANCE_LABEL,
-  COST_CURSOR_POLICY_LABEL,
-  COST_INFRASTRUCTURE_MARKUP_LABEL,
-} from "@/lib/costs/copy";
 import { getCostDashboard } from "@/lib/costs/queries";
 import { costDb } from "@/lib/costs/db";
 import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
@@ -39,9 +35,6 @@ function unavailableDashboard(reason: string, isOwner: boolean): CostDashboardDt
       errorCode: null,
     },
     unavailableReason: reason,
-    infrastructureMarkupLabel: COST_INFRASTRUCTURE_MARKUP_LABEL,
-    cursorPolicyLabel: COST_CURSOR_POLICY_LABEL,
-    allowanceLabel: COST_ALLOWANCE_LABEL,
     affectsLiveLedger: false,
     ledgerRevision: null,
     ledgerAsOf: null,

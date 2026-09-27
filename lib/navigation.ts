@@ -29,6 +29,7 @@ export const FOOTER_NAV_ITEMS: NavItem[] = [
   { label: "Refunds", href: "/refunds" },
   { label: "Vehicle Check Terms", href: "/vehicle-check-terms" },
   { label: "Buyer Safety", href: "/safety" },
+  { label: "FAQ", href: "/faq" },
   { label: "Contact", href: "/contact" },
 ];
 

@@ -219,12 +219,15 @@ export default async function AccountDashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-text-secondary">
-              Your account is ready for private selling whenever you are. Start with a single
-              listing, then return here to track progress and moderation updates.
+              {user.role === "DEALER"
+                ? "Your dealer account advertises through dealer listings. Return here to track progress and moderation updates."
+                : "Your private account can advertise a vehicle whenever you are ready. Start with a single listing, then return here to track progress and moderation updates."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild size="sm">
-                <Link href={sellHref}>Start selling privately</Link>
+                <Link href={sellHref}>
+                  {user.role === "DEALER" ? "Start a dealer listing" : "Start selling privately"}
+                </Link>
               </Button>
               <Button asChild size="sm" variant="ghost">
                 <Link href="/account/listings">View listing history</Link>

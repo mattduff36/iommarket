@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAcceptedAuth } from "@/lib/policy/gate";
+import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import {
   hasDealerAccountAccess,
@@ -15,6 +15,7 @@ import {
   effectiveListingDealerId,
   runWithDealerDetach,
 } from "@/lib/listings/submit-dealer-access";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
   RATE_LIMIT_UNAVAILABLE_MESSAGE,
@@ -1060,9 +1061,19 @@ export async function reportListing(input: ReportListingInput) {
 }
 
 // ---------------------------------------------------------------------------
-// Contact Seller (public; account not required)
+// Contact Seller (signed-in account required)
 // ---------------------------------------------------------------------------
 export async function contactSeller(input: ContactSellerInput) {
+  try {
+    await requireAcceptedAuth();
+  } catch (error) {
+    const status = acceptedAuthHttpStatus(error);
+    if (status === 401 || status === 403) {
+      return { error: "Sign in to message the seller." };
+    }
+    throw error;
+  }
+
   const parsed = contactSellerSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
@@ -1099,9 +1110,17 @@ export async function contactSeller(input: ContactSellerInput) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const listingUrl = `${appUrl}/listings/${listing.id}`;
+  const recipients = await resolveDealerMailRecipients({
+    dealerId: listing.dealerId,
+    primaryEmail: listing.user.email,
+    category: "BUYER_ENQUIRIES",
+  });
+  if (recipients.length === 0) {
+    return { error: "Failed to send message. Please try again later." };
+  }
   try {
     await sendSellerContactEmail({
-      sellerEmail: listing.user.email,
+      sellerEmail: recipients,
       listingTitle: listing.title,
       listingUrl,
       fromName: parsed.data.name,

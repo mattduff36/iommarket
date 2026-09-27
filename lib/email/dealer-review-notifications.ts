@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getModerationInbox, sendResendEmail } from "@/lib/email/client";
 import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
 
 export type DealerReviewNotificationIntent =
@@ -82,6 +83,7 @@ async function sendIntent(intent: DealerReviewNotificationIntent) {
               select: {
                 dealer: {
                   select: {
+                    id: true,
                     name: true,
                     user: { select: { email: true } },
                   },
@@ -105,14 +107,13 @@ async function sendIntent(intent: DealerReviewNotificationIntent) {
       await sendResendEmail({ to: inbox, ...email });
       return;
     }
-    if (!dealer.user.email) return;
     const email = buildDealerReviewDecisionEmail({
       kind: intent.kind,
       dealerName: dealer.name,
       status: revision.status,
       reasonCode: revision.reasonCode,
     });
-    await sendResendEmail({ to: dealer.user.email, ...email });
+    await sendDealerDecision(dealer, email);
     return;
   }
 
@@ -126,6 +127,7 @@ async function sendIntent(intent: DealerReviewNotificationIntent) {
         select: {
           dealer: {
             select: {
+              id: true,
               name: true,
               user: { select: { email: true } },
             },
@@ -147,14 +149,26 @@ async function sendIntent(intent: DealerReviewNotificationIntent) {
     await sendResendEmail({ to: inbox, ...email });
     return;
   }
-  if (!dealer.user.email) return;
   const email = buildDealerReviewDecisionEmail({
     kind: intent.kind,
     dealerName: dealer.name,
     status: dispute.status,
     reasonCode: dispute.decisionReasonCode,
   });
-  await sendResendEmail({ to: dealer.user.email, ...email });
+  await sendDealerDecision(dealer, email);
+}
+
+async function sendDealerDecision(
+  dealer: { id: string; user: { email: string } },
+  email: { subject: string; text: string; html: string },
+) {
+  const recipients = await resolveDealerMailRecipients({
+    dealerId: dealer.id,
+    primaryEmail: dealer.user.email,
+    category: "REVIEWS",
+  });
+  if (recipients.length === 0) return;
+  await sendResendEmail({ to: recipients, ...email });
 }
 
 export async function dispatchDealerReviewNotifications(

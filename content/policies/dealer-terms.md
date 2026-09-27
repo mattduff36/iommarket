@@ -1,5 +1,5 @@
 # iTrader.im Dealer Terms
-*Effective on launch*
+*Effective 23 September 2026*
 
 ## 1. About these Terms
 
@@ -32,33 +32,11 @@ By creating a Dealer account, purchasing a Dealer subscription or submitting a v
 
 ## 4. Dealer subscriptions
 
-Dealer Starter - £29.99 per month
-
-Up to 30 Active Listings.
-
-Up to 20 photographs per Listing.
-
-Dealer telephone number displayed.
-
-Dedicated Dealer profile page.
-
-Priority moderation.
-
-Dealer Pro - £49.99 per month
-
-Up to 100 Active Listings.
-
-Up to 20 photographs per Listing.
-
-Dealer telephone number displayed.
-
-Dedicated Dealer profile page.
-
-Priority moderation.
+Dealer Starter and Dealer Pro are charged at the monthly prices displayed at checkout, including any current offer. Starter allows up to 30 Active Listings. Pro allows up to 100 Active Listings. Both plans include up to 20 photographs per Listing, a dealer telephone number on listings, a dedicated Dealer profile page, and the dealer dashboard while the subscription gives operational access.
 
 **4.1** Subscription fees are charged monthly in advance and automatically renew unless cancelled.
 
-**4.2** There is no minimum subscription period. You may cancel at any time, with cancellation taking effect at the end of the current paid billing period.
+**4.2** There is no minimum subscription period. Cancel by email to hello@itrader.im. Where the dealer dashboard shows a cancellation request, you may use that request as well. iTrader cannot cancel the payment-provider subscription immediately from the site. Staff complete the provider cancellation. Cancellation takes effect at the end of the current paid billing period.
 
 **4.3** Existing Listings may remain live until the end of that paid period, subject to moderation rights. No pro-rata refund is normally provided.
 
@@ -78,7 +56,7 @@ Priority moderation.
 
 ## 6. Featured Listings
 
-**6.1** Dealers may purchase Featured status for individual Listings for £5.00 per vehicle.
+**6.1** Dealers may purchase Featured status for individual Listings at the price displayed at checkout.
 
 **6.2** Featured status does not guarantee views, enquiries, leads, sales or a particular search position.
 
@@ -108,7 +86,7 @@ Priority moderation.
 
 **8.1** Dealers may edit Listings where the Platform permits. Edited Listings may be returned to validation or moderation before publication.
 
-**8.2** A Listing may be temporarily unpublished while changes are reviewed. Editing does not extend any applicable advertising period unless expressly stated.
+**8.2** A change is checked before it replaces the public advert. Until that check is complete, the Listing stays live with its last approved details. iTrader may unpublish the Listing during review. Editing does not extend any applicable advertising period unless expressly stated.
 
 
 ## 9. Dealer responsibilities
@@ -129,7 +107,7 @@ Dealers must provide genuine business information and contact details, keep pric
 
 ## 11. Buyer enquiries
 
-Buyers may browse Listings and submit contact-form enquiries without an iTrader account. Dealers are responsible for handling enquiries. iTrader does not guarantee that an enquiry will result in a sale.
+Buyers may browse Listings without an account. Sending a message through Contact Seller requires the buyer to sign in. Dealers are responsible for handling enquiries. iTrader does not guarantee that an enquiry will result in a sale.
 
 
 ## 12. Disputes Between Buyers and Sellers

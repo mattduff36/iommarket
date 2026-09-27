@@ -9,6 +9,7 @@ import {
   COST_USAGE_RANGES,
   COST_USAGE_SERIES_COLORS,
   buildCostUsageModel,
+  summarizeCostLines,
   type CostUsageRange,
 } from "@/lib/costs/usage-view";
 import { CostSectionTable } from "./cost-section-table";
@@ -16,7 +17,9 @@ import { CostUsageChart } from "./cost-usage-chart";
 
 export function CostUsagePanel({
   sections,
+  isOwner,
 }: {
+  isOwner: boolean;
   sections: Array<{
     key: string;
     label: string;
@@ -36,13 +39,14 @@ export function CostUsagePanel({
   const visibleSections = sections
     .map((section) => ({
       ...section,
-      lines: model.filteredLines.filter((line) => line.category === section.key),
+      rawLines: model.filteredLines.filter((line) => line.category === section.key),
     }))
-    .filter((section) => section.lines.length > 0)
+    .filter((section) => section.rawLines.length > 0)
     .map((section) => ({
       ...section,
+      summaryLines: summarizeCostLines(section.rawLines),
       amountLabel: formatMarkedGbp(
-        section.lines.reduce((total, line) => total + line.amountMinor, 0),
+        section.rawLines.reduce((total, line) => total + line.amountMinor, 0),
       ),
     }));
 
@@ -73,18 +77,20 @@ export function CostUsagePanel({
           </div>
         </div>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-3">
-          <SummaryCard title="Total" value={model.totalLabel} />
-          <SummaryCard title="Included" value={model.includedLabel} />
-          <SummaryCard title="On-demand" value={model.onDemandLabel} />
-        </div>
+        {model.series.length > 0 ? (
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {model.series.map((item) => (
+              <SummaryCard key={item.key} title={item.key} value={item.amountLabel} />
+            ))}
+          </div>
+        ) : null}
 
         <div>
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-medium text-text-primary">Project costs</h3>
               <p className="text-sm text-text-secondary">
-                Cumulative spend by included usage, on-demand usage, and infrastructure.
+                Cumulative spend by category across this period.
               </p>
             </div>
             <p className="text-xs text-text-secondary">Grouped by category</p>
@@ -109,10 +115,12 @@ export function CostUsagePanel({
 
       {visibleSections.map((section) => (
         <CostSectionTable
-          key={section.key}
+          key={`${section.key}:${range}`}
           label={section.label}
           amountLabel={section.amountLabel}
-          lines={section.lines}
+          rawLines={section.rawLines}
+          summaryLines={section.summaryLines}
+          isOwner={isOwner}
         />
       ))}
     </div>

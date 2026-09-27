@@ -17,6 +17,9 @@ const {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    dealerCorrespondenceSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 
@@ -66,7 +69,23 @@ describe("verifyDealer ALR-MAIL-003", () => {
       data: { id: "dealer-1", verified: true },
     });
     expect(sendDealerEmailMock).toHaveBeenCalledWith({
-      to: "dealer@example.com",
+      to: ["dealer@example.com"],
+      dealerName: "Isle Cars",
+      verified: true,
+    });
+  });
+
+  it("routes a verified dealer account notice to the second email", async () => {
+    mockDb.dealerCorrespondenceSettings.findUnique.mockResolvedValue({
+      verifiedEmail: "sales@dealer.example",
+      categories: ["DEALER_ACCOUNT"],
+      copyAssignedToPrimary: true,
+    });
+
+    await verifyDealer("dealer-1", true);
+
+    expect(sendDealerEmailMock).toHaveBeenCalledWith({
+      to: ["sales@dealer.example", "dealer@example.com"],
       dealerName: "Isle Cars",
       verified: true,
     });
