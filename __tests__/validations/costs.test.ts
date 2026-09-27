@@ -27,7 +27,18 @@ describe("cost input validation", () => {
     ).toBe(false);
   });
 
-  it("requires Cursor manual imports to use the funded event contract", () => {
+  it("accepts a negative reduction and rejects Cursor manual imports", () => {
+    expect(
+      recordManualCostSchema.safeParse({
+        category: "OTHER",
+        externalRef: "exclude-costs-page",
+        nativeAmount: "-12.50",
+        nativeCurrency: "GBP",
+        displayLabel: "Exclude costs page work",
+        periodStart: "2026-08-17T00:00:00.000Z",
+        periodEnd: "2026-09-27T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
     expect(
       recordManualCostSchema.safeParse({
         category: "CURSOR",

@@ -6,7 +6,7 @@ import {
   focusRowChecksum,
   type FocusChargeRow,
 } from "@/lib/costs/focus";
-import { addDecimalStrings } from "@/lib/costs/money";
+import { COST_FACE_VALUE_POLICY, addDecimalStrings } from "@/lib/costs/money";
 
 export type ClassifiedCostKind = "hosting" | "database" | "shared" | "ignored";
 
@@ -263,6 +263,12 @@ export function aggregateClassifiedCharges(
         .digest("hex"),
     };
   });
+}
+
+export function faceValueChecksum(checksum: string): string {
+  return createHash("sha256")
+    .update(`${COST_FACE_VALUE_POLICY}:${checksum}`)
+    .digest("hex");
 }
 
 export function sharedMembershipChecksum(

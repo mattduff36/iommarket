@@ -11,19 +11,22 @@ import {
 } from "@/lib/costs/config";
 import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
 import { assertCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
-import { requestRemoteCostRefresh, requestRemoteInvoice } from "@/lib/costs/remote-ledger";
+import {
+  requestRemoteCostRefresh,
+  requestRemoteInvoice,
+  requestRemoteManualCost,
+} from "@/lib/costs/remote-ledger";
 import { deliverCostOutbox } from "@/lib/costs/email";
-import { getOrCreateIdentityGbpRate, getOrCreateUsdGbpRate } from "@/lib/costs/fx";
 import {
   confirmInvoiceRequest,
   createInvoiceRequest,
   CostInvoiceError,
   safeInvoiceAuditDetails,
 } from "@/lib/costs/invoices";
-import { applyClassifiedCharge, ensureLedgerConfig, CostLedgerError } from "@/lib/costs/ledger";
+import { CostLedgerError } from "@/lib/costs/ledger";
+import { recordManualLedgerCost } from "@/lib/costs/manual-entry";
 import { manualCostSyncMessage } from "@/lib/costs/copy";
 import { runCostSync } from "@/lib/costs/sync";
-import { runSerializable } from "@/lib/costs/transaction";
 import { reportHandledException } from "@/lib/monitoring";
 import {
   confirmInvoiceRequestSchema,
@@ -156,45 +159,38 @@ export async function confirmProjectInvoice(input: ConfirmInvoiceRequestInput) {
 export async function recordManualProjectCost(input: RecordManualCostInput) {
   const admin = await requireCostOwnerAdmin();
   if (!isCostsEnabled()) return costsDisabledError();
-  const writerError = canonicalWriterError();
-  if (writerError) return writerError;
   const parsed = recordManualCostSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
-  try {
-    await runSerializable(async (tx) => {
-      const config = await ensureLedgerConfig(tx);
-      const periodStart = new Date(parsed.data.periodStart);
-      const periodEnd = new Date(parsed.data.periodEnd);
-      const fx =
-        parsed.data.nativeCurrency === "GBP"
-          ? await getOrCreateIdentityGbpRate(tx, periodStart)
-          : await getOrCreateUsdGbpRate(tx, periodStart);
-
-      await applyClassifiedCharge(tx, {
-        sourceKind: "MANUAL",
-        bucketKey: `manual:${parsed.data.category}:${parsed.data.externalRef}`,
-        checksum: `manual:${parsed.data.category}:${parsed.data.externalRef}:${parsed.data.nativeAmount}:${parsed.data.nativeCurrency}`,
-        category: parsed.data.category,
-        invoiceability: "INVOICEABLE",
-        nativeAmount: parsed.data.nativeAmount,
-        nativeCurrency: parsed.data.nativeCurrency,
-        rate: fx.rate,
-        fxRateSnapshotId: fx.id,
-        periodStart,
-        periodEnd,
-        displayLabel: parsed.data.displayLabel,
-        startedAt: config.startedAt,
-        metadata:
-          parsed.data.category === "DATABASE"
-            ? {
-                infrastructureMarkupPercent: 20,
-                providerInvoiceId: parsed.data.externalRef,
-              }
-            : { infrastructureMarkupPercent: 20 },
+  const access = resolveLedgerAccess();
+  if (access.mode === "unavailable") return { error: access.reason };
+  if (access.mode === "remote") {
+    try {
+      await requestRemoteManualCost(access.origin, parsed.data);
+      await logAdminAction({
+        adminId: admin.id,
+        action: "RECORD_MANUAL_PROJECT_COST",
+        entityType: "CostEntry",
+        entityId: parsed.data.externalRef,
+        details: {
+          category: parsed.data.category,
+          origin: "preview",
+          affectsLiveLedger: true,
+        },
       });
-    });
+      revalidateCostPages();
+      return { data: { recorded: true } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to record the cost.";
+      return { error: message };
+    }
+  }
 
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
+
+  try {
+    await recordManualLedgerCost(parsed.data);
     await logAdminAction({
       adminId: admin.id,
       action: "RECORD_MANUAL_PROJECT_COST",
