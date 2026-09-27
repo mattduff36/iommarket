@@ -118,4 +118,40 @@ describe("manual cost categories", () => {
     ]);
     expect(sections[1]?.lines.map((line) => line.amountMinor)).toEqual([-1250]);
   });
+
+  it("folds apportioned team charges into Website hosting", () => {
+    const period = {
+      servicePeriodStart: new Date("2026-08-14T00:00:00.000Z"),
+      servicePeriodEnd: new Date("2026-08-15T00:00:00.000Z"),
+    };
+    const sections = groupCostSections([
+      toCostLineDto({
+        id: "hosting",
+        category: "VERCEL_HOSTING",
+        kind: "CHARGE",
+        displayLabel: "Functions",
+        markedGbpMinor: 16n,
+        invoiceability: "INVOICEABLE",
+        ...period,
+      }),
+      toCostLineDto({
+        id: "shared",
+        category: "SHARED_VERCEL",
+        kind: "CHARGE",
+        displayLabel: "Team data cache",
+        markedGbpMinor: 7n,
+        invoiceability: "PROVISIONAL",
+        ...period,
+      }),
+    ]);
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toMatchObject({
+      key: "VERCEL_HOSTING",
+      label: "Website hosting (Vercel)",
+      amountLabel: "£0.23",
+      provisional: true,
+    });
+    expect(sections[0]?.lines).toHaveLength(2);
+  });
 });

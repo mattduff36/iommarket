@@ -50,7 +50,7 @@ describe("cost usage view", () => {
           label: "Shared team charge",
         }),
       ),
-    ).toBe("Shared Vercel services");
+    ).toBe("Website hosting (Vercel)");
     expect(
       lineSeriesKey(
         line({

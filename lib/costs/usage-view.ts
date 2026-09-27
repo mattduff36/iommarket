@@ -23,14 +23,12 @@ export const COST_USAGE_RANGE_LABELS: Record<CostUsageRange, string> = {
 };
 
 export const COST_USAGE_CURSOR_SERIES = COST_SECTION_LABELS.CURSOR;
-export const COST_USAGE_SHARED_SERIES = COST_SECTION_LABELS.SHARED_VERCEL;
 export const COST_MINIMUM_DISPLAY_MINOR = 1;
 
 const SERIES_ORDER = [
   COST_USAGE_CURSOR_SERIES,
   COST_SECTION_LABELS.VERCEL_HOSTING,
   COST_SECTION_LABELS.DATABASE,
-  COST_USAGE_SHARED_SERIES,
   COST_SECTION_LABELS.OTHER,
 ] as const;
 
@@ -38,7 +36,6 @@ export const COST_USAGE_SERIES_COLORS: Record<string, string> = {
   [COST_USAGE_CURSOR_SERIES]: "#0085FF",
   [COST_SECTION_LABELS.VERCEL_HOSTING]: "#C5A059",
   [COST_SECTION_LABELS.DATABASE]: "#10B981",
-  [COST_USAGE_SHARED_SERIES]: "#8E8E93",
   [COST_SECTION_LABELS.OTHER]: "#636366",
 };
 
@@ -151,7 +148,7 @@ function formatDayLabel(day: string): string {
 export function lineSeriesKey(line: CostLineDto): string {
   if (line.category === "CURSOR") return COST_USAGE_CURSOR_SERIES;
   if (line.category === "SHARED_VERCEL") {
-    return COST_USAGE_SHARED_SERIES;
+    return COST_SECTION_LABELS.VERCEL_HOSTING;
   }
   if (line.category === "OTHER") return line.section || COST_SECTION_LABELS.OTHER;
   return COST_SECTION_LABELS[line.category];

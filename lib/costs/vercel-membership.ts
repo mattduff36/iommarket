@@ -10,6 +10,7 @@ import { runSerializable } from "@/lib/costs/transaction";
 export const VERCEL_MEMBERSHIP_DAILY_GBP = "0.38";
 export const VERCEL_MEMBERSHIP_LABEL = "Vercel Pro membership share";
 const MEMBERSHIP_WRITES_PER_RUN = 75;
+export const MEMBERSHIP_TRANSACTION_BATCH_SIZE = 10;
 
 export interface VercelMembershipDay {
   day: string;
@@ -74,28 +75,34 @@ export async function recordVercelMembershipShare(input: {
   const batch = pending.slice(0, MEMBERSHIP_WRITES_PER_RUN);
   if (batch.length === 0) return { written: 0, hasMore: false };
 
-  await runSerializable(async (tx) => {
-    const config = await ensureLedgerConfig(tx);
-    for (const day of batch) {
-      const fx = await getOrCreateIdentityGbpRate(tx, day.periodStart);
-      await applyClassifiedCharge(tx, {
-        sourceKind: "MANUAL",
-        bucketKey: day.bucketKey,
-        checksum: day.checksum,
-        category: "VERCEL_HOSTING",
-        invoiceability: "INVOICEABLE",
-        nativeAmount: day.nativeAmount,
-        nativeCurrency: "GBP",
-        rate: fx.rate,
-        fxRateSnapshotId: fx.id,
-        periodStart: day.periodStart,
-        periodEnd: day.periodEnd,
-        displayLabel: day.displayLabel,
-        startedAt: config.startedAt,
-        markedGbpMinor: vercelMembershipDailyMinor(),
-      });
-    }
-  });
+  for (let index = 0; index < batch.length; index += MEMBERSHIP_TRANSACTION_BATCH_SIZE) {
+    const transactionBatch = batch.slice(
+      index,
+      index + MEMBERSHIP_TRANSACTION_BATCH_SIZE,
+    );
+    await runSerializable(async (tx) => {
+      const config = await ensureLedgerConfig(tx);
+      for (const day of transactionBatch) {
+        const fx = await getOrCreateIdentityGbpRate(tx, day.periodStart);
+        await applyClassifiedCharge(tx, {
+          sourceKind: "MANUAL",
+          bucketKey: day.bucketKey,
+          checksum: day.checksum,
+          category: "VERCEL_HOSTING",
+          invoiceability: "INVOICEABLE",
+          nativeAmount: day.nativeAmount,
+          nativeCurrency: "GBP",
+          rate: fx.rate,
+          fxRateSnapshotId: fx.id,
+          periodStart: day.periodStart,
+          periodEnd: day.periodEnd,
+          displayLabel: day.displayLabel,
+          startedAt: config.startedAt,
+          markedGbpMinor: vercelMembershipDailyMinor(),
+        });
+      }
+    });
+  }
 
   return { written: batch.length, hasMore: pending.length > batch.length };
 }

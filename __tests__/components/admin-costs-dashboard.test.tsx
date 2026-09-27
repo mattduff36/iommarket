@@ -136,8 +136,8 @@ describe("admin costs dashboard T5", () => {
         {
           key: "VERCEL_HOSTING",
           label: "Website hosting (Vercel)",
-          amountLabel: "£8.00",
-          provisional: false,
+          amountLabel: "£12.00",
+          provisional: true,
           lines: [
             {
               id: "entry_1",
@@ -152,17 +152,9 @@ describe("admin costs dashboard T5", () => {
               periodEnd: "2026-08-15T00:00:00.000Z",
               provisional: false,
             },
-          ],
-        },
-        {
-          key: "SHARED_VERCEL",
-          label: "Shared Vercel services",
-          amountLabel: "£4.00",
-          provisional: true,
-          lines: [
             {
               id: "entry_2",
-              section: "Shared Hosting",
+              section: "Website hosting (Vercel)",
               category: "SHARED_VERCEL",
               label: "Shared team charge",
               amountLabel: "£4.00",
@@ -194,11 +186,8 @@ describe("admin costs dashboard T5", () => {
     expect(
       screen.getAllByRole("heading", { name: "Website hosting (Vercel)" }).length,
     ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("heading", { name: "Shared Vercel services" }).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText(/Vercel services used directly by the iTrader website/i)).not.toBeNull();
-    expect(screen.getByText(/equal share across active production projects/i)).not.toBeNull();
+    expect(screen.queryByText("Shared Vercel services")).toBeNull();
+    expect(screen.getByText(/including the daily Pro membership share/i)).not.toBeNull();
     expect(screen.queryByText("Included")).toBeNull();
     expect(screen.queryByText("On-demand")).toBeNull();
     expect(screen.getByText("Provisional")).not.toBeNull();
