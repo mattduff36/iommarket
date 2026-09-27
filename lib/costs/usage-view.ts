@@ -22,25 +22,22 @@ export const COST_USAGE_RANGE_LABELS: Record<CostUsageRange, string> = {
   all: "All",
 };
 
+export const COST_USAGE_CURSOR_SERIES = "Cursor";
+export const COST_USAGE_SHARED_SERIES = "Shared Hosting";
+
 const SERIES_ORDER = [
-  "Included",
-  "On-demand",
-  COST_SECTION_LABELS.CURSOR,
+  COST_USAGE_CURSOR_SERIES,
   COST_SECTION_LABELS.VERCEL_HOSTING,
   COST_SECTION_LABELS.DATABASE,
-  "Provisional Shared Hosting",
-  COST_SECTION_LABELS.SHARED_VERCEL,
+  COST_USAGE_SHARED_SERIES,
   COST_SECTION_LABELS.OTHER,
 ] as const;
 
 export const COST_USAGE_SERIES_COLORS: Record<string, string> = {
-  Included: "#0085FF",
-  "On-demand": "#FF1F1F",
-  [COST_SECTION_LABELS.CURSOR]: "#33A3FF",
+  [COST_USAGE_CURSOR_SERIES]: "#0085FF",
   [COST_SECTION_LABELS.VERCEL_HOSTING]: "#C5A059",
   [COST_SECTION_LABELS.DATABASE]: "#10B981",
-  "Provisional Shared Hosting": "#8E8E93",
-  [COST_SECTION_LABELS.SHARED_VERCEL]: "#8E8E93",
+  [COST_USAGE_SHARED_SERIES]: "#8E8E93",
   [COST_SECTION_LABELS.OTHER]: "#636366",
 };
 
@@ -57,11 +54,8 @@ export interface CostUsageModel {
   toDay: string | null;
   rangeLabel: string;
   seriesKeys: string[];
+  series: Array<{ key: string; amountMinor: number; amountLabel: string }>;
   points: CostUsageDayPoint[];
-  totalLabel: string;
-  includedLabel: string;
-  onDemandLabel: string;
-  infrastructureLabel: string;
   filteredLines: CostLineDto[];
 }
 
@@ -100,10 +94,12 @@ function formatDayLabel(day: string): string {
 }
 
 export function lineSeriesKey(line: CostLineDto): string {
-  if (line.category === "CURSOR") {
-    if (/\bincluded\b/i.test(line.label)) return "Included";
-    if (/\bon-demand\b/i.test(line.label)) return "On-demand";
-    return COST_SECTION_LABELS.CURSOR;
+  if (line.category === "CURSOR") return COST_USAGE_CURSOR_SERIES;
+  if (
+    line.category === "SHARED_VERCEL" ||
+    line.section === "Provisional Shared Hosting"
+  ) {
+    return COST_USAGE_SHARED_SERIES;
   }
   return line.section;
 }
@@ -200,16 +196,12 @@ export function buildCostUsageModel(input: {
     };
   });
 
-  const includedMinor = filteredLines
-    .filter((line) => lineSeriesKey(line) === "Included")
-    .reduce((total, line) => total + line.amountMinor, 0);
-  const onDemandMinor = filteredLines
-    .filter((line) => lineSeriesKey(line) === "On-demand")
-    .reduce((total, line) => total + line.amountMinor, 0);
-  const infrastructureMinor = filteredLines
-    .filter((line) => line.category !== "CURSOR")
-    .reduce((total, line) => total + line.amountMinor, 0);
-  const totalMinor = filteredLines.reduce((total, line) => total + line.amountMinor, 0);
+  const series = seriesKeys.map((key) => {
+    const amountMinor = filteredLines
+      .filter((line) => lineSeriesKey(line) === key)
+      .reduce((total, line) => total + line.amountMinor, 0);
+    return { key, amountMinor, amountLabel: formatMarkedGbp(amountMinor) };
+  });
 
   return {
     range: input.range,
@@ -219,11 +211,8 @@ export function buildCostUsageModel(input: {
       ? `${formatDayLabel(bounds.fromDay)} – ${formatDayLabel(bounds.toDay)}`
       : "No usage in this period",
     seriesKeys,
+    series,
     points,
-    totalLabel: formatMarkedGbp(totalMinor),
-    includedLabel: formatMarkedGbp(includedMinor),
-    onDemandLabel: formatMarkedGbp(onDemandMinor),
-    infrastructureLabel: formatMarkedGbp(infrastructureMinor),
     filteredLines,
   };
 }

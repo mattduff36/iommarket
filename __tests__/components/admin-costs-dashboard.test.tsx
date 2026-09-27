@@ -13,6 +13,7 @@ vi.mock("@/actions/admin/costs", () => ({
   recordManualProjectCost: vi.fn(),
   retryProjectCostEmail: vi.fn(),
   runManualCostSync: vi.fn(),
+  refreshProviderCosts: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -62,9 +63,6 @@ function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto 
       errorCode: null,
     },
     unavailableReason: null,
-    infrastructureMarkupLabel: "Vercel hosting and database charges include a 20% markup.",
-    cursorPolicyLabel: "Cursor charges are 60% of included nominal value and 110% of on-demand value.",
-    allowanceLabel: "Crossing $400 is not confirmed on-demand usage.",
     affectsLiveLedger: false,
     ledgerRevision: null,
     ledgerAsOf: null,
@@ -79,10 +77,13 @@ describe("admin costs dashboard T5", () => {
     render(<CostDashboardView dashboard={data} />);
     expect(screen.getByText(COST_EMPTY_HELP)).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
-    expect(screen.getByText(/20% markup/i)).not.toBeNull();
-    expect(screen.getByText(/60% of included nominal value/i)).not.toBeNull();
+    expect(screen.queryByText(/20% markup/i)).toBeNull();
+    expect(screen.queryByText(/60% of included nominal value/i)).toBeNull();
+    expect(screen.queryByText(/Crossing \$400/i)).toBeNull();
+    expect(screen.queryByText(/updates the live ledger/i)).toBeNull();
     expect(screen.getByText(COST_NON_OWNER_HELP)).not.toBeNull();
-    expect(screen.getByText(/No refresh yet/i)).not.toBeNull();
+    expect(screen.getByText(/No provider refresh recorded yet/i)).not.toBeNull();
+    expect(screen.queryByText(/Refresh is overdue/i)).toBeNull();
     expect(screen.queryByText(/Ledger start:/i)).toBeNull();
     expect(screen.queryByText(/business-day|split equally|provisional shared hosting/i)).toBeNull();
     expect(screen.queryByText(/nativeAmount|fxRate|billedCost/i)).toBeNull();
@@ -114,8 +115,9 @@ describe("admin costs dashboard T5", () => {
         })}
       />,
     );
-    expect(screen.getByText(/Last refresh failed/i)).not.toBeNull();
-    expect(screen.getByText(/2 provider rows could not be classified/i)).not.toBeNull();
+    expect(screen.getByText(/Refreshing provider costs/i)).not.toBeNull();
+    expect(screen.queryByText(/Refresh is overdue/i)).toBeNull();
+    expect(screen.queryByText(/2 provider rows could not be classified/i)).toBeNull();
     expect(screen.getByText(/notification email failed/i)).not.toBeNull();
     expect(screen.queryByText("CostFxError")).toBeNull();
   });
@@ -181,13 +183,17 @@ describe("admin costs dashboard T5", () => {
     });
     expect(hasSensitiveCostField(data)).toBe(false);
     render(<CostDashboardView dashboard={data} />);
-    expect(screen.getByText("Up to date")).not.toBeNull();
-    expect(screen.getByText(/Last completed/i)).not.toBeNull();
+    expect(screen.getByText(/Refreshing provider costs/i)).not.toBeNull();
+    expect(screen.queryByText(/Refresh is overdue/i)).toBeNull();
     expect(screen.getByRole("heading", { name: "Usage" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("img", { name: /cumulative project costs/i })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Vercel Hosting" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Shared Hosting" })).not.toBeNull();
+    expect(screen.getAllByRole("heading", { name: "Vercel Hosting" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("heading", { name: "Shared Hosting" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Hosting charges for this project.")).not.toBeNull();
+    expect(screen.getByText("Shared team hosting allocated to this project.")).not.toBeNull();
+    expect(screen.queryByText("Included")).toBeNull();
+    expect(screen.queryByText("On-demand")).toBeNull();
     expect(screen.getByText("Provisional")).not.toBeNull();
     expect(screen.getByText("Invoiceable")).not.toBeNull();
     expect(screen.queryByText(COST_EMPTY_HELP)).toBeNull();
@@ -223,6 +229,7 @@ describe("admin costs dashboard T5", () => {
         })}
       />,
     );
+    expect(screen.getByText("Cursor charges attributed to iTrader.")).not.toBeNull();
     expect(screen.getByText("Showing 1–10 of 12")).not.toBeNull();
     expect(screen.getByText("Cursor 2026-09-26 included")).not.toBeNull();
     expect(screen.queryByText("Cursor 2026-09-16 included")).toBeNull();
@@ -230,6 +237,9 @@ describe("admin costs dashboard T5", () => {
     expect(screen.getByText("Showing 11–12 of 12")).not.toBeNull();
     expect(screen.getByText("Cursor 2026-09-16 included")).not.toBeNull();
     expect(screen.queryByText("Cursor 2026-09-26 included")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "7d" }));
+    expect(screen.queryByText("Showing 11–12 of 12")).toBeNull();
+    expect(screen.getByText("Cursor 2026-09-26 included")).not.toBeNull();
   });
 
   it("does not show implementation details when costs are disabled", () => {

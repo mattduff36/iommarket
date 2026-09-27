@@ -24,9 +24,9 @@ function line(overrides: Partial<CostLineDto>): CostLineDto {
 }
 
 describe("cost usage view", () => {
-  it("maps cursor funding labels and other sections onto chart series", () => {
-    expect(lineSeriesKey(line({ label: "Cursor 2026-09-26 included" }))).toBe("Included");
-    expect(lineSeriesKey(line({ label: "Cursor 2026-09-26 on-demand" }))).toBe("On-demand");
+  it("maps every Cursor charge and both shared-hosting labels onto one series each", () => {
+    expect(lineSeriesKey(line({ label: "Cursor 2026-09-26 included" }))).toBe("Cursor");
+    expect(lineSeriesKey(line({ label: "Cursor 2026-09-26 on-demand" }))).toBe("Cursor");
     expect(
       lineSeriesKey(
         line({
@@ -36,6 +36,15 @@ describe("cost usage view", () => {
         }),
       ),
     ).toBe("Vercel Hosting");
+    expect(
+      lineSeriesKey(
+        line({
+          category: "SHARED_VERCEL",
+          section: "Provisional Shared Hosting",
+          label: "Shared team charge",
+        }),
+      ),
+    ).toBe("Shared Hosting");
   });
 
   it("builds inclusive 7d, MTD, and last-month bounds from a fixed now", () => {
@@ -90,20 +99,19 @@ describe("cost usage view", () => {
     });
 
     expect(model.rangeLabel).toBe("20 Sep – 26 Sep");
-    expect(model.totalLabel).toBe("£9.00");
-    expect(model.includedLabel).toBe("£2.00");
-    expect(model.onDemandLabel).toBe("£3.00");
-    expect(model.infrastructureLabel).toBe("£4.00");
+    expect(model.series).toEqual([
+      { key: "Cursor", amountMinor: 500, amountLabel: "£5.00" },
+      { key: "Vercel Hosting", amountMinor: 400, amountLabel: "£4.00" },
+    ]);
+    expect(model.seriesKeys).toEqual(model.series.map((item) => item.key));
     expect(model.filteredLines.map((item) => item.id)).toEqual(["od", "host", "inc"]);
     expect(model.points).toHaveLength(7);
     expect(model.points[0]?.cumulative).toEqual({
-      Included: 200,
-      "On-demand": 0,
+      Cursor: 200,
       "Vercel Hosting": 0,
     });
     expect(model.points.at(-1)?.cumulative).toEqual({
-      Included: 200,
-      "On-demand": 300,
+      Cursor: 500,
       "Vercel Hosting": 400,
     });
 

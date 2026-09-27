@@ -8,11 +8,6 @@ import {
   type CostDashboardDto,
   type CostLineDto,
 } from "@/lib/costs/dto";
-import {
-  COST_ALLOWANCE_LABEL,
-  COST_CURSOR_POLICY_LABEL,
-  COST_INFRASTRUCTURE_MARKUP_LABEL,
-} from "@/lib/costs/copy";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { minorToSafeNumber, sumMinor, ZERO_MINOR } from "@/lib/costs/money";
 
@@ -91,9 +86,6 @@ export async function getCostDashboard(input: {
         errorCode: null,
       },
       unavailableReason: null,
-      infrastructureMarkupLabel: COST_INFRASTRUCTURE_MARKUP_LABEL,
-      cursorPolicyLabel: COST_CURSOR_POLICY_LABEL,
-      allowanceLabel: COST_ALLOWANCE_LABEL,
       affectsLiveLedger: false,
       ledgerRevision: null,
       ledgerAsOf: null,
@@ -174,9 +166,6 @@ export async function getCostDashboard(input: {
       errorCode: latestSync?.errorCode ?? null,
     },
     unavailableReason: null,
-    infrastructureMarkupLabel: COST_INFRASTRUCTURE_MARKUP_LABEL,
-    cursorPolicyLabel: COST_CURSOR_POLICY_LABEL,
-    allowanceLabel: COST_ALLOWANCE_LABEL,
     affectsLiveLedger: false,
     ledgerRevision: latestSync?.checksum ?? latestSync?.id ?? null,
     ledgerAsOf: syncCompletedAt?.toISOString() ?? null,

@@ -73,18 +73,20 @@ export function CostUsagePanel({
           </div>
         </div>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-3">
-          <SummaryCard title="Total" value={model.totalLabel} />
-          <SummaryCard title="Included" value={model.includedLabel} />
-          <SummaryCard title="On-demand" value={model.onDemandLabel} />
-        </div>
+        {model.series.length > 0 ? (
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {model.series.map((item) => (
+              <SummaryCard key={item.key} title={item.key} value={item.amountLabel} />
+            ))}
+          </div>
+        ) : null}
 
         <div>
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-medium text-text-primary">Project costs</h3>
               <p className="text-sm text-text-secondary">
-                Cumulative spend by included usage, on-demand usage, and infrastructure.
+                Cumulative spend by category across this period.
               </p>
             </div>
             <p className="text-xs text-text-secondary">Grouped by category</p>
@@ -113,6 +115,7 @@ export function CostUsagePanel({
           label={section.label}
           amountLabel={section.amountLabel}
           lines={section.lines}
+          resetKey={`${range}:${section.lines.map((line) => line.id).join("|")}`}
         />
       ))}
     </div>

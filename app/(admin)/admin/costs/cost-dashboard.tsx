@@ -15,22 +15,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CostProviderRefresh } from "./cost-provider-refresh";
 import { CostUsagePanel } from "./cost-usage-panel";
 import {
   COST_EMPTY_HELP,
   COST_INVOICE_HELP,
-  COST_LIVE_LEDGER_REQUEST,
   COST_NON_OWNER_HELP,
-  syncHealthDetail,
-  syncHealthLabel,
 } from "@/lib/costs/copy";
 import type { CostDashboardDto } from "@/lib/costs/dto";
 import { OwnerCostControls, RequestInvoiceButton } from "./cost-actions";
 
 export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }) {
-  const syncLabel = syncHealthLabel(dashboard.sync);
-  const syncDetail = syncHealthDetail(dashboard.sync);
-
   if (dashboard.unavailableReason) {
     return (
       <>
@@ -58,19 +53,6 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
         }
       />
 
-      <div className="mb-6 space-y-2 text-sm leading-6 text-text-secondary">
-        <p>{dashboard.cursorPolicyLabel}</p>
-        <p>{dashboard.infrastructureMarkupLabel}</p>
-        <p>{dashboard.allowanceLabel}</p>
-        {dashboard.affectsLiveLedger ? <p>{COST_LIVE_LEDGER_REQUEST}</p> : null}
-        {dashboard.ledgerAsOf ? (
-          <p>
-            Ledger revision {dashboard.ledgerRevision ?? "unrecorded"} as of{" "}
-            {new Date(dashboard.ledgerAsOf).toLocaleString("en-GB", { timeZone: "Europe/London" })}.
-          </p>
-        ) : null}
-      </div>
-
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -97,17 +79,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
             <p className="mt-2 text-sm text-text-secondary">{COST_INVOICE_HELP}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Sync</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Badge variant={dashboard.sync.stale ? "warning" : "success"}>
-              {syncLabel}
-            </Badge>
-            <p className="text-sm text-text-secondary">{syncDetail}</p>
-          </CardContent>
-        </Card>
+        <CostProviderRefresh isOwner={dashboard.isOwner} sync={dashboard.sync} />
       </div>
 
       {dashboard.pendingRequest ? (

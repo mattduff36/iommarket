@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { COST_SECTION_HELP } from "@/lib/costs/copy";
 import type { CostLineDto } from "@/lib/costs/dto";
 import { COST_USAGE_PAGE_SIZE, paginateCostLines } from "@/lib/costs/usage-view";
 
@@ -22,19 +23,30 @@ export function CostSectionTable({
   label,
   amountLabel,
   lines,
+  resetKey,
 }: {
   label: string;
   amountLabel: string;
   lines: CostLineDto[];
+  resetKey: string;
 }) {
   const [page, setPage] = useState(1);
+  const [seenResetKey, setSeenResetKey] = useState(resetKey);
+  if (resetKey !== seenResetKey) {
+    setSeenResetKey(resetKey);
+    setPage(1);
+  }
   const paged = useMemo(() => paginateCostLines(lines, page), [lines, page]);
+  const help = COST_SECTION_HELP[label];
 
   return (
     <section className="mb-8">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-text-primary">{label}</h2>
-        <p className="text-sm text-text-secondary">{amountLabel}</p>
+      <div className="mb-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-text-primary">{label}</h2>
+          <p className="text-sm text-text-secondary">{amountLabel}</p>
+        </div>
+        {help ? <p className="mt-1 text-sm text-text-secondary">{help}</p> : null}
       </div>
       <AdminTable>
         <TableHeader>

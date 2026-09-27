@@ -12,17 +12,14 @@ export const COST_EMPTY_HELP =
 export const COST_NON_OWNER_HELP =
   "Ask the configured owner to refresh costs, add manual entries, or request invoices.";
 
-export const COST_INFRASTRUCTURE_MARKUP_LABEL =
-  "Vercel hosting and database charges include a 20% markup.";
-
-export const COST_CURSOR_POLICY_LABEL =
-  "Cursor charges are 60% of included nominal value and 110% of on-demand value. This includes time and has no extra markup.";
-
-export const COST_LIVE_LEDGER_REQUEST =
-  "Requesting an invoice from this site updates the live ledger.";
-
-export const COST_ALLOWANCE_LABEL =
-  "Cursor allowance is measured across the whole account and billing cycle. Only usage attributed to iTrader is billed. Crossing $400 is not confirmed on-demand usage.";
+export const COST_SECTION_HELP: Record<string, string> = {
+  Development: "Cursor charges attributed to iTrader.",
+  "Vercel Hosting": "Hosting charges for this project.",
+  Database: "Database charges for this project.",
+  "Shared Hosting": "Shared team hosting allocated to this project.",
+  "Provisional Shared Hosting": "Shared team hosting allocated to this project.",
+  Other: "Other project charges.",
+};
 
 export function interpretManualCostSyncResult(result: {
   error?: unknown;
@@ -53,44 +50,6 @@ export function manualCostSyncMessage(result: CostSyncResult): string {
   if (result.status === "skipped") {
     return "Cost refresh was skipped because tracking is disabled or the ledger start date is still in the future.";
   }
-  return "Provider cost refresh failed. Check the sync card for the latest status.";
+  return "Provider refresh failed.";
 }
 
-export function syncHealthLabel(input: {
-  status: string;
-  stale: boolean;
-}): string {
-  if (input.stale && input.status === "FAILED") return "Last refresh failed";
-  if (input.stale && input.status === "NONE") return "No refresh yet";
-  if (input.stale) return "Refresh is overdue";
-  if (input.status === "SUCCEEDED") return "Up to date";
-  if (input.status === "RUNNING") return "Refresh in progress";
-  return input.status;
-}
-
-export function syncHealthDetail(input: {
-  status: string;
-  stale: boolean;
-  completedAt: string | null;
-  quarantinedCount: number;
-}): string {
-  const completed = input.completedAt
-    ? `Last completed ${new Date(input.completedAt).toLocaleString("en-GB", {
-        timeZone: "Europe/London",
-      })}.`
-    : "No successful refresh has been recorded.";
-  const quarantine =
-    input.quarantinedCount > 0
-      ? ` ${input.quarantinedCount} provider rows could not be classified.`
-      : "";
-  if (input.status === "FAILED") {
-    return `The latest refresh failed. ${completed}${quarantine}`;
-  }
-  if (input.stale && input.status === "NONE") {
-    return `No provider costs yet. ${COST_REFRESH_HELP}`;
-  }
-  if (input.stale) {
-    return `The ledger is waiting for a newer refresh. ${completed}${quarantine}`;
-  }
-  return `${completed}${quarantine}`;
-}
