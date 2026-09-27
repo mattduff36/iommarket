@@ -117,6 +117,9 @@ export async function requestRemoteManualCost(
     cache: "no-store",
   });
   const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (response.status === 404) {
+    throw new Error("The live manual cost endpoint is not deployed.");
+  }
   if (!response.ok) {
     throw new Error(body?.error || "The live ledger could not record the manual cost.");
   }

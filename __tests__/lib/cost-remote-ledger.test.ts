@@ -77,6 +77,26 @@ describe("remote manual cost", () => {
     );
   });
 
+  it("reports a missing live manual-cost endpoint", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html></html>", { status: 404 })));
+
+    await expect(
+      requestRemoteManualCost(
+        "https://itrader.im",
+        {
+          category: "OTHER",
+          externalRef: "exclude-costs-page",
+          nativeAmount: "-12.50",
+          nativeCurrency: "GBP",
+          displayLabel: "Exclude costs page work",
+          periodStart: "2026-08-17T00:00:00.000Z",
+          periodEnd: "2026-09-27T00:00:00.000Z",
+        },
+        env,
+      ),
+    ).rejects.toThrow("not deployed");
+  });
+
   it("surfaces a live ledger rejection", async () => {
     vi.stubGlobal(
       "fetch",

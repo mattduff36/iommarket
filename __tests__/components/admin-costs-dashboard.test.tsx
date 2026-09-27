@@ -313,7 +313,7 @@ describe("admin costs dashboard T5", () => {
         dashboard={dashboard({ isOwner: true, affectsLiveLedger: true })}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Owner controls" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Developer controls" })).not.toBeNull();
     expect(screen.queryByText(COST_NON_OWNER_HELP)).toBeNull();
   });
 

@@ -155,7 +155,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
       {dashboard.isOwner ? (
         <section className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
           <h2 className="mb-1 text-lg font-semibold text-text-primary">
-            Owner controls
+            Developer controls
           </h2>
           <p className="mb-5 text-sm leading-6 text-text-secondary">
             Record manual charges, refresh provider costs, or retry a failed invoice notification.
