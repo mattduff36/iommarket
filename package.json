@@ -57,6 +57,7 @@
     "cursor:usage": "node --no-warnings --env-file-if-exists=.env.local --experimental-sqlite scripts/cursor-usage/collect.mjs --bounded",
     "cursor:collect": "node --no-warnings --env-file-if-exists=.env.local --experimental-sqlite scripts/cursor-usage/collect.mjs --bounded",
     "cost:cursor-reconcile": "node --env-file-if-exists=.env.local --experimental-sqlite --import tsx scripts/cost-cursor-reconciliation.ts",
+    "cost:catch-up": "node --env-file-if-exists=.env.local --import tsx scripts/cost-ledger-catch-up.ts",
     "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
