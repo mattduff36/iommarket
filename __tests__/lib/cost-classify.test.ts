@@ -48,6 +48,10 @@ describe("COST-CLASS-001 FOCUS classification", () => {
       config,
     );
     const shared = classifyFocusRow(row({ Tags: {} }), config);
+    const ignoredUntagged = classifyFocusRow(
+      row({ Tags: {} }),
+      { ...config, untaggedPolicy: "ignored" },
+    );
     const previewDatabase = classifyFocusRow(
       row({
         ServiceName: "Supabase",
@@ -73,6 +77,7 @@ describe("COST-CLASS-001 FOCUS classification", () => {
     expect(previewDatabase).toMatchObject({ kind: "database", category: "DATABASE" });
     expect(otherStore).toMatchObject({ kind: "ignored" });
     expect(shared).toMatchObject({ kind: "shared", category: "SHARED_VERCEL" });
+    expect(ignoredUntagged).toMatchObject({ kind: "ignored", category: null });
     expect(otherProject).toMatchObject({ kind: "ignored" });
     expect(credit).toMatchObject({ kind: "hosting" });
     expect(tax).toMatchObject({ kind: "hosting" });

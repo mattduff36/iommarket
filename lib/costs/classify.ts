@@ -37,7 +37,7 @@ export interface FocusClassificationConfig {
   previewProjectId?: string;
   databaseResourceIds: readonly string[];
   now?: Date;
-  untaggedPolicy?: "shared" | "unresolved";
+  untaggedPolicy?: "ignored" | "shared" | "unresolved";
 }
 
 function allowedProjectIds(config: FocusClassificationConfig): Set<string> {
@@ -190,6 +190,21 @@ export function classifyFocusRow(
   if (!matchedProjectId && !matchedResourceId) {
     if (config.untaggedPolicy === "unresolved") {
       return { reason: "Untagged FOCUS row is unresolved until mapped.", row };
+    }
+    if (config.untaggedPolicy === "ignored") {
+      return {
+        kind: "ignored",
+        category: null,
+        invoiceability: null,
+        bucketKey: "",
+        checksum,
+        nativeAmount,
+        nativeCurrency: "USD",
+        periodStart,
+        periodEnd,
+        displayLabel: row.ServiceName,
+        row,
+      };
     }
     return {
       kind: "shared",

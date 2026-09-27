@@ -253,7 +253,12 @@ async function executeCostSync(
       previewProjectId: billing.previewProjectId,
       databaseResourceIds: billing.databaseResourceIds,
       now,
-      untaggedPolicy: env.COST_FOCUS_UNTAGGED_POLICY === "unresolved" ? "unresolved" : "shared",
+      untaggedPolicy:
+        env.COST_FOCUS_UNTAGGED_POLICY === "shared"
+          ? "shared"
+          : env.COST_FOCUS_UNTAGGED_POLICY === "unresolved"
+            ? "unresolved"
+            : "ignored",
     });
 
     let quarantinedCount = charges.quarantined.length + classified.quarantined.length;
