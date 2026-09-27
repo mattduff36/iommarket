@@ -298,6 +298,18 @@ async function executeCostSync(
       invoiceability: NonNullable<(typeof ledgerCharges)[number]["invoiceability"]>;
       sharedAllocation: ReturnType<typeof allocateSharedPence> | null;
     }> = [];
+    const fxByPeriod = new Map<
+      string,
+      Awaited<ReturnType<typeof getOrCreateUsdGbpRate>>
+    >();
+    async function fxForPeriod(periodStart: Date) {
+      const periodKey = periodStart.toISOString();
+      const existing = fxByPeriod.get(periodKey);
+      if (existing) return existing;
+      const fx = await getOrCreateUsdGbpRate(costDb, periodStart);
+      fxByPeriod.set(periodKey, fx);
+      return fx;
+    }
 
     for (const charge of ledgerCharges) {
       if (
@@ -332,12 +344,15 @@ async function executeCostSync(
       if (charge.kind === "shared") {
         const membershipKey = `${charge.periodStart.toISOString()}:${charge.periodEnd.toISOString()}`;
         const membership = sharedMembershipByPeriod.get(membershipKey) ?? [];
+        const fx = await fxForPeriod(charge.periodStart);
+        const markedTotal = computeUnmarkedGbpMinor(charge.nativeAmount, fx.rate);
         sharedAllocation = allocateSharedPence(
-          BigInt(0),
+          markedTotal,
           membership,
           billing.projectId,
         );
-        if (sharedAllocation.denominator === 0) {
+        const allocationStatus = sharedAllocationStatus(sharedAllocation);
+        if (allocationStatus === "unallocated") {
           await runSerializable((tx) =>
             recordQuarantine(tx, {
               sourceKind: "VERCEL_FOCUS",
@@ -351,6 +366,7 @@ async function executeCostSync(
           quarantinedCount += 1;
           continue;
         }
+        if (allocationStatus === "zero-share") continue;
         checksum = sharedMembershipChecksum(
           charge.checksum,
           sharedAllocation.membership,
@@ -369,15 +385,8 @@ async function executeCostSync(
     }
     const work = takeCostSyncWork(pendingWrites);
 
-    const fxByPeriod = new Map<string, Awaited<ReturnType<typeof getOrCreateUsdGbpRate>>>();
     for (const item of work.items) {
-      const periodKey = item.charge.periodStart.toISOString();
-      if (!fxByPeriod.has(periodKey)) {
-        fxByPeriod.set(
-          periodKey,
-          await getOrCreateUsdGbpRate(costDb, item.charge.periodStart),
-        );
-      }
+      await fxForPeriod(item.charge.periodStart);
     }
 
     for (const batch of batchCostSyncWork(work.items)) {
