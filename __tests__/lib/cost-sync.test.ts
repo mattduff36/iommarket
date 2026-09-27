@@ -22,6 +22,8 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+  batchCostSyncWork,
+  COST_SYNC_TRANSACTION_BATCH_SIZE,
   COST_SYNC_STALE_CODE,
   MAX_COST_WRITES_PER_RUN,
   recoverStaleCostSyncRuns,
@@ -77,6 +79,11 @@ describe("COST-SYNC-001 overlapping sync triggers", () => {
       items: ["one", "two"],
       hasMore: false,
     });
+    expect(COST_SYNC_TRANSACTION_BATCH_SIZE).toBe(3);
+    expect(batchCostSyncWork(["one", "two", "three", "four"])).toEqual([
+      ["one", "two", "three"],
+      ["four"],
+    ]);
   });
 
   it("marks abandoned running syncs failed before another writer starts", async () => {
