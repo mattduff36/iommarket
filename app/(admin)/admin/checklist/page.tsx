@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { loadChecklist } from "@/actions/admin/checklist";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ChecklistBoard } from "./checklist-board";
 
 export const metadata: Metadata = { title: "Checklist | Admin" };
@@ -10,14 +11,15 @@ export default async function AdminChecklistPage() {
   const result = await loadChecklist();
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold text-text-primary">Checklist</h1>
-      <p className="mt-1 mb-6 text-sm text-text-secondary">
-        Shared admin to-do list. Check items off as they are done, add notes, or
-        capture new work. Everyone with admin access sees the same list.
-      </p>
+    <div className="mx-auto max-w-3xl">
+      <AdminPageHeader
+        title="Checklist"
+        description="Shared admin to-do list. Check items off as they are done, add notes, or capture new work. Everyone with admin access sees the same list."
+      />
       {result.error || !result.data ? (
-        <p className="mb-4 text-sm text-text-error">{result.error}</p>
+        <p className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-4 text-sm text-text-error">
+          {result.error}
+        </p>
       ) : (
         <ChecklistBoard
           initialItems={result.data.items}

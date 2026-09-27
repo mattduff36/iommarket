@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import type { PreviewPackListRow } from "@/lib/preview-packs/archive";
 import { PreviewPackActions } from "./preview-pack-actions";
 
@@ -21,32 +27,30 @@ export function PreviewPacksTable({
   archiveAvailable: boolean;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <Table className="min-w-0 md:min-w-[640px]">
+    <AdminTable className="min-w-0 md:min-w-[720px]">
         <TableHeader>
           <TableRow>
             <TableHead>Dealer</TableHead>
             <TableHead className={PREVIEW_PACK_DETAIL_COLUMN_CLASS}>Snapshot</TableHead>
-            <TableHead className={PREVIEW_PACK_DETAIL_COLUMN_CLASS}>Importable</TableHead>
-            <TableHead className={PREVIEW_PACK_DETAIL_COLUMN_CLASS}>In database</TableHead>
+            <TableHead className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} text-right`}>Importable</TableHead>
+            <TableHead className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} text-right`}>In database</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="w-auto md:w-56">Visible</TableHead>
+            <TableHead className={adminActionsCellClass}>Visible</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.dealerKey}>
               <TableCell>
-                <div className="font-medium text-text-primary">{row.displayName}</div>
-                <div className="font-mono text-xs text-text-tertiary">{row.dealerKey}</div>
+                <AdminDataCell title={row.displayName} subtitle={row.dealerKey} />
               </TableCell>
               <TableCell className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} text-xs text-text-secondary`}>
                 {row.runId ?? "—"}
               </TableCell>
-              <TableCell className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} text-sm text-text-secondary`}>
+              <TableCell className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} ${adminNumericCellClass}`}>
                 {row.importable ?? "—"}
               </TableCell>
-              <TableCell className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} text-sm text-text-secondary`}>
+              <TableCell className={`${PREVIEW_PACK_DETAIL_COLUMN_CLASS} ${adminNumericCellClass}`}>
                 {row.listingCount}
               </TableCell>
               <TableCell>
@@ -58,7 +62,7 @@ export function PreviewPacksTable({
                   <Badge variant="neutral">Not loaded</Badge>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className={adminActionsCellClass}>
                 <div className="flex flex-col items-end gap-2">
                   {row.slug ? (
                     <Link
@@ -82,13 +86,10 @@ export function PreviewPacksTable({
           ))}
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-text-tertiary">
-                No eligible archived dealers found.
-              </TableCell>
+              <AdminTableEmpty colSpan={6}>No eligible archived dealers found.</AdminTableEmpty>
             </TableRow>
           ) : null}
         </TableBody>
-      </Table>
-    </div>
+    </AdminTable>
   );
 }

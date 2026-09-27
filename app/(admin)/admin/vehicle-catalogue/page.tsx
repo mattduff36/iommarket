@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { VehicleCatalogueAdmin } from "./vehicle-catalogue-admin";
 
 export const metadata: Metadata = { title: "Vehicle Catalogue" };
@@ -66,15 +67,12 @@ export default async function VehicleCataloguePage({ searchParams }: Props) {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Vehicle Catalogue</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Maintain canonical makes, models, aliases, source versions, and display order.
-          Deactivate records instead of deleting them.
-        </p>
-      </div>
+    <>
+      <AdminPageHeader
+        title="Vehicle catalogue"
+        description="Maintain canonical makes, models, aliases, source versions, and display order. Deactivate records instead of deleting them."
+      />
       <VehicleCatalogueAdmin makes={makes} query={query} />
-    </div>
+    </>
   );
 }

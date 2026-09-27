@@ -35,7 +35,10 @@ export function IssueStatusControls({ issueId }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <p className="text-sm leading-6 text-text-secondary">
+        Update the triage state or mute recurring alerts for a fixed period.
+      </p>
       <AdminActionBar>
         <AdminActionButton
           onClick={() => submitStatus("OPEN")}
@@ -58,25 +61,27 @@ export function IssueStatusControls({ issueId }: Props) {
           Resolve
         </AdminActionButton>
       </AdminActionBar>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="number"
-          min={1}
-          max={24 * 30}
-          value={muteHours}
-          onChange={(event) => setMuteHours(event.target.value)}
-          className="h-9 w-28 rounded-md border border-border bg-surface px-2 text-sm"
-          aria-label="Mute duration in hours"
-        />
+      <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-end">
+        <label className="flex flex-col gap-1 text-sm text-text-secondary">
+          Mute duration (hours)
+          <input
+            type="number"
+            min={1}
+            max={24 * 30}
+            value={muteHours}
+            onChange={(event) => setMuteHours(event.target.value)}
+            className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-text-primary sm:w-32"
+          />
+        </label>
         <AdminActionButton
           onClick={() => submitStatus("MUTED")}
           disabled={isPending}
           tone="warning"
         >
-          Mute for Hours
+          Mute alerts
         </AdminActionButton>
       </div>
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }

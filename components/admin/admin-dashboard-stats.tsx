@@ -67,9 +67,9 @@ export function buildAdminDashboardStats(
 
 export function AdminDashboardStats({ stats }: { stats: AdminDashboardStat[] }) {
   return (
-    <Card className="mb-8">
-      <CardHeader className="border-b border-border pb-4">
-        <CardTitle className="text-base">Marketplace overview</CardTitle>
+    <Card className="mb-6 overflow-hidden">
+      <CardHeader className="border-b border-border/70 px-4 py-3.5 sm:px-5">
+        <CardTitle className="text-sm font-semibold">Marketplace overview</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-2 p-0 lg:grid-cols-4">
         {stats.map((stat, index) => {
@@ -79,19 +79,24 @@ export function AdminDashboardStats({ stats }: { stats: AdminDashboardStat[] }) 
             <div
               key={stat.label}
               className={cn(
-                "flex flex-col gap-2 p-4",
-                "odd:border-r odd:border-border",
-                index < 2 && "border-b border-border lg:border-b-0",
-                index < stats.length - 1 && "lg:border-r lg:border-border",
+                "flex min-h-28 flex-col justify-between gap-2 px-4 py-4 sm:px-5",
+                "odd:border-r odd:border-border/70",
+                index < 2 && "border-b border-border/70 lg:border-b-0",
+                index < stats.length - 1 && "lg:border-r lg:border-border/70",
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-text-tertiary">{stat.label}</p>
-                <Icon className={`h-3.5 w-3.5 ${stat.iconClassName}`} />
+                <p className="text-xs font-medium text-text-secondary">{stat.label}</p>
+                <Icon
+                  aria-hidden="true"
+                  className={`h-4 w-4 ${stat.iconClassName}`}
+                />
               </div>
-              <p className="text-lg font-bold tabular-nums text-text-primary">{stat.value}</p>
+              <p className="text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">
+                {stat.value}
+              </p>
               {stat.hint ? (
-                <p className={`text-[11px] ${stat.hintClassName ?? "text-text-tertiary"}`}>
+                <p className={`text-xs ${stat.hintClassName ?? "text-text-tertiary"}`}>
                   {stat.hint}
                 </p>
               ) : null}

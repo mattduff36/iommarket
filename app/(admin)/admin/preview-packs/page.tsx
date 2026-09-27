@@ -8,6 +8,7 @@ import {
   mergePreviewPackRows,
 } from "@/lib/preview-packs/archive";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { PreviewPacksTable } from "./preview-packs-table";
 import { SampleListingToggles } from "./sample-listing-toggles";
 
@@ -42,19 +43,17 @@ export default async function PreviewPacksPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">Preview packs</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Toggle each dealer independently. Visible packs appear on the marketplace
-          for admin sessions only. Already-loaded packs can be shown or hidden on
-          any host. First-time photo upload still needs this PC.
-        </p>
-        <p className="mt-2 text-xs text-text-tertiary">
-          {visibleCount} of {rows.length} visible
-          {archive.runId ? ` · latest run ${archive.runId}` : ""}
-          {archive.archiveAvailable ? "" : " · archive not on this host"}
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Preview packs"
+        description="Control dealer preview data shown to admin sessions. Loaded packs can be toggled on any host; first-time photo upload still needs this PC."
+        meta={
+          <>
+            <span>{visibleCount} of {rows.length} visible</span>
+            {archive.runId ? <span>Latest run {archive.runId}</span> : null}
+            {!archive.archiveAvailable ? <span>Archive unavailable on this host</span> : null}
+          </>
+        }
+      />
 
       <SampleListingToggles
         samplePrivateVisible={sampleVisibility.privateListings}

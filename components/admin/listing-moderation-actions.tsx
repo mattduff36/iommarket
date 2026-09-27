@@ -10,6 +10,10 @@ import {
 } from "@/components/admin/admin-action-controls";
 import { ModerationReasonDialog } from "@/components/admin/moderation-reason-dialog";
 import {
+  AdminRowActions,
+  compactAdminRowActions,
+} from "@/components/admin/admin-row-actions";
+import {
   buildModerationReasonOptions,
   MODERATION_TAXONOMY_VERSION,
 } from "@/lib/listings/moderation-reasons";
@@ -26,6 +30,7 @@ interface ListingModerationActionsProps {
   pendingRevisionVersion?: number;
   variant?: "inline" | "floating";
   className?: string;
+  listingTitle?: string;
 }
 
 const REASON_OPTIONS = buildModerationReasonOptions({
@@ -42,6 +47,7 @@ export function ListingModerationActions({
   pendingRevisionVersion,
   variant = "inline",
   className,
+  listingTitle,
 }: ListingModerationActionsProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +137,71 @@ export function ListingModerationActions({
     });
   }
 
+  const inlineActions = compactAdminRowActions([
+    canApprove
+      ? { kind: "command", id: "approve", label: "Approve", onSelect: () => runAction("APPROVE") }
+      : null,
+    canApproveRevision
+      ? {
+          kind: "command",
+          id: "approve-revision",
+          label: "Approve edits",
+          onSelect: () => runAction("APPROVE_REVISION"),
+        }
+      : null,
+    canRestore && currentStatus === "TAKEN_DOWN" && canReinstateLive
+      ? {
+          kind: "command",
+          id: "reinstate",
+          label: "Reinstate live",
+          onSelect: () => setDialog("REINSTATE_LIVE"),
+        }
+      : null,
+    canRestore
+      ? {
+          kind: "command",
+          id: "draft",
+          label: "Return to draft",
+          onSelect: () => setDialog("RETURN_TO_DRAFT"),
+        }
+      : null,
+    canFeature
+      ? {
+          kind: "command",
+          id: "feature",
+          label: featured ? "Unfeature" : "Feature",
+          onSelect: () => handleFeatured(!featured),
+        }
+      : null,
+    canApproveRevision
+      ? {
+          kind: "command",
+          id: "reject-revision",
+          label: "Reject edits",
+          destructive: true,
+          onSelect: () => setDialog("REJECT_REVISION"),
+        }
+      : null,
+    canReject
+      ? {
+          kind: "command",
+          id: "reject",
+          label: "Reject",
+          destructive: true,
+          onSelect: () => setDialog("REJECT"),
+        }
+      : null,
+    canTakeDown
+      ? {
+          kind: "command",
+          id: "takedown",
+          label: "Take down",
+          destructive: true,
+          onSelect: () => setDialog("TAKE_DOWN"),
+        }
+      : null,
+  ]);
+
   return (
     <div
       className={cn(
@@ -157,6 +228,13 @@ export function ListingModerationActions({
         </div>
       ) : null}
 
+      {variant === "inline" ? (
+        <AdminRowActions
+          label={`Actions for ${listingTitle ?? "this listing"}`}
+          actions={inlineActions}
+          pendingLabel={isPending ? "Working…" : undefined}
+        />
+      ) : (
       <AdminActionBar className={cn(variant === "floating" && "justify-end")}>
         {canApprove ? (
           <AdminActionButton
@@ -230,6 +308,7 @@ export function ListingModerationActions({
           </AdminActionButton>
         ) : null}
       </AdminActionBar>
+      )}
 
       {dialog ? (
         <ModerationReasonDialog

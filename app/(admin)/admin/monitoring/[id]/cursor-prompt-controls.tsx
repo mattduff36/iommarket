@@ -52,7 +52,10 @@ export function CursorPromptControls({ issueId, initialPrompt, generatedAt }: Pr
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <p className="text-sm leading-6 text-text-secondary">
+        Generate a diagnostic prompt from the recorded issue context, then copy it into Cursor for investigation.
+      </p>
       <AdminActionBar>
         <AdminActionButton
           onClick={handleGenerate}
@@ -68,14 +71,14 @@ export function CursorPromptControls({ issueId, initialPrompt, generatedAt }: Pr
           {copied ? "Copied" : "Copy Prompt"}
         </AdminActionButton>
       </AdminActionBar>
-      <p className="text-xs text-text-secondary">{generatedLabel}</p>
+      <p className="text-xs tabular-nums text-text-tertiary">{generatedLabel}</p>
       <AdminActionTextarea
         readOnly
         value={prompt}
         className="h-64 w-full rounded-md border border-border bg-surface p-3 text-xs text-text-primary"
         placeholder="Generate a prompt to copy into Cursor."
       />
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
     </div>
   );
 }

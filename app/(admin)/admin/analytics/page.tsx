@@ -1,19 +1,51 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { db } from "@/lib/db";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 
 export const metadata: Metadata = { title: "Analytics | Admin" };
+
+function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4 sm:p-5">
+        <p className="text-xs font-medium text-text-secondary">{label}</p>
+        <p className="mt-2 text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">
+          {value}
+        </p>
+        {detail ? (
+          <p className="mt-1 text-xs text-text-tertiary">{detail}</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default async function AdminAnalyticsPage() {
   await expireStaleLiveListings();
@@ -79,147 +111,132 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Analytics</h1>
+      <AdminPageHeader
+        title="Analytics"
+        description="Track marketplace engagement, audience growth, and the listings attracting attention."
+        meta={<span>Live marketplace data</span>}
+      />
 
       {/* Overview cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Views (30d)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalViews30d.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Views (7d)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalViews7d.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalUsers.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Live Listings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalListingsLive.toLocaleString()}</p>
-          </CardContent>
-        </Card>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Views (30d)" value={totalViews30d.toLocaleString()} />
+        <MetricCard label="Views (7d)" value={totalViews7d.toLocaleString()} />
+        <MetricCard label="Users" value={totalUsers.toLocaleString()} />
+        <MetricCard label="Live listings" value={totalListingsLive.toLocaleString()} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Total Favourites</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalFavourites.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Saved Searches</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-text-primary">{totalSavedSearches.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-text-secondary">Dealer vs Private (live)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-text-primary">
-              <span className="font-bold">{dealerListingCount}</span> dealer
-              {" / "}
-              <span className="font-bold">{privateListingCount}</span> private
-            </p>
-          </CardContent>
-        </Card>
+      <div className="mb-8 grid gap-3 sm:grid-cols-3">
+        <MetricCard label="Total favourites" value={totalFavourites.toLocaleString()} />
+        <MetricCard label="Saved searches" value={totalSavedSearches.toLocaleString()} />
+        <MetricCard
+          label="Live seller mix"
+          value={`${dealerListingCount} / ${privateListingCount}`}
+          detail="Dealer / private"
+        />
       </div>
 
       {/* Daily views */}
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Daily Views (last 7 days)</h2>
-      <div className="grid grid-cols-7 gap-2 mb-8">
-        {recentViews.map((day) => {
-          const date = new Date(day.day);
-          return (
-            <div key={day.day} className="rounded-lg border border-border bg-surface p-3 text-center">
-              <p className="text-xs text-text-tertiary">
-                {date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })}
-              </p>
-              <p className="text-lg font-bold text-text-primary">{Number(day.count).toLocaleString()}</p>
-            </div>
-          );
-        })}
-        {recentViews.length === 0 && (
-          <p className="col-span-7 text-center text-text-tertiary py-4">No view data yet.</p>
+      <section className="mb-8" aria-labelledby="daily-views-heading">
+        <h2 id="daily-views-heading" className="mb-3 text-sm font-semibold text-text-primary">
+          Daily views
+          <span className="ml-2 font-normal text-text-tertiary">Last 7 days</span>
+        </h2>
+        {recentViews.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {recentViews.map((day) => {
+              const date = new Date(day.day);
+              return (
+                <div key={day.day} className="rounded-lg border border-border bg-surface px-3 py-3 text-center shadow-low">
+                  <p className="text-xs text-text-tertiary">
+                    {date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })}
+                  </p>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-text-primary">
+                    {Number(day.count).toLocaleString()}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <AdminEmptyState
+            compact
+            title="No view data yet"
+            description="Daily activity will appear after listings receive views."
+          />
         )}
-      </div>
+      </section>
 
       {/* Top by views */}
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Top Listings by Views</h2>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>#</TableHead>
-            <TableHead>Listing</TableHead>
-            <TableHead>Seller</TableHead>
-            <TableHead>Views</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {topByViews.map((listing, i) => (
-            <TableRow key={listing.id}>
-              <TableCell className="text-sm text-text-tertiary">{i + 1}</TableCell>
-              <TableCell className="text-sm text-text-primary">{listing.title}</TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {listing.dealer?.name ?? listing.user.email}
-              </TableCell>
-              <TableCell className="text-sm font-medium text-text-primary">
-                {listing.viewCount.toLocaleString()}
-              </TableCell>
+      <section aria-labelledby="top-views-heading">
+        <h2 id="top-views-heading" className="mb-3 text-sm font-semibold text-text-primary">
+          Top listings by views
+        </h2>
+        <AdminTable>
+          <TableHeader>
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead>Listing</TableHead>
+              <TableHead>Seller</TableHead>
+              <TableHead>Views</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {topByViews.map((listing, i) => (
+              <TableRow key={listing.id}>
+                <TableCell className="w-12 text-xs tabular-nums text-text-tertiary">{i + 1}</TableCell>
+                <TableCell>
+                  <AdminDataCell title={listing.title} />
+                </TableCell>
+                <TableCell className="text-text-secondary">{listing.dealer?.name ?? listing.user.email}</TableCell>
+                <TableCell className={adminNumericCellClass}>
+                  {listing.viewCount.toLocaleString()}
+                </TableCell>
+              </TableRow>
+            ))}
+            {topByViews.length === 0 ? (
+              <TableRow>
+                <AdminTableEmpty colSpan={4}>No live listings have view data yet.</AdminTableEmpty>
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </AdminTable>
+      </section>
 
       {/* Top by favourites */}
-      <h2 className="text-lg font-semibold text-text-primary mt-8 mb-4">Top Listings by Favourites</h2>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>#</TableHead>
-            <TableHead>Listing</TableHead>
-            <TableHead>Seller</TableHead>
-            <TableHead>Favourites</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {topByFavourites.map((listing, i) => (
-            <TableRow key={listing.id}>
-              <TableCell className="text-sm text-text-tertiary">{i + 1}</TableCell>
-              <TableCell className="text-sm text-text-primary">{listing.title}</TableCell>
-              <TableCell className="text-sm text-text-secondary">
-                {listing.dealer?.name ?? listing.user.email}
-              </TableCell>
-              <TableCell className="text-sm font-medium text-text-primary">
-                {listing._count.favouritedBy}
-              </TableCell>
+      <section className="mt-8" aria-labelledby="top-favourites-heading">
+        <h2 id="top-favourites-heading" className="mb-3 text-sm font-semibold text-text-primary">
+          Top listings by favourites
+        </h2>
+        <AdminTable>
+          <TableHeader>
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead>Listing</TableHead>
+              <TableHead>Seller</TableHead>
+              <TableHead>Favourites</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {topByFavourites.map((listing, i) => (
+              <TableRow key={listing.id}>
+                <TableCell className="w-12 text-xs tabular-nums text-text-tertiary">{i + 1}</TableCell>
+                <TableCell>
+                  <AdminDataCell title={listing.title} />
+                </TableCell>
+                <TableCell className="text-text-secondary">{listing.dealer?.name ?? listing.user.email}</TableCell>
+                <TableCell className={adminNumericCellClass}>
+                  {listing._count.favouritedBy}
+                </TableCell>
+              </TableRow>
+            ))}
+            {topByFavourites.length === 0 ? (
+              <TableRow>
+                <AdminTableEmpty colSpan={4}>No live listings have favourites yet.</AdminTableEmpty>
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </AdminTable>
+      </section>
     </>
   );
 }

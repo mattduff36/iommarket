@@ -5,13 +5,20 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminFilterBar, AdminFilterChip } from "@/components/admin/admin-filter-bar";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminActionsCellClass,
+  adminDateCellClass,
+} from "@/components/admin/admin-table";
 import { RestorePageButton } from "./restore-page-button";
 
 export const metadata: Metadata = { title: "Content Pages | Admin" };
@@ -30,32 +37,39 @@ export default async function AdminPagesListPage({
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">Content Pages</h1>
-        <div className="flex items-center gap-3">
-          <Link
-            href={showDeleted ? "/admin/pages" : "/admin/pages?deleted=1"}
-            className="text-sm text-text-secondary hover:text-text-primary"
-          >
-            {showDeleted ? "Active pages" : "Deleted pages"}
-          </Link>
+      <AdminPageHeader
+        title="Content pages"
+        description="Create and maintain the editable pages published across the marketplace."
+        actions={
           <Link
             href="/admin/pages/new"
             className="inline-flex h-8 items-center justify-center rounded-md border border-neon-blue-500/25 bg-neon-blue-500/10 px-3 text-xs font-medium text-neon-blue-400 transition-colors hover:border-neon-blue-500/45 hover:bg-neon-blue-500/15 hover:text-neon-blue-500"
           >
             New Page
           </Link>
-        </div>
-      </div>
+        }
+      />
 
-      <Table>
+      <AdminFilterBar
+        count={`${pages.length} ${pages.length === 1 ? "page" : "pages"}`}
+      >
+        <AdminFilterChip
+          href={showDeleted ? "/admin/pages" : "/admin/pages?deleted=1"}
+          active={showDeleted}
+          activeTone="warning"
+        >
+          Deleted pages
+        </AdminFilterChip>
+      </AdminFilterBar>
+
+      <AdminTable>
         <TableHeader>
           <TableRow>
             <TableHead>Title</TableHead>
             <TableHead>Slug</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Updated</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className={adminActionsCellClass}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -68,10 +82,10 @@ export default async function AdminPagesListPage({
                   {page.status}
                 </Badge>
               </TableCell>
-              <TableCell className="text-sm text-text-tertiary">
+              <TableCell className={adminDateCellClass}>
                 {page.updatedAt.toLocaleDateString("en-GB")}
               </TableCell>
-              <TableCell>
+              <TableCell className={adminActionsCellClass}>
                 {page.deletedAt ? (
                   <RestorePageButton id={page.id} />
                 ) : (
@@ -87,13 +101,15 @@ export default async function AdminPagesListPage({
           ))}
           {pages.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-text-tertiary py-8">
-                No content pages yet. Create one to get started.
-              </TableCell>
+              <AdminTableEmpty colSpan={5}>
+                {showDeleted
+                  ? "No deleted content pages."
+                  : "No content pages yet. Create one to get started."}
+              </AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
     </>
   );
 }

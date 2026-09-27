@@ -1111,6 +1111,7 @@ export async function contactSeller(input: ContactSellerInput) {
     await sendContactConfirmationEmail({
       buyerEmail: parsed.data.email,
       listingTitle: listing.title,
+      listingUrl,
     });
     return { data: { sent: true } };
   } catch (err) {

@@ -4,10 +4,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  AdminTable,
+  AdminTableEmpty,
+  adminDateCellClass,
+  adminNumericCellClass,
+} from "@/components/admin/admin-table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
@@ -98,19 +104,29 @@ export default async function AdminUserDetailPage({ params }: Props) {
 
   return (
     <>
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/admin/users"
-          className="text-sm text-text-secondary hover:text-text-primary"
-        >
-          &larr; Users
-        </Link>
-        <h1 className="text-2xl font-bold text-text-primary">
-          {user.name ?? user.email}
-        </h1>
-        {user.deletedAt && <Badge variant="error">Deleted</Badge>}
-        {user.disabledAt && !user.deletedAt && <Badge variant="error">Disabled</Badge>}
-      </div>
+      <AdminPageHeader
+        title={user.name ?? user.email}
+        description={user.name ? user.email : "Account details and activity"}
+        meta={
+          <>
+            <Badge variant={user.role === "ADMIN" ? "warning" : user.role === "DEALER" ? "info" : "neutral"}>
+              {user.role}
+            </Badge>
+            {user.deletedAt ? <Badge variant="error">Deleted</Badge> : null}
+            {user.disabledAt && !user.deletedAt ? (
+              <Badge variant="error">Disabled</Badge>
+            ) : null}
+          </>
+        }
+        actions={
+          <Link
+            href="/admin/users"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary"
+          >
+            &larr; All users
+          </Link>
+        }
+      />
 
       {/* Actions */}
       <div className="mb-6">
@@ -292,8 +308,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
       )}
 
       {/* Recent listings */}
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Recent Listings</h2>
-      <Table>
+      <h2 className="mb-4 text-lg font-semibold text-text-primary">Recent listings</h2>
+      <AdminTable>
         <TableHeader>
           <TableRow>
             <TableHead>Title</TableHead>
@@ -318,23 +334,23 @@ export default async function AdminUserDetailPage({ params }: Props) {
                   {listing.status}
                 </Badge>
               </TableCell>
-              <TableCell className="text-sm text-text-secondary">
+              <TableCell className={adminNumericCellClass}>
                 £{(listing.price / 100).toLocaleString()}
               </TableCell>
-              <TableCell className="text-sm text-text-tertiary">
+              <TableCell className={adminDateCellClass}>
                 {listing.createdAt.toLocaleDateString("en-GB")}
               </TableCell>
             </TableRow>
           ))}
           {recentListings.length === 0 && (
             <TableRow>
-              <TableCell colSpan={4} className="text-center text-text-tertiary py-8">
-                No listings yet.
-              </TableCell>
+              <AdminTableEmpty colSpan={4}>
+                This user has not created any listings yet.
+              </AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+      </AdminTable>
     </>
   );
 }

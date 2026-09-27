@@ -71,56 +71,74 @@ export function SettingsForm({ settings, envDefaults }: SettingsFormProps) {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      {KNOWN_SETTINGS.map((setting) => {
-        const dbValue = settingsMap.get(setting.key);
-        const hasOverride = dbValue !== undefined;
-        const currentValue = hasOverride ? String(dbValue) : "";
-        const envDefault = envDefaults[setting.key] ?? "-";
+    <section className="max-w-3xl">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-text-primary">Operational overrides</h2>
+        <p className="mt-1 text-sm leading-6 text-text-secondary">
+          Leave a setting without an override to keep using the environment or code default shown beside it.
+        </p>
+      </div>
+      <div className="space-y-4">
+        {KNOWN_SETTINGS.map((setting) => {
+          const dbValue = settingsMap.get(setting.key);
+          const hasOverride = dbValue !== undefined;
+          const currentValue = hasOverride ? String(dbValue) : "";
+          const envDefault = envDefaults[setting.key] ?? "-";
+          const inputId = `setting-${setting.key.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
-        return (
-          <div key={setting.key} className="rounded-lg border border-border p-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-text-primary">{setting.label}</label>
-              <span className="text-xs text-text-tertiary">
-                env default: {envDefault}
-              </span>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSave(setting.key, new FormData(e.currentTarget));
-              }}
-              className="flex items-end gap-2"
-            >
-              <Input
-                name="value"
-                type={setting.type}
-                defaultValue={currentValue}
-                placeholder={`Override (default: ${envDefault})`}
-                className="flex-1"
-              />
-              <AdminActionButton type="submit" disabled={isPending} tone="primary">
-                Save
-              </AdminActionButton>
+          return (
+            <div key={setting.key} className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-5">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                <label htmlFor={inputId} className="text-sm font-medium text-text-primary">
+                  {setting.label}
+                </label>
+                <span className="break-all text-xs text-text-tertiary">
+                  Default: {envDefault}
+                </span>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSave(setting.key, new FormData(e.currentTarget));
+                }}
+                className="flex flex-col gap-2 sm:flex-row sm:items-end"
+              >
+                <Input
+                  id={inputId}
+                  name="value"
+                  type={setting.type}
+                  defaultValue={currentValue}
+                  placeholder={`Override (default: ${envDefault})`}
+                  className="min-w-0 flex-1"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <AdminActionButton type="submit" disabled={isPending} tone="primary">
+                    Save
+                  </AdminActionButton>
+                  {hasOverride && (
+                    <AdminActionButton
+                      onClick={() => handleReset(setting.key)}
+                      disabled={isPending}
+                    >
+                      Reset
+                    </AdminActionButton>
+                  )}
+                </div>
+              </form>
               {hasOverride && (
-                <AdminActionButton
-                  onClick={() => handleReset(setting.key)}
-                  disabled={isPending}
-                >
-                  Reset
-                </AdminActionButton>
+                <p className="mt-2 break-all text-xs text-emerald-500">
+                  Database override active: {String(dbValue)}
+                </p>
               )}
-            </form>
-            {hasOverride && (
-              <p className="mt-1 text-xs text-emerald-500">DB override active: {String(dbValue)}</p>
-            )}
-          </div>
-        );
-      })}
+            </div>
+          );
+        })}
+      </div>
 
-      {error && <p className="text-sm text-text-error">{error}</p>}
-      {success && <p className="text-sm text-emerald-500">{success}</p>}
-    </div>
+      <div aria-live="polite" className="mt-4 min-h-5">
+        {error && <p role="alert" className="text-sm text-text-error">{error}</p>}
+        {success && <p role="status" className="text-sm text-emerald-500">{success}</p>}
+      </div>
+    </section>
   );
 }

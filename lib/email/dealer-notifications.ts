@@ -1,4 +1,5 @@
 import { sendResendEmail } from "@/lib/email/client";
+import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
 import { captureException } from "@/lib/monitoring";
 
@@ -17,7 +18,9 @@ export function buildDealerVerificationEmail(input: {
     ...renderBrandedEmail({
       title,
       intro,
-      bodyLines: [`Dealer: ${input.dealerName}`],
+      details: [{ label: "Dealer", value: input.dealerName }],
+      actionHref: `${getEmailAppOrigin()}/dealer/dashboard`,
+      actionLabel: "Open dealer dashboard",
     }),
   };
 }

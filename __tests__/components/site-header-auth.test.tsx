@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -7,6 +7,10 @@ const authMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   signOut: vi.fn(),
   unsubscribe: vi.fn(),
+  authStateChangeCallback: null as null | ((
+    event: string,
+    session: { user: { email: string } } | null,
+  ) => void),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -25,10 +29,22 @@ vi.mock("next/image", () => ({
 }));
 
 vi.mock("@/components/auth/header-auth-buttons", () => ({
-  HeaderAuthButtons: ({ authState }: { authState: { loading: boolean } }) => (
-    <span data-testid="header-auth-state">
-      {authState.loading ? "loading" : "ready"}
-    </span>
+  HeaderAuthButtons: ({
+    authState,
+  }: {
+    authState: {
+      displayName: string | null;
+      loading: boolean;
+      role: string | null;
+    };
+  }) => (
+    <>
+      <span data-testid="header-auth-state">
+        {authState.loading ? "loading" : "ready"}
+      </span>
+      <span data-testid="header-auth-name">{authState.displayName}</span>
+      <span data-testid="header-auth-role">{authState.role}</span>
+    </>
   ),
 }));
 
@@ -53,9 +69,14 @@ vi.mock("@/lib/supabase/client", () => ({
     auth: {
       getSession: authMocks.getSession,
       signOut: authMocks.signOut,
-      onAuthStateChange: () => ({
-        data: { subscription: { unsubscribe: authMocks.unsubscribe } },
-      }),
+      onAuthStateChange: (
+        callback: NonNullable<typeof authMocks.authStateChangeCallback>,
+      ) => {
+        authMocks.authStateChangeCallback = callback;
+        return {
+          data: { subscription: { unsubscribe: authMocks.unsubscribe } },
+        };
+      },
     },
   }),
 }));
@@ -65,6 +86,7 @@ describe("SiteHeader auth initialization", () => {
     authMocks.getSession.mockReset();
     authMocks.signOut.mockReset();
     authMocks.unsubscribe.mockReset();
+    authMocks.authStateChangeCallback = null;
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "public-anon-key");
   });
@@ -93,6 +115,53 @@ describe("SiteHeader auth initialization", () => {
       ).toBe(true);
     });
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the account control loading until the signed-in profile is ready", async () => {
+    let resolveProfile!: (response: {
+      ok: boolean;
+      json: () => Promise<{ name: string; role: string }>;
+    }) => void;
+    const profileResponse = new Promise<{
+      ok: boolean;
+      json: () => Promise<{ name: string; role: string }>;
+    }>((resolve) => {
+      resolveProfile = resolve;
+    });
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(profileResponse));
+    authMocks.getSession.mockResolvedValue({
+      data: { session: null },
+    });
+
+    render(<SiteHeader />);
+    await waitFor(() => {
+      expect(screen.getByTestId("header-auth-state")).toHaveTextContent("ready");
+    });
+
+    act(() => {
+      authMocks.authStateChangeCallback?.("SIGNED_IN", {
+        user: { email: "admin@mpdee.co.uk" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("header-auth-state")).toHaveTextContent("loading");
+    });
+    expect(screen.getByTestId("header-auth-name")).toHaveTextContent("");
+    expect(screen.getByTestId("header-auth-role")).toHaveTextContent("");
+
+    resolveProfile({
+      ok: true,
+      json: async () => ({ name: "Admin (mpdee)", role: "ADMIN" }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("header-auth-state")).toHaveTextContent("ready");
+      expect(screen.getByTestId("header-auth-name")).toHaveTextContent(
+        "Admin (mpdee)",
+      );
+      expect(screen.getByTestId("header-auth-role")).toHaveTextContent("ADMIN");
+    });
   });
 
   it("shows the mobile Preview packs expander for admins", async () => {

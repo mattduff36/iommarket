@@ -36,7 +36,8 @@ describe("ListingModerationActions", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for this listing" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Approve" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain(
       "This listing changed",
