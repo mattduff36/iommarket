@@ -34,6 +34,7 @@ export function isTrustedLaunchHook(pathname: string): boolean {
     matchesPathBoundary(pathname, "/api/webhooks/payments") ||
     matchesPathBoundary(pathname, "/api/webhooks/ripple") ||
     matchesPathBoundary(pathname, "/api/cron") ||
+    matchesPathBoundary(pathname, "/api/internal/cost-ledger") ||
     EXACT_TRUSTED_HOOKS.has(pathname)
   );
 }

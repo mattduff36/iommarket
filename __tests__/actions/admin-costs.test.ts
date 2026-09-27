@@ -57,6 +57,8 @@ describe("COST-CONFIRM-002 owner-only confirmation", () => {
     vi.clearAllMocks();
     process.env.COSTS_ENABLED = "true";
     process.env.COST_OWNER_AUTH_USER_ID = "owner-auth";
+    process.env.COST_LEDGER_ROLE = "canonical";
+    delete process.env.VERCEL_PROJECT_ID;
   });
 
   it(
@@ -103,6 +105,8 @@ describe("manual cost sync T4", () => {
     vi.clearAllMocks();
     process.env.COSTS_ENABLED = "true";
     process.env.COST_OWNER_AUTH_USER_ID = "owner-auth";
+    process.env.COST_LEDGER_ROLE = "canonical";
+    delete process.env.VERCEL_PROJECT_ID;
     requireRoleMock.mockResolvedValue({
       id: "admin_1",
       authUserId: "owner-auth",

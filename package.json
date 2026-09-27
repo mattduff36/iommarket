@@ -54,7 +54,9 @@
     "prod-mirror": "npx tsx scripts/prod-mirror.ts",
     "env:production:pull": "tsx scripts/production-env.ts pull",
     "env:production:check": "tsx scripts/production-env.ts check",
-    "cursor:usage": "node --no-warnings --experimental-sqlite scripts/cursor-usage-export.mjs",
+    "cursor:usage": "node --no-warnings --env-file-if-exists=.env.local --experimental-sqlite scripts/cursor-usage/collect.mjs --bounded",
+    "cursor:collect": "node --no-warnings --env-file-if-exists=.env.local --experimental-sqlite scripts/cursor-usage/collect.mjs --bounded",
+    "cost:cursor-reconcile": "node --env-file-if-exists=.env.local --experimental-sqlite --import tsx scripts/cost-cursor-reconciliation.ts",
     "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {

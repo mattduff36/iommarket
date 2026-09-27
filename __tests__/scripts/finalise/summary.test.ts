@@ -37,6 +37,7 @@ describe("finalise change summaries", () => {
   it("refuses secret-like paths", () => {
     expect(isSecretPath(".env")).toBe(true);
     expect(isSecretPath(".env.local")).toBe(true);
+    expect(isSecretPath(".env.example")).toBe(false);
     expect(isSecretPath(".cursor/mcp.json")).toBe(true);
     expect(isSecretPath("certs/server.pem")).toBe(true);
     expect(isSecretPath("credentials.json")).toBe(true);

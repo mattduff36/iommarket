@@ -1,6 +1,6 @@
 #!/bin/sh
-# Blocks secrets from being committed, then refreshes the Cursor usage log so the
-# deployed cost ledger stays in step with the commit being made.
+# Blocks secrets from being committed. Usage collection is local and must not
+# stage a rolling ledger file.
 
 STAGED_ENV=$(git diff --cached --name-only | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example$')
 
@@ -16,10 +16,11 @@ if [ -n "$STAGED_ENV" ]; then
   exit 1
 fi
 
-# Never block a commit on usage collection: it needs a signed-in Cursor and network.
+# Collection is best-effort. It must not stage a usage ledger or block the commit.
 if [ -z "$SKIP_CURSOR_USAGE" ]; then
-  node --no-warnings --experimental-sqlite scripts/cursor-usage-export.mjs >/dev/null 2>&1
-  git add data/cursor-usage.json >/dev/null 2>&1 || true
+  node --no-warnings --env-file-if-exists=.env.local --experimental-sqlite \
+    scripts/cursor-usage/collect.mjs --bounded \
+    || echo "Cursor usage collection unavailable. Commit will continue."
 fi
 
 exit 0

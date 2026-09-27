@@ -49,6 +49,32 @@ export async function ensureLedgerConfig(client: LedgerClient) {
   });
 }
 
+function toExistingRevision(snapshot: {
+  revision: number;
+  checksum: string;
+  entries: Array<{
+    id: string;
+    invoiceability: CostInvoiceability;
+    markedGbpMinor: bigint;
+    fxRateSnapshotId: string | null;
+    nativeAmount: { toString(): string } | string;
+    nativeCurrency: string;
+  }>;
+}): ExistingLedgerRevision | null {
+  const charge = snapshot.entries[0];
+  if (!charge) return null;
+  return {
+    revision: snapshot.revision,
+    checksum: snapshot.checksum,
+    invoiceability: charge.invoiceability,
+    chargeEntryId: charge.id,
+    markedGbpMinor: charge.markedGbpMinor,
+    fxRateSnapshotId: charge.fxRateSnapshotId,
+    nativeAmount: charge.nativeAmount.toString(),
+    nativeCurrency: charge.nativeCurrency,
+  };
+}
+
 export async function getLatestBucketRevision(
   client: LedgerClient,
   sourceKind: CostSourceKind,
@@ -63,19 +89,39 @@ export async function getLatestBucketRevision(
       },
     },
   });
-  if (!snapshot) return null;
-  const charge = snapshot.entries[0];
-  if (!charge) return null;
-  return {
-    revision: snapshot.revision,
-    checksum: snapshot.checksum,
-    invoiceability: charge.invoiceability,
-    chargeEntryId: charge.id,
-    markedGbpMinor: charge.markedGbpMinor,
-    fxRateSnapshotId: charge.fxRateSnapshotId,
-    nativeAmount: charge.nativeAmount.toString(),
-    nativeCurrency: charge.nativeCurrency,
-  };
+  return snapshot ? toExistingRevision(snapshot) : null;
+}
+
+export async function listLatestBucketRevisions(
+  client: Pick<LedgerClient, "costSourceSnapshot">,
+  sourceKind: CostSourceKind,
+  bucketKeys: readonly string[],
+): Promise<Map<string, ExistingLedgerRevision>> {
+  const uniqueKeys = [...new Set(bucketKeys)];
+  if (uniqueKeys.length === 0) return new Map();
+
+  const snapshots = await client.costSourceSnapshot.findMany({
+    where: {
+      sourceKind,
+      bucketKey: { in: uniqueKeys },
+      classified: true,
+      quarantined: false,
+    },
+    orderBy: { revision: "desc" },
+    include: {
+      entries: {
+        where: { kind: "CHARGE" },
+      },
+    },
+  });
+
+  const latest = new Map<string, ExistingLedgerRevision>();
+  for (const snapshot of snapshots) {
+    if (latest.has(snapshot.bucketKey)) continue;
+    const revision = toExistingRevision(snapshot);
+    if (revision) latest.set(snapshot.bucketKey, revision);
+  }
+  return latest;
 }
 
 export async function applyClassifiedCharge(

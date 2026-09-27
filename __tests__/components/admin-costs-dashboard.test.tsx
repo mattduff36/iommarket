@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
   COST_EMPTY_HELP,
@@ -60,6 +61,13 @@ function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto 
       completedAt: null,
       errorCode: null,
     },
+    unavailableReason: null,
+    infrastructureMarkupLabel: "Vercel hosting and database charges include a 20% markup.",
+    cursorPolicyLabel: "Cursor charges are 60% of included nominal value and 110% of on-demand value.",
+    allowanceLabel: "Crossing $400 is not confirmed on-demand usage.",
+    affectsLiveLedger: false,
+    ledgerRevision: null,
+    ledgerAsOf: null,
     ...overrides,
   };
 }
@@ -70,6 +78,9 @@ describe("admin costs dashboard T5", () => {
     expect(hasSensitiveCostField(data)).toBe(false);
     render(<CostDashboardView dashboard={data} />);
     expect(screen.getByText(COST_EMPTY_HELP)).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
+    expect(screen.getByText(/20% markup/i)).not.toBeNull();
+    expect(screen.getByText(/60% of included nominal value/i)).not.toBeNull();
     expect(screen.getByText(COST_NON_OWNER_HELP)).not.toBeNull();
     expect(screen.getByText(/No refresh yet/i)).not.toBeNull();
     expect(screen.queryByText(/Ledger start:/i)).toBeNull();
@@ -172,12 +183,53 @@ describe("admin costs dashboard T5", () => {
     render(<CostDashboardView dashboard={data} />);
     expect(screen.getByText("Up to date")).not.toBeNull();
     expect(screen.getByText(/Last completed/i)).not.toBeNull();
-    expect(screen.getByText("Vercel Hosting")).not.toBeNull();
-    expect(screen.getByText("Shared Hosting")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Usage" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("img", { name: /cumulative project costs/i })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Vercel Hosting" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Shared Hosting" })).not.toBeNull();
     expect(screen.getByText("Provisional")).not.toBeNull();
     expect(screen.getByText("Invoiceable")).not.toBeNull();
     expect(screen.queryByText(COST_EMPTY_HELP)).toBeNull();
     expect(screen.queryByText(/nativeAmount|fxRate|billedCost/i)).toBeNull();
+  });
+
+  it("paginates long cost lists instead of rendering every line at once", async () => {
+    const user = userEvent.setup();
+    const lines = Array.from({ length: 12 }, (_, index) => ({
+      id: `entry_${index + 1}`,
+      section: "Development",
+      category: "CURSOR" as const,
+      label: `Cursor 2026-09-${String(26 - index).padStart(2, "0")} included`,
+      amountLabel: "£1.00",
+      amountMinor: 100,
+      invoiceability: "INVOICEABLE" as const,
+      periodStart: `2026-09-${String(26 - index).padStart(2, "0")}T00:00:00.000Z`,
+      periodEnd: `2026-09-${String(27 - index).padStart(2, "0")}T00:00:00.000Z`,
+      provisional: false,
+    }));
+    render(
+      <CostDashboardView
+        dashboard={dashboard({
+          sections: [
+            {
+              key: "CURSOR",
+              label: "Development",
+              amountLabel: "£12.00",
+              provisional: false,
+              lines,
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Showing 1–10 of 12")).not.toBeNull();
+    expect(screen.getByText("Cursor 2026-09-26 included")).not.toBeNull();
+    expect(screen.queryByText("Cursor 2026-09-16 included")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Page 2" }));
+    expect(screen.getByText("Showing 11–12 of 12")).not.toBeNull();
+    expect(screen.getByText("Cursor 2026-09-16 included")).not.toBeNull();
+    expect(screen.queryByText("Cursor 2026-09-26 included")).toBeNull();
   });
 
   it("does not show implementation details when costs are disabled", () => {

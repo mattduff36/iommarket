@@ -34,6 +34,8 @@ function validProductionEnv(overrides: Record<string, string> = {}): string {
     COST_OWNER_NOTIFICATION_EMAIL: "owner@mpdee.co.uk",
     COST_VERCEL_TEAM_ID: PRODUCTION_VERCEL_TEAM_ID,
     COST_VERCEL_PROJECT_ID: PRODUCTION_VERCEL_PROJECT_ID,
+    COST_LEDGER_ROLE: "canonical",
+    COST_CANONICAL_VERCEL_PROJECT_ID: PRODUCTION_VERCEL_PROJECT_ID,
     COST_VERCEL_DATABASE_RESOURCE_ID: "store_test",
     COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID: "store_preview",
     DATABASE_URL: "postgres://user:pass@db.mpdee.co.uk:5432/postgres",

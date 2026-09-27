@@ -120,8 +120,29 @@ function main() {
       }\n`,
     );
     process.stdout.write(`Push: ${options.push ? "would push current branch" : "skipped"}\n`);
+    process.stdout.write("Cursor collection: would run a bounded local collect; failure would not block finalise.\n");
     return;
   }
+
+  const collection = runCommand(
+    REPO_ROOT,
+    "node",
+    [
+      "--no-warnings",
+      "--env-file-if-exists=.env.local",
+      "--experimental-sqlite",
+      "scripts/cursor-usage/collect.mjs",
+      "--bounded",
+    ],
+    { allowFailure: true },
+  );
+  if (collection.status !== 0) {
+    process.stdout.write(
+      "\nCursor usage collection unavailable. Pending local uploads were left in place.\n",
+    );
+  }
+  // finalise already collected once; keep the Git hook for direct commits only.
+  process.env.SKIP_CURSOR_USAGE = "1";
 
   process.stdout.write(`Starting finalise workflow (${getPushModeDescription(options)})\n`);
   process.stdout.write(`Trusted action: ${trusted.id} (${trusted.contract})\n`);

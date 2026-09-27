@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionEnd": [
+      {
+        "command": "node .cursor/hooks/session-end.mjs",
+        "timeout": 50
+      }
+    ]
+  }
+}

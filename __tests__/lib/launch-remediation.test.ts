@@ -58,6 +58,9 @@ describe("launch gate", () => {
     expect(classifyLaunchRoute("/api/webhooks/payments")).toBe("trusted-hook");
     expect(classifyLaunchRoute("/api/webhooks/payments-evil")).toBe("gated-api");
     expect(classifyLaunchRoute("/api/internal/cost-sync")).toBe("trusted-hook");
+    expect(classifyLaunchRoute("/api/internal/cost-ledger")).toBe("trusted-hook");
+    expect(classifyLaunchRoute("/api/internal/cost-ledger/events")).toBe("trusted-hook");
+    expect(classifyLaunchRoute("/api/internal/cost-ledger-evil")).toBe("gated-api");
     expect(classifyLaunchRoute("/api/monitoring/events")).toBe("trusted-hook");
     expect(classifyLaunchRoute("/api/vehicle-check")).toBe("public-api");
     expect(classifyLaunchRoute("/robots.txt")).toBe("seo");

@@ -5,11 +5,11 @@ describe("cost input validation", () => {
   it("rejects zero amounts and inverted periods", () => {
     expect(
       recordManualCostSchema.safeParse({
-        category: "CURSOR",
-        externalRef: "cursor-1",
+        category: "DATABASE",
+        externalRef: "database-1",
         nativeAmount: "0.00",
         nativeCurrency: "USD",
-        displayLabel: "Cursor",
+        displayLabel: "Database",
         periodStart: "2026-09-01T00:00:00.000Z",
         periodEnd: "2026-09-02T00:00:00.000Z",
       }).success,
@@ -23,6 +23,20 @@ describe("cost input validation", () => {
         displayLabel: "Domain",
         periodStart: "2026-09-02T00:00:00.000Z",
         periodEnd: "2026-09-01T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires Cursor manual imports to use the funded event contract", () => {
+    expect(
+      recordManualCostSchema.safeParse({
+        category: "CURSOR",
+        externalRef: "cursor-1",
+        nativeAmount: "100.00",
+        nativeCurrency: "USD",
+        displayLabel: "Cursor",
+        periodStart: "2026-09-01T00:00:00.000Z",
+        periodEnd: "2026-09-02T00:00:00.000Z",
       }).success,
     ).toBe(false);
   });

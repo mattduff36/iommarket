@@ -3,10 +3,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { defineConfig } from "prisma/config";
 
-// Load .env.local (Next.js convention) so CLI commands pick up dev credentials.
-// dotenv/config above loads .env first; we now overwrite with .env.local values
-// so that .env.local takes precedence, matching Next.js behaviour.
-const envLocalPath = path.resolve(process.cwd(), ".env.local");
+// Load .env.local by default. Production operations must opt in explicitly to
+// the separately maintained main environment rather than swapping files.
+const prismaEnvFile =
+  process.env.PRISMA_ENV_FILE === ".env.local.main"
+    ? ".env.local.main"
+    : ".env.local";
+const envLocalPath = path.resolve(process.cwd(), prismaEnvFile);
 if (fs.existsSync(envLocalPath)) {
   const lines = fs.readFileSync(envLocalPath, "utf-8").split("\n");
   for (const line of lines) {

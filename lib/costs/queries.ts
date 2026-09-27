@@ -8,6 +8,11 @@ import {
   type CostDashboardDto,
   type CostLineDto,
 } from "@/lib/costs/dto";
+import {
+  COST_ALLOWANCE_LABEL,
+  COST_CURSOR_POLICY_LABEL,
+  COST_INFRASTRUCTURE_MARKUP_LABEL,
+} from "@/lib/costs/copy";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { minorToSafeNumber, sumMinor, ZERO_MINOR } from "@/lib/costs/money";
 
@@ -85,6 +90,13 @@ export async function getCostDashboard(input: {
         completedAt: null,
         errorCode: null,
       },
+      unavailableReason: null,
+      infrastructureMarkupLabel: COST_INFRASTRUCTURE_MARKUP_LABEL,
+      cursorPolicyLabel: COST_CURSOR_POLICY_LABEL,
+      allowanceLabel: COST_ALLOWANCE_LABEL,
+      affectsLiveLedger: false,
+      ledgerRevision: null,
+      ledgerAsOf: null,
     };
   }
 
@@ -93,7 +105,7 @@ export async function getCostDashboard(input: {
   });
   assertPreviewCostLedgerReady(config);
 
-  const [entries, pending, requests, latestSync, quarantinedCount] = await Promise.all([
+  const [entries, pending, requests, latestSync] = await Promise.all([
     input.db.costEntry.findMany({
       where: { settlement: { is: null } },
       orderBy: [{ servicePeriodStart: "asc" }, { createdAt: "asc" }],
@@ -109,9 +121,6 @@ export async function getCostDashboard(input: {
     }),
     input.db.costSyncRun.findFirst({
       orderBy: { startedAt: "desc" },
-    }),
-    input.db.costSourceSnapshot.count({
-      where: { quarantined: true },
     }),
   ]);
 
@@ -160,9 +169,16 @@ export async function getCostDashboard(input: {
     sync: {
       status: latestSync?.status ?? "NONE",
       stale,
-      quarantinedCount,
+      quarantinedCount: latestSync?.quarantinedCount ?? 0,
       completedAt: syncCompletedAt?.toISOString() ?? null,
       errorCode: latestSync?.errorCode ?? null,
     },
+    unavailableReason: null,
+    infrastructureMarkupLabel: COST_INFRASTRUCTURE_MARKUP_LABEL,
+    cursorPolicyLabel: COST_CURSOR_POLICY_LABEL,
+    allowanceLabel: COST_ALLOWANCE_LABEL,
+    affectsLiveLedger: false,
+    ledgerRevision: latestSync?.checksum ?? latestSync?.id ?? null,
+    ledgerAsOf: syncCompletedAt?.toISOString() ?? null,
   };
 }

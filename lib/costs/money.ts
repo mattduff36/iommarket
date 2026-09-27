@@ -3,6 +3,9 @@ export const COST_MARKUP_DENOMINATOR = BigInt(5);
 export const PENCE_PER_POUND = BigInt(100);
 export const ZERO_MINOR = BigInt(0);
 export const COST_POLICY_VERSION = "gbp-markup-v1";
+export const INFRASTRUCTURE_MARKUP_PERCENT = 20;
+export const INFRASTRUCTURE_MARKUP_DISCLOSURE =
+  "Vercel hosting and database charges include a 20% markup.";
 
 export class CostMoneyError extends Error {
   constructor(message: string) {
@@ -51,8 +54,21 @@ export function roundHalfAwayFromZero(numerator: bigint, denominator: bigint): b
 }
 
 /**
+ * Convert a native amount and GBP-per-native rate into GBP pence with no markup.
+ * unmarked = roundHalfAwayFromZero(native × rate × 100)
+ */
+export function computeUnmarkedGbpMinor(nativeAmount: string, gbpPerNativeRate: string): bigint {
+  const native = parseDecimalString(nativeAmount);
+  const rate = parseDecimalString(gbpPerNativeRate);
+  const productUnscaled = native.unscaled * rate.unscaled * PENCE_PER_POUND;
+  const productDenominator = BigInt(10) ** BigInt(native.scale + rate.scale);
+  return roundHalfAwayFromZero(productUnscaled, productDenominator);
+}
+
+/**
  * Convert a native amount and GBP-per-native rate into marked GBP pence.
  * marked = roundHalfAwayFromZero(native × rate × 6/5 × 100)
+ * Infrastructure only. Cursor client charges use computeUnmarkedGbpMinor.
  */
 export function computeMarkedGbpMinor(nativeAmount: string, gbpPerNativeRate: string): bigint {
   const native = parseDecimalString(nativeAmount);
@@ -61,6 +77,44 @@ export function computeMarkedGbpMinor(nativeAmount: string, gbpPerNativeRate: st
     native.unscaled * rate.unscaled * COST_MARKUP_NUMERATOR * PENCE_PER_POUND;
   const productDenominator = BigInt(10) ** BigInt(native.scale + rate.scale) * COST_MARKUP_DENOMINATOR;
   return roundHalfAwayFromZero(productUnscaled, productDenominator);
+}
+
+export function quantizeDecimal(value: string, scale: number): string {
+  if (!Number.isInteger(scale) || scale < 0) {
+    throw new CostMoneyError("Decimal scale must be a non-negative integer.");
+  }
+  const parsed = parseDecimalString(value);
+  if (parsed.scale <= scale) {
+    const padded = parsed.unscaled * BigInt(10) ** BigInt(scale - parsed.scale);
+    return decimalToString(padded, scale);
+  }
+  const factor = BigInt(10) ** BigInt(parsed.scale - scale);
+  return decimalToString(roundHalfAwayFromZero(parsed.unscaled, factor), scale);
+}
+
+export function multiplyDecimalRatio(
+  value: string,
+  numerator: bigint,
+  denominator: bigint,
+): string {
+  if (denominator === ZERO_MINOR) {
+    throw new CostMoneyError("Cannot divide by zero.");
+  }
+  const parsed = parseDecimalString(value);
+  const negative = (parsed.unscaled < ZERO_MINOR) !== (numerator < ZERO_MINOR) !== (denominator < ZERO_MINOR);
+  const absUnscaled = parsed.unscaled < ZERO_MINOR ? -parsed.unscaled : parsed.unscaled;
+  const absNumerator = numerator < ZERO_MINOR ? -numerator : numerator;
+  const absDenominator = denominator < ZERO_MINOR ? -denominator : denominator;
+  const product = absUnscaled * absNumerator;
+  const quotient = product / absDenominator;
+  const remainder = product % absDenominator;
+  if (remainder === ZERO_MINOR) {
+    return decimalToString(negative ? -quotient : quotient, parsed.scale);
+  }
+  const extraScale = 8;
+  const widened = product * BigInt(10) ** BigInt(extraScale);
+  const rounded = roundHalfAwayFromZero(widened, absDenominator);
+  return decimalToString(negative ? -rounded : rounded, parsed.scale + extraScale);
 }
 
 export function addDecimalStrings(values: readonly string[]): string {

@@ -22,6 +22,8 @@ describe("cost maintenance cron", () => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "cron-secret";
     process.env.COSTS_ENABLED = "true";
+    process.env.COST_LEDGER_ROLE = "canonical";
+    delete process.env.VERCEL_PROJECT_ID;
     runCostSync.mockResolvedValue({ status: "succeeded" });
     retryPendingCostEmails.mockResolvedValue(1);
   });

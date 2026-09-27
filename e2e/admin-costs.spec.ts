@@ -25,5 +25,14 @@ test.describe("admin costs", () => {
       page.getByText(/Opening it does not refresh provider charges/i),
     ).toHaveCount(0);
     await expect(page.getByRole("button", { name: /request an invoice for/i })).toBeVisible();
+
+    const usage = page.getByRole("heading", { name: "Usage" });
+    if (await usage.isVisible()) {
+      await expect(page.getByRole("img", { name: /cumulative project costs/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+      await page.getByRole("button", { name: "7d" }).click();
+      await expect(page.getByRole("button", { name: "7d" })).toHaveAttribute("aria-pressed", "true");
+      await page.getByRole("button", { name: "All" }).click();
+    }
   });
 });
