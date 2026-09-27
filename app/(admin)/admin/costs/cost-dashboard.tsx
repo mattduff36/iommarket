@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CostUsagePanel } from "./cost-usage-panel";
 import {
   COST_EMPTY_HELP,
   COST_INVOICE_HELP,
@@ -128,44 +129,9 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
         />
       ) : null}
 
-      {dashboard.sections.map((section) => (
-        <section key={section.key} className="mb-8">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-text-primary">
-              {section.label}
-            </h2>
-            <p className="text-sm text-text-secondary">{section.amountLabel}</p>
-          </div>
-          <AdminTable>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Period</TableHead>
-                <TableHead>Item</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {section.lines.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell className={adminDateCellClass}>
-                    {new Date(line.periodStart).toLocaleDateString("en-GB")}
-                  </TableCell>
-                  <TableCell>{line.label}</TableCell>
-                  <TableCell className={adminNumericCellClass}>
-                    {line.amountLabel}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={line.provisional ? "warning" : "neutral"}>
-                      {line.provisional ? "Provisional" : "Invoiceable"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </AdminTable>
-        </section>
-      ))}
+      {dashboard.sections.length > 0 ? (
+        <CostUsagePanel sections={dashboard.sections} />
+      ) : null}
 
       <div className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-low">
         <h2 className="text-sm font-medium text-text-secondary">Projected total</h2>
