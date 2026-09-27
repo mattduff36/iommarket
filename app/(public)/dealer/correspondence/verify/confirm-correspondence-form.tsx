@@ -25,11 +25,16 @@ export function ConfirmCorrespondenceForm({ token }: { token: string }) {
         setError(null);
         startTransition(async () => {
           const result = await verifyDealerCorrespondenceEmail({ token });
-          if (result.error) {
+          if ("error" in result && result.error) {
             setError(result.error);
             return;
           }
-          setConfirmedEmail(result.data?.verifiedEmail ?? "This address");
+          const data = "data" in result ? result.data : undefined;
+          if (!data) {
+            setError("We could not confirm this email address. Try again.");
+            return;
+          }
+          setConfirmedEmail(data.verifiedEmail);
         });
       }}
     >

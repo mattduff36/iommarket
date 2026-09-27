@@ -3,6 +3,7 @@ import {
   canonicalCorrespondenceCategories,
   normalizeCorrespondenceEmail,
   DEALER_EMAIL_CATEGORIES,
+  type DealerCorrespondenceCategory,
 } from "@/lib/dealers/correspondence";
 import { emailField } from "@/lib/validations/email";
 
@@ -28,7 +29,14 @@ export const saveDealerCorrespondenceSchema = z
     copyAssignedToPrimary: value.copyAssignedToPrimary,
   }));
 
-export type SaveDealerCorrespondenceInput = z.input<typeof saveDealerCorrespondenceSchema>;
+type SaveDealerCorrespondenceSchemaInput = z.input<typeof saveDealerCorrespondenceSchema>;
+
+export type SaveDealerCorrespondenceInput = Omit<
+  SaveDealerCorrespondenceSchemaInput,
+  "categories"
+> & {
+  categories: readonly DealerCorrespondenceCategory[];
+};
 
 export const verifyDealerCorrespondenceSchema = z
   .object({

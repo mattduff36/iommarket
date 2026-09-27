@@ -64,8 +64,15 @@ export function DealerCorrespondenceSettingsCard({
     setSuccess(null);
   }
 
-  function applyResult(result: { error?: unknown }) {
-    if (!result.error) return false;
+  function applyResult(result: unknown) {
+    if (
+      !result ||
+      typeof result !== "object" ||
+      !("error" in result) ||
+      !result.error
+    ) {
+      return false;
+    }
     const split = splitActionError(result.error);
     setFieldErrors(split.fieldErrors);
     setError(
@@ -94,14 +101,16 @@ export function DealerCorrespondenceSettingsCard({
         categories,
         copyAssignedToPrimary,
       });
-      if (applyResult(result) || !("data" in result)) return;
-      if (result.data.status === "pending" && result.data.emailSent) {
+      if (applyResult(result)) return;
+      const data = "data" in result ? result.data : undefined;
+      if (!data) return;
+      if (data.status === "pending" && data.emailSent) {
         setSuccess(
-          `We sent a confirmation link to ${result.data.email}. Selected emails stay on your current address until it is confirmed.`,
+          `We sent a confirmation link to ${data.email}. Selected emails stay on your current address until it is confirmed.`,
         );
-      } else if (result.data.status === "pending") {
+      } else if (data.status === "pending") {
         setSuccess(
-          `Correspondence preferences saved. ${result.data.email} is still waiting for confirmation.`,
+          `Correspondence preferences saved. ${data.email} is still waiting for confirmation.`,
         );
       } else {
         setSuccess("Correspondence preferences saved.");
@@ -114,10 +123,12 @@ export function DealerCorrespondenceSettingsCard({
     resetFeedback();
     startResend(async () => {
       const result = await resendDealerCorrespondenceVerification();
-      if (applyResult(result) || !("data" in result)) return;
+      if (applyResult(result)) return;
+      const data = "data" in result ? result.data : undefined;
+      if (!data) return;
       setSuccess(
-        result.data?.email
-          ? `We sent a new confirmation link to ${result.data.email}.`
+        data.email
+          ? `We sent a new confirmation link to ${data.email}.`
           : "We sent a new confirmation link.",
       );
       router.refresh();
