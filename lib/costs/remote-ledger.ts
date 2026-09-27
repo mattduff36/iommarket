@@ -23,8 +23,12 @@ export async function fetchRemoteCostDashboard(
 }
 
 export interface RemoteCostRefreshResult {
-  status: "succeeded" | "locked" | "skipped" | "failed";
+  status: "succeeded" | "partial" | "locked" | "skipped" | "failed";
   message: string;
+  caughtUp?: boolean;
+  errorCode?: string;
+  queryFrom?: string;
+  queryTo?: string;
 }
 
 export async function requestRemoteCostRefresh(
@@ -48,7 +52,21 @@ export async function requestRemoteCostRefresh(
     data?: RemoteCostRefreshResult;
     error?: string;
   } | null;
-  if (body?.data?.status === "locked") return body.data;
+  if (response.status === 404) {
+    throw new Error("The live provider refresh endpoint is not deployed.");
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("The live provider refresh is not authorized.");
+  }
+  if (response.status === 504) {
+    throw new Error("The live provider refresh timed out.");
+  }
+  if (
+    body?.data?.status &&
+    (response.ok || body.data.status === "failed")
+  ) {
+    return body.data;
+  }
   if (!response.ok || !body?.data?.status) {
     throw new Error(body?.error || "Provider refresh failed.");
   }

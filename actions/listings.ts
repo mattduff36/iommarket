@@ -15,6 +15,7 @@ import {
   effectiveListingDealerId,
   runWithDealerDetach,
 } from "@/lib/listings/submit-dealer-access";
+import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
   RATE_LIMIT_UNAVAILABLE_MESSAGE,
@@ -1109,9 +1110,17 @@ export async function contactSeller(input: ContactSellerInput) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const listingUrl = `${appUrl}/listings/${listing.id}`;
+  const recipients = await resolveDealerMailRecipients({
+    dealerId: listing.dealerId,
+    primaryEmail: listing.user.email,
+    category: "BUYER_ENQUIRIES",
+  });
+  if (recipients.length === 0) {
+    return { error: "Failed to send message. Please try again later." };
+  }
   try {
     await sendSellerContactEmail({
-      sellerEmail: listing.user.email,
+      sellerEmail: recipients,
       listingTitle: listing.title,
       listingUrl,
       fromName: parsed.data.name,

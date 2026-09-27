@@ -134,7 +134,7 @@ describe("admin costs dashboard T5", () => {
       sections: [
         {
           key: "VERCEL_HOSTING",
-          label: "Vercel Hosting",
+          label: "Website hosting (Vercel)",
           amountLabel: "£8.00",
           provisional: false,
           lines: [
@@ -145,6 +145,7 @@ describe("admin costs dashboard T5", () => {
               label: "Hosting",
               amountLabel: "£8.00",
               amountMinor: 800,
+              kind: "CHARGE",
               invoiceability: "INVOICEABLE",
               periodStart: "2026-08-14T00:00:00.000Z",
               periodEnd: "2026-08-15T00:00:00.000Z",
@@ -154,7 +155,7 @@ describe("admin costs dashboard T5", () => {
         },
         {
           key: "SHARED_VERCEL",
-          label: "Shared Hosting",
+          label: "Shared Vercel services",
           amountLabel: "£4.00",
           provisional: true,
           lines: [
@@ -165,6 +166,7 @@ describe("admin costs dashboard T5", () => {
               label: "Shared team charge",
               amountLabel: "£4.00",
               amountMinor: 400,
+              kind: "CHARGE",
               invoiceability: "PROVISIONAL",
               periodStart: "2026-08-01T00:00:00.000Z",
               periodEnd: "2026-09-01T00:00:00.000Z",
@@ -188,10 +190,14 @@ describe("admin costs dashboard T5", () => {
     expect(screen.getByRole("heading", { name: "Usage" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("img", { name: /cumulative project costs/i })).not.toBeNull();
-    expect(screen.getAllByRole("heading", { name: "Vercel Hosting" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("heading", { name: "Shared Hosting" }).length).toBeGreaterThan(0);
-    expect(screen.getByText("Hosting charges for this project.")).not.toBeNull();
-    expect(screen.getByText("Shared team hosting allocated to this project.")).not.toBeNull();
+    expect(
+      screen.getAllByRole("heading", { name: "Website hosting (Vercel)" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("heading", { name: "Shared Vercel services" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/Vercel services used directly by the iTrader website/i)).not.toBeNull();
+    expect(screen.getByText(/equal share across active production projects/i)).not.toBeNull();
     expect(screen.queryByText("Included")).toBeNull();
     expect(screen.queryByText("On-demand")).toBeNull();
     expect(screen.getByText("Provisional")).not.toBeNull();
@@ -209,6 +215,7 @@ describe("admin costs dashboard T5", () => {
       label: `Cursor 2026-09-${String(26 - index).padStart(2, "0")} included`,
       amountLabel: "£1.00",
       amountMinor: 100,
+      kind: "CHARGE" as const,
       invoiceability: "INVOICEABLE" as const,
       periodStart: `2026-09-${String(26 - index).padStart(2, "0")}T00:00:00.000Z`,
       periodEnd: `2026-09-${String(27 - index).padStart(2, "0")}T00:00:00.000Z`,
@@ -220,7 +227,7 @@ describe("admin costs dashboard T5", () => {
           sections: [
             {
               key: "CURSOR",
-              label: "Development",
+              label: "Development (Cursor)",
               amountLabel: "£12.00",
               provisional: false,
               lines,
@@ -229,17 +236,75 @@ describe("admin costs dashboard T5", () => {
         })}
       />,
     );
-    expect(screen.getByText("Cursor charges attributed to iTrader.")).not.toBeNull();
+    expect(screen.getByText(/Daily Cursor usage used to build and maintain iTrader/i)).not.toBeNull();
+    expect(screen.getByText("12 cost items combined from 12 ledger entries")).not.toBeNull();
     expect(screen.getByText("Showing 1–10 of 12")).not.toBeNull();
-    expect(screen.getByText("Cursor 2026-09-26 included")).not.toBeNull();
-    expect(screen.queryByText("Cursor 2026-09-16 included")).toBeNull();
+    expect(screen.getByText(/26 Sept? 2026/)).not.toBeNull();
+    expect(screen.queryByText(/16 Sept? 2026/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Page 2" }));
     expect(screen.getByText("Showing 11–12 of 12")).not.toBeNull();
-    expect(screen.getByText("Cursor 2026-09-16 included")).not.toBeNull();
-    expect(screen.queryByText("Cursor 2026-09-26 included")).toBeNull();
+    expect(screen.getByText(/16 Sept? 2026/)).not.toBeNull();
+    expect(screen.queryByText(/26 Sept? 2026/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "7d" }));
     expect(screen.queryByText("Showing 11–12 of 12")).toBeNull();
-    expect(screen.getByText("Cursor 2026-09-26 included")).not.toBeNull();
+    expect(screen.getByText(/26 Sept? 2026/)).not.toBeNull();
+  });
+
+  it("keeps zero-value ledger detail out of the client view but available to the owner", async () => {
+    const user = userEvent.setup();
+    const baseLine = {
+      section: "Website hosting (Vercel)",
+      category: "VERCEL_HOSTING" as const,
+      label: "Functions",
+      invoiceability: "INVOICEABLE" as const,
+      periodStart: "2026-09-26T00:00:00.000Z",
+      periodEnd: "2026-09-27T00:00:00.000Z",
+      provisional: false,
+    };
+    render(
+      <CostDashboardView
+        dashboard={dashboard({
+          isOwner: true,
+          sections: [
+            {
+              key: "VERCEL_HOSTING",
+              label: "Website hosting (Vercel)",
+              amountLabel: "£0.00",
+              provisional: false,
+              lines: [
+                {
+                  ...baseLine,
+                  id: "charge",
+                  amountLabel: "£0.05",
+                  amountMinor: 5,
+                  kind: "CHARGE",
+                },
+                {
+                  ...baseLine,
+                  id: "reversal",
+                  amountLabel: "-£0.05",
+                  amountMinor: -5,
+                  kind: "REVERSAL",
+                },
+                {
+                  ...baseLine,
+                  id: "zero",
+                  amountLabel: "£0.00",
+                  amountMinor: 0,
+                  kind: "CHARGE",
+                },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("0 cost items combined from 3 ledger entries")).not.toBeNull();
+    expect(screen.getByText(/No individual cost item is £0.01 or more/i)).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show all ledger entries" }));
+    expect(screen.getAllByText("Functions")).toHaveLength(3);
+    expect(screen.getByText("Adjustment")).not.toBeNull();
   });
 
   it("does not show implementation details when costs are disabled", () => {

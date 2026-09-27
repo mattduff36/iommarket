@@ -65,7 +65,7 @@ export function buildCancellationStatusEmail(input: {
 }
 
 export async function sendCancellationStatusEmail(input: {
-  to: string;
+  to: string | string[];
   dealerName: string;
   status: CancellationRequestStatus;
   periodEndAt?: Date | null;

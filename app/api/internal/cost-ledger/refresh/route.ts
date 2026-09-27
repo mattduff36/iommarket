@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-function statusCode(status: "skipped" | "locked" | "succeeded" | "failed"): number {
+function statusCode(
+  status: "skipped" | "locked" | "partial" | "succeeded" | "failed",
+): number {
   return status === "failed" ? 502 : 200;
 }
 
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
     });
     const message = manualCostSyncMessage(result);
     return NextResponse.json(
-      { data: { status: result.status, message } },
+      { data: { ...result, message } },
       { status: statusCode(result.status) },
     );
   } catch {

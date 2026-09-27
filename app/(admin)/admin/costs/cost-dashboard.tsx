@@ -102,7 +102,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
       ) : null}
 
       {dashboard.sections.length > 0 ? (
-        <CostUsagePanel sections={dashboard.sections} />
+        <CostUsagePanel sections={dashboard.sections} isOwner={dashboard.isOwner} />
       ) : null}
 
       <div className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-low">

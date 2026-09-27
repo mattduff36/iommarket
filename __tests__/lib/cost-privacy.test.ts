@@ -8,6 +8,7 @@ describe("COST-PRIVACY-001 client-visible cost payloads", () => {
     const line = toCostLineDto({
       id: "entry_1",
       category: "CURSOR",
+      kind: "CHARGE",
       displayLabel: "Cursor usage",
       markedGbpMinor: 1200n,
       invoiceability: "INVOICEABLE",

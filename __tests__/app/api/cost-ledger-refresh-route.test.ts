@@ -94,6 +94,27 @@ describe("canonical cost ledger refresh", () => {
     await expect(locked.json()).resolves.toMatchObject({
       data: { status: "locked" },
     });
+
+    runCostSync.mockResolvedValueOnce({
+      status: "partial",
+      caughtUp: false,
+      errorCode: "COST_SYNC_CONTINUE",
+    });
+    const partial = await POST(
+      new NextRequest("https://itrader.im/api/internal/cost-ledger/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer request-secret" },
+        body: "{}",
+      }),
+    );
+    expect(partial.status).toBe(200);
+    await expect(partial.json()).resolves.toMatchObject({
+      data: {
+        status: "partial",
+        caughtUp: false,
+        errorCode: "COST_SYNC_CONTINUE",
+      },
+    });
   });
 
   it("returns a failure status when the provider refresh fails", async () => {

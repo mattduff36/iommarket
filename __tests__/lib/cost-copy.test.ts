@@ -7,7 +7,14 @@ import {
 describe("manual cost sync messages T4", () => {
   it("uses distinct actionable copy for each sync outcome", () => {
     expect(manualCostSyncMessage({ status: "succeeded" })).toMatch(/refreshed/i);
+    expect(manualCostSyncMessage({ status: "partial" })).toMatch(/partly refreshed/i);
     expect(manualCostSyncMessage({ status: "failed" })).toMatch(/failed/i);
+    expect(
+      manualCostSyncMessage({
+        status: "failed",
+        errorCode: "VERCEL_BILLING_UNAVAILABLE",
+      }),
+    ).toMatch(/temporarily unavailable/i);
     expect(manualCostSyncMessage({ status: "locked" })).toMatch(/already running/i);
     expect(manualCostSyncMessage({ status: "skipped" })).toMatch(/skipped/i);
   });

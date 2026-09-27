@@ -13,19 +13,23 @@ export const COST_NON_OWNER_HELP =
   "Ask the configured owner to refresh costs, add manual entries, or request invoices.";
 
 export const COST_SECTION_HELP: Record<string, string> = {
-  Development: "Cursor charges attributed to iTrader.",
-  "Vercel Hosting": "Hosting charges for this project.",
-  Database: "Database charges for this project.",
-  "Shared Hosting": "Shared team hosting allocated to this project.",
-  "Provisional Shared Hosting": "Shared team hosting allocated to this project.",
-  Other: "Other project charges.",
+  "Development (Cursor)":
+    "Daily Cursor usage used to build and maintain iTrader. Matching entries are combined and net amounts below £0.01 are hidden.",
+  "Website hosting (Vercel)":
+    "Vercel services used directly by the iTrader website. Matching service charges are combined and net amounts below £0.01 are hidden.",
+  Database:
+    "Database services used by iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
+  "Shared Vercel services":
+    "Team-level Vercel services that cannot be assigned to one project. iTrader receives an equal share across active production projects; current-period costs remain provisional until billing closes.",
+  Other:
+    "Other costs recorded for iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
 };
 
 export function interpretManualCostSyncResult(result: {
   error?: unknown;
   data?: { status?: string; message?: string };
 }): { ok: boolean; message: string } {
-  if (result.data?.status === "succeeded") {
+  if (result.data?.status === "succeeded" || result.data?.status === "partial") {
     return {
       ok: true,
       message: result.data.message || manualCostSyncMessage({ status: "succeeded" }),
@@ -42,13 +46,27 @@ export function interpretManualCostSyncResult(result: {
 
 export function manualCostSyncMessage(result: CostSyncResult): string {
   if (result.status === "succeeded") {
-    return "Provider costs were refreshed.";
+    return result.caughtUp === false
+      ? "Provider costs were refreshed. More history remains for the next refresh."
+      : "Provider costs were refreshed.";
+  }
+  if (result.status === "partial") {
+    return "Provider costs were partly refreshed. More history remains for the next refresh.";
   }
   if (result.status === "locked") {
     return "A cost refresh is already running. Try again in a few minutes.";
   }
   if (result.status === "skipped") {
     return "Cost refresh was skipped because tracking is disabled or the ledger start date is still in the future.";
+  }
+  if (result.errorCode === "VERCEL_BILLING_UNAVAILABLE") {
+    return "Vercel billing is temporarily unavailable.";
+  }
+  if (result.errorCode === "COST_SYNC_TIMEOUT") {
+    return "Provider refresh timed out before it could finish.";
+  }
+  if (result.errorCode === "CostConfigError") {
+    return "Provider refresh configuration is incomplete.";
   }
   return "Provider refresh failed.";
 }

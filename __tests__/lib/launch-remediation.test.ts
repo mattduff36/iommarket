@@ -134,6 +134,11 @@ describe("launch gate", () => {
     const cron = await proxy(new NextRequest("https://itrader.im/api/cron/cost-maintenance"));
     expect(cron.status).toBe(200);
     expect(cron.headers.get("location")).toBeNull();
+    const costRefresh = await proxy(
+      new NextRequest("https://itrader.im/api/internal/cost-ledger/refresh"),
+    );
+    expect(costRefresh.status).toBe(200);
+    expect(costRefresh.headers.get("location")).toBeNull();
 
     const issued = issueLaunchGateCookie({
       secret: SECRET,

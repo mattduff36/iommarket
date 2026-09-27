@@ -10,7 +10,9 @@ export const dynamic = "force-dynamic";
 // A bounded FOCUS slice can stream slowly and is retried by the adapter.
 export const maxDuration = 180;
 
-function syncStatusCode(status: "skipped" | "locked" | "succeeded" | "failed"): number {
+function syncStatusCode(
+  status: "skipped" | "locked" | "partial" | "succeeded" | "failed",
+): number {
   if (status === "failed") return 502;
   if (status === "locked") return 409;
   return 200;

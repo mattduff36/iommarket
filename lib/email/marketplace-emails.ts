@@ -82,7 +82,7 @@ export function buildAdminReportEmail(input: {
 }
 
 export async function sendSellerContactEmail(params: {
-  sellerEmail: string;
+  sellerEmail: string | string[];
   listingTitle: string;
   listingUrl: string;
   fromName: string;

@@ -9,6 +9,7 @@ import {
   COST_USAGE_RANGES,
   COST_USAGE_SERIES_COLORS,
   buildCostUsageModel,
+  summarizeCostLines,
   type CostUsageRange,
 } from "@/lib/costs/usage-view";
 import { CostSectionTable } from "./cost-section-table";
@@ -16,7 +17,9 @@ import { CostUsageChart } from "./cost-usage-chart";
 
 export function CostUsagePanel({
   sections,
+  isOwner,
 }: {
+  isOwner: boolean;
   sections: Array<{
     key: string;
     label: string;
@@ -36,13 +39,14 @@ export function CostUsagePanel({
   const visibleSections = sections
     .map((section) => ({
       ...section,
-      lines: model.filteredLines.filter((line) => line.category === section.key),
+      rawLines: model.filteredLines.filter((line) => line.category === section.key),
     }))
-    .filter((section) => section.lines.length > 0)
+    .filter((section) => section.rawLines.length > 0)
     .map((section) => ({
       ...section,
+      summaryLines: summarizeCostLines(section.rawLines),
       amountLabel: formatMarkedGbp(
-        section.lines.reduce((total, line) => total + line.amountMinor, 0),
+        section.rawLines.reduce((total, line) => total + line.amountMinor, 0),
       ),
     }));
 
@@ -111,11 +115,12 @@ export function CostUsagePanel({
 
       {visibleSections.map((section) => (
         <CostSectionTable
-          key={section.key}
+          key={`${section.key}:${range}`}
           label={section.label}
           amountLabel={section.amountLabel}
-          lines={section.lines}
-          resetKey={`${range}:${section.lines.map((line) => line.id).join("|")}`}
+          rawLines={section.rawLines}
+          summaryLines={section.summaryLines}
+          isOwner={isOwner}
         />
       ))}
     </div>

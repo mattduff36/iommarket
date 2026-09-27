@@ -8,8 +8,7 @@ import { COST_REFRESH_HELP } from "@/lib/costs/copy";
 import type { CostSyncHealthDto } from "@/lib/costs/dto";
 import { useRefreshPage } from "./use-refresh-page";
 
-const POLL_LIMIT = 8;
-const POLL_MS = 4000;
+const AUTO_REFRESH_LIMIT = 4;
 
 type Phase = "refreshing" | "updated" | "failed" | "idle";
 
@@ -26,60 +25,49 @@ export function CostProviderRefresh({
   sync: CostSyncHealthDto;
 }) {
   const refreshPage = useRefreshPage();
-  const refreshRef = useRef(refreshPage);
-  refreshRef.current = refreshPage;
   const started = useRef(false);
   const [phase, setPhase] = useState<Phase>(isOwner ? "refreshing" : "idle");
   const [detail, setDetail] = useState<string | null>(null);
-  const [polls, setPolls] = useState(0);
-  const [polling, setPolling] = useState(false);
 
   useEffect(() => {
     if (!isOwner || started.current) return;
     started.current = true;
     void (async () => {
-      const result = await refreshProviderCosts();
-      const status = result?.data?.status;
-      if (status === "succeeded" || status === "skipped") {
-        setPhase("updated");
-        setDetail(result.data?.message ?? null);
-        refreshRef.current();
+      for (let attempt = 0; attempt < AUTO_REFRESH_LIMIT; attempt += 1) {
+        const result = await refreshProviderCosts();
+        const status = result?.data?.status;
+        const moreWork =
+          status === "partial" ||
+          (status === "succeeded" && result.data?.caughtUp === false);
+        if (moreWork && attempt + 1 < AUTO_REFRESH_LIMIT) {
+          setDetail(result.data?.message ?? "Refreshing more provider costs");
+          continue;
+        }
+        if (moreWork) {
+          setPhase("updated");
+          setDetail(
+            "Provider costs were partly refreshed. More history remains for the next refresh.",
+          );
+          refreshPage();
+          return;
+        }
+        if (status === "succeeded" || status === "skipped") {
+          setPhase("updated");
+          setDetail(result.data?.message ?? null);
+          refreshPage();
+          return;
+        }
+        if (status === "locked") {
+          setPhase("updated");
+          setDetail("A provider refresh is already running. Reload later for the latest total.");
+          return;
+        }
+        setPhase("failed");
+        setDetail(result?.error || result?.data?.message || "Provider refresh failed.");
         return;
       }
-      if (status === "locked") {
-        setPhase("refreshing");
-        setDetail("Refresh already in progress");
-        setPolling(true);
-        return;
-      }
-      setPhase("failed");
-      setDetail(result?.error || result?.data?.message || "Provider refresh failed.");
     })();
-  }, [isOwner]);
-
-  useEffect(() => {
-    if (!polling) return;
-    if (sync.status === "SUCCEEDED") {
-      setPolling(false);
-      setPhase("updated");
-      return;
-    }
-    if (sync.status === "FAILED") {
-      setPolling(false);
-      setPhase("failed");
-      setDetail("Provider refresh failed.");
-      return;
-    }
-    if (polls >= POLL_LIMIT) {
-      setPolling(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setPolls((count) => count + 1);
-      refreshRef.current();
-    }, POLL_MS);
-    return () => clearTimeout(timer);
-  }, [polling, polls, sync.status]);
+  }, [isOwner, refreshPage]);
 
   const completed = completedLabel(sync.completedAt);
   let body = completed
@@ -90,7 +78,7 @@ export function CostProviderRefresh({
       ? "Refresh already in progress"
       : "Refreshing provider costs";
   } else if (isOwner && phase === "updated") {
-    body = completed ? `Provider costs updated ${completed}.` : detail || "Provider costs updated.";
+    body = detail || (completed ? `Provider costs updated ${completed}.` : "Provider costs updated.");
   } else if (isOwner && phase === "failed") {
     body = `${detail ?? "Provider refresh failed."} ${COST_REFRESH_HELP}`;
   }

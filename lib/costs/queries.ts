@@ -47,10 +47,7 @@ function groupSections(lines: CostLineDto[]) {
       const provisional = category === "SHARED_VERCEL" && categoryLines.some((line) => line.provisional);
       return {
         key: category,
-        label:
-          category === "SHARED_VERCEL" && provisional
-            ? "Provisional Shared Hosting"
-            : COST_SECTION_LABELS[category],
+        label: COST_SECTION_LABELS[category],
         amountLabel: formatMarkedGbp(BigInt(amountMinor)),
         provisional,
         lines: categoryLines,

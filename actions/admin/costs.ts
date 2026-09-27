@@ -282,9 +282,9 @@ export async function refreshProviderCosts() {
     });
     const message = manualCostSyncMessage(result);
     if (result.status === "failed" || result.status === "skipped") {
-      return { error: message, data: { status: result.status, message } };
+      return { error: message, data: { ...result, message } };
     }
-    return { data: { status: result.status, message } };
+    return { data: { ...result, message } };
   } catch (error) {
     await reportHandledException({
       error,
@@ -319,7 +319,7 @@ export async function runManualCostSync() {
     });
     revalidateCostPages();
     const message = manualCostSyncMessage(result);
-    if (result.status === "succeeded") {
+    if (result.status === "succeeded" || result.status === "partial") {
       return { data: { status: result.status, message } };
     }
     return { error: message, data: { status: result.status, message } };

@@ -31,12 +31,46 @@ import {
 } from "@/lib/costs/vercel";
 import { costDb } from "@/lib/costs/db";
 
+export const MAX_COST_WRITES_PER_RUN = 75;
+const STALE_SYNC_RUN_MS = 15 * 60 * 1000;
+export const COST_SYNC_CONTINUE_CODE = "COST_SYNC_CONTINUE";
+export const COST_SYNC_STALE_CODE = "COST_SYNC_STALE";
+
 export interface CostSyncResult {
-  status: "skipped" | "locked" | "succeeded" | "failed";
+  status: "skipped" | "locked" | "partial" | "succeeded" | "failed";
   runId?: string;
   classifiedCount?: number;
   quarantinedCount?: number;
   errorCode?: string;
+  caughtUp?: boolean;
+  queryFrom?: string;
+  queryTo?: string;
+}
+
+export function takeCostSyncWork<T>(
+  items: readonly T[],
+  limit = MAX_COST_WRITES_PER_RUN,
+): { items: T[]; hasMore: boolean } {
+  const boundedLimit = Math.max(1, Math.floor(limit));
+  return {
+    items: items.slice(0, boundedLimit),
+    hasMore: items.length > boundedLimit,
+  };
+}
+
+export async function recoverStaleCostSyncRuns(now = new Date()): Promise<number> {
+  const result = await costDb.costSyncRun.updateMany({
+    where: {
+      status: "RUNNING",
+      startedAt: { lt: new Date(now.getTime() - STALE_SYNC_RUN_MS) },
+    },
+    data: {
+      status: "FAILED",
+      errorCode: COST_SYNC_STALE_CODE,
+      completedAt: now,
+    },
+  });
+  return result.count;
 }
 
 export function classifyCostSyncFailure(error: unknown): string {
@@ -81,6 +115,7 @@ export async function runCostSync(input: {
   }
 
   const locked = await withCostSyncLock(async (holder) => {
+    await recoverStaleCostSyncRuns();
     return executeCostSync(input, holder);
   });
 
@@ -267,9 +302,10 @@ async function executeCostSync(
       if (plan.type === "skip") continue;
       pendingWrites.push({ charge, checksum, invoiceability, sharedAllocation });
     }
+    const work = takeCostSyncWork(pendingWrites);
 
     const fxByPeriod = new Map<string, Awaited<ReturnType<typeof getOrCreateUsdGbpRate>>>();
-    for (const item of pendingWrites) {
+    for (const item of work.items) {
       const periodKey = item.charge.periodStart.toISOString();
       if (!fxByPeriod.has(periodKey)) {
         fxByPeriod.set(
@@ -279,9 +315,11 @@ async function executeCostSync(
       }
     }
 
-    for (let index = 0; index < pendingWrites.length; index += 15) {
-      const batch = pendingWrites.slice(index, index + 15);
-      await renewCostSyncLock(lockHolder);
+    for (let index = 0; index < work.items.length; index += 15) {
+      const batch = work.items.slice(index, index + 15);
+      if (!await renewCostSyncLock(lockHolder)) {
+        throw new Error("Cost sync lock was lost.");
+      }
       await runSerializable(async (tx) => {
         for (const item of batch) {
           const fx = fxByPeriod.get(item.charge.periodStart.toISOString());
@@ -378,6 +416,29 @@ async function executeCostSync(
       });
     }
 
+    if (work.hasMore) {
+      await costDb.costSyncRun.update({
+        where: { id: run.id },
+        data: {
+          status: "FAILED",
+          errorCode: COST_SYNC_CONTINUE_CODE,
+          classifiedCount,
+          quarantinedCount,
+          completedAt: new Date(),
+        },
+      });
+      return {
+        status: "partial",
+        runId: run.id,
+        classifiedCount,
+        quarantinedCount,
+        errorCode: COST_SYNC_CONTINUE_CODE,
+        caughtUp: false,
+        queryFrom: window.from.toISOString(),
+        queryTo: window.to.toISOString(),
+      };
+    }
+
     const checksum = createHash("sha256")
       .update(`${classifiedCount}:${quarantinedCount}:${window.from.toISOString()}`)
       .digest("hex");
@@ -398,6 +459,9 @@ async function executeCostSync(
       runId: run.id,
       classifiedCount,
       quarantinedCount,
+      caughtUp: window.caughtUp,
+      queryFrom: window.from.toISOString(),
+      queryTo: window.to.toISOString(),
     };
   } catch (error) {
     const errorCode = classifyCostSyncFailure(error);

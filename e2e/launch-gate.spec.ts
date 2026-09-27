@@ -10,6 +10,10 @@ test("keeps a gated runtime closed, readable to crawlers, and zoomable", async (
 
   const cron = await page.request.get("/api/cron/cost-maintenance");
   expect(cron.status()).toBe(401);
+  const costRefresh = await page.request.post("/api/internal/cost-ledger/refresh", {
+    data: {},
+  });
+  expect(costRefresh.status()).toBe(401);
 
   const robots = await page.request.get("/robots.txt");
   expect(robots.status()).toBe(200);

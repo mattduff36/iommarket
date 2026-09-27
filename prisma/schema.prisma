@@ -120,8 +120,33 @@ model DealerProfile {
   cancellationRequests DealerCancellationRequest[]
   previewPack   DealerPreviewPack?
   onboardingInvites DealerOnboardingInvite[]
+  correspondenceSettings DealerCorrespondenceSettings?
 
   @@index([slug])
+}
+
+enum DealerEmailCategory {
+  BUYER_ENQUIRIES
+  LISTING_UPDATES
+  REVIEWS
+  SUBSCRIPTION
+  DEALER_ACCOUNT
+}
+
+model DealerCorrespondenceSettings {
+  id                      String                @id @default(cuid())
+  dealerId                String                @unique
+  verifiedEmail           String?
+  verifiedAt              DateTime?
+  pendingEmail            String?
+  verificationTokenHash   String?               @unique
+  verificationExpiresAt   DateTime?
+  categories              DealerEmailCategory[] @default([])
+  copyAssignedToPrimary   Boolean               @default(false)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  dealer DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------

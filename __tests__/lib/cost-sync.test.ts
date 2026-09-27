@@ -4,6 +4,7 @@ const { withCostSyncLockMock, executeDeps } = vi.hoisted(() => ({
   withCostSyncLockMock: vi.fn(),
   executeDeps: {
     findUnique: vi.fn(),
+    updateMany: vi.fn(),
   },
 }));
 
@@ -15,11 +16,18 @@ vi.mock("@/lib/db", () => ({
   db: {
     costSyncRun: {
       findUnique: executeDeps.findUnique,
+      updateMany: executeDeps.updateMany,
     },
   },
 }));
 
-import { runCostSync } from "@/lib/costs/sync";
+import {
+  COST_SYNC_STALE_CODE,
+  MAX_COST_WRITES_PER_RUN,
+  recoverStaleCostSyncRuns,
+  runCostSync,
+  takeCostSyncWork,
+} from "@/lib/costs/sync";
 
 describe("COST-SYNC-001 overlapping sync triggers", () => {
   beforeEach(() => {
@@ -53,5 +61,39 @@ describe("COST-SYNC-001 overlapping sync triggers", () => {
       quarantinedCount: 0,
     });
     expect(withCostSyncLockMock).not.toHaveBeenCalled();
+  });
+
+  it("caps write work and leaves the remainder for an idempotent continuation", () => {
+    const pending = Array.from(
+      { length: MAX_COST_WRITES_PER_RUN + 2 },
+      (_, index) => `charge-${index}`,
+    );
+
+    expect(takeCostSyncWork(pending)).toEqual({
+      items: pending.slice(0, MAX_COST_WRITES_PER_RUN),
+      hasMore: true,
+    });
+    expect(takeCostSyncWork(["one", "two"])).toEqual({
+      items: ["one", "two"],
+      hasMore: false,
+    });
+  });
+
+  it("marks abandoned running syncs failed before another writer starts", async () => {
+    executeDeps.updateMany.mockResolvedValue({ count: 2 });
+    const now = new Date("2026-09-27T12:00:00.000Z");
+
+    await expect(recoverStaleCostSyncRuns(now)).resolves.toBe(2);
+    expect(executeDeps.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: "RUNNING",
+        startedAt: { lt: new Date("2026-09-27T11:45:00.000Z") },
+      },
+      data: {
+        status: "FAILED",
+        errorCode: COST_SYNC_STALE_CODE,
+        completedAt: now,
+      },
+    });
   });
 });

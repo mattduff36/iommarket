@@ -17,25 +17,45 @@ import {
 } from "@/components/ui/table";
 import { COST_SECTION_HELP } from "@/lib/costs/copy";
 import type { CostLineDto } from "@/lib/costs/dto";
-import { COST_USAGE_PAGE_SIZE, paginateCostLines } from "@/lib/costs/usage-view";
+import {
+  COST_USAGE_PAGE_SIZE,
+  paginateCostLines,
+  type CostSummaryLine,
+} from "@/lib/costs/usage-view";
+
+function formatPeriod(start: string, end: string): string {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const inclusiveEnd = new Date(Math.max(startDate.getTime(), endDate.getTime() - 1));
+  const format = (value: Date) =>
+    value.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  if (startDate.toISOString().slice(0, 10) === inclusiveEnd.toISOString().slice(0, 10)) {
+    return format(startDate);
+  }
+  return `${format(startDate)} – ${format(inclusiveEnd)}`;
+}
 
 export function CostSectionTable({
   label,
   amountLabel,
-  lines,
-  resetKey,
+  rawLines,
+  summaryLines,
+  isOwner,
 }: {
   label: string;
   amountLabel: string;
-  lines: CostLineDto[];
-  resetKey: string;
+  rawLines: CostLineDto[];
+  summaryLines: CostSummaryLine[];
+  isOwner: boolean;
 }) {
   const [page, setPage] = useState(1);
-  const [seenResetKey, setSeenResetKey] = useState(resetKey);
-  if (resetKey !== seenResetKey) {
-    setSeenResetKey(resetKey);
-    setPage(1);
-  }
+  const [showLedgerEntries, setShowLedgerEntries] = useState(false);
+  const lines = showLedgerEntries ? rawLines : summaryLines;
   const paged = useMemo(() => paginateCostLines(lines, page), [lines, page]);
   const help = COST_SECTION_HELP[label];
 
@@ -47,33 +67,65 @@ export function CostSectionTable({
           <p className="text-sm text-text-secondary">{amountLabel}</p>
         </div>
         {help ? <p className="mt-1 text-sm text-text-secondary">{help}</p> : null}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-text-secondary">
+            {showLedgerEntries
+              ? `${rawLines.length.toLocaleString("en-GB")} ledger entries`
+              : `${summaryLines.length.toLocaleString("en-GB")} cost items combined from ${rawLines.length.toLocaleString("en-GB")} ledger entries`}
+          </p>
+          {isOwner ? (
+            <button
+              type="button"
+              className="text-xs font-medium text-text-secondary underline-offset-4 hover:text-text-primary hover:underline"
+              onClick={() => {
+                setShowLedgerEntries((current) => !current);
+                setPage(1);
+              }}
+            >
+              {showLedgerEntries ? "Show client summary" : "Show all ledger entries"}
+            </button>
+          ) : null}
+        </div>
       </div>
-      <AdminTable>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Period</TableHead>
-            <TableHead>Item</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {paged.pageLines.map((line) => (
-            <TableRow key={line.id}>
-              <TableCell className={adminDateCellClass}>
-                {new Date(line.periodStart).toLocaleDateString("en-GB")}
-              </TableCell>
-              <TableCell>{line.label}</TableCell>
-              <TableCell className={adminNumericCellClass}>{line.amountLabel}</TableCell>
-              <TableCell>
-                <Badge variant={line.provisional ? "warning" : "neutral"}>
-                  {line.provisional ? "Provisional" : "Invoiceable"}
-                </Badge>
-              </TableCell>
+      {lines.length > 0 ? (
+        <AdminTable>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Billing period</TableHead>
+              <TableHead>Cost item</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead>Billing status</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </AdminTable>
+          </TableHeader>
+          <TableBody>
+            {paged.pageLines.map((line) => {
+              const adjustment = showLedgerEntries && line.kind === "REVERSAL";
+              return (
+                <TableRow key={line.id}>
+                  <TableCell className={adminDateCellClass}>
+                    {formatPeriod(line.periodStart, line.periodEnd)}
+                  </TableCell>
+                  <TableCell>{line.label}</TableCell>
+                  <TableCell className={adminNumericCellClass}>{line.amountLabel}</TableCell>
+                  <TableCell>
+                    <Badge variant={line.provisional ? "warning" : "neutral"}>
+                      {adjustment
+                        ? "Adjustment"
+                        : line.provisional
+                          ? "Provisional"
+                          : "Invoiceable"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </AdminTable>
+      ) : (
+        <p className="rounded-lg border border-border bg-surface p-4 text-sm text-text-secondary">
+          No individual cost item is £0.01 or more in this period.
+        </p>
+      )}
       {paged.totalPages > 1 ? (
         <div className="mt-4 flex flex-col items-center gap-2">
           <p className="text-sm text-text-secondary">

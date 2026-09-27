@@ -128,6 +128,11 @@ describe("manual cost sync T4", () => {
       data: { status: "succeeded" },
     });
 
+    runCostSyncMock.mockResolvedValue({ status: "partial", caughtUp: false });
+    await expect(runManualCostSync()).resolves.toMatchObject({
+      data: { status: "partial" },
+    });
+
     runCostSyncMock.mockResolvedValue({ status: "failed" });
     await expect(runManualCostSync()).resolves.toMatchObject({
       error: expect.stringMatching(/failed/i),

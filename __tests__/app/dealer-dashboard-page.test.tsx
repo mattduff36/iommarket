@@ -57,6 +57,9 @@ vi.mock("@/lib/db", () => ({
     dealerCancellationRequest: {
       findFirst: vi.fn().mockResolvedValue(null),
     },
+    dealerCorrespondenceSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     dealerProfile: {
       upsert: vi.fn(),
     },
@@ -113,6 +116,15 @@ describe("DealerDashboardPage T9", () => {
 
     expect(ensureAdminDealerProfileMock).toHaveBeenCalled();
     expect(screen.getByText("Admin operational access")).toBeTruthy();
+    const subscription = screen.getByText("Subscription:");
+    const emailPreferences = screen.getByRole("heading", { name: "Email preferences" });
+    const listingsHeading = screen.getByRole("heading", { name: "Your Listings" });
+    expect(
+      subscription.compareDocumentPosition(emailPreferences) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      emailPreferences.compareDocumentPosition(listingsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.queryByText("Active")).toBeNull();
     expect(screen.queryByText("Free access")).toBeNull();
     expect(screen.queryByText(/active listing slots used/i)).toBeNull();

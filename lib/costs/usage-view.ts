@@ -22,8 +22,9 @@ export const COST_USAGE_RANGE_LABELS: Record<CostUsageRange, string> = {
   all: "All",
 };
 
-export const COST_USAGE_CURSOR_SERIES = "Cursor";
-export const COST_USAGE_SHARED_SERIES = "Shared Hosting";
+export const COST_USAGE_CURSOR_SERIES = COST_SECTION_LABELS.CURSOR;
+export const COST_USAGE_SHARED_SERIES = COST_SECTION_LABELS.SHARED_VERCEL;
+export const COST_MINIMUM_DISPLAY_MINOR = 1;
 
 const SERIES_ORDER = [
   COST_USAGE_CURSOR_SERIES,
@@ -63,6 +64,60 @@ function utcDay(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+export interface CostSummaryLine extends CostLineDto {
+  sourceCount: number;
+}
+
+function summaryIdentity(line: CostLineDto): {
+  key: string;
+  label: string;
+} {
+  const startDay = utcDay(new Date(line.periodStart));
+  const endDay = utcDay(new Date(line.periodEnd));
+  const label = line.category === "CURSOR" ? "Development usage" : line.label;
+  return {
+    key: [
+      line.category,
+      line.invoiceability,
+      startDay,
+      line.category === "CURSOR" ? "" : endDay,
+      label,
+    ].join("|"),
+    label,
+  };
+}
+
+export function summarizeCostLines(lines: CostLineDto[]): CostSummaryLine[] {
+  const groups = new Map<string, CostSummaryLine>();
+
+  for (const line of lines) {
+    const identity = summaryIdentity(line);
+    const current = groups.get(identity.key);
+    if (current) {
+      const amountMinor = current.amountMinor + line.amountMinor;
+      groups.set(identity.key, {
+        ...current,
+        amountMinor,
+        amountLabel: formatMarkedGbp(amountMinor),
+        sourceCount: current.sourceCount + 1,
+      });
+      continue;
+    }
+
+    groups.set(identity.key, {
+      ...line,
+      id: `summary:${identity.key}`,
+      label: identity.label,
+      kind: "CHARGE",
+      sourceCount: 1,
+    });
+  }
+
+  return [...groups.values()].filter(
+    (line) => Math.abs(line.amountMinor) >= COST_MINIMUM_DISPLAY_MINOR,
+  );
+}
+
 function parseUtcDay(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
 }
@@ -95,13 +150,10 @@ function formatDayLabel(day: string): string {
 
 export function lineSeriesKey(line: CostLineDto): string {
   if (line.category === "CURSOR") return COST_USAGE_CURSOR_SERIES;
-  if (
-    line.category === "SHARED_VERCEL" ||
-    line.section === "Provisional Shared Hosting"
-  ) {
+  if (line.category === "SHARED_VERCEL") {
     return COST_USAGE_SHARED_SERIES;
   }
-  return line.section;
+  return COST_SECTION_LABELS[line.category];
 }
 
 export function usageRangeBounds(

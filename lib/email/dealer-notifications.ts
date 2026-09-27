@@ -26,7 +26,7 @@ export function buildDealerVerificationEmail(input: {
 }
 
 export async function sendDealerVerificationEmail(input: {
-  to: string;
+  to: string | string[];
   dealerName: string;
   verified: boolean;
 }) {

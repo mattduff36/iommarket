@@ -4,6 +4,7 @@ import path from "node:path";
 import { buildEmailChangeEmail, buildInviteEmail, buildMagicLinkEmail, buildPasswordResetEmail, buildSignupConfirmationEmail } from "@/lib/email/auth-emails";
 import { buildCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
 import { buildCostInvoiceRequestEmail } from "@/lib/costs/email";
+import { buildDealerCorrespondenceVerificationEmail } from "@/lib/email/dealer-correspondence";
 import { buildDealerOnboardingEmail } from "@/lib/email/dealer-onboarding";
 import { buildDealerVerificationEmail } from "@/lib/email/dealer-notifications";
 import { buildListingStatusEmail } from "@/lib/email/listing-notifications";
@@ -54,6 +55,11 @@ const samples = {
   "dealer-verification": buildDealerVerificationEmail({
     dealerName: "TD Car Centre",
     verified: true,
+  }),
+  "dealer-correspondence": buildDealerCorrespondenceVerificationEmail({
+    dealerName: "TD Car Centre",
+    verifyUrl: "https://itrader.im/dealer/correspondence/verify?token=fake-token",
+    expiresAt: new Date("2026-05-02T12:00:00Z"),
   }),
   cancellation: buildCancellationStatusEmail({
     dealerName: "TD Car Centre",
