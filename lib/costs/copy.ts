@@ -16,11 +16,9 @@ export const COST_SECTION_HELP: Record<string, string> = {
   "Development (Cursor)":
     "Daily Cursor usage used to build and maintain iTrader. Matching entries are combined and net amounts below £0.01 are hidden.",
   "Website hosting (Vercel)":
-    "Vercel services used directly by the iTrader website, including the daily Vercel Pro membership share. Matching service charges are combined and net amounts below £0.01 are hidden.",
+    "Vercel services used by iTrader, including the daily Pro membership share and any apportioned team-level charges. Matching service charges are combined and net amounts below £0.01 are hidden.",
   Database:
     "Database services used by iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
-  "Shared Vercel services":
-    "Team-level Vercel services that cannot be assigned to one project. iTrader receives an equal share across active production projects; current-period costs remain provisional until billing closes.",
   Other:
     "Other costs recorded for iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
 };

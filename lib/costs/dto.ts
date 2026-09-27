@@ -134,23 +134,28 @@ export function buildRequestButtonLabel(invoiceableMinor: bigint): string {
   return formatInvoiceRequestLabel(invoiceableMinor);
 }
 
-const PROVIDER_SECTION_ORDER: CostCategory[] = [
-  "CURSOR",
-  "VERCEL_HOSTING",
-  "DATABASE",
-  "SHARED_VERCEL",
+const PROVIDER_SECTIONS: Array<{
+  key: CostCategory;
+  categories: CostCategory[];
+}> = [
+  { key: "CURSOR", categories: ["CURSOR"] },
+  {
+    key: "VERCEL_HOSTING",
+    categories: ["VERCEL_HOSTING", "SHARED_VERCEL"],
+  },
+  { key: "DATABASE", categories: ["DATABASE"] },
 ];
 
 export function groupCostSections(lines: CostLineDto[]): CostDashboardDto["sections"] {
-  const provider = PROVIDER_SECTION_ORDER.flatMap((category) => {
-    const categoryLines = lines.filter((line) => line.category === category);
+  const provider = PROVIDER_SECTIONS.flatMap(({ key, categories }) => {
+    const categoryLines = lines.filter((line) => categories.includes(line.category));
     if (categoryLines.length === 0) return [];
     const amountMinor = categoryLines.reduce((total, line) => total + line.amountMinor, 0);
     return [{
-      key: category,
-      label: COST_SECTION_LABELS[category],
+      key,
+      label: COST_SECTION_LABELS[key],
       amountLabel: formatMarkedGbp(BigInt(amountMinor)),
-      provisional: category === "SHARED_VERCEL" && categoryLines.some((line) => line.provisional),
+      provisional: categoryLines.some((line) => line.provisional),
       lines: categoryLines,
     }];
   });
