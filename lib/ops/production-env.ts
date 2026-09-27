@@ -130,8 +130,7 @@ export function validateVercelProductionEnvMetadata(
     if (
       matches.length !== 1 ||
       matches[0]?.type !== "sensitive" ||
-      matches[0]?.target.length !== 1 ||
-      matches[0]?.target[0] !== "production"
+      !matches[0]?.target.includes("production")
     ) {
       throw new ProductionEnvError(
         `Vercel production metadata is invalid for ${key}.`,

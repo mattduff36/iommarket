@@ -137,6 +137,11 @@ describe("production environment mirror T8 T9 T10 T12", () => {
     }
   });
 
+  it("does not classify public provider identifiers as secrets", () => {
+    expect(PRODUCTION_SENSITIVE_KEYS).not.toContain("CLOUDINARY_API_KEY");
+    expect(PRODUCTION_SENSITIVE_KEYS).not.toContain("RIPPLE_CLIENT_ID");
+  });
+
   it("parses Vercel metadata without exposing CLI output", () => {
     const metadata = validSensitiveMetadata();
     expect(
@@ -178,6 +183,15 @@ describe("production environment mirror T8 T9 T10 T12", () => {
   it("rejects missing, duplicate, wrong-type, non-production, and forbidden metadata", () => {
     const valid = validSensitiveMetadata();
     expect(() => validateVercelProductionEnvMetadata(valid)).not.toThrow();
+    expect(() =>
+      validateVercelProductionEnvMetadata(
+        valid.map((env, index) =>
+          index === 0
+            ? { ...env, target: ["preview", "production"] }
+            : env,
+        ),
+      ),
+    ).not.toThrow();
     expect(() =>
       validateVercelProductionEnvMetadata(valid.slice(1)),
     ).toThrow(/VERCEL_BILLING_TOKEN/);
