@@ -154,4 +154,24 @@ describe("manual cost categories", () => {
     });
     expect(sections[0]?.lines).toHaveLength(2);
   });
+
+  it("shows a legacy uncategorized manual cost as a Manual Adjustment", () => {
+    const line = toCostLineDto({
+      id: "legacy-adjustment",
+      category: "OTHER",
+      kind: "CHARGE",
+      displayLabel: "Exclude costs page work",
+      markedGbpMinor: -5000n,
+      invoiceability: "INVOICEABLE",
+      servicePeriodStart: new Date("2026-09-27T00:00:00.000Z"),
+      servicePeriodEnd: new Date("2026-09-28T00:00:00.000Z"),
+    });
+
+    expect(line.section).toBe("Manual Adjustment");
+    expect(groupCostSections([line])[0]).toMatchObject({
+      key: "manual:Manual Adjustment",
+      label: "Manual Adjustment",
+      amountLabel: "-£50.00",
+    });
+  });
 });

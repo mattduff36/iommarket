@@ -35,6 +35,7 @@ import {
 import { costDb } from "@/lib/costs/db";
 
 export const MAX_COST_WRITES_PER_RUN = 75;
+export const COST_SYNC_TRANSACTION_BATCH_SIZE = 3;
 const STALE_SYNC_RUN_MS = 15 * 60 * 1000;
 export const COST_SYNC_CONTINUE_CODE = "COST_SYNC_CONTINUE";
 export const COST_SYNC_STALE_CODE = "COST_SYNC_STALE";
@@ -59,6 +60,14 @@ export function takeCostSyncWork<T>(
     items: items.slice(0, boundedLimit),
     hasMore: items.length > boundedLimit,
   };
+}
+
+export function batchCostSyncWork<T>(items: readonly T[]): T[][] {
+  const batches: T[][] = [];
+  for (let index = 0; index < items.length; index += COST_SYNC_TRANSACTION_BATCH_SIZE) {
+    batches.push(items.slice(index, index + COST_SYNC_TRANSACTION_BATCH_SIZE));
+  }
+  return batches;
 }
 
 export async function recoverStaleCostSyncRuns(now = new Date()): Promise<number> {
@@ -368,8 +377,7 @@ async function executeCostSync(
       }
     }
 
-    for (let index = 0; index < work.items.length; index += 15) {
-      const batch = work.items.slice(index, index + 15);
+    for (const batch of batchCostSyncWork(work.items)) {
       if (!await renewCostSyncLock(lockHolder)) {
         throw new Error("Cost sync lock was lost.");
       }

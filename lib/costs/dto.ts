@@ -15,6 +15,7 @@ export const COST_SECTION_LABELS: Record<CostCategory, string> = {
   SHARED_VERCEL: "Shared Vercel services",
   OTHER: "Other",
 };
+const LEGACY_MANUAL_SECTION_LABEL = "Manual Adjustment";
 
 export interface CostLineDto {
   id: string;
@@ -94,7 +95,9 @@ export function toCostLineDto(input: {
     section:
       input.category === "OTHER" && manualSection
         ? manualSection
-        : COST_SECTION_LABELS[input.category],
+        : input.category === "OTHER"
+          ? LEGACY_MANUAL_SECTION_LABEL
+          : COST_SECTION_LABELS[input.category],
     category: input.category,
     label: input.displayLabel,
     amountLabel: formatMarkedGbp(input.markedGbpMinor),
