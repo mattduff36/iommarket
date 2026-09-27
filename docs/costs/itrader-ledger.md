@@ -27,6 +27,7 @@ These boundaries are for a later accounts site. They are not that site.
 1. Review this note and the dry-run reprice output.
 2. Set `COST_LEDGER_ROLE=canonical` and `COST_CANONICAL_VERCEL_PROJECT_ID` on the live Vercel project only.
 3. Keep separate `COST_LEDGER_READ_SECRET`, `COST_LEDGER_INGEST_SECRET` and `COST_LEDGER_REQUEST_SECRET` values. Put the read and request secrets on preview with `COST_LEDGER_ORIGIN` pointing at live. Do not put `COST_LEDGER_DATABASE_URL`, the ingest secret, or the billing token on preview.
-4. Apply the prepared migration with `npm run db:migrate` when you intend to change the database. Do not reset it.
-5. Run one bounded infrastructure sync and one collector upload. Compare ledger revision and totals on both admin sites.
-6. Reprice an uninvoiced Cursor day only after request-level evidence exists for that day. Leave invoiced settlements unchanged.
+4. Set `COSTS_ENABLED=true` for the preview branch and redeploy that branch after changing its environment.
+5. Apply the prepared migration with `npm run db:migrate` when you intend to change the database. Do not reset it.
+6. Run one bounded infrastructure sync and one collector upload. Compare ledger revision and totals on both admin sites.
+7. Reprice an uninvoiced Cursor day only after request-level evidence exists for that day. Leave invoiced settlements unchanged.
