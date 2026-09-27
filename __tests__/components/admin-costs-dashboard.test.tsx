@@ -307,6 +307,16 @@ describe("admin costs dashboard T5", () => {
     expect(screen.getByText("Adjustment")).not.toBeNull();
   });
 
+  it("keeps manual cost controls for the owner of the live ledger", () => {
+    render(
+      <CostDashboardView
+        dashboard={dashboard({ isOwner: true, affectsLiveLedger: true })}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Owner controls" })).not.toBeNull();
+    expect(screen.queryByText(COST_NON_OWNER_HELP)).toBeNull();
+  });
+
   it("does not show implementation details when costs are disabled", () => {
     render(<CostDashboardView dashboard={dashboard({ enabled: false, startedAt: null })} />);
     expect(screen.queryByText(/tracking is turned off|Ledger start:/i)).toBeNull();

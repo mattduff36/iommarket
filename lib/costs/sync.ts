@@ -7,6 +7,7 @@ import {
 import {
   aggregateClassifiedCharges,
   classifyFocusRows,
+  faceValueChecksum,
   sharedMembershipChecksum,
 } from "@/lib/costs/classify";
 import { isOnOrAfterLaunch } from "@/lib/costs/dates";
@@ -22,7 +23,9 @@ import {
 import { planLedgerRevision } from "@/lib/costs/ledger-plan";
 import { renewCostSyncLock, withCostSyncLock } from "@/lib/costs/lock";
 import { allocateSharedPence } from "@/lib/costs/shared";
-import { computeMarkedGbpMinor } from "@/lib/costs/money";
+import { computeUnmarkedGbpMinor } from "@/lib/costs/money";
+import { repriceManualChargesToFaceValue } from "@/lib/costs/manual-entry";
+import { recordVercelMembershipShare } from "@/lib/costs/vercel-membership";
 import { runSerializable } from "@/lib/costs/transaction";
 import {
   CostProviderUnavailableError,
@@ -177,6 +180,55 @@ async function executeCostSync(
   let classifiedCount = 0;
 
   try {
+    const manualReprice = await repriceManualChargesToFaceValue();
+    classifiedCount += manualReprice.written;
+    if (manualReprice.hasMore) {
+      await costDb.costSyncRun.update({
+        where: { id: run.id },
+        data: {
+          status: "FAILED",
+          errorCode: COST_SYNC_CONTINUE_CODE,
+          classifiedCount,
+          completedAt: new Date(),
+        },
+      });
+      return {
+        status: "partial",
+        runId: run.id,
+        classifiedCount,
+        errorCode: COST_SYNC_CONTINUE_CODE,
+        caughtUp: false,
+        queryFrom: window.from.toISOString(),
+        queryTo: window.to.toISOString(),
+      };
+    }
+
+    const membership = await recordVercelMembershipShare({
+      startedAt: config.startedAt,
+      now,
+    });
+    classifiedCount += membership.written;
+    if (membership.hasMore) {
+      await costDb.costSyncRun.update({
+        where: { id: run.id },
+        data: {
+          status: "FAILED",
+          errorCode: COST_SYNC_CONTINUE_CODE,
+          classifiedCount,
+          completedAt: new Date(),
+        },
+      });
+      return {
+        status: "partial",
+        runId: run.id,
+        classifiedCount,
+        errorCode: COST_SYNC_CONTINUE_CODE,
+        caughtUp: false,
+        queryFrom: window.from.toISOString(),
+        queryTo: window.to.toISOString(),
+      };
+    }
+
     const billing = getVercelBillingConfig(env);
     const charges = await fetchFocusCharges({
       from: window.from,
@@ -295,6 +347,7 @@ async function executeCostSync(
       }
 
       const invoiceability = charge.invoiceability ?? "INVOICEABLE";
+      checksum = faceValueChecksum(checksum);
       const plan = planLedgerRevision(existingRevisions.get(charge.bucketKey) ?? null, {
         checksum,
         invoiceability,
@@ -325,7 +378,7 @@ async function executeCostSync(
           const fx = fxByPeriod.get(item.charge.periodStart.toISOString());
           if (!fx) continue;
           if (item.charge.kind === "shared" && item.sharedAllocation) {
-            const markedTotal = computeMarkedGbpMinor(item.charge.nativeAmount, fx.rate);
+            const markedTotal = computeUnmarkedGbpMinor(item.charge.nativeAmount, fx.rate);
             const allocation = allocateSharedPence(
               markedTotal,
               item.sharedAllocation.membership,
@@ -360,7 +413,6 @@ async function executeCostSync(
                 projectIds: allocation.membership,
                 denominator: allocation.denominator,
                 remainderMethod: "sorted-project-id",
-                infrastructureMarkupPercent: 20,
               },
               startedAt: config.startedAt,
               markedGbpMinor: allocation.share,
@@ -382,7 +434,6 @@ async function executeCostSync(
             periodStart: item.charge.periodStart,
             periodEnd: item.charge.periodEnd,
             displayLabel: item.charge.displayLabel,
-            metadata: { infrastructureMarkupPercent: 20 },
             startedAt: config.startedAt,
           });
           if (result !== "skipped") classifiedCount += 1;

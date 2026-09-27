@@ -152,7 +152,7 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
         </section>
       ) : null}
 
-      {dashboard.isOwner && !dashboard.affectsLiveLedger ? (
+      {dashboard.isOwner ? (
         <section className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
           <h2 className="mb-1 text-lg font-semibold text-text-primary">
             Owner controls

@@ -107,7 +107,8 @@ export function OwnerCostControls({
       <div>
         <h3 className="text-sm font-semibold text-text-primary">Record a manual cost</h3>
         <p className="mt-1 text-sm leading-6 text-text-secondary">
-          Add a provider charge in its source currency. The period is used to group it in the dashboard.
+          Add a charge or a reduction in its source currency. A minus sign reduces the total.
+          The period is used to group it in the dashboard.
           Use Database for a Supabase marketplace invoice line missing from automatic billing, and put the invoice line id in the reference so it is not imported twice.
         </p>
       </div>
@@ -135,7 +136,12 @@ export function OwnerCostControls({
           </select>
         </label>
         <Input name="externalRef" label="External reference" required />
-        <Input name="nativeAmount" label="Source amount" required />
+        <Input
+          name="nativeAmount"
+          label="Source amount"
+          helperText="Positive adds a cost. A minus sign records a reduction."
+          required
+        />
         <Input name="displayLabel" label="Label" required />
         <Input name="periodStart" label="Period start" type="datetime-local" required />
         <Input name="periodEnd" label="Period end" type="datetime-local" required />

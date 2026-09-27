@@ -6,12 +6,14 @@ const {
   runCostSyncMock,
   reportHandledExceptionMock,
   requestRemoteCostRefreshMock,
+  requestRemoteManualCostMock,
 } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
   confirmInvoiceRequestMock: vi.fn(),
   runCostSyncMock: vi.fn(),
   reportHandledExceptionMock: vi.fn(),
   requestRemoteCostRefreshMock: vi.fn(),
+  requestRemoteManualCostMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -41,6 +43,7 @@ vi.mock("@/lib/costs/sync", () => ({
 vi.mock("@/lib/costs/remote-ledger", () => ({
   requestRemoteInvoice: vi.fn(),
   requestRemoteCostRefresh: requestRemoteCostRefreshMock,
+  requestRemoteManualCost: requestRemoteManualCostMock,
 }));
 
 vi.mock("@/lib/monitoring", () => ({
@@ -202,6 +205,26 @@ describe("provider cost refresh", () => {
     expect(runCostSyncMock).not.toHaveBeenCalled();
     expect(result.error).toBeUndefined();
     expect(result.data).toMatchObject({ status: "locked" });
+  });
+
+  it("records a reduction on the canonical ledger when preview is only a reader", async () => {
+    process.env.COST_LEDGER_ROLE = "reader";
+    process.env.COST_LEDGER_ORIGIN = "https://itrader.im";
+    requestRemoteManualCostMock.mockResolvedValue(undefined);
+    const { recordManualProjectCost } = await loadCostActions();
+    const input = {
+      category: "OTHER" as const,
+      externalRef: "exclude-costs-page",
+      nativeAmount: "-12.50",
+      nativeCurrency: "GBP" as const,
+      displayLabel: "Exclude costs page work",
+      periodStart: "2026-08-17T00:00:00.000Z",
+      periodEnd: "2026-09-27T00:00:00.000Z",
+    };
+    await expect(recordManualProjectCost(input)).resolves.toEqual({
+      data: { recorded: true },
+    });
+    expect(requestRemoteManualCostMock).toHaveBeenCalledWith("https://itrader.im", input);
   });
 
   it("rejects a non-owner before either refresh path", async () => {

@@ -1,4 +1,5 @@
 import type { CostDashboardDto } from "@/lib/costs/dto";
+import type { RecordManualCostInput } from "@/lib/validations/costs";
 
 export async function fetchRemoteCostDashboard(
   origin: string,
@@ -95,4 +96,28 @@ export async function requestRemoteInvoice(
     throw new Error(body.error || "The live ledger could not accept the invoice request.");
   }
   return body.data;
+}
+
+export async function requestRemoteManualCost(
+  origin: string,
+  input: RecordManualCostInput,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const secret = env.COST_LEDGER_REQUEST_SECRET?.trim();
+  if (!secret) {
+    throw new Error("The canonical ledger request credential is not configured.");
+  }
+  const response = await fetch(`${origin}/api/internal/cost-ledger/manual`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (!response.ok) {
+    throw new Error(body?.error || "The live ledger could not record the manual cost.");
+  }
 }

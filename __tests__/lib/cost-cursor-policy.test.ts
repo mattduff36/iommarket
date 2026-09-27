@@ -48,7 +48,7 @@ describe("iTrader Cursor 60/110 policy", () => {
     expect(cursorClientGbpMinor("60", "1")).toBe(6000n);
     expect(cursorClientGbpMinor("110", "1")).toBe(11000n);
     expect(cursorClientGbpMinor("70", "1")).toBe(7000n);
-    expect(computeMarkedGbpMinor("10", "1")).toBe(1200n);
+    expect(computeMarkedGbpMinor("10", "1")).toBe(1000n);
     expect(cursorClientGbpMinor("10", "1")).toBe(1000n);
   });
 

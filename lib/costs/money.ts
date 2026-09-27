@@ -1,11 +1,7 @@
-export const COST_MARKUP_NUMERATOR = BigInt(6);
-export const COST_MARKUP_DENOMINATOR = BigInt(5);
 export const PENCE_PER_POUND = BigInt(100);
 export const ZERO_MINOR = BigInt(0);
 export const COST_POLICY_VERSION = "gbp-markup-v1";
-export const INFRASTRUCTURE_MARKUP_PERCENT = 20;
-export const INFRASTRUCTURE_MARKUP_DISCLOSURE =
-  "Vercel hosting and database charges include a 20% markup.";
+export const COST_FACE_VALUE_POLICY = "face-value-v1";
 
 export class CostMoneyError extends Error {
   constructor(message: string) {
@@ -66,17 +62,10 @@ export function computeUnmarkedGbpMinor(nativeAmount: string, gbpPerNativeRate: 
 }
 
 /**
- * Convert a native amount and GBP-per-native rate into marked GBP pence.
- * marked = roundHalfAwayFromZero(native × rate × 6/5 × 100)
- * Infrastructure only. Cursor client charges use computeUnmarkedGbpMinor.
+ * GBP pence stored on a ledger row. This is the face value after FX conversion.
  */
 export function computeMarkedGbpMinor(nativeAmount: string, gbpPerNativeRate: string): bigint {
-  const native = parseDecimalString(nativeAmount);
-  const rate = parseDecimalString(gbpPerNativeRate);
-  const productUnscaled =
-    native.unscaled * rate.unscaled * COST_MARKUP_NUMERATOR * PENCE_PER_POUND;
-  const productDenominator = BigInt(10) ** BigInt(native.scale + rate.scale) * COST_MARKUP_DENOMINATOR;
-  return roundHalfAwayFromZero(productUnscaled, productDenominator);
+  return computeUnmarkedGbpMinor(nativeAmount, gbpPerNativeRate);
 }
 
 export function quantizeDecimal(value: string, scale: number): string {
