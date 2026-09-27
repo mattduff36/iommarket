@@ -37,10 +37,13 @@ export function CostUsagePanel({
     [allLines, range],
   );
   const visibleSections = sections
-    .map((section) => ({
-      ...section,
-      rawLines: model.filteredLines.filter((line) => line.category === section.key),
-    }))
+    .map((section) => {
+      const sectionLineIds = new Set(section.lines.map((line) => line.id));
+      return {
+        ...section,
+        rawLines: model.filteredLines.filter((line) => sectionLineIds.has(line.id)),
+      };
+    })
     .filter((section) => section.rawLines.length > 0)
     .map((section) => ({
       ...section,
@@ -90,7 +93,7 @@ export function CostUsagePanel({
             <div>
               <h3 className="text-sm font-medium text-text-primary">Project costs</h3>
               <p className="text-sm text-text-secondary">
-                Cumulative spend by category across this period.
+                Cumulative charges above zero, credits below, and net total as a line.
               </p>
             </div>
             <p className="text-xs text-text-secondary">Grouped by category</p>
@@ -108,6 +111,13 @@ export function CostUsagePanel({
                   {key}
                 </li>
               ))}
+              <li className="flex items-center gap-2">
+                <span
+                  className="h-0 w-4 border-t-2 border-text-primary"
+                  aria-hidden
+                />
+                Net total
+              </li>
             </ul>
           ) : null}
         </div>
