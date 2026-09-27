@@ -61,8 +61,8 @@ describe("Vercel membership ledger writes", () => {
     });
 
     expect(result).toEqual({ written: 46, hasMore: false });
-    expect(MEMBERSHIP_TRANSACTION_BATCH_SIZE).toBe(10);
-    expect(runSerializable).toHaveBeenCalledTimes(5);
+    expect(MEMBERSHIP_TRANSACTION_BATCH_SIZE).toBe(1);
+    expect(runSerializable).toHaveBeenCalledTimes(46);
     expect(applyClassifiedCharge).toHaveBeenCalledTimes(46);
     expect(applyClassifiedCharge).toHaveBeenNthCalledWith(
       1,

@@ -10,7 +10,7 @@ import { runSerializable } from "@/lib/costs/transaction";
 export const VERCEL_MEMBERSHIP_DAILY_GBP = "0.38";
 export const VERCEL_MEMBERSHIP_LABEL = "Vercel Pro membership share";
 const MEMBERSHIP_WRITES_PER_RUN = 75;
-export const MEMBERSHIP_TRANSACTION_BATCH_SIZE = 10;
+export const MEMBERSHIP_TRANSACTION_BATCH_SIZE = 1;
 
 export interface VercelMembershipDay {
   day: string;
