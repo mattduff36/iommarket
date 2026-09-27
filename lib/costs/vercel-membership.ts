@@ -22,29 +22,34 @@ export interface VercelMembershipDay {
   displayLabel: string;
 }
 
+function firstMembershipDay(startedAt: Date): Date {
+  const day = utcDateFromString(toUtcDateString(startedAt));
+  if (day.getTime() < startedAt.getTime()) {
+    day.setUTCDate(day.getUTCDate() + 1);
+  }
+  return day;
+}
+
 export function vercelMembershipDays(startedAt: Date, now: Date): VercelMembershipDay[] {
   const last = utcDateFromString(toUtcDateString(now));
   const days: VercelMembershipDay[] = [];
-  let cursor = utcDateFromString(toUtcDateString(startedAt));
+  let cursor = firstMembershipDay(startedAt);
 
   while (cursor.getTime() <= last.getTime()) {
     const next = new Date(cursor);
     next.setUTCDate(next.getUTCDate() + 1);
-    const periodStart = cursor.getTime() < startedAt.getTime() ? startedAt : cursor;
-    if (periodStart.getTime() < next.getTime()) {
-      const day = toUtcDateString(cursor);
-      days.push({
-        day,
-        bucketKey: `vercel:membership:${day}`,
-        checksum: faceValueChecksum(
-          `vercel:membership:${day}:${VERCEL_MEMBERSHIP_DAILY_GBP}:GBP`,
-        ),
-        periodStart,
-        periodEnd: next,
-        nativeAmount: VERCEL_MEMBERSHIP_DAILY_GBP,
-        displayLabel: VERCEL_MEMBERSHIP_LABEL,
-      });
-    }
+    const day = toUtcDateString(cursor);
+    days.push({
+      day,
+      bucketKey: `vercel:membership:${day}`,
+      checksum: faceValueChecksum(
+        `vercel:membership:${day}:${VERCEL_MEMBERSHIP_DAILY_GBP}:GBP`,
+      ),
+      periodStart: cursor,
+      periodEnd: next,
+      nativeAmount: VERCEL_MEMBERSHIP_DAILY_GBP,
+      displayLabel: VERCEL_MEMBERSHIP_LABEL,
+    });
     cursor = next;
   }
 
@@ -60,12 +65,32 @@ export async function recordVercelMembershipShare(input: {
   now: Date;
 }): Promise<{ written: number; hasMore: boolean }> {
   const days = vercelMembershipDays(input.startedAt, input.now);
+  const startedAtDay = utcDateFromString(toUtcDateString(input.startedAt));
+  const legacyBucketKey =
+    startedAtDay.getTime() < input.startedAt.getTime()
+      ? `vercel:membership:${toUtcDateString(startedAtDay)}`
+      : null;
   const existing = await listLatestBucketRevisions(
     costDb,
     "MANUAL",
-    days.map((day) => day.bucketKey),
+    [
+      ...days.map((day) => day.bucketKey),
+      ...(legacyBucketKey ? [legacyBucketKey] : []),
+    ],
   );
-  const pending = days.filter((day) => {
+  const legacyRetirement: VercelMembershipDay[] =
+    legacyBucketKey && existing.has(legacyBucketKey)
+      ? [{
+          day: toUtcDateString(startedAtDay),
+          bucketKey: legacyBucketKey,
+          checksum: faceValueChecksum(`${legacyBucketKey}:retired`),
+          periodStart: input.startedAt,
+          periodEnd: firstMembershipDay(input.startedAt),
+          nativeAmount: "0",
+          displayLabel: VERCEL_MEMBERSHIP_LABEL,
+        }]
+      : [];
+  const pending = [...legacyRetirement, ...days].filter((day) => {
     const plan = planLedgerRevision(existing.get(day.bucketKey) ?? null, {
       checksum: day.checksum,
       invoiceability: "INVOICEABLE",
@@ -98,7 +123,7 @@ export async function recordVercelMembershipShare(input: {
           periodEnd: day.periodEnd,
           displayLabel: day.displayLabel,
           startedAt: config.startedAt,
-          markedGbpMinor: vercelMembershipDailyMinor(),
+          markedGbpMinor: computeUnmarkedGbpMinor(day.nativeAmount, "1"),
         });
       }
     });

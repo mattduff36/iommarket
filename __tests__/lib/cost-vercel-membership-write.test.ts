@@ -60,15 +60,15 @@ describe("Vercel membership ledger writes", () => {
       now: new Date("2026-09-27T12:00:00.000Z"),
     });
 
-    expect(result).toEqual({ written: 46, hasMore: false });
+    expect(result).toEqual({ written: 45, hasMore: false });
     expect(MEMBERSHIP_TRANSACTION_BATCH_SIZE).toBe(1);
-    expect(runSerializable).toHaveBeenCalledTimes(46);
-    expect(applyClassifiedCharge).toHaveBeenCalledTimes(46);
+    expect(runSerializable).toHaveBeenCalledTimes(45);
+    expect(applyClassifiedCharge).toHaveBeenCalledTimes(45);
     expect(applyClassifiedCharge).toHaveBeenNthCalledWith(
       1,
       expect.anything(),
       expect.objectContaining({
-        bucketKey: "vercel:membership:2026-08-13",
+        bucketKey: "vercel:membership:2026-08-14",
         category: "VERCEL_HOSTING",
         nativeAmount: "0.38",
         markedGbpMinor: 38n,
@@ -79,6 +79,45 @@ describe("Vercel membership ledger writes", () => {
       expect.objectContaining({
         bucketKey: "vercel:membership:2026-09-27",
         periodStart: new Date("2026-09-27T00:00:00.000Z"),
+      }),
+    );
+  });
+
+  it("retires the legacy partial UTC-day charge when it exists", async () => {
+    listLatestBucketRevisions.mockResolvedValue(new Map([
+      ["vercel:membership:2026-08-13", {
+        revision: 1,
+        checksum: "legacy-checksum",
+        invoiceability: "INVOICEABLE",
+        chargeEntryId: "legacy-charge",
+        markedGbpMinor: 38n,
+        fxRateSnapshotId: "fx-gbp",
+        nativeAmount: "0.38",
+        nativeCurrency: "GBP",
+      }],
+    ]));
+
+    await recordVercelMembershipShare({
+      startedAt: new Date("2026-08-13T23:00:00.000Z"),
+      now: new Date("2026-08-14T12:00:00.000Z"),
+    });
+
+    expect(applyClassifiedCharge).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({
+        bucketKey: "vercel:membership:2026-08-13",
+        nativeAmount: "0",
+        markedGbpMinor: 0n,
+      }),
+    );
+    expect(applyClassifiedCharge).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        bucketKey: "vercel:membership:2026-08-14",
+        nativeAmount: "0.38",
+        markedGbpMinor: 38n,
       }),
     );
   });
