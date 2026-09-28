@@ -44,14 +44,18 @@ function firstVehicleMiles(visible: string) {
 
 export function extractDetailSpecs(html: string, detailUrl?: string | null) {
   const visible = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");
+  const decodedVisible = decodeListingText(visible);
   const mileageStrong = html.match(/class="car_mileage"[\s\S]{0,160}?<strong[^>]*>\s*([\d,]+)/i)?.[1];
   const yearStrong = html.match(/class="car_year"[\s\S]{0,160}?<strong[^>]*>\s*(\d{4})/i)?.[1];
   const bettridgeMiles = html.match(/class=['"]detail mileage['"][\s\S]{0,80}?<\/i>\s*([\d,]+)/i)?.[1];
   const bettridgeYear = html.match(/class=['"]detail year['"][\s\S]{0,80}?<\/i>\s*(\d{4})/i)?.[1];
+  const stocklistMiles = decodedVisible.match(/\bOdometer\s+([\d,]+)\s*mi\b/i)?.[1];
   let mileage = mileageStrong
     ? Number(mileageStrong.replace(/,/g, ""))
     : bettridgeMiles
       ? Number(bettridgeMiles.replace(/,/g, ""))
+      : stocklistMiles
+        ? Number(stocklistMiles.replace(/,/g, ""))
       : null;
   const slug = detailUrl?.split("/").filter(Boolean).at(-1);
   if (mileage == null && slug && slug.length > 8) {
@@ -71,6 +75,7 @@ export function extractDetailSpecs(html: string, detailUrl?: string | null) {
       : bettridgeYear
         ? Number(bettridgeYear)
         : yearFrom(html.match(/Registered(?: in)?\s+(\d{4})/i)?.[1] ?? "") ??
+          yearFrom(decodedVisible.match(/\bReg\s+(20\d{2}|19\d{2})(?:\s*\(\d{2}\))?/i)?.[1] ?? "") ??
           yearFrom(visible.match(/\b(?:exceptional|this outstanding)\s+(20\d{2}|19\d{2})\b/i)?.[1] ?? "") ??
           yearFrom(visible.match(/\bA (20\d{2}|19\d{2}) example\b/i)?.[1] ?? ""),
     registration: asVrm(
@@ -116,15 +121,13 @@ export function extractFranklinsListBoxes(html: string, origin: string) {
 
 export function extractManxVehicleCards(html: string, origin: string) {
   if (!html.includes("makemodel") || !html.includes("data-finance")) return [];
-  const chunks = html.split(/class="card text-bg-primary h-100 vehicle"/i).slice(1);
+  const legacyChunks = html.split(/class="card text-bg-primary h-100 vehicle"/i).slice(1);
+  const currentChunks = html
+    .split(/(?=<div[^>]*class="[^"]*\bvehicle\b[^"]*"[^>]*data-finance=)/i)
+    .filter((chunk) => /^<div[^>]*data-finance=/i.test(chunk));
+  const chunks = currentChunks.length > 0 ? currentChunks : legacyChunks;
   const seen = new Set<string>();
   return chunks.flatMap((chunk) => {
-    const href = chunk.match(/href="(\/vehicle\/[^"]+)"/i)?.[1];
-    if (!href || seen.has(href)) return [];
-    seen.add(href);
-    const makeModel = decodeListingText(chunk.match(/class="makemodel[^"]*">([^<]+)/i)?.[1] ?? "");
-    const parsed = parseYearMakeModel(makeModel);
-    if (!parsed.make || !parsed.model) return [];
     let finance: Record<string, unknown> = {};
     const raw = chunk.match(/data-finance="([^"]*)"/i)?.[1];
     if (raw) {
@@ -134,17 +137,30 @@ export function extractManxVehicleCards(html: string, origin: string) {
         finance = {};
       }
     }
-    const priceText = decodeListingText(chunk.match(/class="price\s*">([\s\S]{0,80})</i)?.[1] ?? "");
+    const href = chunk.match(/<a\b[^>]*href="([^"]+)"/i)?.[1];
+    if (!href || seen.has(href)) return [];
+    seen.add(href);
+    const legacyMakeModel = chunk.match(/class="makemodel[^"]*">([^<]+)/i)?.[1];
+    const currentMakeModel = chunk.match(/id="makemodel"[\s\S]{0,160}?<h3[^>]*>([^<]+)/i)?.[1];
+    const makeModel = decodeListingText(legacyMakeModel ?? currentMakeModel ?? "");
+    const parsed = parseYearMakeModel(makeModel);
+    if (!parsed.make || !parsed.model) return [];
+    const legacyDerivative = chunk.match(/class="version[^"]*">([^<]+)/i)?.[1];
+    const currentDerivative = chunk.match(/id="makemodel"[\s\S]{0,240}?<h4[^>]*>([^<]+)/i)?.[1];
+    const priceText = decodeListingText(
+      chunk.match(/class=['"]price\s*['"]>([\s\S]{0,120})</i)?.[1] ?? "",
+    );
     const regDate = typeof finance.RegDate === "string" ? finance.RegDate : "";
+    const uuid = href.match(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/i)?.[0];
     return [
       {
         url: resolveMaybeUrl(href, origin),
-        sourceVehicleId: typeof finance.Id === "string" ? finance.Id : href.split("-").at(-1),
+        sourceVehicleId: typeof finance.Id === "string" ? finance.Id : uuid ?? href.split("-").at(-1),
         ...parsed,
-        derivative: decodeListingText(chunk.match(/class="version[^"]*">([^<]+)/i)?.[1] ?? ""),
+        derivative: decodeListingText(legacyDerivative ?? currentDerivative ?? ""),
         year: parsed.year ?? (regDate ? Number(regDate.slice(0, 4)) : null),
         price: typeof finance.Price === "number" ? finance.Price : priceFrom(chunk),
-        isPoa: /poa/i.test(priceText),
+        isPoa: /\b(?:poa|reserved)\b/i.test(priceText || decodeListingText(chunk)),
         mileage: typeof finance.Mileage === "number" ? finance.Mileage : null,
         registration: typeof finance.VRM === "string" ? finance.VRM : null,
         image: typeof finance.ImageUrl === "string" ? finance.ImageUrl : null,

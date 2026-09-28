@@ -218,6 +218,55 @@ describe("named HTML extractors", () => {
     });
   });
 
+  it("parses current Manx Car Warehouse cards", () => {
+    const cards = extractManxVehicleCards(
+      `<div class="vehicle" data-finance="{&quot;Id&quot;:&quot;c8ca8591-1830-4e18-b028-b48500c71462&quot;,&quot;Price&quot;:24995.0,&quot;ImageUrl&quot;:&quot;https://smgmedia.blob.core.windows.net/images/130519/1024/renault-5.jpg&quot;,&quot;RegDate&quot;:&quot;2026-03-19T00:00:00&quot;,&quot;VRM&quot;:null,&quot;Mileage&quot;:2111}">
+        <div class="card text-bg-card h-100">
+          <a href="/renault-5-iconic-e-tech-ev-in-ballasalla-isle-of-man-c8ca8591-1830-4e18-b028-b48500c71462">
+            <div id="makemodel">
+              <h3 class="mb-1 text-truncate">Renault 5</h3>
+              <h4 class="fs-6 mb-0 opacity-75 text-truncate">Iconic + E-Tech EV</h4>
+            </div>
+          </a>
+          <div class='price '><span>£24,995</span></div>
+        </div>
+      </div>
+      <div class="vehicle" data-finance="">
+        <div class="card text-bg-card h-100">
+          <a href="/hyundai-i10-se-connect-mpi-auto-in-ballasalla-isle-of-man-b34af281-2cef-4bc6-8a04-b4cd01285672">
+            <div id="makemodel">
+              <h3>Hyundai i10</h3>
+              <h4>SE Connect MPI Auto</h4>
+            </div>
+          </a>
+          <div class='price reserved'><span>Reserved</span></div>
+        </div>
+      </div>`,
+      "https://www.manxcarwarehouse.im",
+    );
+
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toMatchObject({
+      sourceVehicleId: "c8ca8591-1830-4e18-b028-b48500c71462",
+      url: "https://www.manxcarwarehouse.im/renault-5-iconic-e-tech-ev-in-ballasalla-isle-of-man-c8ca8591-1830-4e18-b028-b48500c71462",
+      make: "Renault",
+      model: "5",
+      derivative: "Iconic + E-Tech EV",
+      year: 2026,
+      price: 24995,
+      mileage: 2111,
+      image: "https://smgmedia.blob.core.windows.net/images/130519/1024/renault-5.jpg",
+    });
+    expect(cards[1]).toMatchObject({
+      sourceVehicleId: "b34af281-2cef-4bc6-8a04-b4cd01285672",
+      make: "Hyundai",
+      model: "i10",
+      derivative: "SE Connect MPI Auto",
+      price: null,
+      isPoa: true,
+    });
+  });
+
   it("parses Franklins, Manx, Kingswood, Rex, Ingear and Bettridge cards", () => {
     const franklins = extractFranklinsListBoxes(
       `<div class="list-box-wrapper grid-view">
@@ -356,6 +405,12 @@ describe("named HTML extractors", () => {
         "https://www.rexmotorcompany.im/sales/porsche-macan-gts-5dr-pdk",
       ),
     ).toMatchObject({ year: 2018, mileage: 30500 });
+    expect(
+      extractDetailSpecs(
+        `<li><span>Reg</span> 2023 (23)</li><li><span>Odometer</span> 11,987 mi</li>`,
+        "https://www.manxcarwarehouse.im/hyundai-i10-b34af281-2cef-4bc6-8a04-b4cd01285672",
+      ),
+    ).toMatchObject({ year: 2023, mileage: 11987 });
     expect(
       extractDetailSpecs(
         `<span>Registration</span><span>Fuel Type</span>`,

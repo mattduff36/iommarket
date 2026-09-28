@@ -331,6 +331,20 @@ export async function previewPackExists(dealerKey: string) {
   return Boolean(pack);
 }
 
+export function assertPreviewPackSourceCanAdvance(input: {
+  currentRunId: string;
+  nextRunId: string;
+  enabled: boolean;
+  listingCount: number;
+}) {
+  if (input.currentRunId === input.nextRunId) return;
+  if (input.enabled || input.listingCount > 0) {
+    throw new Error(
+      "Refusing preview materialization: the existing pack belongs to a different source run.",
+    );
+  }
+}
+
 export async function setPreviewPackEnabled(dealerKey: string, enabled: boolean) {
   const pack = await db.dealerPreviewPack.findUnique({
     where: { dealerKey },
@@ -503,14 +517,24 @@ export async function materializePreviewPack(dealerKey: string) {
     website = null;
   }
 
-  const existing = await db.dealerPreviewPack.findUnique({
+  let existing = await db.dealerPreviewPack.findUnique({
     where: { dealerKey },
-    select: { id: true, sourceRunId: true, dealerProfileId: true },
+    select: {
+      id: true,
+      sourceRunId: true,
+      dealerProfileId: true,
+      enabled: true,
+      _count: { select: { listings: true } },
+    },
   });
-  if (existing && existing.sourceRunId !== runId) {
-    throw new Error(
-      "Refusing preview materialization: the existing pack belongs to a different source run.",
-    );
+  const sourceRunChanged = Boolean(existing && existing.sourceRunId !== runId);
+  if (existing && sourceRunChanged) {
+    assertPreviewPackSourceCanAdvance({
+      currentRunId: existing.sourceRunId,
+      nextRunId: runId,
+      enabled: existing.enabled,
+      listingCount: existing._count.listings,
+    });
   }
   const catalog = await loadCatalog();
   const owners = await ensurePreviewDealer({
@@ -528,6 +552,21 @@ export async function materializePreviewPack(dealerKey: string) {
   });
   if (existing && existing.dealerProfileId !== owners.dealerId) {
     throw new Error("Refusing preview materialization: pack dealer ownership changed.");
+  }
+  if (existing && sourceRunChanged) {
+    const advanced = await db.dealerPreviewPack.updateMany({
+      where: {
+        id: existing.id,
+        sourceRunId: existing.sourceRunId,
+        enabled: false,
+        listings: { none: {} },
+      },
+      data: { sourceRunId: runId },
+    });
+    if (advanced.count !== 1) {
+      throw new Error("Refusing preview materialization: pack source changed during apply.");
+    }
+    existing = { ...existing, sourceRunId: runId };
   }
   const pack = existing
     ? existing

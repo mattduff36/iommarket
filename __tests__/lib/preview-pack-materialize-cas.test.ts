@@ -27,6 +27,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+  assertPreviewPackSourceCanAdvance,
   attachPreviewImages,
   insertPreviewListing,
 } from "@/lib/preview-packs/materialize";
@@ -105,5 +106,32 @@ describe("MATERIALIZER-RACE-001 preview image backfill CAS", () => {
       catalog: { categories: {}, regionId: "region-1", attributes: [] },
     })).resolves.toBeNull();
     expect(listingCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("preview pack source ownership", () => {
+  it("allows a hidden empty pack to adopt a newer archive run", () => {
+    expect(() =>
+      assertPreviewPackSourceCanAdvance({
+        currentRunId: "run-old",
+        nextRunId: "run-new",
+        enabled: false,
+        listingCount: 0,
+      }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    { enabled: true, listingCount: 0 },
+    { enabled: false, listingCount: 1 },
+  ])("refuses to rebase a loaded pack: %o", ({ enabled, listingCount }) => {
+    expect(() =>
+      assertPreviewPackSourceCanAdvance({
+        currentRunId: "run-old",
+        nextRunId: "run-new",
+        enabled,
+        listingCount,
+      }),
+    ).toThrow("existing pack belongs to a different source run");
   });
 });
