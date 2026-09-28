@@ -16,11 +16,13 @@ export function AttachInboxForm({ inboxId }: { inboxId: string }) {
   const [isPending, startTransition] = useTransition();
 
   function handleAttach() {
+    if (!confirmed) return;
     setError(null);
     startTransition(async () => {
       const result = await adminAttachUnmatchedListing({
         inboxId,
         listingId: listingId.trim(),
+        confirmedCurrentlyPaidAndNotRefunded: true,
       });
       if (result.error) {
         setError(
@@ -52,7 +54,8 @@ export function AttachInboxForm({ inboxId }: { inboxId: string }) {
           checked={confirmed}
           onChange={(event) => setConfirmed(event.target.checked)}
         />
-        I confirm this inbox row is the listing fee for that listing
+        I confirmed in the current Ripple portal that this transaction is Paid,
+        has not been Refunded, and is the listing fee for this listing
       </label>
       <AdminActionBar>
         <AdminActionButton

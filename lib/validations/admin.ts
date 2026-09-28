@@ -153,6 +153,7 @@ export type SearchPaymentsInput = z.infer<typeof searchPaymentsSchema>;
 export const attachUnmatchedListingSchema = z.object({
   inboxId: z.string().cuid(),
   listingId: z.string().cuid(),
+  confirmedCurrentlyPaidAndNotRefunded: z.literal(true),
 });
 export type AttachUnmatchedListingInput = z.infer<
   typeof attachUnmatchedListingSchema

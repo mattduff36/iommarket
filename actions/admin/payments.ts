@@ -289,6 +289,8 @@ export async function adminAttachUnmatchedListing(
       details: {
         listingId: parsed.data.listingId,
         inboxId: parsed.data.inboxId,
+        confirmedCurrentlyPaidAndNotRefunded:
+          parsed.data.confirmedCurrentlyPaidAndNotRefunded,
       },
     });
 

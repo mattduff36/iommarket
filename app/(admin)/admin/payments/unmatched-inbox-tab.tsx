@@ -14,6 +14,7 @@ import {
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
 import { AttachInboxForm } from "./attach-inbox-form";
+import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 
 export type UnmatchedInboxRow = {
   id: string;
@@ -24,6 +25,9 @@ export type UnmatchedInboxRow = {
   amountPence: number | null;
   lastErrorCode: string | null;
   paymentReference: string | null;
+  customerEmailNorm: string | null;
+  currency: string | null;
+  status: string;
 };
 
 export function UnmatchedInboxTab({
@@ -34,8 +38,10 @@ export function UnmatchedInboxTab({
   return (
     <>
       <p className="mb-4 text-sm text-text-secondary">
-        Failed Ripple inbox rows stay here until an admin attaches a listing-fee
-        charge to a specific listing. Do not guess from email or amount.
+        Check the exact transaction reference in Ripple first. Only attach a
+        currently paid, unrefunded listing fee to the seller-confirmed listing.
+        A received webhook does not prove the payment has not since been refunded.
+        Do not guess from email or amount.
       </p>
       <AdminTable minWidth="wide">
         <TableHeader>
@@ -56,6 +62,10 @@ export function UnmatchedInboxTab({
               </TableCell>
               <TableCell className="text-sm text-text-primary">
                 {row.packageName ?? row.linkCode ?? "Unknown"}
+                <p className="mt-1 text-xs text-text-secondary">
+                  {row.customerEmailNorm ?? "Payer email unavailable"}
+                </p>
+                <p className="mt-1 text-xs text-text-tertiary">{row.eventType}</p>
               </TableCell>
               <TableCell className={adminNumericCellClass}>
                 {row.amountPence == null
@@ -65,11 +75,20 @@ export function UnmatchedInboxTab({
               <TableCell>
                 <Badge variant="error">{row.lastErrorCode ?? "FAILED"}</Badge>
               </TableCell>
-              <TableCell className="max-w-[160px] truncate font-mono text-xs text-text-tertiary">
+              <TableCell className="break-all font-mono text-xs text-text-tertiary">
                 {row.paymentReference ?? "-"}
               </TableCell>
               <TableCell className={adminActionsCellClass}>
-                <AttachInboxForm inboxId={row.id} />
+                {row.status === "FAILED" && row.eventType === "payment.received" &&
+                row.linkCode === RIPPLE_CANONICAL_PRODUCTS.listing.code &&
+                row.amountPence === RIPPLE_CANONICAL_PRODUCTS.listing.amountPence &&
+                row.currency?.toLowerCase() === "gbp" && row.paymentReference ? (
+                  <AttachInboxForm inboxId={row.id} />
+                ) : (
+                  <span className="text-xs text-text-secondary">
+                    Not eligible for listing-fee attachment
+                  </span>
+                )}
               </TableCell>
             </TableRow>
           ))}

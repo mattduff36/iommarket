@@ -22,6 +22,9 @@ export function CheckoutStatusActions({
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
   usePaymentConfirmationPoll(isAwaitingPayment);
+  const reviewEmail = `mailto:hello@itrader.im?subject=${encodeURIComponent("Please check my listing payment")}&body=${encodeURIComponent(
+    `Please check my Ripple payment for listing ${listingId}.\n\nRipple transaction reference: \nPayment date and time: \nEmail used at checkout: \nCurrent payment status in Ripple (paid or refunded): \n\nI understand this needs admin review before my listing payment can be confirmed.`,
+  )}`;
 
   useEffect(() => {
     if (viewState !== "submitted" && viewState !== "paid") return;
@@ -32,6 +35,23 @@ export function CheckoutStatusActions({
 
   return (
     <div className="space-y-2">
+      {viewState === "review" ? (
+        <div className="space-y-3 rounded-md border border-border p-4">
+          <p className="text-sm text-text-secondary">
+            Email us your Ripple transaction reference, the email you used at
+            checkout, and when you paid. Let us know if the payment was refunded.
+            We will check Ripple before confirming the payment for this listing.
+          </p>
+          <Button asChild>
+            <a href={reviewEmail}>Email payment support</a>
+          </Button>
+          <p className="text-xs text-text-tertiary">
+            This opens your email app. Sending the email does not confirm payment
+            or charge you again. You do not need to keep this page open during
+            review; return to this saved listing to check its status.
+          </p>
+        </div>
+      ) : null}
       <Button
         variant="ghost"
         onClick={() => startTransition(() => router.refresh())}

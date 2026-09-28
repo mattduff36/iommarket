@@ -62,6 +62,7 @@ describe("adminAttachUnmatchedListing", () => {
       adminAttachUnmatchedListing({
         inboxId: INBOX_ID,
         listingId: LISTING_ID,
+        confirmedCurrentlyPaidAndNotRefunded: true,
       }),
     ).resolves.toEqual({
       data: {
@@ -76,13 +77,18 @@ describe("adminAttachUnmatchedListing", () => {
     expect(attachUnmatchedListingPaymentMock).toHaveBeenCalledWith({
       inboxId: INBOX_ID,
       listingId: LISTING_ID,
+      confirmedCurrentlyPaidAndNotRefunded: true,
     });
     expect(logAdminActionMock).toHaveBeenNthCalledWith(1, {
       adminId: "admin-1",
       action: "ATTACH_UNMATCHED_LISTING_PAYMENT_INTENT",
       entityType: "PaymentWebhookInbox",
       entityId: INBOX_ID,
-      details: { listingId: LISTING_ID, inboxId: INBOX_ID },
+      details: {
+        listingId: LISTING_ID,
+        inboxId: INBOX_ID,
+        confirmedCurrentlyPaidAndNotRefunded: true,
+      },
     });
     expect(logAdminActionMock).toHaveBeenNthCalledWith(2, {
       adminId: "admin-1",
@@ -98,6 +104,37 @@ describe("adminAttachUnmatchedListing", () => {
     });
   });
 
+  it("rejects a missing Ripple portal confirmation before attaching", async () => {
+    await expect(
+      adminAttachUnmatchedListing({
+        inboxId: INBOX_ID,
+        listingId: LISTING_ID,
+      } as never),
+    ).resolves.toMatchObject({
+      error: {
+        confirmedCurrentlyPaidAndNotRefunded: expect.any(Array),
+      },
+    });
+
+    expect(attachUnmatchedListingPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a false Ripple portal confirmation before attaching", async () => {
+    await expect(
+      adminAttachUnmatchedListing({
+        inboxId: INBOX_ID,
+        listingId: LISTING_ID,
+        confirmedCurrentlyPaidAndNotRefunded: false,
+      } as never),
+    ).resolves.toMatchObject({
+      error: {
+        confirmedCurrentlyPaidAndNotRefunded: expect.any(Array),
+      },
+    });
+
+    expect(attachUnmatchedListingPaymentMock).not.toHaveBeenCalled();
+  });
+
   it("RIP-ADMIN-002 rejects a non-admin attach", async () => {
     requireRoleMock.mockRejectedValueOnce(new Error("Insufficient permissions"));
 
@@ -105,6 +142,7 @@ describe("adminAttachUnmatchedListing", () => {
       adminAttachUnmatchedListing({
         inboxId: INBOX_ID,
         listingId: LISTING_ID,
+        confirmedCurrentlyPaidAndNotRefunded: true,
       }),
     ).rejects.toThrow("Insufficient permissions");
     expect(attachUnmatchedListingPaymentMock).not.toHaveBeenCalled();
@@ -118,6 +156,7 @@ describe("adminAttachUnmatchedListing", () => {
       adminAttachUnmatchedListing({
         inboxId: INBOX_ID,
         listingId: LISTING_ID,
+        confirmedCurrentlyPaidAndNotRefunded: true,
       }),
     ).resolves.toEqual({ error: "audit unavailable" });
 
@@ -138,6 +177,7 @@ describe("adminAttachUnmatchedListing", () => {
       adminAttachUnmatchedListing({
         inboxId: INBOX_ID,
         listingId: LISTING_ID,
+        confirmedCurrentlyPaidAndNotRefunded: true,
       }),
     ).resolves.toEqual({
       data: {

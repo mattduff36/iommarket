@@ -1,12 +1,16 @@
 export type CheckoutPaymentSnapshot = {
   status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+  createdAt?: Date;
 } | null;
+
+const MANUAL_REVIEW_AFTER_MS = 2 * 60_000;
 
 export type CheckoutViewState =
   | "submitted"
   | "paid"
   | "failed"
   | "waiting"
+  | "review"
   | "opened"
   | "cancelled";
 
@@ -14,11 +18,18 @@ export function resolveCheckoutViewState(input: {
   listingStatus: string;
   payment: CheckoutPaymentSnapshot;
   openedInNewTab: boolean;
+  now?: Date;
 }): CheckoutViewState {
   if (input.listingStatus === "PENDING") return "submitted";
   if (input.payment?.status === "SUCCEEDED") return "paid";
   if (input.payment?.status === "FAILED") return "failed";
-  if (input.payment?.status === "PENDING") return "waiting";
+  if (input.payment?.status === "PENDING") {
+    const createdAt = input.payment.createdAt?.getTime();
+    const now = (input.now ?? new Date()).getTime();
+    return createdAt !== undefined && now - createdAt >= MANUAL_REVIEW_AFTER_MS
+      ? "review"
+      : "waiting";
+  }
   if (input.openedInNewTab) return "opened";
   return "cancelled";
 }
@@ -54,7 +65,14 @@ export function checkoutViewCopy(state: CheckoutViewState): {
       return {
         heading: "Waiting for payment confirmation",
         message:
-          "Ripple has your hosted checkout open. This page waits for the webhook to confirm the charge. Ripple does not redirect back here.",
+          "We are checking for payment confirmation. If Ripple says your payment completed, do not pay again. Keep this page open while we check.",
+        isAwaitingPayment: true,
+      };
+    case "review":
+      return {
+        heading: "Payment not yet confirmed",
+        message:
+          "If you have already paid, do not pay again. Some Ripple payments need a member of our team to check and link them to your listing. Your draft and photos are safe.",
         isAwaitingPayment: true,
       };
     case "opened":
