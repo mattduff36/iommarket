@@ -39,7 +39,7 @@ export interface InvoiceRequestDto {
   entryCount: number;
   createdAt: string;
   confirmedAt: string | null;
-  emailStatus: "PENDING" | "SENDING" | "SENT" | "FAILED" | null;
+  emailStatus: "PENDING" | "SENDING" | "SENT" | "FAILED" | "SUPPRESSED" | null;
   outboxId: string | null;
 }
 
@@ -52,6 +52,7 @@ export interface CostSyncHealthDto {
 }
 
 export interface CostDashboardDto {
+  accountsPreview?: boolean;
   enabled: boolean;
   startedAt: string | null;
   isOwner: boolean;
@@ -117,7 +118,7 @@ export function toInvoiceRequestDto(input: {
   frozenEntryCount: number;
   createdAt: Date;
   confirmedAt: Date | null;
-  emailStatus?: "PENDING" | "SENDING" | "SENT" | "FAILED" | null;
+  emailStatus?: "PENDING" | "SENDING" | "SENT" | "FAILED" | "SUPPRESSED" | null;
   outboxId?: string | null;
 }): InvoiceRequestDto {
   return {

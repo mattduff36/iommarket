@@ -4,6 +4,8 @@ import { formatMarkedGbp } from "@/lib/costs/format";
 import { sendResendEmail } from "@/lib/email/client";
 import { getEmailAppOrigin } from "@/lib/email/links";
 import { renderBrandedEmail } from "@/lib/email/layout";
+import { accountsPreviewRequested, assertAccountsPreview } from "./accounts-preview";
+import { suppressPreviewEmail } from "./accounts-preview-workflows";
 
 export function buildCostInvoiceRequestEmail(input: {
   requestId: string;
@@ -26,11 +28,12 @@ export function buildCostInvoiceRequestEmail(input: {
 }
 
 export async function deliverCostOutbox(outboxId: string): Promise<void> {
+  if(accountsPreviewRequested()){await suppressPreviewEmail(outboxId);return;}
   const outbox = await costDb.costEmailOutbox.findUnique({
     where: { id: outboxId },
     include: { request: true },
   });
-  if (!outbox || outbox.status === "SENT") return;
+  if (!outbox || outbox.status === "SENT" || outbox.status === "SUPPRESSED" || outbox.kind === "ACCOUNTS_PREVIEW_REQUESTED") return;
 
   const claimed = await costDb.costEmailOutbox.updateMany({
     where: { id: outbox.id, status: { in: ["PENDING", "FAILED"] } },
@@ -82,6 +85,7 @@ export async function deliverCostOutbox(outboxId: string): Promise<void> {
 }
 
 export async function retryPendingCostEmails(limit = 20): Promise<number> {
+  if(accountsPreviewRequested()){assertAccountsPreview();return 0;}
   const pending = await costDb.costEmailOutbox.findMany({
     where: {
       OR: [

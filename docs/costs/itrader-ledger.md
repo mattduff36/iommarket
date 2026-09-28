@@ -1,5 +1,7 @@
 # iTrader ledger
 
+The production behavior below remains unchanged. The isolated Accounts preview described in [accounts-preview.md](./accounts-preview.md) overrides the older preview-to-live proxy setup only when `COST_LEDGER_ROLE=accounts-preview`. It is a test environment, not a production cutover.
+
 The canonical ledger stays in the production Postgres database. Live and preview admin pages read it through `/api/internal/cost-ledger`. Preview does not open that database directly. A deployment is the writer only when `COST_LEDGER_ROLE=canonical` and, on Vercel, `VERCEL_PROJECT_ID` matches `COST_CANONICAL_VERCEL_PROJECT_ID`. `VERCEL_ENV` is not that signal, because a staging site can be another project's production deployment.
 
 Cursor client charges are 60% of included nominal value plus 110% of reported on-demand value. Infrastructure, database, and manual costs are stored at the face value after currency conversion. The next provider refresh replaces existing infrastructure lines at that face value. iTrader also records a daily £0.38 Vercel Pro membership share in Website hosting. Included and on-demand funding come from `USAGE_EVENT_KIND_INCLUDED_IN_ULTRA` and `USAGE_EVENT_KIND_USAGE_BASED`. `isChargeable` and the old `chargedMicroCents` field do not decide funding. Account-wide allowance is stored separately and a $400 estimate never flips a request to on-demand.

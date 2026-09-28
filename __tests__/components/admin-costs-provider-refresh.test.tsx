@@ -17,6 +17,13 @@ vi.mock("@/app/(admin)/admin/costs/use-refresh-page", () => ({
 import { CostProviderRefresh } from "@/app/(admin)/admin/costs/cost-provider-refresh";
 
 describe("cost provider background refresh", () => {
+  it("shows Last updated without invoking provider refresh in the Accounts preview", () => {
+    refreshProviderCosts.mockClear();
+    render(<CostProviderRefresh isOwner accountsPreview sync={{status:"SUCCEEDED",stale:false,quarantinedCount:0,completedAt:"2026-09-20T10:00:00.000Z",errorCode:null}}/>);
+    expect(screen.getByText("Last updated")).toBeInTheDocument();
+    expect(screen.queryByRole("button",{name:"Refresh provider costs"})).toBeNull();
+    expect(refreshProviderCosts).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

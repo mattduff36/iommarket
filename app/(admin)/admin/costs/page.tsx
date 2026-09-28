@@ -11,6 +11,7 @@ import { fetchRemoteCostDashboard } from "@/lib/costs/remote-ledger";
 import { DEFAULT_MANUAL_COST_CATEGORIES } from "@/lib/costs/manual-categories";
 import type { CostDashboardDto } from "@/lib/costs/dto";
 import { CostDashboardView } from "./cost-dashboard";
+import { syncAccountsPreview } from "@/lib/costs/accounts-projection";
 
 export const metadata: Metadata = { title: "Costs | Admin" };
 
@@ -56,6 +57,13 @@ export default async function AdminCostsPage() {
 
   if (access.mode === "unavailable") {
     return <CostDashboardView dashboard={unavailableDashboard(access.reason, isOwner)} />;
+  }
+  if(access.mode==="accounts-preview"){
+    try{
+      const accountsSnapshot=await syncAccountsPreview();
+      const dashboard=await getCostDashboard({db:costDb,enabled,isOwner,accountsSnapshot});
+      return <CostDashboardView dashboard={dashboard}/>;
+    }catch{return <CostDashboardView dashboard={unavailableDashboard("The isolated Accounts preview could not be refreshed. Existing local records are retained; no live ledger was changed.",isOwner)}/>;}
   }
 
   if (access.mode === "remote") {

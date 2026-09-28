@@ -9,6 +9,8 @@ import { isCostOwner, isCostsEnabled } from "@/lib/costs/config";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { costDb } from "@/lib/costs/db";
 import { ConfirmInvoiceForm } from "./confirm-form";
+import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
+import { findPreviewInvoiceRequest } from "@/lib/costs/accounts-preview-workflows";
 
 export const metadata: Metadata = { title: "Confirm invoice | Admin" };
 
@@ -21,7 +23,10 @@ export default async function ConfirmProjectInvoicePage({ params }: Props) {
   const { id } = await params;
   if (!isCostsEnabled()) notFound();
 
-  const request = await costDb.invoiceRequest.findUnique({
+  const access=resolveLedgerAccess();
+  if(access.mode==="unavailable")notFound();
+  const preview=access.mode==="accounts-preview";
+  const request = preview?await findPreviewInvoiceRequest(id):await costDb.invoiceRequest.findUnique({
     where: { id },
   });
   if (!request) notFound();
@@ -33,7 +38,7 @@ export default async function ConfirmProjectInvoicePage({ params }: Props) {
     <div className="max-w-2xl">
       <AdminPageHeader
         title="Confirm invoice request"
-        description={`Confirming acknowledges that you will raise an invoice for ${amountLabel}. This deducts that frozen amount from the live outstanding total.`}
+        description={preview?`Preview simulation: confirming clears ${amountLabel} from this isolated test balance. No live invoice or email is created.`:`Confirming acknowledges that you will raise an invoice for ${amountLabel}. This deducts that frozen amount from the live outstanding total.`}
         meta={
           <Badge variant={request.status === "CONFIRMED" ? "success" : "warning"}>
             {request.status}

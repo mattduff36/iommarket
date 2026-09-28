@@ -1,4 +1,5 @@
 "use server";
+import { createPreviewInvoiceRequest, confirmPreviewInvoiceRequest, recordPreviewManualCost, addPreviewManualCategory, suppressPreviewEmail } from "@/lib/costs/accounts-preview-workflows";
 
 import { requireRole } from "@/lib/auth";
 import { revalidateCostPages } from "@/actions/admin/revalidate-costs";
@@ -71,6 +72,10 @@ export async function requestProjectInvoice() {
   if (!isCostsEnabled()) return costsDisabledError();
   const access = resolveLedgerAccess();
   if (access.mode === "unavailable") return { error: access.reason };
+  if (access.mode === "accounts-preview") {
+    try { const data=await createPreviewInvoiceRequest(admin.id);revalidateCostPages();return {data}; }
+    catch { return {error:"The preview invoice request could not be created. Check the Accounts source and pending requests."}; }
+  }
   if (access.mode === "remote") {
     try {
       const created = await requestRemoteInvoice(access.origin);
@@ -126,10 +131,15 @@ export async function requestProjectInvoice() {
 export async function confirmProjectInvoice(input: ConfirmInvoiceRequestInput) {
   const admin = await requireCostOwnerAdmin();
   if (!isCostsEnabled()) return costsDisabledError();
-  const writerError = canonicalWriterError();
-  if (writerError) return writerError;
   const parsed = confirmInvoiceRequestSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+  const access=resolveLedgerAccess();
+  if(access.mode==="accounts-preview"){
+    try{const data=await confirmPreviewInvoiceRequest(parsed.data.requestId,admin.id);revalidateCostPages(data.requestId);return {data};}
+    catch{return {error:"The isolated preview request could not be confirmed."};}
+  }
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
 
   try {
     const result = await confirmInvoiceRequest({
@@ -171,6 +181,10 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
 
   const access = resolveLedgerAccess();
   if (access.mode === "unavailable") return { error: access.reason };
+  if(access.mode==="accounts-preview"){
+    try{await recordPreviewManualCost(parsed.data,admin.id);revalidateCostPages();return {data:{recorded:true}};}
+    catch{return {error:"The preview cost could not be recorded. Check the period, category and exchange-rate availability."};}
+  }
   if (access.mode === "remote") {
     try {
       await requestRemoteManualCost(access.origin, parsed.data);
@@ -228,6 +242,10 @@ export async function addManualCostCategory(input: CreateManualCostCategoryInput
 
   const access = resolveLedgerAccess();
   if (access.mode === "unavailable") return { error: access.reason };
+  if(access.mode==="accounts-preview"){
+    try{const data=await addPreviewManualCategory(parsed.data.label);revalidateCostPages();return {data};}
+    catch{return {error:"The preview category could not be added. Check its name and existing categories."};}
+  }
   if (access.mode !== "remote") {
     const writerError = canonicalWriterError();
     if (writerError) return writerError;
@@ -264,10 +282,15 @@ export async function addManualCostCategory(input: CreateManualCostCategoryInput
 export async function retryProjectCostEmail(input: RetryCostEmailInput) {
   await requireCostOwnerAdmin();
   if (!isCostsEnabled()) return costsDisabledError();
-  const writerError = canonicalWriterError();
-  if (writerError) return writerError;
   const parsed = retryCostEmailSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+  const access=resolveLedgerAccess();
+  if(access.mode==="accounts-preview"){
+    try{await suppressPreviewEmail(parsed.data.outboxId);revalidateCostPages();return {data:{retried:true}};}
+    catch{return {error:"The preview notification could not be captured. No email was sent."};}
+  }
+  const writerError = canonicalWriterError();
+  if (writerError) return writerError;
 
   try {
     await deliverCostOutbox(parsed.data.outboxId);
@@ -290,6 +313,7 @@ export async function refreshProviderCosts() {
     return { data: { status: "skipped" as const, message } };
   }
   const access = resolveLedgerAccess();
+  if(access.mode==="accounts-preview")return {data:{status:"skipped" as const,message:"Accounts supplies the costs automatically. No provider collection was run."}};
   if (access.mode === "unavailable") {
     return {
       error: access.reason,
@@ -342,6 +366,8 @@ export async function refreshProviderCosts() {
 
 export async function runManualCostSync() {
   await requireCostOwnerAdmin();
+  const access=resolveLedgerAccess();
+  if(access.mode==="accounts-preview")return {data:{status:"skipped" as const,message:"Accounts supplies the costs automatically. No provider collection was run."}};
   const writerError = canonicalWriterError();
   if (writerError) {
     return {

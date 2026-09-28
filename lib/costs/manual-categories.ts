@@ -76,15 +76,16 @@ function uniqueSlug(label: string, categories: readonly ManualCostCategory[]): s
   throw new ManualCategoryError("Choose a different category name.");
 }
 
-export async function listManualCostCategories(): Promise<ManualCostCategory[]> {
+export async function listManualCostCategories(settingKey=MANUAL_COST_CATEGORY_SETTING_KEY): Promise<ManualCostCategory[]> {
   const row = await costDb.siteSetting.findUnique({
-    where: { key: MANUAL_COST_CATEGORY_SETTING_KEY },
+    where: { key: settingKey },
   });
   return mergeManualCostCategories(parseStoredManualCategories(row?.value));
 }
 
 export async function createManualCostCategory(
   label: string,
+  settingKey=MANUAL_COST_CATEGORY_SETTING_KEY,
 ): Promise<{ category: ManualCostCategory; categories: ManualCostCategory[] }> {
   const trimmed = label.trim().replace(/\s+/g, " ");
   if (trimmed.length < 2 || trimmed.length > 40) {
@@ -94,7 +95,7 @@ export async function createManualCostCategory(
     throw new ManualCategoryError("Use letters, numbers, and simple punctuation.");
   }
 
-  const categories = await listManualCostCategories();
+  const categories = await listManualCostCategories(settingKey);
   if (categories.some((category) => category.label.toLowerCase() === trimmed.toLowerCase())) {
     throw new ManualCategoryError("That category already exists.");
   }
@@ -103,8 +104,8 @@ export async function createManualCostCategory(
   const next = [...categories, category];
   const value = next as unknown as Prisma.InputJsonValue;
   await costDb.siteSetting.upsert({
-    where: { key: MANUAL_COST_CATEGORY_SETTING_KEY },
-    create: { key: MANUAL_COST_CATEGORY_SETTING_KEY, value },
+    where: { key: settingKey },
+    create: { key: settingKey, value },
     update: { value },
   });
   return { category, categories: next };

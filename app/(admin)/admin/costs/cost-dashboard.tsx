@@ -1,4 +1,5 @@
 import { ReceiptText } from "lucide-react";
+import Link from "next/link";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import {
@@ -79,12 +80,12 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
             <p className="mt-2 text-sm text-text-secondary">{COST_INVOICE_HELP}</p>
           </CardContent>
         </Card>
-        <CostProviderRefresh isOwner={dashboard.isOwner} sync={dashboard.sync} />
+        <CostProviderRefresh isOwner={dashboard.isOwner} sync={dashboard.sync} accountsPreview={dashboard.accountsPreview} />
       </div>
 
       {dashboard.pendingRequest ? (
         <p className="mb-6 text-sm text-text-secondary">
-          Invoice request {dashboard.pendingRequest.id} is pending for{" "}
+          Invoice request {dashboard.accountsPreview?<Link href={`/admin/costs/confirm/${dashboard.pendingRequest.id}`}>{dashboard.pendingRequest.id}</Link>:dashboard.pendingRequest.id} is pending for{" "}
           {dashboard.pendingRequest.amountLabel}
           {dashboard.pendingRequest.emailStatus === "FAILED"
             ? " and the notification email failed."
@@ -111,6 +112,8 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
           {dashboard.projectedTotalLabel}
         </p>
       </div>
+
+      {dashboard.accountsPreview?<p className="mb-6 text-sm text-text-secondary">Isolated preview: Accounts costs are shown for testing. Invoice requests, confirmations and manual entries affect only this preview. Notifications are captured without sending email; no live invoice is created.</p>:null}
 
       {dashboard.requests.length > 0 ? (
         <section className="mb-8">

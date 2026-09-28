@@ -13,6 +13,9 @@ import {
 } from "@/lib/costs/manual-categories";
 import { formatMarkedGbp } from "@/lib/costs/format";
 import { minorToSafeNumber, sumMinor, ZERO_MINOR } from "@/lib/costs/money";
+import { assertAccountsPreview, ACCOUNTS_PREVIEW_CATEGORIES, ACCOUNTS_PREVIEW_START } from "./accounts-preview";
+import { PREVIEW_ENTRY_WHERE, PREVIEW_REQUEST_WHERE } from "./accounts-projection";
+import type { AccountsSnapshot } from "./accounts-snapshot";
 
 const STALE_SYNC_MS = 36 * 60 * 60 * 1000;
 
@@ -45,6 +48,7 @@ export async function getCostDashboard(input: {
   db: typeof import("@/lib/db").db;
   enabled: boolean;
   isOwner: boolean;
+  accountsSnapshot?: AccountsSnapshot;
 }): Promise<CostDashboardDto> {
   if (!input.enabled) {
     return {
@@ -75,22 +79,24 @@ export async function getCostDashboard(input: {
     };
   }
 
+  if(input.accountsSnapshot)assertAccountsPreview();
   const config = await input.db.costLedgerConfig.findUnique({
     where: { id: "default" },
   });
-  assertPreviewCostLedgerReady(config);
+  if(!input.accountsSnapshot)assertPreviewCostLedgerReady(config);
 
   const [entries, pending, requests, latestSync, manualCategories] = await Promise.all([
     input.db.costEntry.findMany({
-      where: { settlement: { is: null } },
+      where: { settlement: { is: null }, ...(input.accountsSnapshot?PREVIEW_ENTRY_WHERE:{}) },
       orderBy: [{ servicePeriodStart: "asc" }, { createdAt: "asc" }],
       include: { sourceSnapshot: { select: { metadata: true } } },
     }),
     input.db.invoiceRequest.findFirst({
-      where: { status: "PENDING" },
+      where: { status: "PENDING", ...(input.accountsSnapshot?PREVIEW_REQUEST_WHERE:{}) },
       include: { emails: { orderBy: { createdAt: "desc" }, take: 1 } },
     }),
     input.db.invoiceRequest.findMany({
+      where: input.accountsSnapshot?PREVIEW_REQUEST_WHERE:{},
       orderBy: { createdAt: "desc" },
       take: 20,
       include: { emails: { orderBy: { createdAt: "desc" }, take: 1 } },
@@ -98,7 +104,7 @@ export async function getCostDashboard(input: {
     input.db.costSyncRun.findFirst({
       orderBy: { startedAt: "desc" },
     }),
-    listManualCostCategories(),
+    listManualCostCategories(input.accountsSnapshot?ACCOUNTS_PREVIEW_CATEGORIES:undefined),
   ]);
 
   const projected = sumMinor(entries.map((entry) => entry.markedGbpMinor));
@@ -118,15 +124,16 @@ export async function getCostDashboard(input: {
       })
     : null;
 
-  const syncCompletedAt = latestSync?.completedAt ?? null;
+  const syncCompletedAt = input.accountsSnapshot ? input.accountsSnapshot.sourceUpdatedAt ? new Date(input.accountsSnapshot.sourceUpdatedAt) : null : latestSync?.completedAt ?? null;
   const stale =
     !syncCompletedAt ||
     Date.now() - syncCompletedAt.getTime() > STALE_SYNC_MS ||
-    latestSync?.status === "FAILED";
+    (!input.accountsSnapshot && latestSync?.status === "FAILED");
 
   return {
+    accountsPreview: Boolean(input.accountsSnapshot),
     enabled: true,
-    startedAt: config?.startedAt.toISOString() ?? null,
+    startedAt: input.accountsSnapshot?ACCOUNTS_PREVIEW_START:config?.startedAt.toISOString() ?? null,
     isOwner: input.isOwner,
     projectedTotalLabel: formatMarkedGbp(projected),
     projectedTotalMinor: minorToSafeNumber(projected),
@@ -151,15 +158,15 @@ export async function getCostDashboard(input: {
       }),
     ),
     sync: {
-      status: latestSync?.status ?? "NONE",
+      status: input.accountsSnapshot?"SUCCEEDED":latestSync?.status ?? "NONE",
       stale,
-      quarantinedCount: latestSync?.quarantinedCount ?? 0,
+      quarantinedCount: input.accountsSnapshot?input.accountsSnapshot.coverage.held:latestSync?.quarantinedCount ?? 0,
       completedAt: syncCompletedAt?.toISOString() ?? null,
-      errorCode: latestSync?.errorCode ?? null,
+      errorCode: input.accountsSnapshot?null:latestSync?.errorCode ?? null,
     },
     unavailableReason: null,
     affectsLiveLedger: false,
-    ledgerRevision: latestSync?.checksum ?? latestSync?.id ?? null,
+    ledgerRevision: input.accountsSnapshot?.revision ?? latestSync?.checksum ?? latestSync?.id ?? null,
     ledgerAsOf: syncCompletedAt?.toISOString() ?? null,
     manualCategories,
   };

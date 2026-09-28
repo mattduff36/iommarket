@@ -21,9 +21,11 @@ function completedLabel(completedAt: string | null): string | null {
 export function CostProviderRefresh({
   isOwner,
   sync,
+  accountsPreview = false,
 }: {
   isOwner: boolean;
   sync: CostSyncHealthDto;
+  accountsPreview?: boolean;
 }) {
   const refreshPage = useRefreshPage();
   const started = useRef(false);
@@ -31,7 +33,7 @@ export function CostProviderRefresh({
   const [detail, setDetail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOwner || started.current) return;
+    if (accountsPreview || !isOwner || started.current) return;
     started.current = true;
     void (async () => {
       for (let attempt = 0; attempt < AUTO_REFRESH_LIMIT; attempt += 1) {
@@ -68,9 +70,10 @@ export function CostProviderRefresh({
         return;
       }
     })();
-  }, [isOwner, refreshPage]);
+  }, [isOwner, refreshPage, accountsPreview]);
 
   const completed = completedLabel(sync.completedAt);
+  if(accountsPreview)return <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-text-secondary">Last updated</CardTitle></CardHeader><CardContent className="space-y-2"><p className="text-sm text-text-secondary">{completed?`${completed}.`:"No source update recorded."}</p>{sync.stale?<p className="text-sm text-text-secondary">The source may be out of date.</p>:null}{sync.quarantinedCount>0?<p className="text-sm text-text-secondary">{sync.quarantinedCount} source rows remain under review.</p>:null}</CardContent></Card>;
   let body = completed
     ? `Last completed ${completed}.`
     : "No provider refresh recorded yet.";

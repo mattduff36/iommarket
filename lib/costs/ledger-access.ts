@@ -1,9 +1,11 @@
 import { CostConfigError } from "@/lib/costs/config";
 import { isCanonicalLedgerWriter } from "@/lib/costs/ledger-role";
 import type { RuntimeEnv } from "@/lib/runtime-env";
+import { accountsPreviewRequested, assertAccountsPreview } from "./accounts-preview";
 
 export type LedgerAccess =
   | { mode: "local" }
+  | { mode: "accounts-preview" }
   | { mode: "remote"; origin: string }
   | { mode: "unavailable"; reason: string };
 
@@ -16,6 +18,10 @@ export function assertNoDirectLedgerDatabase(env: RuntimeEnv = process.env): voi
 }
 
 export function resolveLedgerAccess(env: RuntimeEnv = process.env): LedgerAccess {
+  if(accountsPreviewRequested(env)){
+    try{assertAccountsPreview(env);return {mode:"accounts-preview"};}
+    catch{return {mode:"unavailable",reason:"Accounts preview isolation could not be verified."};}
+  }
   if (env.COST_LEDGER_DATABASE_URL?.trim()) {
     return {
       mode: "unavailable",

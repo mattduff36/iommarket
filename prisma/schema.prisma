@@ -1504,6 +1504,7 @@ enum CostInvoiceability {
 }
 
 enum CostSourceKind {
+  ACCOUNTS_LEDGER
   VERCEL_FOCUS
   MANUAL
   CURSOR_USAGE
@@ -1516,6 +1517,7 @@ enum InvoiceRequestStatus {
 }
 
 enum CostEmailOutboxStatus {
+  SUPPRESSED
   PENDING
   SENDING
   SENT
