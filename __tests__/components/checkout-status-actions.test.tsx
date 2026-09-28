@@ -18,6 +18,22 @@ vi.mock("@/components/payments/payment-awaiting-status", () => ({
 }));
 
 describe("CheckoutStatusActions", () => {
+  it("offers staff review without redirecting or initiating a new payment", () => {
+    render(
+      <CheckoutStatusActions
+        listingId="caaaaaaaaaaaaaaaaaaaaaaaa"
+        flow="private"
+        viewState="review"
+        isAwaitingPayment
+      />,
+    );
+    expect(replaceMock).not.toHaveBeenCalled();
+    const contact = screen.getByRole("link", { name: /email payment support/i });
+    expect(contact.getAttribute("href")).toMatch(/^mailto:hello@itrader.im\?/);
+    expect(decodeURIComponent(contact.getAttribute("href")!)).toContain("caaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(screen.getByText(/sending the email does not confirm payment/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /open payment/i })).not.toBeInTheDocument();
+  });
   beforeEach(() => {
     replaceMock.mockReset();
   });

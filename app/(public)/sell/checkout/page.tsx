@@ -144,7 +144,21 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
             </div>
           ) : (
             <div className="space-y-3">
-              <RetryCheckoutButton listingId={listing.id} flow={flow} />
+              {isAwaitingPayment ? (
+                <details className="rounded-md border border-border p-3 text-sm">
+                  <summary className="cursor-pointer text-text-secondary">
+                    I have not paid yet
+                  </summary>
+                  <p className="my-3 text-text-secondary">
+                    Only reopen checkout if you have not completed a payment.
+                    If you have paid or are unsure, wait for confirmation or
+                    contact payment support instead.
+                  </p>
+                  <RetryCheckoutButton listingId={listing.id} flow={flow} />
+                </details>
+              ) : viewState !== "paid" ? (
+                <RetryCheckoutButton listingId={listing.id} flow={flow} />
+              ) : null}
               <Button asChild variant="ghost">
                 <Link
                   href={getDraftEditorHref({

@@ -134,6 +134,9 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         amountPence: true,
         lastErrorCode: true,
         paymentReference: true,
+        customerEmailNorm: true,
+        currency: true,
+        status: true,
       },
     });
 
