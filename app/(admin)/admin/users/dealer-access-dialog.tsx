@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   grantDealerAccess,
   setUserRole,
@@ -45,14 +45,7 @@ export function DealerAccessDialog({
     Number.isInteger(durationDays) &&
     durationDays >= MIN_DURATION_DAYS &&
     durationDays <= MAX_DURATION_DAYS;
-  const expiresAt = useMemo(
-    () =>
-      isDurationValid
-        ? new Date(Date.now() + durationDays * 86_400_000)
-        : null,
-    [durationDays, isDurationValid]
-  );
-  const actionLabel = mode === "promote" ? "Promote to dealer" : "Grant free access";
+  const actionLabel = mode === "promote" ? "Send dealer offer" : "Grant free access";
 
   function resetDialog() {
     setSelectedDuration(30);
@@ -93,6 +86,11 @@ export function DealerAccessDialog({
         return;
       }
 
+      if ("warning" in result && result.warning) {
+        setError(result.warning);
+        onCompleted();
+        return;
+      }
       handleOpenChange(false);
       onCompleted();
     });
@@ -105,7 +103,7 @@ export function DealerAccessDialog({
           <DialogTitle>{actionLabel}</DialogTitle>
           <DialogDescription>
             {mode === "promote"
-              ? `${userLabel} will become a dealer with complimentary access.`
+              ? `${userLabel} will remain a private user until they accept the current dealer terms.`
               : `Give ${userLabel} complimentary dealer access.`}{" "}
             No payment will be taken or recorded.
           </DialogDescription>
@@ -117,8 +115,9 @@ export function DealerAccessDialog({
               Free access duration
             </legend>
             <p className="mt-1 text-xs text-text-secondary">
-              Select how long access should last. The server calculates the final
-              UTC expiry time when you confirm.
+              {mode === "promote"
+                ? "Select how long access should last after the user accepts the offer."
+                : "Select how long access should last. The server calculates the final UTC expiry time when you confirm."}
             </p>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -180,14 +179,13 @@ export function DealerAccessDialog({
           <div className="mt-4 rounded-md border border-border bg-canvas/40 p-3 text-sm">
             <p className="font-medium text-text-primary">Complimentary dealer access</p>
             <p className="mt-1 text-text-secondary">
-              {expiresAt
-                ? `Expires ${expiresAt.toLocaleDateString("en-GB", {
-                    timeZone: "UTC",
-                    day: "2-digit",
-                    month: "long",
-                    year: "numeric",
-                  })} (UTC).`
-                : "Choose a valid duration to calculate the expiry date."}
+              {mode === "promote"
+                ? isDurationValid
+                  ? `${durationDays} days, beginning when the user accepts.`
+                  : "Choose a valid access duration."
+                : isDurationValid
+                  ? `${durationDays} days, beginning when you confirm.`
+                  : "Choose a valid access duration."}
             </p>
             <p className="mt-1 text-xs text-text-tertiary">
               Paid subscriptions always take precedence and will not be changed.
@@ -214,7 +212,7 @@ export function DealerAccessDialog({
               disabled={isPending || !isDurationValid}
               className="h-9 rounded-md bg-neon-blue-500 px-4 text-sm font-medium text-canvas hover:bg-neon-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isPending ? "Saving…" : actionLabel}
+              {isPending ? (mode === "promote" ? "Sending…" : "Saving…") : actionLabel}
             </button>
           </DialogFooter>
         </form>

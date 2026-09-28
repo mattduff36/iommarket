@@ -105,6 +105,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             },
           },
         },
+        dealerUpgradeOffers: {
+          where: { status: "PENDING" },
+          select: { id: true },
+          take: 1,
+        },
         _count: { select: { listings: true } },
       },
     }),
@@ -234,6 +239,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     ) ? (
                     <Badge variant="warning">Free grant</Badge>
                   ) : null}
+                  {user.dealerUpgradeOffers.length > 0 ? (
+                    <Badge variant="warning">Dealer offer pending</Badge>
+                  ) : null}
                 </div>
               </TableCell>
               <TableCell className="text-sm text-text-secondary">
@@ -280,6 +288,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     user.dealerProfile?.subscriptions.some(
                       (subscription) => subscription.source === "ADMIN_GRANT",
                     ) ?? false
+                  }
+                  pendingDealerUpgradeOfferId={
+                    user.dealerUpgradeOffers[0]?.id ?? null
                   }
                   currentTier={user.dealerProfile?.tier ?? null}
                   hasActivePaidSubscription={

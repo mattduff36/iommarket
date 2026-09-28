@@ -60,6 +60,11 @@ export default async function AdminUserDetailPage({ params }: Props) {
           _count: { select: { listings: true } },
         },
       },
+      dealerUpgradeOffers: {
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
       _count: {
         select: {
           listings: true,
@@ -94,6 +99,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
       ])
     : [null, null];
   const adminGrantState = getAdminGrantState(adminGrant);
+  const pendingUpgrade = user.dealerUpgradeOffers[0] ?? null;
 
   const recentListings = await db.listing.findMany({
     where: { userId: id },
@@ -116,6 +122,9 @@ export default async function AdminUserDetailPage({ params }: Props) {
             {user.disabledAt && !user.deletedAt ? (
               <Badge variant="error">Disabled</Badge>
             ) : null}
+            {pendingUpgrade ? (
+              <Badge variant="warning">Dealer offer pending</Badge>
+            ) : null}
           </>
         }
         actions={
@@ -137,6 +146,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
           isDeleted={!!user.deletedAt}
           userLabel={user.name ?? user.email}
           hasActiveAdminGrant={adminGrantState === "ACTIVE"}
+          pendingDealerUpgradeOfferId={pendingUpgrade?.id ?? null}
           currentTier={user.dealerProfile?.tier ?? null}
           hasActivePaidSubscription={Boolean(paidSubscription)}
           redirectOnDelete="/admin/users"
@@ -209,6 +219,17 @@ export default async function AdminUserDetailPage({ params }: Props) {
             <span className="text-text-secondary w-32">Reports Filed:</span>
             <span className="text-text-primary">{user._count.reports}</span>
           </div>
+          {pendingUpgrade ? (
+            <div className="flex gap-2">
+              <span className="text-text-secondary w-32">Dealer offer:</span>
+              <span className="text-text-primary">
+                {pendingUpgrade.durationDays} days from acceptance
+                {pendingUpgrade.emailSentAt
+                  ? ` · emailed ${pendingUpgrade.emailSentAt.toLocaleString("en-GB")}`
+                  : " · email not delivered"}
+              </span>
+            </div>
+          ) : null}
           {user.disabledAt && (
             <>
               <div className="flex gap-2">

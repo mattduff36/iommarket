@@ -93,6 +93,10 @@ model User {
   onboardingInvites DealerOnboardingInvite[] @relation("OnboardingInviteSubject")
   onboardingInvitesCreated DealerOnboardingInvite[] @relation("OnboardingInviteCreatedBy")
   onboardingInviteEvents DealerOnboardingInviteEvent[]
+  dealerUpgradeOffers DealerUpgradeOffer[] @relation("DealerUpgradeOfferSubject")
+  dealerUpgradeOffersCreated DealerUpgradeOffer[] @relation("DealerUpgradeOfferCreatedBy")
+  dealerUpgradeOffersCancelled DealerUpgradeOffer[] @relation("DealerUpgradeOfferCancelledBy")
+  dealerUpgradeAcceptances DealerUpgradeAcceptance[]
 
   @@index([authUserId])
   @@index([email])
@@ -1271,6 +1275,59 @@ enum PolicyAcceptanceSource {
   LISTING
   SUBSCRIBE
   ONBOARDING
+  ADMIN_UPGRADE
+}
+
+enum DealerUpgradeOfferStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+}
+
+model DealerUpgradeOffer {
+  id                 String                   @id @default(cuid())
+  userId             String
+  durationDays       Int
+  status             DealerUpgradeOfferStatus @default(PENDING)
+  createdByAdminId   String
+  emailSentAt        DateTime?
+  emailMessageId     String?
+  emailLastError     String?
+  emailClaimedAt     DateTime?
+  emailClaimToken    String?
+  acceptedAt         DateTime?
+  cancelledAt        DateTime?
+  cancelledByAdminId String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  user           User @relation("DealerUpgradeOfferSubject", fields: [userId], references: [id], onDelete: Restrict)
+  createdByAdmin User @relation("DealerUpgradeOfferCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  cancelledByAdmin User? @relation("DealerUpgradeOfferCancelledBy", fields: [cancelledByAdminId], references: [id], onDelete: Restrict)
+  acceptance DealerUpgradeAcceptance?
+
+  @@index([userId, status])
+  @@index([createdByAdminId])
+  @@index([cancelledByAdminId])
+  @@unique([id, userId])
+}
+
+model DealerUpgradeAcceptance {
+  id             String                 @id @default(cuid())
+  offerId        String                 @unique
+  userId         String
+  source         PolicyAcceptanceSource @default(ADMIN_UPGRADE)
+  bundleVersion  String
+  policyVersions Json
+  contentHashes  Json
+  acceptedAt     DateTime
+  createdAt      DateTime               @default(now())
+
+  offer DealerUpgradeOffer @relation(fields: [offerId, userId], references: [id, userId], onDelete: Restrict)
+  user  User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, acceptedAt])
+  @@unique([offerId, userId])
 }
 
 enum DealerOnboardingInviteStatus {

@@ -63,10 +63,32 @@ export async function createDealerProfile(input: CreateDealerProfileInput) {
   const user = await db.user.findUnique({ where: { id: userId }, include: { dealerProfile: true } });
   if (!user) return { error: "User not found" };
   if (user.dealerProfile) return { error: "User already has a dealer profile" };
+  if (user.role === "USER") {
+    return {
+      error:
+        "Private users must receive a dealer upgrade offer and accept the dealer documents before activation.",
+    };
+  }
 
   try {
     const profile = await db.$transaction(
       async (tx) => {
+        const currentUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: {
+            role: true,
+            dealerProfile: { select: { id: true } },
+          },
+        });
+        if (!currentUser) throw new Error("User not found");
+        if (currentUser.dealerProfile) {
+          throw new Error("User already has a dealer profile");
+        }
+        if (currentUser.role === "USER") {
+          throw new Error(
+            "Private users must receive a dealer upgrade offer and accept the dealer documents before activation.",
+          );
+        }
         const createdProfile = await tx.dealerProfile.create({
           data: { userId, ...profileData },
         });
@@ -218,9 +240,12 @@ export async function downgradeDealerToUser(dealerId: string) {
 
   const profile = await db.dealerProfile.findUnique({
     where: { id: dealerId },
-    include: { user: { select: { id: true } } },
+    include: { user: { select: { id: true, role: true } } },
   });
   if (!profile) return { error: "Dealer profile not found" };
+  if (profile.user.role !== "DEALER") {
+    return { error: "Only dealer accounts can be downgraded to users." };
+  }
 
   try {
     await db.$transaction(async (tx) => {

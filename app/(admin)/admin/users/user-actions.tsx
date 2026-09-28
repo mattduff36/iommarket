@@ -19,6 +19,10 @@ import {
   setUserRole,
   setUserDisabled,
 } from "@/actions/admin/users";
+import {
+  cancelDealerUpgradeOffer,
+  resendDealerUpgradeOffer,
+} from "@/actions/admin/dealer-upgrade-offers";
 import { setDealerTier } from "@/actions/admin/dealer-tier";
 import type { DealerTier, UserRole } from "@prisma/client";
 import { DealerAccessDialog } from "./dealer-access-dialog";
@@ -30,13 +34,14 @@ interface UserActionsProps {
   isDeleted?: boolean;
   userLabel?: string;
   hasActiveAdminGrant?: boolean;
+  pendingDealerUpgradeOfferId?: string | null;
   currentTier?: DealerTier | null;
   hasActivePaidSubscription?: boolean;
   redirectOnDelete?: string;
   variant?: "row" | "detail";
 }
 
-type ConfirmAction = "delete" | "disable" | "revoke";
+type ConfirmAction = "delete" | "disable" | "revoke" | "cancel-upgrade";
 
 const ROLES = [
   { value: "USER", label: "User" },
@@ -60,6 +65,7 @@ export function UserActions({
   isDeleted = false,
   userLabel = "this account",
   hasActiveAdminGrant = false,
+  pendingDealerUpgradeOfferId = null,
   currentTier = null,
   hasActivePaidSubscription = false,
   redirectOnDelete,
@@ -71,6 +77,8 @@ export function UserActions({
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [isDealerAccessDialogOpen, setIsDealerAccessDialogOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const isDealerCapableRole =
+    currentRole === "DEALER" || currentRole === "ADMIN";
 
   function runAction(
     label: string,
@@ -110,7 +118,14 @@ export function UserActions({
   }
 
   function handlePackageChange(tier: DealerTier) {
-    if (!currentTier || tier === currentTier || hasActivePaidSubscription) return;
+    if (
+      !isDealerCapableRole ||
+      !currentTier ||
+      tier === currentTier ||
+      hasActivePaidSubscription
+    ) {
+      return;
+    }
     runAction(
       "Updating package…",
       () => setDealerTier({ userId, tier }),
@@ -150,6 +165,24 @@ export function UserActions({
     );
   }
 
+  function handleResendDealerUpgradeOffer() {
+    if (!pendingDealerUpgradeOfferId) return;
+    runAction(
+      "Resending offer…",
+      () => resendDealerUpgradeOffer({ offerId: pendingDealerUpgradeOfferId }),
+      "Failed to resend the dealer upgrade offer",
+    );
+  }
+
+  function handleCancelDealerUpgradeOffer() {
+    if (!pendingDealerUpgradeOfferId) return;
+    runAction(
+      "Cancelling offer…",
+      () => cancelDealerUpgradeOffer({ offerId: pendingDealerUpgradeOfferId }),
+      "Failed to cancel the dealer upgrade offer",
+    );
+  }
+
   const rowActions = compactAdminRowActions([
     {
       kind: "link",
@@ -165,7 +198,7 @@ export function UserActions({
       choices: ROLES,
       onSelect: (value) => handleRoleChange(value as UserRole),
     },
-    currentTier && !hasActivePaidSubscription
+    isDealerCapableRole && currentTier && !hasActivePaidSubscription
       ? {
           kind: "menu",
           id: "package",
@@ -190,6 +223,23 @@ export function UserActions({
           label: "Revoke free access",
           destructive: true,
           onSelect: () => setConfirmAction("revoke"),
+        }
+      : null,
+    pendingDealerUpgradeOfferId
+      ? {
+          kind: "command",
+          id: "resend-upgrade",
+          label: "Resend dealer offer",
+          onSelect: handleResendDealerUpgradeOffer,
+        }
+      : null,
+    pendingDealerUpgradeOfferId
+      ? {
+          kind: "command",
+          id: "cancel-upgrade",
+          label: "Cancel dealer offer",
+          destructive: true,
+          onSelect: () => setConfirmAction("cancel-upgrade"),
         }
       : null,
     {
@@ -228,6 +278,12 @@ export function UserActions({
         "Complimentary dealer access ends. A paid subscription is not changed by this action.",
       confirmLabel: "Revoke free access",
     },
+    "cancel-upgrade": {
+      title: `Cancel the dealer offer for ${userLabel}?`,
+      description:
+        "The account will remain a private-user account and the outstanding offer can no longer be accepted.",
+      confirmLabel: "Cancel dealer offer",
+    },
   }[confirmAction ?? "delete"];
 
   return (
@@ -247,7 +303,7 @@ export function UserActions({
             onChange={handleRoleChange}
             disabled={isPending}
           />
-          {currentTier ? (
+          {isDealerCapableRole && currentTier ? (
             <AdminSegmentedControl
               label="Package"
               value={currentTier}
@@ -297,10 +353,30 @@ export function UserActions({
               Revoke free access
             </AdminActionButton>
           ) : null}
+          {pendingDealerUpgradeOfferId ? (
+            <>
+              <AdminActionButton
+                onClick={handleResendDealerUpgradeOffer}
+                disabled={isPending}
+              >
+                Resend dealer offer
+              </AdminActionButton>
+              <AdminActionButton
+                onClick={() => setConfirmAction("cancel-upgrade")}
+                disabled={isPending}
+                tone="danger"
+              >
+                Cancel dealer offer
+              </AdminActionButton>
+            </>
+          ) : null}
         </AdminActionBar>
       )}
 
-      {variant === "detail" && currentTier && hasActivePaidSubscription ? (
+      {variant === "detail" &&
+      isDealerCapableRole &&
+      currentTier &&
+      hasActivePaidSubscription ? (
         <p className="text-xs text-text-tertiary">
           Package is set by the paid subscription and cannot be changed.
         </p>
@@ -345,6 +421,9 @@ export function UserActions({
             );
           }
           if (confirmAction === "revoke") handleRevokeDealerAccess();
+          if (confirmAction === "cancel-upgrade") {
+            handleCancelDealerUpgradeOffer();
+          }
         }}
       />
     </div>

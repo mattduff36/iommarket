@@ -9,6 +9,10 @@ const {
   logAdminActionMock,
   captureExceptionMock,
   revalidatePathMock,
+  createPendingDealerUpgradeOfferMock,
+  deliverDealerUpgradeOfferMock,
+  findPendingDealerUpgradeOfferMock,
+  cancelPendingDealerUpgradeOfferMock,
   mockDb,
   transaction,
 } = vi.hoisted(() => ({
@@ -16,6 +20,10 @@ const {
   logAdminActionMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+  createPendingDealerUpgradeOfferMock: vi.fn(),
+  deliverDealerUpgradeOfferMock: vi.fn(),
+  findPendingDealerUpgradeOfferMock: vi.fn(),
+  cancelPendingDealerUpgradeOfferMock: vi.fn(),
   mockDb: {
     $transaction: vi.fn(),
   },
@@ -53,6 +61,14 @@ vi.mock("@/lib/monitoring", () => ({
   captureException: captureExceptionMock,
 }));
 
+vi.mock("@/lib/dealers/upgrade-offers", () => ({
+  createPendingDealerUpgradeOffer: createPendingDealerUpgradeOfferMock,
+  deliverDealerUpgradeOffer: deliverDealerUpgradeOfferMock,
+  findPendingDealerUpgradeOffer: findPendingDealerUpgradeOfferMock,
+  findPendingDealerUpgradeOfferById: findPendingDealerUpgradeOfferMock,
+  cancelPendingDealerUpgradeOffer: cancelPendingDealerUpgradeOfferMock,
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
@@ -75,6 +91,15 @@ describe("setUserRole dealer provisioning", () => {
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
     });
+    createPendingDealerUpgradeOfferMock.mockResolvedValue({
+      kind: "created",
+      offer: {
+        id: "clofferxxxxxxxxxxxxxxxxxxx",
+        status: "PENDING",
+      },
+      user: targetUser,
+    });
+    deliverDealerUpgradeOfferMock.mockResolvedValue({ kind: "sent" });
     transaction.user.findUnique.mockResolvedValue(targetUser);
     transaction.dealerProfile.upsert.mockImplementation(async ({ create }) => ({
       id: "cldealerxxxxxxxxxxxxxxxxx",
@@ -97,7 +122,7 @@ describe("setUserRole dealer provisioning", () => {
     mockDb.$transaction.mockImplementation(async (callback) => callback(transaction));
   });
 
-  it("atomically provisions a dealer profile when promoting a user", async () => {
+  it("creates a pending offer without activating the private user", async () => {
     const { setUserRole } = await import("@/actions/admin/users");
 
     await expect(
@@ -107,38 +132,30 @@ describe("setUserRole dealer provisioning", () => {
         grantDurationDays: 90,
       })
     ).resolves.toEqual({
-      data: expect.objectContaining({ id: targetUser.id, role: "DEALER" }),
+      data: expect.objectContaining({
+        id: targetUser.id,
+        role: "USER",
+        offerStatus: "PENDING",
+      }),
+      warning: undefined,
     });
 
-    expect(transaction.dealerProfile.upsert).toHaveBeenCalledWith({
-      where: { userId: targetUser.id },
-      update: {},
-      create: {
-        userId: targetUser.id,
-        name: "Manx Motors",
-        slug: `dealer-${targetUser.id}`,
-      },
+    expect(createPendingDealerUpgradeOfferMock).toHaveBeenCalledWith({
+      userId: targetUser.id,
+      adminId: "cladminxxxxxxxxxxxxxxxxxx",
+      durationDays: 90,
     });
-    expect(transaction.user.update).toHaveBeenCalledWith({
-      where: { id: targetUser.id },
-      data: { role: "DEALER" },
-    });
-    expect(transaction.subscription.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        dealerId: "cldealerxxxxxxxxxxxxxxxxx",
-        source: "ADMIN_GRANT",
-        paymentProvider: "ADMIN",
-        status: "ACTIVE",
-        grantedByAdminId: "cladminxxxxxxxxxxxxxxxxxx",
-      }),
-    });
+    expect(deliverDealerUpgradeOfferMock).toHaveBeenCalledWith(
+      "clofferxxxxxxxxxxxxxxxxxxx",
+    );
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
     expect(logAdminActionMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "SET_USER_ROLE",
-        entityId: targetUser.id,
+        action: "OFFER_DEALER_UPGRADE",
+        entityId: "clofferxxxxxxxxxxxxxxxxxxx",
         details: expect.objectContaining({
-          dealerAccessSource: "ADMIN_GRANT",
           grantDurationDays: 90,
+          emailDelivered: true,
         }),
       })
     );
@@ -163,41 +180,7 @@ describe("setUserRole dealer provisioning", () => {
     expect(transaction.user.update).not.toHaveBeenCalled();
   });
 
-  it("is idempotent when the same promotion is submitted repeatedly", async () => {
-    const profiles = new Map<string, { id: string; userId: string }>();
-    let adminGrant: {
-      id: string;
-      grantStartsAt: Date;
-      grantEndsAt: Date;
-    } | null = null;
-    transaction.dealerProfile.upsert.mockImplementation(async ({ create }) => {
-      const existing = profiles.get(create.userId);
-      if (existing) return existing;
-
-      const profile = { id: "cldealerxxxxxxxxxxxxxxxxx", userId: create.userId };
-      profiles.set(create.userId, profile);
-      return profile;
-    });
-    transaction.subscription.findFirst.mockImplementation(async ({ where }) => {
-      if (where.source === "PAYMENT") return null;
-      return adminGrant;
-    });
-    transaction.subscription.create.mockImplementation(async ({ data }) => {
-      adminGrant = {
-        id: "clgrantxxxxxxxxxxxxxxxxxx",
-        grantStartsAt: data.grantStartsAt,
-        grantEndsAt: data.grantEndsAt,
-      };
-      return { ...adminGrant, ...data };
-    });
-    transaction.subscription.update.mockImplementation(async ({ data }) => {
-      adminGrant = {
-        id: "clgrantxxxxxxxxxxxxxxxxxx",
-        grantStartsAt: data.grantStartsAt,
-        grantEndsAt: data.grantEndsAt,
-      };
-      return { ...adminGrant, ...data };
-    });
+  it("replaces an existing pending offer when promotion is submitted again", async () => {
     const { setUserRole } = await import("@/actions/admin/users");
 
     await setUserRole({
@@ -211,48 +194,31 @@ describe("setUserRole dealer provisioning", () => {
       grantDurationDays: 30,
     });
 
-    expect(profiles.size).toBe(1);
-    expect(transaction.dealerProfile.upsert).toHaveBeenCalledTimes(2);
-    expect(transaction.subscription.create).toHaveBeenCalledTimes(1);
-    expect(transaction.subscription.update).toHaveBeenCalledTimes(1);
+    expect(createPendingDealerUpgradeOfferMock).toHaveBeenCalledTimes(2);
+    expect(deliverDealerUpgradeOfferMock).toHaveBeenCalledTimes(2);
+    expect(transaction.dealerProfile.upsert).not.toHaveBeenCalled();
+    expect(transaction.subscription.create).not.toHaveBeenCalled();
   });
 
-  it("does not commit either record when dealer provisioning fails", async () => {
-    const state = { role: "USER", profile: null as null | { userId: string } };
-    mockDb.$transaction.mockImplementation(async (callback) => {
-      const stagedState = { ...state };
-      const failingTransaction = {
-        user: {
-          findUnique: vi.fn().mockResolvedValue(targetUser),
-          update: vi.fn().mockImplementation(async ({ data }) => {
-            stagedState.role = data.role;
-            throw new Error("role update failed");
-          }),
-        },
-        dealerProfile: {
-          upsert: vi.fn().mockImplementation(async ({ create }) => {
-            stagedState.profile = { userId: create.userId };
-            return stagedState.profile;
-          }),
-          update: transaction.dealerProfile.update,
-        },
-        subscription: transaction.subscription,
-      };
-
-      await callback(failingTransaction);
-      Object.assign(state, stagedState);
+  it("keeps the offer pending and reports a warning when email delivery fails", async () => {
+    deliverDealerUpgradeOfferMock.mockResolvedValueOnce({
+      kind: "failed",
+      message: "Email delivery failed.",
     });
     const { setUserRole } = await import("@/actions/admin/users");
 
-    await expect(
-      setUserRole({
-        userId: targetUser.id,
-        role: "DEALER",
-        grantDurationDays: 30,
-      })
-    ).resolves.toEqual({ error: "Failed to update role" });
+    const result = await setUserRole({
+      userId: targetUser.id,
+      role: "DEALER",
+      grantDurationDays: 30,
+    });
 
-    expect(state).toEqual({ role: "USER", profile: null });
+    expect(result).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ offerStatus: "PENDING", role: "USER" }),
+        warning: expect.stringMatching(/email was not sent/i),
+      }),
+    );
   });
 
   it("demotes without deleting the existing dealer profile", async () => {
@@ -270,10 +236,7 @@ describe("setUserRole dealer provisioning", () => {
     });
   });
 
-  it("preserves active paid access instead of creating an admin grant", async () => {
-    transaction.subscription.findFirst.mockResolvedValueOnce({
-      id: "clpaidsubscriptionxxxxxxxxx",
-    });
+  it("does not inspect or alter subscriptions before acceptance", async () => {
     const { setUserRole } = await import("@/actions/admin/users");
 
     await setUserRole({
@@ -284,11 +247,7 @@ describe("setUserRole dealer provisioning", () => {
 
     expect(transaction.subscription.create).not.toHaveBeenCalled();
     expect(transaction.subscription.update).not.toHaveBeenCalled();
-    expect(logAdminActionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        details: expect.objectContaining({ dealerAccessSource: "PAYMENT" }),
-      })
-    );
+    expect(transaction.subscription.findFirst).not.toHaveBeenCalled();
   });
 });
 
@@ -378,6 +337,7 @@ describe("grantDealerAccess repair action", () => {
 describe("setDealerTier", () => {
   const dealerUser = {
     id: targetUser.id,
+    role: "DEALER" as const,
     dealerProfile: { id: "cldealerxxxxxxxxxxxxxxxxx", tier: "STARTER" as const },
   };
 
@@ -470,5 +430,73 @@ describe("setDealerTier", () => {
     });
     expect(transaction.dealerProfile.update).not.toHaveBeenCalled();
     expect(logAdminActionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a downgraded user with a retained dealer profile", async () => {
+    transaction.user.findUnique.mockResolvedValue({
+      ...dealerUser,
+      role: "USER",
+    });
+    const { setDealerTier } = await import("@/actions/admin/dealer-tier");
+
+    await expect(
+      setDealerTier({ userId: targetUser.id, tier: "PRO" }),
+    ).resolves.toEqual({
+      error: "Only dealer or admin accounts can change dealer package.",
+    });
+    expect(transaction.subscription.findFirst).not.toHaveBeenCalled();
+    expect(transaction.dealerProfile.update).not.toHaveBeenCalled();
+    expect(logAdminActionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("pending dealer upgrade administration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireRoleMock.mockResolvedValue({
+      id: "cladminxxxxxxxxxxxxxxxxxx",
+      role: "ADMIN",
+    });
+    findPendingDealerUpgradeOfferMock.mockResolvedValue({
+      id: "clofferxxxxxxxxxxxxxxxxxxx",
+      userId: targetUser.id,
+    });
+    deliverDealerUpgradeOfferMock.mockResolvedValue({ kind: "sent" });
+    cancelPendingDealerUpgradeOfferMock.mockResolvedValue({ count: 1 });
+  });
+
+  it("resends the current pending offer", async () => {
+    const { resendDealerUpgradeOffer } = await import(
+      "@/actions/admin/dealer-upgrade-offers"
+    );
+
+    await expect(
+      resendDealerUpgradeOffer({ offerId: "clofferxxxxxxxxxxxxxxxxxxx" }),
+    ).resolves.toEqual({ data: { success: true } });
+
+    expect(deliverDealerUpgradeOfferMock).toHaveBeenCalledWith(
+      "clofferxxxxxxxxxxxxxxxxxxx",
+    );
+    expect(logAdminActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "RESEND_DEALER_UPGRADE_OFFER" }),
+    );
+  });
+
+  it("cancels the current pending offer", async () => {
+    const { cancelDealerUpgradeOffer } = await import(
+      "@/actions/admin/dealer-upgrade-offers"
+    );
+
+    await expect(
+      cancelDealerUpgradeOffer({ offerId: "clofferxxxxxxxxxxxxxxxxxxx" }),
+    ).resolves.toEqual({ data: { success: true } });
+
+    expect(cancelPendingDealerUpgradeOfferMock).toHaveBeenCalledWith(
+      "clofferxxxxxxxxxxxxxxxxxxx",
+      "cladminxxxxxxxxxxxxxxxxxx",
+    );
+    expect(logAdminActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "CANCEL_DEALER_UPGRADE_OFFER" }),
+    );
   });
 });

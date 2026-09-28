@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card-overlay-link";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { cn } from "@/lib/cn";
+import { Alert } from "@/components/ui/alert";
+import { findPendingDealerUpgradeOffer } from "@/lib/dealers/upgrade-offers";
 
 const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
@@ -28,6 +30,7 @@ export default async function AccountDashboardPage() {
     favouritesCount,
     savedSearchCount,
     reviewCount,
+    pendingDealerUpgrade,
   ] = await Promise.all([
     db.listing.groupBy({
       by: ["status"],
@@ -63,6 +66,7 @@ export default async function AccountDashboardPage() {
     db.dealerReview.count({
       where: { reviewerUserId: user.id },
     }),
+    findPendingDealerUpgradeOffer(user.id),
   ]);
 
   const counts = Object.fromEntries(
@@ -125,6 +129,25 @@ export default async function AccountDashboardPage() {
           </Button>
         </div>
       </div>
+
+      {pendingDealerUpgrade ? (
+        <Alert status="warning" className="mb-8">
+          <div>
+            <p className="font-semibold">Complimentary dealer upgrade ready</p>
+            <p className="mt-1 leading-6">
+              An administrator has offered you {pendingDealerUpgrade.durationDays} days
+              of dealer access. Your private account will not change until you review
+              and accept the dealer documents.
+            </p>
+            <Link
+              href={`/account/dealer-upgrade?offer=${pendingDealerUpgrade.id}`}
+              className="mt-2 inline-flex font-semibold text-text-trust hover:underline"
+            >
+              Review dealer upgrade
+            </Link>
+          </div>
+        </Alert>
+      ) : null}
 
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {quickStats.map((item) => (
@@ -239,23 +262,38 @@ export default async function AccountDashboardPage() {
         {user.role === "USER" ? (
           <Card>
             <CardHeader>
-              <CardTitle>Become a dealer</CardTitle>
+              <CardTitle>
+                {pendingDealerUpgrade ? "Dealer upgrade offered" : "Become a dealer"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-text-secondary">
-                Need more active listings and a public dealer profile? Upgrade to a dealer
-                subscription any time.
+                {pendingDealerUpgrade
+                  ? "Review the current dealer documents to activate your complimentary access."
+                  : "Need more active listings and a public dealer profile? Upgrade to a dealer subscription any time."}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button asChild size="sm">
-                  <Link href="/dealer/subscribe?tier=STARTER">Choose Starter</Link>
-                </Button>
-                <Button asChild size="sm" variant="ghost">
-                  <Link href="/dealer/subscribe?tier=PRO">Choose Pro</Link>
-                </Button>
-                <Button asChild size="sm" variant="ghost">
-                  <Link href="/pricing">Compare Plans</Link>
-                </Button>
+                {pendingDealerUpgrade ? (
+                  <Button asChild size="sm">
+                    <Link
+                      href={`/account/dealer-upgrade?offer=${pendingDealerUpgrade.id}`}
+                    >
+                      Review and accept
+                    </Link>
+                  </Button>
+                ) : (
+                  <>
+                    <Button asChild size="sm">
+                      <Link href="/dealer/subscribe?tier=STARTER">Choose Starter</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="ghost">
+                      <Link href="/dealer/subscribe?tier=PRO">Choose Pro</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="ghost">
+                      <Link href="/pricing">Compare Plans</Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

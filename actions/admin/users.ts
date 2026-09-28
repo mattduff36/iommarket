@@ -9,6 +9,10 @@ import {
   grantAdminDealerAccess,
   revokeAdminDealerAccess,
 } from "@/lib/dealers/entitlement";
+import {
+  createPendingDealerUpgradeOffer,
+  deliverDealerUpgradeOffer,
+} from "@/lib/dealers/upgrade-offers";
 import { captureException } from "@/lib/monitoring";
 import {
   listUsersSchema,
@@ -74,7 +78,7 @@ export async function listUsers(input: ListUsersInput) {
 }
 
 export async function getUserAdminView(userId: string) {
-  const admin = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   if (!userId) return { error: "Missing userId" };
 
   const user = await db.user.findUnique({
@@ -121,6 +125,51 @@ export async function setUserRole(input: SetUserRoleInput) {
   if (userId === admin.id) return { error: "Cannot change your own role" };
 
   try {
+    if (role === "DEALER" && grantDurationDays) {
+      const pending = await createPendingDealerUpgradeOffer({
+        userId,
+        adminId: admin.id,
+        durationDays: grantDurationDays,
+      });
+      if (pending.kind === "not-found") return { error: "User not found" };
+      if (pending.kind === "unavailable") {
+        return { error: "Disabled or deleted accounts cannot receive an upgrade offer." };
+      }
+      if (pending.kind === "delivery-in-progress") {
+        return {
+          error:
+            "An upgrade email is currently being sent. Wait a moment before replacing the offer.",
+        };
+      }
+      if (pending.kind === "created") {
+        const delivery = await deliverDealerUpgradeOffer(pending.offer.id);
+        await logAdminAction({
+          adminId: admin.id,
+          action: "OFFER_DEALER_UPGRADE",
+          entityType: "DealerUpgradeOffer",
+          entityId: pending.offer.id,
+          details: {
+            userId,
+            grantDurationDays,
+            emailDelivered: delivery.kind === "sent",
+          },
+        });
+        revalidateDealerAccessPaths(userId);
+        return {
+          data: {
+            id: pending.user.id,
+            role: pending.user.role,
+            offerId: pending.offer.id,
+            offerStatus: pending.offer.status,
+          },
+          warning:
+            delivery.kind !== "sent"
+              ? "The upgrade offer is available in the user's account, but the email was not sent. You can retry it from the user actions."
+              : undefined,
+        };
+      }
+    }
+
     const result = await updateUserRole({
       userId,
       role,

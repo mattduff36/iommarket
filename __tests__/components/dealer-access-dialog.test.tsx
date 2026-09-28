@@ -38,14 +38,13 @@ describe("DealerAccessDialog", () => {
       />
     );
 
-    expect(
-      screen.getByRole("dialog", { name: "Promote to dealer" })
-    ).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Send dealer offer" })).toBeTruthy();
     expect(screen.getByText(/No payment will be taken or recorded/i)).toBeTruthy();
+    expect(screen.getByText(/remain a private user/i)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("radio", { name: "90 days" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Promote to dealer" })
+      screen.getByRole("button", { name: "Send dealer offer" })
     );
 
     await waitFor(() => {

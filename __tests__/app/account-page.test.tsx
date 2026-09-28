@@ -1,4 +1,3 @@
-import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +7,7 @@ const redirectMock = vi.fn((path: string) => {
 const getCurrentUserMock = vi.fn();
 const getSellLandingPathMock = vi.fn();
 const expireStaleLiveListingsMock = vi.fn();
+const findPendingDealerUpgradeOfferMock = vi.fn();
 
 const dbMock = {
   listing: {
@@ -48,6 +48,10 @@ vi.mock("@/lib/listings/expiry", () => ({
   expireStaleLiveListings: expireStaleLiveListingsMock,
 }));
 
+vi.mock("@/lib/dealers/upgrade-offers", () => ({
+  findPendingDealerUpgradeOffer: findPendingDealerUpgradeOfferMock,
+}));
+
 describe("AccountDashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,6 +64,7 @@ describe("AccountDashboardPage", () => {
     });
     getSellLandingPathMock.mockReturnValue("/sell/private");
     expireStaleLiveListingsMock.mockResolvedValue(undefined);
+    findPendingDealerUpgradeOfferMock.mockResolvedValue(null);
     dbMock.listing.groupBy.mockResolvedValue([]);
     dbMock.listing.findMany.mockResolvedValue([]);
     dbMock.listingStatusEvent.findMany.mockResolvedValue([]);
@@ -123,6 +128,26 @@ describe("AccountDashboardPage", () => {
     expect(rowLink.getAttribute("href")).toBe("/listings/listing-1");
     expect(rowLink.querySelector("a, button")).toBeNull();
     expect(screen.queryByRole("link", { name: /^View$/ })).toBeNull();
+  });
+
+  it("shows a pending complimentary upgrade without changing private selling", async () => {
+    findPendingDealerUpgradeOfferMock.mockResolvedValue({
+      id: "offer-1",
+      durationDays: 90,
+      status: "PENDING",
+    });
+    const { default: AccountDashboardPage } = await import(
+      "@/app/(public)/account/page"
+    );
+
+    render(await AccountDashboardPage());
+
+    expect(screen.getByText(/Complimentary dealer upgrade ready/i)).toBeTruthy();
+    expect(
+      screen.getAllByRole("link", { name: /Review dealer upgrade/i }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /Start selling privately/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Choose Starter/i })).toBeNull();
   });
 
   it("shows admin shortcuts instead of dealer tools for admin accounts", async () => {
