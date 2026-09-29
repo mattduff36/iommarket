@@ -68,6 +68,62 @@ describe("archive serialization and images", () => {
     expect(written.vehicles[0]?.importable).toBe(true);
     expect(written.vehicles[0]?.images[0]?.status).toBe("skipped");
   });
+
+  it("quarantines shared image bytes from every listing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "dealer-stock-shared-"));
+    temps.push(root);
+    const dealer = dealerFixture();
+    const first = vehicle({ dealerKey: dealer.key, sourceKey: "used-cars" });
+    const second = vehicle({
+      dealerKey: dealer.key,
+      sourceKey: "used-cars",
+      sourceVehicleId: "stock-2",
+      stockReference: "stock-2",
+      registration: "MAN456",
+      model: "Fiesta",
+      detailUrl: "https://www.athol.im/used-cars/fiesta/",
+      imageUrls: ["https://cdn.example.com/shared.jpg"],
+    });
+    first.imageUrls = ["https://cdn.example.com/shared.jpg"];
+    const records = [first, second].map((item) => ({
+      identityKey: `sourceVehicleId:${item.sourceVehicleId}`,
+      identityKind: "sourceVehicleId" as const,
+      sources: ["used-cars"],
+      preferredSource: "used-cars",
+      vehicle: item,
+      priceMismatch: false,
+      identityConflict: false,
+      conflictReason: null,
+      contentHash: item.sourceVehicleId ?? "",
+    }));
+
+    const written = await writeDealerArchive({
+      root,
+      runId: "run-shared",
+      mirrorImages: true,
+      fetchImpl: async () =>
+        new Response(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), {
+          status: 200,
+          headers: { "content-type": "image/jpeg" },
+        }),
+      result: {
+        dealer,
+        sourceResults: [
+          sourceResult({ dealerKey: dealer.key, sourceKey: "used-cars", vehicles: [first, second] }),
+        ],
+        reconciled: records,
+        canArchive: true,
+        scrapeStartedAt: "2026-09-28T20:00:00.000Z",
+        scrapeFinishedAt: "2026-09-28T20:01:00.000Z",
+      },
+    });
+
+    expect(written.vehicles.map((item) => item.images[0]?.status)).toEqual([
+      "skipped",
+      "skipped",
+    ]);
+    expect(written.vehicles.every((item) => item.vehicle.imageUrls.length === 0)).toBe(true);
+  });
 });
 
 describe("partial dealer failure and blocked sources", () => {

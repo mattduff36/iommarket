@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,5 +48,26 @@ describe("DealerActions", () => {
     expect(screen.getByRole("menuitem", { name: "Unverify dealer" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Change package" })).not.toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Downgrade to user" })).toBeInTheDocument();
+  });
+
+  it("does not offer to downgrade an admin-owned dealer profile", async () => {
+    const user = userEvent.setup();
+    render(
+      <DealerActions
+        dealerId="dealer-1"
+        dealerName="Admin Motors"
+        userId="admin-1"
+        userLabel="Admin"
+        verified
+        canGrantAccess={false}
+        currentTier="PRO"
+        hasActivePaidSubscription={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Actions for Admin Motors" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Downgrade to user" }),
+    ).not.toBeInTheDocument();
   });
 });

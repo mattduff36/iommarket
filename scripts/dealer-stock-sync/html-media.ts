@@ -10,6 +10,13 @@ export function isIgnoredImageUrl(url: string) {
     lower.includes("sprite") ||
     lower.includes("favicon") ||
     lower.includes("placeholder") ||
+    lower.includes("noimage") ||
+    lower.includes("error.png") ||
+    lower.includes("apple-touch-icon") ||
+    lower.includes("android-chrome") ||
+    lower.includes("/images/brands/") ||
+    lower.includes("_default_upload_bucket") ||
+    lower.includes("banner") ||
     lower.includes("1x1") ||
     lower.endsWith(".svg") ||
     lower.includes("tracking")
@@ -33,6 +40,44 @@ export function extractGalleryFromHtml(html: string, origin?: string | null) {
     .map((raw) => resolveMaybeUrl(raw, origin) ?? normalizeImageUrl(raw))
     .filter((url): url is string => Boolean(url))
     .filter((url) => !isIgnoredImageUrl(url));
+  return uniqueImageUrls(resolved, FEATURED_LISTING_PHOTO_LIMIT);
+}
+
+function decodeImageAttribute(value: string) {
+  return value
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&");
+}
+
+export function extractSwiftGalleryFromHtml(html: string, origin?: string | null) {
+  const gallery = html.match(/<bsk-gallery\b[^>]*\bimages=["']([^"']+)["']/i)?.[1];
+  if (!gallery) return [];
+
+  const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1];
+  const fallbackBase = "https://bluesky.cdn.imgeng.in/cogstock-images/";
+  let galleryBase = fallbackBase;
+  try {
+    if (og) galleryBase = new URL(".", decodeImageAttribute(og)).toString();
+    else if (origin) galleryBase = new URL("/cogstock-images/", origin).toString();
+  } catch {
+    galleryBase = fallbackBase;
+  }
+
+  const resolved = decodeImageAttribute(gallery)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return new URL(value, galleryBase).toString();
+      } catch {
+        return resolveMaybeUrl(value, galleryBase) ?? normalizeImageUrl(value);
+      }
+    })
+    .filter((url): url is string => Boolean(url))
+    .filter((url) => !isIgnoredImageUrl(url));
+
   return uniqueImageUrls(resolved, FEATURED_LISTING_PHOTO_LIMIT);
 }
 

@@ -1,6 +1,10 @@
 import { asNumber, asRecord, asString, nested, poundsToPence, resolveMaybeUrl } from "../json";
 import { emptyVehicle, validateCanonicalVehicle, type ConnectorContext, type StockConnector } from "./contract";
-import { extractDescriptionFromHtml, extractGalleryFromHtml } from "../html-media";
+import {
+  extractDescriptionFromHtml,
+  extractGalleryFromHtml,
+  extractSwiftGalleryFromHtml,
+} from "../html-media";
 import {
   collectJsonVehicles,
   extractJsonLdVehicles,
@@ -30,6 +34,19 @@ export function parseGenericVehicle(rawValue: unknown, origin: string | null) {
     asNumber(raw.cashPrice) ??
     asNumber(raw.Price) ??
     asNumber(nested(raw, ["price", "amount"]));
+  const availabilityValue = (
+    asString(raw.availability) ??
+    asString(raw.status) ??
+    asString(raw.stockStatus) ??
+    ""
+  ).toLowerCase();
+  const availability: CanonicalVehicle["availability"] = availabilityValue.includes("sold")
+    ? "sold"
+    : availabilityValue.includes("reserv")
+      ? "reserved"
+      : availabilityValue
+        ? "unknown"
+        : "available";
   return {
     sourceVehicleId:
       asString(raw.sourceVehicleId) ??
@@ -68,6 +85,7 @@ export function parseGenericVehicle(rawValue: unknown, origin: string | null) {
       asString(raw.imageUrl),
       ...(Array.isArray(raw.images) ? raw.images.map((item) => asString(item) ?? asString(asRecord(item)?.url)) : []),
     ].filter((item): item is string => Boolean(item)),
+    availability,
   };
 }
 
@@ -77,22 +95,21 @@ export function normalizeWebsiteVehicle(raw: unknown, context: ConnectorContext)
   if (!parsed) return null;
   return emptyVehicle(context, {
     ...parsed,
-    availability: "available",
   });
 }
 
-function mergeRawRecords(groups: unknown[][]) {
+export function mergeRawRecords(groups: unknown[][]) {
   const seen = new Set<string>();
   const merged: unknown[] = [];
   for (const group of groups) {
     for (const item of group) {
       const raw = asRecord(item);
       const key =
+        asString(raw?.url) ??
+        asString(raw?.href) ??
         asString(raw?.sourceVehicleId) ??
         asString(raw?.id) ??
-        asString(raw?.stockId) ??
-        asString(raw?.url) ??
-        asString(raw?.href);
+        asString(raw?.stockId);
       if (key) {
         if (seen.has(key)) continue;
         seen.add(key);
@@ -175,10 +192,13 @@ export function createWebsiteConnector(input: {
           const html = await fetchPageHtml(vehicle.detailUrl, context.fetchImpl);
           const origin = new URL(vehicle.detailUrl).origin;
           const specs = extractDetailSpecs(html, vehicle.detailUrl);
+          const detailImages = context.dealer.key === "swift-motors"
+            ? extractSwiftGalleryFromHtml(html, origin)
+            : extractGalleryFromHtml(html, origin);
           vehicles.push({
             ...vehicle,
             description: extractDescriptionFromHtml(html) || vehicle.description,
-            imageUrls: [...vehicle.imageUrls, ...extractGalleryFromHtml(html, origin)],
+            imageUrls: [...vehicle.imageUrls, ...detailImages],
             mileage: vehicle.mileage ?? specs.mileage,
             year: vehicle.year ?? specs.year,
             registration: vehicle.registration ?? specs.registration ?? null,

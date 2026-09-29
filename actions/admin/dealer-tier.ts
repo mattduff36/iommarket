@@ -16,6 +16,7 @@ const TIER_CHANGE_TRANSACTION_ATTEMPTS = 3;
 type SetDealerTierResult =
   | { kind: "not-found" }
   | { kind: "no-profile" }
+  | { kind: "invalid-role" }
   | { kind: "paid-blocked" }
   | { kind: "updated"; tier: SetDealerTierInput["tier"] };
 
@@ -37,6 +38,11 @@ export async function setDealerTier(input: SetDealerTierInput) {
     if (result.kind === "not-found") return { error: "User not found" };
     if (result.kind === "no-profile") {
       return { error: "This account has no dealer profile." };
+    }
+    if (result.kind === "invalid-role") {
+      return {
+        error: "Only dealer or admin accounts can change dealer package.",
+      };
     }
     if (result.kind === "paid-blocked") {
       return {
@@ -80,11 +86,18 @@ async function runSetDealerTierTransaction(input: {
             where: { id: input.userId },
             select: {
               id: true,
+              role: true,
               dealerProfile: { select: { id: true, tier: true } },
             },
           });
           if (!targetUser) return { kind: "not-found" };
           if (!targetUser.dealerProfile) return { kind: "no-profile" };
+          if (
+            targetUser.role !== "DEALER" &&
+            targetUser.role !== "ADMIN"
+          ) {
+            return { kind: "invalid-role" };
+          }
 
           const paidSubscription = await tx.subscription.findFirst({
             where: {

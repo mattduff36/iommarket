@@ -491,15 +491,17 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     displayName: "Rex Motor Company",
     status: "confirmed",
     website: "https://www.rexmotorcompany.im/",
-    stockUrls: ["https://www.rexmotorcompany.im/"],
+    stockUrls: [
+      "https://www.rexmotorcompany.im/sales",
+      "https://www.rexmotorcompany.im/retail",
+    ],
     platformHint: "DotPerformance",
     connectorKey: "html-structured",
     groupKey: null,
     locations: [],
     sources: [
-      source("stock", "Rex stock", "https://www.rexmotorcompany.im/", "html-structured"),
-      source("sales", "Rex sales", "https://www.rexmotorcompany.im/sales", "html-structured", { required: false }),
-      source("retail", "Rex retail", "https://www.rexmotorcompany.im/retail", "html-structured", { required: false }),
+      source("sales", "Rex sales", "https://www.rexmotorcompany.im/sales", "html-structured"),
+      source("retail", "Rex retail", "https://www.rexmotorcompany.im/retail", "html-structured"),
     ],
     notes: "Official site rexmotorcompany.im. /sales and /retail list current stock; year and miles are often on detail pages.",
     lastVerifiedAt: "2026-08-22",
@@ -564,7 +566,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     locations: [],
     sources: [
       source("stock", "TD Car Centre stock", "https://www.tdcar.im/inventory", "html-structured", {
-        maxPages: 5,
+        maxPages: 6,
       }),
     ],
     notes: "Public inventory is tdcar.im/inventory with SSR cards and ?page=2..5 pagination. Advertised count is on the listing heading.",

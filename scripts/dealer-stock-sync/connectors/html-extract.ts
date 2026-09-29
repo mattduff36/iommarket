@@ -211,10 +211,13 @@ export function stockPageQueue(html: string, currentUrl: string, startUrl: strin
 }
 
 export function extractStructuredHtml(html: string, origin: string, extra?: (html: string, origin: string) => unknown[]) {
-  return [
+  const named = [
     ...(extra?.(html, origin) ?? []),
     ...extractNamedHtml(html, origin),
     ...extractExtraNamedHtml(html, origin),
+  ].filter(Boolean);
+  if (named.length > 0) return named;
+  return [
     ...extractNextDataVehicles(html),
     ...extractJsonLdVehicles(html),
     ...extractHtmlVehicleCards(html, origin),

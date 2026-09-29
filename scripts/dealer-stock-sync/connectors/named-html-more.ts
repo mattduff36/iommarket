@@ -31,15 +31,18 @@ function escapeRegExp(value: string) {
 
 function firstVehicleMiles(visible: string) {
   const matches = [...visible.matchAll(/([\d,]+)\s*(?:genuine\s+)?miles\b/gi)];
-  if (matches.length > 3) return null;
+  const candidates: number[] = [];
   for (const match of matches) {
     const start = match.index ?? 0;
     const context = visible.slice(Math.max(0, start - 48), start + match[0].length + 48);
     if (/warranty|unlimited|service interval/i.test(context)) continue;
     const mileage = Number(match[1]?.replace(/,/g, ""));
-    if (Number.isFinite(mileage) && mileage >= 0 && mileage <= 400_000) return mileage;
+    if (Number.isFinite(mileage) && mileage >= 0 && mileage <= 400_000) {
+      candidates.push(mileage);
+    }
   }
-  return null;
+  const unique = [...new Set(candidates)];
+  return unique.length === 1 ? unique[0] : null;
 }
 
 export function extractDetailSpecs(html: string, detailUrl?: string | null) {
@@ -50,13 +53,22 @@ export function extractDetailSpecs(html: string, detailUrl?: string | null) {
   const bettridgeMiles = html.match(/class=['"]detail mileage['"][\s\S]{0,80}?<\/i>\s*([\d,]+)/i)?.[1];
   const bettridgeYear = html.match(/class=['"]detail year['"][\s\S]{0,80}?<\/i>\s*(\d{4})/i)?.[1];
   const stocklistMiles = decodedVisible.match(/\bOdometer\s+([\d,]+)\s*mi\b/i)?.[1];
+  const featureMiles = html.match(/<li[^>]*>\s*([\d,]+)\s*miles\b/i)?.[1];
+  const proseYear =
+    decodedVisible.match(
+      /\b(?:registered(?:\s+in)?\s+)?(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2}|19\d{2})\b/i,
+    )?.[1] ??
+    decodedVisible.match(/\bRegistered\s+\d{1,2}\/\d{1,2}\/(20\d{2}|19\d{2})\b/i)?.[1] ??
+    decodedVisible.match(/\b(20\d{2}|19\d{2})\s+model\b/i)?.[1];
   let mileage = mileageStrong
     ? Number(mileageStrong.replace(/,/g, ""))
     : bettridgeMiles
       ? Number(bettridgeMiles.replace(/,/g, ""))
       : stocklistMiles
         ? Number(stocklistMiles.replace(/,/g, ""))
-      : null;
+        : featureMiles
+          ? Number(featureMiles.replace(/,/g, ""))
+          : null;
   const slug = detailUrl?.split("/").filter(Boolean).at(-1);
   if (mileage == null && slug && slug.length > 8) {
     const near = html.match(new RegExp(`${escapeRegExp(slug)}[\\s\\S]{0,600}?"([\\d,]+) miles"`, "i"))?.[1];
@@ -75,6 +87,7 @@ export function extractDetailSpecs(html: string, detailUrl?: string | null) {
       : bettridgeYear
         ? Number(bettridgeYear)
         : yearFrom(html.match(/Registered(?: in)?\s+(\d{4})/i)?.[1] ?? "") ??
+          (proseYear ? Number(proseYear) : null) ??
           yearFrom(decodedVisible.match(/\bReg\s+(20\d{2}|19\d{2})(?:\s*\(\d{2}\))?/i)?.[1] ?? "") ??
           yearFrom(visible.match(/\b(?:exceptional|this outstanding)\s+(20\d{2}|19\d{2})\b/i)?.[1] ?? "") ??
           yearFrom(visible.match(/\bA (20\d{2}|19\d{2}) example\b/i)?.[1] ?? ""),
@@ -189,14 +202,14 @@ export function extractKingswoodPreowned(html: string, origin: string) {
 }
 
 export function extractRexSalesBoxes(html: string, origin: string) {
-  if (!html.includes("vehicles-list") || !html.includes("FOR SALE")) return [];
+  if (!html.includes("vehicles-list")) return [];
   const chunks = html.split(/<a class="box" href="(\/(?:sales|retail)\/[^"]+)"/i);
   const cards: Record<string, unknown>[] = [];
   const seen = new Set<string>();
   for (let index = 1; index < chunks.length; index += 2) {
     const href = chunks[index];
     const chunk = chunks[index + 1] ?? "";
-    if (!href || seen.has(href) || !/FOR SALE/i.test(chunk)) continue;
+    if (!href || seen.has(href) || !/(?:FOR SALE|£\s*TBC|\bPOA\b)/i.test(decodeListingText(chunk))) continue;
     seen.add(href);
     const title = decodeListingText(chunk.match(/<h2>([^<]+)<\/h2>/i)?.[1] ?? "");
     const parsed = parseYearMakeModel(title);
@@ -206,6 +219,7 @@ export function extractRexSalesBoxes(html: string, origin: string) {
       sourceVehicleId: href.split("/").filter(Boolean).at(-1),
       ...parsed,
       price: priceFrom(chunk),
+      isPoa: /£\s*TBC|\bPOA\b/i.test(decodeListingText(chunk)),
     });
   }
   return cards;

@@ -150,6 +150,7 @@ describe("FDP-SAFE-001 production targeting", () => {
         `NEXT_PUBLIC_SUPABASE_URL=https://${PRODUCTION_PROJECT_REF}.supabase.co`,
         "SUPABASE_SERVICE_ROLE_KEY=test-key",
         `DATABASE_URL=postgresql://postgres.${PRODUCTION_PROJECT_REF}:secret@aws-1-eu-west-2.pooler.supabase.com:6543/postgres`,
+        `COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID=${PREVIEW_PROJECT_REF}`,
         "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=",
         "CLOUDINARY_API_KEY=",
         "CLOUDINARY_API_SECRET=",
@@ -170,10 +171,15 @@ describe("FDP-SAFE-001 production targeting", () => {
         `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=${EXPECTED_PRODUCTION_CLOUDINARY_CLOUD_NAME}`,
         "CLOUDINARY_API_KEY=key",
         "CLOUDINARY_API_SECRET=secret",
+        "SUPABASE_DB_CA_CERT=test-ca",
       ].join("\n"),
     );
     const env = loadFoundingProductionEnv(PRODUCTION_ENV_FILE, cwd);
     expect(env.cloudinaryCloudName).toBe(EXPECTED_PRODUCTION_CLOUDINARY_CLOUD_NAME);
+    expect(env.dbCaCert).toBe("test-ca");
+    expect(env.sessionPoolerUrl).toContain(
+      `postgres.${PRODUCTION_PROJECT_REF}`,
+    );
     expect(new URL(env.databaseUrl).hostname).toBe(`db.${PRODUCTION_PROJECT_REF}.supabase.co`);
   });
 });

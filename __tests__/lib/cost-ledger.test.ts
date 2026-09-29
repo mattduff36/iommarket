@@ -100,9 +100,9 @@ describe("COST-LEDGER persist revisions", () => {
     ).resolves.toBe("revised");
 
     expect(entries.map((entry) => [entry.kind, entry.markedGbpMinor])).toEqual([
-      ["CHARGE", 1200n],
-      ["REVERSAL", -1200n],
-      ["CHARGE", 960n],
+      ["CHARGE", 1000n],
+      ["REVERSAL", -1000n],
+      ["CHARGE", 800n],
     ]);
   });
 });

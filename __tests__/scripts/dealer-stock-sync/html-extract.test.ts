@@ -30,6 +30,7 @@ import {
 } from "../../../scripts/dealer-stock-sync/connectors/named-html-more";
 import { mapReconciledVehicle } from "../../../scripts/dealer-stock-sync/map-listing";
 import { normalizeWebsiteVehicle } from "../../../scripts/dealer-stock-sync/connectors/website-source";
+import { extractSwiftGalleryFromHtml } from "../../../scripts/dealer-stock-sync/html-media";
 import { dealerFixture } from "./fixtures";
 
 const AUTOWEB_CARD = `
@@ -407,6 +408,13 @@ describe("named HTML extractors", () => {
     ).toMatchObject({ year: 2018, mileage: 30500 });
     expect(
       extractDetailSpecs(
+        `<p>This GTI previously described 40,000 miles.</p>
+         <ul><li>44,000 miles<br/></li><li>DSG gearbox</li></ul>`,
+        "https://www.rexmotorcompany.im/sales/volkswagen-golf",
+      ),
+    ).toMatchObject({ mileage: 44000 });
+    expect(
+      extractDetailSpecs(
         `<li><span>Reg</span> 2023 (23)</li><li><span>Odometer</span> 11,987 mi</li>`,
         "https://www.manxcarwarehouse.im/hyundai-i10-b34af281-2cef-4bc6-8a04-b4cd01285672",
       ),
@@ -445,5 +453,21 @@ describe("named HTML extractors", () => {
         "https://www.tdcar.im/inventory",
       ),
     ).toEqual(["https://www.tdcar.im/inventory?page=2"]);
+  });
+
+  it("extracts only the owning vehicle images from a Swift detail gallery", () => {
+    const html = `
+      <meta property="og:image" content="https://bluesky.cdn.imgeng.in/cogstock-images/own-1.jpg?imgeng=/w_500/">
+      <bsk-gallery images="own-1.jpg,own-2.jpg,own-3.jpg"></bsk-gallery>
+      <style>.hours { background-image: url("https://swiftmotors.net/images/location.jpg"); }</style>
+      <bsk-vehicle-card img-src="https://bluesky.cdn.imgeng.in/cogstock-images/related-1.jpg"></bsk-vehicle-card>
+      <img src="https://swiftmotors.net/images/noimage.jpg">
+    `;
+
+    expect(extractSwiftGalleryFromHtml(html, "https://swiftmotors.net")).toEqual([
+      "https://bluesky.cdn.imgeng.in/cogstock-images/own-1.jpg",
+      "https://bluesky.cdn.imgeng.in/cogstock-images/own-2.jpg",
+      "https://bluesky.cdn.imgeng.in/cogstock-images/own-3.jpg",
+    ]);
   });
 });

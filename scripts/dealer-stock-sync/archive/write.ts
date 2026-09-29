@@ -23,22 +23,68 @@ export async function writeDealerArchive(input: {
   const sourceFailed = !input.result.sourceResults.some((item) => item.status === "ok");
   const currentKeys = new Set(input.result.reconciled.map((item) => item.identityKey));
   const vehicles: ArchivedVehicle[] = [];
+  const dealerChecksumOwners = new Map<string, string>();
+  const duplicatedDealerChecksums = new Set<string>();
 
   for (const reconciled of input.result.reconciled) {
-    const mapped = mapReconciledVehicle(reconciled);
-    const images = await archiveImages({
+    const archivedImages = await archiveImages({
       imageDir: join(dir, "images", reconciled.identityKey.replace(/[^a-zA-Z0-9._-]+/g, "-")),
       imageUrls: reconciled.vehicle.imageUrls,
       fetchImpl: input.fetchImpl,
       enabled: input.mirrorImages,
     });
-    vehicles.push({
+    const images = archivedImages.map((image) => {
+      if (image.status !== "ok" || !image.checksum) return image;
+      const owner = dealerChecksumOwners.get(image.checksum);
+      if (owner && owner !== reconciled.identityKey) {
+        duplicatedDealerChecksums.add(image.checksum);
+        return {
+          ...image,
+          localPath: null,
+          status: "skipped" as const,
+          error: `duplicate image content owned by ${owner}`,
+        };
+      }
+      dealerChecksumOwners.set(image.checksum, reconciled.identityKey);
+      return image;
+    });
+    const sanitized = {
       ...reconciled,
+      vehicle: {
+        ...reconciled.vehicle,
+        imageUrls: images
+          .filter((image) => image.status === "ok")
+          .map((image) => image.originalUrl),
+      },
+    };
+    const mapped = mapReconciledVehicle(sanitized);
+    vehicles.push({
+      ...sanitized,
       importable: Boolean(mapped.listing),
       importSkipReason: mapped.skipReason,
       images,
       changeKind: compareSnapshot(input.previous ?? null, reconciled, sourceFailed),
     });
+  }
+
+  for (const vehicle of vehicles) {
+    vehicle.images = vehicle.images.map((image) => {
+      if (!image.checksum || !duplicatedDealerChecksums.has(image.checksum)) {
+        return image;
+      }
+      return {
+        ...image,
+        localPath: null,
+        status: "skipped" as const,
+        error: "duplicate image content shared across listings",
+      };
+    });
+    vehicle.vehicle.imageUrls = vehicle.images
+      .filter((image) => image.status === "ok")
+      .map((image) => image.originalUrl);
+    const mapped = mapReconciledVehicle(vehicle);
+    vehicle.importable = Boolean(mapped.listing);
+    vehicle.importSkipReason = mapped.skipReason;
   }
 
   const manifest = {
@@ -51,6 +97,9 @@ export async function writeDealerArchive(input: {
     scrapeFinishedAt: input.result.scrapeFinishedAt,
     sources: input.result.sourceResults.map((source) => ({
       key: source.sourceKey,
+      required:
+        input.result.dealer.sources.find((configured) => configured.key === source.sourceKey)
+          ?.required ?? true,
       status: source.status,
       error: source.error,
       startUrl: source.startUrl,

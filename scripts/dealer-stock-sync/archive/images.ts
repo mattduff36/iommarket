@@ -27,6 +27,7 @@ export async function archiveImages(input: {
   await mkdir(input.imageDir, { recursive: true });
   const records: ImageArchiveRecord[] = [];
   const urls = uniqueImageUrls(input.imageUrls, FEATURED_LISTING_PHOTO_LIMIT);
+  const seenChecksums = new Set<string>();
 
   for (const [index, url] of urls.entries()) {
     if (isIgnoredImageUrl(url)) {
@@ -47,6 +48,19 @@ export async function archiveImages(input: {
       const bytes = Buffer.from(await response.arrayBuffer());
       const contentType = response.headers.get("content-type") ?? "application/octet-stream";
       const checksum = createHash("sha256").update(bytes).digest("hex");
+      if (seenChecksums.has(checksum)) {
+        records.push({
+          originalUrl: url,
+          localPath: null,
+          contentType,
+          bytes: bytes.length,
+          checksum,
+          status: "skipped",
+          error: "duplicate image content",
+        });
+        continue;
+      }
+      seenChecksums.add(checksum);
       const extension = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
       const fileName = `${String(index).padStart(2, "0")}-${checksum.slice(0, 10)}.${extension}`;
       const localPath = join(input.imageDir, fileName);

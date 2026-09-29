@@ -4,7 +4,7 @@ import type { CanonicalVehicle, ReconciledVehicle } from "./types";
 
 export { uniqueImageUrls };
 
-const MIN_PRICE_PENCE = 100;
+const MIN_PRICE_PENCE = 50_000;
 const MAX_PRICE_PENCE = 100_000_000;
 const MIN_TITLE = 5;
 const MAX_TITLE = 120;
@@ -89,6 +89,9 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
     return { reconciled, listing: null, skipReason: reconciled.conflictReason ?? "identity-conflict" };
   }
   const vehicle = reconciled.vehicle;
+  if (vehicle.availability === "sold") {
+    return { reconciled, listing: null, skipReason: "sold" };
+  }
   if (vehicle.isPoa) return { reconciled, listing: null, skipReason: "poa" };
   if (vehicle.pricePence == null) return { reconciled, listing: null, skipReason: "missing-price" };
   if (
@@ -98,7 +101,15 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
   ) {
     return { reconciled, listing: null, skipReason: "invalid-price" };
   }
-  if (!vehicle.make.trim() || !vehicle.model.trim() || vehicle.year == null || vehicle.mileage == null) {
+  const maximumYear = new Date().getUTCFullYear() + 1;
+  if (
+    !vehicle.make.trim() ||
+    !vehicle.model.trim() ||
+    vehicle.year == null ||
+    vehicle.year < 1900 ||
+    vehicle.year > maximumYear ||
+    vehicle.mileage == null
+  ) {
     return { reconciled, listing: null, skipReason: "missing-required-attr" };
   }
   const title = buildTitle(vehicle);

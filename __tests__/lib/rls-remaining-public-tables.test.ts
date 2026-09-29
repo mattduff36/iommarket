@@ -114,7 +114,7 @@ describe("RLS-REG-001 public model coverage", () => {
     const models = parsePrismaModels(schema);
     const { lastEnableByTable, lastDisableByTable } = collectRlsHistory();
 
-    expect(models).toHaveLength(67);
+    expect(models).toHaveLength(69);
 
     const missing = models.filter((model) => !lastEnableByTable.has(model));
     expect(missing).toEqual([]);

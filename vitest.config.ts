@@ -19,12 +19,16 @@ const emblaCarouselAutoplayStub = fileURLToPath(
 export default defineConfig({
   root,
   test: {
-    environment: "jsdom",
+    environment: "node",
     include: ["**/__tests__/**/*.test.{ts,tsx}"],
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    // Temporary deterministic mitigation while shared env/timer state is isolated.
-    maxWorkers: 1,
+    // Separate processes so env mutations cannot cross workers.
+    // vitest.setup.ts restores process.env after each file.
+    pool: "forks",
+    // Subprocess and disposable-Postgres hooks exceed the 5s/10s defaults when workers share the machine.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
     server: {
       deps: {
         inline: [

@@ -116,13 +116,15 @@ export function DealerActions({
       label: "Onboarding email",
       href: `/admin/dealer-onboarding?dealer=${dealerId}`,
     },
-    {
-      kind: "command",
-      id: "downgrade",
-      label: "Downgrade to user",
-      destructive: true,
-      onSelect: () => setConfirmDowngrade(true),
-    },
+    canGrantAccess
+      ? {
+          kind: "command",
+          id: "downgrade",
+          label: "Downgrade to user",
+          destructive: true,
+          onSelect: () => setConfirmDowngrade(true),
+        }
+      : null,
   ]);
 
   return (

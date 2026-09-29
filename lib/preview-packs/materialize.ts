@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { mapReconciledVehicle } from "../../scripts/dealer-stock-sync/map-listing";
@@ -31,15 +31,15 @@ import {
   type PreviewUploadedImage,
 } from "./upload";
 
-async function loadCatalog() {
+export async function loadPreviewPackCatalog(client: PrismaClient = db) {
   const [categories, region, attributes] = await Promise.all([
-    db.category.findMany({ select: { id: true, slug: true } }),
-    db.region.findFirst({
+    client.category.findMany({ select: { id: true, slug: true } }),
+    client.region.findFirst({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true },
     }),
-    db.attributeDefinition.findMany({
+    client.attributeDefinition.findMany({
       select: { id: true, slug: true, categoryId: true },
     }),
   ]);
@@ -135,7 +135,8 @@ export async function insertPreviewListing(
     identityKey: string;
     listing: NonNullable<ReturnType<typeof mapReconciledVehicle>["listing"]>;
     images: Awaited<ReturnType<typeof uploadPreviewPackImages>>;
-    catalog: Awaited<ReturnType<typeof loadCatalog>>;
+    catalog: Awaited<ReturnType<typeof loadPreviewPackCatalog>>;
+    allowEmptyImages?: boolean;
   },
 ) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.previewPackId}))`;
@@ -149,7 +150,7 @@ export async function insertPreviewListing(
     select: { id: true },
   });
   if (!pack) return null;
-  if (input.images.length === 0) return null;
+  if (input.images.length === 0 && !input.allowEmptyImages) return null;
   const identityPrefix =
     `${IMAGE_CONSTRAINTS.folder}/preview-packs/` +
     `${sanitizePreviewSegment(input.dealerKey)}/` +
@@ -434,7 +435,7 @@ async function applyResumeAction(input: {
   owners: { userId: string; dealerId: string };
   packId: string;
   sourceRunId: string;
-  catalog: Awaited<ReturnType<typeof loadCatalog>>;
+  catalog: Awaited<ReturnType<typeof loadPreviewPackCatalog>>;
 }) {
   if (input.action.kind === "complete") {
     return { created: 0, skipped: 0, backfilled: 0 };
@@ -536,7 +537,7 @@ export async function materializePreviewPack(dealerKey: string) {
       listingCount: existing._count.listings,
     });
   }
-  const catalog = await loadCatalog();
+  const catalog = await loadPreviewPackCatalog();
   const owners = await ensurePreviewDealer({
     dealerKey,
     displayName,

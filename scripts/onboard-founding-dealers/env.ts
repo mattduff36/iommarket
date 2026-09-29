@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { parseEnv } from "node:util";
 import {
   containsPreviewRef,
   EXPECTED_PRODUCTION_CLOUDINARY_CLOUD_NAME,
@@ -19,9 +20,15 @@ const CONNECTION_KEYS = [
   "SUPABASE_SECRET_KEY",
 ] as const;
 
+const ALLOWED_PREVIEW_METADATA_KEYS = new Set([
+  "COST_VERCEL_PREVIEW_DATABASE_RESOURCE_ID",
+]);
+
 export interface FoundingProductionEnv {
   databaseUrl: string;
   postgresUrlNonPooling: string | null;
+  sessionPoolerUrl: string | null;
+  dbCaCert: string;
   supabaseUrl: string;
   serviceRoleKey: string;
   cloudinaryCloudName: string;
@@ -33,17 +40,7 @@ function parseEnvFile(filePath: string) {
   if (!existsSync(filePath)) {
     throw new Error(`Refusing founding onboard: env file not found (${filePath}).`);
   }
-  const values: Record<string, string> = {};
-  for (const line of readFileSync(filePath, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
-    if (key) values[key] = val;
-  }
-  return values;
+  return parseEnv(readFileSync(filePath, "utf8"));
 }
 
 function parseUrl(raw: string | undefined): URL | null {
@@ -102,7 +99,7 @@ function isProductionSupabaseUrl(url: string) {
   return true;
 }
 
-function readCloudinary(parsed: Record<string, string>) {
+function readCloudinary(parsed: Record<string, string | undefined>) {
   return {
     cloudinaryCloudName: parsed.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() ?? "",
     cloudinaryApiKey: parsed.CLOUDINARY_API_KEY?.trim() ?? "",
@@ -126,6 +123,15 @@ function assertProductionCloudinary(input: {
   return input;
 }
 
+function loadSharedDbCaCert(cwd: string, parsed: Record<string, string | undefined>) {
+  if (parsed.SUPABASE_DB_CA_CERT?.trim()) {
+    return parsed.SUPABASE_DB_CA_CERT.trim();
+  }
+  const localPath = resolve(cwd, ".env.local");
+  if (!existsSync(localPath)) return "";
+  return parseEnvFile(localPath).SUPABASE_DB_CA_CERT?.trim() ?? "";
+}
+
 function loadSharedCloudinary(cwd: string, fromProduction: ReturnType<typeof readCloudinary>) {
   if (fromProduction.cloudinaryCloudName && fromProduction.cloudinaryApiKey && fromProduction.cloudinaryApiSecret) {
     return assertProductionCloudinary(fromProduction);
@@ -147,7 +153,10 @@ export function loadFoundingProductionEnv(
   }
   const parsed = parseEnvFile(resolve(cwd, filePath));
   for (const [key, value] of Object.entries(parsed)) {
-    if (containsPreviewRef(key) || containsPreviewRef(value)) {
+    if (
+      !ALLOWED_PREVIEW_METADATA_KEYS.has(key) &&
+      (containsPreviewRef(key) || containsPreviewRef(value))
+    ) {
       throw new Error("Refusing founding onboard: preview project ref found in production env file.");
     }
   }
@@ -179,6 +188,10 @@ export function loadFoundingProductionEnv(
     postgresUrlNonPooling: isDirectProductionDb(parsed.POSTGRES_URL_NON_POOLING ?? "")
       ? parsed.POSTGRES_URL_NON_POOLING!.trim()
       : null,
+    sessionPoolerUrl: isProductionPoolerUrl(rawDatabaseUrl)
+      ? rawDatabaseUrl.trim()
+      : null,
+    dbCaCert: loadSharedDbCaCert(cwd, parsed),
     supabaseUrl: supabaseUrl.trim(),
     serviceRoleKey,
     cloudinaryCloudName: cloudinary.cloudinaryCloudName,

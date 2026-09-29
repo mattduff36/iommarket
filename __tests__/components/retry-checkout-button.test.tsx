@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import * as React from "react";
 import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";

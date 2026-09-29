@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import * as React from "react";
 import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";

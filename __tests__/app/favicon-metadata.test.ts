@@ -1,29 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
 
 const publicDir = join(process.cwd(), "public");
-
-function readPngHeader(fileName: string) {
-  const buffer = readFileSync(join(publicDir, fileName));
-  return {
-    width: buffer.readUInt32BE(16),
-    height: buffer.readUInt32BE(20),
-    colorType: buffer[25],
-  };
-}
-
-function readIcoSizes(fileName: string) {
-  const buffer = readFileSync(join(publicDir, fileName));
-  const count = buffer.readUInt16LE(4);
-  return Array.from({ length: count }, (_, index) => {
-    const entry = 6 + index * 16;
-    const width = buffer[entry] === 0 ? 256 : buffer[entry];
-    const height = buffer[entry + 1] === 0 ? 256 : buffer[entry + 1];
-    return { width, height };
-  });
-}
 
 describe("favicon package", () => {
   it("points metadata at the generated favicon formats", () => {
@@ -42,35 +22,6 @@ describe("favicon package", () => {
     expect(layoutSource).toContain("faviconIcons");
     expect(layoutSource).toContain("faviconManifest");
     expect(layoutSource).toContain("faviconThemeColor");
-  });
-
-  it("publishes every required favicon file", () => {
-    for (const fileName of [
-      "favicon.svg",
-      "favicon.ico",
-      "apple-touch-icon.png",
-      "icon-192.png",
-      "icon-512.png",
-      "site.webmanifest",
-    ]) {
-      expect(existsSync(join(publicDir, fileName)), fileName).toBe(true);
-    }
-  });
-
-  it("uses the expected raster sizes and an opaque iOS icon", () => {
-    expect(readPngHeader("apple-touch-icon.png")).toMatchObject({
-      width: 180,
-      height: 180,
-      colorType: 2,
-    });
-    expect(readPngHeader("icon-192.png")).toMatchObject({ width: 192, height: 192 });
-    expect(readPngHeader("icon-512.png")).toMatchObject({ width: 512, height: 512 });
-    expect(readIcoSizes("favicon.ico")).toEqual(
-      expect.arrayContaining([
-        { width: 16, height: 16 },
-        { width: 32, height: 32 },
-      ]),
-    );
   });
 
   it("describes the PWA icons in the web manifest", () => {

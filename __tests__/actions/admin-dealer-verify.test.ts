@@ -43,7 +43,10 @@ vi.mock("@/lib/db", () => ({
   db: mockDb,
 }));
 
-import { verifyDealer } from "@/actions/admin/dealers";
+import {
+  downgradeDealerToUser,
+  verifyDealer,
+} from "@/actions/admin/dealers";
 
 describe("verifyDealer ALR-MAIL-003", () => {
   beforeEach(() => {
@@ -105,5 +108,28 @@ describe("verifyDealer ALR-MAIL-003", () => {
 
     await verifyDealer("dealer-1", true);
     expect(sendDealerEmailMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("downgradeDealerToUser", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireRoleMock.mockResolvedValue({
+      id: "cladminxxxxxxxxxxxxxxxxxx",
+      role: "ADMIN",
+    });
+  });
+
+  it("rejects an admin-owned dealer profile", async () => {
+    mockDb.dealerProfile.findUnique.mockResolvedValue({
+      id: "dealer-1",
+      userId: "other-admin-1",
+      user: { id: "other-admin-1", role: "ADMIN" },
+    });
+
+    await expect(downgradeDealerToUser("dealer-1")).resolves.toEqual({
+      error: "Only dealer accounts can be downgraded to users.",
+    });
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
   });
 });
