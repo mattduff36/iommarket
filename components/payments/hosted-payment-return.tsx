@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { CircleSlash2, Clock3, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -24,9 +25,8 @@ const outcomes = {
   },
 } as const;
 
-// Provider query parameters are untrusted. Do not mark paid, select a listing,
-// broadcast success, or redirect using them before reference matching is verified.
-export function HostedPaymentReturn({ outcome }: { outcome: keyof typeof outcomes }) {
+// Browser return data is not proof of payment; confirmation is server-verified.
+export function HostedPaymentReturn({ outcome, children }: { outcome: keyof typeof outcomes; children?: ReactNode }) {
   const { title, message, detail, Icon } = outcomes[outcome];
 
   return (
@@ -40,8 +40,10 @@ export function HostedPaymentReturn({ outcome }: { outcome: keyof typeof outcome
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         </CardHeader>
         <CardContent className="space-y-6">
-          <p className="text-center text-sm leading-6 text-text-secondary">{message}</p>
-          <p className="rounded-lg border border-border bg-surface/60 p-4 text-sm leading-6 text-text-secondary">{detail}</p>
+          {children ?? <>
+            <p className="text-center text-sm leading-6 text-text-secondary">{message}</p>
+            <p className="rounded-lg border border-border bg-surface/60 p-4 text-sm leading-6 text-text-secondary">{detail}</p>
+          </>}
           <div className="flex flex-col gap-3">
             <Button asChild><Link href="/account/listings">Return to my listings</Link></Button>
             <Button asChild variant="ghost"><Link href="/dealer/dashboard">Manage dealer account</Link></Button>

@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { encodeHostedReturnContext, HOSTED_RETURN_COOKIE, HOSTED_RETURN_MAX_AGE_SECONDS } from "@/lib/payments/hosted-return-context";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
@@ -310,6 +312,20 @@ export async function payForListing(input: PayForListingInput) {
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
+    (await cookies()).set(HOSTED_RETURN_COOKIE, encodeHostedReturnContext({
+      userId: user.id,
+      email: user.email.trim().toLowerCase(),
+      paymentId: pendingPayment.payment.id,
+      listingId: listing.id,
+      merchantReference: session.merchantReference,
+      issuedAt: Date.now(),
+    }), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: HOSTED_RETURN_MAX_AGE_SECONDS,
+    });
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
     await captureException({

@@ -62,8 +62,8 @@ export function CheckoutStatusActions({
       {isAwaitingPayment ? (
         <p className="text-xs text-text-tertiary">
           This page checks for payment confirmation automatically every few
-          seconds while your hosted checkout is open. Ripple does not redirect
-          back here after payment.
+          seconds while your hosted checkout is open. Complete the confirmation
+          step when checkout returns you to itrader.
         </p>
       ) : null}
     </div>

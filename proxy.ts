@@ -80,7 +80,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // A provider return must remain readable even if the login or launch cookie expired.
-  // These pages expose no account data and cannot change payment state.
+  // Rendering exposes no account data; return reconciliation authenticates separately.
   if (isPaymentReturnPath(pathname)) return NextResponse.next();
 
   const previewAccess = resolvePreviewAccessPath(pathname);
