@@ -26,6 +26,14 @@ export class AccountDisabledError extends Error {
   }
 }
 
+export class DeletedAccountError extends Error {
+  readonly statusCode = 403 as const;
+  constructor(message = "This account has been deleted") {
+    super(message);
+    this.name = "DeletedAccountError";
+  }
+}
+
 export class InsufficientPermissionsError extends Error {
   readonly statusCode = 403 as const;
   constructor(message = "Insufficient permissions") {
@@ -63,19 +71,32 @@ export async function getCurrentUser() {
   });
 
   if (!user) {
-    const synced = await syncUser(
-      authUser.id,
-      authUser.email ?? "",
-      authUser.user_metadata?.full_name as string | undefined,
-      authUser.app_metadata?.policy_acceptance
-    );
-    return db.user.findUnique({
-      where: { id: synced.id },
-      include: { dealerProfile: true },
-    });
+    try {
+      const synced = await syncUser(
+        authUser.id,
+        authUser.email ?? "",
+        authUser.user_metadata?.full_name as string | undefined,
+        authUser.app_metadata?.policy_acceptance
+      );
+      return db.user.findUnique({
+        where: { id: synced.id },
+        include: { dealerProfile: true },
+      });
+    } catch (error) {
+      if (error instanceof DeletedAccountError) {
+        await supabase.auth.signOut();
+        return null;
+      }
+      throw error;
+    }
   }
 
-  if (user.deletedAt || user.disabledAt) return null;
+  if (user.deletedAt) {
+    await supabase.auth.signOut();
+    return null;
+  }
+
+  if (user.disabledAt) return null;
 
   return user;
 }
@@ -84,9 +105,6 @@ export async function getCurrentUser() {
  * Sync a Supabase Auth user to the local database (called on first visit after sign-in).
  * New users are always created with USER role. Dealer role is granted only through
  * the subscription flow (admin or self-service).
- *
- * Handles re-registration after account deletion: if a soft-deleted user record
- * still holds the email, its email is freed before creating the new record.
  */
 export async function syncUser(
   authUserId: string,
@@ -110,32 +128,21 @@ export async function syncUser(
       return user;
     });
   } catch (err) {
+    const prismaCode =
+      typeof err === "object" && err !== null && "code" in err
+        ? String(err.code)
+        : "";
     const isUniqueViolation =
-      err instanceof Error &&
-      (err.message.includes("Unique constraint") || err.message.includes("P2002"));
+      prismaCode === "P2002" ||
+      (err instanceof Error &&
+        (err.message.includes("Unique constraint") || err.message.includes("P2002")));
 
     if (isUniqueViolation && email) {
-      const existing = await db.user.findUnique({ where: { email } });
-      if (existing && existing.deletedAt && existing.authUserId !== authUserId) {
-        await db.user.update({
-          where: { id: existing.id },
-          data: { email: `deleted-${existing.id}@deleted.local` },
-        });
-        return db.$transaction(async (tx) => {
-          const user = await tx.user.upsert({
-            where: { authUserId },
-            update: { email, name },
-            create: { authUserId, email, name, role: "USER" },
-          });
-          if (policyAcceptanceReceipt) {
-            const { importSignupAcceptances } = await import(
-              "@/lib/policy/acceptance"
-            );
-            await importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
-          }
-          return user;
-        });
-      }
+      const existing = await db.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+        select: { deletedAt: true },
+      });
+      if (existing?.deletedAt) throw new DeletedAccountError();
     }
     throw err;
   }

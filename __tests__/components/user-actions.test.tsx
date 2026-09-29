@@ -41,7 +41,7 @@ describe("UserActions", () => {
     setUserRole.mockResolvedValue({ data: { role: "ADMIN" } });
   });
 
-  it("confirms a reversible soft delete from the row menu", async () => {
+  it("confirms a permanent delete from the row menu", async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm");
     render(
@@ -56,7 +56,8 @@ describe("UserActions", () => {
 
     await user.click(screen.getByRole("button", { name: "Actions for Alice" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
-    expect(screen.getByText(/listings stay archived/i)).toBeInTheDocument();
+    expect(screen.getByText(/permanently deletes the account/i)).toBeInTheDocument();
+    expect(screen.queryByText(/can be restored/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     expect(deleteUser).toHaveBeenCalledWith({ userId: "user-1" });
     expect(confirm).not.toHaveBeenCalled();

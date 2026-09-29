@@ -14,6 +14,15 @@ import {
   deliverDealerUpgradeOffer,
 } from "@/lib/dealers/upgrade-offers";
 import { captureException } from "@/lib/monitoring";
+import { hasActiveLegalHold } from "@/lib/privacy/account-deletion";
+import {
+  assertUserCanBePurged,
+  deleteAccountMedia,
+  deleteAuthUser,
+  loadPublicTables,
+  purgeUserAccountRecords,
+  PurgeUserError,
+} from "@/lib/privacy/purge-user-account";
 import {
   listUsersSchema,
   setUserRoleSchema,
@@ -610,35 +619,22 @@ export async function deleteUser(input: DeleteUserInput) {
   });
 
   if (!user) return { error: "User not found" };
+  if (await hasActiveLegalHold("USER", userId)) {
+    return { error: "This account is under a legal hold and cannot be deleted." };
+  }
 
+  let loginRemoved = false;
   try {
-    const notifications = await db.$transaction(async (tx) => {
-      const { applyAccountDisableToListings } = await import(
-        "@/lib/listings/account-disable"
-      );
-      const disabledListings = await applyAccountDisableToListings({
-        tx,
-        userId,
-        actor: { id: admin.id, role: "ADMIN" },
-        source: "ADMIN",
-        notes: reason ?? "Account soft-deleted by admin",
-      });
-
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          deletedAt: new Date(),
-          deletionRequestedAt: new Date(),
-          deletionReason: reason ?? "Deleted by admin",
-          disabledAt: new Date(),
-          disabledReason: reason ?? "Deleted by admin",
-        },
-      });
-
+    const tables = await loadPublicTables(db);
+    await db.$transaction((tx) => assertUserCanBePurged(tx, userId, tables));
+    await deleteAuthUser(user.authUserId);
+    loginRemoved = true;
+    const imagePublicIds = await db.$transaction(async (tx) => {
+      const purged = await purgeUserAccountRecords(tx, userId, tables);
       await logAdminAction(
         {
           adminId: admin.id,
-          action: "SOFT_DELETE_USER",
+          action: "DELETE_USER",
           entityType: "User",
           entityId: userId,
           details: {
@@ -648,21 +644,9 @@ export async function deleteUser(input: DeleteUserInput) {
         },
         tx,
       );
-      const { enqueueAccountDeletionJob } = await import(
-        "@/lib/privacy/account-deletion"
-      );
-      await enqueueAccountDeletionJob(tx, userId);
-      return disabledListings.notifications;
+      return purged.imagePublicIds;
     });
-
-    const { dispatchListingNotifications } = await import(
-      "@/lib/email/listing-notifications"
-    );
-    try {
-      await dispatchListingNotifications(notifications);
-    } catch {
-      // Email is best-effort after the account-delete commit.
-    }
+    await deleteAccountMedia(imagePublicIds);
 
     revalidatePath("/admin/users");
     revalidatePath(`/admin/users/${userId}`);
@@ -680,6 +664,13 @@ export async function deleteUser(input: DeleteUserInput) {
       userId: admin.id,
       tags: { userId },
     });
+    if (err instanceof PurgeUserError && !loginRemoved) return { error: err.message };
+    if (loginRemoved) {
+      return {
+        error:
+          "The login was removed, but the profile is still in the database. Delete the account again to finish.",
+      };
+    }
     const message = err instanceof Error ? err.message : "Failed to delete user";
     return { error: message };
   }

@@ -14,7 +14,6 @@ import {
 } from "@/components/admin/admin-row-actions";
 import {
   deleteUser,
-  restoreUser,
   revokeDealerAccess,
   setUserRole,
   setUserDisabled,
@@ -153,10 +152,6 @@ export function UserActions({
     );
   }
 
-  function handleRestore() {
-    runAction("Restoring…", () => restoreUser({ userId }), "Failed to restore user");
-  }
-
   function handleRevokeDealerAccess() {
     runAction(
       "Revoking access…",
@@ -249,22 +244,20 @@ export function UserActions({
       destructive: !isDisabled,
       onSelect: handleToggleDisabled,
     },
-    isDeleted
-      ? { kind: "command", id: "restore", label: "Restore", onSelect: handleRestore }
-      : {
-          kind: "command",
-          id: "delete",
-          label: "Delete",
-          destructive: true,
-          onSelect: () => setConfirmAction("delete"),
-        },
+    {
+      kind: "command",
+      id: "delete",
+      label: isDeleted ? "Delete permanently" : "Delete",
+      destructive: true,
+      onSelect: () => setConfirmAction("delete"),
+    },
   ]);
 
   const confirmCopy = {
     delete: {
       title: `Delete ${userLabel}?`,
       description:
-        "This marks the account deleted and disabled. Listings stay archived, and the account can be restored.",
+        "This permanently deletes the account, its login, and every listing it owns. The current password stops working and the profile is removed from the database. This cannot be undone.",
       confirmLabel: "Delete account",
     },
     disable: {
@@ -322,19 +315,13 @@ export function UserActions({
           >
             {isDisabled ? "Enable" : "Disable"}
           </AdminActionButton>
-          {isDeleted ? (
-            <AdminActionButton onClick={handleRestore} disabled={isPending} tone="success">
-              Restore
-            </AdminActionButton>
-          ) : (
-            <AdminActionButton
-              onClick={() => setConfirmAction("delete")}
-              disabled={isPending}
-              tone="danger"
-            >
-              Delete
-            </AdminActionButton>
-          )}
+          <AdminActionButton
+            onClick={() => setConfirmAction("delete")}
+            disabled={isPending}
+            tone="danger"
+          >
+            {isDeleted ? "Delete permanently" : "Delete"}
+          </AdminActionButton>
           {currentRole === "DEALER" ? (
             <AdminActionButton
               onClick={() => setIsDealerAccessDialogOpen(true)}
