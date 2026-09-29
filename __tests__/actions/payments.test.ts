@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { decodeHostedReturnContext } from "@/lib/payments/hosted-return-context";
 
 const originalSupportUrl = process.env.RIPPLE_LISTING_SUPPORT_URL;
 const originalNodeEnv = process.env.NODE_ENV;
@@ -19,6 +20,7 @@ const {
   isDemoListingCheckoutConfiguredMock,
   isDemoDealerSubscriptionCheckoutConfiguredMock,
   revalidatePathMock,
+  setCookieMock,
   mockDb,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
@@ -34,6 +36,7 @@ const {
   isDemoListingCheckoutConfiguredMock: vi.fn(),
   isDemoDealerSubscriptionCheckoutConfiguredMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+  setCookieMock: vi.fn(),
   mockDb: {
     listing: {
       findUnique: vi.fn(),
@@ -87,6 +90,7 @@ vi.mock("@/lib/monitoring", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ set: setCookieMock }) }));
 
 vi.mock("@/lib/payments/webhook-processing", () => ({
   processProviderWebhookEvent: processProviderWebhookEventMock,
@@ -123,6 +127,7 @@ import {
 describe("payForListing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("RIPPLE_REFERENCE_SECRET", "test-checkout-context-secret-at-least-32-characters");
 
     delete process.env.RIPPLE_LISTING_SUPPORT_URL;
     delete process.env.POLICY_ENFORCE_ACCEPTANCE;
@@ -181,6 +186,7 @@ describe("payForListing", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     if (originalSupportUrl === undefined) {
       delete process.env.RIPPLE_LISTING_SUPPORT_URL;
     } else {
@@ -389,6 +395,12 @@ describe("payForListing", () => {
 
     expect(createListingCheckoutMock).toHaveBeenCalledOnce();
     expect(mockDb.policyAcceptance.upsert).toHaveBeenCalledOnce();
+    expect(setCookieMock).toHaveBeenCalledWith("itrader-listing-checkout", expect.any(String),
+      expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/", maxAge: 1800 }));
+    expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toEqual(expect.objectContaining({
+      userId: "user_123", paymentId: "pending-pay", listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      email: "seller@example.com", merchantReference: "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n1:mac",
+    }));
     expect(
       mockDb.policyAcceptance.upsert.mock.invocationCallOrder[0],
     ).toBeLessThan(createListingCheckoutMock.mock.invocationCallOrder[0]);
