@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isPaymentReturnPath } from "@/lib/payments/return-routes";
 import { createServerClient } from "@supabase/ssr";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { classifyLaunchRoute } from "@/lib/launch/route-class";
@@ -77,6 +78,10 @@ function gatedApiResponse(): NextResponse {
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // A provider return must remain readable even if the login or launch cookie expired.
+  // These pages expose no account data and cannot change payment state.
+  if (isPaymentReturnPath(pathname)) return NextResponse.next();
 
   const previewAccess = resolvePreviewAccessPath(pathname);
   if (previewAccess?.action === "redirect") {
