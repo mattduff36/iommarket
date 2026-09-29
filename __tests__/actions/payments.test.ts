@@ -117,6 +117,7 @@ import {
   payForListing,
   simulateDemoDealerSubscriptionOutcome,
   simulateDemoListingPaymentOutcome,
+  upgradeFeatured,
 } from "@/actions/payments";
 
 describe("payForListing", () => {
@@ -562,7 +563,7 @@ describe("payForListing", () => {
     }
   });
 
-  it("T6 skips initial, renewal, and resubmission payment for an admin owner", async () => {
+  it("refuses checkout for an admin-owned listing", async () => {
     requireAuthMock.mockResolvedValue({
       id: "admin_1",
       email: "admin@example.com",
@@ -583,65 +584,15 @@ describe("payForListing", () => {
     });
     mockDb.listingAttributeValue.findFirst.mockResolvedValue({ value: "None" });
 
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
     await expect(
       payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
-    ).resolves.toEqual({
-      data: { checkoutUrl: null, skippedPayment: true },
-    });
-
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
-      userId: "admin_1",
-      dealerId: null,
-      status: "DRAFT",
-      title: "Admin private initial listing",
-      category: {
-        slug: "car",
-        attributeDefinitions: [],
-      },
-    });
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
     await expect(
-      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
-    ).resolves.toEqual({
-      data: { checkoutUrl: null, skippedPayment: true },
-    });
-
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
-      userId: "admin_1",
-      dealerId: "dealer-admin",
-      status: "DRAFT",
-      title: "Admin dealer listing",
-      dealer: { tier: "STARTER" },
-      category: {
-        slug: "car",
-        attributeDefinitions: [],
-      },
-    });
-    await expect(
-      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
-    ).resolves.toEqual({
-      data: { checkoutUrl: null, skippedPayment: true },
-    });
-
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
-      userId: "admin_1",
-      dealerId: "dealer-admin",
-      status: "TAKEN_DOWN",
-      title: "Admin dealer listing",
-      dealer: { tier: "STARTER" },
-      category: {
-        slug: "car",
-        attributeDefinitions: [],
-      },
-    });
-
-    await expect(
-      payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
-    ).resolves.toEqual({
-      data: { checkoutUrl: null, skippedPayment: true },
-    });
+      upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa"),
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
   });
 

@@ -124,6 +124,48 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     });
   });
 
+  it("rejects seller image uploads from an admin", async () => {
+    requireAcceptedAuth.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+      role: "ADMIN",
+    });
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
+    const { POST: issue } = await import("@/app/api/listing-images/intent/route");
+    const intent = await issue(
+      new NextRequest("http://localhost:4000/api/listing-images/intent", {
+        method: "POST",
+        headers: { origin: "http://localhost:4000" },
+      }),
+    );
+    expect(intent.status).toBe(403);
+    await expect(intent.json()).resolves.toEqual({
+      error: ADMIN_OWNED_LISTING_ERROR,
+    });
+    expect(issueListingImageUploadIntent).not.toHaveBeenCalled();
+
+    const { POST: finalize } = await import(
+      "@/app/api/listing-images/finalize/route"
+    );
+    const finalized = await finalize(
+      new NextRequest("http://localhost:4000/api/listing-images/finalize", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:4000",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          uploadIntentId: "intent-1",
+          publicId: "iommarket/listings/staging/admin-1/intent-1",
+        }),
+      }),
+    );
+    expect(finalized.status).toBe(403);
+    expect(finalizeListingImageUploadIntent).not.toHaveBeenCalled();
+  });
+
   it("rejects forged finalize payloads", async () => {
     finalizeListingImageUploadIntent.mockResolvedValue({
       error: "The uploaded file does not match this request.",

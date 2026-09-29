@@ -173,7 +173,7 @@ describe("createListing admin access T4 T11", () => {
     mockDb.listingStatusEvent.create.mockResolvedValue({ id: "event-1" });
   });
 
-  it("lets an admin create a private listing with dealerId null", async () => {
+  it("refuses private and dealer listing creation for every admin", async () => {
     requireAcceptedAuthMock.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -181,40 +181,17 @@ describe("createListing admin access T4 T11", () => {
       dealerProfile: { id: "dealer-admin", tier: "STARTER" },
     });
     const { createListing } = await import("@/actions/listings");
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
     await expect(
       createListing({ ...listingInput, flow: "private" }),
-    ).resolves.toMatchObject({
-      data: { id: "cllisting123456789012345678" },
-    });
-    expect(mockDb.listing.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        dealerId: null,
-        userId: "admin-1",
-      }),
-    });
-    expect(mockDb.listing.count).not.toHaveBeenCalled();
-  });
-
-  it("lets an admin create a dealer listing without billing entitlement or cap", async () => {
-    requireAcceptedAuthMock.mockResolvedValue({
-      id: "admin-1",
-      email: "admin@example.com",
-      role: "ADMIN",
-      dealerProfile: { id: "dealer-admin", tier: "STARTER" },
-    });
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
     mockDb.listing.count.mockResolvedValue(999);
-    const { createListing } = await import("@/actions/listings");
     await expect(
       createListing({ ...listingInput, flow: "dealer" }),
-    ).resolves.toMatchObject({
-      data: { id: "cllisting123456789012345678" },
-    });
-    expect(mockDb.listing.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        dealerId: "dealer-admin",
-        userId: "admin-1",
-      }),
-    });
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
+    expect(mockDb.listing.create).not.toHaveBeenCalled();
     expect(mockDb.listing.count).not.toHaveBeenCalled();
   });
 

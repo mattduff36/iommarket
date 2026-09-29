@@ -725,7 +725,7 @@ describe("submitListingForReview", () => {
     );
   });
 
-  it("T5 allows an admin-owned live dealer revision without billing entitlement", async () => {
+  it("refuses an admin-owned live revision without using seller submission", async () => {
     requireAuthMock.mockResolvedValue({
       id: "admin_1",
       email: "admin@example.com",
@@ -742,22 +742,15 @@ describe("submitListingForReview", () => {
       images: [{ id: "image_1" }, { id: "image_2" }],
       dealer: { tier: "STARTER" },
     });
-    getOpenRevisionMock.mockResolvedValue({
-      id: "revision_1",
-      status: "DRAFT",
-      version: 2,
-    });
-    submitRevisionMock.mockResolvedValue({
-      listing: { id: "listing_123", status: "LIVE" },
-    });
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
     const { submitListingForReview } = await import("@/actions/listings");
 
     await expect(
       submitListingForReview({ listingId: "listing_123" }),
-    ).resolves.toEqual({
-      data: { id: "listing_123", status: "LIVE" },
-    });
-    expect(submitRevisionMock).toHaveBeenCalled();
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
+    expect(submitRevisionMock).not.toHaveBeenCalled();
   });
 
   it("T5 denies an unpaid dealer live revision and a mismatched dealer association", async () => {
@@ -811,7 +804,7 @@ describe("submitListingForReview", () => {
     });
   });
 
-  it("T5 T6 allows admin-owned dealer draft submit and unpaid dealer draft deny", async () => {
+  it("refuses an admin-owned dealer draft and still denies an unpaid dealer draft", async () => {
     requireAuthMock.mockResolvedValue({
       id: "admin_1",
       email: "admin@example.com",
@@ -828,19 +821,16 @@ describe("submitListingForReview", () => {
       images: [{ id: "image_1" }, { id: "image_2" }],
       dealer: { tier: "STARTER" },
     });
-    transitionListingStatusMock.mockResolvedValue({
-      listing: { id: "listing_123", status: "PENDING" },
-      notification: null,
-    });
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
     const { submitListingForReview } = await import("@/actions/listings");
 
     await expect(
       submitListingForReview({ listingId: "listing_123" }),
-    ).resolves.toEqual({
-      data: { id: "listing_123", status: "PENDING" },
-    });
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
     expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
-    expect(transitionListingStatusMock).toHaveBeenCalled();
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
 
     requireAuthMock.mockResolvedValue({
       id: "user_123",
@@ -869,73 +859,45 @@ describe("submitListingForReview", () => {
     expect(transitionListingStatusMock).not.toHaveBeenCalled();
   });
 
-  it("T6 skips admin-owned private initial, renewal, and resubmission payment", async () => {
+  it("refuses admin-owned private, renewal, and resubmission seller actions", async () => {
     requireAuthMock.mockResolvedValue({
       id: "admin_1",
       email: "admin@example.com",
       role: "ADMIN",
       dealerProfile: { id: "dealer-admin", tier: "STARTER" },
     });
-    transitionListingStatusMock.mockResolvedValue({
-      listing: { id: "listing_123", status: "PENDING" },
-      notification: null,
-    });
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
     const { submitListingForReview } = await import("@/actions/listings");
+    const ownedStatuses = [
+      { status: "DRAFT", dealerId: null },
+      {
+        status: "DRAFT",
+        dealerId: null,
+        expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      },
+      { status: "TAKEN_DOWN", dealerId: "dealer-admin", dealer: { tier: "STARTER" } },
+    ];
 
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "listing_123",
-      userId: "admin_1",
-      dealerId: null,
-      status: "DRAFT",
-      lifecycleRevision: 0,
-      trustDeclarationAccepted: true,
-      images: [{ id: "image_1" }, { id: "image_2" }],
-    });
-    await expect(
-      submitListingForReview({
-        listingId: "listing_123",
-        privateSellerTermsAccepted: true,
-      }),
-    ).resolves.toEqual({
-      data: { id: "listing_123", status: "PENDING" },
-    });
+    for (const owned of ownedStatuses) {
+      mockDb.listing.findUnique.mockResolvedValue({
+        id: "listing_123",
+        userId: "admin_1",
+        lifecycleRevision: 0,
+        trustDeclarationAccepted: true,
+        images: [{ id: "image_1" }, { id: "image_2" }],
+        ...owned,
+      });
+      await expect(
+        submitListingForReview({
+          listingId: "listing_123",
+          privateSellerTermsAccepted: true,
+        }),
+      ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
+    }
     expect(claimFreeListingSlotMock).not.toHaveBeenCalled();
-
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "listing_123",
-      userId: "admin_1",
-      dealerId: null,
-      status: "DRAFT",
-      lifecycleRevision: 0,
-      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
-      trustDeclarationAccepted: true,
-      images: [{ id: "image_1" }, { id: "image_2" }],
-    });
-    mockDb.payment.findFirst.mockResolvedValue(null);
-    await expect(
-      submitListingForReview({
-        listingId: "listing_123",
-        privateSellerTermsAccepted: true,
-      }),
-    ).resolves.toEqual({
-      data: { id: "listing_123", status: "PENDING" },
-    });
-
-    mockDb.listing.findUnique.mockResolvedValue({
-      id: "listing_123",
-      userId: "admin_1",
-      dealerId: "dealer-admin",
-      status: "TAKEN_DOWN",
-      lifecycleRevision: 2,
-      trustDeclarationAccepted: true,
-      images: [{ id: "image_1" }, { id: "image_2" }],
-      dealer: { tier: "STARTER" },
-    });
-    await expect(
-      submitListingForReview({ listingId: "listing_123" }),
-    ).resolves.toEqual({
-      data: { id: "listing_123", status: "PENDING" },
-    });
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
   });
 
   it("T11 refuses submit for a listing the admin does not own", async () => {
@@ -1440,5 +1402,80 @@ describe("updateListing T11", () => {
     ).resolves.toEqual({
       error: "Not authorized to edit this listing",
     });
+  });
+
+  it("refuses an admin edit of a listing they own", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "cllisting123456789012345678",
+      userId: "admin_1",
+      categoryId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      status: "DRAFT",
+      trustDeclarationAcceptedAt: new Date(),
+      lifecycleRevision: 1,
+    });
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
+    const { updateListing } = await import("@/actions/listings");
+
+    await expect(
+      updateListing({
+        id: "cllisting123456789012345678",
+        title: "Updated admin-owned listing",
+      }),
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
+  });
+});
+
+describe("admin owned listing lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    checkRateLimitMock.mockReturnValue({ allowed: true });
+    requireAuthMock.mockResolvedValue({
+      id: "admin_1",
+      email: "admin@example.com",
+      role: "ADMIN",
+    });
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "admin_1",
+      status: "LIVE",
+      lifecycleRevision: 1,
+      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+    });
+  });
+
+  it("refuses withdraw, renew, sold, and photo changes for an owned listing", async () => {
+    const { ADMIN_OWNED_LISTING_ERROR } = await import(
+      "@/lib/listings/seller-access"
+    );
+    const {
+      withdrawListingSubmission,
+      renewListing,
+      markListingAsSold,
+      syncListingImages,
+    } = await import("@/actions/listings");
+
+    await expect(
+      withdrawListingSubmission({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        expectedRevision: 1,
+      }),
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
+    await expect(renewListing("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+      error: ADMIN_OWNED_LISTING_ERROR,
+    });
+    await expect(markListingAsSold("caaaaaaaaaaaaaaaaaaaaaaaa")).resolves.toEqual({
+      error: ADMIN_OWNED_LISTING_ERROR,
+    });
+    await expect(
+      syncListingImages("caaaaaaaaaaaaaaaaaaaaaaaa", {
+        mutationId: "mutation-1",
+        basePhotoRevision: 0,
+        photos: [],
+      }),
+    ).resolves.toEqual({ error: ADMIN_OWNED_LISTING_ERROR });
+    expect(transitionListingStatusMock).not.toHaveBeenCalled();
+    expect(syncListingImagesForUserMock).not.toHaveBeenCalled();
   });
 });

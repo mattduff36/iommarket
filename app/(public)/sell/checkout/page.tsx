@@ -30,6 +30,7 @@ interface Props {
 
 export default async function SellCheckoutPage({ searchParams }: Props) {
   const user = await requireAcceptedUser("/sell");
+  if (user.role === "ADMIN") redirect("/admin/listings");
 
   const sp = await searchParams;
   if (!sp.listing) {

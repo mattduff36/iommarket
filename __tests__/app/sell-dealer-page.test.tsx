@@ -106,26 +106,19 @@ describe("SellDealerPage", () => {
     ).toBeNull();
   });
 
-  it("T2 unlocks dealer listing creation for admins without billing entitlement", async () => {
+  it("sends admins to listing management before creating a dealer profile", async () => {
     getCurrentUserMock.mockResolvedValue({
       id: "admin-1",
       name: "Admin",
       email: "admin@example.com",
       role: "ADMIN",
-      dealerProfile: {
-        id: "dealer-admin",
-        tier: "STARTER",
-      },
+      dealerProfile: null,
     });
     const { default: SellDealerPage } = await import(
       "@/app/(public)/sell/dealer/page"
     );
 
-    render(await SellDealerPage({}));
-
-    expect(screen.getByTestId("create-listing-form").getAttribute("data-mode")).toBe(
-      "dealer",
-    );
-    expect(screen.queryByText(/Active dealer access is required/i)).toBeNull();
+    await expect(SellDealerPage({})).rejects.toThrow("redirect:/admin/listings");
+    expect(ensureAdminDealerProfileMock).not.toHaveBeenCalled();
   });
 });

@@ -29,8 +29,11 @@ import {
   hasMismatchedDealerListing,
   hasOperationalDealerAccess,
 } from "@/lib/dealers/entitlement";
-import { canAdminSkipOwnedListingPayment } from "@/lib/listings/payment-skip";
 import { detachListingDealerIdIfNeeded } from "@/lib/listings/submit-dealer-access";
+import {
+  ADMIN_OWNED_LISTING_ERROR,
+  isAdminSellerBlocked,
+} from "@/lib/listings/seller-access";
 import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
@@ -130,6 +133,9 @@ export async function payForListing(input: PayForListingInput) {
   });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   if (hasMismatchedDealerListing(user, listing)) {
     return { error: "Not authorized" };
   }
@@ -168,9 +174,6 @@ export async function payForListing(input: PayForListingInput) {
       });
       return { error: "Unable to update this listing. Please try again." };
     }
-  }
-  if (canAdminSkipOwnedListingPayment({ actor: user, listing })) {
-    return { data: { checkoutUrl: null, skippedPayment: true } };
   }
   if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
     const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
@@ -425,6 +428,9 @@ export async function upgradeFeatured(listingId: string) {
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   if (listing.status !== "LIVE") {
     return { error: "Only live listings can be featured" };
   }
