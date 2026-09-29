@@ -27,6 +27,7 @@ interface Props {
 
 export default async function SellDealerPage({ searchParams }: Props) {
   const acceptedUser = await requireAcceptedUser("/sell/dealer");
+  if (acceptedUser.role === "ADMIN") redirect("/admin/listings");
   if (acceptedUser.role === "USER") redirect("/sell/private");
   const user = await ensureAdminDealerProfile(acceptedUser, db);
   const dealerProfile = user.dealerProfile;

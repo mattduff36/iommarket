@@ -51,10 +51,11 @@ import {
   isListingLifecycleDomainError,
 } from "@/lib/listings/errors";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
+import { canSkipListingPayment } from "@/lib/listings/payment-skip";
 import {
-  canAdminSkipOwnedListingPayment,
-  canSkipListingPayment,
-} from "@/lib/listings/payment-skip";
+  ADMIN_OWNED_LISTING_ERROR,
+  isAdminSellerBlocked,
+} from "@/lib/listings/seller-access";
 import {
   getOpenRevision,
   getOrCreateDraftRevision,
@@ -127,6 +128,9 @@ function expectedListingActionError(
 
 export async function createListing(input: CreateListingInput) {
   const user = await requireAcceptedAuth();
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
 
   const parsed = createListingSchema.safeParse(input);
   if (!parsed.success) {
@@ -149,21 +153,19 @@ export async function createListing(input: CreateListingInput) {
       return { error: "Active dealer access is required to post listings." };
     }
 
-    if (user.role !== "ADMIN") {
-      const listingCap = getDealerListingCap(user.dealerProfile.tier);
-      const activeListingCount = await db.listing.count({
-        where: {
-          dealerId: user.dealerProfile.id,
-          status: {
-            in: ["DRAFT", "PENDING", "APPROVED", "LIVE"],
-          },
+    const listingCap = getDealerListingCap(user.dealerProfile.tier);
+    const activeListingCount = await db.listing.count({
+      where: {
+        dealerId: user.dealerProfile.id,
+        status: {
+          in: ["DRAFT", "PENDING", "APPROVED", "LIVE"],
         },
-      });
-      if (activeListingCount >= listingCap) {
-        return {
-          error: `Your ${user.dealerProfile.tier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
-        };
-      }
+      },
+    });
+    if (activeListingCount >= listingCap) {
+      return {
+        error: `Your ${user.dealerProfile.tier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
+      };
     }
   }
 
@@ -264,7 +266,7 @@ export async function createListing(input: CreateListingInput) {
           listingId: created.id,
           toStatus: "DRAFT",
           changedByUserId: user.id,
-          source: user.role === "ADMIN" ? "ADMIN" : "USER",
+          source: "USER",
           notes: "Listing created",
         },
       });
@@ -317,6 +319,9 @@ export async function updateListing(input: unknown) {
   if (!existing) return { error: "Listing not found" };
   if (existing.userId !== user.id) {
     return { error: "Not authorized to edit this listing" };
+  }
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
   }
   if (!isInPlaceEditable(existing.status) && !usesPendingRevision(existing.status)) {
     return { error: "This listing cannot be edited in its current status." };
@@ -488,6 +493,9 @@ export async function submitListingForReview(
   if (hasMismatchedDealerListing(user, listing)) {
     return { error: "Not authorized" };
   }
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   if (
     listingDealerMatchesActor(user, listing) &&
     !(await hasOperationalDealerAccess(user))
@@ -496,10 +504,6 @@ export async function submitListingForReview(
       error: "Active dealer access is required before submitting dealer listings.",
     };
   }
-  const adminOwnedPaymentSkip = canAdminSkipOwnedListingPayment({
-    actor: user,
-    listing,
-  });
   const { getPolicyFlags } = await import("@/lib/policy/flags");
   const policyFlags = getPolicyFlags();
   const { getListingWriteOffReadiness } = await import(
@@ -622,7 +626,7 @@ export async function submitListingForReview(
     return { error: LISTING_DECLARATION_ERROR };
   }
 
-  if (effectiveDealerId && listing.dealer && !adminOwnedPaymentSkip) {
+  if (effectiveDealerId && listing.dealer) {
     if (!(await hasOperationalDealerAccess(user))) {
       return {
         error: "Active dealer access is required before submitting dealer listings.",
@@ -632,7 +636,6 @@ export async function submitListingForReview(
 
   if (listing.status === "TAKEN_DOWN" || listing.status === "REJECTED") {
     if (
-      !adminOwnedPaymentSkip &&
       !(
         await canSkipListingPayment(db, {
           listingId,
@@ -645,7 +648,7 @@ export async function submitListingForReview(
     }
   }
 
-  if (!effectiveDealerId && listing.status === "DRAFT" && !adminOwnedPaymentSkip) {
+  if (!effectiveDealerId && listing.status === "DRAFT") {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now()
     );
@@ -807,7 +810,7 @@ export async function submitListingForReview(
       expectedRevision: listing.lifecycleRevision,
       actor: {
         id: user.id,
-        role: user.role === "ADMIN" ? ("ADMIN" as const) : ("USER" as const),
+        role: "USER" as const,
       },
       source: "USER" as const,
       notes: "Submitted for moderation",
@@ -874,6 +877,9 @@ export async function withdrawListingSubmission(input: unknown) {
     if (!listing || listing.userId !== user.id) {
       return { error: "Submission not found." };
     }
+    if (isAdminSellerBlocked(user.role)) {
+      return { error: ADMIN_OWNED_LISTING_ERROR };
+    }
     if (listing.status !== "PENDING") {
       return {
         error: "Only submissions awaiting review can be withdrawn.",
@@ -934,6 +940,9 @@ export async function renewListing(listingId: string) {
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   const canRenewTakenDown =
     listing.status === "TAKEN_DOWN" &&
     listing.expiresAt !== null &&
@@ -1160,6 +1169,9 @@ export async function markListingAsSold(listingId: string) {
   if (listing.userId !== user.id) {
     return { error: "Not authorized" };
   }
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   if (listing.status !== "LIVE") {
     return { error: "Only live listings can be marked as sold" };
   }
@@ -1198,6 +1210,9 @@ export async function syncListingImages(
   input: SyncListingImagesInput,
 ) {
   const user = await requireAcceptedAuth();
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   return runSyncListingImagesAction(user, listingId, input);
 }
 
@@ -1207,6 +1222,9 @@ export async function saveListingImages(
   input: Omit<SyncListingImagesInput, "photos">,
 ) {
   const user = await requireAcceptedAuth();
+  if (isAdminSellerBlocked(user.role)) {
+    return { error: ADMIN_OWNED_LISTING_ERROR };
+  }
   return runSaveListingImagesAction(user, listingId, photos, input);
 }
 

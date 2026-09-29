@@ -25,6 +25,7 @@ interface Props {
 
 export default async function SellPrivatePage({ searchParams }: Props) {
   const user = await requireAcceptedUser("/sell/private");
+  if (user.role === "ADMIN") redirect("/admin/listings");
   if (user.role === "DEALER") redirect("/sell/dealer");
   const params = searchParams ? await searchParams : {};
   const draftId = params.draft?.trim();

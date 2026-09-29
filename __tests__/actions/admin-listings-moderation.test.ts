@@ -37,7 +37,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
-    listing: { count: vi.fn() },
+    listing: { count: vi.fn(), update: vi.fn() },
     dealerProfile: { count: vi.fn() },
     report: { count: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     payment: { count: vi.fn() },
@@ -71,6 +71,28 @@ describe("moderateListing ALR-LST-003 ALR-IDN-002", () => {
         reasonCode: "FRAUD",
       }),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("still features another user's listing", async () => {
+    const { db } = await import("@/lib/db");
+    vi.mocked(db.listing.update).mockResolvedValue({
+      id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      featured: true,
+    } as never);
+    const { setListingFeatured } = await import("@/actions/admin");
+
+    await expect(
+      setListingFeatured({
+        listingId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        featured: true,
+      }),
+    ).resolves.toEqual({
+      data: expect.objectContaining({ featured: true }),
+    });
+    expect(db.listing.update).toHaveBeenCalledWith({
+      where: { id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      data: { featured: true },
+    });
   });
 
   it("passes reason and revision into the lifecycle service", async () => {

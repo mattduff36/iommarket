@@ -6,6 +6,10 @@ import { processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import { captureException } from "@/lib/monitoring";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
+import {
+  ADMIN_OWNED_LISTING_ERROR,
+  isAdminSellerBlocked,
+} from "@/lib/listings/seller-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +69,9 @@ export async function POST(request: NextRequest) {
       { error: rateDenial.message },
       { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds) } },
     );
+  }
+  if (isAdminSellerBlocked(user.role)) {
+    return NextResponse.json({ error: ADMIN_OWNED_LISTING_ERROR }, { status: 403 });
   }
 
   let body: unknown;
