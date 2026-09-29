@@ -57,14 +57,26 @@ function setDatabaseEnvironment(input: {
   if (input.cloudinaryApiSecret) process.env.CLOUDINARY_API_SECRET = input.cloudinaryApiSecret;
 }
 
+function productionConnection(env: {
+  databaseUrl: string;
+  sessionPoolerUrl?: string | null;
+  dbCaCert?: string;
+}) {
+  return {
+    databaseUrl: env.sessionPoolerUrl ?? env.databaseUrl,
+    dbCaCert: env.dbCaCert,
+  };
+}
+
 function configureEnvironment(environment: PurgeEnvironment) {
   if (environment === "production") {
     const env = loadFoundingProductionEnv();
+    const connection = productionConnection(env);
     setDatabaseEnvironment({
-      databaseUrl: env.sessionPoolerUrl ?? env.databaseUrl,
+      databaseUrl: connection.databaseUrl,
       supabaseUrl: env.supabaseUrl,
       serviceRoleKey: env.serviceRoleKey,
-      dbCaCert: env.dbCaCert,
+      dbCaCert: connection.dbCaCert,
       cloudinaryCloudName: env.cloudinaryCloudName,
       cloudinaryApiKey: env.cloudinaryApiKey,
       cloudinaryApiSecret: env.cloudinaryApiSecret,
@@ -108,6 +120,17 @@ function cloudinaryIds(
   return images
     .filter((image) => image.provider === "CLOUDINARY")
     .map((image) => image.publicId);
+}
+
+async function deleteListingMedia(publicIds: string[]) {
+  const { deleteImage } = await import("../lib/upload/cloudinary");
+  for (const publicId of new Set(publicIds)) {
+    try {
+      await deleteImage(publicId);
+    } catch {
+      // A missing image must not undo a purge that has already committed.
+    }
+  }
 }
 
 async function main() {
@@ -230,8 +253,7 @@ async function main() {
     });
 
     if (mediaIds.length > 0) {
-      const { deleteAccountMedia } = await import("../lib/privacy/purge-user-account");
-      await deleteAccountMedia(mediaIds);
+      await deleteListingMedia(mediaIds);
     }
 
     const [remainingListings, remainingIntents, remainingOthers, remainingAdmins] =
