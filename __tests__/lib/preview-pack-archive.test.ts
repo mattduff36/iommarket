@@ -124,7 +124,7 @@ describe("preview pack archive index", () => {
     ]);
   });
 
-  it("hides dealers that have no listings from the admin list", () => {
+  it("lists every loaded pack including disabled and zero-listing rows", () => {
     const rows = listablePreviewPackRows(
       mergePreviewPackRows({
         archives: [
@@ -134,6 +134,13 @@ describe("preview pack archive index", () => {
             runId: "run-v",
             uniqueVehicles: 0,
             importable: 0,
+          },
+          {
+            dealerKey: "athol-garage",
+            displayName: "Athol Garage",
+            runId: "run-a",
+            uniqueVehicles: 12,
+            importable: 12,
           },
         ],
         packs: [
@@ -152,11 +159,23 @@ describe("preview pack archive index", () => {
             sourceRunId: "run-v",
             listingCount: 0,
             slug: "preview-vehicles-im",
+            reviewRequired: true,
+            reviewReasons: ["listing-has-no-valid-source-image"],
+            reviewSourceRunId: "run-v",
           },
         ],
       }),
     );
-    expect(rows.map((row) => row.dealerKey)).toEqual(["mikes-motors"]);
+    expect(rows.map((row) => row.dealerKey)).toEqual(["mikes-motors", "vehicles-im"]);
+    expect(rows.find((row) => row.dealerKey === "vehicles-im")).toMatchObject({
+      loaded: true,
+      enabled: false,
+      listingCount: 0,
+      reviewRequired: true,
+      reviewReasons: ["listing-has-no-valid-source-image"],
+      reviewSourceRunId: "run-v",
+    });
+    expect(rows.some((row) => row.dealerKey === "athol-garage")).toBe(false);
   });
 
   it("merges a loaded Ocean Motor Village pack the same way as other dealers", () => {

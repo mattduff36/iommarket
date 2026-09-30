@@ -24,7 +24,7 @@ export function canViewListing(input: {
   previewPackEnabled?: boolean | null;
 }) {
   if (isAdminPreviewListing(input.status)) {
-    return input.viewer?.role === "ADMIN" && input.previewPackEnabled === true;
+    return input.viewer?.role === "ADMIN";
   }
   if (isListingPubliclyVisible(input)) return true;
   if (!input.viewer) return false;

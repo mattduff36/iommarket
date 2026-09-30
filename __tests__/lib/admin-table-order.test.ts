@@ -166,5 +166,8 @@ function row(
     loaded: true,
     materialized: (importable ?? 0) > 0,
     slug: null,
+    reviewRequired: false,
+    reviewReasons: [],
+    reviewSourceRunId: null,
   };
 }

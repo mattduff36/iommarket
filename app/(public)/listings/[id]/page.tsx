@@ -39,6 +39,15 @@ import {
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
 import { ADMIN_PREVIEW_BADGE, marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { PreviewReviewImagePlaceholder } from "@/components/preview/preview-review-image-placeholder";
+import { PreviewReviewNotice } from "@/components/preview/preview-review-notice";
+import {
+  listingPreviewCardProps,
+  NEEDS_MANUAL_REVIEW_BADGE,
+  previewPackVisibilitySelect,
+  readListingPreviewReview,
+  shouldShowNoImageReviewPlaceholder,
+} from "@/lib/preview-packs/review";
 import { getSampleVisibility, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
@@ -73,7 +82,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       dealerId: true,
       user: { select: { authUserId: true } },
       dealer: { select: { isAdminPreview: true } },
-      previewPack: { select: { enabled: true } },
+      previewPack: { select: previewPackVisibilitySelect() },
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
@@ -142,7 +151,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       region: true,
       user: { select: { name: true, email: true, authUserId: true } },
       dealer: { select: { name: true, slug: true, phone: true, verified: true, isAdminPreview: true } },
-      previewPack: { select: { enabled: true } },
+      previewPack: { select: previewPackVisibilitySelect() },
       attributeValues: {
         include: { attributeDefinition: true },
       },
@@ -281,9 +290,21 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     ? `£${price.toLocaleString()}`
     : `£${price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
+  const listingReview = readListingPreviewReview(listing);
+  const listingPhotos = listing.images
+    .map((image) => toListingPhotoSource(image))
+    .filter((image): image is NonNullable<typeof image> => Boolean(image));
+  const showNoImageReviewPlaceholder = shouldShowNoImageReviewPlaceholder(
+    listingReview,
+    listingPhotos.length > 0,
+  );
+
   const similarListings = await db.listing.findMany({
     where: {
-      ...(await marketplaceListingWhereWithSettings({ viewer: currentUser })),
+      ...(await marketplaceListingWhereWithSettings({
+        viewer: currentUser,
+        includeDisabledPreviewPacks: true,
+      })),
       id: { not: listing.id },
       categoryId: listing.categoryId,
       regionId: listing.regionId,
@@ -444,13 +465,19 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       <div className="grid gap-10 lg:grid-cols-3">
         {/* Left: images + details */}
         <div className="lg:col-span-2 space-y-8">
-          <ListingImageGallery
-            images={listing.images
-              .map((image) => toListingPhotoSource(image))
-              .filter((image): image is NonNullable<typeof image> => Boolean(image))}
-            title={listing.title}
-            isSold={isSold}
-          />
+          {showNoImageReviewPlaceholder ? (
+            <PreviewReviewImagePlaceholder
+              reasons={listingReview.reasons}
+              sourceUrl={listingReview.sourceUrl}
+              sourceIdentityKey={listingReview.sourceIdentityKey}
+            />
+          ) : (
+            <ListingImageGallery
+              images={listingPhotos}
+              title={listing.title}
+              isSold={isSold}
+            />
+          )}
 
           {/* Title + price + details */}
           <div>
@@ -478,10 +505,22 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               </Badge>
               <Badge variant="neutral">{listing.viewCount + (isVisible ? 1 : 0)} views</Badge>
               {isPreviewListing ? <Badge variant="warning">{ADMIN_PREVIEW_BADGE}</Badge> : null}
+              {listingReview.required ? (
+                <Badge variant="warning">{NEEDS_MANUAL_REVIEW_BADGE}</Badge>
+              ) : null}
               {isDisclosedWriteOff(writeOffCategory) ? (
                 <Badge variant="energy">{writeOffCategory} write-off</Badge>
               ) : null}
             </div>
+
+            {listingReview.required ? (
+              <PreviewReviewNotice
+                className="mt-6 rounded-lg border border-premium-gold-500/30 bg-premium-gold-500/5 p-4"
+                reasons={listingReview.reasons}
+                sourceUrl={listingReview.sourceUrl}
+                sourceIdentityKey={listingReview.sourceIdentityKey}
+              />
+            ) : null}
 
             <div className="mt-8">
               <h2 className="section-heading-accent text-lg font-bold text-text-primary mb-3">
@@ -687,6 +726,10 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 meta={item.category.name}
                 featured={item.featured}
                 badge={item.status === "ADMIN_PREVIEW" ? ADMIN_PREVIEW_BADGE : item.featured ? "Featured" : undefined}
+                {...listingPreviewCardProps(
+                  item,
+                  Boolean(toListingPhotoSource(item.images[0])),
+                )}
                 writeOffCategory={item.attributeValues[0]?.value ?? null}
                 href={buildListingPath(item.id)}
               />

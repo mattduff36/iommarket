@@ -137,6 +137,12 @@ export async function insertPreviewListing(
     images: Awaited<ReturnType<typeof uploadPreviewPackImages>>;
     catalog: Awaited<ReturnType<typeof loadPreviewPackCatalog>>;
     allowEmptyImages?: boolean;
+    review?: {
+      state: "NONE" | "NEEDS_REVIEW";
+      reasons: string[];
+      sourceIdentity: string;
+      sourceUrl: string | null;
+    };
   },
 ) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.previewPackId}))`;
@@ -151,6 +157,18 @@ export async function insertPreviewListing(
   });
   if (!pack) return null;
   if (input.images.length === 0 && !input.allowEmptyImages) return null;
+  if (input.review?.sourceIdentity) {
+    const existingReview = await tx.listing.findFirst({
+      where: {
+        previewPackId: input.previewPackId,
+        dealerId: input.dealerId,
+        status: "ADMIN_PREVIEW",
+        reviewSourceIdentity: input.review.sourceIdentity,
+      },
+      select: { id: true },
+    });
+    if (existingReview) return existingReview.id;
+  }
   const identityPrefix =
     `${IMAGE_CONSTRAINTS.folder}/preview-packs/` +
     `${sanitizePreviewSegment(input.dealerKey)}/` +
@@ -183,6 +201,10 @@ export async function insertPreviewListing(
       expiresAt: null,
       trustDeclarationAccepted: true,
       trustDeclarationAcceptedAt: now,
+      reviewState: input.review?.state ?? "NONE",
+      reviewReasons: input.review?.reasons ?? [],
+      reviewSourceIdentity: input.review?.sourceIdentity ?? null,
+      reviewSourceUrl: input.review?.sourceUrl ?? null,
     },
   });
 
@@ -301,7 +323,7 @@ export async function attachPreviewImages(input: {
 
 async function loadExistingPreviewListings(previewPackId: string) {
   const listings = await db.listing.findMany({
-    where: { previewPackId },
+    where: { previewPackId, reviewSourceIdentity: null },
     select: {
       id: true,
       title: true,

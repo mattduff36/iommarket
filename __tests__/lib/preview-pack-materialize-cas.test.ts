@@ -107,6 +107,85 @@ describe("MATERIALIZER-RACE-001 preview image backfill CAS", () => {
     })).resolves.toBeNull();
     expect(listingCreate).not.toHaveBeenCalled();
   });
+
+  it("reuses a review listing by source identity when empty images are allowed", async () => {
+    const listingCreate = vi.fn();
+    const tx = {
+      $executeRaw: vi.fn(),
+      dealerPreviewPack: { findFirst: vi.fn().mockResolvedValue({ id: "pack-1" }) },
+      listing: {
+        findFirst: vi.fn().mockResolvedValue({ id: "existing-review" }),
+        create: listingCreate,
+      },
+    };
+    await expect(insertPreviewListing(tx as never, {
+      userId: "user-1",
+      dealerId: "dealer-1",
+      previewPackId: "pack-1",
+      dealerKey: "athol-garage",
+      sourceRunId: "run-1",
+      identityKey: "stockId:1",
+      listing: {} as never,
+      images: [],
+      catalog: { categories: {}, regionId: "region-1", attributes: [] },
+      allowEmptyImages: true,
+      review: {
+        state: "NEEDS_REVIEW",
+        reasons: ["listing-has-no-valid-source-image"],
+        sourceIdentity: "stockId:1",
+        sourceUrl: null,
+      },
+    })).resolves.toBe("existing-review");
+    expect(listingCreate).not.toHaveBeenCalled();
+  });
+
+  it("creates a zero-image review listing with durable review metadata", async () => {
+    const listingCreate = vi.fn().mockResolvedValue({ id: "review-created" });
+    const tx = {
+      $executeRaw: vi.fn(),
+      dealerPreviewPack: { findFirst: vi.fn().mockResolvedValue({ id: "pack-1" }) },
+      listing: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: listingCreate,
+      },
+      listingAttributeValue: { createMany: vi.fn() },
+      listingImage: { createMany: vi.fn() },
+    };
+    await expect(insertPreviewListing(tx as never, {
+      userId: "user-1",
+      dealerId: "dealer-1",
+      previewPackId: "pack-1",
+      dealerKey: "athol-garage",
+      sourceRunId: "run-1",
+      identityKey: "stockId:2",
+      listing: {
+        title: "Review car",
+        description: "A complete review listing description.",
+        pricePence: 100_000,
+        categorySlug: "car",
+        attributes: {},
+        imageUrls: [],
+      },
+      images: [],
+      catalog: { categories: { car: "category-1" }, regionId: "region-1", attributes: [] },
+      allowEmptyImages: true,
+      review: {
+        state: "NEEDS_REVIEW",
+        reasons: ["listing-has-no-valid-source-image"],
+        sourceIdentity: "stockId:2",
+        sourceUrl: "https://dealer.example/stock/2",
+      },
+    })).resolves.toBe("review-created");
+    expect(listingCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        reviewState: "NEEDS_REVIEW",
+        reviewReasons: ["listing-has-no-valid-source-image"],
+        reviewSourceIdentity: "stockId:2",
+        reviewSourceUrl: "https://dealer.example/stock/2",
+      }),
+    });
+    expect(tx.listingImage.createMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("preview pack source ownership", () => {

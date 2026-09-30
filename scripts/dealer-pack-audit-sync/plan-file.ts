@@ -26,13 +26,7 @@ export function canonicalJson(value: unknown) {
   return JSON.stringify(canonicalize(value));
 }
 
-export function planFingerprint(
-  plan:
-    | Omit<PreviewPackAuditPlan, "fingerprint">
-    | PreviewPackAuditPlan
-    | Omit<ProductionAuditPlan, "fingerprint">
-    | ProductionAuditPlan,
-) {
+export function planFingerprint(plan: object) {
   const unsigned = Object.fromEntries(
     Object.entries(plan).filter(([key]) => key !== "fingerprint"),
   );

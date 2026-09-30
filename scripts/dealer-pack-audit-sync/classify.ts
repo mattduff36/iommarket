@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mapReconciledVehicle } from "../dealer-stock-sync/map-listing";
 import type {
   ArchivedVehicle,
+  ImageArchiveRecord,
   SourceStatus,
 } from "../dealer-stock-sync/types";
 import { isUsablePreviewImageUrl } from "../../lib/preview-packs/upload";
@@ -54,17 +55,21 @@ export function excludedListingEvidence(input: {
 const COMPLETE_SOURCE_STATUSES = new Set<SourceStatus>(["ok", "no_public_stock"]);
 const ALLOWED_OMISSIONS = new Set(["poa", "sold"]);
 
-function usableImages(vehicle: ArchivedVehicle) {
+export function inspectUsableArchivedImages(
+  records: ImageArchiveRecord[],
+  options: { requireUsableUrl?: boolean } = {},
+) {
+  const requireUsableUrl = options.requireUsableUrl ?? true;
   const seen = new Set<string>();
   const findings: string[] = [];
-  const images = vehicle.images.flatMap((image, index) => {
+  const images = records.flatMap((image, index) => {
     if (
       image.status !== "ok" ||
       !image.checksum ||
       seen.has(image.checksum) ||
       !image.localPath ||
       !existsSync(image.localPath) ||
-      !isUsablePreviewImageUrl(image.originalUrl)
+      (requireUsableUrl && !isUsablePreviewImageUrl(image.originalUrl))
     ) {
       findings.push(
         `image-rejected:${index}:${image.error ?? "unusable-or-duplicate"}`,
@@ -87,6 +92,10 @@ function usableImages(vehicle: ArchivedVehicle) {
     }];
   }).map((image, order) => ({ ...image, order }));
   return { images, findings };
+}
+
+function usableImages(vehicle: ArchivedVehicle) {
+  return inspectUsableArchivedImages(vehicle.images);
 }
 
 function crossVehicleChecksumConflicts(vehicles: ArchivedVehicle[]) {

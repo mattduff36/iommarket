@@ -7,6 +7,7 @@ import {
   listablePreviewPackRows,
   mergePreviewPackRows,
 } from "@/lib/preview-packs/archive";
+import { readPreviewPackReview } from "@/lib/preview-packs/review";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminTableOptions } from "@/components/admin/admin-filter-bar";
@@ -43,26 +44,33 @@ export default async function PreviewPacksPage({
   const rows = sortPreviewPackRows(listablePreviewPackRows(
     mergePreviewPackRows({
       archives: archive.dealers,
-      packs: packs.map((pack) => ({
-        dealerKey: pack.dealerKey,
-        displayName: pack.displayName,
-        enabled: pack.enabled,
-        sourceRunId: pack.sourceRunId,
-        listingCount: pack._count.listings,
-        slug: pack.dealerProfile.slug,
-      })),
+      packs: packs.map((pack) => {
+        const review = readPreviewPackReview(pack);
+        return {
+          dealerKey: pack.dealerKey,
+          displayName: pack.displayName,
+          enabled: pack.enabled,
+          sourceRunId: pack.sourceRunId,
+          listingCount: pack._count.listings,
+          slug: pack.dealerProfile.slug,
+          reviewRequired: review.required,
+          reviewReasons: review.reasons,
+          reviewSourceRunId: review.sourceRunId,
+        };
+      }),
     }),
   ), sort);
-  const visibleCount = rows.filter((row) => row.enabled).length;
+  const enabledCount = rows.filter((row) => row.enabled).length;
 
   return (
     <>
       <AdminPageHeader
         title="Preview packs"
-        description="Control dealer preview data shown to admin sessions. Loaded packs can be toggled on any host; first-time photo upload still needs this PC."
+        description="Review every loaded dealer pack. Disabled packs remain available to admins but stay hidden from public visitors."
         meta={
           <>
-            <span>{visibleCount} of {rows.length} visible</span>
+            <span>{rows.length} reviewable packs</span>
+            <span>{enabledCount} enabled</span>
             {archive.runId ? <span>Latest run {archive.runId}</span> : null}
             {!archive.archiveAvailable ? <span>Archive unavailable on this host</span> : null}
           </>

@@ -300,6 +300,11 @@ enum ListingStatus {
   ADMIN_PREVIEW
 }
 
+enum PreviewReviewState {
+  NONE
+  NEEDS_REVIEW
+}
+
 enum ListingLifecycleAction {
   SUBMIT
   WITHDRAW
@@ -394,6 +399,10 @@ model Listing {
   lifecycleRevision          Int      @default(0)
   retentionPurgedAt DateTime?
   previewPackId String?
+  reviewState          PreviewReviewState @default(NONE)
+  reviewReasons        String[]           @default([])
+  reviewSourceIdentity String?
+  reviewSourceUrl      String?
   approvedAt  DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -422,6 +431,9 @@ model Listing {
   @@index([userId])
   @@index([dealerId])
   @@index([previewPackId])
+  @@index([reviewState])
+  @@index([reviewSourceIdentity])
+  @@unique([previewPackId, reviewSourceIdentity])
   @@index([createdAt])
   @@index([approvedAt])
 }
@@ -432,6 +444,9 @@ model DealerPreviewPack {
   displayName     String
   sourceRunId     String
   enabled         Boolean  @default(false)
+  reviewState       PreviewReviewState @default(NONE)
+  reviewReasons     String[]           @default([])
+  reviewSourceRunId String?
   dealerProfileId String   @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -440,6 +455,7 @@ model DealerPreviewPack {
   listings      Listing[]
 
   @@index([enabled])
+  @@index([reviewState])
 }
 
 model ListingStatusEvent {

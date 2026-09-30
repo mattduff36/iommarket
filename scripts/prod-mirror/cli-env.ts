@@ -14,6 +14,7 @@ function overlayEnv(base: ConnectionEnv, argv: string[], prefix: "preview" | "pr
     postgresPassword: base.postgresPassword,
     postgresUser: base.postgresUser,
     postgresDatabase: base.postgresDatabase,
+    dbCaCert: base.dbCaCert,
   };
 }
 
@@ -23,10 +24,10 @@ export function loadMirrorEnvs(argv: string[], cwd = process.cwd()): {
 } {
   const previewEnv = parseArgValue(argv, "preview-env") ?? ".env.local";
   const productionEnv = parseArgValue(argv, "production-env") ?? ".env.production";
-  return {
-    preview: overlayEnv(loadConnectionEnv(previewEnv, cwd), argv, "preview"),
-    production: overlayEnv(loadConnectionEnv(productionEnv, cwd), argv, "production"),
-  };
+  const preview = overlayEnv(loadConnectionEnv(previewEnv, cwd), argv, "preview");
+  const production = overlayEnv(loadConnectionEnv(productionEnv, cwd), argv, "production");
+  process.env.SUPABASE_DB_CA_CERT ??= preview.dbCaCert ?? production.dbCaCert;
+  return { preview, production };
 }
 
 export function previewCandidates(env: ConnectionEnv) {

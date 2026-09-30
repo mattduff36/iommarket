@@ -78,6 +78,9 @@ export interface PreviewPackListRow {
   loaded: boolean;
   materialized: boolean;
   slug: string | null;
+  reviewRequired: boolean;
+  reviewReasons: string[];
+  reviewSourceRunId: string | null;
 }
 
 export async function listAvailablePreviewArchives(root?: string) {
@@ -123,6 +126,9 @@ export function mergePreviewPackRows(input: {
     sourceRunId: string;
     listingCount: number;
     slug: string | null;
+    reviewRequired?: boolean;
+    reviewReasons?: string[];
+    reviewSourceRunId?: string | null;
   }>;
 }): PreviewPackListRow[] {
   const packByKey = new Map(input.packs.map((pack) => [pack.dealerKey, pack]));
@@ -147,6 +153,7 @@ export function mergePreviewPackRows(input: {
       loaded: Boolean(pack),
       materialized: Boolean(pack && pack.listingCount > 0),
       slug: pack?.slug ?? null,
+      ...previewPackReviewFields(pack),
     });
   }
 
@@ -169,6 +176,7 @@ export function mergePreviewPackRows(input: {
       loaded: true,
       materialized: pack.listingCount > 0,
       slug: pack.slug,
+      ...previewPackReviewFields(pack),
     });
   }
 
@@ -178,7 +186,19 @@ export function mergePreviewPackRows(input: {
 }
 
 export function listablePreviewPackRows(rows: PreviewPackListRow[]) {
-  return rows.filter((row) => row.listingCount > 0);
+  return rows.filter((row) => row.loaded);
+}
+
+function previewPackReviewFields(pack?: {
+  reviewRequired?: boolean;
+  reviewReasons?: string[];
+  reviewSourceRunId?: string | null;
+}) {
+  return {
+    reviewRequired: pack?.reviewRequired === true,
+    reviewReasons: pack?.reviewReasons ?? [],
+    reviewSourceRunId: pack?.reviewSourceRunId ?? null,
+  };
 }
 
 export function dealerSnapshotPath(dealerKey: string, runId: string, root?: string) {

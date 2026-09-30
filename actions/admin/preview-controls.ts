@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invalidateSettingsCache, SETTING_KEYS } from "@/lib/config/site-settings";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { ARCHIVED_PREVIEW_DEALER_KEYS } from "@/lib/preview-packs/safety";
 
 const sampleVisibilitySchema = z.object({
   kind: z.enum(["private", "dealer"]),
@@ -24,7 +25,7 @@ export async function getPreviewControls() {
   await requireRole("ADMIN");
   const [packs, sampleVisibility] = await Promise.all([
     db.dealerPreviewPack.findMany({
-      where: { listings: { some: {} } },
+      where: { dealerKey: { notIn: [...ARCHIVED_PREVIEW_DEALER_KEYS] } },
       select: {
         dealerKey: true,
         displayName: true,

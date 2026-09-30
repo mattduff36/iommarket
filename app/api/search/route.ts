@@ -5,7 +5,12 @@ import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import {
   expireStaleLiveListings,
 } from "@/lib/listings/expiry";
-import { marketplaceListingWhereWithSettings, marketplaceListingBadge } from "@/lib/listings/marketplace";
+import {
+  combineMarketplaceListingWhere,
+  marketplaceListingWhereWithSettings,
+  marketplaceListingBadge,
+} from "@/lib/listings/marketplace";
+import { listingPreviewCardProps } from "@/lib/preview-packs/review";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
   getFuelTypeFilterValues,
@@ -122,11 +127,7 @@ export async function GET(request: NextRequest) {
 
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
-      WHERE (
-        (l.status = 'LIVE' AND (l.expires_at IS NULL OR l.expires_at > NOW()))
-        OR (${includeSold} AND l.status = 'SOLD')
-      )
-      AND ${combined}
+      WHERE ${combined}
     `;
     listingIdsFromAttributes = result.map((row) => row.id);
   }
@@ -190,23 +191,27 @@ export async function GET(request: NextRequest) {
     viewer: currentUser,
     includeSold,
     now,
+    includeDisabledPreviewPacks: true,
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = {
-    ...statusFilter,
+  const where = combineMarketplaceListingWhere({
+    visibility: statusFilter,
+    clauses: [
+      ...(query
+        ? [{
+            OR: [
+              { title: { contains: query, mode: "insensitive" as const } },
+              { description: { contains: query, mode: "insensitive" as const } },
+            ],
+          }]
+        : []),
+      ...attrAndClauses,
+    ],
+    filters: {
     ...(listingIdsFromAttributes !== null ? { id: { in: listingIdsFromAttributes } } : {}),
-    ...(query
-      ? {
-          OR: [
-            { title: { contains: query, mode: "insensitive" as const } },
-            { description: { contains: query, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-    ...(sp.get("category") ? { category: { slug: sp.get("category") } } : {}),
+    ...(sp.get("category") ? { category: { slug: sp.get("category")! } } : {}),
     ...(sp.get("featured") === "true" ? { featured: true } : {}),
-    ...(sp.get("region") ? { region: { slug: sp.get("region") } } : {}),
+    ...(sp.get("region") ? { region: { slug: sp.get("region")! } } : {}),
     ...(minPricePence !== undefined || maxPricePence !== undefined
       ? {
           price: {
@@ -217,8 +222,8 @@ export async function GET(request: NextRequest) {
       : {}),
     ...(sp.get("sellerType") === "private" ? { dealerId: null } : {}),
     ...(sp.get("sellerType") === "dealer" ? { dealerId: { not: null } } : {}),
-    ...(attrAndClauses.length > 0 ? { AND: attrAndClauses } : {}),
-  };
+    },
+  });
 
   const [listings, total] = await Promise.all([
     db.listing.findMany({
@@ -275,6 +280,10 @@ export async function GET(request: NextRequest) {
         featured: listing.featured,
       }),
       showFavourite: listing.status !== "ADMIN_PREVIEW",
+      ...listingPreviewCardProps(
+        listing,
+        Boolean(toListingPhotoSource(listing.images[0])),
+      ),
     })),
   });
 }

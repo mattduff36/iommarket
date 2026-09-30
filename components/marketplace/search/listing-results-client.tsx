@@ -23,6 +23,8 @@ interface ListingItem {
   writeOffCategory?: string | null;
   badge?: string;
   showFavourite?: boolean;
+  needsManualReview?: boolean;
+  noImageReview?: boolean;
 }
 
 interface Props {
@@ -195,6 +197,8 @@ export function ListingResultsClient({
               listingId={listing.id}
               showFavourite={enableFavourites && listing.showFavourite !== false}
               initialIsFavourite={Boolean(listing.isFavourite)}
+              needsManualReview={listing.needsManualReview}
+              noImageReview={listing.noImageReview}
             />
           </div>
         ))}

@@ -28,7 +28,7 @@ describe("listing visibility ALR-VIS-001", () => {
     ).toBe(false);
   });
 
-  it("shows enabled preview listings only to admins", () => {
+  it("shows ADMIN_PREVIEW listings only to logged-in admins, including disabled packs", () => {
     expect(
       canViewListing({
         status: "ADMIN_PREVIEW",
@@ -64,7 +64,7 @@ describe("listing visibility ALR-VIS-001", () => {
         viewer: { id: "admin", role: "ADMIN" },
         previewPackEnabled: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canViewListing({
         status: "ADMIN_PREVIEW",

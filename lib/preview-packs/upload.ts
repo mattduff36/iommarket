@@ -345,7 +345,7 @@ export async function cleanupPreviewUploadedImages(
 }
 
 export async function enqueuePreviewUploadedImageCleanup(
-  prisma: PrismaClient,
+  prisma: Pick<PrismaClient, "listingImageCleanupJob">,
   images: PreviewUploadedImage[],
   reason: string,
 ) {

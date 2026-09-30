@@ -43,6 +43,7 @@ vi.mock("@/lib/listings/marketplace", () => ({
   marketplaceListingWhere: marketplaceListingWhereMock,
   marketplaceListingWhereWithSettings: async () => marketplaceListingWhereMock(),
   marketplaceListingBadge: () => undefined,
+  ADMIN_PREVIEW_BADGE: "Preview — not public",
 }));
 
 vi.mock("@/lib/listings/sample-visibility", () => ({
@@ -202,7 +203,54 @@ describe("DealerProfilePage", () => {
       generateMetadata({
         params: Promise.resolve({ slug: "preview-motors" }),
       }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        title: "Preview Motors",
+        robots: { index: false, follow: false },
+      }),
+    );
+
+    getCurrentUserMock.mockResolvedValue({ role: "USER" });
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
     ).resolves.toEqual({});
+  });
+
+  it("lets an admin open a disabled preview dealer profile and 404s the public", async () => {
+    findUniqueMock.mockResolvedValue({
+      ...buildDealer({ verified: false }),
+      name: "Preview Motors",
+      slug: "preview-motors",
+      isAdminPreview: true,
+      previewPack: {
+        enabled: false,
+        reviewRequired: true,
+        reviewReasons: ["listing-has-no-valid-source-image"],
+        reviewSourceRunId: "run-v",
+      },
+    });
+    getDealerEntitlementMock.mockResolvedValue(null);
+    getCurrentUserMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+
+    render(
+      await DealerProfilePage({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Preview Motors" })).toBeTruthy();
+    expect(screen.getByText("Preview — not public")).toBeTruthy();
+    expect(screen.getByText("Disabled pack")).toBeTruthy();
+    expect(screen.getByText("Needs manual review")).toBeTruthy();
+
+    cleanup();
+    getCurrentUserMock.mockResolvedValue({ id: "user-1", role: "USER" });
+    await expect(
+      DealerProfilePage({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    ).rejects.toThrow("notFound");
   });
 
   it("T13 lets an admin view an unpaid non-preview dealer page and 404s users", async () => {
