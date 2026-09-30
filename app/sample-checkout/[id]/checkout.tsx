@@ -120,6 +120,11 @@ export function SampleCheckout({
       <h1 className="flowpay-logo">FlowPay</h1>
       <p className="flowpay-sample">Sample payment — no money will be charged</p>
 
+      <div className="flowpay-frame">
+        <div className="flowpay-watermark" aria-hidden="true">
+          <span className="flowpay-watermark-left">SAMPLE</span>
+          <span className="flowpay-watermark-right">PAYMENT</span>
+        </div>
       <section className="flowpay-panel" aria-label="Sample card checkout">
         <header className="flowpay-order">
           <div><strong>{checkout.description}</strong><small>Order: {checkout.id.slice(-8).toUpperCase()}</small></div>
@@ -188,11 +193,17 @@ export function SampleCheckout({
             : <button type="button" className="flowpay-cancel" onClick={cancelCheckout} disabled={isPending}>Cancel payment</button>}
         </div>
       </section>
+      </div>
       <footer className="flowpay-footer">FlowPay is a sample checkout for iTrader.<br />No real payments or card details are processed.</footer>
       <style jsx global>{`
         .flowpay-page{min-height:100vh;background:#f8f8f7;color:#3d4149;padding:24px 16px 36px;font-family:Arial,sans-serif;font-size:13px;color-scheme:light}
         .flowpay-logo{margin:0 auto 10px;text-align:center;color:#24164e;font-family:Arial,sans-serif!important;font-size:34px;font-weight:750;letter-spacing:-1.7px;line-height:1.2}
         .flowpay-sample{margin:0 auto 20px;text-align:center;color:#665581;font-size:11px}
+        .flowpay-frame{position:relative;max-width:340px;margin:0 auto}
+        .flowpay-watermark{pointer-events:none;user-select:none;color:#d6d5d8;font:700 72px/1 Arial,sans-serif;letter-spacing:5px}
+        .flowpay-watermark span{position:absolute;top:50%;writing-mode:vertical-rl;white-space:nowrap}
+        .flowpay-watermark-left{right:calc(100% + 24px);transform:translateY(-50%) rotate(180deg)}
+        .flowpay-watermark-right{left:calc(100% + 24px);transform:translateY(-50%)}
         .flowpay-panel{max-width:340px;margin:0 auto;background:#fff;border-radius:3px;box-shadow:0 2px 10px #00000012;overflow:hidden}
         .flowpay-order{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:15px 20px;background:#24164e;color:white}
         .flowpay-order strong{display:block;font-size:13px;line-height:1.4;font-weight:600;overflow-wrap:anywhere}
@@ -231,6 +242,7 @@ export function SampleCheckout({
         .flowpay-error{color:#a04454;font-size:12px;line-height:1.5}
         .flowpay-footer{max-width:340px;margin:24px auto 0;text-align:center;font-size:10px;line-height:1.7;color:#67616d}
         .flowpay-page button:focus-visible,.flowpay-page input:focus-visible{outline:2px solid #7852a8;outline-offset:3px}
+        @media(max-width:600px){.flowpay-watermark{display:flex;justify-content:center;gap:9px;font-size:24px;letter-spacing:3px;margin-bottom:14px}.flowpay-watermark span{position:static;writing-mode:horizontal-tb;transform:none}}
         @media(max-width:380px){.flowpay-page{padding:20px 12px 28px}.flowpay-content{padding:19px 18px}.flowpay-order{padding:14px 18px}}
       `}</style>
     </main>
