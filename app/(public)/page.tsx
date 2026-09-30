@@ -14,7 +14,10 @@ import { ArrowRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
-import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
@@ -69,7 +72,9 @@ export default async function HomePage() {
     db.dealerProfile.findMany(
       getMarketplaceDealerSpotlightQuery(liveWhere, currentUser, sampleVisibility),
     ),
-    db.listing.count({ where: { status: "SOLD" } }),
+    db.listing.count({
+      where: applySampleListingVisibility({ status: "SOLD" }, sampleVisibility),
+    }),
     getMarketplacePricing(),
   ]);
   const dealers = shuffleDealerSpotlights(dealerResults);

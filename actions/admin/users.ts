@@ -6,6 +6,10 @@ import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { provisionDealerProfile } from "@/lib/dealers/access";
 import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
+import {
   grantAdminDealerAccess,
   revokeAdminDealerAccess,
 } from "@/lib/dealers/entitlement";
@@ -52,6 +56,7 @@ export async function listUsers(input: ListUsersInput) {
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const { query, role, regionId, disabled, page, pageSize } = parsed.data;
+  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
 
   const where = buildAdminUsersWhere({
     query,
@@ -69,7 +74,7 @@ export async function listUsers(input: ListUsersInput) {
       include: {
         region: { select: { name: true } },
         dealerProfile: { select: { id: true, name: true, verified: true, tier: true } },
-        _count: { select: { listings: true, favourites: true } },
+        _count: { select: { listings: { where: visibleListings }, favourites: true } },
       },
     }),
     db.user.count({ where }),
@@ -89,6 +94,8 @@ export async function listUsers(input: ListUsersInput) {
 export async function getUserAdminView(userId: string) {
   await requireRole("ADMIN");
   if (!userId) return { error: "Missing userId" };
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -101,7 +108,7 @@ export async function getUserAdminView(userId: string) {
       },
       _count: {
         select: {
-          listings: true,
+          listings: { where: visibleListings },
           favourites: true,
           savedSearches: true,
           reports: true,
@@ -114,7 +121,7 @@ export async function getUserAdminView(userId: string) {
   if (!user) return { error: "User not found" };
 
   const recentListings = await db.listing.findMany({
-    where: { userId },
+    where: applySampleListingVisibility({ userId }, sampleVisibility),
     orderBy: { createdAt: "desc" },
     take: 10,
     select: { id: true, title: true, status: true, createdAt: true, price: true },

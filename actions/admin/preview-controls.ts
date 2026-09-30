@@ -15,10 +15,17 @@ const sampleVisibilitySchema = z.object({
 
 function revalidateMarketplaceSurfaces() {
   revalidatePath("/admin/preview-packs");
+  revalidatePath("/admin/listings");
+  revalidatePath("/admin");
+  revalidatePath("/admin/analytics");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/dealers");
   revalidatePath("/");
   revalidatePath("/search");
   revalidatePath("/dealers");
   revalidatePath("/categories");
+  revalidatePath("/account");
+  revalidatePath("/account/favourites");
 }
 
 export async function getPreviewControls() {

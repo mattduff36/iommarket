@@ -13,6 +13,10 @@ import {
   NAVIGABLE_CARD_LINK_CLASS,
 } from "@/components/ui/card-overlay-link";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 import { cn } from "@/lib/cn";
 import { Alert } from "@/components/ui/alert";
 import { findPendingDealerUpgradeOffer } from "@/lib/dealers/upgrade-offers";
@@ -22,6 +26,7 @@ const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 export default async function AccountDashboardPage() {
   await expireStaleLiveListings();
   const user = await requireAcceptedUser("/account");
+  const sampleVisibility = await getSampleVisibility();
 
   const [
     statusGroups,
@@ -58,7 +63,10 @@ export default async function AccountDashboardPage() {
       take: 8,
     }),
     db.favourite.count({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        listing: applySampleListingVisibility({}, sampleVisibility),
+      },
     }),
     db.savedSearch.count({
       where: { userId: user.id },

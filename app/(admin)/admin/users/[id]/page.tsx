@@ -30,6 +30,10 @@ import {
   getPaidSubscriptionEntitlementWhere,
 } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 export const metadata: Metadata = { title: "User Detail | Admin" };
 
@@ -49,6 +53,8 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "error" | "neutral" |
 
 export default async function AdminUserDetailPage({ params }: Props) {
   const { id } = await params;
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const user = await db.user.findUnique({
     where: { id },
@@ -57,7 +63,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
       dealerProfile: {
         include: {
           subscriptions: { orderBy: { createdAt: "desc" }, take: 5 },
-          _count: { select: { listings: true } },
+          _count: { select: { listings: { where: visibleListings } } },
         },
       },
       dealerUpgradeOffers: {
@@ -67,7 +73,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
       },
       _count: {
         select: {
-          listings: true,
+          listings: { where: visibleListings },
           favourites: true,
           savedSearches: true,
           reports: true,
@@ -102,7 +108,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
   const pendingUpgrade = user.dealerUpgradeOffers[0] ?? null;
 
   const recentListings = await db.listing.findMany({
-    where: { userId: id },
+    where: applySampleListingVisibility({ userId: id }, sampleVisibility),
     orderBy: { createdAt: "desc" },
     take: 10,
     select: { id: true, title: true, status: true, createdAt: true, price: true },

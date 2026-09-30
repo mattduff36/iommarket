@@ -2,8 +2,14 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+  PLACEHOLDER_AUTH_PREFIX,
+} from "@/lib/listings/sample-visibility";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   TableHeader,
@@ -52,7 +58,33 @@ export default async function AdminAnalyticsPage() {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const liveWhere = liveListingWhere(now);
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListingWhere = applySampleListingVisibility({}, sampleVisibility);
+  const liveWhere = applySampleListingVisibility(
+    liveListingWhere(now),
+    sampleVisibility,
+  );
+  const recentViewConditions = [
+    Prisma.sql`views."createdAt" >= ${sevenDaysAgo}`,
+  ];
+  const placeholderAuthPattern = `${PLACEHOLDER_AUTH_PREFIX}%`;
+  if (!sampleVisibility.privateListings) {
+    recentViewConditions.push(
+      Prisma.sql`NOT (
+        listing."dealerId" IS NULL
+        AND owner."authUserId" LIKE ${placeholderAuthPattern}
+      )`,
+    );
+  }
+  if (!sampleVisibility.dealerListings) {
+    recentViewConditions.push(
+      Prisma.sql`NOT (
+        listing."dealerId" IS NOT NULL
+        AND dealer."isAdminPreview" = FALSE
+        AND owner."authUserId" LIKE ${placeholderAuthPattern}
+      )`,
+    );
+  }
 
   const [
     totalViews30d,
@@ -67,11 +99,15 @@ export default async function AdminAnalyticsPage() {
     dealerListingCount,
     privateListingCount,
   ] = await Promise.all([
-    db.listingView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-    db.listingView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    db.listingView.count({
+      where: { createdAt: { gte: thirtyDaysAgo }, listing: visibleListingWhere },
+    }),
+    db.listingView.count({
+      where: { createdAt: { gte: sevenDaysAgo }, listing: visibleListingWhere },
+    }),
     db.user.count(),
     db.listing.count({ where: liveWhere }),
-    db.favourite.count(),
+    db.favourite.count({ where: { listing: visibleListingWhere } }),
     db.savedSearch.count(),
     db.listing.findMany({
       where: liveWhere,
@@ -97,14 +133,16 @@ export default async function AdminAnalyticsPage() {
         user: { select: { email: true } },
       },
     }),
-    // Daily view counts for last 7 days (raw query for grouping)
-    db.$queryRaw<Array<{ day: string; count: bigint }>>`
-      SELECT DATE("createdAt") as day, COUNT(*)::bigint as count
-      FROM "ListingView"
-      WHERE "createdAt" >= ${sevenDaysAgo}
-      GROUP BY DATE("createdAt")
+    db.$queryRaw<Array<{ day: string; count: bigint }>>(Prisma.sql`
+      SELECT DATE(views."createdAt") AS day, COUNT(*)::bigint AS count
+      FROM "ListingView" AS views
+      JOIN "Listing" AS listing ON listing."id" = views."listingId"
+      JOIN "User" AS owner ON owner."id" = listing."userId"
+      LEFT JOIN "DealerProfile" AS dealer ON dealer."id" = listing."dealerId"
+      WHERE ${Prisma.join(recentViewConditions, " AND ")}
+      GROUP BY DATE(views."createdAt")
       ORDER BY day DESC
-    `,
+    `),
     db.listing.count({ where: { ...liveWhere, dealerId: { not: null } } }),
     db.listing.count({ where: { ...liveWhere, dealerId: null } }),
   ]);

@@ -1,18 +1,21 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
+import { applySampleListingVisibility, getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 
 export default async function FavouritesPage() {
   const user = await requireAcceptedUser("/account/favourites");
 
   const favourites = await db.favourite.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      listing: applySampleListingVisibility({}, await getSampleVisibility()),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       listing: {

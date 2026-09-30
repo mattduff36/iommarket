@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { revalidatePath } from "next/cache";
 
 const { requireRoleMock, findManyMock, upsertMock } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
@@ -94,5 +95,8 @@ describe("preview controls admin actions", () => {
         update: { value: false },
       }),
     );
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/listings");
+    expect(revalidatePath).toHaveBeenCalledWith("/");
+    expect(revalidatePath).toHaveBeenCalledWith("/search");
   });
 });

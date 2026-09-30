@@ -34,6 +34,10 @@ import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import { formatAdminDate } from "@/lib/admin/format";
 import { buildAdminUsersWhere } from "@/lib/admin/query";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 import { USER_TABLE_COLUMNS, USER_TABLE_SORT } from "@/lib/admin/table-columns";
 import { userOrderBy } from "@/lib/admin/table-order";
 import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
@@ -74,6 +78,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const sort = parseAdminSort(params, USER_TABLE_COLUMNS, USER_TABLE_SORT);
   const now = new Date();
   const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
+  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
 
   const where = buildAdminUsersWhere({
     query,
@@ -118,7 +123,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           select: { id: true },
           take: 1,
         },
-        _count: { select: { listings: true } },
+        _count: { select: { listings: { where: visibleListings } } },
       },
     }),
     db.user.count({ where }),

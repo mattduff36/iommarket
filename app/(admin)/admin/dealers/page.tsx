@@ -33,6 +33,10 @@ import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import { formatAdminDate } from "@/lib/admin/format";
 import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 import { DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT } from "@/lib/admin/table-columns";
 import { dealerOrderBy } from "@/lib/admin/table-order";
 import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
@@ -60,6 +64,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const sort = parseAdminSort(params, DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT);
   const now = new Date();
+  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
 
   const where: Prisma.DealerProfileWhereInput = buildAdminDealersWhere({
     query,
@@ -75,7 +80,12 @@ export default async function AdminDealersPage({ searchParams }: Props) {
       take: PAGE_SIZE,
       include: {
         user: { select: { id: true, email: true, name: true, role: true, disabledAt: true } },
-        _count: { select: { listings: true, subscriptions: true } },
+        _count: {
+          select: {
+            listings: { where: visibleListings },
+            subscriptions: true,
+          },
+        },
         subscriptions: {
           where: {
             OR: [

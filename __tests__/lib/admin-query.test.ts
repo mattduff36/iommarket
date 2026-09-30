@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
 import {
+  sampleDealerListingWhere,
+  samplePrivateListingWhere,
+} from "@/lib/listings/sample-visibility";
+import {
   ADMIN_LISTING_STATUS_FILTERS,
   adminTotalPages,
   buildAdminListingArchiveWhere,
@@ -68,6 +72,40 @@ describe("admin listing archive ALR-ADM-001", () => {
             { user: { email: { contains: "bmw", mode: "insensitive" } } },
           ],
         },
+      ],
+    });
+  });
+
+  it("drops disabled sample listings from every moderation filter", () => {
+    expect(
+      buildAdminListingArchiveWhere({
+        status: "ALL",
+        query: "",
+        sampleVisibility: { privateListings: false, dealerListings: false },
+      }),
+    ).toEqual({
+      AND: [
+        { status: { not: "ADMIN_PREVIEW" } },
+        { NOT: samplePrivateListingWhere() },
+        { NOT: sampleDealerListingWhere() },
+      ],
+    });
+    expect(
+      buildAdminListingArchiveWhere({
+        status: "LIVE",
+        query: "bmw",
+        sampleVisibility: { privateListings: false, dealerListings: true },
+      }),
+    ).toEqual({
+      AND: [
+        {
+          status: "LIVE",
+          OR: [
+            { title: { contains: "bmw", mode: "insensitive" } },
+            { user: { email: { contains: "bmw", mode: "insensitive" } } },
+          ],
+        },
+        { NOT: samplePrivateListingWhere() },
       ],
     });
   });
