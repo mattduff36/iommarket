@@ -206,6 +206,14 @@ describe("IMG-SHARED-001 shared helper wiring", () => {
     expect(extractOceanHtml(html)).toHaveLength(2);
     expect(isIgnoredImageUrl("https://www.athol.im/media/coming-soon.jpg")).toBe(true);
     expect(isIgnoredImageUrl("https://cdn.example.com/no-image-stock.jpg")).toBe(true);
+    const encodedPlaceholder = encodeNetDirectorImageUrl({
+      key: "ndstock/images/waiting-for-image.jpg",
+      edits: { resize: { width: 800 } },
+    });
+    expect(isIgnoredImageUrl(encodedPlaceholder)).toBe(true);
+    expect(uniqueImageUrls([encodedPlaceholder, ndUrl("ndstock/real-car.jpg")])).toEqual([
+      canonicalizeImageUrl(ndUrl("ndstock/real-car.jpg")),
+    ]);
     expect(
       uniqueImageUrls([
         "https://www.athol.im/media/coming-soon.jpg",
@@ -221,5 +229,14 @@ describe("IMG-SHARED-001 shared helper wiring", () => {
         ],
       ).map((source) => source.url),
     ).toEqual(["https://sncc.im/wp-content/uploads/2026/08/IMG_1038.jpeg"]);
+  });
+
+  it("prefers Select originals when a query thumbnail appears first", () => {
+    expect(
+      uniqueImageUrls([
+        "http://www.selectcarsales.co.im/Home/Image/12292?size=thumb",
+        "http://www.selectcarsales.co.im/Home/Image/12292",
+      ]),
+    ).toEqual(["http://www.selectcarsales.co.im/Home/Image/12292"]);
   });
 });

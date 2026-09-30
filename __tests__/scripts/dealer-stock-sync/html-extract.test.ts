@@ -522,9 +522,9 @@ describe("named HTML extractors", () => {
 
     const selectHtml = `
       <div class="vehicle-gallery">
+        <img src="/Home/Image/12292?size=thumb">
         <img src="/Home/Image/12292">
         <img src="/Home/Image/12288">
-        <img src="/Home/Image/12292?size=thumb">
       </div>
       <section><h2>Related vehicles</h2><img src="/Home/Image/99999"></section>
     `;

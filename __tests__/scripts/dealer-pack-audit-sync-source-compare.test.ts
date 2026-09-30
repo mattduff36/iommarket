@@ -420,6 +420,63 @@ describe("dealer pack source compare", () => {
     }));
   });
 
+  it("explains a checksum-preserving order corrected from live primary evidence", () => {
+    const listing = mappedListing("2022 Ordered Car");
+    const first = {
+      sourceUrl: "https://cdn.example.com/first.jpg",
+      localPath: "archive/first.jpg",
+      checksum: "checksum-first",
+      width: 1200,
+      height: 800,
+      format: "jpg",
+      bytes: 1000,
+      order: 0,
+    };
+    const second = {
+      ...first,
+      sourceUrl: "https://cdn.example.com/second.jpg",
+      localPath: "archive/second.jpg",
+      checksum: "checksum-second",
+      order: 1,
+    };
+    const planned: PlannedListing = {
+      identityKey: "sourceVehicleId:ordered-1",
+      sourceUrl: "https://dealer.example/ordered-1",
+      listing,
+      images: [{ ...second, order: 0 }, { ...first, order: 1 }],
+      findings: ["live-order-reconciled"],
+    };
+    const archive: PlannedListing = {
+      ...planned,
+      images: [first, second],
+      findings: [],
+    };
+
+    const result = compareClassifiedDealer({
+      dealerKey: "dealer-a",
+      displayName: "Dealer A",
+      preview: { kind: "replace", listings: [planned] },
+      production: null,
+      archivePresent: true,
+      manifest: freshManifest({ dealerKey: "dealer-a", displayName: "Dealer A" }),
+      classified: {
+        safe: true,
+        noPublicStock: false,
+        reasons: [],
+        listings: [archive],
+      },
+      ineligible: [],
+    });
+
+    expect(result.unexplainedCount).toBe(0);
+    expect(result.listings[0]).toEqual(expect.objectContaining({
+      change: "explained_live_order",
+      unexplained: false,
+      explanation: "live-order-reconciled",
+      listingChanges: ["image-order"],
+    }));
+  });
+
   it("explains archived listings intentionally excluded by the final audit", () => {
     const listing = mappedListing("2022 Rex Car");
     const excluded: PlannedListing = {

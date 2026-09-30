@@ -127,7 +127,6 @@ async function stagePackDisabled(
     try {
       assertBaselineMatches(action.baseline, captured);
     } catch (error) {
-      if (action.kind !== "replace" || current.enabled) throw error;
       assertBaselineMatches(action.baseline, captured, {
         ignorePackEnabledAndUpdatedAt: true,
       });
@@ -248,16 +247,9 @@ async function assertCurrentBaseline(
   });
   if (!current) throw new Error("Refusing audit sync: staged preview pack disappeared.");
   const captured = capturePackBaseline(current);
-  if (action.kind === "replace") {
-    if (current.enabled) {
-      throw new Error("Refusing audit sync: staged preview pack is enabled.");
-    }
-    assertBaselineMatches(action.baseline, captured, {
-      ignorePackEnabledAndUpdatedAt: true,
-    });
-  } else {
-    assertBaselineMatches(action.baseline, captured);
-  }
+  assertBaselineMatches(action.baseline, captured, {
+    ignorePackEnabledAndUpdatedAt: true,
+  });
   if (action.kind === "replace" || action.removeListings) {
     assertSyntheticOwner(current.dealerProfile);
     assertPackListingOwnership(action, {

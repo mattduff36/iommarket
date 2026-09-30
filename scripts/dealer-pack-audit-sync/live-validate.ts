@@ -68,6 +68,7 @@ export interface LiveEvidenceStore {
 export interface LiveValidateDeps {
   browser: LiveBrowserSession | LiveBrowserFactory;
   fetchImage: LiveImageFetcher;
+  dealerConcurrency?: number;
   resolveSite?: (dealerKey: string, plannedUrls: Array<string | null>) => LiveDealerSite;
   evidence?: LiveEvidenceStore;
   now?: () => string;
@@ -336,10 +337,22 @@ async function inspectGallery(
   urls: string[],
   fetchImage: LiveImageFetcher,
 ): Promise<LiveImageSignal[]> {
-  const signals: LiveImageSignal[] = [];
-  for (const url of urls) {
-    signals.push(await inspectRemoteImage(canonicalizeImageUrl(url), fetchImage));
-  }
+  const signals = new Array<LiveImageSignal>(urls.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(6, urls.length) },
+    async () => {
+      while (nextIndex < urls.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        signals[index] = await inspectRemoteImage(
+          canonicalizeImageUrl(urls[index]!),
+          fetchImage,
+        );
+      }
+    },
+  );
+  await Promise.all(workers);
   return signals;
 }
 
@@ -464,7 +477,11 @@ async function evaluateListing(input: {
   const imageEvidenceMissing =
     gallerySrcs.length > 0 &&
     (imageSignals.length === 0 ||
-      imageSignals.some((signal) => signal.checksum == null));
+      imageSignals.some(
+        (signal) =>
+          !signal.placeholder &&
+          (signal.checksum == null || signal.qualityError != null),
+      ));
   const plannedChecksums = input.listing.images.map((image) => image.checksum);
   const plannedUrls = input.listing.images.map((image) => image.sourceUrl);
   const imageDrift =
@@ -702,19 +719,30 @@ export async function runLiveVisualValidation(input: {
 }): Promise<LiveVisualReport> {
   const session = await openSession(input.deps.browser);
   try {
-    const dealers: LiveVisualDealerResult[] = [];
     const actions = input.dealerKey
       ? input.plan.actions.filter((action) => action.dealerKey === input.dealerKey)
       : input.plan.actions;
-    for (const action of actions) {
-      dealers.push(
-        await validateDealer({
-          action,
-          deps: input.deps,
-          session,
-        }),
-      );
-    }
+    const dealers = new Array<LiveVisualDealerResult>(actions.length);
+    let nextActionIndex = 0;
+    const dealerConcurrency = Math.max(
+      1,
+      Math.min(input.deps.dealerConcurrency ?? 1, actions.length),
+    );
+    const workers = Array.from(
+      { length: dealerConcurrency },
+      async () => {
+        while (nextActionIndex < actions.length) {
+          const index = nextActionIndex;
+          nextActionIndex += 1;
+          dealers[index] = await validateDealer({
+            action: actions[index]!,
+            deps: input.deps,
+            session,
+          });
+        }
+      },
+    );
+    await Promise.all(workers);
     return buildLiveVisualReport({
       runId: input.plan.runId,
       planFingerprint: input.plan.fingerprint,

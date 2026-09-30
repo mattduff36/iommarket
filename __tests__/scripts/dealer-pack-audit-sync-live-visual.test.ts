@@ -1166,6 +1166,64 @@ describe("live gallery extras, evidence, and schema", () => {
     })).toThrow();
     expect(liveVisualReportSchema.parse(report).ok).toBe(true);
   });
+
+  it("fails closed when a wrong full-size image is the live primary", async () => {
+    const pages = passingPages() as Record<string, { images?: unknown[] }>;
+    const detail = pages["https://dealer.example/used/abc123"] as { images: unknown[] };
+    detail.images = [
+      { ...extraSlideImage(), top: 0, width: 900, height: 600 },
+      {
+        ...extraSlideImage(),
+        src: "https://cdn.example/car.jpg",
+        currentSrc: "https://cdn.example/car.jpg",
+        alt: "planned car",
+        top: 10,
+        width: 900,
+        height: 600,
+      },
+    ];
+    const report = await runLiveVisualValidation({
+      plan: frozenPlan(),
+      deps: {
+        browser: mockBrowser(pages),
+        fetchImage: async (url) => ({
+          url,
+          bytes: GOOD_IMAGE,
+          contentType: "image/png",
+          status: 200,
+        }),
+        resolveSite: () => site,
+        evidence: { async write(relPath) { return relPath; } },
+        now: () => "2026-09-29T21:10:00.000Z",
+      },
+    });
+
+    expect(report.dealers[0]?.listings[0]).toMatchObject({
+      status: "drift",
+      findings: expect.arrayContaining(["live-drift"]),
+    });
+  });
+
+  it("fails closed when a matching live image cannot be fetched or verified", async () => {
+    const report = await runLiveVisualValidation({
+      plan: frozenPlan(),
+      deps: {
+        browser: mockBrowser(passingPages()),
+        fetchImage: async (url) => ({ url, error: "HTTP 403" }),
+        resolveSite: () => site,
+        evidence: { async write(relPath) { return relPath; } },
+        now: () => "2026-09-29T21:10:00.000Z",
+      },
+    });
+
+    expect(report.dealers[0]?.listings[0]).toMatchObject({
+      status: "unverified",
+      findings: expect.arrayContaining([
+        "unverified-image-evidence",
+        "fetch:HTTP 403",
+      ]),
+    });
+  });
 });
 
 describe("live visual CLI", () => {

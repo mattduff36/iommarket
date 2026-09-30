@@ -516,7 +516,7 @@ describe("live observer scoping", () => {
     expect(gallery.gallerySrcs).toEqual([full]);
   });
 
-  it("uses the planned stock-card image as hero when a looping gallery starts on a clone", () => {
+  it("does not let the planned image override the independently observed live hero", () => {
     const base = "https://img.cdn.dragon2000.net/C3656/U2266";
     const gallery = collectVisibleGallery(
       [
@@ -540,8 +540,8 @@ describe("live observer scoping", () => {
     );
 
     expect(gallery.gallerySrcs).toEqual([
-      `${base}/IMG_1200-mini.jpg`,
       `${base}/IMG_1210-mini.jpg`,
+      `${base}/IMG_1200-mini.jpg`,
     ]);
   });
 

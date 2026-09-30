@@ -26,7 +26,7 @@ const CDN_ORIGINAL_SCORE = 1_500_000;
 const THUMB_DIR_SCORE = 400;
 const T_PREFIX_SCORE = 300;
 const SEMANTIC_PLACEHOLDER =
-  /(?:^|[^a-z0-9])(?:coming[\-_ ]?soon|no[\-_ ]?image(?:[\-_ ]?stock)?|placeholder)(?:[^a-z0-9]|$)/i;
+  /(?:^|[^a-z0-9])(?:coming[\-_ ]?soon|waiting[\-_ ]?for[\-_ ]?image|no[\-_ ]?image(?:[\-_ ]?stock)?|placeholder)(?:[^a-z0-9]|$)/i;
 
 export interface NetDirectorImageToken {
   key?: string;
@@ -39,7 +39,8 @@ export interface NetDirectorImageToken {
 }
 
 export function isIgnoredImageUrl(url: string) {
-  const lower = url.toLowerCase();
+  const token = parseNetDirectorImageToken(url);
+  const lower = (token?.key ?? url).toLowerCase();
   return (
     SEMANTIC_PLACEHOLDER.test(lower) ||
     lower.includes("logo") ||
@@ -163,6 +164,16 @@ export function imageQualityScore(url: string) {
     return CDN_ORIGINAL_SCORE;
   }
   const path = pathnameOf(url);
+  let queryPenalty = 0;
+  try {
+    const params = new URL(url).searchParams;
+    const query = params.toString().toLowerCase();
+    if (/(?:^|[=&])(?:size|type|variant)=(?:thumb|thumbnail|small|mini)(?:&|$)/.test(query)) {
+      queryPenalty = ORIGINAL_SCORE;
+    }
+  } catch {
+    // Preserve path-based scoring for malformed URLs.
+  }
   const wordpress = path.match(WORDPRESS_SIZE);
   if (wordpress) return Number(wordpress[1]);
   const imgeng = url.match(IMGENG_WIDTH);
@@ -176,7 +187,7 @@ export function imageQualityScore(url: string) {
   if (THUMB_DIR.test(path) || FILENAME_T_PREFIX.test(path)) {
     return THUMB_DIR.test(path) ? THUMB_DIR_SCORE : T_PREFIX_SCORE;
   }
-  let score = ORIGINAL_SCORE;
+  let score = ORIGINAL_SCORE - queryPenalty;
   if (WORDPRESS_SCALED.test(path)) score -= 10;
   if (/amazonaws\.com/i.test(url) || ndstockKeyFromPath(path)) score += S3_ORIGINAL_BONUS;
   return score;

@@ -12,6 +12,7 @@ import type {
 import { liveVisualReportFingerprint } from "@/scripts/dealer-pack-audit-sync/live-types";
 import {
   DEALER_NOT_ONBOARDING_REASON,
+  LIVE_ORDER_RECONCILED_FINDING,
   LIVE_VISUAL_EXCLUDED_REASON,
   LIVE_VISUAL_HIDE_PACK_REASON,
   LIVE_VISUAL_NO_VALIDATED_LISTINGS_REASON,
@@ -411,6 +412,105 @@ describe("finalize live preview plans", () => {
         liveVisualStatusReason("inaccessible"),
       ]),
     );
+  });
+
+  it("reorders a fully matched gallery from independent live primary evidence", () => {
+    const first = plannedListing("stockId:order");
+    const secondImage = {
+      ...first.images[0]!,
+      sourceUrl: "https://cdn.example/rear.jpg",
+      checksum: "checksum-2",
+      order: 1,
+    };
+    const planned: PlannedListing = {
+      ...first,
+      listing: {
+        ...first.listing,
+        imageUrls: [first.images[0]!.sourceUrl, secondImage.sourceUrl],
+      },
+      images: [first.images[0]!, secondImage],
+    };
+    const candidate = candidatePlan([replaceAction("athol-garage", [planned])]);
+    const observed: LiveVisualListingResult = {
+      ...liveListing(planned, "drift", ["live-drift"]),
+      heroSrc: secondImage.sourceUrl,
+      gallerySrcs: [secondImage.sourceUrl, first.images[0]!.sourceUrl],
+    };
+
+    const finalPlan = finalizePreviewPlanFromLiveVisual({
+      candidate,
+      report: reportFor(candidate, [
+        liveDealer({
+          dealerKey: "athol-garage",
+          actionKind: "replace",
+          listings: [observed],
+        }),
+      ]),
+      finalRunId: "run-live-order",
+    });
+    const action = finalPlan.actions[0] as ReplacePackAction;
+
+    expect(action.listings[0]?.images.map((image) => image.sourceUrl)).toEqual([
+      secondImage.sourceUrl,
+      first.images[0]!.sourceUrl,
+    ]);
+    expect(action.listings[0]?.images.map((image) => image.order)).toEqual([0, 1]);
+    expect(action.listings[0]?.findings).toContain(LIVE_ORDER_RECONCILED_FINDING);
+    expect(action.excludedListings).toEqual([]);
+  });
+
+  it("reorders from a validated lazy-gallery prefix and preserves unseen source images", () => {
+    const first = plannedListing("stockId:lazy-order");
+    const secondImage = {
+      ...first.images[0]!,
+      sourceUrl: "https://cdn.example/rear.jpg",
+      checksum: "checksum-2",
+      order: 1,
+    };
+    const thirdImage = {
+      ...first.images[0]!,
+      sourceUrl: "https://cdn.example/interior.jpg",
+      checksum: "checksum-3",
+      order: 2,
+    };
+    const planned: PlannedListing = {
+      ...first,
+      listing: {
+        ...first.listing,
+        imageUrls: [
+          first.images[0]!.sourceUrl,
+          secondImage.sourceUrl,
+          thirdImage.sourceUrl,
+        ],
+      },
+      images: [first.images[0]!, secondImage, thirdImage],
+    };
+    const candidate = candidatePlan([replaceAction("td-car-centre", [planned])]);
+    const observed: LiveVisualListingResult = {
+      ...liveListing(planned, "drift", ["live-drift"]),
+      heroSrc: secondImage.sourceUrl,
+      gallerySrcs: [secondImage.sourceUrl, first.images[0]!.sourceUrl],
+    };
+
+    const finalPlan = finalizePreviewPlanFromLiveVisual({
+      candidate,
+      report: reportFor(candidate, [
+        liveDealer({
+          dealerKey: "td-car-centre",
+          actionKind: "replace",
+          listings: [observed],
+        }),
+      ]),
+      finalRunId: "run-live-lazy-order",
+    });
+    const action = finalPlan.actions[0] as ReplacePackAction;
+
+    expect(action.listings[0]?.images.map((image) => image.sourceUrl)).toEqual([
+      secondImage.sourceUrl,
+      first.images[0]!.sourceUrl,
+      thirdImage.sourceUrl,
+    ]);
+    expect(action.listings[0]?.findings).toContain(LIVE_ORDER_RECONCILED_FINDING);
   });
 
   it("converts hidePack or unvalidated replace actions to disable/removeListings", () => {

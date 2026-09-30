@@ -529,29 +529,43 @@ export function collectVisibleGallery(
       }
       return scoped && imageOwnedByListing(src, scope, element);
     });
-  const unique = uniqueBy(
-    images,
+  const nonCloneImages = images.filter(
     (image) =>
+      !(image.ancestorHints ?? []).some((hint) =>
+        /swiper-slide-duplicate|slick-cloned|owl-cloned|splide__slide--clone/i.test(hint),
+      ),
+  );
+  const candidates = nonCloneImages.length > 0 ? nonCloneImages : images;
+  const byIdentity = new Map<string, VisibleElementSnapshot>();
+  const identityOrder: string[] = [];
+  for (const image of candidates) {
+    const identity =
       galleryIdentityKey(preferredImageSrc(image)) ??
       canonicalizeLiveUrl(preferredImageSrc(image) ?? "") ??
-      preferredImageSrc(image),
+      preferredImageSrc(image);
+    if (!identity) continue;
+    const existing = byIdentity.get(identity);
+    if (!existing) identityOrder.push(identity);
+    const imageArea = image.visible ? image.width * image.height : -1;
+    const existingArea = existing?.visible
+      ? existing.width * existing.height
+      : -1;
+    if (!existing || imageArea > existingArea) byIdentity.set(identity, image);
+  }
+  const unique = identityOrder.flatMap((identity) => {
+    const image = byIdentity.get(identity);
+    return image ? [image] : [];
+  });
+  const maxVisibleArea = unique.reduce(
+    (max, image) =>
+      image.visible ? Math.max(max, image.width * image.height) : max,
+    0,
   );
-  const preferredHeroIdentity = galleryIdentityKey(scope.preferredHeroUrl);
-  const preferredHeroIndex = preferredHeroIdentity
-    ? unique.findIndex(
-        (image) =>
-          galleryIdentityKey(preferredImageSrc(image)) === preferredHeroIdentity,
-      )
-    : -1;
-  const heroIndex = preferredHeroIndex >= 0
-    ? preferredHeroIndex
-    : unique.reduce((bestIndex, image, index) => {
-        if (!image.visible) return bestIndex;
-        const area = image.width * image.height;
-        const best = unique[bestIndex];
-        const bestArea = best?.visible ? best.width * best.height : -1;
-        return area > bestArea ? index : bestIndex;
-      }, 0);
+  const heroIndex = unique.findIndex(
+    (image) =>
+      image.visible &&
+      image.width * image.height >= maxVisibleArea * 0.5,
+  );
   const ordered =
     heroIndex > 0
       ? [unique[heroIndex]!, ...unique.slice(0, heroIndex), ...unique.slice(heroIndex + 1)]

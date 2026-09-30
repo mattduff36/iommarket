@@ -12,6 +12,7 @@ import {
   type AuditSnapshotManifest,
   type SnapshotClassification,
 } from "./classify";
+import { LIVE_ORDER_RECONCILED_FINDING } from "./finalize-live";
 import { canonicalJson } from "./plan-file";
 import type { ProductionAuditPlan, ProductionSourceListing } from "./production-types";
 import type { PlannedListing, PreviewPackAuditPlan } from "./types";
@@ -29,6 +30,7 @@ export type SourceCompareChange =
   | "explained_still_unsafe"
   | "explained_ineligible"
   | "explained_excluded"
+  | "explained_live_order"
   | "explained_connector_representation";
 
 export type SourceCompareTarget = "preview" | "production";
@@ -532,6 +534,22 @@ export function compareClassifiedDealer(input: {
       const effectiveChecksumsChanged =
         checksumsChanged && !oceanChecksumsAreVerifiedPrefix;
       const findingsChanged = !findingsEqual(plannedFindings, archiveFindings);
+      const liveOrderReconciled =
+        plannedFindings.includes(LIVE_ORDER_RECONCILED_FINDING) &&
+        listingChanges.length === 0 &&
+        checksumsEqual(
+          [...plannedChecksums].sort(),
+          [...archiveChecksums].sort(),
+        );
+      if (liveOrderReconciled) {
+        return listingRow({
+          ...base,
+          listingChanges: ["image-order"],
+          change: "explained_live_order",
+          unexplained: false,
+          explanation: LIVE_ORDER_RECONCILED_FINDING,
+        });
+      }
       if (!effectiveChecksumsChanged && listingChanges.length === 0 && !findingsChanged) {
         return listingRow({
           ...base,
