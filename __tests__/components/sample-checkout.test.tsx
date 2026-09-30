@@ -49,7 +49,7 @@ describe("SampleCheckout", () => {
     render(<SampleCheckout checkout={checkout()} />);
 
     await user.click(screen.getByRole("radio", { name: /successful payment/i }));
-    await user.click(screen.getByRole("button", { name: /pay £12\.50/i }));
+    await user.click(screen.getByRole("button", { name: "Pay using Card" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Sample payment approved");
     expect(submitMock).toHaveBeenCalledWith({
@@ -69,10 +69,10 @@ describe("SampleCheckout", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Sample card declined");
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^retry$/i }));
-    expect(screen.getByRole("radiogroup", { name: /choose a sample card outcome/i })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Use your saved card to pay" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: /successful payment/i }));
-    await user.click(screen.getByRole("button", { name: /pay £12\.50/i }));
+    await user.click(screen.getByRole("button", { name: "Pay using Card" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The sample payment was declined.");
     expect(screen.queryByText("Sample payment approved")).not.toBeInTheDocument();
     expect(screen.getByText(/2 of 3 sample attempts used/i)).toBeInTheDocument();
@@ -94,7 +94,33 @@ describe("SampleCheckout", () => {
     render(<SampleCheckout checkout={checkout({ expiresAt: "2000-01-01T00:00:00.000Z" })} />);
 
     await waitFor(() => expect(screen.getByRole("radio", { name: /successful payment/i })).toBeDisabled());
-    expect(screen.getByRole("button", { name: /pay £12\.50/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Pay using Card" })).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("has expired");
+  });
+
+  it("keeps saved-card details read-only and requires a saved-card choice before payment", async () => {
+    const user = userEvent.setup();
+    render(<SampleCheckout checkout={checkout()} />);
+
+    const cardNumber = screen.getByRole("textbox", { name: /card number/i });
+    const month = screen.getByRole("combobox", { name: /expiration month/i });
+    const year = screen.getByRole("combobox", { name: /expiration year/i });
+    const securityCode = screen.getByRole("textbox", { name: /security code/i });
+    const fields = [cardNumber, month, year, securityCode];
+    fields.forEach((field) => expect(field).toBeDisabled());
+
+    const payButton = screen.getByRole("button", { name: "Pay using Card" });
+    expect(payButton).toBeDisabled();
+    for (const [field, value] of [
+      [cardNumber, "4111111111111111"],
+      [securityCode, "123"],
+    ] as const) {
+      const before = (field as HTMLInputElement).value;
+      await user.type(field, value);
+      expect((field as HTMLInputElement).value).toBe(before);
+    }
+
+    await user.click(screen.getByRole("radio", { name: /successful payment/i }));
+    expect(payButton).toBeEnabled();
   });
 });
