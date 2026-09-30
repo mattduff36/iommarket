@@ -136,7 +136,7 @@ export function SampleCheckout({
   }, [checkout.returnUrl, router, terminalSuccess]);
 
   return (
-    <main className="flowpay-page">
+    <main className="flowpay-page font-body">
       <div className="flowpay-topbar">
         <a className="flowpay-brand" href={checkout.returnUrl} aria-label="FlowPay sample checkout">
           <span className="flowpay-mark"><span /><span /><span /></span>
