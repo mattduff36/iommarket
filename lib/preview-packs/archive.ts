@@ -2,7 +2,10 @@ import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { archiveRoot, dealerDir, runDir } from "../../scripts/dealer-stock-sync/archive/paths";
 import { canonicalDealerDisplayName, DEALER_REGISTRY } from "../../scripts/dealer-stock-sync/registry";
-import { isExcludedPreviewDealerKey } from "./safety";
+import {
+  isArchivedPreviewDealerKey,
+  isExcludedPreviewDealerKey,
+} from "./safety";
 
 export function readLatestArchiveRunId(root?: string) {
   const latestPath = join(archiveRoot(root), "latest.json");
@@ -82,7 +85,10 @@ export async function listAvailablePreviewArchives(root?: string) {
   const newestByDealer = new Map<string, string>();
   for (const runId of listArchiveRunIds(root)) {
     for (const dealerKey of listArchivedDealerKeys(runId, root)) {
-      if (isExcludedPreviewDealerKey(dealerKey, registryGroupKey(dealerKey))) continue;
+      if (
+        isArchivedPreviewDealerKey(dealerKey) ||
+        isExcludedPreviewDealerKey(dealerKey, registryGroupKey(dealerKey))
+      ) continue;
       if (!newestByDealer.has(dealerKey)) newestByDealer.set(dealerKey, runId);
     }
   }
@@ -123,7 +129,10 @@ export function mergePreviewPackRows(input: {
   const rows = new Map<string, PreviewPackListRow>();
 
   for (const dealer of input.archives) {
-    if (isExcludedPreviewDealerKey(dealer.dealerKey, registryGroupKey(dealer.dealerKey))) {
+    if (
+      isArchivedPreviewDealerKey(dealer.dealerKey) ||
+      isExcludedPreviewDealerKey(dealer.dealerKey, registryGroupKey(dealer.dealerKey))
+    ) {
       continue;
     }
     const pack = packByKey.get(dealer.dealerKey);
@@ -143,7 +152,10 @@ export function mergePreviewPackRows(input: {
 
   for (const pack of input.packs) {
     if (rows.has(pack.dealerKey)) continue;
-    if (isExcludedPreviewDealerKey(pack.dealerKey, registryGroupKey(pack.dealerKey))) {
+    if (
+      isArchivedPreviewDealerKey(pack.dealerKey) ||
+      isExcludedPreviewDealerKey(pack.dealerKey, registryGroupKey(pack.dealerKey))
+    ) {
       continue;
     }
     rows.set(pack.dealerKey, {

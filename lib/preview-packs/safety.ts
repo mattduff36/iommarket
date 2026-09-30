@@ -3,6 +3,7 @@ export const OCEAN_DEALER_NAME = "Ocean Motor Village";
 export const OCEAN_DEALER_KEY = "ocean-motor-village";
 export const PREVIEW_EMAIL_DOMAIN = "preview.internal";
 export const PREVIEW_AUTH_USER_ID_PREFIX = "preview-system:";
+export const ARCHIVED_PREVIEW_DEALER_KEYS = new Set(["rex-motor-company"]);
 
 export function previewSystemEmail(dealerKey: string) {
   return `preview+${dealerKey}@${PREVIEW_EMAIL_DOMAIN}`;
@@ -22,6 +23,10 @@ export function isPreviewSystemAuthUserId(authUserId: string) {
 
 export function previewDealerSlug(dealerKey: string) {
   return `preview-${dealerKey}`;
+}
+
+export function isArchivedPreviewDealerKey(dealerKey: string) {
+  return ARCHIVED_PREVIEW_DEALER_KEYS.has(dealerKey.trim().toLowerCase());
 }
 
 export function isExcludedPreviewDealerKey(dealerKey: string, groupKey?: string | null) {
@@ -50,6 +55,11 @@ export function assertPreviewDealerAllowed(input: {
   groupKey?: string | null;
   ownerEmail?: string | null;
 }) {
+  if (isArchivedPreviewDealerKey(input.dealerKey)) {
+    throw new Error(
+      "This dealer is archived and requires explicit client approval before reactivation.",
+    );
+  }
   if (isExcludedPreviewDealerKey(input.dealerKey, input.groupKey)) {
     throw new Error("Ocean brand archives are excluded from preview packs.");
   }

@@ -36,6 +36,7 @@ function makeArchive() {
   writeManifest(root, "2026-08-22T18-00-00-000Z", "ocean-motor-village", "Ocean Motor Village", 41);
   writeManifest(root, "2026-08-22T22-00-00-000Z", "athol-garage", "Athol Garage", 14);
   writeManifest(root, "2026-08-22T22-00-00-000Z", "mikes-motors", "Mikes Motors", 34);
+  writeManifest(root, "2026-08-22T22-00-00-000Z", "rex-motor-company", "Rex Motor Company", 6);
   writeFileSync(
     join(root, "latest.json"),
     JSON.stringify({ runId: "2026-08-22T22-00-00-000Z" }),
@@ -94,6 +95,14 @@ describe("preview pack archive index", () => {
           sourceRunId: "run-m",
           listingCount: 34,
           slug: "preview-mikes-motors",
+        },
+        {
+          dealerKey: "rex-motor-company",
+          displayName: "Rex Motor Company",
+          enabled: true,
+          sourceRunId: "legacy-rex",
+          listingCount: 6,
+          slug: "preview-rex-motor-company",
         },
       ],
     });

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { detectConnector, getConnector } from "../../../scripts/dealer-stock-sync/connectors/detect";
-import { DEALER_REGISTRY, getDealer } from "../../../scripts/dealer-stock-sync/registry";
+import {
+  DEALER_REGISTRY,
+  getDealer,
+  listDealers,
+} from "../../../scripts/dealer-stock-sync/registry";
 
 describe("dealer registry", () => {
   it("contains the confirmed IOM operations plus unverified and specialist records", () => {
@@ -17,9 +21,12 @@ describe("dealer registry", () => {
     expect(getDealer("pextray").status).toBe("specialist_optional");
     expect(getDealer("mikes-motors").displayName).toBe("Mike's Motors");
     expect(getDealer("mikes-motors").displayNameAliases).toEqual(["Mikes Motors"]);
+    expect(getDealer("rex-motor-company").status).toBe("archived");
+    expect(listDealers({ includeOptional: true, includeUnverified: true }))
+      .not.toContainEqual(expect.objectContaining({ key: "rex-motor-company" }));
     expect(
       DEALER_REGISTRY.filter((item) => item.status === "confirmed" || item.status === "no_public_site"),
-    ).toHaveLength(33);
+    ).toHaveLength(32);
   });
 
   it("configures Athol as NetDirector without a dealer-name branch", () => {

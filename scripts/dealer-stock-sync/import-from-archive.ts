@@ -22,6 +22,11 @@ export function assertArchiveDealerMatch(input: {
     );
   }
   const registry = getDealer(input.requestedDealerKey);
+  if (registry.status === "archived") {
+    throw new ArchiveImportSafetyError(
+      `${registry.displayName} is archived and cannot be imported without explicit client approval`,
+    );
+  }
   if (registry.displayName.trim() !== input.expectedName.trim()) {
     throw new ArchiveImportSafetyError(
       `Expected dealer name "${input.expectedName}" does not match registry "${registry.displayName}"`,
