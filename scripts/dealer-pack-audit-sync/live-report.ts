@@ -5,7 +5,12 @@ import type {
   LiveVisualListingResult,
   LiveVisualReport,
 } from "./live-types";
-import { LIVE_VISUAL_KIND, LIVE_VISUAL_VERSION, liveVisualReportSchema } from "./live-types";
+import {
+  LIVE_VISUAL_KIND,
+  LIVE_VISUAL_VERSION,
+  liveVisualReportFingerprint,
+  liveVisualReportSchema,
+} from "./live-types";
 
 export function liveVisualEvidenceDir(dealerKey: string) {
   return `live-visual/${dealerKey}`;
@@ -49,11 +54,10 @@ export function buildLiveVisualReport(input: {
   const hidePackCount = input.dealers.filter((dealer) => dealer.hidePack).length;
   const ok = input.dealers.every((dealer) =>
     !dealer.hidePack &&
-    !dealer.census.drift &&
     dealer.listings.length > 0 &&
     dealer.listings.every((listing) => listing.status === "pass"),
   );
-  return liveVisualReportSchema.parse({
+  const unsigned = {
     version: LIVE_VISUAL_VERSION,
     kind: LIVE_VISUAL_KIND,
     runId: input.runId,
@@ -62,6 +66,10 @@ export function buildLiveVisualReport(input: {
     ok,
     hidePackCount,
     dealers: input.dealers,
+  };
+  return liveVisualReportSchema.parse({
+    ...unsigned,
+    fingerprint: liveVisualReportFingerprint(unsigned),
   });
 }
 

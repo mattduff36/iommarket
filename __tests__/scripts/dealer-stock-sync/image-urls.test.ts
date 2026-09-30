@@ -37,6 +37,14 @@ describe("ND-IMG-002 S3 original vs CDN token", () => {
     const urls = uniqueImageUrls([s3, ndUrl("ndstock/a.jpg", 400)]);
     expect(urls).toEqual([s3]);
   });
+
+  it("rewrites legacy autofs objects to the readable Ireland bucket", () => {
+    expect(canonicalizeImageUrl(
+      "https://s3-eu-west-1.amazonaws.com/autofs/ndstock/images/stock/hash/NDS19360241_RMN398W_1.png",
+    )).toBe(
+      "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/images/stock/hash/NDS19360241_RMN398W_1.png",
+    );
+  });
 });
 
 describe("ND-IMG-003 WordPress -WxH thumbs", () => {
@@ -63,6 +71,31 @@ describe("ND-IMG-003 WordPress -WxH thumbs", () => {
       "https://dealer-one.example/images/vehicle.jpg",
       "https://dealer-two.example/images/vehicle.jpg",
     ]);
+  });
+});
+
+describe("rendered CDN transforms", () => {
+  it("removes resize-only ImageEngine and NetDirector transforms", () => {
+    expect(
+      canonicalizeImageUrl(
+        "https://bluesky.cdn.imgeng.in/cogstock-images/car.jpg?imgeng=/w_210/",
+      ),
+    ).toBe("https://bluesky.cdn.imgeng.in/cogstock-images/car.jpg");
+    expect(canonicalizeImageUrl(ndUrl("ndstock/NDS12345_1.jpg", 200))).toBe(
+      ndUrl("ndstock/NDS12345_1.jpg"),
+    );
+  });
+
+  it("uses the token's S3 object when NetDirector originals are not materialized", () => {
+    const transformed = encodeNetDirectorImageUrl({
+      bucket: "nd-stock-ireland-production",
+      key: "ndstock/images/NDS12345 PMN 1.jpg",
+      edits: { resize: { width: 100, height: 75 } },
+    });
+
+    expect(canonicalizeImageUrl(transformed)).toBe(
+      "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/images/NDS12345%20PMN%201.jpg",
+    );
   });
 });
 

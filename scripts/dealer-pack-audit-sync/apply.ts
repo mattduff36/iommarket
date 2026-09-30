@@ -107,32 +107,49 @@ async function stagePackDisabled(
   prisma: PrismaClient,
   action: PackAuditAction,
 ) {
-  const current = await prisma.dealerPreviewPack.findUnique({
-      where: { id: action.baseline.packId },
-      select: {
-        ...PACK_BASELINE_SELECT,
-        dealerProfile: {
-          select: {
-            isAdminPreview: true,
-            userId: true,
-            user: { select: { email: true, authUserId: true } },
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${action.baseline.packId}))`;
+    const current = await tx.dealerPreviewPack.findUnique({
+        where: { id: action.baseline.packId },
+        select: {
+          ...PACK_BASELINE_SELECT,
+          dealerProfile: {
+            select: {
+              isAdminPreview: true,
+              userId: true,
+              user: { select: { email: true, authUserId: true } },
+            },
           },
         },
-      },
-  });
-  if (!current) throw new Error("Refusing audit sync: preview pack disappeared.");
-  assertBaselineMatches(action.baseline, capturePackBaseline(current));
-  if (action.kind === "replace" || action.removeListings) {
-    assertSyntheticOwner(current.dealerProfile);
-    assertPackListingOwnership(action, {
-      userId: current.dealerProfile.userId,
-      dealerId: current.dealerProfileId,
     });
-  }
-  return {
-    dealerId: current.dealerProfileId,
-    userId: current.dealerProfile.userId,
-  };
+    if (!current) throw new Error("Refusing audit sync: preview pack disappeared.");
+    const captured = capturePackBaseline(current);
+    try {
+      assertBaselineMatches(action.baseline, captured);
+    } catch (error) {
+      if (action.kind !== "replace" || current.enabled) throw error;
+      assertBaselineMatches(action.baseline, captured, {
+        ignorePackEnabledAndUpdatedAt: true,
+      });
+    }
+    if (action.kind === "replace" || action.removeListings) {
+      assertSyntheticOwner(current.dealerProfile);
+      assertPackListingOwnership(action, {
+        userId: current.dealerProfile.userId,
+        dealerId: current.dealerProfileId,
+      });
+    }
+    if (action.kind === "replace" && current.enabled) {
+      await tx.dealerPreviewPack.update({
+        where: { id: current.id },
+        data: { enabled: false },
+      });
+    }
+    return {
+      dealerId: current.dealerProfileId,
+      userId: current.dealerProfile.userId,
+    };
+  }, { timeout: 60_000 });
 }
 
 async function assertFrozenImage(image: PlannedListing["images"][number]) {
@@ -230,7 +247,17 @@ async function assertCurrentBaseline(
     },
   });
   if (!current) throw new Error("Refusing audit sync: staged preview pack disappeared.");
-  assertBaselineMatches(action.baseline, capturePackBaseline(current));
+  const captured = capturePackBaseline(current);
+  if (action.kind === "replace") {
+    if (current.enabled) {
+      throw new Error("Refusing audit sync: staged preview pack is enabled.");
+    }
+    assertBaselineMatches(action.baseline, captured, {
+      ignorePackEnabledAndUpdatedAt: true,
+    });
+  } else {
+    assertBaselineMatches(action.baseline, captured);
+  }
   if (action.kind === "replace" || action.removeListings) {
     assertSyntheticOwner(current.dealerProfile);
     assertPackListingOwnership(action, {

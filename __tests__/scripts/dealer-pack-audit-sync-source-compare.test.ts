@@ -321,6 +321,46 @@ describe("dealer pack source compare", () => {
       change: "explained_connector_representation",
       unexplained: false,
     }));
+
+    const ignoredPlannedImage = compareClassifiedDealer({
+      dealerKey: OCEAN_DEALER_KEY,
+      displayName: "Ocean Motor Village",
+      preview: {
+        kind: "replace",
+        listings: [{
+          ...plannedWithImages,
+          images: [
+            oceanImage,
+            {
+              ...oceanImage,
+              sourceUrl: "https://ocean.example/dealer-logo.svg",
+              checksum: "ocean-2",
+              order: 1,
+            },
+          ],
+        }],
+      },
+      production: null,
+      archivePresent: true,
+      manifest,
+      classified: {
+        safe: true,
+        noPublicStock: false,
+        reasons: [],
+        listings: [{
+          ...classifiedEligible.listings[0]!,
+          images: [oceanImage],
+          findings: ["image-rejected:1:ignored asset"],
+        }],
+      },
+      ineligible: [],
+    });
+    expect(ignoredPlannedImage.unexplainedCount).toBe(1);
+    expect(ignoredPlannedImage.listings[0]).toEqual(expect.objectContaining({
+      change: "modified",
+      unexplained: true,
+      explanation: "image-checksums-changed",
+    }));
   });
 
   it("reports checksum drift as modified and unexplained so completion cannot pass", () => {
@@ -377,6 +417,51 @@ describe("dealer pack source compare", () => {
       explanation: "image-checksums-changed",
       plannedChecksums: ["checksum-old"],
       archiveChecksums: ["checksum-new"],
+    }));
+  });
+
+  it("explains archived listings intentionally excluded by the final audit", () => {
+    const listing = mappedListing("2022 Rex Car");
+    const excluded: PlannedListing = {
+      identityKey: "sourceVehicleId:rex-1",
+      sourceUrl: "https://rex.example/rex-1",
+      listing,
+      images: [],
+      findings: [],
+    };
+    const result = compareClassifiedDealer({
+      dealerKey: "rex-motor-company",
+      displayName: "Rex Motor Company",
+      preview: {
+        kind: "disable",
+        reasons: ["dealer-not-onboarding"],
+        listings: [],
+        excludedListings: [{
+          identityKey: excluded.identityKey,
+          reasons: ["dealer-not-onboarding"],
+          findings: ["dealer-not-onboarding"],
+        }],
+      },
+      production: null,
+      archivePresent: true,
+      manifest: freshManifest({
+        dealerKey: "rex-motor-company",
+        displayName: "Rex Motor Company",
+      }),
+      classified: {
+        safe: true,
+        noPublicStock: false,
+        reasons: [],
+        listings: [excluded],
+      },
+      ineligible: [],
+    });
+
+    expect(result.unexplainedCount).toBe(0);
+    expect(result.listings[0]).toEqual(expect.objectContaining({
+      change: "explained_excluded",
+      unexplained: false,
+      explanation: "dealer-not-onboarding",
     }));
   });
 });

@@ -485,8 +485,11 @@ describe("production live-run binding", () => {
       candidateRunId: "run-candidate",
       candidateFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       liveReportRunId: "run-candidate",
-      liveReportFingerprint: liveFinalization.candidateFingerprint,
+      liveReportFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
+    expect(liveFinalization.liveReportFingerprint).not.toBe(
+      liveFinalization.candidateFingerprint,
+    );
     const tampered = {
       ...finalPlan,
       liveFinalization: {

@@ -54,6 +54,7 @@ const ID_PREFIXED_STOCK = /^id-([a-z0-9][a-z0-9_-]{0,64})$/i;
 const NUMERIC_SEO_STOCK = /^(\d{5,})-[a-z0-9]/i;
 const STOCK_PATH_SEGMENT = /^[a-z0-9][a-z0-9_-]{1,64}$/i;
 const CARD_BADGE_TITLE = /^(coming soon|available|sold)$/;
+const NON_TITLE_MEASUREMENT = /^\d{1,6}(?:\s*(?:miles?|mi|km))?$/;
 const CARD_BADGE_PRICE = /(?:£|&pound;|GBP)\s*[\d,]{1,8}(?:\.\d{2})?/gi;
 
 export function normalizeStockId(value: string | null | undefined): string | null {
@@ -157,7 +158,11 @@ export function normalizeLiveTitle(title: string) {
 export function isCardBadgeTitle(title: string) {
   const stripped = title.replace(CARD_BADGE_PRICE, " ");
   const normalized = normalizeLiveTitle(stripped);
-  return normalized.length === 0 || CARD_BADGE_TITLE.test(normalized);
+  return (
+    normalized.length === 0 ||
+    CARD_BADGE_TITLE.test(normalized) ||
+    NON_TITLE_MEASUREMENT.test(normalized)
+  );
 }
 
 export function titlesMatch(planned: string, observed: string) {
@@ -240,7 +245,7 @@ export function isIdentityMatch(evidence: LiveMatchEvidence) {
 
 export function identityMismatch(evidence: LiveMatchEvidence) {
   if (evidence.url) {
-    return evidence.stockIdConflict || evidence.priceConflict;
+    return evidence.titleConflict || evidence.priceConflict;
   }
   return evidence.stockIdConflict || evidence.titleConflict || evidence.priceConflict;
 }

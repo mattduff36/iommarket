@@ -5,7 +5,7 @@ const IRELAND_NDSTOCK = "://s3-eu-west-1.amazonaws.com/nd-stock-ireland-producti
 const NETDIRECTOR_HOST = "images.netdirector.auto";
 const WORDPRESS_SIZE = /-(\d+)x(\d+)(?:-\d+)?(\.(jpe?g|png|webp))$/i;
 const WORDPRESS_SCALED = /-scaled(\.(jpe?g|png|webp))$/i;
-const DRAGON_SIZE = /-(mini|medium|large|thumb|small)(\.(jpe?g|png|webp))$/i;
+const DRAGON_SIZE = /-(micro|mini|medium|large|thumb|small)(\.(jpe?g|png|webp))$/i;
 const SMG_SIZE_DIR = /(\/images\/\d+\/)(\d+)(\/)/i;
 const CD5_WIDTH_DIR = /\/w(\d+)\//i;
 const THUMB_DIR = /\/thumb\//i;
@@ -18,6 +18,7 @@ const DRAGON_SCORE: Record<string, number> = {
   small: 400,
   thumb: 240,
   mini: 200,
+  micro: 100,
 };
 const S3_ORIGINAL_BONUS = 100_000;
 const ORIGINAL_SCORE = 2_000_000;
@@ -29,6 +30,7 @@ const SEMANTIC_PLACEHOLDER =
 
 export interface NetDirectorImageToken {
   key?: string;
+  bucket?: string;
   edits?: {
     resize?: { width?: number; height?: number; fit?: string };
     [extra: string]: unknown;
@@ -183,7 +185,31 @@ export function imageQualityScore(url: string) {
 export function canonicalizeImageUrl(url: string) {
   const rewritten = rewriteNdstockUrl(url);
   const token = parseNetDirectorImageToken(rewritten);
-  if (!token) return rewritten;
+  if (!token) {
+    try {
+      const parsed = new URL(rewritten);
+      if (
+        parsed.hostname.toLowerCase().endsWith(".imgeng.in") &&
+        IMGENG_WIDTH.test(rewritten)
+      ) {
+        parsed.searchParams.delete("imgeng");
+        return parsed.toString();
+      }
+    } catch {
+      // Preserve the original URL when it cannot be parsed.
+    }
+    return rewritten;
+  }
+  if (token.bucket?.trim() && token.key?.trim()) {
+    const bucket = encodeURIComponent(token.bucket.trim());
+    const key = token.key
+      .trim()
+      .replace(/\\/g, "/")
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    return `https://s3-eu-west-1.amazonaws.com/${bucket}/${key}`;
+  }
   if (!token.edits || token.edits.resize == null) return rewritten;
   const { resize: _resize, ...restEdits } = token.edits;
   const next: NetDirectorImageToken = { ...token };

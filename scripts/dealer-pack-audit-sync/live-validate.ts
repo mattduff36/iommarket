@@ -1,4 +1,5 @@
 import { getDealer } from "../dealer-stock-sync/registry";
+import { canonicalizeImageUrl } from "../dealer-stock-sync/image-urls";
 import type {
   ExcludedListingEvidence,
   PackAuditAction,
@@ -25,7 +26,9 @@ import {
   collectStockCardsWithBoundedLoadMore,
   collectStockPaginationHrefs,
   collectVisibleGallery,
+  galleryIdentityKey,
   gotoAllowed,
+  preferredListingPriceText,
   MAX_STOCK_LIST_PAGES,
   navigationFailure,
   ownerImagePathHints,
@@ -299,7 +302,7 @@ function observedFromDetail(input: {
   pageText: string;
   imageSrc: string | null;
 }): LiveObservedIdentity {
-  const priceText = input.pageText.match(/(?:£|&pound;|GBP)\s*[\d,]{3,8}/i)?.[0] ?? null;
+  const priceText = preferredListingPriceText(input.title);
   return {
     href: input.href,
     canonicalUrl: canonicalizeLiveUrl(input.href),
@@ -307,7 +310,7 @@ function observedFromDetail(input: {
     title: input.title || input.pageText.slice(0, 200),
     titleReliable: false,
     priceText,
-    pricePence: parsePricePence(priceText ?? input.pageText),
+    pricePence: priceText ? parsePricePence(priceText) : null,
     imageSrc: input.imageSrc,
   };
 }
@@ -335,9 +338,24 @@ async function inspectGallery(
 ): Promise<LiveImageSignal[]> {
   const signals: LiveImageSignal[] = [];
   for (const url of urls) {
-    signals.push(await inspectRemoteImage(url, fetchImage));
+    signals.push(await inspectRemoteImage(canonicalizeImageUrl(url), fetchImage));
   }
   return signals;
+}
+
+function netDirectorDetailFallback(
+  dealerKey: string,
+  website: string | null,
+  stockId: string | null,
+  title: string,
+) {
+  if (!website || !stockId || !/^\d+$/.test(stockId)) return null;
+  try {
+    if (getDealer(dealerKey).connectorKey !== "netdirector") return null;
+    return new URL(`/used-cars/${stockId}-${encodeURIComponent(title)}`, website).href;
+  } catch {
+    return null;
+  }
 }
 
 async function evaluateListing(input: {
@@ -345,6 +363,7 @@ async function evaluateListing(input: {
   planned: LivePlannedIdentity;
   listing: PlannedListing;
   card: ObservedStockCard | null;
+  fallbackDetailUrl?: string | null;
   page: LiveBrowserPage;
   fetchImage: LiveImageFetcher;
   evidence: LiveEvidenceStore | undefined;
@@ -355,7 +374,8 @@ async function evaluateListing(input: {
   detailAccessible: boolean;
   detailEvidence: string | null;
 }> {
-  const detailUrl = input.card?.href ?? input.planned.sourceUrl;
+  const detailUrl =
+    input.card?.href ?? input.planned.sourceUrl ?? input.fallbackDetailUrl ?? null;
   const unverified =
     detailUrl == null &&
     (input.listing.findings.includes("unverified-no-source-identity") || !input.card);
@@ -371,15 +391,34 @@ async function evaluateListing(input: {
   if (detailUrl) {
     try {
       navigation = await gotoAllowed(input.page, detailUrl, input.allowedHosts);
+      if (!navigation.ok && !navigation.blocked) {
+        navigation = await gotoAllowed(input.page, detailUrl, input.allowedHosts);
+      }
       pageInaccessible = !navigation.ok || navigation.blocked;
       if (!pageInaccessible) {
-        gallery = collectVisibleGallery(await input.page.snapshotImages(), {
+        const galleryScope = {
           listingUrl: detailUrl,
           stockId: input.planned.stockId,
           ownerImagePaths: ownerImagePathHints(
             input.listing.images.map((image) => image.sourceUrl),
           ),
-        });
+          preferredHeroUrl: input.listing.images[0]?.sourceUrl ?? null,
+        };
+        const collectGallery = async () => {
+          const [images, anchors] = await Promise.all([
+            input.page.snapshotImages(),
+            input.page.snapshotAnchors(),
+          ]);
+          return collectVisibleGallery([...images, ...anchors], galleryScope);
+        };
+        gallery = await collectGallery();
+        if (gallery.gallerySrcs.length === 0) {
+          const retry = await gotoAllowed(input.page, detailUrl, input.allowedHosts);
+          if (retry.ok && !retry.blocked) {
+            navigation = retry;
+            gallery = await collectGallery();
+          }
+        }
         pageText = await input.page.pageText();
         screenshot = await input.page.screenshot();
       }
@@ -422,6 +461,10 @@ async function evaluateListing(input: {
         ? [observed.imageSrc]
         : [];
   const imageSignals = await inspectGallery(gallerySrcs, input.fetchImage);
+  const imageEvidenceMissing =
+    gallerySrcs.length > 0 &&
+    (imageSignals.length === 0 ||
+      imageSignals.some((signal) => signal.checksum == null));
   const plannedChecksums = input.listing.images.map((image) => image.checksum);
   const plannedUrls = input.listing.images.map((image) => image.sourceUrl);
   const imageDrift =
@@ -433,11 +476,11 @@ async function evaluateListing(input: {
       observedAltUrls: gallery.galleryAlts,
       plannedChecksums,
       observedChecksums: imageSignals.map((signal) => signal.checksum),
-      canonicalize: canonicalizeLiveUrl,
+      canonicalize: galleryIdentityKey,
     });
   const flags = liveListingFlags({
     pageInaccessible,
-    unverified,
+    unverified: unverified || imageEvidenceMissing,
     observed: observed != null,
     galleryCount: gallerySrcs.length,
     placeholder: imageSignals.some((signal) => signal.placeholder),
@@ -447,7 +490,11 @@ async function evaluateListing(input: {
   });
   const status = resolveLiveListingStatus(flags);
   const findings = [
-    flags.unverified ? "unverified-no-source-identity" : null,
+    flags.unverified
+      ? imageEvidenceMissing
+        ? "unverified-image-evidence"
+        : "unverified-no-source-identity"
+      : null,
     pageInaccessible ? navigation?.error ?? "detail-inaccessible" : null,
     flags.empty ? "empty-gallery" : null,
     flags.placeholder ? "placeholder-image" : null,
@@ -495,8 +542,10 @@ async function evaluateListing(input: {
 async function validateDealer(input: {
   action: PackAuditAction;
   deps: LiveValidateDeps;
-  page: LiveBrowserPage;
+  session: LiveBrowserSession;
 }): Promise<LiveVisualDealerResult> {
+  const page = await input.session.openPage();
+  try {
   const listings = plannedListingsForAction(input.action);
   const planned = listings.map(plannedIdentityForListing);
   const site = (input.deps.resolveSite ?? dealerSiteFromRegistry)(
@@ -509,7 +558,7 @@ async function validateDealer(input: {
     ...listings.map((listing) => listing.sourceUrl),
   ]);
   const stock = await observeStockList(
-    input.page,
+    page,
     stockUrls,
     planned,
     allowedHosts,
@@ -533,17 +582,24 @@ async function validateDealer(input: {
   for (const assignment of t0Assignment.assignments) {
     const listing = listings.find((item) => item.identityKey === assignment.planned.identityKey);
     if (!listing) continue;
+    const detailPage = await input.session.openPage();
     const evaluated = await evaluateListing({
       dealerKey: input.action.dealerKey,
       planned: assignment.planned,
       listing,
       card: assignment.observed as ObservedStockCard | null,
-      page: input.page,
+      fallbackDetailUrl: netDirectorDetailFallback(
+        input.action.dealerKey,
+        site.website,
+        assignment.planned.stockId,
+        listing.listing.title,
+      ),
+      page: detailPage,
       fetchImage: input.deps.fetchImage,
       evidence: input.deps.evidence,
       censusDrift: false,
       allowedHosts,
-    });
+    }).finally(() => detailPage.close());
     if (evaluated.detailAccessible) t1AccessibleCount += 1;
     else t1InaccessibleCount += 1;
     if (evaluated.detailEvidence) t1Evidence.push(evaluated.detailEvidence);
@@ -557,7 +613,7 @@ async function validateDealer(input: {
   }
 
   const t1List = await observeStockList(
-    input.page,
+    page,
     stockUrls,
     planned,
     allowedHosts,
@@ -589,7 +645,11 @@ async function validateDealer(input: {
     cardDeltas: stockCardDeltas(stock.cards, t1List.cards),
     evidencePaths: { t0: t0Evidence, t1: t1Evidence, t1List: t1ListEvidence },
   });
-  const driftedListings = applyCensusDriftToListings(listingResults, census.drift);
+  const driftedListings = applyCensusDriftToListings(
+    listingResults,
+    census.drift,
+    census.cardDeltas.removed,
+  );
   const inaccessibleListings = driftedListings.filter(
     (listing) => listing.status === "inaccessible",
   ).length;
@@ -630,6 +690,9 @@ async function validateDealer(input: {
     })),
     evidenceDir: liveVisualEvidenceDir(input.action.dealerKey),
   };
+  } finally {
+    await page.close();
+  }
 }
 
 export async function runLiveVisualValidation(input: {
@@ -639,30 +702,25 @@ export async function runLiveVisualValidation(input: {
 }): Promise<LiveVisualReport> {
   const session = await openSession(input.deps.browser);
   try {
-    const page = await session.openPage();
-    try {
-      const dealers: LiveVisualDealerResult[] = [];
-      const actions = input.dealerKey
-        ? input.plan.actions.filter((action) => action.dealerKey === input.dealerKey)
-        : input.plan.actions;
-      for (const action of actions) {
-        dealers.push(
-          await validateDealer({
-            action,
-            deps: input.deps,
-            page,
-          }),
-        );
-      }
-      return buildLiveVisualReport({
-        runId: input.plan.runId,
-        planFingerprint: input.plan.fingerprint,
-        createdAt: input.deps.now?.() ?? new Date().toISOString(),
-        dealers,
-      });
-    } finally {
-      await page.close();
+    const dealers: LiveVisualDealerResult[] = [];
+    const actions = input.dealerKey
+      ? input.plan.actions.filter((action) => action.dealerKey === input.dealerKey)
+      : input.plan.actions;
+    for (const action of actions) {
+      dealers.push(
+        await validateDealer({
+          action,
+          deps: input.deps,
+          session,
+        }),
+      );
     }
+    return buildLiveVisualReport({
+      runId: input.plan.runId,
+      planFingerprint: input.plan.fingerprint,
+      createdAt: input.deps.now?.() ?? new Date().toISOString(),
+      dealers,
+    });
   } finally {
     await session.close();
   }

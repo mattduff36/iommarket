@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { PackAuditAction, PlannedListing } from "./types";
 
@@ -132,6 +133,7 @@ export interface LiveVisualReport {
   kind: typeof LIVE_VISUAL_KIND;
   runId: string;
   planFingerprint: string;
+  fingerprint: string;
   createdAt: string;
   ok: boolean;
   hidePackCount: number;
@@ -246,14 +248,29 @@ export const liveVisualReportSchema = z.object({
   kind: z.literal(LIVE_VISUAL_KIND),
   runId: z.string().min(1),
   planFingerprint: z.string().min(1),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   createdAt: z.string().min(1),
   ok: z.boolean(),
   hidePackCount: z.number().int().min(0),
   dealers: z.array(liveVisualDealerResultSchema),
 });
 
+export function liveVisualReportFingerprint(
+  report: Omit<LiveVisualReport, "fingerprint"> | LiveVisualReport,
+) {
+  const { fingerprint: _fingerprint, ...unsigned } =
+    report as LiveVisualReport;
+  return createHash("sha256")
+    .update(JSON.stringify(unsigned))
+    .digest("hex");
+}
+
 export function parseLiveVisualReport(value: unknown): LiveVisualReport {
-  return liveVisualReportSchema.parse(value);
+  const report = liveVisualReportSchema.parse(value);
+  if (liveVisualReportFingerprint(report) !== report.fingerprint) {
+    throw new Error("Live visual report fingerprint mismatch.");
+  }
+  return report;
 }
 
 export type LivePlannedListing = PlannedListing;

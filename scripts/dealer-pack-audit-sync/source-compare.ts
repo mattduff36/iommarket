@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
 import { dealerSnapshotPath } from "../../lib/preview-packs/archive";
 import { OCEAN_DEALER_KEY } from "../../lib/preview-packs/safety";
+import { isIgnoredImageUrl } from "../dealer-stock-sync/html-media";
 import { isOceanEligibleLocation } from "../import-ocean-inventory/locations";
 import type { ArchivedVehicle, SourceStatus } from "../dealer-stock-sync/types";
 import type { MappedArchiveListing } from "../dealer-stock-sync/map-listing";
@@ -27,6 +28,7 @@ export type SourceCompareChange =
   | "source_failed"
   | "explained_still_unsafe"
   | "explained_ineligible"
+  | "explained_excluded"
   | "explained_connector_representation";
 
 export type SourceCompareTarget = "preview" | "production";
@@ -90,6 +92,11 @@ export interface CompareDealerSourceInput {
     kind: "replace" | "disable";
     reasons?: string[];
     listings: PlannedListing[];
+    excludedListings?: Array<{
+      identityKey: string;
+      reasons: string[];
+      findings: string[];
+    }>;
   } | null;
   production: { listings: PlannedListing[] } | null;
   snapshot: { manifest: AuditSnapshotManifest; vehicles: ArchivedVehicle[] } | null;
@@ -169,20 +176,26 @@ function checksumPrefix(planned: string[], archive: string[]) {
 }
 
 function oceanArchiveSubsetIsExplained(
-  planned: string[],
+  plannedImages: PlannedListing["images"],
   archive: string[],
   archiveFindings: string[],
 ) {
+  const orderedPlannedImages = [...plannedImages].sort(
+    (left, right) => left.order - right.order,
+  );
+  const planned = orderedPlannedImages.map((image) => image.checksum);
   if (!checksumPrefix(planned, archive)) return false;
   if (archive.length === planned.length) return true;
-  return planned
+  return orderedPlannedImages
     .slice(archive.length)
-    .every((_, offset) =>
-      archiveFindings.some(
-        (finding) =>
-          finding ===
-          `image-rejected:${archive.length + offset}:ignored asset`,
-      ),
+    .every(
+      (image, offset) =>
+        !isIgnoredImageUrl(image.sourceUrl) &&
+        archiveFindings.some(
+          (finding) =>
+            finding ===
+            `image-rejected:${archive.length + offset}:ignored asset`,
+        ),
     );
 }
 
@@ -211,15 +224,61 @@ function productionListingToPlanned(source: ProductionSourceListing): PlannedLis
 }
 
 function plannedFromPreview(plan: PreviewPackAuditPlan) {
-  return plan.actions.map((action) => ({
-    dealerKey: action.dealerKey,
-    displayName: action.displayName,
-    preview: {
-      kind: action.kind,
-      reasons: action.kind === "disable" ? action.reasons : [],
-      listings: action.kind === "replace" ? action.listings : [],
-    } satisfies NonNullable<CompareDealerSourceInput["preview"]>,
-  }));
+  const byDealer = new Map<string, {
+    dealerKey: string;
+    displayName: string;
+    preview: NonNullable<CompareDealerSourceInput["preview"]>;
+  }>();
+  for (const action of plan.actions) {
+    const existing = byDealer.get(action.dealerKey);
+    if (existing && existing.preview.kind !== action.kind) {
+      throw new Error(
+        `Preview plan mixes ${existing.preview.kind} and ${action.kind} actions for ${action.dealerKey}.`,
+      );
+    }
+    const listings = new Map(
+      (existing?.preview.listings ?? []).map((listing) => [
+        normalizeSourceCompareIdentity(listing.identityKey),
+        listing,
+      ]),
+    );
+    if (action.kind === "replace") {
+      for (const listing of action.listings) {
+        listings.set(normalizeSourceCompareIdentity(listing.identityKey), listing);
+      }
+    }
+    const exclusions = new Map(
+      (existing?.preview.excludedListings ?? []).map((listing) => [
+        normalizeSourceCompareIdentity(listing.identityKey),
+        listing,
+      ]),
+    );
+    for (const listing of action.excludedListings) {
+      const key = normalizeSourceCompareIdentity(listing.identityKey);
+      const previous = exclusions.get(key);
+      exclusions.set(key, {
+        identityKey: listing.identityKey,
+        reasons: [...new Set([...(previous?.reasons ?? []), ...listing.reasons])],
+        findings: [...new Set([...(previous?.findings ?? []), ...listing.findings])],
+      });
+    }
+    byDealer.set(action.dealerKey, {
+      dealerKey: action.dealerKey,
+      displayName: action.displayName,
+      preview: {
+        kind: action.kind,
+        reasons: [
+          ...new Set([
+            ...(existing?.preview.reasons ?? []),
+            ...(action.kind === "disable" ? action.reasons : []),
+          ]),
+        ],
+        listings: [...listings.values()],
+        excludedListings: [...exclusions.values()],
+      },
+    });
+  }
+  return [...byDealer.values()];
 }
 
 function productionPlannedListings(
@@ -356,6 +415,12 @@ export function compareClassifiedDealer(input: {
       vehicle,
     ]),
   );
+  const excludedById = new Map(
+    (input.preview?.excludedListings ?? []).map((listing) => [
+      normalizeSourceCompareIdentity(listing.identityKey),
+      listing,
+    ]),
+  );
   const sourceFailed = input.manifest ? isFailedRequiredSource(input.manifest) : false;
   const stillUnsafe =
     input.preview?.kind === "disable" &&
@@ -371,6 +436,7 @@ export function compareClassifiedDealer(input: {
     const plannedEntry = planned.get(comparableId) ?? null;
     const archive = archiveListings.get(comparableId) ?? null;
     const ineligible = ineligibleById.get(comparableId) ?? null;
+    const excluded = excludedById.get(comparableId) ?? null;
     const targets = plannedEntry?.targets ?? [];
     const plannedChecksums = plannedEntry ? plannedChecksumsFor(plannedEntry) : [];
     const archiveChecksums = archive ? orderedChecksums(archive.images) : [];
@@ -431,6 +497,16 @@ export function compareClassifiedDealer(input: {
       });
     }
 
+    if (!plannedEntry && archive && excluded) {
+      return listingRow({
+        ...base,
+        plannedFindings: [...excluded.reasons, ...excluded.findings],
+        change: "explained_excluded",
+        unexplained: false,
+        explanation: excluded.reasons.join(",") || "excluded-by-final-audit",
+      });
+    }
+
     if (plannedEntry && archive) {
       const listingChanges = [
         ...listingFieldChanges(plannedListingFor(plannedEntry), archive.listing),
@@ -448,7 +524,7 @@ export function compareClassifiedDealer(input: {
           .filter((listing): listing is PlannedListing => listing !== null)
           .every((listing) =>
             oceanArchiveSubsetIsExplained(
-              orderedChecksums(listing.images),
+              listing.images,
               archiveChecksums,
               archiveFindings,
             ),

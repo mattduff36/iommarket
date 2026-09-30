@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { deleteImage } from "@/lib/upload/cloudinary";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isPreviewSystemAuthUserId } from "@/lib/preview-packs/safety";
 
 export class PurgeUserError extends Error {
   constructor(message: string) {
@@ -47,6 +48,7 @@ function tableExists(tables: Set<string>, table: string) {
 export interface PurgedUserAccount {
   email: string;
   authUserId: string | null;
+  listingIds: string[];
   imagePublicIds: string[];
 }
 
@@ -309,12 +311,19 @@ export async function purgeUserAccountRecords(
   return {
     email: user.email,
     authUserId: user.authUserId,
+    listingIds,
     imagePublicIds,
   };
 }
 
 export async function deleteAuthUser(authUserId: string | null) {
-  if (!authUserId || authUserId.startsWith("deleted:")) return;
+  if (
+    !authUserId ||
+    authUserId.startsWith("deleted:") ||
+    isPreviewSystemAuthUserId(authUserId)
+  ) {
+    return;
+  }
   const admin = createSupabaseAdminClient();
   const { error } = await admin.auth.admin.deleteUser(authUserId);
   if (error && !/not found|user not found/i.test(error.message)) {
@@ -325,11 +334,17 @@ export async function deleteAuthUser(authUserId: string | null) {
 }
 
 export async function deleteAccountMedia(publicIds: string[]) {
+  const failedPublicIds: string[] = [];
   for (const publicId of new Set(publicIds)) {
     try {
       await deleteImage(publicId);
     } catch {
       // The profile row is already gone. A leftover image should not restore the account.
+      failedPublicIds.push(publicId);
     }
   }
+  return {
+    attemptedPublicIds: [...new Set(publicIds)],
+    failedPublicIds,
+  };
 }

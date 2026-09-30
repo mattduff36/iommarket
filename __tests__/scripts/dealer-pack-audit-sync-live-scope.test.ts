@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { encodeNetDirectorImageUrl } from "@/scripts/dealer-stock-sync/image-urls";
 import { sealPlan } from "@/scripts/dealer-pack-audit-sync/plan-file";
 import {
   DEALER_PACK_AUDIT_VERSION,
@@ -30,10 +31,6 @@ import {
   type LiveFetchedResponseLike,
   type LiveRouteLike,
 } from "@/scripts/dealer-pack-audit-sync/live-network";
-import {
-  CENSUS_DRIFT_HIDE_REASON,
-  T1_STOCK_LIST_INACCESSIBLE_REASON,
-} from "@/scripts/dealer-pack-audit-sync/live-census";
 import {
   inspectRemoteImage,
   isSafeRemoteImageUrl,
@@ -284,6 +281,44 @@ describe("live observer scoping", () => {
     expect(cards.map((card) => card.stockId)).toEqual(["abc123"]);
   });
 
+  it("uses the cash price instead of a smaller monthly finance figure", () => {
+    const cards = collectVisibleStockCards([
+      snapshot({
+        text: "2024 Example Car £192 per month Was £7,995, now £6,995",
+      }),
+    ]);
+    expect(cards[0]?.priceText).toBe("£6,995");
+    expect(cards[0]?.pricePence).toBe(699_500);
+  });
+
+  it("ignores deposits, savings, and year-only text when selecting prices", () => {
+    const [priced, yearOnly] = collectVisibleStockCards([
+      snapshot({
+        text: "2024 Example Car Deposit £1,000 Save £2,000 Cash price £12,995",
+      }),
+      snapshot({
+        href: "https://dealer.example/used/xyz789",
+        text: "2019 Example Car",
+      }),
+    ]);
+    expect(priced?.pricePence).toBe(1_299_500);
+    expect(yearOnly?.priceText).toBeNull();
+    expect(yearOnly?.pricePence).toBeNull();
+  });
+
+  it("does not treat a lightbox image href as another stock listing", () => {
+    const owner = "https://cdn.example/vehicles/abc123/hero.jpg";
+    const gallery = collectVisibleGallery(
+      [galleryImage({ src: owner, currentSrc: owner, href: owner, ownerHref: owner })],
+      {
+        listingUrl: "https://dealer.example/used/abc123",
+        stockId: "abc123",
+        ownerImagePaths: ["/vehicles/abc123/hero.jpg"],
+      },
+    );
+    expect(gallery.gallerySrcs).toEqual([owner]);
+  });
+
   it("rejects related-stock and chrome images from the detail gallery", () => {
     const gallery = collectVisibleGallery(
       [
@@ -408,6 +443,142 @@ describe("live observer scoping", () => {
     expect(gallery.gallerySrcs).toEqual([
       "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/images/stock/hash/NDS19360241_RMN398W_1.png",
     ]);
+  });
+
+  it("keeps hidden owned NetDirector gallery slides with real intrinsic dimensions", () => {
+    const scope = {
+      listingUrl: "https://www.oceanford.im/used-cars/193691/",
+      stockId: "193691",
+      ownerImagePaths: [] as string[],
+    };
+    const ownerOne = encodeNetDirectorImageUrl({ key: "NDS193691_RMN398W_1.png" });
+    const ownerTwo = encodeNetDirectorImageUrl({ key: "NDS193691_RMN398W_2.png" });
+    const related = encodeNetDirectorImageUrl({ key: "NDS999999_OTHER_1.png" });
+    const gallery = collectVisibleGallery(
+      [
+        galleryImage({
+          src: ownerOne,
+          currentSrc: ownerOne,
+          href: null,
+          ownerHref: null,
+          region: "gallery",
+          naturalWidth: 1280,
+          naturalHeight: 960,
+        }),
+        galleryImage({
+          src: ownerTwo,
+          currentSrc: ownerTwo,
+          href: null,
+          ownerHref: null,
+          region: "gallery",
+          visible: false,
+          naturalWidth: 1280,
+          naturalHeight: 960,
+        }),
+        galleryImage({
+          src: related,
+          currentSrc: related,
+          href: null,
+          ownerHref: null,
+          region: "related",
+          visible: false,
+          naturalWidth: 1280,
+          naturalHeight: 960,
+        }),
+      ],
+      scope,
+    );
+
+    expect(gallery.gallerySrcs).toEqual([ownerOne, ownerTwo]);
+  });
+
+  it("collects full-size lightbox image hrefs used as gallery tiles", () => {
+    const full =
+      "https://s3-eu-west-1.amazonaws.com/rexmotors/16_b5ca5a83.jpeg";
+    const gallery = collectVisibleGallery(
+      [galleryImage({
+        tag: "a",
+        href: full,
+        ownerHref: full,
+        src: null,
+        currentSrc: null,
+        dataSrc:
+          "https://s3-eu-west-1.amazonaws.com/rexmotors/thumb/16_b5ca5a83.jpeg",
+      })],
+      {
+        listingUrl:
+          "https://www.rexmotorcompany.im/sales/audi-a4-35tfsi-black-edition-4dr-s-tronic",
+        stockId: "audi-a4-35tfsi-black-edition-4dr-s-tronic",
+        ownerImagePaths: ["/rexmotors/16_b5ca5a83.jpeg"],
+      },
+    );
+
+    expect(gallery.gallerySrcs).toEqual([full]);
+  });
+
+  it("uses the planned stock-card image as hero when a looping gallery starts on a clone", () => {
+    const base = "https://img.cdn.dragon2000.net/C3656/U2266";
+    const gallery = collectVisibleGallery(
+      [
+        galleryImage({
+          src: `${base}/IMG_1210-mini.jpg`,
+          currentSrc: `${base}/IMG_1210-mini.jpg`,
+          width: 900,
+          height: 600,
+        }),
+        galleryImage({
+          src: `${base}/IMG_1200-mini.jpg`,
+          currentSrc: `${base}/IMG_1200-mini.jpg`,
+          width: 300,
+          height: 200,
+        }),
+      ],
+      {
+        stockId: "u2266",
+        preferredHeroUrl: `${base}/IMG_1200-large.jpg`,
+      },
+    );
+
+    expect(gallery.gallerySrcs).toEqual([
+      `${base}/IMG_1200-mini.jpg`,
+      `${base}/IMG_1210-mini.jpg`,
+    ]);
+  });
+
+  it("prefers full lazy and srcset image candidates over grey thumbnails", () => {
+    const image = galleryImage({
+      src: "https://bluesky.cdn.imgeng.in/grey_4_3.png",
+      currentSrc: "https://bluesky.cdn.imgeng.in/grey_4_3.png",
+      dataSrc: "https://bluesky.cdn.imgeng.in/vehicle.jpg?imgeng=/w_1600",
+      srcset:
+        "https://bluesky.cdn.imgeng.in/vehicle.jpg?imgeng=/w_800 800w, https://bluesky.cdn.imgeng.in/vehicle.jpg?imgeng=/w_1920 1920w",
+    });
+    expect(preferredImageSrc(image)).toBe(
+      "https://bluesky.cdn.imgeng.in/vehicle.jpg",
+    );
+    expect(preferredImageSrc(galleryImage({
+      currentSrc:
+        "https://motorx.im/wp-content/uploads/car-768x768.svg",
+      src: "https://motorx.im/wp-content/uploads/car-2048x2048.jpeg",
+    }))).toBe(
+      "https://motorx.im/wp-content/uploads/car-2048x2048.jpeg",
+    );
+  });
+
+  it("resolves lazy NetDirector tokens to their source S3 object", () => {
+    const image = galleryImage({
+      src: "https://bluesky.cdn.imgeng.in/grey_4_3.png",
+      currentSrc: "https://bluesky.cdn.imgeng.in/grey_4_3.png",
+      dataSrc: encodeNetDirectorImageUrl({
+        bucket: "nd-stock-ireland-production",
+        key: "ndstock/images/NDS21673655_TMN823D_29.jpg",
+        edits: { resize: { width: 100, height: 75 } },
+      }),
+    });
+
+    expect(preferredImageSrc(image)).toBe(
+      "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/images/NDS21673655_TMN823D_29.jpg",
+    );
   });
 
   it("rejects a gallery-region image anchored to a different listing", () => {
@@ -719,7 +890,7 @@ describe("T1 list recensus and disabled packs", () => {
     expect(report.ok).toBe(true);
   });
 
-  it("treats T0/T1 card disappearance as conservative census drift", async () => {
+  it("does not hide a validated listing when only an extra stock card disappears", async () => {
     const plan = frozenPlan([replaceAction()]);
     const report = await runLiveVisualValidation({
       plan,
@@ -758,14 +929,13 @@ describe("T1 list recensus and disabled packs", () => {
     });
     expect(report.dealers[0]?.census.cardDeltas.removed).toContain("https://dealer.example/used/gone456");
     expect(report.dealers[0]?.census.drift).toBe(true);
-    expect(report.dealers[0]?.hidePack).toBe(true);
-    expect(report.dealers[0]?.hideReason).toBe(CENSUS_DRIFT_HIDE_REASON);
-    expect(report.dealers[0]?.listings[0]?.status).toBe("drift");
-    expect(report.dealers[0]?.listings[0]?.findings).toContain(CENSUS_DRIFT_HIDE_REASON);
-    expect(report.ok).toBe(false);
+    expect(report.dealers[0]?.hidePack).toBe(false);
+    expect(report.dealers[0]?.hideReason).toBeNull();
+    expect(report.dealers[0]?.listings[0]?.status).toBe("pass");
+    expect(report.ok).toBe(true);
   });
 
-  it("hides a dealer with a stable reason when T1 stock-list is inaccessible after T0", async () => {
+  it("keeps a dealer visible when every detail passes despite a failed T1 list recensus", async () => {
     const plan = frozenPlan([replaceAction()]);
     const report = await runLiveVisualValidation({
       plan,
@@ -798,9 +968,9 @@ describe("T1 list recensus and disabled packs", () => {
     expect(report.dealers[0]?.census.t0Accessible).toBe(true);
     expect(report.dealers[0]?.census.t1ListAccessible).toBe(false);
     expect(report.dealers[0]?.listings[0]?.status).toBe("pass");
-    expect(report.dealers[0]?.hidePack).toBe(true);
-    expect(report.dealers[0]?.hideReason).toBe(T1_STOCK_LIST_INACCESSIBLE_REASON);
-    expect(report.ok).toBe(false);
+    expect(report.dealers[0]?.hidePack).toBe(false);
+    expect(report.dealers[0]?.hideReason).toBeNull();
+    expect(report.ok).toBe(true);
   });
 
   it("classifies disabled packs without source identities as unverified and hides them", async () => {
@@ -825,7 +995,7 @@ describe("T1 list recensus and disabled packs", () => {
     expect(report.dealers[0]?.listings).not.toHaveLength(0);
     expect(report.dealers[0]?.listings[0]?.status).toBe("unverified");
     expect(report.dealers[0]?.listings[0]?.findings).toContain("unverified-no-source-identity");
-    expect(report.dealers[0]?.hidePack).toBe(true);
+    expect(report.dealers[0]?.hidePack).toBe(false);
     expect(report.ok).toBe(false);
   });
 
@@ -923,7 +1093,7 @@ describe("T1 list recensus and disabled packs", () => {
       },
     });
     expect(crossHostReport.dealers[0]?.listings[0]?.status).toBe("inaccessible");
-    expect(crossHostReport.dealers[0]?.hidePack).toBe(true);
+    expect(crossHostReport.dealers[0]?.hidePack).toBe(false);
     expect(crossHostReport.dealers[0]?.listings[0]?.findings).toContain("host-not-allowed");
   });
 });
@@ -937,6 +1107,12 @@ describe("live load more, badges, and related stock", () => {
         text: "SOLD",
         src: "https://cdn.example/sold.jpg",
         currentSrc: "https://cdn.example/sold.jpg",
+      }),
+      snapshot({
+        href: "https://dealer.example/used/mileage",
+        text: "29",
+        src: "https://cdn.example/mileage.jpg",
+        currentSrc: "https://cdn.example/mileage.jpg",
       }),
     ]);
     expect(cards.every((card) => card.titleReliable === false)).toBe(true);

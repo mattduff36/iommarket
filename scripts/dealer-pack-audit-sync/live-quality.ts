@@ -7,7 +7,10 @@ import {
   type AddressLookup,
   type PinnedImageTransport,
 } from "../../lib/images/safe-remote-image";
-import { imageIdentityKey } from "../dealer-stock-sync/image-urls";
+import {
+  imageIdentityKey,
+  parseNetDirectorImageToken,
+} from "../dealer-stock-sync/image-urls";
 import {
   frozenImageQualityError,
   inspectFrozenImage,
@@ -19,7 +22,7 @@ export const LIVE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const LIVE_IMAGE_TIMEOUT_MS = 10_000;
 
 const PLACEHOLDER_URL =
-  /placeholder|no[-_]?image|1x1|spacer|blank\.gif|default[-_]?image|coming[-_]?soon|image[-_]?missing|nophoto|without[-_]?photo/i;
+  /placeholder|no[-_]?image|1x1|spacer|blank\.gif|default[-_]?image|coming[-_]?soon|waiting[-_]?for[-_]?image|image[-_]?missing|nophoto|without[-_]?photo/i;
 
 export interface LiveRemoteImage {
   url: string;
@@ -65,7 +68,8 @@ export function assertSafeRemoteImageUrl(url: string) {
 
 export function isPlaceholderImageUrl(url: string | null | undefined) {
   if (!url) return false;
-  return PLACEHOLDER_URL.test(url);
+  const token = parseNetDirectorImageToken(url);
+  return PLACEHOLDER_URL.test(token?.key ?? url);
 }
 
 export function placeholderReasons(input: {
@@ -306,7 +310,36 @@ export function plannedGalleryAlignsWithLive(input: {
   canonicalize: (url: string) => string | null;
 }) {
   if (input.plannedUrls.length === 0) return true;
-  if (input.observedUrls.length < input.plannedUrls.length) return false;
+  if (
+    !observedSlideMatchesPlanned(
+      input.plannedUrls[0]!,
+      input.observedUrls[0],
+      input.observedAltUrls?.[0] ?? null,
+      input.canonicalize,
+    )
+  ) {
+    return false;
+  }
+  if (input.observedUrls.length < input.plannedUrls.length) {
+    let nextPlannedIndex = 1;
+    for (let observedIndex = 1; observedIndex < input.observedUrls.length; observedIndex += 1) {
+      const checksum = input.observedChecksums[observedIndex] ?? null;
+      const matchedIndex = input.plannedUrls.findIndex((plannedUrl, plannedIndex) =>
+        observedSlideMatchesPlanned(
+          plannedUrl,
+          input.observedUrls[observedIndex],
+          input.observedAltUrls?.[observedIndex] ?? null,
+          input.canonicalize,
+        ) || Boolean(
+          checksum &&
+          input.plannedChecksums[plannedIndex] === checksum,
+        ));
+      if (matchedIndex < 0) continue;
+      if (matchedIndex < nextPlannedIndex) return false;
+      nextPlannedIndex = matchedIndex + 1;
+    }
+    return true;
+  }
   if (
     plannedUrlsAreOrderedSubsequence(
       input.plannedUrls,

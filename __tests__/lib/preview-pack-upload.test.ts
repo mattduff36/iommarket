@@ -61,6 +61,30 @@ function cloudinaryOk() {
 }
 
 describe("previewImageSources", () => {
+  it("accepts Select Car Sales extensionless vehicle image endpoints", () => {
+    expect(
+      previewImageSources(
+        [
+          {
+            originalUrl: "http://www.selectcarsales.co.im/Home/Image/12292",
+            localPath: null,
+            contentType: null,
+            bytes: null,
+            checksum: null,
+            status: "skipped",
+            error: "image mirroring disabled",
+          },
+        ],
+        [],
+      ),
+    ).toEqual([
+      {
+        localPath: null,
+        url: "http://www.selectcarsales.co.im/Home/Image/12292",
+      },
+    ]);
+  });
+
   it("uses mirrored-disabled archive URLs and caps the gallery", () => {
     const sources = previewImageSources(
       Array.from({ length: 12 }, (_, index) => ({
@@ -163,6 +187,23 @@ describe("previewImageSources", () => {
 });
 
 describe("uploadPreviewPackImages", () => {
+  it("surfaces upload configuration errors instead of returning an empty gallery", async () => {
+    createSignedListingUploadMock.mockImplementation(() => {
+      throw new Error("Cloudinary is not configured.");
+    });
+
+    await expect(uploadPreviewPackImages({
+      dealerKey: "athol-garage",
+      identityKey: "car-1",
+      attemptId: "attempt-1",
+      sources: [{ localPath: null, url: "https://cdn.example/car.jpg" }],
+      downloadImpl: async () => ({
+        bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+        contentType: "image/jpeg",
+      }),
+    })).rejects.toThrow("Cloudinary is not configured");
+  });
+
   it("uploads validated bytes instead of asking Cloudinary to fetch an unchecked URL", async () => {
     createSignedListingUploadMock.mockReturnValue(signedUpload());
     fetchMock.mockResolvedValue(cloudinaryOk());
