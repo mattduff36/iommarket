@@ -72,14 +72,19 @@ export function extractJsonLdVehicles(html: string) {
   });
 }
 
-export function extractNextDataVehicles(html: string) {
+export function parseNextData(html: string) {
   const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/i);
-  if (!match?.[1]) return [];
+  if (!match?.[1]) return null;
   try {
-    return collectJsonVehicles(JSON.parse(match[1]));
+    return JSON.parse(match[1]) as unknown;
   } catch {
-    return [];
+    return null;
   }
+}
+
+export function extractNextDataVehicles(html: string) {
+  const parsed = parseNextData(html);
+  return parsed == null ? [] : collectJsonVehicles(parsed);
 }
 
 export function extractHtmlVehicleCards(html: string, origin: string) {

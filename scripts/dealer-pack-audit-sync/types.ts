@@ -1,6 +1,7 @@
 import type { MappedArchiveListing } from "../dealer-stock-sync/map-listing";
 
 export const DEALER_PACK_AUDIT_VERSION = 1 as const;
+/** Legacy fixture ID for unit tests only. Real CLI must pass --backup-id. */
 export const REQUIRED_BACKUP_ID = "pmr-2026-09-28T20-52-52-765Z-9bbd70";
 
 export interface PackImageBaseline {
@@ -51,6 +52,14 @@ export interface PlannedListing {
   findings: string[];
 }
 
+export interface ExcludedListingEvidence {
+  identityKey: string;
+  sourceUrl: string | null;
+  title: string | null;
+  reasons: string[];
+  findings: string[];
+}
+
 export interface ReplacePackAction {
   kind: "replace";
   dealerKey: string;
@@ -58,6 +67,7 @@ export interface ReplacePackAction {
   sourceRunId: string;
   baseline: PackBaseline;
   listings: PlannedListing[];
+  excludedListings: ExcludedListingEvidence[];
 }
 
 export interface DisablePackAction {
@@ -68,9 +78,18 @@ export interface DisablePackAction {
   baseline: PackBaseline;
   removeListings: boolean;
   reasons: string[];
+  excludedListings: ExcludedListingEvidence[];
 }
 
 export type PackAuditAction = ReplacePackAction | DisablePackAction;
+
+export interface PreviewLiveFinalization {
+  candidateRunId: string;
+  candidateFingerprint: string;
+  liveReportRunId: string;
+  liveReportFingerprint: string;
+  liveReportCreatedAt: string;
+}
 
 export interface PreviewPackAuditPlan {
   version: typeof DEALER_PACK_AUDIT_VERSION;
@@ -80,11 +99,12 @@ export interface PreviewPackAuditPlan {
     projectRef: string;
     confirmDb: string;
   };
-  backupId: typeof REQUIRED_BACKUP_ID;
+  backupId: string;
   sourceRunId: string;
   adminUserId: string;
   actionCount: number;
   actions: PackAuditAction[];
+  liveFinalization?: PreviewLiveFinalization;
   fingerprint: string;
 }
 

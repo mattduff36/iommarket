@@ -1,21 +1,36 @@
 import type { PrismaClient } from "@prisma/client";
 import {
+  applyProductionLiveGate,
+  assertFinalizedPreviewPlan,
+  LIVE_PREVIEW_DEALER_MISSING_REASON,
+  productionLiveGateFromFinalPreviewPlan,
+  type ProductionLiveBaselineRef,
+} from "./finalize-live";
+import { sealProductionPlan } from "./plan-file";
+import {
   captureProductionAccountBaseline,
   classifyProductionListingProvenance,
   planManagedNamespace,
 } from "./production-baseline";
-import { sealProductionPlan } from "./plan-file";
-import { loadProductionSource } from "./production-source";
+import {
+  loadProductionSource,
+  partitionProductionSourceListings,
+} from "./production-source";
 import {
   PRODUCTION_ACCOUNTS,
   PRODUCTION_AUDIT_VERSION,
-  PRODUCTION_BACKUP_ID,
   PRODUCTION_CONFIRM_DB,
   PRODUCTION_PROJECT_REF,
+  TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY,
+  isTemporaryExcludedProductionAccount,
+  type ProductionAccount,
+  type ProductionAccountBaseline,
   type ProductionAccountPlan,
   type ProductionAuditPlan,
+  type ProductionExcludedListing,
   type ProductionSourceListing,
 } from "./production-types";
+import type { PreviewPackAuditPlan } from "./types";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -37,15 +52,63 @@ async function resolveAdminUserId(prisma: PrismaClient) {
   return admins[0]!.id;
 }
 
+export function assertProductionSourceRunBinding(
+  foundingSourceRunId: string,
+  finalPreviewPlan: PreviewPackAuditPlan,
+) {
+  if (foundingSourceRunId !== finalPreviewPlan.sourceRunId) {
+    throw new Error(
+      "Refusing production plan: founding source run does not match finalized preview plan sourceRunId.",
+    );
+  }
+}
+
+export function productionLiveBaselineRefs(
+  account: ProductionAccount,
+  baseline: ProductionAccountBaseline,
+): ProductionLiveBaselineRef[] {
+  return baseline.listings.flatMap((listing) => {
+    const provenance = classifyProductionListingProvenance({
+      account,
+      baseline,
+      listing,
+    });
+    if (provenance.kind !== "managed") return [];
+    return [{
+      listingId: listing.id,
+      managedKey: provenance.managedKey,
+      slug: listing.slug,
+      status: listing.status,
+      title: listing.title,
+    }];
+  });
+}
+
 export async function buildProductionAuditPlan(input: {
   prisma: PrismaClient;
   runId: string;
   foundingSourceRunId: string;
+  backupId: string;
+  finalPreviewPlan: PreviewPackAuditPlan;
   dealerKey?: string;
 }): Promise<ProductionAuditPlan> {
-  if (PRODUCTION_ACCOUNTS.length !== 5) {
-    throw new Error("Production dealer account allowlist must contain exactly five accounts.");
+  const backupId = input.backupId.trim();
+  if (!backupId) throw new Error("production-backup-id-required");
+  if (!input.finalPreviewPlan) {
+    throw new Error("production-live-preview-plan-required");
   }
+  assertFinalizedPreviewPlan(input.finalPreviewPlan);
+  assertProductionSourceRunBinding(
+    input.foundingSourceRunId,
+    input.finalPreviewPlan,
+  );
+  if (PRODUCTION_ACCOUNTS.length !== 4) {
+    throw new Error("Production dealer account allowlist must contain exactly four accounts.");
+  }
+  if (input.dealerKey && isTemporaryExcludedProductionAccount(input.dealerKey)) {
+    throw new Error(`production-account-excluded:${TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY}`);
+  }
+  const gate = productionLiveGateFromFinalPreviewPlan(input.finalPreviewPlan);
   const adminUserId = await resolveAdminUserId(input.prisma);
   const selectedAccounts = input.dealerKey
     ? PRODUCTION_ACCOUNTS.filter((account) => account.dealerKey === input.dealerKey)
@@ -57,20 +120,47 @@ export async function buildProductionAuditPlan(input: {
   for (const account of selectedAccounts) {
     const baseline = await captureProductionAccountBaseline(input.prisma, account);
     const blockers: string[] = [];
+    const disabled = gate.disabledDealerKeys.includes(account.dealerKey);
+    if (!gate.coveredDealerKeys.includes(account.dealerKey)) {
+      blockers.push(`${LIVE_PREVIEW_DEALER_MISSING_REASON}:${account.dealerKey}`);
+    }
     let sourceRunId = "unavailable";
     let sourceChecksum = "unavailable";
     let source: ProductionSourceListing[] = [];
+    let excludedListings: ProductionExcludedListing[] = [];
     try {
-      const loaded = await loadProductionSource(
-        account,
-        input.runId,
-        input.foundingSourceRunId,
-      );
-      sourceRunId = loaded.runId;
-      sourceChecksum = loaded.checksum;
-      source = loaded.listings;
+      if (disabled && account.sourceKind === "ocean") {
+        sourceRunId = `disabled:${input.finalPreviewPlan.runId}`;
+        sourceChecksum = "disabled";
+      } else {
+        const loaded = await loadProductionSource(
+          account,
+          input.runId,
+          input.foundingSourceRunId,
+        );
+        sourceRunId = loaded.runId;
+        sourceChecksum = loaded.checksum;
+        const partitioned = partitionProductionSourceListings(loaded.listings);
+        source = partitioned.included;
+        excludedListings = [...loaded.excludedListings, ...partitioned.excluded]
+          .filter((listing, index, all) =>
+            all.findIndex((item) => item.identityKey === listing.identityKey) === index);
+      }
+      const gated = applyProductionLiveGate({
+        dealerKey: account.dealerKey,
+        sourceKind: account.sourceKind,
+        source,
+        excludedListings,
+        exclusions: gate.exclusions,
+        allowlist: gate.allowlist,
+        disabled,
+        baseline: productionLiveBaselineRefs(account, baseline),
+      });
+      source = gated.source;
+      excludedListings = gated.excludedListings;
+      blockers.push(...gated.blockers);
     } catch (error) {
-      blockers.push(errorMessage(error));
+      if (!disabled) blockers.push(errorMessage(error));
     }
     const namespace = planManagedNamespace({ account, baseline, source });
     blockers.push(...namespace.blockers);
@@ -100,6 +190,7 @@ export async function buildProductionAuditPlan(input: {
       blockers: uniqueBlockers,
       baseline,
       actions: namespace.actions,
+      excludedListings,
     });
   }
   const actionCount = accounts.reduce(
@@ -114,9 +205,11 @@ export async function buildProductionAuditPlan(input: {
       projectRef: PRODUCTION_PROJECT_REF,
       confirmDb: PRODUCTION_CONFIRM_DB,
     },
-    backupId: PRODUCTION_BACKUP_ID,
+    backupId,
     foundingSourceRunId: input.foundingSourceRunId,
     adminUserId,
+    finalPreviewRunId: input.finalPreviewPlan.runId,
+    finalPreviewFingerprint: input.finalPreviewPlan.fingerprint,
     actionCount,
     accounts,
   });

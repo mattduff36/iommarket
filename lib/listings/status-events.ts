@@ -140,6 +140,7 @@ async function runTransition(
       status: true,
       userId: true,
       expiresAt: true,
+      approvedAt: true,
       lifecycleRevision: true,
     },
   });
@@ -244,6 +245,9 @@ async function runTransition(
     },
     data: {
       ...effects,
+      ...(input.action === "APPROVE" && !existing.approvedAt
+        ? { approvedAt: now }
+        : {}),
       status: toStatus,
       lifecycleRevision: { increment: 1 },
     },

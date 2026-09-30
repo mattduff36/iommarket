@@ -24,6 +24,8 @@ const ORIGINAL_SCORE = 2_000_000;
 const CDN_ORIGINAL_SCORE = 1_500_000;
 const THUMB_DIR_SCORE = 400;
 const T_PREFIX_SCORE = 300;
+const SEMANTIC_PLACEHOLDER =
+  /(?:^|[^a-z0-9])(?:coming[\-_ ]?soon|no[\-_ ]?image(?:[\-_ ]?stock)?|placeholder)(?:[^a-z0-9]|$)/i;
 
 export interface NetDirectorImageToken {
   key?: string;
@@ -32,6 +34,27 @@ export interface NetDirectorImageToken {
     [extra: string]: unknown;
   };
   [extra: string]: unknown;
+}
+
+export function isIgnoredImageUrl(url: string) {
+  const lower = url.toLowerCase();
+  return (
+    SEMANTIC_PLACEHOLDER.test(lower) ||
+    lower.includes("logo") ||
+    lower.includes("pixel") ||
+    lower.includes("sprite") ||
+    lower.includes("favicon") ||
+    lower.includes("noimage") ||
+    lower.includes("error.png") ||
+    lower.includes("apple-touch-icon") ||
+    lower.includes("android-chrome") ||
+    lower.includes("/images/brands/") ||
+    lower.includes("_default_upload_bucket") ||
+    lower.includes("banner") ||
+    lower.includes("1x1") ||
+    lower.endsWith(".svg") ||
+    lower.includes("tracking")
+  );
 }
 
 export function rewriteNdstockUrl(url: string) {
@@ -181,12 +204,16 @@ export function pickRecordImageUrl(record: Record<string, unknown> | null | unde
   return null;
 }
 
+export function mergeOwnerImageUrls(ownerGallery: string[], extras: string[] = [], max = FEATURED_LISTING_PHOTO_LIMIT) {
+  return uniqueImageUrls([...ownerGallery, ...extras], max);
+}
+
 export function uniqueImageUrls(urls: string[], max = FEATURED_LISTING_PHOTO_LIMIT) {
   const best = new Map<string, { url: string; score: number }>();
   const order: string[] = [];
   for (const raw of urls) {
     const url = normalizeHttpImageUrl(raw);
-    if (!url) continue;
+    if (!url || isIgnoredImageUrl(url)) continue;
     const identity = imageIdentityKey(url);
     const score = imageQualityScore(url);
     const existing = best.get(identity);

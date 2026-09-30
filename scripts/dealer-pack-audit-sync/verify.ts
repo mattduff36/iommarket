@@ -76,6 +76,19 @@ export async function verifyPreviewPackAuditPlan(input: {
       applied: appliedByDealer.get(action.dealerKey),
       live,
     });
+    if (
+      action.kind === "replace" &&
+      action.listings.some((listing) => listing.images.length === 0)
+    ) {
+      errors.push("empty-image-listing-planned");
+    }
+    if (
+      action.kind === "replace" &&
+      (action.excludedListings ?? []).some((listing) =>
+        action.listings.some((planned) => planned.identityKey === listing.identityKey))
+    ) {
+      errors.push("excluded-listing-also-planned");
+    }
     const expectedCleanup = [...new Set(
       action.baseline.listings.flatMap((listing) =>
         listing.images

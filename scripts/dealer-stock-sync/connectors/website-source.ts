@@ -2,8 +2,9 @@ import { asNumber, asRecord, asString, nested, poundsToPence, resolveMaybeUrl } 
 import { emptyVehicle, validateCanonicalVehicle, type ConnectorContext, type StockConnector } from "./contract";
 import {
   extractDescriptionFromHtml,
-  extractGalleryFromHtml,
-  extractSwiftGalleryFromHtml,
+  extractWebsiteDetailImages,
+  isNextInventoryDetailUrl,
+  mergeOwnerImageUrls,
 } from "../html-media";
 import {
   collectJsonVehicles,
@@ -192,13 +193,19 @@ export function createWebsiteConnector(input: {
           const html = await fetchPageHtml(vehicle.detailUrl, context.fetchImpl);
           const origin = new URL(vehicle.detailUrl).origin;
           const specs = extractDetailSpecs(html, vehicle.detailUrl);
-          const detailImages = context.dealer.key === "swift-motors"
-            ? extractSwiftGalleryFromHtml(html, origin)
-            : extractGalleryFromHtml(html, origin);
+          const detailImages = extractWebsiteDetailImages(html, origin, {
+            dealerKey: context.dealer.key,
+            detailUrl: vehicle.detailUrl,
+          });
+          const scopedGallery =
+            context.dealer.key === "swift-motors" ||
+            (isNextInventoryDetailUrl(vehicle.detailUrl) && html.includes("__NEXT_DATA__"));
           vehicles.push({
             ...vehicle,
             description: extractDescriptionFromHtml(html) || vehicle.description,
-            imageUrls: [...vehicle.imageUrls, ...detailImages],
+            imageUrls: scopedGallery
+              ? mergeOwnerImageUrls(detailImages, vehicle.imageUrls)
+              : mergeOwnerImageUrls(vehicle.imageUrls, detailImages),
             mileage: vehicle.mileage ?? specs.mileage,
             year: vehicle.year ?? specs.year,
             registration: vehicle.registration ?? specs.registration ?? null,

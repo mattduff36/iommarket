@@ -8,17 +8,32 @@ import {
   TableHeader,
   TableBody,
   TableRow,
-  TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminTableOptions } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminPager } from "@/components/admin/admin-pager";
+import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
 import {
   AdminTable,
   AdminTableEmpty,
   adminActionsCellClass,
   adminDateCellClass,
 } from "@/components/admin/admin-table";
+import { formatAdminDate } from "@/lib/admin/format";
+import { adminTotalPages, parseAdminPage } from "@/lib/admin/query";
+import {
+  CANCELLATION_TABLE_COLUMNS,
+  CANCELLATION_TABLE_SORT,
+} from "@/lib/admin/table-columns";
+import { cancellationOrderBy } from "@/lib/admin/table-order";
+import {
+  ADMIN_TABLE_PAGE_SIZE,
+  buildAdminListHref,
+  parseAdminSort,
+} from "@/lib/admin/table-state";
 import { CancellationActions } from "./cancellation-actions";
 
 export const metadata: Metadata = { title: "Cancellation Requests" };
@@ -34,22 +49,41 @@ const STATUS_VARIANT: Record<
   REJECTED: "error",
 };
 
-export default async function AdminCancellationsPage() {
-  const requests = await db.dealerCancellationRequest.findMany({
-    orderBy: { requestedAt: "desc" },
-    take: 50,
-    include: {
-      dealer: { select: { name: true, slug: true } },
-      subscription: {
-        select: {
-          status: true,
-          cancelAtPeriodEnd: true,
-          currentPeriodEnd: true,
-          providerLifecycle: true,
+export default async function AdminCancellationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; sort?: string; dir?: string }>;
+}) {
+  const params = await searchParams;
+  const page = parseAdminPage(params.page);
+  const sort = parseAdminSort(params, CANCELLATION_TABLE_COLUMNS, CANCELLATION_TABLE_SORT);
+  const where = {};
+  const [requests, total] = await Promise.all([
+    db.dealerCancellationRequest.findMany({
+      where,
+      orderBy: cancellationOrderBy(sort),
+      skip: (page - 1) * ADMIN_TABLE_PAGE_SIZE,
+      take: ADMIN_TABLE_PAGE_SIZE,
+      include: {
+        dealer: { select: { name: true, slug: true } },
+        subscription: {
+          select: {
+            status: true,
+            cancelAtPeriodEnd: true,
+            currentPeriodEnd: true,
+            providerLifecycle: true,
+          },
         },
       },
-    },
-  });
+    }),
+    db.dealerCancellationRequest.count({ where }),
+  ]);
+  const totalPages = adminTotalPages(total, ADMIN_TABLE_PAGE_SIZE);
+  const current = {
+    page: String(page),
+    sort: sort.explicit ? sort.column : undefined,
+    dir: sort.explicit ? sort.direction : undefined,
+  };
 
   return (
     <>
@@ -58,7 +92,7 @@ export default async function AdminCancellationsPage() {
         description="Acknowledge means staff have started or verified the Ripple change; it is not an in-app provider cancellation. Completion still requires provider cancellation and an expired paid period."
         meta={
           <>
-            <span>{requests.length} most recent requests</span>
+            <span>{total} {total === 1 ? "request" : "requests"}</span>
             <Link href="/refunds" className="text-text-trust hover:underline">
               Refund Policy
             </Link>
@@ -66,21 +100,28 @@ export default async function AdminCancellationsPage() {
         }
       />
 
+      <AdminColumnVisibility tableId="cancellations" columns={CANCELLATION_TABLE_COLUMNS}>
+      <AdminTableOptions count={`${total} ${total === 1 ? "request" : "requests"}`}>
+        <AdminColumnMenu />
+      </AdminTableOptions>
       <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
-            <TableHead>Dealer</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Period end</TableHead>
-            <TableHead>Provider</TableHead>
-            <TableHead>Requested</TableHead>
-            <TableHead className={adminActionsCellClass}>Actions</TableHead>
+            {CANCELLATION_TABLE_COLUMNS.map((column) => (
+              <AdminTableHeaderCell
+                key={column.id}
+                column={column}
+                sort={sort}
+                pathname="/admin/cancellations"
+                current={current}
+              />
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {requests.map((request) => (
             <TableRow key={request.id}>
-              <TableCell>
+              <TableCell data-column="dealer">
                 <AdminDataCell
                   title={
                     <Link
@@ -93,22 +134,25 @@ export default async function AdminCancellationsPage() {
                   subtitle={request.dealer.slug}
                 />
               </TableCell>
-              <TableCell>
+              <TableCell data-column="status">
                 <Badge variant={STATUS_VARIANT[request.status] ?? "neutral"}>
                   {request.status}
                 </Badge>
               </TableCell>
-              <TableCell className={adminDateCellClass}>
-                {request.periodEndAt.toLocaleDateString("en-GB")}
+              <TableCell data-column="period" className={adminDateCellClass}>
+                {formatAdminDate(request.periodEndAt)}
               </TableCell>
-              <TableCell className="text-xs text-text-secondary">
+              <TableCell data-column="provider" className="text-xs text-text-secondary">
                 {request.subscription.status}
                 {request.subscription.cancelAtPeriodEnd ? " · period-end" : ""}
               </TableCell>
-              <TableCell className={adminDateCellClass}>
-                {request.requestedAt.toLocaleDateString("en-GB")}
+              <TableCell data-column="requested" className={adminDateCellClass}>
+                {formatAdminDate(request.requestedAt)}
               </TableCell>
-              <TableCell className={`${adminActionsCellClass} min-w-[220px]`}>
+              <TableCell data-column="processed" className={adminDateCellClass}>
+                {formatAdminDate(request.processedAt)}
+              </TableCell>
+              <TableCell data-column="actions" className={`${adminActionsCellClass} min-w-[220px]`}>
                 <CancellationActions
                   requestId={request.id}
                   status={request.status}
@@ -118,13 +162,21 @@ export default async function AdminCancellationsPage() {
           ))}
           {requests.length === 0 ? (
             <TableRow>
-              <AdminTableEmpty colSpan={6}>
+              <AdminTableEmpty colSpan={CANCELLATION_TABLE_COLUMNS.length}>
                 No dealer cancellation requests found.
               </AdminTableEmpty>
             </TableRow>
           ) : null}
         </TableBody>
       </AdminTable>
+      <AdminPager
+        page={page}
+        totalPages={totalPages}
+        hrefForPage={(nextPage) =>
+          buildAdminListHref("/admin/cancellations", current, { page: String(nextPage) })
+        }
+      />
+      </AdminColumnVisibility>
     </>
   );
 }

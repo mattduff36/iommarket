@@ -4,6 +4,7 @@ import { extractGalleryFromHtml as extractDealerHtml } from "../../../scripts/de
 import {
   canonicalizeImageUrl,
   encodeNetDirectorImageUrl,
+  isIgnoredImageUrl,
   uniqueImageUrls,
 } from "../../../scripts/dealer-stock-sync/image-urls";
 import { uniqueImageUrls as oceanUniqueImageUrls } from "../../../scripts/import-ocean-inventory/map-vehicle";
@@ -170,6 +171,14 @@ describe("IMG-SHARED-001 shared helper wiring", () => {
     `;
     expect(extractDealerHtml(html)).toEqual(extractOceanHtml(html));
     expect(extractOceanHtml(html)).toHaveLength(2);
+    expect(isIgnoredImageUrl("https://www.athol.im/media/coming-soon.jpg")).toBe(true);
+    expect(isIgnoredImageUrl("https://cdn.example.com/no-image-stock.jpg")).toBe(true);
+    expect(
+      uniqueImageUrls([
+        "https://www.athol.im/media/coming-soon.jpg",
+        "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/kia-real.jpg",
+      ]),
+    ).toEqual(["https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/kia-real.jpg"]);
     expect(
       previewImageSources(
         [],

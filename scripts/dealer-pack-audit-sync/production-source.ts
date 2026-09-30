@@ -17,13 +17,24 @@ import {
   scrapeAllOceanSources,
 } from "../import-ocean-inventory/scrape";
 import type { NormalizedVehicle } from "../import-ocean-inventory/types";
+import {
+  imageOwnerIdentityFromProductionListing,
+  resolveSharedChecksumOwner,
+} from "../dealer-stock-sync/image-ownership";
 import type { ArchivedVehicle } from "../dealer-stock-sync/types";
-import { classifySnapshot, type AuditSnapshotManifest } from "./classify";
+import {
+  classifySnapshot,
+  hasValidSourceImages,
+  NO_VALID_SOURCE_IMAGE_REASON,
+  type AuditSnapshotManifest,
+} from "./classify";
 import { auditRunDir } from "./plan-file";
 import type {
   ProductionAccount,
+  ProductionExcludedListing,
   ProductionSourceImage,
   ProductionSourceListing,
+  ProductionSourceLoad,
 } from "./production-types";
 import {
   frozenImageQualityError,
@@ -36,6 +47,10 @@ function sha256(value: Buffer | string) {
 
 function sourceChecksum(listings: ProductionSourceListing[]) {
   return sha256(JSON.stringify(listings));
+}
+
+export function oceanManagedKey(identityKey: string) {
+  return `omv-${sha256(`ocean-managed:${identityKey}`).slice(0, 32)}`;
 }
 
 function sanitize(value: string) {
@@ -61,39 +76,133 @@ function assertUniqueSource(listings: ProductionSourceListing[], dealerKey: stri
   }
 }
 
-export function removeDuplicateSourceImages(listings: ProductionSourceListing[]) {
-  const firstOwner = new Map<string, string>();
-  const crossListing = new Set<string>();
+function dropWithinListingDuplicates(listing: ProductionSourceListing) {
+  const seen = new Set<string>();
+  listing.images = listing.images.filter((image) => {
+    if (seen.has(image.checksum)) {
+      listing.findings.push(`image-rejected:${image.order}:duplicate-content`);
+      return false;
+    }
+    seen.add(image.checksum);
+    return true;
+  });
+}
+
+function sharedChecksumGroups(listings: ProductionSourceListing[]) {
+  const groups = new Map<string, Array<{ listing: ProductionSourceListing; imageIndex: number }>>();
   for (const listing of listings) {
-    const withinListing = new Set<string>();
-    listing.images = listing.images.filter((image) => {
-      if (withinListing.has(image.checksum)) {
-        listing.findings.push(`image-rejected:${image.order}:duplicate-content`);
-        return false;
-      }
-      withinListing.add(image.checksum);
-      const owner = firstOwner.get(image.checksum);
-      if (owner && owner !== listing.identityKey) crossListing.add(image.checksum);
-      else firstOwner.set(image.checksum, listing.identityKey);
-      return true;
+    listing.images.forEach((image, imageIndex) => {
+      const refs = groups.get(image.checksum) ?? [];
+      refs.push({ listing, imageIndex });
+      groups.set(image.checksum, refs);
     });
   }
-  if (crossListing.size > 0) {
-    for (const listing of listings) {
-      listing.images = listing.images.filter((image) => {
-        if (!crossListing.has(image.checksum)) return true;
-        listing.findings.push(`image-rejected:${image.order}:shared-across-listings`);
-        return false;
-      });
+  return groups;
+}
+
+function applySharedChecksumToGroup(
+  refs: Array<{ listing: ProductionSourceListing; imageIndex: number }>,
+) {
+  const identityKeys = new Set(refs.map((ref) => ref.listing.identityKey));
+  if (identityKeys.size < 2) return;
+
+  const ownerKey = resolveSharedChecksumOwner(
+    refs.map((ref) => ({
+      identity: imageOwnerIdentityFromProductionListing(ref.listing),
+      url: ref.listing.images[ref.imageIndex]!.sourceUrl,
+    })),
+  );
+  const drop = new Set<ProductionSourceImage>();
+  let keptOwner = false;
+  for (const ref of refs) {
+    const image = ref.listing.images[ref.imageIndex]!;
+    const keep = ownerKey != null && ref.listing.identityKey === ownerKey && !keptOwner;
+    if (keep) {
+      keptOwner = true;
+      ref.listing.findings.push(`image-kept:${image.order}:owned`);
+      continue;
     }
+    drop.add(image);
+    ref.listing.findings.push(
+      ownerKey
+        ? `image-rejected:${image.order}:owned-by:${ownerKey}`
+        : `image-rejected:${image.order}:shared-across-listings`,
+    );
+  }
+  const affected = new Set(refs.map((ref) => ref.listing));
+  for (const listing of affected) {
+    listing.images = listing.images.filter((image) => !drop.has(image));
+  }
+}
+
+export function removeDuplicateSourceImages(listings: ProductionSourceListing[]) {
+  for (const listing of listings) dropWithinListingDuplicates(listing);
+  for (const refs of sharedChecksumGroups(listings).values()) {
+    applySharedChecksumToGroup(refs);
   }
   for (const listing of listings) {
     listing.images = listing.images.map((image, order) => ({ ...image, order }));
-    if (listing.images.length === 0) {
-      listing.findings.push("listing-has-no-valid-source-image");
+    if (!hasValidSourceImages(listing.images)) {
+      listing.findings.push(NO_VALID_SOURCE_IMAGE_REASON);
     }
     listing.findings = [...new Set(listing.findings)].sort();
   }
+}
+
+export function productionExcludedFromSource(
+  listing: ProductionSourceListing,
+): ProductionExcludedListing {
+  return {
+    identityKey: listing.identityKey,
+    managedKey: listing.managedKey,
+    sourceUrl: listing.sourceUrl,
+    title: listing.listing.title,
+    reasons: [NO_VALID_SOURCE_IMAGE_REASON],
+    findings: [...new Set(listing.findings)].sort(),
+  };
+}
+
+export function partitionProductionSourceListings(
+  listings: ProductionSourceListing[],
+) {
+  const included: ProductionSourceListing[] = [];
+  const excluded: ProductionExcludedListing[] = [];
+  for (const listing of listings) {
+    if (hasValidSourceImages(listing.images)) included.push(listing);
+    else excluded.push(productionExcludedFromSource(listing));
+  }
+  return { included, excluded };
+}
+
+function foundingExcluded(
+  account: ProductionAccount,
+  classified: ReturnType<typeof classifySnapshot>,
+): ProductionExcludedListing[] {
+  const fromEvidence = (classified.excludedListings ?? []).map((listing) => ({
+    identityKey: listing.identityKey,
+    managedKey: foundingListingSlug(account.dealerKey, listing.identityKey),
+    sourceUrl: listing.sourceUrl,
+    title: listing.title,
+    reasons: listing.reasons,
+    findings: listing.findings,
+  }));
+  const leftover = classified.listings
+    .filter((listing) => !hasValidSourceImages(listing.images))
+    .map((listing) => productionExcludedFromSource({
+      identityKey: listing.identityKey,
+      managedKey: foundingListingSlug(account.dealerKey, listing.identityKey),
+      sourceUrl: listing.sourceUrl,
+      slug: foundingListingSlug(account.dealerKey, listing.identityKey),
+      listing: { ...listing.listing, regionSlug: account.regionSlug },
+      images: [],
+      findings: listing.findings,
+    }));
+  const seen = new Set<string>();
+  return [...fromEvidence, ...leftover].filter((listing) => {
+    if (seen.has(listing.identityKey)) return false;
+    seen.add(listing.identityKey);
+    return true;
+  });
 }
 
 async function loadFoundingSource(account: ProductionAccount, runId: string) {
@@ -120,46 +229,49 @@ async function loadFoundingSource(account: ProductionAccount, runId: string) {
     );
   }
   const byIdentity = new Map(vehicles.map((vehicle) => [vehicle.identityKey, vehicle]));
-  const listings: ProductionSourceListing[] = classified.listings.map((planned) => {
-    const vehicle = byIdentity.get(planned.identityKey);
-    if (!vehicle) throw new Error(`source-vehicle-missing:${planned.identityKey}`);
-    const slug = foundingListingSlug(account.dealerKey, planned.identityKey);
-    const images: ProductionSourceImage[] = planned.images
-      .slice(0, FEATURED_LISTING_PHOTO_LIMIT)
-      .map((image, order) => {
-        const archived = vehicle.images.find((candidate) =>
-          candidate.checksum === image.checksum &&
-          candidate.originalUrl === image.sourceUrl);
-        if (!archived?.localPath) {
-          throw new Error(`source-image-archive-missing:${planned.identityKey}:${order}`);
-        }
-        return {
-          sourceUrl: image.sourceUrl,
-          localPath: resolve(archived.localPath),
-          checksum: image.checksum,
-          contentType: archived.contentType ?? "application/octet-stream",
-          width: image.width,
-          height: image.height,
-          format: image.format,
-          bytes: image.bytes,
-          order,
-        };
-      });
-    return {
-      identityKey: planned.identityKey,
-      managedKey: slug,
-      sourceUrl: planned.sourceUrl,
-      slug,
-      listing: { ...planned.listing, regionSlug: account.regionSlug },
-      images,
-      findings: planned.findings,
-    };
-  });
+  const listings: ProductionSourceListing[] = classified.listings
+    .filter((planned) => hasValidSourceImages(planned.images))
+    .map((planned) => {
+      const vehicle = byIdentity.get(planned.identityKey);
+      if (!vehicle) throw new Error(`source-vehicle-missing:${planned.identityKey}`);
+      const slug = foundingListingSlug(account.dealerKey, planned.identityKey);
+      const images: ProductionSourceImage[] = planned.images
+        .slice(0, FEATURED_LISTING_PHOTO_LIMIT)
+        .map((image, order) => {
+          const archived = vehicle.images.find((candidate) =>
+            candidate.checksum === image.checksum &&
+            candidate.originalUrl === image.sourceUrl);
+          if (!archived?.localPath) {
+            throw new Error(`source-image-archive-missing:${planned.identityKey}:${order}`);
+          }
+          return {
+            sourceUrl: image.sourceUrl,
+            localPath: resolve(archived.localPath),
+            checksum: image.checksum,
+            contentType: archived.contentType ?? "application/octet-stream",
+            width: image.width,
+            height: image.height,
+            format: image.format,
+            bytes: image.bytes,
+            order,
+          };
+        });
+      return {
+        identityKey: planned.identityKey,
+        managedKey: slug,
+        sourceUrl: planned.sourceUrl,
+        slug,
+        listing: { ...planned.listing, regionSlug: account.regionSlug },
+        images,
+        findings: planned.findings,
+      };
+    });
   assertUniqueSource(listings, account.dealerKey);
   return {
     runId,
     checksum: sha256(Buffer.concat([manifestBytes, vehiclesBytes])),
     listings,
+    excludedListings: foundingExcluded(account, classified),
   };
 }
 
@@ -212,9 +324,7 @@ async function loadOceanSource(account: ProductionAccount, runId: string) {
   const listings: ProductionSourceListing[] = [];
   for (const outcome of scraped.outcomes) {
     const mapped = outcome.listing!;
-    const managedKey = `omv-${sha256(
-      `ocean-managed:${outcome.reconciled.identityKey}`,
-    ).slice(0, 32)}`;
+    const managedKey = oceanManagedKey(outcome.reconciled.identityKey);
     const images: ProductionSourceImage[] = [];
     const findings: string[] = [];
     for (const [order, sourceUrl] of mapped.imageUrls
@@ -266,18 +376,20 @@ async function loadOceanSource(account: ProductionAccount, runId: string) {
       },
       images,
       findings:
-        images.length > 0
+        hasValidSourceImages(images)
           ? findings
-          : [...findings, "listing-has-no-valid-source-image"],
+          : [...findings, NO_VALID_SOURCE_IMAGE_REASON],
     });
   }
   removeDuplicateSourceImages(listings);
   assertUniqueSource(listings, account.dealerKey);
   const sorted = listings.sort((a, b) => a.managedKey.localeCompare(b.managedKey));
+  const partitioned = partitionProductionSourceListings(sorted);
   return {
     runId: `ocean-${scraped.startedAt.toISOString()}`,
     checksum: sourceChecksum(sorted),
-    listings: sorted,
+    listings: partitioned.included,
+    excludedListings: partitioned.excluded,
   };
 }
 
@@ -285,7 +397,7 @@ export async function loadProductionSource(
   account: ProductionAccount,
   planRunId: string,
   foundingSourceRunId = planRunId,
-) {
+): Promise<ProductionSourceLoad> {
   return account.sourceKind === "founding"
     ? loadFoundingSource(account, foundingSourceRunId)
     : loadOceanSource(account, planRunId);

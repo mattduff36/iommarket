@@ -151,6 +151,7 @@ export async function insertLiveListing(
       expiresAt: calculateExpiryDate(now),
       trustDeclarationAccepted: true,
       trustDeclarationAcceptedAt: now,
+      approvedAt: now,
     },
   });
 
@@ -212,6 +213,7 @@ export async function insertLiveListing(
         source: "ADMIN",
         action: "APPROVE",
         notes: "Ocean inventory import",
+        createdAt: now,
       },
     ],
   });

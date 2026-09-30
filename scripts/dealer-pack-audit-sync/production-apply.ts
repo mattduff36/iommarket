@@ -12,8 +12,11 @@ import {
   uploadProductionReplacement,
   type ProductionUploadedImage,
 } from "./production-media";
+import { assertProductionPlanIntegrity } from "./plan-file";
 import {
   PRODUCTION_ACCOUNTS,
+  TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY,
+  isTemporaryExcludedProductionAccount,
   type ProductionApplyReport,
   type ProductionAuditPlan,
   type ProductionListingAction,
@@ -43,6 +46,16 @@ interface StagedAction {
 
 function actionKey(dealerKey: string, identityKey: string) {
   return `${dealerKey}\0${identityKey}`;
+}
+
+export function assertProductionActionHasImages(
+  action: Extract<ProductionListingAction, { kind: "create" | "update" }>,
+) {
+  if (action.source.images.length === 0) {
+    throw new Error(
+      `Refusing production audit sync: listing has no valid source image (${action.identityKey}).`,
+    );
+  }
 }
 
 async function cleanupStagedAndThrow(
@@ -145,6 +158,7 @@ async function createProvenanceEvents(input: {
   listingId: string;
   adminUserId: string;
   sourceKind: "founding" | "ocean";
+  approvedAt: Date;
 }) {
   const notes = provenanceNotes(input.sourceKind);
   await input.tx.listingStatusEvent.createMany({
@@ -175,6 +189,7 @@ async function createProvenanceEvents(input: {
         action: "APPROVE",
         changedByUserId: input.adminUserId,
         notes,
+        createdAt: input.approvedAt,
       },
     ],
   });
@@ -232,6 +247,7 @@ async function applyCreate(input: {
       expiresAt: calculateExpiryDate(now),
       trustDeclarationAccepted: true,
       trustDeclarationAcceptedAt: now,
+      approvedAt: now,
     },
   });
   await createAttributes(
@@ -246,6 +262,7 @@ async function applyCreate(input: {
     listingId: created.id,
     adminUserId: input.adminUserId,
     sourceKind: input.accountPlan.sourceKind,
+    approvedAt: now,
   });
   return created.id;
 }
@@ -353,6 +370,7 @@ export async function applyProductionAuditPlan(input: {
   prisma: PrismaClient;
   plan: ProductionAuditPlan;
 }): Promise<ProductionApplyReport> {
+  assertProductionPlanIntegrity(input.plan);
   const ledgerId = `${input.plan.runId}:${input.plan.fingerprint}`;
   const recovered = await input.prisma.adminAuditLog.findFirst({
     where: {
@@ -370,8 +388,14 @@ export async function applyProductionAuditPlan(input: {
   const staged: StagedAction[] = [];
   try {
     for (const account of input.plan.accounts) {
+      if (isTemporaryExcludedProductionAccount(account.dealerKey)) {
+        throw new Error(
+          `Refusing production audit sync: ${TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY} is excluded.`,
+        );
+      }
       for (const action of account.actions) {
         if (action.kind === "take_down") continue;
+        assertProductionActionHasImages(action);
         staged.push({
           dealerKey: account.dealerKey,
           action,
@@ -402,8 +426,12 @@ export async function applyProductionAuditPlan(input: {
         const account = PRODUCTION_ACCOUNTS.find(
           (item) => item.dealerKey === expected.dealerKey,
         );
-        if (!account) {
-          throw new Error(`Production account is not allowlisted: ${expected.dealerKey}`);
+        if (!account || isTemporaryExcludedProductionAccount(expected.dealerKey)) {
+          throw new Error(
+            expected.dealerKey === TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY
+              ? `Refusing production audit sync: ${TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY} is excluded.`
+              : `Production account is not allowlisted: ${expected.dealerKey}`,
+          );
         }
         const current = await captureProductionAccountBaseline(tx, account);
         assertProductionBaselineMatches(expected.baseline, current);
@@ -420,6 +448,7 @@ export async function applyProductionAuditPlan(input: {
             });
             continue;
           }
+          assertProductionActionHasImages(action);
           const images = stagedByAction.get(
             actionKey(account.dealerKey, action.identityKey),
           );

@@ -82,7 +82,7 @@ describe("CheckoutStatusActions", () => {
 
     expect(replaceMock).not.toHaveBeenCalled();
     expect(
-      screen.getByText(/Ripple does not redirect back here after payment/i),
+      screen.getByText(/checks for payment confirmation automatically/i),
     ).toBeTruthy();
   });
 });

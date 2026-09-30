@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 interface AdminFilterBarProps {
   children: ReactNode;
   count?: ReactNode;
+  tools?: ReactNode;
   label?: string;
   className?: string;
 }
@@ -12,6 +13,7 @@ interface AdminFilterBarProps {
 export function AdminFilterBar({
   children,
   count,
+  tools,
   label = "Filters",
   className,
 }: AdminFilterBarProps) {
@@ -24,12 +26,30 @@ export function AdminFilterBar({
       )}
     >
       {children}
+      {tools}
       {count ? (
         <div className="text-xs tabular-nums text-text-tertiary sm:ml-auto">
           {count}
         </div>
       ) : null}
     </section>
+  );
+}
+
+export function AdminTableOptions({
+  children,
+  count,
+}: {
+  children?: ReactNode;
+  count?: ReactNode;
+}) {
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
+      {count ? (
+        <div className="mr-auto text-xs tabular-nums text-text-tertiary">{count}</div>
+      ) : null}
+      {children}
+    </div>
   );
 }
 

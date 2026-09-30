@@ -11,6 +11,8 @@ import type { ArchivedVehicle } from "../dealer-stock-sync/types";
 import { PACK_BASELINE_SELECT, capturePackBaseline } from "./baseline";
 import {
   classifySnapshot,
+  excludedListingEvidence,
+  hasValidSourceImages,
   type AuditSnapshotManifest,
   type SnapshotClassification,
 } from "./classify";
@@ -19,7 +21,7 @@ import { loadProductionSource } from "./production-source";
 import { PRODUCTION_ACCOUNTS } from "./production-types";
 import {
   DEALER_PACK_AUDIT_VERSION,
-  REQUIRED_BACKUP_ID,
+  type ExcludedListingEvidence,
   type PackAuditAction,
   type PreviewPackAuditPlan,
 } from "./types";
@@ -35,6 +37,29 @@ async function readSnapshot(dealerKey: string, runId: string) {
     ),
   ]);
   return { runId, manifest, vehicles };
+}
+
+function previewListingsFromClassification(classified: SnapshotClassification) {
+  const leftover = classified.listings
+    .filter((listing) => !hasValidSourceImages(listing.images))
+    .map((listing) => excludedListingEvidence({
+      identityKey: listing.identityKey,
+      sourceUrl: listing.sourceUrl,
+      title: listing.listing.title,
+      findings: listing.findings,
+    }));
+  const seen = new Set<string>();
+  const excludedListings = [...(classified.excludedListings ?? []), ...leftover]
+    .filter((listing) => {
+      if (seen.has(listing.identityKey)) return false;
+      seen.add(listing.identityKey);
+      return true;
+    });
+  return {
+    listings: classified.listings.filter((listing) =>
+      hasValidSourceImages(listing.images)),
+    excludedListings,
+  };
 }
 
 export function isSyntheticPackOwner(input: {
@@ -55,8 +80,11 @@ export async function buildPreviewPackAuditPlan(input: {
   projectRef: string;
   confirmDb: string;
   sourceRunId: string;
+  backupId: string;
   dealerKey?: string;
 }): Promise<PreviewPackAuditPlan> {
+  const backupId = input.backupId.trim();
+  if (!backupId) throw new Error("preview-backup-id-required");
   const admins = await input.prisma.user.findMany({
     where: {
       email: { equals: "admin@mpdee.co.uk", mode: "insensitive" },
@@ -121,7 +149,7 @@ export async function buildPreviewPackAuditPlan(input: {
           displayName: pack.displayName,
           sourceRunId: source.runId,
           baseline,
-          listings: source.listings.map((listing) => ({
+          listings: source.listings.filter((listing) => hasValidSourceImages(listing.images)).map((listing) => ({
             identityKey: listing.identityKey,
             sourceUrl: listing.sourceUrl,
             listing: listing.listing,
@@ -137,6 +165,13 @@ export async function buildPreviewPackAuditPlan(input: {
             })),
             findings: listing.findings,
           })),
+          excludedListings: source.excludedListings.map((listing) => ({
+            identityKey: listing.identityKey,
+            sourceUrl: listing.sourceUrl,
+            title: listing.title,
+            reasons: listing.reasons,
+            findings: listing.findings,
+          } satisfies ExcludedListingEvidence)),
         });
         continue;
       } catch (error) {
@@ -166,13 +201,15 @@ export async function buildPreviewPackAuditPlan(input: {
       !hasOpenRevision &&
       pack.dealerKey !== OCEAN_DEALER_KEY
     ) {
+      const planned = previewListingsFromClassification(classified);
       actions.push({
         kind: "replace",
         dealerKey: pack.dealerKey,
         displayName: snapshot.manifest.displayName || pack.displayName,
         sourceRunId: snapshot.runId,
         baseline,
-        listings: classified.listings,
+        listings: planned.listings,
+        excludedListings: planned.excludedListings,
       });
       continue;
     }
@@ -185,6 +222,9 @@ export async function buildPreviewPackAuditPlan(input: {
       baseline,
       removeListings: synthetic && !hasOpenRevision,
       reasons: [...new Set(reasons)].sort(),
+      excludedListings: classified
+        ? previewListingsFromClassification(classified).excludedListings
+        : [],
     });
   }
 
@@ -196,7 +236,7 @@ export async function buildPreviewPackAuditPlan(input: {
       projectRef: input.projectRef,
       confirmDb: input.confirmDb,
     },
-    backupId: REQUIRED_BACKUP_ID,
+    backupId,
     sourceRunId: input.sourceRunId,
     adminUserId: admins[0]!.id,
     actionCount: actions.length,

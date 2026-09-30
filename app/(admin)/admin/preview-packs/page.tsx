@@ -8,13 +8,27 @@ import {
   mergePreviewPackRows,
 } from "@/lib/preview-packs/archive";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
+import { AdminTableOptions } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  PREVIEW_PACK_TABLE_COLUMNS,
+  PREVIEW_PACK_TABLE_SORT,
+} from "@/lib/admin/table-columns";
+import { sortPreviewPackRows } from "@/lib/admin/table-order";
+import { parseAdminSort } from "@/lib/admin/table-state";
 import { PreviewPacksTable } from "./preview-packs-table";
 import { SampleListingToggles } from "./sample-listing-toggles";
 
 export const metadata: Metadata = { title: "Preview packs | Admin" };
 
-export default async function PreviewPacksPage() {
+export default async function PreviewPacksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const params = await searchParams;
+  const sort = parseAdminSort(params, PREVIEW_PACK_TABLE_COLUMNS, PREVIEW_PACK_TABLE_SORT);
   const [archive, packs, sampleVisibility] = await Promise.all([
     listAvailablePreviewArchives(),
     db.dealerPreviewPack.findMany({
@@ -26,7 +40,7 @@ export default async function PreviewPacksPage() {
     }),
     getSampleVisibility(),
   ]);
-  const rows = listablePreviewPackRows(
+  const rows = sortPreviewPackRows(listablePreviewPackRows(
     mergePreviewPackRows({
       archives: archive.dealers,
       packs: packs.map((pack) => ({
@@ -38,7 +52,7 @@ export default async function PreviewPacksPage() {
         slug: pack.dealerProfile.slug,
       })),
     }),
-  );
+  ), sort);
   const visibleCount = rows.filter((row) => row.enabled).length;
 
   return (
@@ -60,10 +74,20 @@ export default async function PreviewPacksPage() {
         sampleDealerVisible={sampleVisibility.dealerListings}
       />
 
-      <PreviewPacksTable
-        rows={rows}
-        archiveAvailable={archive.archiveAvailable}
-      />
+      <AdminColumnVisibility tableId="preview-packs" columns={PREVIEW_PACK_TABLE_COLUMNS}>
+        <AdminTableOptions>
+          <AdminColumnMenu />
+        </AdminTableOptions>
+        <PreviewPacksTable
+          rows={rows}
+          archiveAvailable={archive.archiveAvailable}
+          sort={sort}
+          current={{
+            sort: sort.explicit ? sort.column : undefined,
+            dir: sort.explicit ? sort.direction : undefined,
+          }}
+        />
+      </AdminColumnVisibility>
     </>
   );
 }

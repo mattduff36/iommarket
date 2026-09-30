@@ -239,6 +239,7 @@ export async function insertFoundingListing(
       expiresAt: calculateExpiryDate(input.now),
       trustDeclarationAccepted: true,
       trustDeclarationAcceptedAt: input.now,
+      approvedAt: input.now,
     },
   });
 
@@ -303,6 +304,7 @@ export async function insertFoundingListing(
         action: "APPROVE",
         changedByUserId: input.adminUserId,
         notes: IMPORT_NOTES,
+        createdAt: input.now,
       },
     ],
   });

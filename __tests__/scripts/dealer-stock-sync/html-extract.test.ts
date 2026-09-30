@@ -30,8 +30,23 @@ import {
 } from "../../../scripts/dealer-stock-sync/connectors/named-html-more";
 import { mapReconciledVehicle } from "../../../scripts/dealer-stock-sync/map-listing";
 import { normalizeWebsiteVehicle } from "../../../scripts/dealer-stock-sync/connectors/website-source";
-import { extractSwiftGalleryFromHtml } from "../../../scripts/dealer-stock-sync/html-media";
+import {
+  extractGalleryFromHtml,
+  extractNetDirectorGalleryFromHtml,
+  extractNextInventoryGalleryFromHtml,
+  extractSwiftGalleryFromHtml,
+  extractWebsiteDetailImages,
+} from "../../../scripts/dealer-stock-sync/html-media";
+import { encodeNetDirectorImageUrl } from "../../../scripts/dealer-stock-sync/image-urls";
+import { extractGalleryFromHtml as extractOceanHtml } from "../../../scripts/import-ocean-inventory/classic";
+import { parseNetDirectorVehicle } from "../../../scripts/dealer-stock-sync/connectors/netdirector/normalize";
 import { dealerFixture } from "./fixtures";
+
+function nextInventoryPage(pageProps: unknown, extraHtml = "") {
+  return `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    props: { pageProps },
+  })}</script>${extraHtml}`;
+}
 
 const AUTOWEB_CARD = `
 <div class="us-result-grid flexi-height_child radius" data-vehicle-id="21911132">
@@ -469,5 +484,147 @@ describe("named HTML extractors", () => {
       "https://bluesky.cdn.imgeng.in/cogstock-images/own-2.jpg",
       "https://bluesky.cdn.imgeng.in/cogstock-images/own-3.jpg",
     ]);
+    expect(
+      extractWebsiteDetailImages(html, "https://swiftmotors.net", {
+        dealerKey: "swift-motors",
+        detailUrl: "https://swiftmotors.net/used-vehicle-details/used-mercedes-benz-glb/id-79184928/",
+      }),
+    ).toEqual([
+      "https://bluesky.cdn.imgeng.in/cogstock-images/own-1.jpg",
+      "https://bluesky.cdn.imgeng.in/cogstock-images/own-2.jpg",
+      "https://bluesky.cdn.imgeng.in/cogstock-images/own-3.jpg",
+    ]);
+  });
+
+  it("keeps TD and Budget Next inventory owner galleries and drops related stock", () => {
+    const tdHtml = nextInventoryPage(
+      {
+        vehicle: {
+          slug: "2019-bmw-3-series-330i-m-sport",
+          url: "/inventory/2019-bmw-3-series-330i-m-sport",
+          make: "BMW",
+          model: "3 Series",
+          images: [
+            "https://cdn.tdcar.im/bmw-1.jpg",
+            "https://cdn.tdcar.im/bmw-2.jpg",
+            "https://cdn.tdcar.im/bmw-3.jpg",
+          ],
+        },
+        relatedVehicles: [
+          {
+            slug: "2018-audi-a3",
+            url: "/inventory/2018-audi-a3",
+            images: ["https://cdn.tdcar.im/audi-related.jpg"],
+          },
+        ],
+      },
+      `<img src="https://cdn.tdcar.im/audi-related.jpg"><img src="https://cdn.tdcar.im/site-banner.jpg">`,
+    );
+    const tdUrl = "https://www.tdcar.im/inventory/2019-bmw-3-series-330i-m-sport";
+    expect(extractNextInventoryGalleryFromHtml(tdHtml, "https://www.tdcar.im", tdUrl)).toEqual([
+      "https://cdn.tdcar.im/bmw-1.jpg",
+      "https://cdn.tdcar.im/bmw-2.jpg",
+      "https://cdn.tdcar.im/bmw-3.jpg",
+    ]);
+    expect(
+      extractWebsiteDetailImages(tdHtml, "https://www.tdcar.im", {
+        dealerKey: "td-car-centre",
+        detailUrl: tdUrl,
+      }),
+    ).toEqual([
+      "https://cdn.tdcar.im/bmw-1.jpg",
+      "https://cdn.tdcar.im/bmw-2.jpg",
+      "https://cdn.tdcar.im/bmw-3.jpg",
+    ]);
+    expect(extractGalleryFromHtml(tdHtml, "https://www.tdcar.im")).toEqual(
+      expect.arrayContaining([
+        "https://cdn.tdcar.im/bmw-1.jpg",
+        "https://cdn.tdcar.im/audi-related.jpg",
+      ]),
+    );
+
+    const budgetHtml = nextInventoryPage({
+      vehicle: {
+        id: "73b87fae-ba7e-48ba-a587-d09aa6fe954f",
+        url: "/inventory/73b87fae-ba7e-48ba-a587-d09aa6fe954f",
+        images: [
+          { url: "https://cdn.budgetcars.im/owner-1.jpg" },
+          { src: "https://cdn.budgetcars.im/owner-2.jpg" },
+        ],
+      },
+      relatedVehicles: [
+        {
+          id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          images: ["https://cdn.budgetcars.im/related.jpg"],
+        },
+      ],
+    });
+    expect(
+      extractWebsiteDetailImages(budgetHtml, "https://www.budgetcars.im", {
+        dealerKey: "budget-cars-isle-of-man",
+        detailUrl: "https://www.budgetcars.im/inventory/73b87fae-ba7e-48ba-a587-d09aa6fe954f",
+      }),
+    ).toEqual(["https://cdn.budgetcars.im/owner-1.jpg", "https://cdn.budgetcars.im/owner-2.jpg"]);
+  });
+
+  it("returns no Next inventory gallery when multiple records match the detail", () => {
+    const html = nextInventoryPage({
+      listings: [
+        {
+          slug: "ford-focus-extra",
+          images: ["https://cdn.tdcar.im/first.jpg"],
+        },
+        {
+          slug: "vw-ford-focus-extra",
+          images: ["https://cdn.tdcar.im/second.jpg"],
+        },
+      ],
+    });
+    const detailUrl = "https://www.tdcar.im/inventory/ford-focus";
+    expect(extractNextInventoryGalleryFromHtml(html, "https://www.tdcar.im", detailUrl)).toEqual([]);
+    expect(
+      extractWebsiteDetailImages(html, "https://www.tdcar.im", {
+        dealerKey: "td-car-centre",
+        detailUrl,
+      }),
+    ).toEqual([]);
+  });
+
+  it("filters Athol coming-soon and Ocean no-image-stock placeholders", () => {
+    expect(
+      extractGalleryFromHtml(`
+        <img src="https://www.athol.im/media/coming-soon.jpg" />
+        <img src="https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/kia-real.jpg" />
+      `),
+    ).toEqual(["https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/kia-real.jpg"]);
+    expect(
+      parseNetDirectorVehicle({
+        manufacturer: "Kia",
+        model: "Sportage",
+        images: [
+          "https://www.athol.im/media/coming_soon.png",
+          "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/kia-real.jpg",
+        ],
+      })?.imageUrls,
+    ).toEqual(["https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/kia-real.jpg"]);
+    expect(
+      extractOceanHtml(`
+        <img src="https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/no-image-stock.jpg" />
+        <img src="https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/focus.jpg" />
+      `),
+    ).toEqual(["https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/focus.jpg"]);
+  });
+
+  it("keeps NetDirector owner gallery order and drops related stock chrome", () => {
+    const ownerOne = encodeNetDirectorImageUrl({ key: "ndstock/owner-1.jpg" });
+    const ownerTwo = encodeNetDirectorImageUrl({ key: "ndstock/owner-2.jpg" });
+    const related = encodeNetDirectorImageUrl({ key: "ndstock/related.jpg" });
+    const html = `
+      <img src="${ownerOne}" />
+      <img src="${ownerTwo}" />
+      <h2>Similar vehicles</h2>
+      <img src="${related}" />
+    `;
+    expect(extractNetDirectorGalleryFromHtml(html)).toEqual([ownerOne, ownerTwo]);
   });
 });

@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { archiveImages } from "../../../scripts/dealer-stock-sync/archive/images";
 import { writeDealerArchive } from "../../../scripts/dealer-stock-sync/archive/write";
 import {
+  imageOwnerTokens,
+  isProvableImageOwner,
+  resolveSharedChecksumOwner,
+} from "../../../scripts/dealer-stock-sync/image-ownership";
+import {
   ArchiveImportSafetyError,
   assertArchiveDealerMatch,
   dryRunArchiveImport,
@@ -123,6 +128,151 @@ describe("archive serialization and images", () => {
       "skipped",
     ]);
     expect(written.vehicles.every((item) => item.vehicle.imageUrls.length === 0)).toBe(true);
+  });
+
+  it("keeps a provable owner image and removes the same checksum from contaminants", async () => {
+    const ownerUrl = "https://cdn.example.com/vehicles/stock-1/hero.jpg";
+    expect(
+      resolveSharedChecksumOwner([
+        {
+          identity: { identityKey: "sourceVehicleId:stock-2", sourceVehicleId: "stock-2" },
+          url: ownerUrl,
+        },
+        {
+          identity: { identityKey: "sourceVehicleId:stock-1", sourceVehicleId: "stock-1" },
+          url: ownerUrl,
+        },
+      ]),
+    ).toBe("sourceVehicleId:stock-1");
+
+    const root = await mkdtemp(join(tmpdir(), "dealer-stock-owner-"));
+    temps.push(root);
+    const dealer = dealerFixture();
+    const contaminant = vehicle({
+      dealerKey: dealer.key,
+      sourceKey: "used-cars",
+      sourceVehicleId: "stock-2",
+      stockReference: "stock-2",
+      registration: "MAN456",
+      model: "Fiesta",
+      detailUrl: "https://www.athol.im/used-cars/fiesta/",
+      imageUrls: [ownerUrl],
+    });
+    const owner = vehicle({
+      dealerKey: dealer.key,
+      sourceKey: "used-cars",
+      imageUrls: [ownerUrl],
+    });
+    const records = [contaminant, owner].map((item) => ({
+      identityKey: `sourceVehicleId:${item.sourceVehicleId}`,
+      identityKind: "sourceVehicleId" as const,
+      sources: ["used-cars"],
+      preferredSource: "used-cars",
+      vehicle: item,
+      priceMismatch: false,
+      identityConflict: false,
+      conflictReason: null,
+      contentHash: item.sourceVehicleId ?? "",
+    }));
+
+    const written = await writeDealerArchive({
+      root,
+      runId: "run-owner",
+      mirrorImages: true,
+      fetchImpl: async () =>
+        new Response(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), {
+          status: 200,
+          headers: { "content-type": "image/jpeg" },
+        }),
+      result: {
+        dealer,
+        sourceResults: [
+          sourceResult({ dealerKey: dealer.key, sourceKey: "used-cars", vehicles: [contaminant, owner] }),
+        ],
+        reconciled: records,
+        canArchive: true,
+        scrapeStartedAt: "2026-09-28T20:00:00.000Z",
+        scrapeFinishedAt: "2026-09-28T20:01:00.000Z",
+      },
+    });
+
+    const contaminantArchive = written.vehicles.find((item) => item.identityKey === "sourceVehicleId:stock-2");
+    const ownerArchive = written.vehicles.find((item) => item.identityKey === "sourceVehicleId:stock-1");
+    expect(ownerArchive?.images[0]?.status).toBe("ok");
+    expect(ownerArchive?.vehicle.imageUrls).toEqual([ownerUrl]);
+    expect(contaminantArchive?.images[0]?.status).toBe("skipped");
+    expect(contaminantArchive?.images[0]?.error).toBe(
+      "duplicate image content owned by sourceVehicleId:stock-1",
+    );
+    expect(contaminantArchive?.vehicle.imageUrls).toEqual([]);
+  });
+
+  it("matches owner tokens on delimiters and ignores year, numeric, and hash-like tokens", () => {
+    const stockTwelve = "https://cdn.example.com/vehicles/stock-12/hero.jpg";
+    expect(
+      isProvableImageOwner(stockTwelve, {
+        identityKey: "sourceVehicleId:stock-1",
+        sourceVehicleId: "stock-1",
+      }),
+    ).toBe(false);
+    expect(
+      resolveSharedChecksumOwner([
+        {
+          identity: { identityKey: "sourceVehicleId:stock-1", sourceVehicleId: "stock-1" },
+          url: stockTwelve,
+        },
+        {
+          identity: { identityKey: "sourceVehicleId:stock-12", sourceVehicleId: "stock-12" },
+          url: stockTwelve,
+        },
+      ]),
+    ).toBe("sourceVehicleId:stock-12");
+
+    expect(
+      imageOwnerTokens({
+        identityKey: "sourceVehicleId:2024",
+        sourceVehicleId: "2024",
+        stockReference: "1234",
+      }),
+    ).not.toEqual(expect.arrayContaining(["2024", "1234"]));
+    expect(
+      isProvableImageOwner("https://cdn.example.com/uploads/2024/photo.jpg", {
+        identityKey: "sourceVehicleId:year-car",
+        stockReference: "2024",
+      }),
+    ).toBe(false);
+    expect(
+      imageOwnerTokens({
+        identityKey: "sourceVehicleId:hash",
+        sourceVehicleId: "a1b2c3d4e5f67890",
+      }),
+    ).not.toContain("a1b2c3d4e5f67890");
+    expect(
+      isProvableImageOwner("https://cdn.example.com/a1b2c3d4e5f67890/photo.jpg", {
+        identityKey: "sourceVehicleId:hash",
+        sourceVehicleId: "a1b2c3d4e5f67890",
+      }),
+    ).toBe(false);
+    expect(
+      resolveSharedChecksumOwner([
+        {
+          identity: {
+            identityKey: "sourceVehicleId:stock-1",
+            sourceVehicleId: "stock-1",
+            detailUrl: "https://dealer.example/used-cars/shared-model/",
+          },
+          url: "https://cdn.example.com/used-cars/shared-model/hero.jpg",
+        },
+        {
+          identity: {
+            identityKey: "sourceVehicleId:stock-2",
+            sourceVehicleId: "stock-2",
+            detailUrl: "https://dealer.example/used-cars/shared-model/",
+          },
+          url: "https://cdn.example.com/used-cars/shared-model/hero.jpg",
+        },
+      ]),
+    ).toBeNull();
   });
 });
 

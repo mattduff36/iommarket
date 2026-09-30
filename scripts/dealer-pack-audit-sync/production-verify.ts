@@ -9,6 +9,8 @@ import {
 } from "./production-baseline";
 import {
   PRODUCTION_ACCOUNTS,
+  TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY,
+  isTemporaryExcludedProductionAccount,
   type ProductionAccount,
   type ProductionApplyReport,
   type ProductionAuditPlan,
@@ -16,8 +18,9 @@ import {
   type ProductionSourceListing,
   type ProductionVerifyReport,
 } from "./production-types";
+import { identitiesMatch } from "./finalize-live";
 import { productionCleanupPublicIds } from "./production-apply";
-import { canonicalJson } from "./plan-file";
+import { assertProductionPlanIntegrity, canonicalJson } from "./plan-file";
 
 function compareSourceListing(input: {
   source: ProductionSourceListing;
@@ -144,7 +147,31 @@ function verifyAccount(input: {
       .filter((evidence) => evidence.dealerKey === input.account.dealerKey)
       .map((evidence) => [evidence.identityKey, evidence]),
   );
+  if (isTemporaryExcludedProductionAccount(input.accountPlan.dealerKey)) {
+    errors.push(`excluded-production-account:${TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY}`);
+  }
+  for (const excluded of input.accountPlan.excludedListings ?? []) {
+    const stillLive = [...managed.values()].some((listing) =>
+      listing.status === "LIVE" &&
+      (listing.slug === excluded.managedKey ||
+        managed.get(excluded.managedKey) === listing ||
+        identitiesMatch(excluded.identityKey, listing.slug ?? "")));
+    if (stillLive) {
+      errors.push(`${excluded.identityKey}:excluded-listing-still-live`);
+    }
+  }
   for (const action of input.accountPlan.actions) {
+    if (action.kind !== "take_down" && action.source.images.length === 0) {
+      errors.push(`${action.identityKey}:empty-source-images`);
+    }
+    if (
+      action.kind !== "take_down" &&
+      (input.accountPlan.excludedListings ?? []).some((excluded) =>
+        identitiesMatch(excluded.identityKey, action.identityKey) ||
+        excluded.managedKey === action.source.managedKey)
+    ) {
+      errors.push(`${action.identityKey}:excluded-listing-mutated`);
+    }
     if (action.kind === "take_down") {
       const listing = input.current.listings.find((item) => item.id === action.listingId);
       expectedManagedIds.add(action.listingId);
@@ -216,6 +243,7 @@ export async function verifyProductionAuditPlan(input: {
   plan: ProductionAuditPlan;
   applyReport: ProductionApplyReport | null;
 }): Promise<ProductionVerifyReport> {
+  assertProductionPlanIntegrity(input.plan);
   if (
     !input.applyReport ||
     input.applyReport.runId !== input.plan.runId ||
@@ -281,8 +309,12 @@ export async function verifyProductionAuditPlan(input: {
     const account = PRODUCTION_ACCOUNTS.find(
       (item) => item.dealerKey === accountPlan.dealerKey,
     );
-    if (!account) {
-      throw new Error(`Production account is not allowlisted: ${accountPlan.dealerKey}`);
+    if (!account || isTemporaryExcludedProductionAccount(accountPlan.dealerKey)) {
+      throw new Error(
+        accountPlan.dealerKey === TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY
+          ? `Refusing production audit verification: ${TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY} is excluded.`
+          : `Production account is not allowlisted: ${accountPlan.dealerKey}`,
+      );
     }
     const current = await captureProductionAccountBaseline(input.prisma, account);
     const errors = verifyAccount({

@@ -146,7 +146,19 @@ async function assertFrozenImage(image: PlannedListing["images"][number]) {
   }
 }
 
+export function assertReplaceListingsHaveImages(
+  action: Extract<PackAuditAction, { kind: "replace" }>,
+) {
+  const empty = action.listings.find((listing) => listing.images.length === 0);
+  if (empty) {
+    throw new Error(
+      `Refusing audit sync: listing has no valid source image (${empty.identityKey}).`,
+    );
+  }
+}
+
 async function uploadReplacement(action: Extract<PackAuditAction, { kind: "replace" }>) {
+  assertReplaceListingsHaveImages(action);
   const allUploaded: PreviewUploadedImage[] = [];
   const byIdentity = new Map<string, PreviewUploadedImage[]>();
   try {
@@ -270,6 +282,7 @@ async function applyReplace(input: {
   catalog: Awaited<ReturnType<typeof loadPreviewPackCatalog>>;
   plan: PreviewPackAuditPlan;
 }) {
+  assertReplaceListingsHaveImages(input.action);
   const uploaded = await uploadReplacement(input.action);
   const evidence: AppliedListingEvidence[] = [];
   try {
@@ -301,6 +314,11 @@ async function applyReplace(input: {
         },
       });
       for (const planned of input.action.listings) {
+        if (planned.images.length === 0) {
+          throw new Error(
+            `Refusing audit sync: listing has no valid source image (${planned.identityKey}).`,
+          );
+        }
         const images = uploaded.byIdentity.get(planned.identityKey) ?? [];
         const listingId = await insertPreviewListing(tx, {
           ...input.owners,
@@ -311,7 +329,6 @@ async function applyReplace(input: {
           listing: planned.listing,
           images,
           catalog: input.catalog,
-          allowEmptyImages: true,
         });
         if (!listingId) {
           throw new Error(`Exact replacement failed for ${planned.identityKey}.`);

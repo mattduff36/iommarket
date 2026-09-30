@@ -4,6 +4,8 @@ import { dirname, resolve } from "node:path";
 import type { PreviewPackAuditPlan } from "./types";
 import {
   PRODUCTION_ACCOUNTS,
+  TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY,
+  isTemporaryExcludedProductionAccount,
   type ProductionAuditPlan,
 } from "./production-types";
 
@@ -51,9 +53,34 @@ export function sealProductionPlan(
   return { ...plan, fingerprint: planFingerprint(plan) };
 }
 
+export function assertProductionPreviewProvenance(plan: ProductionAuditPlan) {
+  if (
+    typeof plan.finalPreviewRunId !== "string" ||
+    !plan.finalPreviewRunId.trim() ||
+    typeof plan.finalPreviewFingerprint !== "string" ||
+    !plan.finalPreviewFingerprint.trim()
+  ) {
+    throw new Error(
+      "Refusing production audit sync: frozen plan is missing finalized preview provenance.",
+    );
+  }
+}
+
 export function assertPlanIntegrity(plan: PreviewPackAuditPlan) {
+  if (typeof plan.backupId !== "string" || !plan.backupId.trim()) {
+    throw new Error("Refusing audit sync: frozen plan backup ID is invalid.");
+  }
   if (plan.actionCount !== plan.actions.length) {
     throw new Error("Refusing audit sync: frozen plan action count is invalid.");
+  }
+  if (
+    plan.actions.some((action) =>
+      action.kind === "replace" &&
+      action.listings.some((listing) => listing.images.length === 0))
+  ) {
+    throw new Error(
+      "Refusing audit sync: frozen plan includes a listing with no valid source image.",
+    );
   }
   const actual = planFingerprint(plan);
   if (actual !== plan.fingerprint) {
@@ -62,10 +89,19 @@ export function assertPlanIntegrity(plan: PreviewPackAuditPlan) {
 }
 
 export function assertProductionPlanIntegrity(plan: ProductionAuditPlan) {
+  if (typeof plan.backupId !== "string" || !plan.backupId.trim()) {
+    throw new Error("Refusing production audit sync: frozen plan backup ID is invalid.");
+  }
+  assertProductionPreviewProvenance(plan);
   const allowedKeys = new Set<string>(
     PRODUCTION_ACCOUNTS.map((account) => account.dealerKey),
   );
   const accountKeys = plan.accounts.map((account) => account.dealerKey);
+  if (accountKeys.some(isTemporaryExcludedProductionAccount)) {
+    throw new Error(
+      `Refusing production audit sync: ${TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY} is excluded.`,
+    );
+  }
   if (
     accountKeys.length === 0 ||
     new Set(accountKeys).size !== accountKeys.length ||
@@ -73,6 +109,15 @@ export function assertProductionPlanIntegrity(plan: ProductionAuditPlan) {
   ) {
     throw new Error(
       "Refusing production audit sync: frozen plan accounts must be a non-empty allowlisted subset.",
+    );
+  }
+  if (
+    plan.accounts.some((account) =>
+      account.actions.some((action) =>
+        action.kind !== "take_down" && action.source.images.length === 0))
+  ) {
+    throw new Error(
+      "Refusing production audit sync: frozen plan includes a listing with no valid source image.",
     );
   }
   const actualCount = plan.accounts.reduce(

@@ -9,7 +9,7 @@ import {
   frozenImageQualityError,
   inspectFrozenImageFile,
 } from "./image-quality";
-import type { PlannedListing } from "./types";
+import type { ExcludedListingEvidence, PlannedListing } from "./types";
 
 export interface AuditSnapshotManifest {
   dealerKey: string;
@@ -26,6 +26,29 @@ export interface SnapshotClassification {
   noPublicStock: boolean;
   reasons: string[];
   listings: PlannedListing[];
+  excludedListings?: ExcludedListingEvidence[];
+}
+
+export const NO_VALID_SOURCE_IMAGE_REASON = "listing-has-no-valid-source-image";
+
+export function hasValidSourceImages(images: { length: number }) {
+  return images.length > 0;
+}
+
+export function excludedListingEvidence(input: {
+  identityKey: string;
+  sourceUrl: string | null;
+  title: string | null;
+  findings: string[];
+  reasons?: string[];
+}): ExcludedListingEvidence {
+  return {
+    identityKey: input.identityKey,
+    sourceUrl: input.sourceUrl,
+    title: input.title,
+    reasons: [...new Set(input.reasons ?? [NO_VALID_SOURCE_IMAGE_REASON])].sort(),
+    findings: [...new Set(input.findings)].sort(),
+  };
 }
 
 const COMPLETE_SOURCE_STATUSES = new Set<SourceStatus>(["ok", "no_public_stock"]);
@@ -110,6 +133,7 @@ export function classifySnapshot(input: {
   }
 
   const listings: PlannedListing[] = [];
+  const excludedListings: ExcludedListingEvidence[] = [];
   for (const vehicle of input.vehicles) {
     const mapped = mapReconciledVehicle(vehicle);
     if (!mapped.listing) {
@@ -123,8 +147,15 @@ export function classifySnapshot(input: {
       continue;
     }
     const inspected = usableImages(vehicle);
-    if (inspected.images.length === 0) {
-      inspected.findings.push("listing-has-no-valid-source-image");
+    if (!hasValidSourceImages(inspected.images)) {
+      inspected.findings.push(NO_VALID_SOURCE_IMAGE_REASON);
+      excludedListings.push(excludedListingEvidence({
+        identityKey: vehicle.identityKey,
+        sourceUrl: vehicle.vehicle.detailUrl,
+        title: mapped.listing.title,
+        findings: inspected.findings,
+      }));
+      continue;
     }
     listings.push({
       identityKey: vehicle.identityKey,
@@ -140,12 +171,15 @@ export function classifySnapshot(input: {
     reasons.push(`cross-vehicle-image-checksum:${conflicts.join(",")}`);
   }
   if (noPublicStock) reasons.push("no-public-stock");
-  if (!noPublicStock && listings.length === 0) reasons.push("no-includable-listings");
+  if (!noPublicStock && listings.length === 0 && excludedListings.length === 0) {
+    reasons.push("no-includable-listings");
+  }
 
   return {
     safe: reasons.length === 0,
     noPublicStock,
     reasons: [...new Set(reasons)].sort(),
     listings,
+    excludedListings,
   };
 }

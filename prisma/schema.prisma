@@ -394,6 +394,7 @@ model Listing {
   lifecycleRevision          Int      @default(0)
   retentionPurgedAt DateTime?
   previewPackId String?
+  approvedAt  DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -422,6 +423,7 @@ model Listing {
   @@index([dealerId])
   @@index([previewPackId])
   @@index([createdAt])
+  @@index([approvedAt])
 }
 
 model DealerPreviewPack {
@@ -1840,4 +1842,13 @@ model CostClientPolicy {
   createdAt             DateTime @default(now()) @db.Timestamptz(3)
 
   @@unique([projectId, version])
+}
+
+model SignupRateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([resetAt])
 }

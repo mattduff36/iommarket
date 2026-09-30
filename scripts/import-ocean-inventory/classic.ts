@@ -1,6 +1,4 @@
-import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
-import { uniqueImageUrls } from "../dealer-stock-sync/image-urls";
-import { resolveMaybeUrl } from "./normalize";
+import { extractNetDirectorGalleryFromHtml } from "../dealer-stock-sync/html-media";
 
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -24,26 +22,7 @@ export function transitUsedVansUrl(startUrl: string) {
 }
 
 export function extractGalleryFromHtml(html: string, origin?: string | null) {
-  const found: string[] = [];
-  const patterns = [
-    /https:\/\/images\.netdirector\.auto\/[A-Za-z0-9_\-+=]+/g,
-    /https?:\/\/s3-[^"'\s>]+\.(?:jpe?g|png|webp)/gi,
-    /\/\/s3-[^"'\s>]+\.(?:jpe?g|png|webp)/gi,
-  ];
-  for (const pattern of patterns) {
-    const matches = html.match(pattern) ?? [];
-    found.push(...matches);
-  }
-
-  const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i);
-  if (og?.[1]) found.push(og[1]);
-
-  return uniqueImageUrls(
-    found
-      .map((url) => resolveMaybeUrl(url, origin))
-      .filter((url): url is string => Boolean(url)),
-    FEATURED_LISTING_PHOTO_LIMIT,
-  );
+  return extractNetDirectorGalleryFromHtml(html, origin);
 }
 
 export function extractDescriptionFromHtml(html: string) {

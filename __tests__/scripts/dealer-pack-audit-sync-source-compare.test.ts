@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { classifySnapshot } from "@/scripts/dealer-pack-audit-sync/classify";
 import {
   compareClassifiedDealer,
@@ -10,6 +14,46 @@ import type { PlannedListing } from "@/scripts/dealer-pack-audit-sync/types";
 import { OCEAN_DEALER_KEY } from "@/lib/preview-packs/safety";
 import type { ArchivedVehicle } from "@/scripts/dealer-stock-sync/types";
 import { vehicle } from "./dealer-stock-sync/fixtures";
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+  );
+});
+
+function validPngBytes() {
+  const bytes = Buffer.alloc(24);
+  Buffer.from("89504e470d0a1a0a", "hex").copy(bytes);
+  bytes.writeUInt32BE(1200, 16);
+  bytes.writeUInt32BE(800, 20);
+  return bytes;
+}
+
+async function archivedWithValidImage(
+  overrides: Parameters<typeof vehicle>[0] = {},
+  extra: Partial<ArchivedVehicle> = {},
+): Promise<ArchivedVehicle> {
+  const raw = vehicle(overrides);
+  const root = await mkdtemp(join(tmpdir(), "source-compare-"));
+  temporaryDirectories.push(root);
+  const localPath = join(root, "ok.png");
+  const bytes = validPngBytes();
+  await writeFile(localPath, bytes);
+  return archivedFrom(overrides, {
+    ...extra,
+    images: extra.images ?? [{
+      originalUrl: raw.imageUrls[0]!,
+      localPath,
+      contentType: "image/png",
+      bytes: bytes.length,
+      checksum: createHash("sha256").update(bytes).digest("hex"),
+      status: "ok",
+      error: null,
+    }],
+  });
+}
 
 function freshManifest(
   overrides: Partial<Parameters<typeof classifySnapshot>[0]["manifest"]> = {},
@@ -67,9 +111,9 @@ function mappedListing(title = "2022 Ford Focus ST-Line"): PlannedListing["listi
 }
 
 describe("dealer pack source compare", () => {
-  it("matches planned and archive listings exactly after classifySnapshot", () => {
+  it("matches planned and archive listings exactly after classifySnapshot", async () => {
     const manifest = freshManifest();
-    const vehicles = [archivedFrom({ dealerKey: "athol-garage", sourceKey: "stock" })];
+    const vehicles = [await archivedWithValidImage({ dealerKey: "athol-garage", sourceKey: "stock" })];
     const classified = classifySnapshot({ manifest, vehicles });
     expect(classified.listings).toHaveLength(1);
 
@@ -143,12 +187,12 @@ describe("dealer pack source compare", () => {
     expect(disabledOnly.unexplainedCount).toBe(0);
   });
 
-  it("explains disabled packs that remain unsafe without treating archive extras as new", () => {
+  it("explains disabled packs that remain unsafe without treating archive extras as new", async () => {
     const manifest = freshManifest({
       canArchive: false,
       sources: [{ key: "stock", required: true, status: "ok" }],
     });
-    const vehicles = [archivedFrom({ dealerKey: "dealer-a", sourceKey: "stock" })];
+    const vehicles = [await archivedWithValidImage({ dealerKey: "dealer-a", sourceKey: "stock" })];
 
     const result = compareDealerSource({
       dealerKey: "dealer-a",
@@ -167,11 +211,11 @@ describe("dealer pack source compare", () => {
     )).toBe(true);
   });
 
-  it("maps Ocean stockId to archive sourceVehicleId and explains ineligible locations", () => {
+  it("maps Ocean stockId to archive sourceVehicleId and explains ineligible locations", async () => {
     expect(normalizeSourceCompareIdentity("stockId:21911132")).toBe(
       "sourceVehicleId:21911132",
     );
-    const eligible = archivedFrom({
+    const eligible = await archivedWithValidImage({
       sourceVehicleId: "21911132",
       locationName: "Ocean Ford",
     });

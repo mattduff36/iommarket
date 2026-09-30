@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, utimes, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,12 +11,16 @@ import {
   assertPlanIntegrity,
   sealPlan,
 } from "@/scripts/dealer-pack-audit-sync/plan-file";
+import { buildPreviewPackAuditPlan } from "@/scripts/dealer-pack-audit-sync/plan";
 import {
   APPLY_CONFIRM_PHRASE,
+  MAX_BACKUP_AGE_MS,
   assertApplySafety,
   PREVIEW_CONFIRM_DB,
+  requireBackupId,
   verifyRequiredBackup,
 } from "@/scripts/dealer-pack-audit-sync/safety";
+import type { PrismaClient } from "@prisma/client";
 import {
   DEALER_PACK_AUDIT_VERSION,
   REQUIRED_BACKUP_ID,
@@ -63,6 +67,18 @@ function baseline(): PackBaseline {
   };
 }
 
+function applyPreviewArgv(plan: PreviewPackAuditPlan) {
+  return [
+    "apply-preview",
+    "--allow=1",
+    `--preview-ref=${PREVIEW_PROJECT_REF}`,
+    `--confirm-db=${PREVIEW_CONFIRM_DB}`,
+    `--plan-fingerprint=${plan.fingerprint}`,
+    `--plan-count=${plan.actionCount}`,
+    `--confirm=${APPLY_CONFIRM_PHRASE}`,
+  ];
+}
+
 function unsignedPlan(): Omit<PreviewPackAuditPlan, "fingerprint"> {
   return {
     version: DEALER_PACK_AUDIT_VERSION,
@@ -81,6 +97,7 @@ function unsignedPlan(): Omit<PreviewPackAuditPlan, "fingerprint"> {
       baseline: baseline(),
       removeListings: true,
       reasons: ["unsafe"],
+      excludedListings: [],
     }],
   };
 }
@@ -107,7 +124,12 @@ describe("dealer pack audit frozen plans", () => {
       argv: [...common, "--backup-id=wrong"],
       plan,
       databaseUrl: `postgresql://postgres@db.${PREVIEW_PROJECT_REF}.supabase.co/postgres`,
-    })).toThrow("backup ID");
+    })).toThrow("does not match the frozen plan");
+    expect(() => assertApplySafety({
+      argv: common,
+      plan,
+      databaseUrl: `postgresql://postgres@db.${PREVIEW_PROJECT_REF}.supabase.co/postgres`,
+    })).toThrow("--backup-id is required");
     expect(() => assertApplySafety({
       argv: [
         ...common.filter((arg) => !arg.startsWith("--confirm-db=")),
@@ -146,7 +168,8 @@ describe("dealer pack audit frozen plans", () => {
       confirmDb: PREVIEW_CONFIRM_DB,
       files,
     }));
-    expect(() => verifyRequiredBackup(root)).toThrow("target mismatch");
+    expect(() => verifyRequiredBackup(root)).toThrow("--backup-id is required");
+    expect(() => verifyRequiredBackup(root, REQUIRED_BACKUP_ID)).toThrow("target mismatch");
     await writeFile(join(dir, "manifest.json"), JSON.stringify({
       id: REQUIRED_BACKUP_ID,
       workstream: "prod-mirror-20260831",
@@ -155,7 +178,113 @@ describe("dealer pack audit frozen plans", () => {
       files: files.map((file, index) =>
         index === 0 ? { ...file, sha256: "0".repeat(64) } : file),
     }));
-    expect(() => verifyRequiredBackup(root)).toThrow("hash mismatch");
+    expect(() => verifyRequiredBackup(root, REQUIRED_BACKUP_ID)).toThrow("hash mismatch");
+
+    const freshId = "pmr-2026-09-29T22-00-00-000Z-preview";
+    const freshDir = join(root, ".local", "db-backups", freshId);
+    await mkdir(freshDir, { recursive: true });
+    await Promise.all(
+      Object.entries(payloads).map(([name, bytes]) => writeFile(join(freshDir, name), bytes)),
+    );
+    await writeFile(join(freshDir, "manifest.json"), JSON.stringify({
+      id: freshId,
+      workstream: "prod-mirror-20260831",
+      targetRef: PREVIEW_PROJECT_REF,
+      confirmDb: PREVIEW_CONFIRM_DB,
+      files,
+    }));
+    expect(verifyRequiredBackup(root, freshId).id).toBe(freshId);
+    expect(() => verifyRequiredBackup(root, "missing-backup")).toThrow("was not found");
+    expect(() => requireBackupId("../etc", "Refusing audit sync")).toThrow("is invalid");
+    expect(() => requireBackupId("foo/bar", "Refusing audit sync")).toThrow("is invalid");
+    expect(() => requireBackupId("foo\\bar", "Refusing audit sync")).toThrow("is invalid");
+    const escapePlan = sealPlan(unsignedPlan());
+    expect(() =>
+      assertApplySafety({
+        argv: [...applyPreviewArgv(escapePlan), "--backup-id=../escape"],
+        plan: escapePlan,
+        databaseUrl: `postgresql://postgres@db.${PREVIEW_PROJECT_REF}.supabase.co/postgres`,
+      }),
+    ).toThrow("is invalid");
+
+    const staleAt = new Date(Date.now() - MAX_BACKUP_AGE_MS - 60_000);
+    await writeFile(join(freshDir, "manifest.json"), JSON.stringify({
+      id: freshId,
+      workstream: "prod-mirror-20260831",
+      targetRef: PREVIEW_PROJECT_REF,
+      confirmDb: PREVIEW_CONFIRM_DB,
+      createdAt: staleAt.toISOString(),
+      files,
+    }));
+    expect(() => verifyRequiredBackup(root, freshId)).toThrow("backup is stale");
+    await writeFile(join(freshDir, "manifest.json"), JSON.stringify({
+      id: freshId,
+      workstream: "prod-mirror-20260831",
+      targetRef: PREVIEW_PROJECT_REF,
+      confirmDb: PREVIEW_CONFIRM_DB,
+      files,
+    }));
+    await utimes(join(freshDir, "manifest.json"), staleAt, staleAt);
+    expect(() => verifyRequiredBackup(root, freshId)).toThrow("backup is stale");
+    expect(() => verifyRequiredBackup(root, freshId, {
+      referenceAt: staleAt.toISOString(),
+      now: staleAt,
+    })).not.toThrow();
+    expect(verifyRequiredBackup(root, freshId, {
+      referenceAt: staleAt.toISOString(),
+      now: staleAt,
+    }).id).toBe(freshId);
+
+    const stalePlan = sealPlan({
+      ...unsignedPlan(),
+      createdAt: "2026-09-28T21:00:00.000Z",
+      backupId: "pmr-2026-09-25T21-00-00-000Z-preview",
+    });
+    expect(() => assertApplySafety({
+      argv: [...applyPreviewArgv(stalePlan), `--backup-id=${stalePlan.backupId}`],
+      plan: stalePlan,
+      databaseUrl: `postgresql://postgres@db.${PREVIEW_PROJECT_REF}.supabase.co/postgres`,
+    })).toThrow("backup is stale");
+  });
+
+  it("freezes a non-legacy backup ID and binds apply safety to that exact ID", () => {
+    const unsigned = unsignedPlan();
+    unsigned.backupId = "pmr-2026-09-29T21-00-00-000Z-preview";
+    const plan = sealPlan(unsigned);
+    const url = `postgresql://postgres@db.${PREVIEW_PROJECT_REF}.supabase.co/postgres`;
+    const argv = [
+      "apply-preview",
+      "--allow=1",
+      `--preview-ref=${PREVIEW_PROJECT_REF}`,
+      `--confirm-db=${PREVIEW_CONFIRM_DB}`,
+      `--plan-fingerprint=${plan.fingerprint}`,
+      "--plan-count=1",
+      `--confirm=${APPLY_CONFIRM_PHRASE}`,
+    ];
+    expect(() => assertApplySafety({
+      argv: [...argv, `--backup-id=${plan.backupId}`],
+      plan,
+      databaseUrl: url,
+    })).not.toThrow();
+    expect(() => assertApplySafety({
+      argv: [...argv, `--backup-id=${REQUIRED_BACKUP_ID}`],
+      plan,
+      databaseUrl: url,
+    })).toThrow("does not match the frozen plan");
+    expect(() => assertPlanIntegrity(sealPlan({ ...unsignedPlan(), backupId: "" }))).toThrow(
+      "backup ID is invalid",
+    );
+  });
+
+  it("requires an explicit backup ID before building a preview plan", async () => {
+    await expect(buildPreviewPackAuditPlan({
+      prisma: {} as PrismaClient,
+      runId: "run-1",
+      projectRef: PREVIEW_PROJECT_REF,
+      confirmDb: PREVIEW_CONFIRM_DB,
+      sourceRunId: "source-run",
+      backupId: "   ",
+    })).rejects.toThrow("preview-backup-id-required");
   });
 });
 
@@ -211,7 +340,7 @@ describe("dealer pack audit classification and CAS", () => {
     expect(() => assertBaselineMatches(baseline(), current)).toThrow("baseline changed");
   });
 
-  it("retains an html-structured source listing when every image is rejected", () => {
+  it("excludes an html-structured source listing when every image is rejected", () => {
     const raw = vehicle({ dealerKey: "dealer-a", sourceKey: "stock" });
     const archived: ArchivedVehicle = {
       identityKey: "sourceVehicleId:stock-1",
@@ -247,8 +376,14 @@ describe("dealer pack audit classification and CAS", () => {
       vehicles: [archived],
     });
     expect(result.safe).toBe(true);
-    expect(result.listings[0]?.images).toEqual([]);
-    expect(result.listings[0]?.findings).toContain(
+    expect(result.listings).toEqual([]);
+    expect(result.excludedListings).toEqual([
+      expect.objectContaining({
+        identityKey: "sourceVehicleId:stock-1",
+        reasons: ["listing-has-no-valid-source-image"],
+      }),
+    ]);
+    expect(result.excludedListings?.[0]?.findings).toContain(
       "listing-has-no-valid-source-image",
     );
   });
@@ -295,6 +430,7 @@ function replacementAction(): ReplacePackAction {
       }],
       findings: [],
     }],
+    excludedListings: [],
   };
 }
 

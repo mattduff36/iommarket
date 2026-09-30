@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableBody,
   TableRow,
-  TableHead,
   TableCell,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
@@ -19,7 +18,9 @@ import {
   adminSearchInputClass,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminPager } from "@/components/admin/admin-pager";
+import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -30,7 +31,11 @@ import {
 import { DealerActions } from "./dealer-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import { formatAdminDate } from "@/lib/admin/format";
 import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
+import { DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT } from "@/lib/admin/table-columns";
+import { dealerOrderBy } from "@/lib/admin/table-order";
+import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Dealers | Admin" };
@@ -41,6 +46,8 @@ interface Props {
     verified?: string;
     page?: string;
     id?: string;
+    sort?: string;
+    dir?: string;
   }>;
 }
 
@@ -51,6 +58,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const query = params.q ?? "";
   const verifiedFilter = params.verified === "true" ? true : params.verified === "false" ? false : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const sort = parseAdminSort(params, DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT);
   const now = new Date();
 
   const where: Prisma.DealerProfileWhereInput = buildAdminDealersWhere({
@@ -62,7 +70,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const [dealers, total] = await Promise.all([
     db.dealerProfile.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: dealerOrderBy(sort),
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -97,24 +105,33 @@ export default async function AdminDealersPage({ searchParams }: Props) {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  const current = {
+    q: query || undefined,
+    verified: params.verified,
+    id: params.id,
+    page: String(page),
+    sort: sort.explicit ? sort.column : undefined,
+    dir: sort.explicit ? sort.direction : undefined,
+  };
+
   function buildUrl(overrides: Record<string, string | undefined>) {
-    const p = new URLSearchParams();
-    const merged = { q: query || undefined, verified: params.verified, id: params.id, page: String(page), ...overrides };
-    for (const [k, v] of Object.entries(merged)) {
-      if (v && v !== "undefined") p.set(k, v);
-    }
-    return `/admin/dealers?${p.toString()}`;
+    return buildAdminListHref("/admin/dealers", current, overrides);
   }
 
   return (
-    <>
+    <AdminColumnVisibility tableId="dealers" columns={DEALER_TABLE_COLUMNS}>
       <AdminPageHeader
         title="Dealers"
         description="Review dealer identity, verification, plans, and current access."
       />
 
-      <AdminFilterBar count={`${total} ${total === 1 ? "dealer" : "dealers"}`}>
+      <AdminFilterBar
+        count={`${total} ${total === 1 ? "dealer" : "dealers"}`}
+        tools={<AdminColumnMenu />}
+      >
         <form method="get" action="/admin/dealers" className="flex min-w-0 gap-2">
+          {current.sort ? <input type="hidden" name="sort" value={current.sort} /> : null}
+          {current.dir ? <input type="hidden" name="dir" value={current.dir} /> : null}
           <input
             name="q"
             defaultValue={query}
@@ -148,13 +165,15 @@ export default async function AdminDealersPage({ searchParams }: Props) {
       <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
-            <TableHead>Dealer</TableHead>
-            <TableHead>Owner</TableHead>
-            <TableHead>Verified</TableHead>
-            <TableHead>Plan &amp; access</TableHead>
-            <TableHead className="text-right">Listings</TableHead>
-            <TableHead>Joined</TableHead>
-            <TableHead className={adminActionsCellClass}>Actions</TableHead>
+            {DEALER_TABLE_COLUMNS.map((column) => (
+              <AdminTableHeaderCell
+                key={column.id}
+                column={column}
+                sort={sort}
+                pathname="/admin/dealers"
+                current={current}
+              />
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -163,7 +182,9 @@ export default async function AdminDealersPage({ searchParams }: Props) {
           ))}
           {dealers.length === 0 && (
             <TableRow>
-              <AdminTableEmpty colSpan={7}>No dealers match these filters.</AdminTableEmpty>
+              <AdminTableEmpty colSpan={DEALER_TABLE_COLUMNS.length}>
+                No dealers match these filters.
+              </AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
@@ -174,7 +195,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
         totalPages={totalPages}
         hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
       />
-    </>
+    </AdminColumnVisibility>
   );
 }
 
@@ -186,6 +207,7 @@ interface DealerRowProps {
     tier: "STARTER" | "PRO";
     verified: boolean;
     createdAt: Date;
+    updatedAt: Date;
     user: {
       id: string;
       email: string;
@@ -221,15 +243,21 @@ function DealerRow({ dealer }: DealerRowProps) {
   );
   const access = paidSubscription ?? adminGrant;
 
+  const accessEnds = access
+    ? access.source === "ADMIN_GRANT"
+      ? access.grantEndsAt
+      : access.currentPeriodEnd
+    : null;
+
   return (
     <TableRow>
-      <TableCell>
+      <TableCell data-column="dealer">
         <AdminDataCell
           title={<span className="block max-w-52 truncate">{dealer.name}</span>}
           subtitle={dealer.slug}
         />
       </TableCell>
-      <TableCell>
+      <TableCell data-column="owner">
         <AdminDataCell
           title={
             <Link
@@ -247,12 +275,12 @@ function DealerRow({ dealer }: DealerRowProps) {
           badges={dealer.user.disabledAt ? <Badge variant="error">Disabled</Badge> : null}
         />
       </TableCell>
-      <TableCell>
+      <TableCell data-column="verified">
         <Badge variant={dealer.verified ? "success" : "neutral"}>
           {dealer.verified ? "Verified" : "Unverified"}
         </Badge>
       </TableCell>
-      <TableCell>
+      <TableCell data-column="plan">
         <div className="flex max-w-48 flex-wrap gap-1.5">
           <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
             {getDealerPackageLabel(dealer.tier)}
@@ -271,13 +299,24 @@ function DealerRow({ dealer }: DealerRowProps) {
           </p>
         ) : null}
       </TableCell>
-      <TableCell className={adminNumericCellClass}>
+      <TableCell data-column="listings" className={adminNumericCellClass}>
         {dealer._count.listings}
       </TableCell>
-      <TableCell className={adminDateCellClass}>
-        {dealer.createdAt.toLocaleDateString("en-GB")}
+      <TableCell data-column="joined" className={adminDateCellClass}>
+        {formatAdminDate(dealer.createdAt)}
       </TableCell>
-      <TableCell className={adminActionsCellClass}>
+      <TableCell data-column="tier">
+        <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
+          {getDealerPackageLabel(dealer.tier)}
+        </Badge>
+      </TableCell>
+      <TableCell data-column="access-ends" className={adminDateCellClass}>
+        {formatAdminDate(accessEnds)}
+      </TableCell>
+      <TableCell data-column="updated" className={adminDateCellClass}>
+        {formatAdminDate(dealer.updatedAt)}
+      </TableCell>
+      <TableCell data-column="actions" className={adminActionsCellClass}>
         <DealerActions
           dealerId={dealer.id}
           dealerName={dealer.name}

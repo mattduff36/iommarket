@@ -93,30 +93,62 @@ export function buildAdminUsersWhere(input: {
   return where;
 }
 
+function listingSearchWhere(query: string): Prisma.ListingWhereInput {
+  return {
+    OR: [
+      { title: { contains: query, mode: "insensitive" } },
+      { user: { email: { contains: query, mode: "insensitive" } } },
+    ],
+  };
+}
+
 export function buildAdminListingArchiveWhere(input: {
   status: AdminListingStatusFilter;
   query: string;
 }): Prisma.ListingWhereInput {
-  return {
-    ...(input.status === "PENDING_EDITS"
-      ? { revisions: { some: { status: "PENDING" as const } } }
+  const statusWhere: Prisma.ListingWhereInput =
+    input.status === "PENDING_EDITS"
+      ? { revisions: { some: { status: "PENDING" } } }
       : input.status === "PENDING"
         ? {
             OR: [
-              { status: "PENDING" as const },
-              { revisions: { some: { status: "PENDING" as const } } },
+              { status: "PENDING" },
+              { revisions: { some: { status: "PENDING" } } },
             ],
           }
-      : input.status !== "ALL"
-        ? { status: input.status as ListingStatus }
-        : { status: { not: "ADMIN_PREVIEW" } }),
-    ...(input.query
-      ? {
+        : input.status !== "ALL"
+          ? { status: input.status as ListingStatus }
+          : { status: { not: "ADMIN_PREVIEW" } };
+
+  if (!input.query) return statusWhere;
+  const queryWhere = listingSearchWhere(input.query);
+  return statusWhere.OR ? { AND: [statusWhere, queryWhere] } : { ...statusWhere, ...queryWhere };
+}
+
+export function pendingFirstListingWhere(where: Prisma.ListingWhereInput): {
+  pendingWhere: Prisma.ListingWhereInput;
+  restWhere: Prisma.ListingWhereInput;
+} {
+  return {
+    pendingWhere: {
+      AND: [
+        where,
+        {
           OR: [
-            { title: { contains: input.query, mode: "insensitive" as const } },
-            { user: { email: { contains: input.query, mode: "insensitive" as const } } },
+            { status: "PENDING" },
+            { revisions: { some: { status: "PENDING" } } },
           ],
-        }
-      : {}),
+        },
+      ],
+    },
+    restWhere: {
+      AND: [
+        where,
+        {
+          status: { not: "PENDING" },
+          revisions: { none: { status: "PENDING" } },
+        },
+      ],
+    },
   };
 }

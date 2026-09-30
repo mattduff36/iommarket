@@ -1,4 +1,5 @@
 import type {
+  ExcludedListingEvidence,
   PreviewPackApplyReport,
   PreviewPackAuditPlan,
   PreviewPackVerifyReport,
@@ -6,8 +7,23 @@ import type {
 import type {
   ProductionApplyReport,
   ProductionAuditPlan,
+  ProductionExcludedListing,
   ProductionVerifyReport,
 } from "./production-types";
+
+function renderExcludedListingLines(
+  listings: Array<ExcludedListingEvidence | ProductionExcludedListing>,
+) {
+  return listings.flatMap((listing) => [
+    `### Excluded: ${listing.title ?? listing.identityKey}`,
+    "",
+    `- Identity: ${listing.identityKey}`,
+    `- Source: ${listing.sourceUrl ?? "source detail URL unavailable"}`,
+    `- Reasons: ${listing.reasons.join("; ") || "none"}`,
+    `- Image findings: ${listing.findings.join("; ") || "none"}`,
+    "",
+  ]);
+}
 
 export function renderPreviewAuditReport(input: {
   plan: PreviewPackAuditPlan;
@@ -44,15 +60,19 @@ export function renderPreviewAuditReport(input: {
     lines.push(`- Verification: ${verification?.ok ? "PASS" : "FAIL"}`);
     lines.push(`- Postflight listings: ${verification?.listingCount ?? 0}`);
     lines.push(`- Postflight images: ${verification?.imageCount ?? 0}`);
+    const excluded = action.excludedListings ?? [];
     if (action.kind === "disable") {
-      lines.push(`- Reasons: ${action.reasons.join("; ") || "none"}`, "");
+      lines.push(`- Reasons: ${action.reasons.join("; ") || "none"}`);
+      lines.push(`- Excluded listings: ${excluded.length}`, "");
+      lines.push(...renderExcludedListingLines(excluded));
       continue;
     }
 
     const evidence = new Map(
       (result?.listings ?? []).map((listing) => [listing.identityKey, listing]),
     );
-    lines.push(`- Listings: ${action.listings.length}`, "");
+    lines.push(`- Listings: ${action.listings.length}`);
+    lines.push(`- Excluded listings: ${excluded.length}`, "");
     for (const listing of action.listings) {
       const appliedListing = evidence.get(listing.identityKey);
       lines.push(`### ${listing.listing.title}`, "");
@@ -74,6 +94,7 @@ export function renderPreviewAuditReport(input: {
       });
       lines.push("");
     }
+    lines.push(...renderExcludedListingLines(excluded));
   }
   return `${lines.join("\n").trim()}\n`;
 }
@@ -115,7 +136,8 @@ export function renderProductionAuditReport(input: {
     lines.push(`- Taken-down managed listings: ${verification?.takenDownManaged ?? 0}`);
     lines.push(`- Unmanaged listings preserved: ${verification?.unmanaged ?? 0}`);
     lines.push(`- Postflight images: ${verification?.imageCount ?? 0}`);
-    lines.push(`- Actions: ${account.actions.length}`, "");
+    lines.push(`- Actions: ${account.actions.length}`);
+    lines.push(`- Excluded listings: ${(account.excludedListings ?? []).length}`, "");
     for (const action of account.actions) {
       if (action.kind === "take_down") {
         lines.push(`### ${action.identityKey}`, "");
@@ -142,6 +164,7 @@ export function renderProductionAuditReport(input: {
       });
       lines.push("");
     }
+    lines.push(...renderExcludedListingLines(account.excludedListings ?? []));
   }
   return `${lines.join("\n").trim()}\n`;
 }

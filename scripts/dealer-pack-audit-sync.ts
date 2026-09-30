@@ -1,5 +1,5 @@
 /**
- * Frozen exact synchronization for preview packs and five production accounts.
+ * Frozen exact synchronization for preview packs and four production accounts.
  *
  * npm run dealer-packs:audit-sync -- plan-preview --run-id=<id>
  * npm run dealer-packs:audit-sync -- apply-preview --run-id=<id> <confirmations>
@@ -33,9 +33,11 @@ import {
   assertApplySafety,
   assertPreviewBinding,
   PREVIEW_CONFIRM_DB,
+  requireBackupId,
   verifyProductionBackup,
   verifyRequiredBackup,
 } from "./dealer-pack-audit-sync/safety";
+import { loadCliProductionLiveExclusions } from "./dealer-pack-audit-sync/finalize-live-cli";
 import type { PreviewPackApplyReport } from "./dealer-pack-audit-sync/types";
 import type { ProductionApplyReport } from "./dealer-pack-audit-sync/production-types";
 import {
@@ -159,12 +161,15 @@ async function planPreview(argv: string[], prisma: PrismaClient, url: string) {
   const runId = parseArgValue(argv, "run-id") ?? defaultRunId();
   const sourceRunId = parseArgValue(argv, "source-run");
   if (!sourceRunId) throw new Error("--source-run is required.");
+  const backupId = requireBackupId(parseArgValue(argv, "backup-id"), "Refusing audit sync");
+  verifyRequiredBackup(process.cwd(), backupId);
   const plan = await buildPreviewPackAuditPlan({
     prisma,
     runId,
     projectRef: PREVIEW_PROJECT_REF,
     confirmDb: PREVIEW_CONFIRM_DB,
     sourceRunId,
+    backupId,
     dealerKey: parseArgValue(argv, "dealer") ?? undefined,
   });
   const path = auditPlanPath(runId);
@@ -181,7 +186,7 @@ async function applyPreview(argv: string[], prisma: PrismaClient, url: string) {
   const plan = await readFrozenPlan(auditPlanPath(runId));
   if (plan.runId !== runId) throw new Error("Frozen preview plan run ID mismatch.");
   assertApplySafety({ argv, plan, databaseUrl: url });
-  verifyRequiredBackup();
+  verifyRequiredBackup(process.cwd(), plan.backupId);
   const reportPath = resolve(auditRunDir(runId), "apply-report.json");
   if (existsSync(reportPath)) {
     throw new Error("Refusing preview audit sync: apply report already exists.");
@@ -211,6 +216,7 @@ async function verifyPreview(argv: string[], prisma: PrismaClient, url: string) 
   });
   const plan = await readFrozenPlan(auditPlanPath(runId));
   if (plan.runId !== runId) throw new Error("Frozen preview plan run ID mismatch.");
+  verifyRequiredBackup(process.cwd(), plan.backupId);
   const applyPath = resolve(auditRunDir(runId), "apply-report.json");
   const applyReport = await readFile(applyPath, "utf8")
     .then((contents) => JSON.parse(contents) as PreviewPackApplyReport)
@@ -243,14 +249,26 @@ async function planProduction(
   url: string,
 ) {
   assertProductionCliBinding(argv, url);
-  verifyProductionBackup();
   const runId = parseArgValue(argv, "run-id") ?? defaultRunId();
+  const live = await loadCliProductionLiveExclusions({ argv });
   const foundingSourceRunId = parseArgValue(argv, "source-run");
   if (!foundingSourceRunId) throw new Error("--source-run is required.");
+  if (foundingSourceRunId !== live.finalPlan.sourceRunId) {
+    throw new Error(
+      "Refusing production plan: --source-run does not match the finalized preview plan sourceRunId.",
+    );
+  }
+  const backupId = requireBackupId(
+    parseArgValue(argv, "backup-id"),
+    "Refusing production audit sync",
+  );
+  verifyProductionBackup(process.cwd(), backupId);
   const plan = await buildProductionAuditPlan({
     prisma,
     runId,
     foundingSourceRunId,
+    backupId,
+    finalPreviewPlan: live.finalPlan,
     dealerKey: parseArgValue(argv, "dealer") ?? undefined,
   });
   const path = productionAuditPlanPath(runId);
@@ -280,7 +298,7 @@ async function applyProduction(
   const plan = await readFrozenProductionPlan(productionAuditPlanPath(runId));
   if (plan.runId !== runId) throw new Error("Frozen production plan run ID mismatch.");
   assertProductionApplySafety({ argv, plan, databaseUrl: url });
-  verifyProductionBackup();
+  verifyProductionBackup(process.cwd(), plan.backupId);
   const reportPath = resolve(auditRunDir(runId), "production-apply-report.json");
   if (existsSync(reportPath)) {
     throw new Error("Refusing production audit sync: apply report already exists.");
@@ -296,11 +314,11 @@ async function verifyProduction(
   url: string,
 ) {
   assertProductionCliBinding(argv, url);
-  verifyProductionBackup();
   const runId = parseArgValue(argv, "run-id");
   if (!runId) throw new Error("--run-id is required.");
   const plan = await readFrozenProductionPlan(productionAuditPlanPath(runId));
   if (plan.runId !== runId) throw new Error("Frozen production plan run ID mismatch.");
+  verifyProductionBackup(process.cwd(), plan.backupId);
   const applyReport = await readFile(
     resolve(auditRunDir(runId), "production-apply-report.json"),
     "utf8",

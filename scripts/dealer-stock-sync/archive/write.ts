@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
+import { applySharedChecksumOwnership } from "../image-ownership";
 import { compareSnapshot, missingAfterSuccess } from "../identity";
 import { mapReconciledVehicle } from "../map-listing";
 import { pipelineWarnings } from "../pipeline";
@@ -22,70 +23,32 @@ export async function writeDealerArchive(input: {
 
   const sourceFailed = !input.result.sourceResults.some((item) => item.status === "ok");
   const currentKeys = new Set(input.result.reconciled.map((item) => item.identityKey));
-  const vehicles: ArchivedVehicle[] = [];
-  const dealerChecksumOwners = new Map<string, string>();
-  const duplicatedDealerChecksums = new Set<string>();
+  const pending: ArchivedVehicle[] = [];
 
   for (const reconciled of input.result.reconciled) {
-    const archivedImages = await archiveImages({
+    const images = await archiveImages({
       imageDir: join(dir, "images", reconciled.identityKey.replace(/[^a-zA-Z0-9._-]+/g, "-")),
       imageUrls: reconciled.vehicle.imageUrls,
       fetchImpl: input.fetchImpl,
       enabled: input.mirrorImages,
     });
-    const images = archivedImages.map((image) => {
-      if (image.status !== "ok" || !image.checksum) return image;
-      const owner = dealerChecksumOwners.get(image.checksum);
-      if (owner && owner !== reconciled.identityKey) {
-        duplicatedDealerChecksums.add(image.checksum);
-        return {
-          ...image,
-          localPath: null,
-          status: "skipped" as const,
-          error: `duplicate image content owned by ${owner}`,
-        };
-      }
-      dealerChecksumOwners.set(image.checksum, reconciled.identityKey);
-      return image;
-    });
-    const sanitized = {
+    pending.push({
       ...reconciled,
-      vehicle: {
-        ...reconciled.vehicle,
-        imageUrls: images
-          .filter((image) => image.status === "ok")
-          .map((image) => image.originalUrl),
-      },
-    };
-    const mapped = mapReconciledVehicle(sanitized);
-    vehicles.push({
-      ...sanitized,
-      importable: Boolean(mapped.listing),
-      importSkipReason: mapped.skipReason,
+      importable: false,
+      importSkipReason: null,
       images,
       changeKind: compareSnapshot(input.previous ?? null, reconciled, sourceFailed),
     });
   }
 
-  for (const vehicle of vehicles) {
-    vehicle.images = vehicle.images.map((image) => {
-      if (!image.checksum || !duplicatedDealerChecksums.has(image.checksum)) {
-        return image;
-      }
-      return {
-        ...image,
-        localPath: null,
-        status: "skipped" as const,
-        error: "duplicate image content shared across listings",
-      };
-    });
-    vehicle.vehicle.imageUrls = vehicle.images
-      .filter((image) => image.status === "ok")
-      .map((image) => image.originalUrl);
+  const vehicles = applySharedChecksumOwnership(pending).map((vehicle) => {
     const mapped = mapReconciledVehicle(vehicle);
-    vehicle.importable = Boolean(mapped.listing);
-    vehicle.importSkipReason = mapped.skipReason;
-  }
+    return {
+      ...vehicle,
+      importable: Boolean(mapped.listing),
+      importSkipReason: mapped.skipReason,
+    };
+  });
 
   const manifest = {
     dealerKey: input.result.dealer.key,

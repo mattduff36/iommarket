@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import * as React from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
@@ -25,7 +26,9 @@ describe("HostedPaymentConfirmation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
-    vi.useFakeTimers();
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+    });
   });
 
   afterEach(() => {
@@ -101,4 +104,3 @@ describe("HostedPaymentConfirmation", () => {
     expect(confirmMock).toHaveBeenCalledTimes(1);
   });
 });
-// @vitest-environment jsdom

@@ -1,26 +1,249 @@
 import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
-import { uniqueImageUrls } from "./image-urls";
-import { normalizeImageUrl, resolveMaybeUrl } from "./json";
+import { parseNextData } from "./connectors/html-extract";
+import {
+  isIgnoredImageUrl,
+  mergeOwnerImageUrls,
+  pickRecordImageUrl,
+  uniqueImageUrls,
+} from "./image-urls";
+import { asRecord, asString, normalizeImageUrl, resolveMaybeUrl } from "./json";
 
-export function isIgnoredImageUrl(url: string) {
-  const lower = url.toLowerCase();
-  return (
-    lower.includes("logo") ||
-    lower.includes("pixel") ||
-    lower.includes("sprite") ||
-    lower.includes("favicon") ||
-    lower.includes("placeholder") ||
-    lower.includes("noimage") ||
-    lower.includes("error.png") ||
-    lower.includes("apple-touch-icon") ||
-    lower.includes("android-chrome") ||
-    lower.includes("/images/brands/") ||
-    lower.includes("_default_upload_bucket") ||
-    lower.includes("banner") ||
-    lower.includes("1x1") ||
-    lower.endsWith(".svg") ||
-    lower.includes("tracking")
+export { isIgnoredImageUrl, mergeOwnerImageUrls };
+
+const RELATED_NODE_KEYS = new Set([
+  "related",
+  "relatedvehicles",
+  "relatedstock",
+  "similar",
+  "similarvehicles",
+  "recommendations",
+  "morevehicles",
+  "alsoviewed",
+  "recentlyviewed",
+  "suggestions",
+  "otherstock",
+]);
+
+const PAGE_OWNER_KEYS = [
+  "vehicle",
+  "listing",
+  "inventoryitem",
+  "inventoryvehicle",
+  "currentvehicle",
+  "pagevehicle",
+  "selectedvehicle",
+];
+
+export function isNextInventoryDetailUrl(detailUrl?: string | null) {
+  if (!detailUrl) return false;
+  try {
+    return /\/inventory\//i.test(new URL(detailUrl).pathname);
+  } catch {
+    return /\/inventory\//i.test(detailUrl);
+  }
+}
+
+function lastInventorySegment(value: string) {
+  try {
+    const path = value.includes("://") ? new URL(value).pathname : value;
+    return (
+      path
+        .split("/")
+        .filter((segment) => segment && segment.toLowerCase() !== "inventory")
+        .at(-1)
+        ?.toLowerCase() ?? ""
+    );
+  } catch {
+    return value.toLowerCase();
+  }
+}
+
+function recordImageFields(record: Record<string, unknown>) {
+  return Boolean(
+    record.image ||
+      record.imageUrl ||
+      record.mainImage ||
+      record.images ||
+      record.photos ||
+      record.gallery ||
+      record.listingImages,
   );
+}
+
+function recordIdentityHaystack(record: Record<string, unknown>) {
+  return [
+    asString(record.slug),
+    asString(record.url),
+    asString(record.href),
+    asString(record.id),
+    asString(record.uuid),
+    asString(record.stockId),
+    asString(record.externalUrl),
+    asString(record.detailUrl),
+    asString(record.path),
+    asString(asRecord(record.url)?.pathname),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+}
+
+function recordMatchesDetail(record: Record<string, unknown>, detailUrl?: string | null) {
+  if (!detailUrl) return false;
+  const target = lastInventorySegment(detailUrl);
+  if (target.length < 6) return false;
+  return recordIdentityHaystack(record).includes(target);
+}
+
+function collectRecordImages(record: Record<string, unknown>, origin?: string | null) {
+  const found: string[] = [];
+  for (const key of ["image", "imageUrl", "mainImage", "thumbnail", "ogImage"] as const) {
+    const field = record[key];
+    if (Array.isArray(field)) {
+      for (const item of field) {
+        if (typeof item === "string") found.push(item);
+        const nestedUrl = pickRecordImageUrl(asRecord(item));
+        if (nestedUrl) found.push(nestedUrl);
+      }
+      continue;
+    }
+    const value = asString(field) ?? asString(asRecord(field)?.url);
+    if (value) found.push(value);
+  }
+  for (const key of ["images", "photos", "gallery", "listingImages", "media"] as const) {
+    const collection = record[key];
+    const items = Array.isArray(collection)
+      ? collection
+      : Array.isArray(asRecord(collection)?.images)
+        ? (asRecord(collection)?.images as unknown[])
+        : [];
+    for (const item of items) {
+      if (typeof item === "string") found.push(item);
+      const url = pickRecordImageUrl(asRecord(item));
+      if (url) found.push(url);
+    }
+  }
+  return uniqueImageUrls(
+    found
+      .map((value) => resolveMaybeUrl(value, origin) ?? normalizeImageUrl(value))
+      .filter((url): url is string => Boolean(url)),
+    FEATURED_LISTING_PHOTO_LIMIT,
+  );
+}
+
+function walkNextOwnerRecords(
+  node: unknown,
+  detailUrl: string | null | undefined,
+  depth = 0,
+  matches: Record<string, unknown>[] = [],
+) {
+  if (depth > 10 || node == null) return matches;
+  if (Array.isArray(node)) {
+    for (const item of node) walkNextOwnerRecords(item, detailUrl, depth + 1, matches);
+    return matches;
+  }
+  const record = asRecord(node);
+  if (!record) return matches;
+  if (recordImageFields(record) && recordMatchesDetail(record, detailUrl)) {
+    matches.push(record);
+    return matches;
+  }
+  for (const [key, value] of Object.entries(record)) {
+    if (RELATED_NODE_KEYS.has(key.toLowerCase())) continue;
+    walkNextOwnerRecords(value, detailUrl, depth + 1, matches);
+  }
+  return matches;
+}
+
+function pageOwnerRecord(data: unknown, detailUrl?: string | null) {
+  const root = asRecord(data);
+  const pageProps = asRecord(asRecord(root?.props)?.pageProps) ?? root;
+  if (pageProps) {
+    for (const key of PAGE_OWNER_KEYS) {
+      const record = asRecord(pageProps[key]);
+      if (!record || !recordImageFields(record)) continue;
+      if (!detailUrl || recordMatchesDetail(record, detailUrl)) return record;
+    }
+  }
+  const matches = walkNextOwnerRecords(data, detailUrl);
+  if (matches.length === 1) return matches[0]!;
+  if (!detailUrl) return null;
+  const target = lastInventorySegment(detailUrl);
+  const exact = matches.filter(
+    (record) => lastInventorySegment(recordIdentityHaystack(record)) === target,
+  );
+  return exact.length === 1 ? exact[0]! : null;
+}
+
+export function extractNextInventoryGalleryFromHtml(
+  html: string,
+  origin?: string | null,
+  detailUrl?: string | null,
+) {
+  const data = parseNextData(html);
+  if (data == null) return [];
+  const owner = pageOwnerRecord(data, detailUrl);
+  return owner ? collectRecordImages(owner, origin) : [];
+}
+
+function extractJsonLdVehicleImages(html: string, origin?: string | null) {
+  const blocks = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi) ?? [];
+  for (const block of blocks) {
+    const json = block.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "");
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      const records = Array.isArray(parsed) ? parsed : [parsed];
+      for (const record of records) {
+        const graph = asRecord(record)?.["@graph"];
+        const items = Array.isArray(graph) ? graph : [record];
+        for (const item of items) {
+          const typed = asRecord(item);
+          const type = asString(typed?.["@type"]) ?? "";
+          if (!typed || !/car|vehicle|product/i.test(type)) continue;
+          const images = collectRecordImages(typed, origin);
+          if (images.length > 0) return images;
+        }
+      }
+    } catch {
+      // ignore invalid JSON-LD
+    }
+  }
+  return [];
+}
+
+function ownerHtmlFragment(html: string) {
+  const cut = html.search(
+    /<(?:h[1-6]|section|div)[^>]*>[\s\S]{0,120}(?:similar vehicles|related vehicles|more like this|you may also|other vehicles)/i,
+  );
+  return cut >= 0 ? html.slice(0, cut) : html;
+}
+
+function extractNetDirectorUrls(html: string, origin?: string | null) {
+  const found: string[] = [];
+  const patterns = [
+    /https:\/\/images\.netdirector\.auto\/[A-Za-z0-9_\-+=]+/g,
+    /https?:\/\/s3-[^"'\s>]+\.(?:jpe?g|png|webp)/gi,
+    /\/\/s3-[^"'\s>]+\.(?:jpe?g|png|webp)/gi,
+  ];
+  for (const pattern of patterns) {
+    found.push(...(html.match(pattern) ?? []));
+  }
+  const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i);
+  if (og?.[1]) found.push(og[1]);
+  return uniqueImageUrls(
+    found
+      .map((raw) => resolveMaybeUrl(raw, origin) ?? normalizeImageUrl(raw))
+      .filter((url): url is string => Boolean(url)),
+    FEATURED_LISTING_PHOTO_LIMIT,
+  );
+}
+
+export function extractNetDirectorGalleryFromHtml(html: string, origin?: string | null) {
+  const fromLd = extractJsonLdVehicleImages(html, origin);
+  if (fromLd.length > 1) return fromLd;
+  const scoped = extractNetDirectorUrls(ownerHtmlFragment(html), origin);
+  if (scoped.length > 0) return scoped;
+  return fromLd;
 }
 
 export function extractGalleryFromHtml(html: string, origin?: string | null) {
@@ -79,6 +302,20 @@ export function extractSwiftGalleryFromHtml(html: string, origin?: string | null
     .filter((url) => !isIgnoredImageUrl(url));
 
   return uniqueImageUrls(resolved, FEATURED_LISTING_PHOTO_LIMIT);
+}
+
+export function extractWebsiteDetailImages(
+  html: string,
+  origin: string | null,
+  options: { dealerKey?: string; detailUrl?: string | null } = {},
+) {
+  if (options.dealerKey === "swift-motors") {
+    return extractSwiftGalleryFromHtml(html, origin);
+  }
+  if (isNextInventoryDetailUrl(options.detailUrl) && html.includes("__NEXT_DATA__")) {
+    return extractNextInventoryGalleryFromHtml(html, origin, options.detailUrl);
+  }
+  return extractGalleryFromHtml(html, origin);
 }
 
 export function extractDescriptionFromHtml(html: string) {

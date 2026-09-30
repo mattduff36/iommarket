@@ -1,4 +1,4 @@
-import { pickRecordImageUrl } from "../dealer-stock-sync/image-urls";
+import { isIgnoredImageUrl, pickRecordImageUrl } from "../dealer-stock-sync/image-urls";
 import { mapEngineSize, normalizeImageUrl, poundsToPence } from "./map-vehicle";
 import type { OceanSourceKey } from "./sources";
 import type { NormalizedVehicle } from "./types";
@@ -81,7 +81,8 @@ function collectImages(raw: Record<string, unknown>, origin?: string | null) {
   }
   return urls
     .map((url) => resolveMaybeUrl(url, origin) ?? normalizeImageUrl(url))
-    .filter((url): url is string => Boolean(url));
+    .filter((url): url is string => Boolean(url))
+    .filter((url) => !isIgnoredImageUrl(url));
 }
 
 function nested(record: Record<string, unknown>, path: string[]) {

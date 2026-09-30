@@ -5,10 +5,33 @@ import {
   adminTotalPages,
   buildAdminListingArchiveWhere,
   buildAdminUsersWhere,
+  pendingFirstListingWhere,
   parseAdminListingStatus,
   parseAdminPage,
   splitPendingFirstPage,
 } from "@/lib/admin/query";
+import {
+  adminPaymentTabHref,
+  parsePaymentStatus,
+  parsePaymentType,
+  parseSubscriptionStatus,
+} from "@/lib/admin/payment-filters";
+import {
+  LISTING_TABLE_COLUMNS,
+  LISTING_TABLE_SORT,
+  PAYMENT_TABLE_COLUMNS,
+  PAYMENT_TABLE_SORT,
+  SUBSCRIPTION_TABLE_COLUMNS,
+  SUBSCRIPTION_TABLE_SORT,
+} from "@/lib/admin/table-columns";
+import {
+  ADMIN_COLUMN_STORAGE_VERSION,
+  ADMIN_TABLE_PAGE_SIZE,
+  adminColumnStorageKey,
+  adminSortHref,
+  parseAdminSort,
+  parseStoredColumnVisibility,
+} from "@/lib/admin/table-state";
 
 describe("admin listing archive ALR-ADM-001", () => {
   it("includes taken-down and rejected archive filters", () => {
@@ -29,6 +52,48 @@ describe("admin listing archive ALR-ADM-001", () => {
       OR: [
         { title: { contains: "bmw", mode: "insensitive" } },
         { user: { email: { contains: "bmw", mode: "insensitive" } } },
+      ],
+    });
+    expect(buildAdminListingArchiveWhere({ status: "PENDING", query: "bmw" })).toEqual({
+      AND: [
+        {
+          OR: [
+            { status: "PENDING" },
+            { revisions: { some: { status: "PENDING" } } },
+          ],
+        },
+        {
+          OR: [
+            { title: { contains: "bmw", mode: "insensitive" } },
+            { user: { email: { contains: "bmw", mode: "insensitive" } } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("keeps search inside both pending-first buckets", () => {
+    const where = buildAdminListingArchiveWhere({ status: "ALL", query: "bmw" });
+    const { pendingWhere, restWhere } = pendingFirstListingWhere(where);
+
+    expect(pendingWhere).toEqual({
+      AND: [
+        where,
+        {
+          OR: [
+            { status: "PENDING" },
+            { revisions: { some: { status: "PENDING" } } },
+          ],
+        },
+      ],
+    });
+    expect(restWhere).toEqual({
+      AND: [
+        where,
+        {
+          status: { not: "PENDING" },
+          revisions: { none: { status: "PENDING" } },
+        },
       ],
     });
   });
@@ -52,6 +117,127 @@ describe("admin listing archive ALR-ADM-001", () => {
       pending: { skip: 0, take: 0 },
       rest: { skip: 22, take: 25 },
     });
+  });
+});
+
+describe("admin table sorting", () => {
+  const current = { status: "LIVE", q: "bmw", page: "4" };
+
+  it("rejects unknown sorts and reverses only an explicit column", () => {
+    expect(parseAdminSort({}, LISTING_TABLE_COLUMNS, LISTING_TABLE_SORT)).toEqual({
+      column: "created",
+      direction: "desc",
+      explicit: false,
+    });
+    expect(parseAdminSort(
+      { sort: "not-a-column", dir: "asc" },
+      LISTING_TABLE_COLUMNS,
+      LISTING_TABLE_SORT,
+    ).explicit).toBe(false);
+    expect(parseAdminSort(
+      { sort: "price", dir: "sideways" },
+      LISTING_TABLE_COLUMNS,
+      LISTING_TABLE_SORT,
+    )).toEqual({ column: "price", direction: "desc", explicit: true });
+
+    const active = parseAdminSort(
+      { sort: "title", dir: "asc" },
+      LISTING_TABLE_COLUMNS,
+      LISTING_TABLE_SORT,
+    );
+    const title = LISTING_TABLE_COLUMNS.find((column) => column.id === "title");
+    const price = LISTING_TABLE_COLUMNS.find((column) => column.id === "price");
+    if (!title || !price) throw new Error("Expected sortable listing columns.");
+
+    const reversed = new URL(adminSortHref({
+      pathname: "/admin/listings",
+      current,
+      sort: active,
+      column: title,
+    }), "https://iommarket.test");
+    expect(reversed.searchParams.get("sort")).toBe("title");
+    expect(reversed.searchParams.get("dir")).toBe("desc");
+    expect(reversed.searchParams.get("page")).toBe("1");
+    expect(reversed.searchParams.get("status")).toBe("LIVE");
+    expect(reversed.searchParams.get("q")).toBe("bmw");
+
+    const firstPriceSort = new URL(adminSortHref({
+      pathname: "/admin/listings",
+      current,
+      sort: active,
+      column: price,
+    }), "https://iommarket.test");
+    expect(firstPriceSort.searchParams.get("dir")).toBe("desc");
+  });
+
+  it("ignores corrupt or pinned column preferences", () => {
+    expect(parseStoredColumnVisibility("{", LISTING_TABLE_COLUMNS)).toEqual([
+      "region",
+      "featured",
+      "views",
+      "expires",
+    ]);
+    expect(parseStoredColumnVisibility(
+      JSON.stringify({ v: 1, hidden: ["title", "seller", "unknown"] }),
+      LISTING_TABLE_COLUMNS,
+    )).toEqual(["seller"]);
+  });
+
+  it("pages complete filtered datasets instead of a fixed cap", () => {
+    expect(adminTotalPages(500, ADMIN_TABLE_PAGE_SIZE)).toBe(20);
+    expect(adminTotalPages(51, ADMIN_TABLE_PAGE_SIZE)).toBe(3);
+    expect((2 - 1) * ADMIN_TABLE_PAGE_SIZE).toBe(25);
+  });
+
+  it("versions column storage with the preference contract", () => {
+    expect(adminColumnStorageKey("listings")).toBe(
+      `iommarket.admin.columns.v${ADMIN_COLUMN_STORAGE_VERSION}:listings`,
+    );
+  });
+
+  it("drops a payment sort that does not match one displayed field", () => {
+    expect(parseAdminSort(
+      { sort: "reference", dir: "asc" },
+      PAYMENT_TABLE_COLUMNS,
+      PAYMENT_TABLE_SORT,
+    )).toEqual({ column: "date", direction: "desc", explicit: false });
+    expect(parseAdminSort(
+      { sort: "period", dir: "desc" },
+      SUBSCRIPTION_TABLE_COLUMNS,
+      SUBSCRIPTION_TABLE_SORT,
+    )).toEqual({ column: "created", direction: "desc", explicit: false });
+  });
+});
+
+describe("admin payment filters", () => {
+  it("rejects a status from the other payments tab", () => {
+    expect(parsePaymentStatus("SUCCEEDED")).toBe("SUCCEEDED");
+    expect(parseSubscriptionStatus("SUCCEEDED")).toBeUndefined();
+    expect(parseSubscriptionStatus("ACTIVE")).toBe("ACTIVE");
+    expect(parsePaymentStatus("ACTIVE")).toBeUndefined();
+    expect(parsePaymentType("LISTING")).toBe("LISTING");
+    expect(parsePaymentType("ACTIVE")).toBeUndefined();
+  });
+
+  it("clears incompatible filters when the payments tab changes", () => {
+    const href = new URL(adminPaymentTabHref({
+      tab: "payments",
+      q: "bmw",
+      status: "SUCCEEDED",
+      type: "LISTING",
+      sort: "amount",
+      dir: "desc",
+      page: "4",
+    }, "subscriptions"), "https://iommarket.test");
+
+    expect(href.pathname).toBe("/admin/payments");
+    expect(href.searchParams.get("tab")).toBe("subscriptions");
+    expect(href.searchParams.get("page")).toBe("1");
+    expect(href.searchParams.get("q")).toBe("bmw");
+    expect(href.searchParams.has("status")).toBe(false);
+    expect(href.searchParams.has("type")).toBe(false);
+    expect(href.searchParams.has("sort")).toBe(false);
+    expect(href.searchParams.has("dir")).toBe(false);
   });
 });
 

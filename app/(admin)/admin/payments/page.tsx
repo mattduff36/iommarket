@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableBody,
   TableRow,
-  TableHead,
   TableCell,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
@@ -19,7 +18,9 @@ import {
   adminSearchInputClass,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminPager } from "@/components/admin/admin-pager";
+import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -39,6 +40,25 @@ import {
   getProviderLabel,
   getSubscriptionDisplayId,
 } from "@/lib/payments/records";
+import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import { formatAdminDate, formatAdminPounds } from "@/lib/admin/format";
+import {
+  PAYMENT_TABLE_COLUMNS,
+  PAYMENT_TABLE_SORT,
+  SUBSCRIPTION_TABLE_COLUMNS,
+  SUBSCRIPTION_TABLE_SORT,
+} from "@/lib/admin/table-columns";
+import {
+  PAYMENT_STATUS_FILTERS,
+  PAYMENT_TYPE_FILTERS,
+  SUBSCRIPTION_STATUS_FILTERS,
+  adminPaymentTabHref,
+  parsePaymentStatus,
+  parsePaymentType,
+  parseSubscriptionStatus,
+} from "@/lib/admin/payment-filters";
+import { paymentOrderBy, subscriptionOrderBy } from "@/lib/admin/table-order";
+import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
 import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Payments | Admin" };
@@ -50,6 +70,8 @@ interface Props {
     type?: string;
     tab?: string;
     page?: string;
+    sort?: string;
+    dir?: string;
   }>;
 }
 
@@ -97,25 +119,34 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
   const providerPortalUrl = getPaymentProviderPortalUrl();
   const tab = params.tab ?? "payments";
   const query = params.q ?? "";
-  const statusFilter = params.status;
-  const typeFilter = params.type;
+  const paymentStatus = parsePaymentStatus(params.status);
+  const subscriptionStatus = parseSubscriptionStatus(params.status);
+  const typeFilter = tab === "payments" ? parsePaymentType(params.type) : undefined;
+  const statusFilter = tab === "subscriptions"
+    ? subscriptionStatus
+    : tab === "payments"
+      ? paymentStatus
+      : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const sort = tab === "subscriptions"
+    ? parseAdminSort(params, SUBSCRIPTION_TABLE_COLUMNS, SUBSCRIPTION_TABLE_SORT)
+    : parseAdminSort(params, PAYMENT_TABLE_COLUMNS, PAYMENT_TABLE_SORT);
+
+  const listParams = {
+    tab,
+    q: query || undefined,
+    status: statusFilter,
+    type: typeFilter,
+    page: String(page),
+    sort: sort.explicit ? sort.column : undefined,
+    dir: sort.explicit ? sort.direction : undefined,
+  };
 
   function buildUrl(overrides: Record<string, string | undefined>) {
-    const p = new URLSearchParams();
-    const merged = {
-      tab,
-      q: query || undefined,
-      status: statusFilter,
-      type: typeFilter,
-      page: String(page),
-      ...overrides,
-    };
-    for (const [k, v] of Object.entries(merged)) {
-      if (v && v !== "undefined") p.set(k, v);
-    }
-    return `/admin/payments?${p.toString()}`;
+    return buildAdminListHref("/admin/payments", listParams, overrides);
   }
+
+  const hrefForTab = (nextTab: string) => adminPaymentTabHref(listParams, nextTab);
 
   if (tab === "unmatched") {
     const unmatched = await db.paymentWebhookInbox.findMany({
@@ -146,10 +177,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           title="Payments & subscriptions"
           description="Review charges, recurring billing, refunds, and unmatched provider events."
         />
-        <PaymentTabs
-          activeTab={tab}
-          hrefForTab={(nextTab) => buildUrl({ tab: nextTab, page: "1" })}
-        />
+        <PaymentTabs activeTab={tab} hrefForTab={hrefForTab} />
         <UnmatchedInboxTab rows={unmatched} />
       </>
     );
@@ -157,15 +185,15 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
   if (tab === "subscriptions") {
     const subWhere: Prisma.SubscriptionWhereInput = {};
-    if (statusFilter) subWhere.status = statusFilter as "ACTIVE" | "PAST_DUE" | "CANCELLED" | "INCOMPLETE";
+    if (subscriptionStatus) subWhere.status = subscriptionStatus;
 
     const [subscriptions, subTotal] = await Promise.all([
       db.subscription.findMany({
         where: subWhere,
-        orderBy: { createdAt: "desc" },
+        orderBy: subscriptionOrderBy(sort),
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-        include: { dealer: { select: { name: true, slug: true } } },
+        include: { dealer: { select: { name: true, slug: true, tier: true } } },
       }),
       db.subscription.count({ where: subWhere }),
     ]);
@@ -178,13 +206,14 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           title="Payments & subscriptions"
           description="Review charges, recurring billing, refunds, and unmatched provider events."
         />
-        <PaymentTabs
-          activeTab={tab}
-          hrefForTab={(nextTab) => buildUrl({ tab: nextTab, page: "1" })}
-        />
+        <PaymentTabs activeTab={tab} hrefForTab={hrefForTab} />
 
-        <AdminFilterBar count={`${subTotal} subscriptions`}>
-          {(["ACTIVE", "PAST_DUE", "CANCELLED", "INCOMPLETE"] as const).map((s) => (
+        <AdminColumnVisibility tableId="subscriptions" columns={SUBSCRIPTION_TABLE_COLUMNS}>
+        <AdminFilterBar
+          count={`${subTotal} subscriptions`}
+          tools={<AdminColumnMenu />}
+        >
+          {SUBSCRIPTION_STATUS_FILTERS.map((s) => (
             <AdminFilterChip
               key={s}
               href={buildUrl({ status: statusFilter === s ? undefined : s, page: "1" })}
@@ -235,44 +264,52 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         <AdminTable minWidth="wide">
           <TableHeader>
             <TableRow>
-              <TableHead>Dealer</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Period End</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Provider Ref</TableHead>
-              <TableHead>Provider</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className={adminActionsCellClass}>Actions</TableHead>
+              {SUBSCRIPTION_TABLE_COLUMNS.map((column) => (
+                <AdminTableHeaderCell
+                  key={column.id}
+                  column={column}
+                  sort={sort}
+                  pathname="/admin/payments"
+                  current={listParams}
+                />
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {subscriptions.map((sub) => (
               <TableRow key={sub.id}>
-                <TableCell>
+                <TableCell data-column="dealer">
                   <AdminDataCell title={sub.dealer.name} subtitle={sub.dealer.slug} />
                 </TableCell>
-                <TableCell>
+                <TableCell data-column="status">
                   <Badge variant={SUB_STATUS_VARIANT[sub.status] ?? "neutral"}>{sub.status}</Badge>
                 </TableCell>
-                <TableCell className={adminDateCellClass}>
-                  {(sub.source === "ADMIN_GRANT"
+                <TableCell data-column="period" className={adminDateCellClass}>
+                  {formatAdminDate(sub.source === "ADMIN_GRANT"
                     ? sub.grantEndsAt
-                    : sub.currentPeriodEnd
-                  )?.toLocaleDateString("en-GB") ?? "-"}
+                    : sub.currentPeriodEnd)}
                 </TableCell>
-                <TableCell className="text-xs text-text-tertiary">
+                <TableCell data-column="source" className="text-xs text-text-tertiary">
                   {sub.source === "ADMIN_GRANT" ? "Free admin grant" : "Paid"}
                 </TableCell>
-                <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
+                <TableCell data-column="reference" className="max-w-[160px] truncate font-mono text-xs text-text-tertiary">
                   {getSubscriptionDisplayId(sub)}
-              </TableCell>
-              <TableCell className="text-xs text-text-tertiary">
-                {getProviderLabel(sub.paymentProvider)}
                 </TableCell>
-                <TableCell className={adminDateCellClass}>
-                  {sub.createdAt.toLocaleDateString("en-GB")}
+                <TableCell data-column="provider" className="text-xs text-text-tertiary">
+                  {getProviderLabel(sub.paymentProvider)}
                 </TableCell>
-                <TableCell className={adminActionsCellClass}>
+                <TableCell data-column="created" className={adminDateCellClass}>
+                  {formatAdminDate(sub.createdAt)}
+                </TableCell>
+                <TableCell data-column="tier">
+                  <Badge variant={sub.dealer.tier === "PRO" ? "info" : "neutral"}>
+                    {getDealerPackageLabel(sub.dealer.tier)}
+                  </Badge>
+                </TableCell>
+                <TableCell data-column="cancel" className="text-sm text-text-secondary">
+                  {sub.cancelAtPeriodEnd ? "Yes" : "No"}
+                </TableCell>
+                <TableCell data-column="actions" className={adminActionsCellClass}>
                   {sub.source === "PAYMENT" ? (
                     <div className="flex flex-wrap items-center gap-1">
                       <CancelSubButton
@@ -295,7 +332,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             ))}
             {subscriptions.length === 0 && (
               <TableRow>
-                <AdminTableEmpty colSpan={8}>
+                <AdminTableEmpty colSpan={SUBSCRIPTION_TABLE_COLUMNS.length}>
                   No subscriptions match this filter.
                 </AdminTableEmpty>
               </TableRow>
@@ -308,6 +345,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           totalPages={subPages}
           hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
         />
+        </AdminColumnVisibility>
       </>
     );
   }
@@ -323,13 +361,13 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
       { listing: { user: { email: { contains: query, mode: "insensitive" } } } },
     ];
   }
-  if (statusFilter) payWhere.status = statusFilter as "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
-  if (typeFilter) payWhere.type = typeFilter as "LISTING" | "FEATURED" | "SUPPORT";
+  if (paymentStatus) payWhere.status = paymentStatus;
+  if (typeFilter) payWhere.type = typeFilter;
 
   const [payments, payTotal] = await Promise.all([
     db.payment.findMany({
       where: payWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: paymentOrderBy(sort),
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -347,13 +385,18 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         title="Payments & subscriptions"
         description="Review charges, recurring billing, refunds, and unmatched provider events."
       />
-      <PaymentTabs
-        activeTab={tab}
-        hrefForTab={(nextTab) => buildUrl({ tab: nextTab, page: "1" })}
-      />
+      <PaymentTabs activeTab={tab} hrefForTab={hrefForTab} />
 
-      <AdminFilterBar count={`${payTotal} payments`}>
+      <AdminColumnVisibility tableId="payments" columns={PAYMENT_TABLE_COLUMNS}>
+      <AdminFilterBar
+        count={`${payTotal} payments`}
+        tools={<AdminColumnMenu />}
+      >
         <form method="get" action="/admin/payments" className="flex min-w-0 gap-2">
+          {sort.explicit ? <input type="hidden" name="sort" value={sort.column} /> : null}
+          {sort.explicit ? <input type="hidden" name="dir" value={sort.direction} /> : null}
+          {paymentStatus ? <input type="hidden" name="status" value={paymentStatus} /> : null}
+          {typeFilter ? <input type="hidden" name="type" value={typeFilter} /> : null}
           <input
             name="q"
             defaultValue={query}
@@ -365,7 +408,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           <button type="submit" className={adminSearchButtonClass}>Search</button>
         </form>
 
-        {(["SUCCEEDED", "PENDING", "FAILED", "REFUNDED"] as const).map((s) => (
+        {PAYMENT_STATUS_FILTERS.map((s) => (
           <AdminFilterChip
             key={s}
             href={buildUrl({ status: statusFilter === s ? undefined : s, page: "1" })}
@@ -374,7 +417,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             {s}
           </AdminFilterChip>
         ))}
-        {(["LISTING", "FEATURED", "SUPPORT"] as const).map((t) => (
+        {PAYMENT_TYPE_FILTERS.map((t) => (
           <AdminFilterChip
             key={t}
             href={buildUrl({ type: typeFilter === t ? undefined : t, page: "1" })}
@@ -388,44 +431,51 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
       <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Listing</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Provider Ref</TableHead>
-            <TableHead>Provider</TableHead>
-            <TableHead className={adminActionsCellClass}>Actions</TableHead>
+            {PAYMENT_TABLE_COLUMNS.map((column) => (
+              <AdminTableHeaderCell
+                key={column.id}
+                column={column}
+                sort={sort}
+                pathname="/admin/payments"
+                current={listParams}
+              />
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {payments.map((payment) => (
             <TableRow key={payment.id}>
-              <TableCell className={adminDateCellClass}>
-                {payment.createdAt.toLocaleDateString("en-GB")}
+              <TableCell data-column="date" className={adminDateCellClass}>
+                {formatAdminDate(payment.createdAt)}
               </TableCell>
-              <TableCell>
+              <TableCell data-column="listing">
                 <AdminDataCell
                   title={<span className="block max-w-[200px] truncate">{payment.listing.title}</span>}
                   subtitle={payment.listing.user.email}
                 />
               </TableCell>
-              <TableCell className="text-sm text-text-secondary">{payment.type}</TableCell>
-              <TableCell className={adminNumericCellClass}>
-                £{(payment.amount / 100).toFixed(2)}
+              <TableCell data-column="type" className="text-sm text-text-secondary">{payment.type}</TableCell>
+              <TableCell data-column="amount" className={adminNumericCellClass}>
+                {formatAdminPounds(payment.amount, 2)}
               </TableCell>
-              <TableCell>
+              <TableCell data-column="status">
                 <Badge variant={PAYMENT_STATUS_VARIANT[payment.status] ?? "neutral"}>
                   {payment.status}
                 </Badge>
               </TableCell>
-              <TableCell className="font-mono text-xs text-text-tertiary max-w-[160px] truncate">
+              <TableCell data-column="reference" className="max-w-[160px] truncate font-mono text-xs text-text-tertiary">
                 {getPaymentDisplayId(payment)}
               </TableCell>
-              <TableCell className="text-xs text-text-tertiary">
+              <TableCell data-column="provider" className="text-xs text-text-tertiary">
                 {getProviderLabel(payment.paymentProvider)}
               </TableCell>
-              <TableCell className={adminActionsCellClass}>
+              <TableCell data-column="currency" className="text-xs uppercase text-text-tertiary">
+                {payment.currency}
+              </TableCell>
+              <TableCell data-column="refunded" className={adminDateCellClass}>
+                {formatAdminDate(payment.refundedAt)}
+              </TableCell>
+              <TableCell data-column="actions" className={adminActionsCellClass}>
                 <RefundButton
                   paymentId={payment.id}
                   status={payment.status}
@@ -437,7 +487,9 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           ))}
           {payments.length === 0 && (
             <TableRow>
-              <AdminTableEmpty colSpan={8}>No payments match these filters.</AdminTableEmpty>
+              <AdminTableEmpty colSpan={PAYMENT_TABLE_COLUMNS.length}>
+                No payments match these filters.
+              </AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
@@ -448,6 +500,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         totalPages={payPages}
         hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
       />
+      </AdminColumnVisibility>
     </>
   );
 }

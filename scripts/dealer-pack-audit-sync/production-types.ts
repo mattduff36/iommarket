@@ -4,6 +4,7 @@ export const PRODUCTION_AUDIT_VERSION = 1 as const;
 export const PRODUCTION_PROJECT_REF = "snlqivvogfqesxpbjiei";
 export const PRODUCTION_CONFIRM_DB =
   `db.${PRODUCTION_PROJECT_REF}.supabase.co/postgres`;
+/** Legacy fixture ID for unit tests only. Real CLI must pass --backup-id. */
 export const PRODUCTION_BACKUP_ID =
   "pmr-2026-09-28T20-52-52-749Z-7941e6";
 
@@ -23,13 +24,6 @@ export const PRODUCTION_ACCOUNTS = [
     sourceKind: "founding",
   },
   {
-    dealerKey: "rex-motor-company",
-    displayName: "Rex Motor Company",
-    email: "rexmotorcompany@itrader.im.preview",
-    regionSlug: "iom-east",
-    sourceKind: "founding",
-  },
-  {
     dealerKey: "td-car-centre",
     displayName: "TD Car Centre",
     email: "tdcarcentre@itrader.im.preview",
@@ -45,8 +39,14 @@ export const PRODUCTION_ACCOUNTS = [
   },
 ] as const;
 
+export const TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY = "rex-motor-company" as const;
+
 export type ProductionAccount = (typeof PRODUCTION_ACCOUNTS)[number];
 export type ProductionSourceKind = ProductionAccount["sourceKind"];
+
+export function isTemporaryExcludedProductionAccount(dealerKey: string) {
+  return dealerKey === TEMPORARY_EXCLUDED_PRODUCTION_DEALER_KEY;
+}
 
 export interface ProductionSourceImage {
   sourceUrl: string;
@@ -68,6 +68,22 @@ export interface ProductionSourceListing {
   listing: MappedArchiveListing & { regionSlug: string };
   images: ProductionSourceImage[];
   findings: string[];
+}
+
+export interface ProductionExcludedListing {
+  identityKey: string;
+  managedKey: string;
+  sourceUrl: string | null;
+  title: string | null;
+  reasons: string[];
+  findings: string[];
+}
+
+export interface ProductionSourceLoad {
+  runId: string;
+  checksum: string;
+  listings: ProductionSourceListing[];
+  excludedListings: ProductionExcludedListing[];
 }
 
 export interface ProductionStatusEventBaseline {
@@ -175,6 +191,7 @@ export interface ProductionAccountPlan {
   blockers: string[];
   baseline: ProductionAccountBaseline;
   actions: ProductionListingAction[];
+  excludedListings: ProductionExcludedListing[];
 }
 
 export interface ProductionAuditPlan {
@@ -185,9 +202,11 @@ export interface ProductionAuditPlan {
     projectRef: typeof PRODUCTION_PROJECT_REF;
     confirmDb: typeof PRODUCTION_CONFIRM_DB;
   };
-  backupId: typeof PRODUCTION_BACKUP_ID;
+  backupId: string;
   foundingSourceRunId: string;
   adminUserId: string;
+  finalPreviewRunId: string;
+  finalPreviewFingerprint: string;
   actionCount: number;
   accounts: ProductionAccountPlan[];
   fingerprint: string;

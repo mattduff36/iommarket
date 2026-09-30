@@ -9,6 +9,12 @@ const nextCacheStub = fileURLToPath(
 const nextNavigationStub = fileURLToPath(
   new URL("./__tests__/stubs/next-navigation.ts", import.meta.url),
 );
+const nextHeadersStub = fileURLToPath(
+  new URL("./__tests__/stubs/next-headers.ts", import.meta.url),
+);
+const supabaseJsStub = fileURLToPath(
+  new URL("./__tests__/stubs/supabase-js.ts", import.meta.url),
+);
 const emblaCarouselReactStub = fileURLToPath(
   new URL("./__tests__/stubs/embla-carousel-react.ts", import.meta.url),
 );
@@ -55,6 +61,14 @@ export default defineConfig({
       {
         find: /^next\/navigation(?:\.js)?$/,
         replacement: nextNavigationStub,
+      },
+      {
+        find: /^next\/headers(?:\.js)?$/,
+        replacement: nextHeadersStub,
+      },
+      {
+        find: /^@supabase\/supabase-js$/,
+        replacement: supabaseJsStub,
       },
       {
         find: /(?:^|\/)next\/dist\/(?:client\/components\/(?:navigation(?:\.react-server)?|redirect|not-found)|api\/navigation)(?:\.js)?$/,

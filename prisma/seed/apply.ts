@@ -227,6 +227,20 @@ export async function applyMarketplacePlan(
       listing.expiresOffsetDays === null
         ? null
         : new Date(input.now.getTime() + listing.expiresOffsetDays * 86_400_000);
+    const soldAt =
+      listing.status === "SOLD" && listing.soldDaysAgo
+        ? new Date(input.now.getTime() - listing.soldDaysAgo * 86_400_000)
+        : null;
+    const eventTimes = listingStatusEventTimes({
+      status: listing.status,
+      createdAt,
+      soldAt,
+      expiresAt,
+      now: input.now,
+    });
+    assertStatusEventTimes(eventTimes, createdAt);
+    const events = listingStatusEvents(listing.status);
+    const approveIndex = events.findIndex((event) => event.action === "APPROVE");
     const created = await tx.listing.create({
       data: {
         userId,
@@ -241,13 +255,11 @@ export async function applyMarketplacePlan(
         status: listing.status,
         featured: listing.featured,
         expiresAt,
-        soldAt:
-          listing.status === "SOLD" && listing.soldDaysAgo
-            ? new Date(input.now.getTime() - listing.soldDaysAgo * 86_400_000)
-            : null,
+        soldAt,
         trustDeclarationAccepted: listing.status !== "DRAFT",
         trustDeclarationAcceptedAt:
           listing.status !== "DRAFT" ? createdAt : null,
+        approvedAt: approveIndex === -1 ? null : eventTimes[approveIndex],
         createdAt,
         viewCount: listing.viewCount,
       },
@@ -294,20 +306,8 @@ export async function applyMarketplacePlan(
       });
     }
 
-    const soldAt =
-      listing.status === "SOLD" && listing.soldDaysAgo
-        ? new Date(input.now.getTime() - listing.soldDaysAgo * 86_400_000)
-        : null;
-    const eventTimes = listingStatusEventTimes({
-      status: listing.status,
-      createdAt,
-      soldAt,
-      expiresAt,
-      now: input.now,
-    });
-    assertStatusEventTimes(eventTimes, createdAt);
     let fromStatus: Prisma.ListingStatusEventCreateInput["fromStatus"] = null;
-    for (const [eventIndex, event] of listingStatusEvents(listing.status).entries()) {
+    for (const [eventIndex, event] of events.entries()) {
       await tx.listingStatusEvent.create({
         data: {
           listingId: created.id,

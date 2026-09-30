@@ -4,12 +4,27 @@ import {
   classifyProductionListingProvenance,
   planManagedNamespace,
 } from "@/scripts/dealer-pack-audit-sync/production-baseline";
-import { productionCleanupPublicIds } from "@/scripts/dealer-pack-audit-sync/production-apply";
+import { applyProductionAuditPlan, productionCleanupPublicIds } from "@/scripts/dealer-pack-audit-sync/production-apply";
+import { buildProductionAuditPlan } from "@/scripts/dealer-pack-audit-sync/production-plan";
+import { verifyProductionAuditPlan } from "@/scripts/dealer-pack-audit-sync/production-verify";
+import {
+  DEALER_PACK_AUDIT_VERSION,
+  REQUIRED_BACKUP_ID,
+} from "@/scripts/dealer-pack-audit-sync/types";
+import { PREVIEW_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
+import type { PrismaClient } from "@prisma/client";
 import { removeDuplicateSourceImages } from "@/scripts/dealer-pack-audit-sync/production-source";
 import {
   assertProductionPlanIntegrity,
+  sealPlan,
   sealProductionPlan,
 } from "@/scripts/dealer-pack-audit-sync/plan-file";
+import {
+  PREVIEW_CONFIRM_DB,
+  PRODUCTION_APPLY_CONFIRM_PHRASE,
+  assertProductionApplySafety,
+  verifyProductionBackup,
+} from "@/scripts/dealer-pack-audit-sync/safety";
 import {
   PRODUCTION_ACCOUNTS,
   PRODUCTION_AUDIT_VERSION,
@@ -22,8 +37,8 @@ import {
   type ProductionSourceListing,
 } from "@/scripts/dealer-pack-audit-sync/production-types";
 
-const founding = PRODUCTION_ACCOUNTS[0];
-const ocean = PRODUCTION_ACCOUNTS[4];
+const founding = PRODUCTION_ACCOUNTS[0]!;
+const ocean = PRODUCTION_ACCOUNTS.find((account) => account.dealerKey === "ocean-motor-village")!;
 
 function event(
   fromStatus: string | null,
@@ -112,7 +127,7 @@ function baseline(rows = [listing()]): ProductionAccountBaseline {
   };
 }
 
-function source(): ProductionSourceListing {
+function source(overrides: Partial<ProductionSourceListing> = {}): ProductionSourceListing {
   return {
     identityKey: "source-1",
     managedKey: listing().slug!,
@@ -139,6 +154,7 @@ function source(): ProductionSourceListing {
       order: 0,
     }],
     findings: [],
+    ...overrides,
   };
 }
 
@@ -283,6 +299,8 @@ describe("production frozen plan and cleanup safety", () => {
       backupId: PRODUCTION_BACKUP_ID,
       foundingSourceRunId: "source-run-reviewed",
       adminUserId: "admin-1",
+      finalPreviewRunId: "run-final",
+      finalPreviewFingerprint: "final-preview-fingerprint",
       actionCount: 0,
       accounts: PRODUCTION_ACCOUNTS.map((account) => ({
         dealerKey: account.dealerKey,
@@ -295,6 +313,7 @@ describe("production frozen plan and cleanup safety", () => {
         blockers: [],
         baseline: baseline([]),
         actions: [],
+        excludedListings: [],
       })),
     };
   }
@@ -326,10 +345,128 @@ describe("production frozen plan and cleanup safety", () => {
       "iommarket/listings/founding/d/k/0",
     ]);
   });
+
+  it("freezes a non-legacy backup ID and binds apply safety to that exact ID", () => {
+    const unsigned = plan();
+    unsigned.backupId = "pmr-2026-09-29T21-00-00-000Z-production";
+    const sealed = sealProductionPlan(unsigned);
+    const url = `postgresql://postgres@db.${PRODUCTION_PROJECT_REF}.supabase.co/postgres`;
+    const argv = [
+      "apply-production",
+      "--allow=1",
+      `--production-ref=${PRODUCTION_PROJECT_REF}`,
+      `--confirm-db=${PRODUCTION_CONFIRM_DB}`,
+      `--plan-fingerprint=${sealed.fingerprint}`,
+      "--plan-count=0",
+      `--confirm=${PRODUCTION_APPLY_CONFIRM_PHRASE}`,
+    ];
+    expect(() => assertProductionApplySafety({
+      argv: [...argv, `--backup-id=${sealed.backupId}`],
+      plan: sealed,
+      databaseUrl: url,
+    })).not.toThrow();
+    expect(() => assertProductionApplySafety({
+      argv: [...argv, `--backup-id=${PRODUCTION_BACKUP_ID}`],
+      plan: sealed,
+      databaseUrl: url,
+    })).toThrow("does not match the frozen plan");
+    expect(() => assertProductionApplySafety({
+      argv,
+      plan: sealed,
+      databaseUrl: url,
+    })).toThrow("--backup-id is required");
+    expect(() =>
+      assertProductionPlanIntegrity(sealProductionPlan({ ...plan(), backupId: "" })),
+    ).toThrow("backup ID is invalid");
+    expect(() => verifyProductionBackup(process.cwd())).toThrow("--backup-id is required");
+  });
+
+  it("freezes finalized preview provenance and rejects candidate production inputs", async () => {
+    const url = `postgresql://postgres@db.${PRODUCTION_PROJECT_REF}.supabase.co/postgres`;
+    expect(() =>
+      assertProductionPlanIntegrity(sealProductionPlan({
+        ...plan(),
+        finalPreviewRunId: "",
+      })),
+    ).toThrow("missing finalized preview provenance");
+    const tampered = sealProductionPlan(plan());
+    tampered.finalPreviewFingerprint = "tampered-preview-fingerprint";
+    expect(() => assertProductionPlanIntegrity(tampered)).toThrow("fingerprint");
+    const missingApplyProvenance = sealProductionPlan({
+      ...plan(),
+      finalPreviewFingerprint: "",
+    });
+    expect(() =>
+      assertProductionApplySafety({
+        argv: [
+          "apply-production",
+          "--allow=1",
+          `--production-ref=${PRODUCTION_PROJECT_REF}`,
+          `--confirm-db=${PRODUCTION_CONFIRM_DB}`,
+          `--backup-id=${PRODUCTION_BACKUP_ID}`,
+          `--plan-fingerprint=${missingApplyProvenance.fingerprint}`,
+          "--plan-count=0",
+          `--confirm=${PRODUCTION_APPLY_CONFIRM_PHRASE}`,
+        ],
+        plan: missingApplyProvenance,
+        databaseUrl: url,
+      }),
+    ).toThrow("missing finalized preview provenance");
+
+    const candidatePreview = sealPlan({
+      version: DEALER_PACK_AUDIT_VERSION,
+      runId: "run-candidate",
+      createdAt: "2026-09-29T22:00:00.000Z",
+      target: { projectRef: PREVIEW_PROJECT_REF, confirmDb: PREVIEW_CONFIRM_DB },
+      backupId: REQUIRED_BACKUP_ID,
+      sourceRunId: "source-run",
+      adminUserId: "admin-1",
+      actionCount: 0,
+      actions: [],
+    });
+    expect(candidatePreview.liveFinalization).toBeUndefined();
+    await expect(buildProductionAuditPlan({
+      prisma: {} as PrismaClient,
+      runId: "run-1",
+      foundingSourceRunId: "source-run",
+      backupId: PRODUCTION_BACKUP_ID,
+      finalPreviewPlan: candidatePreview,
+    })).rejects.toThrow("preview plan is not live-finalized");
+    const missingProvenance = sealProductionPlan({ ...plan(), finalPreviewRunId: "" });
+    await expect(applyProductionAuditPlan({
+      prisma: {} as PrismaClient,
+      plan: missingProvenance,
+    })).rejects.toThrow("missing finalized preview provenance");
+    await expect(verifyProductionAuditPlan({
+      prisma: {} as PrismaClient,
+      plan: missingProvenance,
+      applyReport: null,
+    })).rejects.toThrow("missing finalized preview provenance");
+  });
+
+  it("requires an explicit backup ID before building a production plan", async () => {
+    await expect(buildProductionAuditPlan({
+      prisma: {} as PrismaClient,
+      runId: "run-1",
+      foundingSourceRunId: "source-run",
+      backupId: "",
+      finalPreviewPlan: sealPlan({
+        version: DEALER_PACK_AUDIT_VERSION,
+        runId: "run-final",
+        createdAt: "2026-09-29T22:00:00.000Z",
+        target: { projectRef: PREVIEW_PROJECT_REF, confirmDb: PREVIEW_CONFIRM_DB },
+        backupId: REQUIRED_BACKUP_ID,
+        sourceRunId: "source-run",
+        adminUserId: "admin-1",
+        actionCount: 0,
+        actions: [],
+      }),
+    })).rejects.toThrow("production-backup-id-required");
+  });
 });
 
 describe("production source image deduplication", () => {
-  it("removes shared bytes from every affected listing", () => {
+  it("drops unresolved shared chrome from every listing", () => {
     const first = source();
     const second = structuredClone(first);
     second.identityKey = "source-2";
@@ -340,7 +477,53 @@ describe("production source image deduplication", () => {
 
     expect(first.images).toEqual([]);
     expect(second.images).toEqual([]);
+    expect(first.findings).toContain("image-rejected:0:shared-across-listings");
+    expect(second.findings).toContain("image-rejected:0:shared-across-listings");
     expect(first.findings).toContain("listing-has-no-valid-source-image");
     expect(second.findings).toContain("listing-has-no-valid-source-image");
+  });
+
+  it("keeps a unique provable owner and strips Ocean contaminants", () => {
+    const ownerUrl = "https://cdn.example.com/vehicles/stock-1/hero.jpg";
+    const owner = source({
+      identityKey: "sourceVehicleId:stock-1",
+      managedKey: "omv-owner-stock-1",
+      sourceUrl: "https://www.oceanford.com/used-cars/stock-1/",
+      slug: "omv-owner-stock-1",
+      listing: {
+        ...source().listing,
+        imageUrls: [ownerUrl],
+      },
+      images: [{
+        ...source().images[0]!,
+        sourceUrl: ownerUrl,
+        checksum: "shared-bytes",
+      }],
+    });
+    const contaminant = source({
+      identityKey: "sourceVehicleId:stock-2",
+      managedKey: "omv-other-stock-2",
+      sourceUrl: "https://www.oceanford.com/used-cars/stock-2/",
+      slug: "omv-other-stock-2",
+      listing: {
+        ...source().listing,
+        imageUrls: [ownerUrl],
+      },
+      images: [{
+        ...source().images[0]!,
+        sourceUrl: ownerUrl,
+        checksum: "shared-bytes",
+      }],
+    });
+
+    removeDuplicateSourceImages([contaminant, owner]);
+
+    expect(owner.images).toHaveLength(1);
+    expect(owner.images[0]?.sourceUrl).toBe(ownerUrl);
+    expect(owner.findings).toContain("image-kept:0:owned");
+    expect(owner.findings).not.toContain("listing-has-no-valid-source-image");
+    expect(contaminant.images).toEqual([]);
+    expect(contaminant.findings).toContain("image-rejected:0:owned-by:sourceVehicleId:stock-1");
+    expect(contaminant.findings).toContain("listing-has-no-valid-source-image");
   });
 });

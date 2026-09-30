@@ -476,4 +476,100 @@ describe("transitionListingStatus", () => {
       }),
     ).rejects.toThrow("cannot be reinstated live");
   });
+
+  it("stores the first approval time and keeps it through later approval or reinstatement", async () => {
+    const firstApprovedAt = new Date("2026-03-01T09:00:00.000Z");
+    const later = new Date("2026-04-01T09:00:00.000Z");
+    mockTx.listing.findUnique.mockResolvedValue({
+      id: "listing-approve",
+      status: "PENDING",
+      userId: "user-1",
+      expiresAt: null,
+      approvedAt: null,
+      lifecycleRevision: 1,
+    });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "event-approve" });
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({
+      id: "listing-approve",
+      status: "LIVE",
+      approvedAt: firstApprovedAt,
+      lifecycleRevision: 2,
+    });
+
+    await transitionListingStatus({
+      listingId: "listing-approve",
+      action: "APPROVE",
+      expectedRevision: 1,
+      actor: { id: "admin-1", role: "ADMIN" },
+      source: "ADMIN",
+      now: firstApprovedAt,
+    });
+
+    expect(mockTx.listing.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ approvedAt: firstApprovedAt, status: "LIVE" }),
+      }),
+    );
+
+    vi.clearAllMocks();
+    mockTx.listing.findUnique.mockResolvedValue({
+      id: "listing-approve",
+      status: "APPROVED",
+      userId: "user-1",
+      expiresAt: new Date("2026-05-01T09:00:00.000Z"),
+      approvedAt: firstApprovedAt,
+      lifecycleRevision: 2,
+    });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "event-approve-again" });
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({
+      id: "listing-approve",
+      status: "LIVE",
+      approvedAt: firstApprovedAt,
+      lifecycleRevision: 3,
+    });
+
+    await transitionListingStatus({
+      listingId: "listing-approve",
+      action: "APPROVE",
+      expectedRevision: 2,
+      actor: { id: "admin-1", role: "ADMIN" },
+      source: "ADMIN",
+      now: later,
+    });
+
+    expect(mockTx.listing.updateMany.mock.calls[0]?.[0].data.approvedAt).toBeUndefined();
+
+    vi.clearAllMocks();
+    mockTx.listing.findUnique.mockResolvedValue({
+      id: "listing-approve",
+      status: "TAKEN_DOWN",
+      userId: "user-1",
+      expiresAt: new Date("2026-05-01T09:00:00.000Z"),
+      approvedAt: firstApprovedAt,
+      lifecycleRevision: 4,
+    });
+    mockTx.listingStatusEvent.findFirst.mockResolvedValue({ id: "prior-live" });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "event-reinstate" });
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({
+      id: "listing-approve",
+      status: "LIVE",
+      approvedAt: firstApprovedAt,
+      lifecycleRevision: 5,
+    });
+
+    await transitionListingStatus({
+      listingId: "listing-approve",
+      action: "REINSTATE_LIVE",
+      expectedRevision: 4,
+      actor: { id: "admin-1", role: "ADMIN" },
+      source: "ADMIN",
+      reasonCode: "POLICY",
+      now: later,
+    });
+
+    expect(mockTx.listing.updateMany.mock.calls[0]?.[0].data.approvedAt).toBeUndefined();
+  });
 });

@@ -1,3 +1,4 @@
+import { mergeOwnerImageUrls } from "../../html-media";
 import { emptyVehicle, validateCanonicalVehicle, type StockConnector } from "../contract";
 import { applyDetailEnrichment } from "./enrich";
 import { parseNetDirectorVehicle, vehicleIdentityToken } from "./normalize";
@@ -150,7 +151,7 @@ export const netdirectorConnector: StockConnector = {
         details.set(vehicleIdentityToken({ ...vehicle, stockId: vehicle.sourceVehicleId }), {
           ...vehicle,
           description: detail.description || vehicle.description,
-          imageUrls: [...vehicle.imageUrls, ...detail.imageUrls],
+          imageUrls: mergeOwnerImageUrls(detail.imageUrls, vehicle.imageUrls),
         });
       } catch {
         // keep the frozen list card

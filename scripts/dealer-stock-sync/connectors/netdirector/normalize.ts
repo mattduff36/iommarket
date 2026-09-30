@@ -10,7 +10,7 @@ import {
   poundsToPence,
   resolveMaybeUrl,
 } from "../../json";
-import { pickRecordImageUrl } from "../../image-urls";
+import { isIgnoredImageUrl, pickRecordImageUrl } from "../../image-urls";
 
 function collectImages(raw: Record<string, unknown>, origin?: string | null) {
   const urls: string[] = [];
@@ -35,7 +35,8 @@ function collectImages(raw: Record<string, unknown>, origin?: string | null) {
   }
   return urls
     .map((url) => resolveMaybeUrl(url, origin) ?? normalizeImageUrl(url))
-    .filter((url): url is string => Boolean(url));
+    .filter((url): url is string => Boolean(url))
+    .filter((url) => !isIgnoredImageUrl(url));
 }
 
 function parseSnowplowContext(raw: Record<string, unknown>) {

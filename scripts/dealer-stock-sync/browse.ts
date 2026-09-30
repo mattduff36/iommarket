@@ -1,5 +1,5 @@
 import { chromium, type Page } from "@playwright/test";
-import { extractGalleryFromHtml, extractDescriptionFromHtml } from "./html-media";
+import { extractDescriptionFromHtml, extractNetDirectorGalleryFromHtml } from "./html-media";
 import { sleep } from "./rate-limit";
 
 export interface CapturedRequest {
@@ -150,7 +150,7 @@ export async function fetchClassicVehicleDetail(detailUrl: string, fetchImpl: ty
     const html = await fetchPageHtml(detailUrl, fetchImpl);
     const origin = new URL(detailUrl).origin;
     return {
-      imageUrls: extractGalleryFromHtml(html, origin),
+      imageUrls: extractNetDirectorGalleryFromHtml(html, origin),
       description: extractDescriptionFromHtml(html),
     };
   } catch {

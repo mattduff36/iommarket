@@ -69,6 +69,7 @@ export interface PreviewPackListRow {
   displayName: string;
   runId: string | null;
   importable: number | null;
+  uniqueVehicles: number | null;
   listingCount: number;
   enabled: boolean;
   loaded: boolean;
@@ -131,6 +132,7 @@ export function mergePreviewPackRows(input: {
       displayName: dealer.displayName,
       runId: dealer.runId,
       importable: dealer.importable,
+      uniqueVehicles: dealer.uniqueVehicles,
       listingCount: pack?.listingCount ?? 0,
       enabled: pack?.enabled ?? false,
       loaded: Boolean(pack),
@@ -149,6 +151,7 @@ export function mergePreviewPackRows(input: {
       displayName: pack.displayName,
       runId: pack.sourceRunId,
       importable: null,
+      uniqueVehicles: null,
       listingCount: pack.listingCount,
       enabled: pack.enabled,
       loaded: true,

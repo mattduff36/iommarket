@@ -8,17 +8,22 @@ import {
   TableHeader,
   TableBody,
   TableRow,
-  TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminFilterBar, AdminFilterChip } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
 import {
   AdminTable,
   AdminTableEmpty,
   adminActionsCellClass,
   adminDateCellClass,
 } from "@/components/admin/admin-table";
+import { formatAdminDate } from "@/lib/admin/format";
+import { PAGE_TABLE_COLUMNS, PAGE_TABLE_SORT } from "@/lib/admin/table-columns";
+import { contentPageOrderBy } from "@/lib/admin/table-order";
+import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
 import { RestorePageButton } from "./restore-page-button";
 
 export const metadata: Metadata = { title: "Content Pages | Admin" };
@@ -26,17 +31,23 @@ export const metadata: Metadata = { title: "Content Pages | Admin" };
 export default async function AdminPagesListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ deleted?: string }>;
+  searchParams: Promise<{ deleted?: string; sort?: string; dir?: string }>;
 }) {
   const params = await searchParams;
   const showDeleted = params.deleted === "1";
+  const sort = parseAdminSort(params, PAGE_TABLE_COLUMNS, PAGE_TABLE_SORT);
   const pages = await db.contentPage.findMany({
     where: { deletedAt: showDeleted ? { not: null } : null },
-    orderBy: { updatedAt: "desc" },
+    orderBy: contentPageOrderBy(sort),
   });
+  const current = {
+    deleted: showDeleted ? "1" : undefined,
+    sort: sort.explicit ? sort.column : undefined,
+    dir: sort.explicit ? sort.direction : undefined,
+  };
 
   return (
-    <>
+    <AdminColumnVisibility tableId="pages" columns={PAGE_TABLE_COLUMNS}>
       <AdminPageHeader
         title="Content pages"
         description="Create and maintain the editable pages published across the marketplace."
@@ -52,9 +63,12 @@ export default async function AdminPagesListPage({
 
       <AdminFilterBar
         count={`${pages.length} ${pages.length === 1 ? "page" : "pages"}`}
+        tools={<AdminColumnMenu />}
       >
         <AdminFilterChip
-          href={showDeleted ? "/admin/pages" : "/admin/pages?deleted=1"}
+          href={buildAdminListHref("/admin/pages", current, {
+            deleted: showDeleted ? undefined : "1",
+          })}
           active={showDeleted}
           activeTone="warning"
         >
@@ -65,27 +79,38 @@ export default async function AdminPagesListPage({
       <AdminTable>
         <TableHeader>
           <TableRow>
-            <TableHead>Title</TableHead>
-            <TableHead>Slug</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Updated</TableHead>
-            <TableHead className={adminActionsCellClass}>Actions</TableHead>
+            {PAGE_TABLE_COLUMNS.map((column) => (
+              <AdminTableHeaderCell
+                key={column.id}
+                column={column}
+                sort={sort}
+                pathname="/admin/pages"
+                current={current}
+                resetPage={false}
+              />
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {pages.map((page) => (
             <TableRow key={page.id}>
-              <TableCell className="font-medium text-text-primary">{page.title}</TableCell>
-              <TableCell className="text-sm text-text-tertiary font-mono">/{page.slug}</TableCell>
-              <TableCell>
+              <TableCell data-column="title" className="font-medium text-text-primary">{page.title}</TableCell>
+              <TableCell data-column="slug" className="font-mono text-sm text-text-tertiary">/{page.slug}</TableCell>
+              <TableCell data-column="status">
                 <Badge variant={page.status === "PUBLISHED" ? "success" : "neutral"}>
                   {page.status}
                 </Badge>
               </TableCell>
-              <TableCell className={adminDateCellClass}>
-                {page.updatedAt.toLocaleDateString("en-GB")}
+              <TableCell data-column="updated" className={adminDateCellClass}>
+                {formatAdminDate(page.updatedAt)}
               </TableCell>
-              <TableCell className={adminActionsCellClass}>
+              <TableCell data-column="created" className={adminDateCellClass}>
+                {formatAdminDate(page.createdAt)}
+              </TableCell>
+              <TableCell data-column="published" className={adminDateCellClass}>
+                {formatAdminDate(page.publishedAt)}
+              </TableCell>
+              <TableCell data-column="actions" className={adminActionsCellClass}>
                 {page.deletedAt ? (
                   <RestorePageButton id={page.id} />
                 ) : (
@@ -101,7 +126,7 @@ export default async function AdminPagesListPage({
           ))}
           {pages.length === 0 && (
             <TableRow>
-              <AdminTableEmpty colSpan={5}>
+              <AdminTableEmpty colSpan={PAGE_TABLE_COLUMNS.length}>
                 {showDeleted
                   ? "No deleted content pages."
                   : "No content pages yet. Create one to get started."}
@@ -110,6 +135,6 @@ export default async function AdminPagesListPage({
           )}
         </TableBody>
       </AdminTable>
-    </>
+    </AdminColumnVisibility>
   );
 }

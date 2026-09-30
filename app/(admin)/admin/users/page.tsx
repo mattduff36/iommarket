@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableBody,
   TableRow,
-  TableHead,
   TableCell,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
@@ -19,7 +18,9 @@ import {
   adminSearchInputClass,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminPager } from "@/components/admin/admin-pager";
+import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -31,7 +32,11 @@ import { UserAccountStatusBadge } from "@/components/admin/user-account-status-b
 import { UserActions } from "./user-actions";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import { formatAdminDate } from "@/lib/admin/format";
 import { buildAdminUsersWhere } from "@/lib/admin/query";
+import { USER_TABLE_COLUMNS, USER_TABLE_SORT } from "@/lib/admin/table-columns";
+import { userOrderBy } from "@/lib/admin/table-order";
+import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
 
 export const metadata: Metadata = { title: "Users | Admin" };
 
@@ -41,6 +46,8 @@ interface Props {
     role?: string;
     disabled?: string;
     page?: string;
+    sort?: string;
+    dir?: string;
   }>;
 }
 
@@ -64,6 +71,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const roleFilter = params.role as "USER" | "DEALER" | "ADMIN" | undefined;
   const disabledFilter = params.disabled === "true" ? true : params.disabled === "false" ? false : undefined;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const sort = parseAdminSort(params, USER_TABLE_COLUMNS, USER_TABLE_SORT);
   const now = new Date();
   const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
 
@@ -77,7 +85,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const [users, total] = await Promise.all([
     db.user.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: userOrderBy(sort),
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -118,24 +126,33 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  const current = {
+    q: query || undefined,
+    role: roleFilter,
+    disabled: params.disabled,
+    page: String(page),
+    sort: sort.explicit ? sort.column : undefined,
+    dir: sort.explicit ? sort.direction : undefined,
+  };
+
   function buildUrl(overrides: Record<string, string | undefined>) {
-    const p = new URLSearchParams();
-    const merged = { q: query || undefined, role: roleFilter, disabled: params.disabled, page: String(page), ...overrides };
-    for (const [k, v] of Object.entries(merged)) {
-      if (v && v !== "undefined") p.set(k, v);
-    }
-    return `/admin/users?${p.toString()}`;
+    return buildAdminListHref("/admin/users", current, overrides);
   }
 
   return (
-    <>
+    <AdminColumnVisibility tableId="users" columns={USER_TABLE_COLUMNS}>
       <AdminPageHeader
         title="Users"
         description="Manage account roles, dealer access, and account status."
       />
 
-      <AdminFilterBar count={`${total} ${total === 1 ? "user" : "users"}`}>
+      <AdminFilterBar
+        count={`${total} ${total === 1 ? "user" : "users"}`}
+        tools={<AdminColumnMenu />}
+      >
         <form method="get" action="/admin/users" className="flex min-w-0 gap-2">
+          {current.sort ? <input type="hidden" name="sort" value={current.sort} /> : null}
+          {current.dir ? <input type="hidden" name="dir" value={current.dir} /> : null}
           <input
             name="q"
             defaultValue={query}
@@ -189,19 +206,21 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       <AdminTable minWidth="wide">
         <TableHeader>
           <TableRow>
-            <TableHead>User</TableHead>
-            <TableHead>Access</TableHead>
-            <TableHead>Region</TableHead>
-            <TableHead>Dealer</TableHead>
-            <TableHead className="text-right">Listings</TableHead>
-            <TableHead>Joined</TableHead>
-            <TableHead className={adminActionsCellClass}>Actions</TableHead>
+            {USER_TABLE_COLUMNS.map((column) => (
+              <AdminTableHeaderCell
+                key={column.id}
+                column={column}
+                sort={sort}
+                pathname="/admin/users"
+                current={current}
+              />
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {users.map((user) => (
             <TableRow key={user.id}>
-              <TableCell>
+              <TableCell data-column="user">
                 <AdminDataCell
                   title={
                     <Link
@@ -220,7 +239,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   }
                 />
               </TableCell>
-              <TableCell>
+              <TableCell data-column="access">
                 <div className="flex max-w-48 flex-wrap gap-1.5">
                   <Badge variant={ROLE_BADGE[user.role] ?? "neutral"}>
                     {ROLE_LABEL[user.role] ?? user.role}
@@ -244,12 +263,12 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   ) : null}
                 </div>
               </TableCell>
-              <TableCell className="text-sm text-text-secondary">
+              <TableCell data-column="region" className="text-sm text-text-secondary">
                 {user.region?.name ?? (
                   <span className="text-text-tertiary">Not assigned</span>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell data-column="dealer">
                 {user.dealerProfile ? (
                   <AdminDataCell
                     title={
@@ -270,13 +289,19 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   <span className="text-sm text-text-tertiary">Not a dealer</span>
                 )}
               </TableCell>
-              <TableCell className={adminNumericCellClass}>
+              <TableCell data-column="listings" className={adminNumericCellClass}>
                 {user._count.listings}
               </TableCell>
-              <TableCell className={adminDateCellClass}>
-                {user.createdAt.toLocaleDateString("en-GB")}
+              <TableCell data-column="joined" className={adminDateCellClass}>
+                {formatAdminDate(user.createdAt)}
               </TableCell>
-              <TableCell className={adminActionsCellClass}>
+              <TableCell data-column="phone" className="text-sm text-text-secondary">
+                {user.phone ?? "—"}
+              </TableCell>
+              <TableCell data-column="updated" className={adminDateCellClass}>
+                {formatAdminDate(user.updatedAt)}
+              </TableCell>
+              <TableCell data-column="actions" className={adminActionsCellClass}>
                 <UserActions
                   variant="row"
                   userId={user.id}
@@ -304,7 +329,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           ))}
           {users.length === 0 && (
             <TableRow>
-              <AdminTableEmpty colSpan={7}>No users match these filters.</AdminTableEmpty>
+              <AdminTableEmpty colSpan={USER_TABLE_COLUMNS.length}>
+                No users match these filters.
+              </AdminTableEmpty>
             </TableRow>
           )}
         </TableBody>
@@ -315,6 +342,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
         totalPages={totalPages}
         hrefForPage={(nextPage) => buildUrl({ page: String(nextPage) })}
       />
-    </>
+    </AdminColumnVisibility>
   );
 }

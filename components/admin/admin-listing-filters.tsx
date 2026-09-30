@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   ADMIN_LISTING_STATUS_FILTERS,
   type AdminListingStatusFilter,
@@ -13,13 +14,21 @@ import {
 export function AdminListingFilters({
   query,
   status,
+  sort,
+  direction,
+  tools,
 }: {
   query: string;
   status: AdminListingStatusFilter;
+  sort?: string;
+  direction?: string;
+  tools?: ReactNode;
 }) {
   return (
-    <AdminFilterBar>
+    <AdminFilterBar tools={tools}>
       <form className="flex min-w-0 flex-1 flex-wrap gap-2" method="get">
+        {sort ? <input type="hidden" name="sort" value={sort} /> : null}
+        {direction ? <input type="hidden" name="dir" value={direction} /> : null}
         <input
           name="q"
           defaultValue={query}
