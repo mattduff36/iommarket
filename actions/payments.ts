@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { setHostedReturnContext } from "@/lib/payments/set-hosted-return-context";
+import { createSampleCheckout } from "@/lib/payments/sample-checkout";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { extractRippleLinkCode, isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
@@ -282,6 +284,12 @@ export async function payForListing(input: PayForListingInput) {
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
+    if (isSampleCheckoutEnabled()) {
+      const sample = await createSampleCheckout({ userId: user.id, kind: "listing_payment",
+        targetId: listing.id, description: `Listing fee: ${listing.title}`,
+        amountPence: pricing.privateListingPence, returnUrl: listingReturnTo });
+      return { data: { ...sample.data, skippedPayment: false } };
+    }
     if (isRipplePreviewRuntime()) {
       return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
     }
@@ -290,6 +298,7 @@ export async function payForListing(input: PayForListingInput) {
       listingTitle: listing.title,
       amountInPence: pricing.privateListingPence,
       checkoutType: "listing_payment",
+      customerName: user.name ?? undefined,
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",
@@ -354,7 +363,7 @@ export async function createDealerSubscription(input: {
   acceptedDealerTerms: boolean;
 }) {
   const user = await requireAcceptedAuth();
-  if (isRipplePreviewRuntime()) {
+  if (isRipplePreviewRuntime() && !isSampleCheckoutEnabled()) {
     return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
   }
   if (input.testPlan === true) {
@@ -393,10 +402,19 @@ export async function createDealerSubscription(input: {
     const pricing = await getMarketplacePricing();
     const dashboardReturnTo = "/dealer/dashboard?subscribed=true";
     const pricingReturnTo = "/pricing";
+    if (isSampleCheckoutEnabled()) {
+      const sample = await createSampleCheckout({ userId: user.id, kind: "dealer_subscription",
+        targetId: parsed.data.dealerId, tier: parsed.data.tier,
+        description: `Dealer ${parsed.data.tier === "PRO" ? "Pro" : "Starter"} — monthly subscription`,
+        amountPence: getDealerPlanPricePence(pricing, parsed.data.tier),
+        returnUrl: `/dealer/subscribe?tier=${parsed.data.tier}` });
+      return { data: sample.data };
+    }
     const session = await createDealerSubscriptionCheckout({
       dealerId: parsed.data.dealerId,
       tier: parsed.data.tier,
       amountInPence: getDealerPlanPricePence(pricing, parsed.data.tier),
+      customerName: user.name ?? undefined,
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",
@@ -441,7 +459,7 @@ export async function createDealerSubscription(input: {
 
 export async function upgradeFeatured(listingId: string) {
   const user = await requireAcceptedAuth();
-  if (isRipplePreviewRuntime()) {
+  if (isRipplePreviewRuntime() && !isSampleCheckoutEnabled()) {
     return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
   }
   const featuredRateError = rateLimitActionError(
@@ -490,9 +508,16 @@ export async function upgradeFeatured(listingId: string) {
   try {
     const pricing = await getMarketplacePricing();
     const listingReturnTo = `/listings/${listing.id}`;
+    if (isSampleCheckoutEnabled()) {
+      const sample = await createSampleCheckout({ userId: user.id, kind: "featured_upgrade",
+        targetId: listing.id, description: `Featured upgrade: ${listing.title}`,
+        amountPence: pricing.featuredUpgradePence, returnUrl: listingReturnTo });
+      return { data: sample.data };
+    }
     const session = await createFeaturedUpgradeCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
+      customerName: user.name ?? undefined,
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",

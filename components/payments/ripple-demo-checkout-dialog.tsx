@@ -170,8 +170,10 @@ export function RippleDemoCheckoutDialog({
 export function useRippleDemoCheckout() {
   const [demoCheckoutUrl, setDemoCheckoutUrl] = useState<string | null>(null);
   const [demoDialogOpen, setDemoDialogOpen] = useState(false);
+  const [sampleCheckoutId, setSampleCheckoutId] = useState<string | null>(null);
 
   const openCheckout = useCallback((checkoutUrl: string) => {
+    setSampleCheckoutId(/^\/sample-checkout\/([a-z0-9]+)$/.exec(checkoutUrl)?.[1] ?? null);
     if (isRippleDemoCheckoutUrl(checkoutUrl)) {
       setDemoCheckoutUrl(checkoutUrl);
       setDemoDialogOpen(true);
@@ -182,6 +184,7 @@ export function useRippleDemoCheckout() {
   }, []);
 
   return {
+    sampleCheckoutId,
     demoCheckoutUrl,
     demoDialogOpen,
     setDemoDialogOpen,

@@ -1,10 +1,13 @@
 # Ripple staging payments
 
 Production and preview use separate databases. Preview shows normal prices,
-but all new hosted payments are disabled, including the retired £1 weekly and
+but all new real-money hosted payments are disabled, including the retired £1 weekly and
 £0.50 featured offers. The server enforces this for stale browser tabs and direct
 checkout actions too. Existing dealer access and free listing submission remain
 available. Production never grants test entitlements.
+
+New preview purchases use the isolated [FlowPay sample checkout](preview-payment-simulator.md).
+This does not replace the genuine weekly renewal test described here.
 
 The existing £1 weekly subscription remains active for the renewal test. Product
 recognition is separate from checkout availability: retain the test URLs, relay
@@ -38,7 +41,7 @@ the actual checkout context is signed, host-only, and checked against the logged
 user and verified email. `paymentjobref` locates a verified receipt, not proof of
 payment by itself.
 
-All payment links are blocked from new preview checkout. Future
+All real payment links are blocked from new preview checkout. Future
 staging products require separate links and explicit configuration; do not fan
 out all webhooks to both databases or match environments by email.
 

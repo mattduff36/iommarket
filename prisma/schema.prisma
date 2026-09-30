@@ -85,6 +85,7 @@ model User {
   freeListingClaim   FreeListingClaim?
   listingImageUploadIntents ListingImageUploadIntent[]
   policyAcceptances PolicyAcceptance[]
+  sampleCheckouts SampleCheckout[]
   cancellationRequestsRequested DealerCancellationRequest[] @relation("CancellationRequestedBy")
   cancellationRequestsProcessed DealerCancellationRequest[] @relation("CancellationProcessedBy")
   cancellationRequestEvents DealerCancellationRequestEvent[]
@@ -682,6 +683,27 @@ enum PaymentStatus {
   SUCCEEDED
   FAILED
   REFUNDED
+}
+
+// Preview simulator only. No real provider credentials or card data are stored.
+model SampleCheckout {
+  id           String   @id @default(cuid())
+  userId       String
+  kind         String
+  targetId     String
+  description  String
+  amountPence  Int
+  currency     String   @default("gbp")
+  tier         DealerTier?
+  status       String   @default("PENDING")
+  attemptCount Int      @default(0)
+  returnUrl    String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, targetId, kind, createdAt])
 }
 
 enum PaymentType {

@@ -14,6 +14,7 @@ import {
 } from "@/lib/payments/ripple-config";
 import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
 import { createRippleReference } from "@/lib/payments/ripple-reference";
+import { getRippleCustomerDetails } from "@/lib/payments/ripple-customer-details";
 import { verifyRippleWebhookSignature } from "@/lib/payments/ripple-signature";
 import type {
   NormalizedProviderWebhookEvent,
@@ -50,6 +51,8 @@ function buildFixedCheckoutUrl(
     amountInPence?: number;
     tier?: DealerTier;
     testPlan?: boolean;
+    customerName?: string;
+    customerEmail?: string;
   }
 ): ProviderCheckoutResult {
   assertHostedCheckoutAvailable();
@@ -79,6 +82,11 @@ function buildFixedCheckoutUrl(
   const url = new URL(baseUrl);
   url.search = "";
   url.searchParams.set("reference", merchantReference);
+  const customerDetails = getRippleCustomerDetails(params.customerName, params.customerEmail);
+  if (customerDetails) {
+    url.searchParams.set("name", customerDetails.name);
+    url.searchParams.set("email", customerDetails.email);
+  }
   return {
     provider: "RIPPLE",
     merchantReference,
@@ -135,6 +143,7 @@ export async function createListingCheckout(params: {
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
+  customerName?: string;
   idempotencyKey?: string;
 }): Promise<ProviderCheckoutResult> {
   if ((params.checkoutType ?? "listing_payment") === "listing_support") {
@@ -143,6 +152,8 @@ export async function createListingCheckout(params: {
   return buildFixedCheckoutUrl("listing_payment", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
+    customerName: params.customerName,
+    customerEmail: params.customerEmail,
   });
 }
 
@@ -152,6 +163,7 @@ export async function createDealerSubscriptionCheckout(params: {
   testPlan?: boolean;
   amountInPence: number;
   customerEmail: string;
+  customerName?: string;
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
@@ -160,6 +172,8 @@ export async function createDealerSubscriptionCheckout(params: {
     amountInPence: params.amountInPence,
     tier: params.tier,
     testPlan: params.testPlan,
+    customerName: params.customerName,
+    customerEmail: params.customerEmail,
   });
 }
 
@@ -169,11 +183,14 @@ export async function createFeaturedUpgradeCheckout(params: {
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
+  customerName?: string;
   amountInPence?: number;
 }): Promise<ProviderCheckoutResult> {
   return buildFixedCheckoutUrl("featured_upgrade", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
+    customerName: params.customerName,
+    customerEmail: params.customerEmail,
   });
 }
 

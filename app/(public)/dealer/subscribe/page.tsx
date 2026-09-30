@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import {
@@ -81,7 +82,7 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
       </div>
 
       <SubscribeForm
-        checkoutUnavailable={isRipplePreviewRuntime()}
+        checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
         tier={tier}
         tierLabel={tierLabel}
         tierPrice={tierPrice}

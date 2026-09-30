@@ -25,7 +25,7 @@ export function FeaturedUpgradeButton({
   variant = "card",
 }: FeaturedUpgradeButtonProps) {
   const [isPending, startTransition] = useTransition();
-  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
+  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen, sampleCheckoutId } =
     useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
@@ -75,9 +75,9 @@ export function FeaturedUpgradeButton({
             {error}
           </p>
         )}
-        <PaymentAwaitingStatus
+        <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
           isAwaitingPayment={isAwaitingPayment}
-          message="Checkout is open in another tab. This page will update when Ripple confirms the featured upgrade."
+          message="Checkout is open in another tab. This page will update when the payment service confirms the featured upgrade."
         />
         <RippleDemoCheckoutDialog
           open={demoDialogOpen}
@@ -122,9 +122,9 @@ export function FeaturedUpgradeButton({
           {error}
         </p>
       )}
-      <PaymentAwaitingStatus
+      <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
         isAwaitingPayment={isAwaitingPayment}
-        message="Checkout is open in another tab. This page will update when Ripple confirms the featured upgrade."
+        message="Checkout is open in another tab. This page will update when the payment service confirms the featured upgrade."
       />
       <RippleDemoCheckoutDialog
         open={demoDialogOpen}

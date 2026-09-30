@@ -666,7 +666,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             <FeaturedUpgradeButton
               listingId={listing.id}
               featuredUpgradePricePence={featuredUpgradePricePence!}
-              checkoutUnavailable={isRipplePreviewRuntime()}
+              checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
             />
           )}
           {canUpgradeToFeatured &&
@@ -775,3 +775,4 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   );
 }
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";

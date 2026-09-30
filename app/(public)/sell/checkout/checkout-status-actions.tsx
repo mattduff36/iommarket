@@ -21,7 +21,7 @@ export function CheckoutStatusActions({
 }: CheckoutStatusActionsProps) {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
-  usePaymentConfirmationPoll(isAwaitingPayment);
+  usePaymentConfirmationPoll(isAwaitingPayment || viewState === "failed");
   const reviewEmail = `mailto:hello@itrader.im?subject=${encodeURIComponent("Please check my listing payment")}&body=${encodeURIComponent(
     `Please check my Ripple payment for listing ${listingId}.\n\nRipple transaction reference: \nPayment date and time: \nEmail used at checkout: \nCurrent payment status in Ripple (paid or refunded): \n\nI understand this needs admin review before my listing payment can be confirmed.`,
   )}`;

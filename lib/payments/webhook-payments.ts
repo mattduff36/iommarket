@@ -38,7 +38,7 @@ async function findPaymentByProviderEvent(
   ];
   if (orConditions.length === 0) return null;
   const matches = await client.payment.findMany({
-    where: { OR: orConditions },
+    where: { paymentProvider: "RIPPLE", OR: orConditions },
   });
   const uniqueIds = new Set(matches.map((payment) => payment.id));
   if (uniqueIds.size > 1) {
@@ -54,7 +54,7 @@ async function findExistingListingTypedPayment(
 ) {
   const type = listingPaymentTypeFromEvent(event);
   return client.payment.findFirst({
-    where: { listingId, type, status: { in: ["PENDING", "FAILED"] } },
+    where: { listingId, type, paymentProvider: "RIPPLE", status: { in: ["PENDING", "FAILED"] } },
     orderBy: { createdAt: "desc" },
   });
 }
