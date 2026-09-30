@@ -185,4 +185,31 @@ describe("SubscribeForm demo checkout flow", () => {
       screen.getByText("Unable to record dealer terms acceptance."),
     ).toBeTruthy();
   });
+
+  it("keeps new subscription checkout disabled on preview after terms are accepted", async () => {
+    render(
+      <SubscribeForm
+        checkoutUnavailable
+        tier="STARTER"
+        tierLabel="Starter"
+        tierPrice="£29.99"
+        features={[]}
+        hasDealerProfile
+      />
+    );
+
+    const subscribe = screen.getByRole("button", {
+      name: "Subscribe for £29.99 per month",
+    });
+    fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
+    await waitFor(() => expect(acceptDealerSubscribeTerms).toHaveBeenCalled());
+
+    expect(subscribe).toBeDisabled();
+    expect(
+      screen.getByText(
+        "New subscriptions are disabled on preview. Existing subscriptions continue to renew."
+      )
+    ).toBeTruthy();
+    expect(createDealerSubscription).not.toHaveBeenCalled();
+  });
 });

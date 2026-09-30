@@ -224,6 +224,17 @@ describe("payForListing", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
+  it.each([true, false])("preserves free listing submission but blocks new preview charges (free=%s)", async (free) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    isPrivateListingFreeForUserMock.mockResolvedValue(free);
+    const result = await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" });
+    expect(result).toEqual(free
+      ? { data: { checkoutUrl: null, skippedPayment: true } }
+      : { error: "New payments are disabled on preview. Existing subscriptions continue to renew." });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+  });
+
   it("never opens checkout for a live listing revision ALR-PAY-001", async () => {
     mockDb.listing.findUnique.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",
@@ -688,14 +699,14 @@ describe("createDealerSubscription", () => {
     vi.stubEnv("RIPPLE_CLIENT_ID", "client");
     vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4");
     await expect(createDealerSubscription({ testPlan: true, acceptedDealerTerms: true })).resolves.toEqual({
-      error: "The weekly test subscription is only available on the staging site.",
+      error: "The weekly test subscription is no longer available for new signups.",
     });
     expect(createDealerSubscriptionCheckoutMock).not.toHaveBeenCalled();
     expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
 
-  it("uses the fixed weekly test amount and Starter entitlement on preview", async () => {
+  it.each([true, false])("blocks new preview subscriptions including testPlan=%s before side effects", async (testPlan) => {
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("RIPPLE_CLIENT_ID", "client");
     vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4");
@@ -703,14 +714,23 @@ describe("createDealerSubscription", () => {
       url: "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4",
       merchantReference: "signed-weekly-reference",
     });
-    const result = await createDealerSubscription({ testPlan: true, tier: "PRO", acceptedDealerTerms: true });
-    expect(result).toHaveProperty("data.checkoutUrl");
-    expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
-      testPlan: true, tier: "STARTER", amountInPence: 100,
-    }));
-    expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toMatchObject({
-      kind: "dealer_subscription", productCode: "FE936242500F44E4",
+    const result = await createDealerSubscription({ testPlan, tier: "PRO", acceptedDealerTerms: true });
+    expect(result).toEqual({
+      error: "New payments are disabled on preview. Existing subscriptions continue to renew.",
     });
+    expect(createDealerSubscriptionCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
+    expect(setCookieMock).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  it("blocks new preview featured purchases before database writes", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa")).toEqual({
+      error: "New payments are disabled on preview. Existing subscriptions continue to renew.",
+    });
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+    expect(setCookieMock).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
 

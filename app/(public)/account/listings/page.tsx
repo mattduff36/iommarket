@@ -235,8 +235,8 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                       (listing.dealerId !== null || listing.payments.length > 0) && (
                       <FeaturedUpgradeButton
                         listingId={listing.id}
-                        featuredUpgradePricePence={getRippleTestFeaturedProduct()?.amountPence ?? pricing.featuredUpgradePence}
-                        previewTest={Boolean(getRippleTestFeaturedProduct())}
+                        featuredUpgradePricePence={pricing.featuredUpgradePence}
+                        checkoutUnavailable={isRipplePreviewRuntime()}
                         variant="inline"
                       />
                     )}
@@ -302,4 +302,4 @@ export default async function AccountListingsPage({ searchParams }: Props) {
     </div>
   );
 }
-import { getRippleTestFeaturedProduct } from "@/lib/payments/ripple-config";
+import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";

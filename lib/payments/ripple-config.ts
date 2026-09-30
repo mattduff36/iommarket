@@ -125,6 +125,8 @@ export function isNonProductionRuntime(
 export function assertRippleHostedCheckoutAvailable(
   env: NodeJS.ProcessEnv = process.env
 ) {
+  // Retiring new test checkouts must not disable recognition of existing renewals.
+  if (isRipplePreviewRuntime(env)) throw new Error("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
   if (isRippleLiveCheckoutEnabled(env)) return;
   if (isNonProductionRuntime(env)) return;
   throw new Error("RIPPLE_LIVE_CHECKOUT_ENABLED");
@@ -207,7 +209,7 @@ export function getRippleProductByCheckoutType(
   tier?: DealerTier
 ): RippleProduct {
   if (checkoutType === "listing_payment") return RIPPLE_CANONICAL_PRODUCTS.listing;
-  if (checkoutType === "featured_upgrade") return getRippleTestFeaturedProduct() ?? RIPPLE_CANONICAL_PRODUCTS.featured;
+  if (checkoutType === "featured_upgrade") return RIPPLE_CANONICAL_PRODUCTS.featured;
   if (checkoutType === "dealer_subscription") {
     return tier === "PRO"
       ? RIPPLE_CANONICAL_PRODUCTS.pro

@@ -8,7 +8,7 @@ import {
 } from "@/lib/payments/ripple-config";
 import { getRippleProductByLinkCode } from "@/lib/payments/ripple-mapping";
 import { addRippleBillingPeriod } from "@/lib/payments/ripple-calendar";
-import { createDealerSubscriptionCheckout } from "@/lib/payments/provider";
+import { createDealerSubscriptionCheckout, createFeaturedUpgradeCheckout, createListingCheckout } from "@/lib/payments/provider";
 
 const code = "ABCDEF0123456789";
 const env: NodeJS.ProcessEnv = {
@@ -43,11 +43,12 @@ describe("isolated weekly staging subscription", () => {
     expect(addRippleBillingPeriod(new Date("2026-01-31T12:00:00Z"), RIPPLE_CANONICAL_PRODUCTS.starter).toISOString()).toBe("2026-02-28T12:00:00.000Z");
   });
 
-  it("uses the dedicated 50p featured link only on preview", () => {
+  it("restores standard featured pricing while retaining test receipt recognition on preview", () => {
     for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
     const featuredCode = "1234567890ABCDEF";
     vi.stubEnv("RIPPLE_TEST_FEATURED_URL", `https://portal.startyourripple.co.uk/card/test-client/pay/${featuredCode}`);
-    expect(getRippleProductByCheckoutType("featured_upgrade")).toMatchObject({ code: featuredCode, amountPence: 50 });
+    expect(getRippleProductByCheckoutType("featured_upgrade")).toEqual(RIPPLE_CANONICAL_PRODUCTS.featured);
+    expect(getRippleProductByLinkCode(featuredCode)).toMatchObject({ code: featuredCode, amountPence: 50 });
     vi.stubEnv("VERCEL_ENV", "production");
     expect(getRippleProductByCheckoutType("featured_upgrade")).toEqual(RIPPLE_CANONICAL_PRODUCTS.featured);
     expect(getRippleProductByLinkCode(featuredCode)).toBeNull();
@@ -58,14 +59,18 @@ describe("isolated weekly staging subscription", () => {
     expect(() => getRippleTestSubscriptionProduct({ ...env, RIPPLE_TEST_FEATURED_URL: env.RIPPLE_TEST_SUBSCRIPTION_URL })).toThrow("separate payment links");
   });
 
-  it("creates the £1 dedicated checkout only on preview and rejects the wrong amount", async () => {
+  it("blocks all new preview payments while retaining the existing weekly product for renewals", async () => {
     for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
     vi.stubEnv("RIPPLE_LIVE_CHECKOUT_ENABLED", "1");
     vi.stubEnv("RIPPLE_REFERENCE_SECRET", "staging-reference-secret-long-enough-for-test");
     const input = { dealerId: "dealer-1", tier: "STARTER" as const, testPlan: true, amountInPence: 100, customerEmail: "test@example.com", successUrl: "https://preview.example/success", cancelUrl: "https://preview.example/cancel" };
-    expect((await createDealerSubscriptionCheckout(input)).url).toContain(`/pay/${code}?reference=`);
-    await expect(createDealerSubscriptionCheckout({ ...input, testPlan: false, amountInPence: 2999 })).rejects.toThrow("RIPPLE_STAGING_LINK_REQUIRED");
-    await expect(createDealerSubscriptionCheckout({ ...input, amountInPence: 2999 })).rejects.toThrow("100 pence");
+    await expect(createDealerSubscriptionCheckout(input)).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
+    await expect(createDealerSubscriptionCheckout({ ...input, testPlan: false, amountInPence: 2999 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
+    const listing = { listingId: "listing-1", listingTitle: "Test", successUrl: input.successUrl, cancelUrl: input.cancelUrl };
+    await expect(createFeaturedUpgradeCheckout({ ...listing, amountInPence: 50 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
+    await expect(createFeaturedUpgradeCheckout({ ...listing, amountInPence: 500 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
+    await expect(createListingCheckout({ ...listing, amountInPence: 499 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
+    expect(getRippleProductByLinkCode(code)).toMatchObject({ amountPence: 100, billingInterval: "week" });
     vi.stubEnv("VERCEL_ENV", "production");
     await expect(createDealerSubscriptionCheckout(input)).rejects.toThrow("only available on preview");
   });

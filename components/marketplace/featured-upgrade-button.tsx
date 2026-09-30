@@ -14,14 +14,14 @@ import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-st
 interface FeaturedUpgradeButtonProps {
   listingId: string;
   featuredUpgradePricePence: number;
-  previewTest?: boolean;
+  checkoutUnavailable?: boolean;
   variant?: "card" | "inline";
 }
 
 export function FeaturedUpgradeButton({
   listingId,
   featuredUpgradePricePence,
-  previewTest = false,
+  checkoutUnavailable = false,
   variant = "card",
 }: FeaturedUpgradeButtonProps) {
   const [isPending, startTransition] = useTransition();
@@ -57,13 +57,19 @@ export function FeaturedUpgradeButton({
           variant="ghost"
           size="sm"
           onClick={handleUpgrade}
+          disabled={checkoutUnavailable}
           loading={isPending}
           className="text-premium-gold-400 hover:text-premium-gold-500"
           title="Upgrade to featured"
         >
           <Star className="h-3.5 w-3.5" />
-          {previewTest ? `Test feature · ${formatGbpFromPence(featuredUpgradePricePence)}` : "Feature"}
+          Feature
         </Button>
+        {checkoutUnavailable && (
+          <p className="text-xs text-text-secondary" role="note">
+            New payments are disabled on preview.
+          </p>
+        )}
         {error && (
           <p className="text-xs text-text-error" role="alert">
             {error}
@@ -89,7 +95,6 @@ export function FeaturedUpgradeButton({
         <p className="text-sm font-semibold text-premium-gold-400 flex items-center gap-1.5">
           <Star className="h-4 w-4" />
           Upgrade to Featured
-          {previewTest ? " · Preview test" : ""}
         </p>
         <p className="text-sm text-text-secondary mt-0.5">
           Get more visibility with a promoted position in search results and on
@@ -100,12 +105,18 @@ export function FeaturedUpgradeButton({
         variant="premium"
         size="sm"
         onClick={handleUpgrade}
+        disabled={checkoutUnavailable}
         loading={isPending}
         className="shrink-0"
       >
         <Star className="h-3.5 w-3.5" />
         Upgrade - {formatGbpFromPence(featuredUpgradePricePence)}
       </Button>
+      {checkoutUnavailable && (
+        <p className="text-sm text-text-secondary" role="note">
+          New payments are disabled on preview.
+        </p>
+      )}
       {error && (
         <p className="text-sm text-text-energy w-full" role="alert">
           {error}

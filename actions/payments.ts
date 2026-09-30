@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { setHostedReturnContext } from "@/lib/payments/set-hosted-return-context";
-import { extractRippleLinkCode, getRippleTestSubscriptionProduct, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
+import { extractRippleLinkCode, isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
@@ -83,8 +83,8 @@ function buildHostedReturnUrl(params: {
 }
 
 function toUserPaymentError(message: string) {
-  if (message.includes("RIPPLE_STAGING_LINK_REQUIRED")) {
-    return "This checkout needs a dedicated staging payment link. Use the weekly test plan, or contact the site administrator.";
+  if (message.includes("RIPPLE_PREVIEW_CHECKOUT_DISABLED") || message.includes("RIPPLE_STAGING_LINK_REQUIRED")) {
+    return "New payments are disabled on preview. Existing subscriptions continue to renew.";
   }
   if (message.includes("RIPPLE_LISTING_PAYMENT_URL")) {
     return "Listing checkout is not configured yet. Please contact support.";
@@ -282,6 +282,9 @@ export async function payForListing(input: PayForListingInput) {
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
+    if (isRipplePreviewRuntime()) {
+      return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
+    }
     const session = await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
@@ -351,6 +354,12 @@ export async function createDealerSubscription(input: {
   acceptedDealerTerms: boolean;
 }) {
   const user = await requireAcceptedAuth();
+  if (isRipplePreviewRuntime()) {
+    return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
+  }
+  if (input.testPlan === true) {
+    return { error: "The weekly test subscription is no longer available for new signups." };
+  }
   const subscriptionRateError = rateLimitActionError(
     await checkRateLimit(
       makeRateLimitKey("checkout-dealer-subscription", user.id),
@@ -366,17 +375,11 @@ export async function createDealerSubscription(input: {
 
   const parsed = createDealerSubscriptionSchema.safeParse({
     dealerId: user.dealerProfile.id,
-    tier: input.testPlan === true ? "STARTER" : input.tier ?? "STARTER",
-    testPlan: input.testPlan,
+    tier: input.tier ?? "STARTER",
     acceptedDealerTerms: input.acceptedDealerTerms,
   });
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
-  }
-
-  const testProduct = input.testPlan === true ? getRippleTestSubscriptionProduct() : null;
-  if (input.testPlan === true && !testProduct) {
-    return { error: "The weekly test subscription is only available on the staging site." };
   }
 
   const { recordAcceptance } = await import("@/lib/policy/acceptance");
@@ -393,8 +396,7 @@ export async function createDealerSubscription(input: {
     const session = await createDealerSubscriptionCheckout({
       dealerId: parsed.data.dealerId,
       tier: parsed.data.tier,
-      amountInPence: testProduct?.amountPence ?? getDealerPlanPricePence(pricing, parsed.data.tier),
-      testPlan: input.testPlan === true,
+      amountInPence: getDealerPlanPricePence(pricing, parsed.data.tier),
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",
@@ -439,6 +441,9 @@ export async function createDealerSubscription(input: {
 
 export async function upgradeFeatured(listingId: string) {
   const user = await requireAcceptedAuth();
+  if (isRipplePreviewRuntime()) {
+    return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
+  }
   const featuredRateError = rateLimitActionError(
     await checkRateLimit(
       makeRateLimitKey("checkout-featured-upgrade", `${user.id}:${listingId}`),
@@ -501,8 +506,7 @@ export async function upgradeFeatured(listingId: string) {
         listingId: listing.id,
         returnTo: listingReturnTo,
       }),
-      amountInPence: getRippleProductByCheckoutType("featured_upgrade").key === "featured"
-        ? pricing.featuredUpgradePence : getRippleProductByCheckoutType("featured_upgrade").amountPence,
+      amountInPence: pricing.featuredUpgradePence,
     });
 
     const productCode = extractRippleLinkCode(session.url);
