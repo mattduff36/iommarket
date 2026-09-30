@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isPaymentReturnPath } from "@/lib/payments/return-routes";
+import { CHECKOUT_ENVIRONMENT_COOKIE, stagingReturnDestination } from "@/lib/payments/staging-return-routing";
 import { createServerClient } from "@supabase/ssr";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { classifyLaunchRoute } from "@/lib/launch/route-class";
@@ -81,7 +82,22 @@ export async function proxy(request: NextRequest) {
 
   // A provider return must remain readable even if the login or launch cookie expired.
   // Rendering exposes no account data; return reconciliation authenticates separately.
-  if (isPaymentReturnPath(pathname)) return NextResponse.next();
+  if (isPaymentReturnPath(pathname)) {
+    const destination = stagingReturnDestination({
+      url: request.nextUrl, method: request.method,
+      cookie: request.cookies.get(CHECKOUT_ENVIRONMENT_COOKIE)?.value,
+    });
+    if (destination) {
+      const response = NextResponse.redirect(destination);
+      response.headers.set("Cache-Control", "no-store");
+      response.cookies.set(CHECKOUT_ENVIRONMENT_COOKIE, "", {
+        domain: ".itrader.im", path: "/pay", secure: true, httpOnly: true,
+        sameSite: "lax", maxAge: 0,
+      });
+      return response;
+    }
+    return NextResponse.next();
+  }
 
   const previewAccess = resolvePreviewAccessPath(pathname);
   if (previewAccess?.action === "redirect") {

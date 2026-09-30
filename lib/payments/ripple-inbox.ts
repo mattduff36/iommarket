@@ -10,6 +10,8 @@ import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import { hashRippleWebhookBody } from "@/lib/payments/ripple-signature";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 
+import { forwardRippleWebhookToStaging, shouldRelayRippleToStaging } from "@/lib/payments/ripple-staging-relay";
+
 export const RIPPLE_INBOX_STALE_PENDING_MS = 60_000;
 export const RIPPLE_INBOX_MAX_ATTEMPTS = 20;
 
@@ -19,6 +21,7 @@ function isMinimizedPayload(value: unknown): value is RippleMinimizedPayload {
 
 function inboxErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message : "WEBHOOK_PROCESS";
+  if (message.startsWith("STAGING_RELAY_")) return "STAGING_RELAY_FAILED";
   if (message.includes("Unknown Ripple product")) return "UNKNOWN_PRODUCT";
   if (message.includes("Invalid Ripple reference")) return "INVALID_REFERENCE";
   if (message.includes("Listing payment missing reference")) {
@@ -35,11 +38,13 @@ function inboxErrorCode(error: unknown): string {
 
 export async function persistRippleWebhookInbox(input: {
   rawBody: string;
+  /** Original provider body hash, only supplied by the authenticated relay receiver. */
+  verifiedBodyHash?: string;
   event: NormalizedProviderWebhookEvent;
   minimized: RippleMinimizedPayload;
   customerEmailNorm: string | null;
 }) {
-  const bodyHash = hashRippleWebhookBody(input.rawBody);
+  const bodyHash = input.verifiedBodyHash ?? hashRippleWebhookBody(input.rawBody);
   const existing = await db.paymentWebhookInbox.findUnique({
     where: { bodyHash },
   });
@@ -120,7 +125,11 @@ export async function processRippleInboxRecord(inboxId: string) {
       minimized: inbox.minimizedPayload,
       customerEmailNorm: inbox.customerEmailNorm,
     });
-    await processProviderWebhookEvent(event);
+    if (shouldRelayRippleToStaging(event.linkCode)) {
+      await forwardRippleWebhookToStaging({ bodyHash: inbox.bodyHash, minimized: inbox.minimizedPayload, customerEmailNorm: inbox.customerEmailNorm });
+    } else {
+      await processProviderWebhookEvent(event);
+    }
     const completed = await db.paymentWebhookInbox.updateMany({
       where: {
         id: inbox.id,
@@ -177,6 +186,8 @@ export async function processRippleInboxRecord(inboxId: string) {
 
 export async function ingestVerifiedRippleWebhook(input: {
   rawBody: string;
+  /** Original provider body hash, only supplied by the authenticated relay receiver. */
+  verifiedBodyHash?: string;
   event: NormalizedProviderWebhookEvent;
   minimized: RippleMinimizedPayload;
   customerEmailNorm: string | null;

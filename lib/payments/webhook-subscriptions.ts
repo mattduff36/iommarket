@@ -10,7 +10,7 @@ import { isPaidSubscriptionEntitled } from "@/lib/dealers/entitlement";
 import { captureBusinessEvent } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import {
-  addClampedCalendarMonth,
+  addRippleBillingPeriod,
   laterDate,
 } from "@/lib/payments/ripple-calendar";
 import {
@@ -385,7 +385,7 @@ export async function handleRecurringPaymentReceived(
       const existing = await findSubscription(resolved, client);
       const periodEnd = laterDate(
         existing?.currentPeriodEnd,
-        addClampedCalendarMonth(event.eventTimestamp ?? new Date())
+        addRippleBillingPeriod(event.eventTimestamp ?? new Date(), product)
       );
       const result = await upsertSubscription(
         resolved,
@@ -422,7 +422,7 @@ export async function handleRecurringPaymentSuccess(
       const existing = await findSubscription(resolved, client);
       const nextPeriodEnd = laterDate(
         existing?.currentPeriodEnd,
-        addClampedCalendarMonth(event.eventTimestamp ?? new Date())
+        addRippleBillingPeriod(event.eventTimestamp ?? new Date(), product)
       );
       const result = await upsertSubscription(
         resolved,

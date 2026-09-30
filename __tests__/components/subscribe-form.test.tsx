@@ -52,6 +52,23 @@ describe("SubscribeForm demo checkout flow", () => {
     );
   });
 
+  it("starts a real subscription through the server action instead of an embedded form", async () => {
+    const checkoutUrl = "https://portal.startyourripple.co.uk/card/itrader/pay/8181FAC1359E413E?reference=signed-checkout";
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    vi.mocked(createDealerSubscription).mockResolvedValue({ data: { checkoutUrl } });
+    render(<SubscribeForm tier="STARTER" tierLabel="Starter" tierPrice="£29.99" features={[]} hasDealerProfile />);
+    const subscribe = screen.getByRole("button", { name: "Subscribe for £29.99 per month" });
+    expect(subscribe).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
+    await waitFor(() => expect(subscribe).not.toBeDisabled());
+    expect(document.querySelector("[data-ripple-embed-src]")).toBeNull();
+    fireEvent.click(subscribe);
+    await waitFor(() => expect(createDealerSubscription).toHaveBeenCalledWith({ tier: "STARTER", testPlan: false, acceptedDealerTerms: true }));
+    await waitFor(() => expect(openSpy).toHaveBeenCalled());
+    expect(openSpy.mock.calls[0][0]).toBe(checkoutUrl);
+    openSpy.mockRestore();
+  });
+
   it("shows the Ripple demo modal controls for dealer subscriptions", async () => {
     vi.mocked(createDealerSubscription).mockResolvedValue({
       data: {
@@ -72,19 +89,15 @@ describe("SubscribeForm demo checkout flow", () => {
 
     fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
     await waitFor(() => {
-      expect(
-        document
-          .querySelector("[data-ripple-embed-src]")
-          ?.getAttribute("data-ripple-embed-src"),
-      ).toBe(
-        "https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/embed-signup/-dealer-subscription",
-      );
+      expect(screen.getByRole("button", { name: /subscribe for/i })).not.toBeDisabled();
     });
-    fireEvent.click(screen.getByRole("button", { name: /hosted checkout/i }));
+    expect(document.querySelector("[data-ripple-embed-src]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /subscribe for/i }));
 
     await waitFor(() => {
       expect(createDealerSubscription).toHaveBeenCalledWith({
         tier: "STARTER",
+        testPlan: false,
         acceptedDealerTerms: true,
       });
     });
@@ -122,9 +135,9 @@ describe("SubscribeForm demo checkout flow", () => {
 
     fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
     await waitFor(() => {
-      expect(document.querySelector("[data-ripple-embed-src]")).toBeTruthy();
+      expect(screen.getByRole("button", { name: /subscribe for/i })).not.toBeDisabled();
     });
-    fireEvent.click(screen.getByRole("button", { name: /hosted checkout/i }));
+    fireEvent.click(screen.getByRole("button", { name: /subscribe for/i }));
     await screen.findByText("Preview the Ripple hosted payment journey");
 
     fireEvent.click(
@@ -145,7 +158,7 @@ describe("SubscribeForm demo checkout flow", () => {
     });
   });
 
-  it("does not mount the dealer embed until terms acceptance is recorded", async () => {
+  it("blocks checkout when terms acceptance cannot be recorded", async () => {
     vi.mocked(acceptDealerSubscribeTerms).mockResolvedValue({
       error: "Unable to record dealer terms acceptance.",
     });
@@ -166,6 +179,8 @@ describe("SubscribeForm demo checkout flow", () => {
       expect(acceptDealerSubscribeTerms).toHaveBeenCalled();
     });
     expect(document.querySelector("[data-ripple-embed-src]")).toBeNull();
+    expect(screen.getByRole("button", { name: /subscribe for/i })).toBeDisabled();
+    expect(createDealerSubscription).not.toHaveBeenCalled();
     expect(
       screen.getByText("Unable to record dealer terms acceptance."),
     ).toBeTruthy();

@@ -1,6 +1,8 @@
 import type { DealerTier } from "@prisma/client";
 import {
   RIPPLE_CANONICAL_PRODUCTS,
+  getRippleTestSubscriptionProduct,
+  getRippleTestFeaturedProduct,
   type RippleProduct,
 } from "@/lib/payments/ripple-config";
 
@@ -30,8 +32,8 @@ export function getRippleProductByLinkCode(
   if (!linkCode) return null;
   const normalized = linkCode.trim().toUpperCase();
   return (
-    Object.values(RIPPLE_CANONICAL_PRODUCTS).find(
-      (product) => product.code === normalized
+    [...Object.values(RIPPLE_CANONICAL_PRODUCTS), getRippleTestSubscriptionProduct(), getRippleTestFeaturedProduct()].find(
+      (product) => product?.code === normalized
     ) ?? null
   );
 }

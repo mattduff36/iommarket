@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import { installRippleTestEnv } from "./ripple-test-env";
@@ -93,6 +93,10 @@ function listingEvent(): NormalizedProviderWebhookEvent {
 }
 
 describe("RIP-TXN-001 webhook inbox recovery", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
   beforeEach(() => {
     installRippleTestEnv();
     vi.clearAllMocks();
@@ -126,6 +130,36 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     expect(created).not.toHaveProperty("signature");
     expect(created).not.toHaveProperty("rawSignature");
     expect(processProviderWebhookEvent).toHaveBeenCalledOnce();
+  });
+
+  it("uses original verified relay identity so a re-signed retry reuses the inbox", async () => {
+    const bodyHash = "b".repeat(64);
+    inboxFindUnique.mockResolvedValue({ id: "relayed", status: "PROCESSED", bodyHash });
+    await persistRippleWebhookInbox({ rawBody: "fresh relay", verifiedBodyHash: bodyHash, event: listingEvent(), minimized, customerEmailNorm: null });
+    expect(inboxFindUnique).toHaveBeenCalledWith({ where: { bodyHash } });
+    expect(inboxCreate).not.toHaveBeenCalled();
+  });
+
+  it("keeps failed staging delivery retryable and never processes it against production", async () => {
+    const code = "AABBCCDDEEFF0011";
+    const bodyHash = "c".repeat(64);
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    vi.stubEnv("RIPPLE_STAGING_RELAY_SECRET", "test-relay-secret".repeat(3));
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ received: true, bodyHash }) });
+    vi.stubGlobal("fetch", fetcher);
+    inboxFindUnique.mockResolvedValue({
+      id: "relay-inbox", status: "FAILED", attemptCount: 1, bodyHash,
+      minimizedPayload: { ...minimized, link_code: code, amount: 1, recurring: true },
+      customerEmailNorm: "dealer@example.com", eventType: "payment.received",
+    });
+    await expect(processRippleInboxRecord("relay-inbox")).resolves.toEqual({ status: "failed" });
+    expect(inboxUpdateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: { status: "FAILED", lastErrorCode: "STAGING_RELAY_FAILED" } }));
+    await expect(processRippleInboxRecord("relay-inbox")).resolves.toEqual({ status: "processed" });
+    expect(processProviderWebhookEvent).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("does not reprocess a completed inbox row", async () => {

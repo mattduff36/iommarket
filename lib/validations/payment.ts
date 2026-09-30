@@ -17,6 +17,7 @@ export const payForListingSchema = z
 export const createDealerSubscriptionSchema = z.object({
   dealerId: z.string().cuid("Invalid dealer ID"),
   tier: z.enum(["STARTER", "PRO"]).default("STARTER"),
+  testPlan: z.boolean().optional(),
   acceptedDealerTerms: z
     .boolean()
     .refine((value) => value === true, DEALER_TERMS_ACCEPTANCE_MESSAGE),

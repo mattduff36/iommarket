@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getRippleTestSubscriptionProduct, isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import {
@@ -40,16 +41,22 @@ const TIER_DETAILS = {
 } as const;
 
 interface Props {
-  searchParams?: Promise<{ tier?: string }>;
+  searchParams?: Promise<{ tier?: string; plan?: string }>;
 }
 
 export default async function DealerSubscribePage({ searchParams }: Props) {
   const params = searchParams ? await searchParams : {};
+  const testProduct = getRippleTestSubscriptionProduct();
+  if (isRipplePreviewRuntime() && params.plan !== "weekly-test" && testProduct) {
+    redirect("/dealer/subscribe?plan=weekly-test");
+  }
+  const testPlan = params.plan === "weekly-test" && Boolean(testProduct);
+  if (params.plan === "weekly-test" && !testProduct) redirect("/pricing");
   const tier =
-    params.tier === "PRO" || params.tier === "STARTER"
+    !testPlan && (params.tier === "PRO" || params.tier === "STARTER")
       ? params.tier
       : "STARTER";
-  const intendedSubscribePath = `/dealer/subscribe?tier=${tier}`;
+  const intendedSubscribePath = testPlan ? "/dealer/subscribe?plan=weekly-test" : `/dealer/subscribe?tier=${tier}`;
 
   const [user, pricing] = await Promise.all([
     requireAcceptedUser(intendedSubscribePath),
@@ -65,9 +72,9 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
     }
   }
 
-  const tierLabel = DEALER_TIER_LABELS[tier];
+  const tierLabel = testPlan ? "Weekly Test" : DEALER_TIER_LABELS[tier];
   const details = TIER_DETAILS[tier];
-  const tierPrice = formatGbpFromPence(getDealerPlanPricePence(pricing, tier));
+  const tierPrice = formatGbpFromPence(testPlan ? 100 : getDealerPlanPricePence(pricing, tier));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
@@ -76,11 +83,13 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
           Dealer {tierLabel} Plan
         </h1>
         <p className="mt-2 text-text-secondary">
-          {tierPrice}/month &middot; Cancel anytime
+          {tierPrice}/{testPlan ? "week" : "month"} &middot; Cancel anytime
         </p>
       </div>
 
       <SubscribeForm
+        checkoutUnavailable={isRipplePreviewRuntime() && !testProduct}
+        testPlan={testPlan}
         tier={tier}
         tierLabel={tierLabel}
         tierPrice={tierPrice}

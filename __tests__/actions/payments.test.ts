@@ -635,6 +635,7 @@ describe("payForListing", () => {
 describe("createDealerSubscription", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("RIPPLE_REFERENCE_SECRET", "test-checkout-context-secret-at-least-32-characters");
     requireAuthMock.mockResolvedValue({
       id: "user_123",
       email: "dealer@example.com",
@@ -650,7 +651,8 @@ describe("createDealerSubscription", () => {
       optionalListingSupportPence: 500,
     });
     createDealerSubscriptionCheckoutMock.mockResolvedValue({
-      url: "https://checkout.example.com/dealer-pro",
+      url: "https://portal.startyourripple.co.uk/card/client/pay/C5D44F6F18094B94",
+      merchantReference: "signed-subscription-reference",
     });
     getDealerPlanPricePenceMock.mockImplementation(
       (pricing, tier) =>
@@ -668,13 +670,48 @@ describe("createDealerSubscription", () => {
         acceptedDealerTerms: true,
       }),
     ).resolves.toEqual({
-      data: { checkoutUrl: "https://checkout.example.com/dealer-pro" },
+      data: { checkoutUrl: "https://portal.startyourripple.co.uk/card/client/pay/C5D44F6F18094B94" },
     });
 
     expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(
       expect.objectContaining({ tier: "PRO", amountInPence: 5999 }),
     );
     expect(mockDb.policyAcceptance.upsert).toHaveBeenCalled();
+    expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toMatchObject({
+      kind: "dealer_subscription", userId: "user_123", dealerId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      productCode: "C5D44F6F18094B94", email: "dealer@example.com",
+    });
+  });
+
+  it("rejects the test subscription on production even when its URL is configured", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("RIPPLE_CLIENT_ID", "client");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4");
+    await expect(createDealerSubscription({ testPlan: true, acceptedDealerTerms: true })).resolves.toEqual({
+      error: "The weekly test subscription is only available on the staging site.",
+    });
+    expect(createDealerSubscriptionCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  it("uses the fixed weekly test amount and Starter entitlement on preview", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RIPPLE_CLIENT_ID", "client");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4");
+    createDealerSubscriptionCheckoutMock.mockResolvedValue({
+      url: "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4",
+      merchantReference: "signed-weekly-reference",
+    });
+    const result = await createDealerSubscription({ testPlan: true, tier: "PRO", acceptedDealerTerms: true });
+    expect(result).toHaveProperty("data.checkoutUrl");
+    expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+      testPlan: true, tier: "STARTER", amountInPence: 100,
+    }));
+    expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toMatchObject({
+      kind: "dealer_subscription", productCode: "FE936242500F44E4",
+    });
+    vi.unstubAllEnvs();
   });
 
   it("does not record acceptance or open checkout without acknowledgement POL-ACC-001-A", async () => {

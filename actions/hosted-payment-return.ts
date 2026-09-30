@@ -11,6 +11,7 @@ import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 export async function confirmHostedListingPayment(paymentJobRef: string): Promise<{
   status: "confirmed" | "waiting" | "review" | "sign-in";
   listingId?: string;
+  checkoutType?: "listing_payment" | "featured_upgrade" | "dealer_subscription";
 }> {
   // Cashflows identifiers exceed JS's safe integer range: preserve exact strings.
   if (typeof paymentJobRef !== "string" || !/^\d{10,30}$/.test(paymentJobRef)) return { status: "review" };
@@ -32,6 +33,10 @@ export async function confirmHostedListingPayment(paymentJobRef: string): Promis
     if (result.status === "confirmed") {
       revalidatePath("/sell/checkout");
       revalidatePath("/account/listings");
+      if (result.checkoutType === "dealer_subscription") {
+        revalidatePath("/account");
+        revalidatePath("/dealer");
+      }
     }
     return result;
   } catch {

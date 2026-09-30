@@ -1,3 +1,12 @@
+import type { RippleProduct } from "@/lib/payments/ripple-config";
+
+export function addRippleBillingPeriod(value: Date, product: RippleProduct): Date {
+  if ("billingInterval" in product && product.billingInterval === "week") {
+    return new Date(value.getTime() + 7 * 24 * 60 * 60 * 1000);
+  }
+  return addClampedCalendarMonth(value);
+}
+
 export function addClampedCalendarMonth(value: Date): Date {
   const year = value.getUTCFullYear();
   const month = value.getUTCMonth();

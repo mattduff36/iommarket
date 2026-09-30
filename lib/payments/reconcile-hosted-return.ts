@@ -5,28 +5,30 @@ import { eventFromMinimizedPayload, type RippleMinimizedPayload } from "@/lib/pa
 import { getRippleClientId, RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import { normalizeRippleEmail, parseRippleReference } from "@/lib/payments/ripple-reference";
 import { createOrUpdateListingPayment, submitPaidListingForReview } from "@/lib/payments/webhook-payments";
+import { liveListingWhere } from "@/lib/listings/expiry";
+import { getRippleProductByLinkCode } from "@/lib/payments/ripple-mapping";
+import type { HostedReturnContext } from "@/lib/payments/hosted-return-context";
+import { reconcileHostedSubscriptionReturn } from "@/lib/payments/reconcile-hosted-subscription-return";
 
 // The caller verifies the signed cookie, authentication and confirmed auth email.
-export type HostedReturnContext = {
-  userId: string;
-  email: string;
-  paymentId: string;
-  listingId: string;
-  merchantReference: string;
-  issuedAt: number;
-};
-export type HostedReturnResult = { status: "confirmed"; listingId: string } | { status: "waiting" | "review" };
+export type { HostedReturnContext } from "@/lib/payments/hosted-return-context";
+export type HostedReturnResult = { status: "confirmed"; listingId?: string; checkoutType?: "listing_payment" | "featured_upgrade" | "dealer_subscription" } | { status: "waiting" | "review" };
 const MAX_AGE = 30 * 60_000;
 class ClaimChangedError extends Error {}
 
 export async function reconcileHostedReturn(context: HostedReturnContext, paymentJobRef: string): Promise<HostedReturnResult> {
   const now = Date.now();
-  const product = RIPPLE_CANONICAL_PRODUCTS.listing;
+  if (context.kind === "dealer_subscription") return reconcileHostedSubscriptionReturn(context, paymentJobRef);
+  const checkoutType = context.kind ?? "listing_payment";
+  const product = context.kind === "featured_upgrade"
+    ? getRippleProductByLinkCode(context.productCode) : RIPPLE_CANONICAL_PRODUCTS.listing;
+  if (!product || product.checkoutType !== checkoutType) return { status: "review" };
+  const paymentType = checkoutType === "featured_upgrade" ? "FEATURED" : "LISTING";
   if (!/^\d{1,64}$/.test(paymentJobRef) || !Number.isFinite(context.issuedAt) ||
       context.issuedAt > now || now - context.issuedAt > MAX_AGE || !context.email) return { status: "review" };
   try {
     const claims = parseRippleReference(context.merchantReference, product.code);
-    if (claims?.purpose !== "listing_payment" || claims.targetId !== context.listingId) return { status: "review" };
+    if (claims?.purpose !== checkoutType || claims.targetId !== context.listingId) return { status: "review" };
   } catch { return { status: "review" }; }
 
   try {
@@ -34,7 +36,7 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
       const payment = await tx.payment.findUnique({ where: { id: context.paymentId }, include: { listing: { select: { userId: true } } } });
       if (!payment || payment.listingId !== context.listingId || payment.listing.userId !== context.userId ||
           payment.providerReference !== context.merchantReference || payment.paymentProvider !== "RIPPLE" ||
-          payment.type !== "LISTING" || payment.amount !== product.amountPence || payment.currency !== "gbp" ||
+          payment.type !== paymentType || payment.amount !== product.amountPence || payment.currency !== "gbp" ||
           payment.refundedAt || !["PENDING", "SUCCEEDED"].includes(payment.status)) return { status: "review" as const };
 
       const receipts = await tx.paymentWebhookInbox.findMany({ where: { paymentReference: paymentJobRef } });
@@ -50,7 +52,7 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
           : { status: "review" as const };
       }
       if (payment.providerPaymentId) return { status: "review" as const };
-      const pendingCount = await tx.payment.count({ where: { status: "PENDING", type: "LISTING", paymentProvider: "RIPPLE", listing: { userId: context.userId } } });
+      const pendingCount = await tx.payment.count({ where: { status: "PENDING", type: paymentType, paymentProvider: "RIPPLE", listing: { userId: context.userId } } });
       if (pendingCount !== 1) return { status: "review" as const };
       if (receipts.length === 0) return { status: "waiting" as const };
       if (receipts.length !== 1) return { status: "review" as const };
@@ -76,14 +78,17 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
           new Date(minimized.timestamp).getTime() !== inbox.eventTimestamp.getTime()) return { status: "review" as const };
 
       const event = eventFromMinimizedPayload({ minimized: { ...minimized, merchant_reference: context.merchantReference }, customerEmailNorm: inbox.customerEmailNorm });
-      if (event.metadata.listingId !== context.listingId || event.metadata.checkoutType !== "listing_payment" || event.paymentStatus !== "SUCCEEDED") return { status: "review" as const };
+      if (event.metadata.listingId !== context.listingId || event.metadata.checkoutType !== checkoutType || event.paymentStatus !== "SUCCEEDED") return { status: "review" as const };
       const claimed = await tx.paymentWebhookInbox.updateMany({ where: { id: inbox.id, status: "FAILED", lastErrorCode: "MISSING_REFERENCE", attemptCount: inbox.attemptCount }, data: { status: "PROCESSING", lastErrorCode: null, attemptCount: { increment: 1 } } });
       if (claimed.count !== 1) throw new ClaimChangedError();
       const reserved = await tx.payment.updateMany({ where: { id: payment.id, status: "PENDING", providerPaymentId: null, providerReference: context.merchantReference, refundedAt: null }, data: { providerPaymentId: paymentJobRef } });
       if (reserved.count !== 1) throw new ClaimChangedError();
       const applied = await createOrUpdateListingPayment(event, "SUCCEEDED", tx);
       if (!applied?.applied) throw new ClaimChangedError();
-      const notifications = await submitPaidListingForReview(payment.listingId, event, tx);
+      if (checkoutType === "featured_upgrade") {
+        await tx.listing.updateMany({ where: { id: payment.listingId, ...liveListingWhere() }, data: { featured: true } });
+      }
+      const notifications = checkoutType === "listing_payment" ? await submitPaidListingForReview(payment.listingId, event, tx) : [];
       const completed = await tx.paymentWebhookInbox.updateMany({ where: { id: inbox.id, status: "PROCESSING", attemptCount: inbox.attemptCount + 1 }, data: { status: "PROCESSED", processedAt: new Date(), lastErrorCode: null } });
       if (completed.count !== 1) throw new ClaimChangedError();
       return { status: "confirmed" as const, listingId: payment.listingId, notifications };
@@ -94,7 +99,7 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
         try { await captureBusinessEvent({ source: "BUSINESS", severity: "HIGH", title: "Listing notification failed after payment", message: "Hosted return reconciliation committed but its notification failed.", action: "reconcileHostedReturn", route: "/pay/success", requestPath: "/pay/success", tags: { checkoutType: "listing_payment" } }); } catch { /* Payment is already committed. */ }
       }
     }
-    return result.status === "confirmed" ? { status: "confirmed", listingId: result.listingId } : { status: result.status };
+    return result.status === "confirmed" ? { status: "confirmed", listingId: result.listingId, ...(checkoutType === "featured_upgrade" ? { checkoutType } : {}) } : { status: result.status };
   } catch (error) {
     if (error instanceof ClaimChangedError || (error && typeof error === "object" && "code" in error && ["P2002", "P2034"].includes(String(error.code)))) return { status: "waiting" };
     throw error;

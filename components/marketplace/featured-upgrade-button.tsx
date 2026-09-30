@@ -14,12 +14,14 @@ import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-st
 interface FeaturedUpgradeButtonProps {
   listingId: string;
   featuredUpgradePricePence: number;
+  previewTest?: boolean;
   variant?: "card" | "inline";
 }
 
 export function FeaturedUpgradeButton({
   listingId,
   featuredUpgradePricePence,
+  previewTest = false,
   variant = "card",
 }: FeaturedUpgradeButtonProps) {
   const [isPending, startTransition] = useTransition();
@@ -60,7 +62,7 @@ export function FeaturedUpgradeButton({
           title="Upgrade to featured"
         >
           <Star className="h-3.5 w-3.5" />
-          Feature
+          {previewTest ? `Test feature · ${formatGbpFromPence(featuredUpgradePricePence)}` : "Feature"}
         </Button>
         {error && (
           <p className="text-xs text-text-error" role="alert">
@@ -87,6 +89,7 @@ export function FeaturedUpgradeButton({
         <p className="text-sm font-semibold text-premium-gold-400 flex items-center gap-1.5">
           <Star className="h-4 w-4" />
           Upgrade to Featured
+          {previewTest ? " · Preview test" : ""}
         </p>
         <p className="text-sm text-text-secondary mt-0.5">
           Get more visibility with a promoted position in search results and on

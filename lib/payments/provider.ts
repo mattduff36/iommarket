@@ -5,6 +5,9 @@ import {
   assertRippleHostedCheckoutAvailable,
   getConfiguredRippleProductUrl,
   getRippleProductByCheckoutType,
+  getRippleTestSubscriptionProduct,
+  isRipplePreviewRuntime,
+  isRippleStagingLinkCode,
   getRippleWebhookSecret,
   isNonProductionRuntime,
   type RippleCheckoutType,
@@ -46,10 +49,20 @@ function buildFixedCheckoutUrl(
     targetId: string;
     amountInPence?: number;
     tier?: DealerTier;
+    testPlan?: boolean;
   }
 ): ProviderCheckoutResult {
   assertHostedCheckoutAvailable();
-  const product = getRippleProductByCheckoutType(checkoutType, params.tier);
+  const product = params.testPlan
+    ? getRippleTestSubscriptionProduct()
+    : getRippleProductByCheckoutType(checkoutType, params.tier);
+  if (!product) throw new Error("The weekly test subscription is only available on preview");
+  if (isRipplePreviewRuntime() && !isRippleStagingLinkCode(product.code)) {
+    throw new Error("RIPPLE_STAGING_LINK_REQUIRED");
+  }
+  if (params.testPlan && (checkoutType !== "dealer_subscription" || params.tier !== "STARTER")) {
+    throw new Error("The weekly test subscription uses Starter access");
+  }
   assertRippleAmountMatchesProduct(product, params.amountInPence);
   const baseUrl = getConfiguredRippleProductUrl(product);
   const merchantReference = createRippleReference({
@@ -136,6 +149,7 @@ export async function createListingCheckout(params: {
 export async function createDealerSubscriptionCheckout(params: {
   dealerId: string;
   tier: DealerTier;
+  testPlan?: boolean;
   amountInPence: number;
   customerEmail: string;
   successUrl: string;
@@ -145,6 +159,7 @@ export async function createDealerSubscriptionCheckout(params: {
     targetId: params.dealerId,
     amountInPence: params.amountInPence,
     tier: params.tier,
+    testPlan: params.testPlan,
   });
 }
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import { installRippleTestEnv } from "./ripple-test-env";
@@ -112,6 +112,7 @@ function renewalEvent(
 }
 
 describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
+  afterEach(() => vi.unstubAllEnvs());
   beforeEach(() => {
     installRippleTestEnv();
     vi.clearAllMocks();
@@ -124,6 +125,29 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
       dealerId: "dealer-1",
       status: "ACTIVE",
     });
+  });
+
+  it.each(["payment.received", "payment.succeeded"] as const)("grants seven days for a weekly test %s on preview", async (type) => {
+    const code = "ABCDEF0123456789";
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(null);
+    await processProviderWebhookEvent(renewalEvent({ type, amount: 100, linkCode: code, providerPlanId: code }));
+    expect(subscriptionCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      providerPlanId: code,
+      currentPeriodEnd: new Date("2026-09-22T10:15:27.000Z"),
+    }) }));
+    expect(subscriptionChargeCreate).toHaveBeenCalled();
+  });
+
+  it("does not fulfil a weekly test payment in production", async () => {
+    const code = "ABCDEF0123456789";
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    await expect(processProviderWebhookEvent(renewalEvent({ amount: 100, linkCode: code, providerPlanId: code }))).rejects.toThrow("Unknown Ripple product");
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).not.toHaveBeenCalled();
   });
 
   it("matches a renewal to the stored payer email when it differs from the account email", async () => {

@@ -317,7 +317,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         })
       ));
   const featuredUpgradePricePence = canUpgradeToFeatured
-    ? (await getMarketplacePricing()).featuredUpgradePence
+    ? getRippleTestFeaturedProduct()?.amountPence ?? (await getMarketplacePricing()).featuredUpgradePence
     : null;
 
   const listingPath = buildListingPath(listing.id);
@@ -627,6 +627,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             <FeaturedUpgradeButton
               listingId={listing.id}
               featuredUpgradePricePence={featuredUpgradePricePence!}
+              previewTest={Boolean(getRippleTestFeaturedProduct())}
             />
           )}
           {canUpgradeToFeatured &&
@@ -730,3 +731,4 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     </div>
   );
 }
+import { getRippleTestFeaturedProduct } from "@/lib/payments/ripple-config";

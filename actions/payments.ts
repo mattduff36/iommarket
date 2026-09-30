@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
-import { encodeHostedReturnContext, HOSTED_RETURN_COOKIE, HOSTED_RETURN_MAX_AGE_SECONDS } from "@/lib/payments/hosted-return-context";
+import { setHostedReturnContext } from "@/lib/payments/set-hosted-return-context";
+import { extractRippleLinkCode, getRippleTestSubscriptionProduct, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
@@ -83,6 +83,9 @@ function buildHostedReturnUrl(params: {
 }
 
 function toUserPaymentError(message: string) {
+  if (message.includes("RIPPLE_STAGING_LINK_REQUIRED")) {
+    return "This checkout needs a dedicated staging payment link. Use the weekly test plan, or contact the site administrator.";
+  }
   if (message.includes("RIPPLE_LISTING_PAYMENT_URL")) {
     return "Listing checkout is not configured yet. Please contact support.";
   }
@@ -312,19 +315,13 @@ export async function payForListing(input: PayForListingInput) {
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
-    (await cookies()).set(HOSTED_RETURN_COOKIE, encodeHostedReturnContext({
+    await setHostedReturnContext({
       userId: user.id,
       email: user.email.trim().toLowerCase(),
       paymentId: pendingPayment.payment.id,
       listingId: listing.id,
       merchantReference: session.merchantReference,
       issuedAt: Date.now(),
-    }), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: HOSTED_RETURN_MAX_AGE_SECONDS,
     });
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
@@ -350,6 +347,7 @@ export async function payForListing(input: PayForListingInput) {
 
 export async function createDealerSubscription(input: {
   tier?: "STARTER" | "PRO";
+  testPlan?: boolean;
   acceptedDealerTerms: boolean;
 }) {
   const user = await requireAcceptedAuth();
@@ -368,11 +366,17 @@ export async function createDealerSubscription(input: {
 
   const parsed = createDealerSubscriptionSchema.safeParse({
     dealerId: user.dealerProfile.id,
-    tier: input.tier ?? "STARTER",
+    tier: input.testPlan === true ? "STARTER" : input.tier ?? "STARTER",
+    testPlan: input.testPlan,
     acceptedDealerTerms: input.acceptedDealerTerms,
   });
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
+  }
+
+  const testProduct = input.testPlan === true ? getRippleTestSubscriptionProduct() : null;
+  if (input.testPlan === true && !testProduct) {
+    return { error: "The weekly test subscription is only available on the staging site." };
   }
 
   const { recordAcceptance } = await import("@/lib/policy/acceptance");
@@ -389,7 +393,8 @@ export async function createDealerSubscription(input: {
     const session = await createDealerSubscriptionCheckout({
       dealerId: parsed.data.dealerId,
       tier: parsed.data.tier,
-      amountInPence: getDealerPlanPricePence(pricing, parsed.data.tier),
+      amountInPence: testProduct?.amountPence ?? getDealerPlanPricePence(pricing, parsed.data.tier),
+      testPlan: input.testPlan === true,
       customerEmail: user.email,
       successUrl: buildHostedReturnUrl({
         status: "success",
@@ -403,6 +408,13 @@ export async function createDealerSubscription(input: {
       }),
     });
 
+    const productCode = extractRippleLinkCode(session.url);
+    if (!productCode) throw new Error("Invalid subscription checkout link");
+    await setHostedReturnContext({
+      kind: "dealer_subscription", userId: user.id, email: user.email.trim().toLowerCase(),
+      dealerId: parsed.data.dealerId, productCode,
+      merchantReference: session.merchantReference, issuedAt: Date.now(),
+    });
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
     await captureException({
@@ -489,9 +501,23 @@ export async function upgradeFeatured(listingId: string) {
         listingId: listing.id,
         returnTo: listingReturnTo,
       }),
-      amountInPence: pricing.featuredUpgradePence,
+      amountInPence: getRippleProductByCheckoutType("featured_upgrade").key === "featured"
+        ? pricing.featuredUpgradePence : getRippleProductByCheckoutType("featured_upgrade").amountPence,
     });
 
+    const productCode = extractRippleLinkCode(session.url);
+    if (!productCode) throw new Error("Invalid featured checkout link");
+    const product = getRippleProductByCheckoutType("featured_upgrade");
+    const pending = await persistPendingListingPayment({
+      listingId: listing.id, type: "FEATURED", merchantReference: session.merchantReference,
+      amountPence: product.amountPence, allowNewAfterSucceeded: true,
+    });
+    if (pending.alreadyPaid) return { error: "This featured upgrade has already been paid. Refresh your listing." };
+    await setHostedReturnContext({
+      kind: "featured_upgrade", userId: user.id, email: user.email.trim().toLowerCase(),
+      paymentId: pending.payment.id, listingId: listing.id, productCode,
+      merchantReference: session.merchantReference, issuedAt: Date.now(),
+    });
     return { data: { checkoutUrl: session.url } };
   } catch (err) {
     await captureException({

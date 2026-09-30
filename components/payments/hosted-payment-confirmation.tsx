@@ -29,7 +29,7 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
           try {
             // The original checkout tab only refreshes its server-backed status.
             window.localStorage.setItem("iomarket-payment-return", JSON.stringify({
-              status: "success", context: "listing", listingId: next.listingId, at: Date.now(),
+              status: "success", context: next.checkoutType === "dealer_subscription" ? "dealer" : "listing", listingId: next.listingId, at: Date.now(),
             }));
           } catch {
             // Storage may be unavailable; the explicit continuation still works.
@@ -45,7 +45,15 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
 
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface/60 p-4" role="status" aria-live="polite">
-      {result.status === "confirmed" && result.listingId ? <>
+      {result.status === "confirmed" && result.checkoutType === "dealer_subscription" ? <>
+        <h2 className="text-lg font-semibold">Your dealer subscription is confirmed</h2>
+        <p className="text-sm text-text-secondary">Your payment has been linked to your dealer account. Your subscription is ready to use.</p>
+        <Button asChild><Link href="/account">Continue to my account</Link></Button>
+      </> : result.status === "confirmed" && result.checkoutType === "featured_upgrade" && result.listingId ? <>
+        <h2 className="text-lg font-semibold">Your featured upgrade payment is confirmed</h2>
+        <p className="text-sm text-text-secondary">Your payment has been linked to your listing. Continue to check its featured status.</p>
+        <Button asChild><Link href="/account/listings">Continue to my listings</Link></Button>
+      </> : result.status === "confirmed" && result.listingId ? <>
         <h2 className="text-lg font-semibold">Your listing payment is confirmed</h2>
         <p className="text-sm text-text-secondary">Your payment has been linked to your listing. Continue to see its status and any remaining steps.</p>
         <Button asChild><Link href={`/sell/checkout?listing=${encodeURIComponent(result.listingId)}`}>Continue to my listing</Link></Button>
@@ -58,7 +66,7 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
         <Button asChild><Link href="/sign-in">Sign in</Link></Button>
       </> : <>
         <h2 className="text-lg font-semibold">Your payment needs a review</h2>
-        <p className="text-sm text-text-secondary">We couldn’t automatically link this payment. Your saved draft is still available. If you paid, please don’t pay again—our team can check it for you.</p>
+        <p className="text-sm text-text-secondary">We couldn’t automatically link this payment. If you paid, please don’t pay again—our team can check it for you.</p>
         <Button asChild><Link href="/contact">Get help with my payment</Link></Button>
       </>}
     </div>

@@ -21,7 +21,6 @@ import {
 } from "@/actions/payments";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
-import { RippleDealerEmbed } from "@/components/payments/ripple-dealer-embed";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import {
@@ -33,6 +32,8 @@ import {
 import { DEALER_TERMS_ACCEPTANCE_MESSAGE } from "@/lib/validations/payment";
 
 interface SubscribeFormProps {
+  checkoutUnavailable?: boolean;
+  testPlan?: boolean;
   tier: "STARTER" | "PRO";
   tierLabel: string;
   tierPrice: string;
@@ -41,6 +42,8 @@ interface SubscribeFormProps {
 }
 
 export function SubscribeForm({
+  checkoutUnavailable = false,
+  testPlan = false,
   tier,
   tierLabel,
   tierPrice,
@@ -99,6 +102,7 @@ export function SubscribeForm({
     }
     startTransition(async () => {
       const result = await createDealerSubscription({
+        testPlan,
         tier,
         acceptedDealerTerms: true,
       });
@@ -154,6 +158,16 @@ export function SubscribeForm({
 
   return (
     <div className="space-y-6">
+      {checkoutUnavailable && (
+        <p className="rounded-lg border p-4 text-sm text-text-secondary" role="note">
+          Subscription checkout on preview needs a dedicated test payment link. It is not configured yet.
+        </p>
+      )}
+      {testPlan && (
+        <p className="rounded-lg border border-neon-blue-500/30 p-4 text-sm text-text-secondary" role="note">
+          Preview test plan: this is a real £1 payment today and every week until cancelled in Ripple. It provides Starter access on preview only.
+        </p>
+      )}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-lg font-semibold text-text-primary mb-4">
@@ -173,7 +187,7 @@ export function SubscribeForm({
             {tierPrice}
             <span className="text-sm font-normal text-text-secondary">
               {" "}
-              / month
+              / {testPlan ? "week" : "month"}
             </span>
           </p>
         </CardContent>
@@ -233,9 +247,8 @@ export function SubscribeForm({
               Subscribe to {tierLabel}
             </h2>
             <p className="text-sm text-text-secondary mb-4">
-              Accept the dealer terms, then complete Ripple&apos;s signup form
-              on this page. Card collection still happens on Cashflows. Listing
-              and featured payments stay on hosted Ripple pay links.
+              Accept the dealer terms, then complete your secure payment with Ripple.
+              Return here after paying to see your subscription confirmation.
             </p>
             <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
             {notice && (
@@ -293,23 +306,18 @@ export function SubscribeForm({
                 </>
               }
             />
-            {termsRecorded ? (
-              <div className="mt-4">
-                <RippleDealerEmbed />
-              </div>
-            ) : null}
             <Button
               onClick={handleSubscribe}
+              disabled={checkoutUnavailable || !termsRecorded || !acceptedDealerTerms || isRecordingTerms}
               className="w-full mt-4"
-              variant="ghost"
               loading={isPending}
             >
-              Use hosted checkout instead
+              Subscribe for {tierPrice} per {testPlan ? "week" : "month"}
             </Button>
             <div className="mt-4">
               <PaymentAwaitingStatus
                 isAwaitingPayment={isAwaitingPayment}
-                message="This page checks for subscription confirmation automatically. Ripple does not redirect back after payment."
+                message="This page checks for subscription confirmation automatically. Please do not pay again while confirmation is pending."
               />
             </div>
           </CardContent>

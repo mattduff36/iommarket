@@ -537,7 +537,8 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                       {listing.status === "LIVE" && !listing.featured && (
                         <FeaturedUpgradeButton
                           listingId={listing.id}
-                          featuredUpgradePricePence={pricing.featuredUpgradePence}
+                          featuredUpgradePricePence={getRippleTestFeaturedProduct()?.amountPence ?? pricing.featuredUpgradePence}
+                          previewTest={Boolean(getRippleTestFeaturedProduct())}
                           variant="inline"
                         />
                       )}
@@ -610,3 +611,4 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     </div>
   );
 }
+import { getRippleTestFeaturedProduct } from "@/lib/payments/ripple-config";

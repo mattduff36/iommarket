@@ -41,9 +41,69 @@ export const RIPPLE_CANONICAL_PRODUCTS = {
 
 export type RippleProductKey = keyof typeof RIPPLE_CANONICAL_PRODUCTS;
 
-export type RippleProduct = (typeof RIPPLE_CANONICAL_PRODUCTS)[RippleProductKey];
+export type RippleTestSubscriptionProduct = {
+  key: "weekly-test";
+  code: string;
+  amountPence: 100;
+  checkoutType: "dealer_subscription";
+  tier: "STARTER";
+  billingInterval: "week";
+  envUrlKey: "RIPPLE_TEST_SUBSCRIPTION_URL";
+};
+
+export type RippleProduct = (typeof RIPPLE_CANONICAL_PRODUCTS)[RippleProductKey]
+  | RippleTestSubscriptionProduct
+  | { key: "featured-test"; code: string; amountPence: 50; checkoutType: "featured_upgrade"; envUrlKey: "RIPPLE_TEST_FEATURED_URL" };
 
 const RIPPLE_PAYMENT_ORIGIN = "https://portal.startyourripple.co.uk";
+
+export function isRipplePreviewRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VERCEL_ENV === "preview" ||
+    (!env.VERCEL_ENV && env.NODE_ENV === "development" && env.RIPPLE_ENABLE_LOCAL_TEST_PLANS === "1");
+}
+
+function getTestLinkCode(key: string, env: NodeJS.ProcessEnv): string | null {
+  const value = env[key]?.trim();
+  if (!value) return null;
+  const code = extractRippleLinkCode(value);
+  if (!code || Object.values(RIPPLE_CANONICAL_PRODUCTS).some((product) => product.code === code)) {
+    throw new Error(`${key} must use a dedicated test payment link`);
+  }
+  const otherKey = key === "RIPPLE_TEST_SUBSCRIPTION_URL"
+    ? "RIPPLE_TEST_FEATURED_URL" : "RIPPLE_TEST_SUBSCRIPTION_URL";
+  const otherUrl = env[otherKey];
+  if (otherUrl && extractRippleLinkCode(otherUrl) === code) {
+    throw new Error("Ripple staging products must use separate payment links");
+  }
+  const url = new URL(value);
+  if (url.origin !== RIPPLE_PAYMENT_ORIGIN || url.username || url.password || url.port ||
+    url.pathname !== `/card/${getRippleClientId(env)}/pay/${code}`) {
+    throw new Error(`${key} must use the canonical Ripple origin and client`);
+  }
+  return code;
+}
+
+/** Routing can recognise this product in production without granting its entitlements. */
+export function getConfiguredRippleTestSubscriptionProduct(env: NodeJS.ProcessEnv = process.env): RippleTestSubscriptionProduct | null {
+  const code = getTestLinkCode("RIPPLE_TEST_SUBSCRIPTION_URL", env);
+  return code ? { key: "weekly-test", code, amountPence: 100, checkoutType: "dealer_subscription", tier: "STARTER", billingInterval: "week", envUrlKey: "RIPPLE_TEST_SUBSCRIPTION_URL" } : null;
+}
+
+export function getRippleTestSubscriptionProduct(env: NodeJS.ProcessEnv = process.env): RippleTestSubscriptionProduct | null {
+  return isRipplePreviewRuntime(env) ? getConfiguredRippleTestSubscriptionProduct(env) : null;
+}
+
+export function getRippleTestFeaturedProduct(env: NodeJS.ProcessEnv = process.env): RippleProduct | null {
+  if (!isRipplePreviewRuntime(env)) return null;
+  const code = getTestLinkCode("RIPPLE_TEST_FEATURED_URL", env);
+  return code ? { key: "featured-test", code, amountPence: 50, checkoutType: "featured_upgrade", envUrlKey: "RIPPLE_TEST_FEATURED_URL" } : null;
+}
+
+export function isRippleStagingLinkCode(code: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!code) return false;
+  return ["RIPPLE_TEST_SUBSCRIPTION_URL", "RIPPLE_TEST_FEATURED_URL"]
+    .some((key) => getTestLinkCode(key, env) === code.trim().toUpperCase());
+}
 
 export function getTrimmedEnv(key: string): string | null {
   const value = process.env[key]?.trim();
@@ -147,7 +207,7 @@ export function getRippleProductByCheckoutType(
   tier?: DealerTier
 ): RippleProduct {
   if (checkoutType === "listing_payment") return RIPPLE_CANONICAL_PRODUCTS.listing;
-  if (checkoutType === "featured_upgrade") return RIPPLE_CANONICAL_PRODUCTS.featured;
+  if (checkoutType === "featured_upgrade") return getRippleTestFeaturedProduct() ?? RIPPLE_CANONICAL_PRODUCTS.featured;
   if (checkoutType === "dealer_subscription") {
     return tier === "PRO"
       ? RIPPLE_CANONICAL_PRODUCTS.pro

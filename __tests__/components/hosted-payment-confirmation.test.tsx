@@ -69,6 +69,16 @@ describe("HostedPaymentConfirmation", () => {
     expect(confirmMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["dealer_subscription", "Your dealer subscription is confirmed", "/account"],
+    ["featured_upgrade", "Your featured upgrade payment is confirmed", "/account/listings"],
+  ])("shows the appropriate continuation for %s", async (checkoutType, heading, href) => {
+    confirmMock.mockResolvedValue({ status: "confirmed", checkoutType, listingId: checkoutType === "featured_upgrade" ? "listing-1" : undefined });
+    await renderAndFlush(<HostedPaymentConfirmation paymentJobRef="1234567890" />);
+    expect(screen.getByText(heading)).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", href);
+  });
+
   it("caps repeated waiting responses and moves to review", async () => {
     confirmMock.mockResolvedValue({ status: "waiting" });
 

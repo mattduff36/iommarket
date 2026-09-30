@@ -25,6 +25,14 @@ describe("hosted payment return context", () => {
 
   afterEach(() => vi.unstubAllEnvs());
 
+  it("round trips featured and dealer contexts while preserving legacy listing cookies", () => {
+    const featured = { ...baseContext, kind: "featured_upgrade" as const, productCode: "1BB714D5DBC446B6" };
+    const dealer = { userId: baseContext.userId, email: baseContext.email, merchantReference: baseContext.merchantReference, issuedAt: baseContext.issuedAt, kind: "dealer_subscription" as const, dealerId: "dealer-1", productCode: "8181FAC1359E413E" };
+    for (const context of [baseContext, featured, dealer]) {
+      expect(decodeHostedReturnContext(encodeHostedReturnContext(context), baseContext.issuedAt)).toEqual(context);
+    }
+  });
+
   it("rejects a payload altered after signing", () => {
     const token = encodeHostedReturnContext(baseContext);
     const [payload, mac] = token.split(".");

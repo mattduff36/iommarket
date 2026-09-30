@@ -11,13 +11,14 @@ import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import { installRippleTestEnv, rippleEnvelope } from "./ripple-test-env";
 
 describe("authenticated hosted return reconciliation", () => {
-  let context: HostedReturnContext;
+  let context: Exclude<HostedReturnContext, { kind: "dealer_subscription" }>;
   let payment: Record<string, unknown>;
   let inbox: Record<string, unknown>;
   let tx: {
     payment: { findUnique: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> };
     paymentWebhookInbox: { findMany: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> };
     subscriptionCharge: { findUnique: ReturnType<typeof vi.fn> };
+    listing?: { updateMany: ReturnType<typeof vi.fn> };
   };
   const job = "260921004609311316";
   beforeEach(() => {
@@ -37,6 +38,22 @@ describe("authenticated hosted return reconciliation", () => {
     expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId });
     expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
     expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({ providerPaymentId: job, providerReference: context.merchantReference }), "SUCCEEDED", tx);
+  });
+  it("matches a featured payment and applies the upgrade without submitting a listing", async () => {
+    const product = RIPPLE_CANONICAL_PRODUCTS.featured;
+    context = { ...context, kind: "featured_upgrade", productCode: product.code };
+    context.merchantReference = createRippleReference({ purpose: "featured_upgrade", targetId: context.listingId, linkCode: product.code });
+    payment.providerReference = context.merchantReference;
+    payment.type = "FEATURED";
+    payment.amount = 500;
+    inbox.linkCode = product.code;
+    inbox.amountPence = 500;
+    inbox.minimizedPayload = { ...(inbox.minimizedPayload as object), link_code: product.code, amount: 5 };
+    tx.listing = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
+    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId, checkoutType: "featured_upgrade" });
+    expect(tx.listing.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { featured: true } }));
+    expect(mocks.submit).not.toHaveBeenCalled();
+    expect(tx.payment.count).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ type: "FEATURED" }) }));
   });
   it("waits for webhook arrival without writing paid state", async () => {
     tx.paymentWebhookInbox.findMany.mockResolvedValue([]);
