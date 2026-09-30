@@ -20,14 +20,17 @@ const { mockDb, tx, state } = vi.hoisted(() => {
     payment: { create: vi.fn() },
   };
   const mockDb = {
+    sampleCheckout: { findFirst: vi.fn() },
     $transaction: vi.fn(async (callback: (client: unknown) => unknown) => callback(tx)),
   };
   return { mockDb, tx, state };
 });
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 
-import { createSampleCheckout } from "@/lib/payments/sample-checkout";
+import { getCurrentUser } from "@/lib/auth";
+import { createSampleCheckout, getSampleCheckout } from "@/lib/payments/sample-checkout";
 
 const originalEnvironment = { ...process.env };
 
@@ -61,6 +64,19 @@ describe("sample checkout service", () => {
       listingId: "listing-1", paymentProvider: "DEV", providerReference: "sim_new-sample",
       idempotencyKey: "sim_new-sample", status: "PENDING", amount: 499,
     }) });
+  });
+
+  it("returns no checkout to an unauthenticated reader", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    expect(await getSampleCheckout("checkout-1")).toBeNull();
+    expect(mockDb.sampleCheckout.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("scopes read-only checkout access to the current user without requiring new policy acceptance", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>);
+    mockDb.sampleCheckout.findFirst.mockResolvedValue(null);
+    expect(await getSampleCheckout("checkout-1")).toBeNull();
+    expect(mockDb.sampleCheckout.findFirst).toHaveBeenCalledWith({ where: { id: "checkout-1", userId: "user-1" } });
   });
 
   it("rejects a target the authenticated user does not own before creating checkout or payment rows", async () => {

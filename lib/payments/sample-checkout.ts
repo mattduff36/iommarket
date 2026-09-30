@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { requireAcceptedAuth } from "@/lib/policy/gate";
+import { getCurrentUser } from "@/lib/auth";
 import type { Prisma, SampleCheckout } from "@prisma/client";
 import { assertSampleCheckoutEnabled, isSampleCheckoutEnabled, SAMPLE_MAX_ATTEMPTS } from "./sample-checkout-config";
 
@@ -84,7 +84,10 @@ export async function createSampleCheckout(input: {
 
 export async function getSampleCheckout(id: string): Promise<SampleCheckoutView | null> {
   if (!isSampleCheckoutEnabled()) return null;
-  const user = await requireAcceptedAuth();
+  // Reading an owned checkout is harmless if terms changed after it was opened.
+  // Creation and every payment mutation still require accepted account policies.
+  const user = await getCurrentUser();
+  if (!user) return null;
   const checkout = await db.sampleCheckout.findFirst({ where: { id, userId: user.id } });
   return checkout ? sampleCheckoutView(checkout) : null;
 }
