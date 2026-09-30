@@ -85,6 +85,7 @@ export async function proxy(request: NextRequest) {
   if (isPaymentReturnPath(pathname)) {
     const destination = stagingReturnDestination({
       url: request.nextUrl, method: request.method,
+      requestHost: request.headers.get("host"),
       cookie: request.cookies.get(CHECKOUT_ENVIRONMENT_COOKIE)?.value,
     });
     if (destination) {

@@ -20,6 +20,14 @@ describe("staging return routing", () => {
       expect(stagingReturnDestination({ ...input, cookie }, prod, now)).toBeNull();
     }
   });
+  it("uses the exact incoming host when Vercel normalizes the request URL", () => {
+    const normalized = { ...input, url: new URL("https://deployment.vercel.app/pay/success?paymentjobref=123") };
+    expect(stagingReturnDestination({ ...normalized, requestHost: "itrader.im" }, prod, now)?.href)
+      .toBe("https://preview.itrader.im/pay/success?paymentjobref=123");
+    for (const requestHost of [null, "preview.itrader.im", "evil.example", "itrader.im.evil.example", "itrader.im,evil.example"]) {
+      expect(stagingReturnDestination({ ...input, requestHost }, prod, now)).toBeNull();
+    }
+  });
   it("sets only a low-privilege shared cookie on the staging domain and clears it for production checkout", () => {
     expect(checkoutRoutingCookie({ VERCEL_ENV: "preview", NEXT_PUBLIC_APP_URL: "https://preview.itrader.im" }, now)?.value).toBe(`preview.${now}`);
     expect(checkoutRoutingCookie(prod, now)?.options.maxAge).toBe(0);

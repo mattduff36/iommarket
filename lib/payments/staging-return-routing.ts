@@ -21,10 +21,15 @@ export function checkoutRoutingCookie(env: Record<string, string | undefined> = 
 }
 
 export function stagingReturnDestination(input: {
-  url: URL; method: string; cookie?: string;
+  url: URL; method: string; cookie?: string; requestHost?: string | null;
 }, env: Record<string, string | undefined> = process.env, now = Date.now()): URL | null {
+  // Vercel may normalize nextUrl to its deployment hostname. The incoming Host
+  // is only an exact allowlist check; it never supplies the redirect destination.
+  const productionHost = input.requestHost === undefined
+    ? input.url.origin === "https://itrader.im"
+    : input.requestHost === "itrader.im";
   if (env.VERCEL_ENV !== "production" || input.method !== "GET" ||
-      input.url.origin !== "https://itrader.im" || !isPaymentReturnPath(input.url.pathname)) return null;
+      !productionHost || !isPaymentReturnPath(input.url.pathname)) return null;
   const match = /^preview\.(\d{13})$/.exec(input.cookie ?? "");
   if (!match) return null;
   const age = now - Number(match[1]);
