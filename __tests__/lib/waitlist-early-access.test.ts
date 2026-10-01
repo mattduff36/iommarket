@@ -61,6 +61,7 @@ describe("early-access delivery guard", () => {
     ).toBe(false);
     expect(canSendEarlyAccessTest({ VERCEL_ENV: "preview" })).toBe(true);
     expect(canSendEarlyAccessTest({ VERCEL_ENV: "production" })).toBe(true);
+    expect(canSendEarlyAccessTest({ PRODUCTION_LAUNCH_ENABLED: "1" })).toBe(true);
     expect(
       canSendEarlyAccessTest({ VERCEL_ENV: "production", PRODUCTION_LAUNCH_ENABLED: "1" }),
     ).toBe(false);

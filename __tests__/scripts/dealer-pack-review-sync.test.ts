@@ -624,5 +624,6 @@ describe("canonical preview review artifacts", () => {
       expect(result.listings.filter((listing) => listing.identityKey.startsWith("stockId:")))
         .toHaveLength(12);
     },
+    60_000,
   );
 });

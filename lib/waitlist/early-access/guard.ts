@@ -6,7 +6,8 @@ export function canSendEarlyAccessBulk(env: RuntimeEnv = process.env): boolean {
 }
 
 export function canSendEarlyAccessTest(env: RuntimeEnv = process.env): boolean {
-  return shouldEnforceLaunchGate(env) || env.VERCEL_ENV === "preview";
+  if (env.VERCEL_ENV === "production") return shouldEnforceLaunchGate(env);
+  return true;
 }
 
 export function sanitizeEarlyAccessError(error: unknown): string {

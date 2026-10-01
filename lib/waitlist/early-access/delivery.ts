@@ -139,6 +139,8 @@ export async function deliverEarlyAccessRecipient(id: string): Promise<EarlyAcce
     });
     const sent = await sendStrictResendEmail({
       to: recipient.waitlistUser.email,
+      from: email.from,
+      replyTo: email.replyTo,
       subject: email.subject,
       text: email.text,
       html: email.html,

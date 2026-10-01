@@ -1,6 +1,8 @@
 import { renderBrandedEmail } from "@/lib/email/layout";
 
-export const EARLY_ACCESS_EMAIL_SUBJECT = "Your iTrader early access invitation";
+export const EARLY_ACCESS_EMAIL_FROM = "David at iTrader.im <hello@itrader.im>";
+export const EARLY_ACCESS_EMAIL_REPLY_TO = "hello@itrader.im";
+export const EARLY_ACCESS_EMAIL_SUBJECT = "Your early access to iTrader.im is here";
 export const EARLY_ACCESS_EMAIL_TITLE = "You're invited to iTrader";
 export const EARLY_ACCESS_EMAIL_ACTION = "Create your account";
 
@@ -18,12 +20,14 @@ export function buildWaitlistEarlyAccessEmail(input: {
 }) {
   const paragraphs = bodyParagraphs(input.bodyText);
   return {
+    from: EARLY_ACCESS_EMAIL_FROM,
+    replyTo: EARLY_ACCESS_EMAIL_REPLY_TO,
     subject: input.test
       ? `[Test] ${EARLY_ACCESS_EMAIL_SUBJECT}`
       : EARLY_ACCESS_EMAIL_SUBJECT,
     ...renderBrandedEmail({
       eyebrow: "Early access",
-      preheader: paragraphs[0]?.slice(0, 140) || "Your iTrader early access invitation.",
+      preheader: paragraphs[0]?.slice(0, 140) || EARLY_ACCESS_EMAIL_SUBJECT,
       title: EARLY_ACCESS_EMAIL_TITLE,
       paragraphs,
       actionHref: input.claimUrl,

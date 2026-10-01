@@ -88,6 +88,9 @@ describe("early-access delivery", () => {
     expect(mocks.sendStrictResendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "member@example.com",
+        from: "David at iTrader.im <hello@itrader.im>",
+        replyTo: "hello@itrader.im",
+        subject: "Your early access to iTrader.im is here",
         headers: { "X-Entity-Ref-ID": "waitlist-ea-campaign-1-recipient-1-1" },
       }),
     );

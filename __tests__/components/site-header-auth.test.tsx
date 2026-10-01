@@ -22,6 +22,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next/dynamic", () => ({ default: () => ({ listingId, open }: { listingId: string; open: boolean }) => open ? <section role="dialog">Admin editor for {listingId}</section> : null }));
 
+vi.mock("@/components/admin/listing-edit-dialog", () => ({
+  ListingEditDialog: ({ listingId, open }: { listingId: string; open: boolean }) =>
+    open ? <section role="dialog">Admin editor for {listingId}</section> : null,
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
@@ -201,7 +206,7 @@ describe("SiteHeader auth initialization", () => {
     await waitFor(() => expect(screen.getByTestId("header-auth-state")).toHaveTextContent("ready"));
     await user.click(screen.getByRole("button", { name: "Toggle menu" }));
     await user.click(screen.getByRole("button", { name: "Edit as Admin" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("cmtestlisting");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("cmtestlisting");
   });
 
   it("hides the mobile Preview packs expander for members", async () => {

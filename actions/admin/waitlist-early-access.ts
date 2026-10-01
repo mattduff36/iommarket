@@ -82,7 +82,7 @@ export async function sendEarlyAccessTest(input: { bodyText: string }) {
   const parsed = earlyAccessBodySchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
   if (!canSendEarlyAccessTest()) {
-    return { error: "Test invitations are available on Preview, or while the launch gate is closed." };
+    return { error: "Test invitations are closed once production launch is open." };
   }
   const rateError = rateLimitActionError(
     await checkRateLimit(`waitlist-early-access-test:${admin.id}`, SEND_RATE),
@@ -124,6 +124,8 @@ export async function sendEarlyAccessTest(input: { bodyText: string }) {
     });
     const sent = await sendStrictResendEmail({
       to: admin.email,
+      from: email.from,
+      replyTo: email.replyTo,
       subject: email.subject,
       text: email.text,
       html: email.html,

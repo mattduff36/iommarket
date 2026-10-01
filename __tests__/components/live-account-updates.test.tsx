@@ -8,7 +8,8 @@ import { LiveAccountUpdates, shouldWatchAccountPage } from "@/components/account
 
 describe("background account updates", () => {
   beforeEach(() => {
-    vi.useFakeTimers(); vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    vi.clearAllMocks();
     navigation.path = "/account/listings";
     vi.stubGlobal("fetch", fetchMock);
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
