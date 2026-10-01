@@ -32,7 +32,8 @@ export function buildLiveDealerCensus(input: {
   const disappeared =
     input.t0Accessible &&
     t1ListAccessible &&
-    cardDeltas.removed.length > 0;
+    cardDeltas.removed.length > 0 &&
+    cardDeltas.unchanged > 0;
   const drift = disappeared;
   return {
     dealerKey: input.dealerKey,
@@ -63,12 +64,25 @@ export function dealerShouldHidePack(input: {
   censusDrift?: boolean;
   t1ListAccessible?: boolean;
 }) {
+  const recoveredAfterT0 =
+    !input.t0Accessible &&
+    input.t1ListAccessible === true &&
+    input.plannedCount > 0 &&
+    input.t1AccessibleCount === input.plannedCount;
   return (
-    !input.t0Accessible ||
-    input.inaccessibleListings > 0 ||
-    (input.unverifiedListings ?? 0) > 0 ||
-    input.censusDrift === true ||
-    (input.t0Accessible && input.t1ListAccessible === false)
+    (!input.t0Accessible && !recoveredAfterT0) ||
+    (input.t0Accessible &&
+      input.t1ListAccessible === false &&
+      input.t1AccessibleCount < input.plannedCount)
+  );
+}
+
+export function dealerCensusRecoveredAfterT0(census: LiveDealerCensus) {
+  return (
+    !census.t0Accessible &&
+    census.t1ListAccessible &&
+    census.plannedCount > 0 &&
+    census.t1AccessibleCount === census.plannedCount
   );
 }
 
@@ -81,12 +95,14 @@ export function hidePackReason(input: {
   t1ListAccessible?: boolean;
 }) {
   if (!input.hidePack) return null;
-  if ((input.unverifiedListings ?? 0) > 0) return "listing-unverified";
   if (!input.t0Accessible && input.inaccessibleListings === 0) {
     return "dealer-site-inaccessible";
   }
-  if (input.inaccessibleListings > 0) return "listing-inaccessible";
-  if (input.t0Accessible && input.t1ListAccessible === false) {
+  if (
+    input.t0Accessible &&
+    input.t1ListAccessible === false &&
+    input.inaccessibleListings > 0
+  ) {
     return T1_STOCK_LIST_INACCESSIBLE_REASON;
   }
   if (input.censusDrift) return CENSUS_DRIFT_HIDE_REASON;
@@ -96,9 +112,19 @@ export function hidePackReason(input: {
 export function applyCensusDriftToListings(
   listings: LiveVisualListingResult[],
   censusDrift: boolean,
+  removedCardKeys?: string[],
 ): LiveVisualListingResult[] {
   if (!censusDrift) return listings;
   return listings.map((listing) => {
+    if (removedCardKeys) {
+      const listingKeys = new Set([
+        listing.planned.canonicalUrl,
+        listing.observed?.canonicalUrl ?? null,
+        listing.planned.stockId ? `stock:${listing.planned.stockId}` : null,
+        listing.observed?.stockId ? `stock:${listing.observed.stockId}` : null,
+      ].filter((key): key is string => Boolean(key)));
+      if (!removedCardKeys.some((key) => listingKeys.has(key))) return listing;
+    }
     if (listing.status === "pass") {
       return {
         ...listing,

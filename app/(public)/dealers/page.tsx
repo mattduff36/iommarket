@@ -28,7 +28,10 @@ export default async function DealersPage() {
   const sampleVisibility = await getSampleVisibility();
   const dealers = await db.dealerProfile.findMany(
     getMarketplaceDealerDirectoryQuery(
-      await marketplaceListingWhereWithSettings({ viewer: currentUser }),
+      await marketplaceListingWhereWithSettings({
+        viewer: currentUser,
+        includeDisabledPreviewPacks: true,
+      }),
       currentUser,
       sampleVisibility,
     ),

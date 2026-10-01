@@ -6,7 +6,9 @@ export const PUBLIC_LISTING_STATUSES: readonly ListingStatus[] = ["LIVE", "SOLD"
 export function isListingPubliclyVisible(input: {
   status: ListingStatus;
   expiresAt: Date | null;
+  dealerAccess?: boolean;
 }) {
+  if (input.dealerAccess === false) return false;
   if (input.status === "SOLD") return true;
   if (input.status !== "LIVE") return false;
   return !isListingEffectivelyExpired(input);
@@ -20,11 +22,12 @@ export function canViewListing(input: {
   status: ListingStatus;
   expiresAt: Date | null;
   listingUserId: string;
+  dealerAccess?: boolean;
   viewer?: { id: string; role: string } | null;
   previewPackEnabled?: boolean | null;
 }) {
   if (isAdminPreviewListing(input.status)) {
-    return input.viewer?.role === "ADMIN" && input.previewPackEnabled === true;
+    return input.viewer?.role === "ADMIN";
   }
   if (isListingPubliclyVisible(input)) return true;
   if (!input.viewer) return false;

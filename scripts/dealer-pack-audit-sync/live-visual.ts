@@ -126,6 +126,7 @@ export async function runLiveVisualCli(
       fetchImage:
         deps.fetchImage ??
         ((url) => safeFetchRemoteImage(url)),
+      dealerConcurrency: 4,
       evidence: deps.evidence ?? createFsEvidenceStore(plan.runId, cwd),
       now: deps.now,
     },

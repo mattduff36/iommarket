@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getRippleTestSubscriptionProduct, isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { getCurrentDealerEntitlement } from "@/lib/dealers/entitlement";
 import {
@@ -46,17 +47,10 @@ interface Props {
 
 export default async function DealerSubscribePage({ searchParams }: Props) {
   const params = searchParams ? await searchParams : {};
-  const testProduct = getRippleTestSubscriptionProduct();
-  if (isRipplePreviewRuntime() && params.plan !== "weekly-test" && testProduct) {
-    redirect("/dealer/subscribe?plan=weekly-test");
-  }
-  const testPlan = params.plan === "weekly-test" && Boolean(testProduct);
-  if (params.plan === "weekly-test" && !testProduct) redirect("/pricing");
-  const tier =
-    !testPlan && (params.tier === "PRO" || params.tier === "STARTER")
-      ? params.tier
-      : "STARTER";
-  const intendedSubscribePath = testPlan ? "/dealer/subscribe?plan=weekly-test" : `/dealer/subscribe?tier=${tier}`;
+  const tier = params.tier === "PRO" || params.tier === "STARTER"
+    ? params.tier
+    : "STARTER";
+  const intendedSubscribePath = `/dealer/subscribe?tier=${tier}`;
 
   const [user, pricing] = await Promise.all([
     requireAcceptedUser(intendedSubscribePath),
@@ -72,24 +66,30 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
     }
   }
 
-  const tierLabel = testPlan ? "Weekly Test" : DEALER_TIER_LABELS[tier];
+  const tierLabel = DEALER_TIER_LABELS[tier];
   const details = TIER_DETAILS[tier];
-  const tierPrice = formatGbpFromPence(testPlan ? 100 : getDealerPlanPricePence(pricing, tier));
+  const tierPrice = formatGbpFromPence(getDealerPlanPricePence(pricing, tier));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
+      {dealerProfile && (
+        <div role="status" className="mb-8 rounded-lg border border-border bg-surface p-4 text-sm text-text-secondary">
+          <p className="font-semibold text-text-primary">Your dealer membership is not active</p>
+          <p className="mt-2">Your dealer listings are hidden from buyers until membership is restored. Your account and saved listings are still available. Expired listings will still need renewal.</p>
+          <p className="mt-2">Choose a plan below, or contact iTrader if you believe your access should still be active.</p>
+        </div>
+      )}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-text-primary font-heading">
           Dealer {tierLabel} Plan
         </h1>
         <p className="mt-2 text-text-secondary">
-          {tierPrice}/{testPlan ? "week" : "month"} &middot; Cancel anytime
+          {tierPrice}/month &middot; Cancel anytime
         </p>
       </div>
 
       <SubscribeForm
-        checkoutUnavailable={isRipplePreviewRuntime() && !testProduct}
-        testPlan={testPlan}
+        checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
         tier={tier}
         tierLabel={tierLabel}
         tierPrice={tierPrice}

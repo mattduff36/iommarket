@@ -16,12 +16,12 @@ describe("marketplace dealer access", () => {
     expect(getMarketplaceDealerWhere({ role: "ADMIN" }, now)).toEqual({
       OR: [
         getPublicDealerWhere(now),
-        { isAdminPreview: true, previewPack: { enabled: true } },
+        { isAdminPreview: true },
       ],
     });
   });
 
-  it("404s disabled preview dealer pages even for admins", () => {
+  it("lets admins view disabled preview dealer pages without opening them to the public", () => {
     expect(
       canViewMarketplaceDealerProfile({
         viewer: { role: "ADMIN" },
@@ -29,7 +29,7 @@ describe("marketplace dealer access", () => {
         previewPackEnabled: false,
         hasEntitlement: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canViewMarketplaceDealerProfile({
         viewer: { role: "ADMIN" },
@@ -53,7 +53,7 @@ describe("marketplace dealer access", () => {
     expect(getMarketplaceDealerWhere({ role: "ADMIN" }, now)).toEqual({
       OR: [
         getPublicDealerWhere(now),
-        { isAdminPreview: true, previewPack: { enabled: true } },
+        { isAdminPreview: true },
       ],
     });
     expect(
@@ -83,7 +83,7 @@ describe("marketplace dealer access", () => {
     expect(getMarketplaceDealerWhere({ role: "ADMIN" }, now, hidden)).toEqual({
       OR: [
         getPublicDealerWhere(now, hidden),
-        { isAdminPreview: true, previewPack: { enabled: true } },
+        { isAdminPreview: true },
       ],
     });
   });

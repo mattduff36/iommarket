@@ -56,6 +56,12 @@ export function getEnabledPreviewDealerWhere(): Prisma.DealerProfileWhereInput {
   };
 }
 
+export function getAdminPreviewDealerWhere(): Prisma.DealerProfileWhereInput {
+  return {
+    isAdminPreview: true,
+  };
+}
+
 export function getMarketplaceDealerWhere(
   viewer?: { role: string } | null,
   now = new Date(),
@@ -64,7 +70,7 @@ export function getMarketplaceDealerWhere(
   const publicWhere = getPublicDealerWhere(now, sampleVisibility);
   if (viewer?.role !== "ADMIN") return publicWhere;
   return {
-    OR: [publicWhere, getEnabledPreviewDealerWhere()],
+    OR: [publicWhere, getAdminPreviewDealerWhere()],
   };
 }
 
@@ -82,7 +88,7 @@ export function canViewMarketplaceDealerProfile(input: {
   hasEntitlement: boolean;
 }) {
   if (input.isAdminPreview) {
-    return input.viewer?.role === "ADMIN" && input.previewPackEnabled;
+    return input.viewer?.role === "ADMIN";
   }
   if (input.hasEntitlement) return true;
   return input.viewer?.role === "ADMIN";

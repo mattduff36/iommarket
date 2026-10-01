@@ -17,6 +17,7 @@ import {
 import { PREVIEW_PACK_TABLE_COLUMNS } from "@/lib/admin/table-columns";
 import type { AdminSortState } from "@/lib/admin/table-state";
 import type { PreviewPackListRow } from "@/lib/preview-packs/archive";
+import { PreviewReviewNotice } from "@/components/preview/preview-review-notice";
 import { PreviewPackActions } from "./preview-pack-actions";
 
 export function PreviewPacksTable({
@@ -50,7 +51,15 @@ export function PreviewPacksTable({
         {rows.map((row) => (
           <TableRow key={row.dealerKey}>
             <TableCell data-column="dealer">
-              <AdminDataCell title={row.displayName} subtitle={row.dealerKey} />
+              <div className="space-y-2">
+                <AdminDataCell title={row.displayName} subtitle={row.dealerKey} />
+                {row.reviewRequired ? (
+                  <PreviewReviewNotice
+                    reasons={row.reviewReasons}
+                    sourceRunId={row.reviewSourceRunId}
+                  />
+                ) : null}
+              </div>
             </TableCell>
             <TableCell data-column="snapshot" className="text-xs text-text-secondary">
               {row.runId ?? "—"}
@@ -66,9 +75,9 @@ export function PreviewPacksTable({
             </TableCell>
             <TableCell data-column="status">
               {row.enabled ? (
-                <Badge variant="warning">Visible to admins</Badge>
-              ) : row.materialized ? (
-                <Badge variant="neutral">Hidden</Badge>
+                <Badge variant="warning">Enabled</Badge>
+              ) : row.loaded ? (
+                <Badge variant="neutral">Disabled · admin review only</Badge>
               ) : (
                 <Badge variant="neutral">Not loaded</Badge>
               )}

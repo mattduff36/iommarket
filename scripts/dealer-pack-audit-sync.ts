@@ -38,6 +38,7 @@ import {
   verifyRequiredBackup,
 } from "./dealer-pack-audit-sync/safety";
 import { loadCliProductionLiveExclusions } from "./dealer-pack-audit-sync/finalize-live-cli";
+import { assertFinalizedPreviewPlan } from "./dealer-pack-audit-sync/finalize-live";
 import type { PreviewPackApplyReport } from "./dealer-pack-audit-sync/types";
 import type { ProductionApplyReport } from "./dealer-pack-audit-sync/production-types";
 import {
@@ -101,6 +102,14 @@ function loadPreviewUrl(argv: string[]) {
   const envFile = parseArgValue(argv, "preview-env") ?? ".env.local";
   const env = loadConnectionEnv(envFile);
   const url = chooseDirectConnectionString(connectionCandidates(env), "preview");
+  const cloudinaryEnvFile = parseArgValue(argv, "cloudinary-env");
+  if (cloudinaryEnvFile) {
+    const cloudinary = loadFoundingProductionEnv(cloudinaryEnvFile);
+    process.env.SUPABASE_DB_CA_CERT = cloudinary.dbCaCert;
+    process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = cloudinary.cloudinaryCloudName;
+    process.env.CLOUDINARY_API_KEY = cloudinary.cloudinaryApiKey;
+    process.env.CLOUDINARY_API_SECRET = cloudinary.cloudinaryApiSecret;
+  }
   process.env.DATABASE_URL = url;
   process.env.POSTGRES_URL_NON_POOLING = url;
   return url;
@@ -185,6 +194,7 @@ async function applyPreview(argv: string[], prisma: PrismaClient, url: string) {
   if (!runId) throw new Error("--run-id is required.");
   const plan = await readFrozenPlan(auditPlanPath(runId));
   if (plan.runId !== runId) throw new Error("Frozen preview plan run ID mismatch.");
+  assertFinalizedPreviewPlan(plan);
   assertApplySafety({ argv, plan, databaseUrl: url });
   verifyRequiredBackup(process.cwd(), plan.backupId);
   const reportPath = resolve(auditRunDir(runId), "apply-report.json");
@@ -216,6 +226,7 @@ async function verifyPreview(argv: string[], prisma: PrismaClient, url: string) 
   });
   const plan = await readFrozenPlan(auditPlanPath(runId));
   if (plan.runId !== runId) throw new Error("Frozen preview plan run ID mismatch.");
+  assertFinalizedPreviewPlan(plan);
   verifyRequiredBackup(process.cwd(), plan.backupId);
   const applyPath = resolve(auditRunDir(runId), "apply-report.json");
   const applyReport = await readFile(applyPath, "utf8")

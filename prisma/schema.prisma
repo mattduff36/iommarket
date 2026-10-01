@@ -85,6 +85,7 @@ model User {
   freeListingClaim   FreeListingClaim?
   listingImageUploadIntents ListingImageUploadIntent[]
   policyAcceptances PolicyAcceptance[]
+  sampleCheckouts SampleCheckout[]
   cancellationRequestsRequested DealerCancellationRequest[] @relation("CancellationRequestedBy")
   cancellationRequestsProcessed DealerCancellationRequest[] @relation("CancellationProcessedBy")
   cancellationRequestEvents DealerCancellationRequestEvent[]
@@ -125,8 +126,20 @@ model DealerProfile {
   previewPack   DealerPreviewPack?
   onboardingInvites DealerOnboardingInvite[]
   correspondenceSettings DealerCorrespondenceSettings?
+  historicalSlugs      DealerProfileSlugHistory[]
 
   @@index([slug])
+}
+
+model DealerProfileSlugHistory {
+  id                 String         @id @default(cuid())
+  dealerId           String?
+  slug               String         @unique
+  changedAt          DateTime       @default(now())
+  countsTowardsLimit Boolean        @default(false)
+  dealer             DealerProfile? @relation(fields: [dealerId], references: [id], onDelete: SetNull, onUpdate: Restrict)
+
+  @@index([dealerId, countsTowardsLimit, changedAt])
 }
 
 enum DealerEmailCategory {
@@ -300,6 +313,11 @@ enum ListingStatus {
   ADMIN_PREVIEW
 }
 
+enum PreviewReviewState {
+  NONE
+  NEEDS_REVIEW
+}
+
 enum ListingLifecycleAction {
   SUBMIT
   WITHDRAW
@@ -394,6 +412,10 @@ model Listing {
   lifecycleRevision          Int      @default(0)
   retentionPurgedAt DateTime?
   previewPackId String?
+  reviewState          PreviewReviewState @default(NONE)
+  reviewReasons        String[]           @default([])
+  reviewSourceIdentity String?
+  reviewSourceUrl      String?
   approvedAt  DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -422,6 +444,9 @@ model Listing {
   @@index([userId])
   @@index([dealerId])
   @@index([previewPackId])
+  @@index([reviewState])
+  @@index([reviewSourceIdentity])
+  @@unique([previewPackId, reviewSourceIdentity])
   @@index([createdAt])
   @@index([approvedAt])
 }
@@ -432,6 +457,9 @@ model DealerPreviewPack {
   displayName     String
   sourceRunId     String
   enabled         Boolean  @default(false)
+  reviewState       PreviewReviewState @default(NONE)
+  reviewReasons     String[]           @default([])
+  reviewSourceRunId String?
   dealerProfileId String   @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -440,6 +468,7 @@ model DealerPreviewPack {
   listings      Listing[]
 
   @@index([enabled])
+  @@index([reviewState])
 }
 
 model ListingStatusEvent {
@@ -668,6 +697,27 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// Preview simulator only. No real provider credentials or card data are stored.
+model SampleCheckout {
+  id           String   @id @default(cuid())
+  userId       String
+  kind         String
+  targetId     String
+  description  String
+  amountPence  Int
+  currency     String   @default("gbp")
+  tier         DealerTier?
+  status       String   @default("PENDING")
+  attemptCount Int      @default(0)
+  returnUrl    String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, targetId, kind, createdAt])
+}
+
 enum PaymentType {
   LISTING
   FEATURED
@@ -696,6 +746,8 @@ model Payment {
   amount                         Int             // in pence
   currency                       String          @default("gbp")
   type                           PaymentType     @default(LISTING)
+  includesFeatured               Boolean         @default(false)
+  featuredAppliedAt              DateTime?
   status                         PaymentStatus   @default(PENDING)
   idempotencyKey                 String?         @unique
   refundReason                   RefundReason?

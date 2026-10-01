@@ -51,6 +51,7 @@ vi.mock("@/lib/upload/cloudinary", () => ({
 }));
 
 import {
+  DEALER_PACK_PRODUCTION_CLEANUP_HOLD_MS,
   expireAbandonedListingImageIntents,
   processListingImageCleanupJobs,
 } from "@/lib/listings/photo-cleanup";
@@ -177,6 +178,26 @@ describe("PHOTO-ORPHAN-001 listing photo cleanup", () => {
         lastError: null,
       }),
     });
+  });
+
+  it("AUDIT-ROLLBACK-01 holds production audit media for the rollback window", async () => {
+    cleanupFindMany.mockResolvedValue([]);
+    const before = Date.now();
+
+    await processListingImageCleanupJobs();
+
+    const where = cleanupFindMany.mock.calls[0]?.[0]?.where;
+    const holdFilter = where.AND[1].OR;
+    expect(holdFilter).toContainEqual({
+      reason: { not: { startsWith: "dealer-pack-production-sync:" } },
+    });
+    const cutoff = holdFilter[1].createdAt.lte as Date;
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(
+      before - DEALER_PACK_PRODUCTION_CLEANUP_HOLD_MS - 100,
+    );
+    expect(cutoff.getTime()).toBeLessThanOrEqual(
+      Date.now() - DEALER_PACK_PRODUCTION_CLEANUP_HOLD_MS,
+    );
   });
 
   it("completes cleanup jobs idempotently when Cloudinary already deleted the asset", async () => {

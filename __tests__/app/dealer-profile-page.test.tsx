@@ -12,12 +12,16 @@ const liveListingWhereMock = vi.fn(() => ({ status: "LIVE" }));
 const marketplaceListingWhereMock = vi.fn(() => ({ status: "LIVE" }));
 const findUniqueMock = vi.fn();
 const findFirstMock = vi.fn();
+const findHistoricalSlugMock = vi.fn();
 const aggregateMock = vi.fn();
 const findManyReviewsMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("notFound");
+  },
+  permanentRedirect: (path: string) => {
+    throw new Error(`permanentRedirect:${path}`);
   },
 }));
 
@@ -43,6 +47,7 @@ vi.mock("@/lib/listings/marketplace", () => ({
   marketplaceListingWhere: marketplaceListingWhereMock,
   marketplaceListingWhereWithSettings: async () => marketplaceListingWhereMock(),
   marketplaceListingBadge: () => undefined,
+  ADMIN_PREVIEW_BADGE: "Preview — not public",
 }));
 
 vi.mock("@/lib/listings/sample-visibility", () => ({
@@ -55,6 +60,9 @@ vi.mock("@/lib/db", () => ({
     dealerProfile: {
       findUnique: findUniqueMock,
       findFirst: findFirstMock,
+    },
+    dealerProfileSlugHistory: {
+      findUnique: findHistoricalSlugMock,
     },
     dealerReview: {
       aggregate: aggregateMock,
@@ -124,6 +132,7 @@ describe("DealerProfilePage", () => {
       _count: { _all: 0 },
     });
     findManyReviewsMock.mockResolvedValue([]);
+    findHistoricalSlugMock.mockResolvedValue(null);
   });
 
   it("adds a canonical URL only for a publicly eligible dealer", async () => {
@@ -153,6 +162,105 @@ describe("DealerProfilePage", () => {
         where: { slug: "douglas-auto-exchange" },
       }),
     );
+  });
+
+  it("permanently redirects an eligible historical address to the current slug", async () => {
+    findHistoricalSlugMock.mockResolvedValue({
+      dealer: {
+        id: "dealer-1",
+        name: "Douglas Auto Exchange",
+        slug: "douglas-auto-exchange-current",
+        tier: "STARTER",
+        isAdminPreview: false,
+        previewPack: null,
+        userId: "user-1",
+        user: {
+          role: "DEALER",
+          authUserId: "auth-user-1",
+          disabledAt: null,
+          deletedAt: null,
+        },
+      },
+    });
+    findUniqueMock.mockResolvedValue(null);
+
+    await expect(
+      DealerProfilePage({
+        params: Promise.resolve({ slug: "douglas-auto-exchange-old" }),
+      }),
+    ).rejects.toThrow("permanentRedirect:/dealers/douglas-auto-exchange-current");
+    expect(expireStaleLiveListingsMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the current canonical URL for an eligible historical address", async () => {
+    findUniqueMock.mockResolvedValue(null);
+    findHistoricalSlugMock.mockResolvedValue({
+      dealer: {
+        id: "dealer-1",
+        name: "Douglas Auto Exchange",
+        bio: "Island dealership",
+        slug: "douglas-auto-exchange-current",
+        tier: "STARTER",
+        isAdminPreview: false,
+        previewPack: null,
+        user: {
+          role: "DEALER",
+          authUserId: "auth-user-1",
+          disabledAt: null,
+          deletedAt: null,
+        },
+      },
+    });
+
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "douglas-auto-exchange-old" }),
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        title: "Douglas Auto Exchange",
+        alternates: {
+          canonical: buildCanonicalUrl(
+            buildDealerProfilePath("douglas-auto-exchange-current"),
+          ),
+        },
+      }),
+    );
+
+    getDealerEntitlementMock.mockResolvedValue(null);
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "douglas-auto-exchange-old" }),
+      }),
+    ).resolves.toEqual({});
+  });
+
+  it("does not redirect a historical address when the current profile is no longer eligible", async () => {
+    findHistoricalSlugMock.mockResolvedValue({
+      dealer: {
+        id: "dealer-1",
+        name: "Douglas Auto Exchange",
+        slug: "douglas-auto-exchange-current",
+        tier: "STARTER",
+        isAdminPreview: false,
+        previewPack: null,
+        userId: "user-1",
+        user: {
+          role: "DEALER",
+          authUserId: "auth-user-1",
+          disabledAt: null,
+          deletedAt: null,
+        },
+      },
+    });
+    findUniqueMock.mockResolvedValue(null);
+    getDealerEntitlementMock.mockResolvedValue(null);
+
+    await expect(
+      DealerProfilePage({
+        params: Promise.resolve({ slug: "douglas-auto-exchange-old" }),
+      }),
+    ).rejects.toThrow("notFound");
   });
 
   it("T13 noindexes unpaid admin-viewable dealer profiles and hides them from users", async () => {
@@ -202,7 +310,54 @@ describe("DealerProfilePage", () => {
       generateMetadata({
         params: Promise.resolve({ slug: "preview-motors" }),
       }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        title: "Preview Motors",
+        robots: { index: false, follow: false },
+      }),
+    );
+
+    getCurrentUserMock.mockResolvedValue({ role: "USER" });
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
     ).resolves.toEqual({});
+  });
+
+  it("lets an admin open a disabled preview dealer profile and 404s the public", async () => {
+    findUniqueMock.mockResolvedValue({
+      ...buildDealer({ verified: false }),
+      name: "Preview Motors",
+      slug: "preview-motors",
+      isAdminPreview: true,
+      previewPack: {
+        enabled: false,
+        reviewRequired: true,
+        reviewReasons: ["listing-has-no-valid-source-image"],
+        reviewSourceRunId: "run-v",
+      },
+    });
+    getDealerEntitlementMock.mockResolvedValue(null);
+    getCurrentUserMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+
+    render(
+      await DealerProfilePage({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Preview Motors" })).toBeTruthy();
+    expect(screen.getByText("Preview — not public")).toBeTruthy();
+    expect(screen.getByText("Disabled pack")).toBeTruthy();
+    expect(screen.getByText("Needs manual review")).toBeTruthy();
+
+    cleanup();
+    getCurrentUserMock.mockResolvedValue({ id: "user-1", role: "USER" });
+    await expect(
+      DealerProfilePage({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    ).rejects.toThrow("notFound");
   });
 
   it("T13 lets an admin view an unpaid non-preview dealer page and 404s users", async () => {

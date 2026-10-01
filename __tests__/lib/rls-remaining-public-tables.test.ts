@@ -21,9 +21,9 @@ const ADVISOR_TABLES = [
 
 const MIGRATION_NAME = "20260820220000_enable_rls_remaining_public_tables";
 const ENABLE_RLS =
-  /ALTER TABLE\s+(?:public\.|"public"\.)"?([A-Za-z_][A-Za-z0-9_]*)"?\s+ENABLE ROW LEVEL SECURITY/gi;
+  /ALTER TABLE\s+(?:(?:public\.)|(?:"public"\.))?"?([A-Za-z_][A-Za-z0-9_]*)"?\s+ENABLE ROW LEVEL SECURITY/gi;
 const DISABLE_RLS =
-  /ALTER TABLE\s+(?:public\.|"public"\.)"?([A-Za-z_][A-Za-z0-9_]*)"?\s+DISABLE ROW LEVEL SECURITY/gi;
+  /ALTER TABLE\s+(?:(?:public\.)|(?:"public"\.))?"?([A-Za-z_][A-Za-z0-9_]*)"?\s+DISABLE ROW LEVEL SECURITY/gi;
 const ENABLE_STATEMENT =
   /^ALTER TABLE "public"\."([A-Za-z_][A-Za-z0-9_]*)" ENABLE ROW LEVEL SECURITY;$/;
 
@@ -114,7 +114,7 @@ describe("RLS-REG-001 public model coverage", () => {
     const models = parsePrismaModels(schema);
     const { lastEnableByTable, lastDisableByTable } = collectRlsHistory();
 
-    expect(models).toHaveLength(70);
+    expect(models).toHaveLength(72);
 
     const missing = models.filter((model) => !lastEnableByTable.has(model));
     expect(missing).toEqual([]);

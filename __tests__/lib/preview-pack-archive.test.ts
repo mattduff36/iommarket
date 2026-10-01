@@ -36,6 +36,7 @@ function makeArchive() {
   writeManifest(root, "2026-08-22T18-00-00-000Z", "ocean-motor-village", "Ocean Motor Village", 41);
   writeManifest(root, "2026-08-22T22-00-00-000Z", "athol-garage", "Athol Garage", 14);
   writeManifest(root, "2026-08-22T22-00-00-000Z", "mikes-motors", "Mikes Motors", 34);
+  writeManifest(root, "2026-08-22T22-00-00-000Z", "rex-motor-company", "Rex Motor Company", 6);
   writeFileSync(
     join(root, "latest.json"),
     JSON.stringify({ runId: "2026-08-22T22-00-00-000Z" }),
@@ -95,6 +96,14 @@ describe("preview pack archive index", () => {
           listingCount: 34,
           slug: "preview-mikes-motors",
         },
+        {
+          dealerKey: "rex-motor-company",
+          displayName: "Rex Motor Company",
+          enabled: true,
+          sourceRunId: "legacy-rex",
+          listingCount: 6,
+          slug: "preview-rex-motor-company",
+        },
       ],
     });
     expect(rows).toEqual([
@@ -115,7 +124,7 @@ describe("preview pack archive index", () => {
     ]);
   });
 
-  it("hides dealers that have no listings from the admin list", () => {
+  it("lists every loaded pack including disabled and zero-listing rows", () => {
     const rows = listablePreviewPackRows(
       mergePreviewPackRows({
         archives: [
@@ -125,6 +134,13 @@ describe("preview pack archive index", () => {
             runId: "run-v",
             uniqueVehicles: 0,
             importable: 0,
+          },
+          {
+            dealerKey: "athol-garage",
+            displayName: "Athol Garage",
+            runId: "run-a",
+            uniqueVehicles: 12,
+            importable: 12,
           },
         ],
         packs: [
@@ -143,11 +159,23 @@ describe("preview pack archive index", () => {
             sourceRunId: "run-v",
             listingCount: 0,
             slug: "preview-vehicles-im",
+            reviewRequired: true,
+            reviewReasons: ["listing-has-no-valid-source-image"],
+            reviewSourceRunId: "run-v",
           },
         ],
       }),
     );
-    expect(rows.map((row) => row.dealerKey)).toEqual(["mikes-motors"]);
+    expect(rows.map((row) => row.dealerKey)).toEqual(["mikes-motors", "vehicles-im"]);
+    expect(rows.find((row) => row.dealerKey === "vehicles-im")).toMatchObject({
+      loaded: true,
+      enabled: false,
+      listingCount: 0,
+      reviewRequired: true,
+      reviewReasons: ["listing-has-no-valid-source-image"],
+      reviewSourceRunId: "run-v",
+    });
+    expect(rows.some((row) => row.dealerKey === "athol-garage")).toBe(false);
   });
 
   it("merges a loaded Ocean Motor Village pack the same way as other dealers", () => {

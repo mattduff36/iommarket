@@ -10,6 +10,7 @@ import {
   MARKETPLACE_PRICING,
 } from "@/lib/config/marketplace-pricing";
 import { captureException } from "@/lib/monitoring";
+import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
 import {
   updateSiteSettingSchema,
   updateMarketplacePricingSchema,
@@ -19,7 +20,10 @@ import {
 
 export async function listSettings() {
   await requireRole("ADMIN");
-  const settings = await db.siteSetting.findMany({ orderBy: { key: "asc" } });
+  const settings = await db.siteSetting.findMany({
+    ...(isAdminChecklistEnabled() ? {} : { where: { key: { not: SETTING_KEYS.ADMIN_CHECKLIST } } }),
+    orderBy: { key: "asc" },
+  });
   return { data: settings };
 }
 

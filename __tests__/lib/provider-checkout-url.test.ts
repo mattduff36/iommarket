@@ -19,6 +19,7 @@ describe("RIP-PRICE-001 fixed Ripple checkout URLs", () => {
   });
 
   it("appends only a signed reference to the listing payment link", async () => {
+    process.env.RIPPLE_SKIP_DETAILS_ENABLED = "0";
     const result = await createListingCheckout({
       listingId: "listing-1",
       listingTitle: "Test",
@@ -38,6 +39,55 @@ describe("RIP-PRICE-001 fixed Ripple checkout URLs", () => {
         RIPPLE_CANONICAL_PRODUCTS.listing.code
       )?.targetId
     ).toBe("listing-1");
+  });
+
+  it("adds encoded customer details only when the server flag is enabled", async () => {
+    process.env.RIPPLE_SKIP_DETAILS_ENABLED = "1";
+    const result = await createListingCheckout({
+      listingId: "listing-encoded",
+      listingTitle: "Test",
+      amountInPence: 499,
+      customerName: "  Zoë O'Neil  ",
+      customerEmail: " zoe+listing@example.com ",
+      successUrl: "https://example.com/success",
+      cancelUrl: "https://example.com/cancel",
+    });
+    const url = new URL(result.url);
+    expect(url.searchParams.get("name")).toBe("Zoë O'Neil");
+    expect(url.searchParams.get("email")).toBe("zoe+listing@example.com");
+    expect([...url.searchParams.keys()]).toEqual(["reference", "name", "email"]);
+    expect(parseRippleReference(
+      url.searchParams.get("reference"),
+      RIPPLE_CANONICAL_PRODUCTS.listing.code,
+    )?.targetId).toBe("listing-encoded");
+  });
+
+  it("omits customer details when the flag is off or either value is invalid", async () => {
+    const create = (customerName?: string, customerEmail?: string) =>
+      createListingCheckout({
+        listingId: "listing-no-details",
+        listingTitle: "Test",
+        amountInPence: 499,
+        customerName,
+        customerEmail,
+        successUrl: "https://example.com/success",
+        cancelUrl: "https://example.com/cancel",
+      });
+
+    process.env.RIPPLE_SKIP_DETAILS_ENABLED = "0";
+    expect([...(new URL((await create("Ada Lovelace", "ada@example.com")).url)).searchParams.keys()])
+      .toEqual(["reference"]);
+
+    process.env.RIPPLE_SKIP_DETAILS_ENABLED = "1";
+    for (const [name, email] of [
+      ["A", "ada@example.com"],
+      ["Ada Lovelace", "not-an-email"],
+      ["Ada Lovelace", undefined],
+      [undefined, "ada@example.com"],
+    ] as const) {
+      const url = new URL((await create(name, email)).url);
+      expect([...url.searchParams.keys()]).toEqual(["reference"]);
+    }
   });
 
   it("rejects new listing support checkout POL-PAY-001", async () => {

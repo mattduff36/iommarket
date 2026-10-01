@@ -76,11 +76,31 @@ const SNAPSHOT_LANDMARK = `
     const first = String(srcset).split(",")[0];
     return first ? first.trim().split(/\\s+/)[0] || null : null;
   }
+  function absoluteUrl(value) {
+    if (!value) return null;
+    try { return new URL(value, document.baseURI).href; } catch { return value; }
+  }
+  function absoluteSrcset(srcset) {
+    if (!srcset) return null;
+    return String(srcset)
+      .split(",")
+      .map((candidate) => {
+        const parts = candidate.trim().split(/\\s+/);
+        const url = absoluteUrl(parts.shift());
+        return url ? [url, ...parts].join(" ") : "";
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
   function imageSrcFields(image) {
-    const dataSrc = image.getAttribute("data-src") || image.getAttribute("data-lazy-src") || null;
-    const srcset = image.getAttribute("srcset") || image.getAttribute("data-srcset") || null;
+    const dataSrc = absoluteUrl(
+      image.getAttribute("data-src") || image.getAttribute("data-lazy-src") || null
+    );
+    const srcset = absoluteSrcset(
+      image.getAttribute("srcset") || image.getAttribute("data-srcset") || null
+    );
     const currentSrc = image.currentSrc || null;
-    const src = image.src || dataSrc || firstSrcsetUrl(srcset) || null;
+    const src = image.src || dataSrc || absoluteUrl(firstSrcsetUrl(srcset)) || null;
     return { src, currentSrc, dataSrc, srcset };
   }
 `;
@@ -116,6 +136,8 @@ const SNAPSHOT_VISIBLE_ANCHORS = `(() => {
       left: rect.left || (imgRect ? imgRect.left : 0),
       width: Math.max(rect.width, imgRect ? imgRect.width : 0),
       height: Math.max(rect.height, imgRect ? imgRect.height : 0),
+      naturalWidth: img ? img.naturalWidth : 0,
+      naturalHeight: img ? img.naturalHeight : 0,
       region: liveRegion(anchor),
       ownerHref: anchor.href,
       imagePath: imagePath(srcFields.src),
@@ -150,6 +172,8 @@ const SNAPSHOT_VISIBLE_IMAGES = `(() => {
       left: rect.left,
       width: rect.width,
       height: rect.height,
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
       region: liveRegion(image),
       ownerHref: parent ? parent.href : null,
       imagePath: imagePath(srcFields.src),
@@ -166,6 +190,7 @@ export async function createPlaywrightLiveBrowser(options: {
     userAgent: BROWSER_UA,
     locale: "en-GB",
     viewport: { width: 1440, height: 1100 },
+    serviceWorkers: "block",
   });
   return {
     async openPage(): Promise<LiveBrowserPage> {

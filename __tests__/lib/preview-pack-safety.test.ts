@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertNotOceanDealerProfile,
   assertPreviewDealerAllowed,
+  isArchivedPreviewDealerKey,
   isExcludedPreviewDealerKey,
   isPreviewSystemAuthUserId,
   isPreviewSystemEmail,
@@ -11,6 +12,16 @@ import {
 } from "@/lib/preview-packs/safety";
 
 describe("preview pack safety", () => {
+  it("blocks archived Rex packs from being recreated", () => {
+    expect(isArchivedPreviewDealerKey("rex-motor-company")).toBe(true);
+    expect(() =>
+      assertPreviewDealerAllowed({
+        dealerKey: "rex-motor-company",
+        displayName: "Rex Motor Company",
+      }),
+    ).toThrow(/archived/);
+  });
+
   it("allows Ocean Motor Village as a normal pack and still excludes other Ocean brands", () => {
     expect(isExcludedPreviewDealerKey("ocean-motor-village", "ocean")).toBe(false);
     expect(isExcludedPreviewDealerKey("ocean-ford", "ocean")).toBe(true);

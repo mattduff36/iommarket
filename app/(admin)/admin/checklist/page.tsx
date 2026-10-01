@@ -1,13 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { loadChecklist } from "@/actions/admin/checklist";
+import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ChecklistBoard } from "./checklist-board";
 
 export const metadata: Metadata = { title: "Checklist | Admin" };
 
 export default async function AdminChecklistPage() {
+  if (!isAdminChecklistEnabled()) redirect("/");
   const result = await loadChecklist();
 
   return (

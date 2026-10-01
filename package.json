@@ -5,6 +5,9 @@
   "overrides": {
     "@prisma/config@7.9.1": {
       "deepmerge-ts": "8.0.1"
+    },
+    "prisma": {
+      "mysql2": "3.24.5"
     }
   },
   "engines": {
@@ -30,6 +33,8 @@
     "preview-packs:materialize": "npx tsx scripts/materialize-preview-packs.ts",
     "preview-packs:restore-from-prod": "npx tsx scripts/restore-preview-packs-from-prod.ts",
     "dealer-packs:audit-sync": "npx tsx scripts/dealer-pack-audit-sync.ts",
+    "dealer-packs:review-sync": "npx tsx scripts/dealer-pack-review-sync.ts",
+    "dealer-packs:remove-excluded-account": "npx tsx scripts/remove-excluded-preview-system-account.ts",
     "dealer-stock:probe": "npx tsx scripts/dealer-stock-sync/cli.ts probe",
     "dealer-stock:archive": "npx tsx scripts/dealer-stock-sync/cli.ts archive",
     "dealer-stock:import": "npx tsx scripts/dealer-stock-sync/cli.ts import",
@@ -88,7 +93,7 @@
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "lucide-react": "^0.563.0",
-    "next": "^16.3.1",
+    "next": "^16.3.8",
     "pg": "^8.18.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -101,7 +106,7 @@
   },
   "devDependencies": {
     "@meterapp/vehicle-db": "^2.3.0",
-    "@next/env": "^16.3.1",
+    "@next/env": "^16.3.8",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -116,7 +121,7 @@
     "archiver": "^8.0.0",
     "docx": "^9.7.1",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.1",
+    "eslint-config-next": "^16.3.8",
     "jsdom": "^28.0.0",
     "jszip": "^3.10.1",
     "pdfkit": "^0.19.1",

@@ -1,5 +1,6 @@
 import {
   assertPreviewDealerAllowed,
+  isArchivedPreviewDealerKey,
   isExcludedPreviewDealerKey,
   isPreviewSystemAuthUserId,
   isPreviewSystemEmail,
@@ -197,6 +198,7 @@ export function planRestore(input: {
 
   for (const pack of input.source.packs) {
     if (
+      isArchivedPreviewDealerKey(pack.dealerKey) ||
       isExcludedPreviewDealerKey(pack.dealerKey, registryGroupKey(pack.dealerKey)) ||
       isProtectedPreviewOwnerEmail(pack.ownerEmail)
     ) {

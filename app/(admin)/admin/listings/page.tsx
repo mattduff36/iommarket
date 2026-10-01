@@ -44,6 +44,7 @@ import {
 import { listingOrderBy } from "@/lib/admin/table-order";
 import { AdminPager } from "@/components/admin/admin-pager";
 import { AdminListingFilters } from "@/components/admin/admin-listing-filters";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 
 export const metadata: Metadata = { title: "Moderate Listings" };
 
@@ -159,7 +160,11 @@ export default async function AdminListingsPage({
   const query = params.q?.trim() ?? "";
   const page = parseAdminPage(params.page);
   const sort = parseAdminSort(params, LISTING_TABLE_COLUMNS, LISTING_TABLE_SORT);
-  const where = buildAdminListingArchiveWhere({ status, query });
+  const where = buildAdminListingArchiveWhere({
+    status,
+    query,
+    sampleVisibility: await getSampleVisibility(),
+  });
   const listingInclude = {
     user: { select: { name: true, email: true } },
     category: { select: { name: true } },

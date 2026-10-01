@@ -116,7 +116,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
         return {
           error: publicAuthErrorMessage(
             createError.message,
-            "We could not create your account. Check the highlighted fields and try again.",
+            "We could not create your account. Please try again shortly.",
           ),
         };
       }
@@ -135,7 +135,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
       return {
         error: publicAuthErrorMessage(
           error.message,
-          "We could not create your account. Check the highlighted fields and try again.",
+          "We could not create your account. Please try again shortly.",
         ),
       };
     }

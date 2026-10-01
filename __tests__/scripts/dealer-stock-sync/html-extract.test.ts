@@ -29,6 +29,8 @@ import {
   extractSwiftBskCards,
 } from "../../../scripts/dealer-stock-sync/connectors/named-html-more";
 import { mapReconciledVehicle } from "../../../scripts/dealer-stock-sync/map-listing";
+import { autowebConnector } from "../../../scripts/dealer-stock-sync/connectors/autoweb";
+import { emptyVehicle } from "../../../scripts/dealer-stock-sync/connectors/contract";
 import { normalizeWebsiteVehicle } from "../../../scripts/dealer-stock-sync/connectors/website-source";
 import {
   extractGalleryFromHtml,
@@ -40,6 +42,7 @@ import {
 import { encodeNetDirectorImageUrl } from "../../../scripts/dealer-stock-sync/image-urls";
 import { extractGalleryFromHtml as extractOceanHtml } from "../../../scripts/import-ocean-inventory/classic";
 import { parseNetDirectorVehicle } from "../../../scripts/dealer-stock-sync/connectors/netdirector/normalize";
+import { getDealer } from "../../../scripts/dealer-stock-sync/registry";
 import { dealerFixture } from "./fixtures";
 
 function nextInventoryPage(pageProps: unknown, extraHtml = "") {
@@ -493,6 +496,76 @@ describe("named HTML extractors", () => {
       "https://bluesky.cdn.imgeng.in/cogstock-images/own-1.jpg",
       "https://bluesky.cdn.imgeng.in/cogstock-images/own-2.jpg",
       "https://bluesky.cdn.imgeng.in/cogstock-images/own-3.jpg",
+    ]);
+  });
+
+  it("extracts BCC lazy owner images and Select extensionless gallery endpoints", () => {
+    const bccHtml = `
+      <header><img src="/media/images/164217270/p2255.bcc-isle-of-man.png"></header>
+      <div class="media-gallery">
+        <img src="/media/images/211573686/p0.maxus-deliver-3-electric-commercial.jpg">
+        <img data-src="/media/images/211573691/p0.maxus-deliver-3-electric-commercial.jpg">
+      </div>
+      <section><h2>Similar vehicles</h2>
+        <img src="/media/images/999999999/p0.related-car.jpg">
+      </section>
+    `;
+    expect(
+      extractWebsiteDetailImages(bccHtml, "https://www.bcccars.im", {
+        dealerKey: "bcc-cars",
+        detailUrl: "https://www.bcccars.im/used/maxus/deliver-3/21906716",
+      }),
+    ).toEqual([
+      "https://www.bcccars.im/media/images/211573686/p0.maxus-deliver-3-electric-commercial.jpg",
+      "https://www.bcccars.im/media/images/211573691/p0.maxus-deliver-3-electric-commercial.jpg",
+    ]);
+
+    const selectHtml = `
+      <div class="vehicle-gallery">
+        <img src="/Home/Image/12292?size=thumb">
+        <img src="/Home/Image/12292">
+        <img src="/Home/Image/12288">
+      </div>
+      <section><h2>Related vehicles</h2><img src="/Home/Image/99999"></section>
+    `;
+    expect(
+      extractWebsiteDetailImages(selectHtml, "http://www.selectcarsales.co.im", {
+        dealerKey: "select-car-sales",
+        detailUrl: "http://www.selectcarsales.co.im/isle-of-man-used-cars/5811/ford-fiesta",
+      }),
+    ).toEqual([
+      "http://www.selectcarsales.co.im/Home/Image/12292",
+      "http://www.selectcarsales.co.im/Home/Image/12288",
+    ]);
+  });
+
+  it("enriches BCC Autoweb list records from their detail galleries", async () => {
+    const dealer = getDealer("bcc-cars");
+    const source = dealer.sources[0]!;
+    const detailUrl =
+      "https://www.bcccars.im/used/maxus/deliver-3/90kw-h1-van-35kwh-auto/kirk-michael/isle-of-man/21906716";
+    const context = {
+      dealer,
+      source,
+      fetchImpl: async () =>
+        new Response(`
+          <div class="media-gallery">
+            <img src="/media/images/211573686/p0.maxus-deliver-3-electric-commercial.jpg">
+            <img data-src="/media/images/211573691/p0.maxus-deliver-3-electric-commercial.jpg">
+          </div>
+        `),
+    };
+    const result = await autowebConnector.fetchDetails(context, [
+      emptyVehicle(context, {
+        sourceVehicleId: "21906716",
+        detailUrl,
+      }),
+    ]);
+
+    expect(result.detailMissing).toBe(0);
+    expect(result.vehicles[0]?.imageUrls).toEqual([
+      "https://www.bcccars.im/media/images/211573686/p0.maxus-deliver-3-electric-commercial.jpg",
+      "https://www.bcccars.im/media/images/211573691/p0.maxus-deliver-3-electric-commercial.jpg",
     ]);
   });
 

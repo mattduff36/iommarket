@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
+import { hasPublicDealerListingAccess } from "@/lib/listings/dealer-visibility";
 import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { ListingDealerIdentity } from "@/components/dealers/listing-dealer-identity";
 import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
-import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
+import { FeaturedOwnerBanner } from "@/components/marketplace/featured-owner-banner";
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
@@ -39,6 +40,15 @@ import {
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
 import { ADMIN_PREVIEW_BADGE, marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import { PreviewReviewImagePlaceholder } from "@/components/preview/preview-review-image-placeholder";
+import { PreviewReviewNotice } from "@/components/preview/preview-review-notice";
+import {
+  listingPreviewCardProps,
+  NEEDS_MANUAL_REVIEW_BADGE,
+  previewPackVisibilitySelect,
+  readListingPreviewReview,
+  shouldShowNoImageReviewPlaceholder,
+} from "@/lib/preview-packs/review";
 import { getSampleVisibility, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
@@ -73,11 +83,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       dealerId: true,
       user: { select: { authUserId: true } },
       dealer: { select: { isAdminPreview: true } },
-      previewPack: { select: { enabled: true } },
+      previewPack: { select: previewPackVisibilitySelect() },
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
   if (!listing) return {};
+  const dealerAccess = await hasPublicDealerListingAccess(listing.dealerId);
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
@@ -91,6 +102,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   if (
     !canViewListing({
+      dealerAccess,
       status: listing.status,
       expiresAt: listing.expiresAt,
       listingUserId: listing.userId,
@@ -142,7 +154,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       region: true,
       user: { select: { name: true, email: true, authUserId: true } },
       dealer: { select: { name: true, slug: true, phone: true, verified: true, isAdminPreview: true } },
-      previewPack: { select: { enabled: true } },
+      previewPack: { select: previewPackVisibilitySelect() },
       attributeValues: {
         include: { attributeDefinition: true },
       },
@@ -150,6 +162,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   });
 
   if (!listing) notFound();
+  const dealerAccess = await hasPublicDealerListingAccess(listing.dealerId);
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
@@ -176,10 +189,12 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     viewer: currentUser,
   });
   const isVisible = isListingPubliclyVisible({
+    dealerAccess,
     status: listing.status,
     expiresAt: listing.expiresAt,
   });
   const canView = canViewListing({
+    dealerAccess,
     status: listing.status,
     expiresAt: listing.expiresAt,
     listingUserId: listing.userId,
@@ -281,9 +296,21 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     ? `£${price.toLocaleString()}`
     : `£${price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
+  const listingReview = readListingPreviewReview(listing);
+  const listingPhotos = listing.images
+    .map((image) => toListingPhotoSource(image))
+    .filter((image): image is NonNullable<typeof image> => Boolean(image));
+  const showNoImageReviewPlaceholder = shouldShowNoImageReviewPlaceholder(
+    listingReview,
+    listingPhotos.length > 0,
+  );
+
   const similarListings = await db.listing.findMany({
     where: {
-      ...(await marketplaceListingWhereWithSettings({ viewer: currentUser })),
+      ...(await marketplaceListingWhereWithSettings({
+        viewer: currentUser,
+        includeDisabledPreviewPacks: true,
+      })),
       id: { not: listing.id },
       categoryId: listing.categoryId,
       regionId: listing.regionId,
@@ -306,18 +333,22 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   const isOwner = currentUser && (listing.userId === currentUser.id || isAdminUser);
   const canUpgradeToFeatured =
-    isOwner &&
-    listing.status === "LIVE" &&
+    currentUser?.id === listing.userId &&
+    (listing.status === "PENDING" || listing.status === "LIVE") &&
     !listing.featured &&
-    (listing.dealerId !== null ||
-      Boolean(
-        await db.payment.findFirst({
-          where: { listingId: listing.id, status: "SUCCEEDED", type: "LISTING" },
-          select: { id: true },
-        })
-      ));
+    !Boolean(
+      await db.payment.findFirst({
+        where: {
+          listingId: listing.id,
+          status: "SUCCEEDED",
+          refundedAt: null,
+          OR: [{ type: "FEATURED" }, { type: "LISTING", includesFeatured: true }],
+        },
+        select: { id: true },
+      })
+    );
   const featuredUpgradePricePence = canUpgradeToFeatured
-    ? getRippleTestFeaturedProduct()?.amountPence ?? (await getMarketplacePricing()).featuredUpgradePence
+    ? (await getMarketplacePricing()).featuredUpgradePence
     : null;
 
   const listingPath = buildListingPath(listing.id);
@@ -394,13 +425,24 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         />
       ) : null}
 
+      {canUpgradeToFeatured ? (
+        <div className="mb-8">
+          <FeaturedOwnerBanner
+            listingId={listing.id}
+            featuredUpgradePricePence={featuredUpgradePricePence!}
+            checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
+            pendingReview={listing.status === "PENDING"}
+          />
+        </div>
+      ) : null}
+
       {isOwner && listing.status === "LIVE" ? (
         <div className="mb-8 rounded-lg border border-neon-blue-500/30 bg-neon-blue-500/10 px-5 py-4 text-sm text-neon-blue-400">
           You can edit this live listing. Submitted changes stay private until they are approved.
         </div>
       ) : null}
 
-      {justUpgraded && (
+      {justUpgraded && currentUser?.id === listing.userId && listing.featured && listing.status === "LIVE" && (
         <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
           <Star className="h-4 w-4 shrink-0" />
           Featured upgrade successful! Your listing will now appear in promoted positions.
@@ -444,13 +486,19 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       <div className="grid gap-10 lg:grid-cols-3">
         {/* Left: images + details */}
         <div className="lg:col-span-2 space-y-8">
-          <ListingImageGallery
-            images={listing.images
-              .map((image) => toListingPhotoSource(image))
-              .filter((image): image is NonNullable<typeof image> => Boolean(image))}
-            title={listing.title}
-            isSold={isSold}
-          />
+          {showNoImageReviewPlaceholder ? (
+            <PreviewReviewImagePlaceholder
+              reasons={listingReview.reasons}
+              sourceUrl={listingReview.sourceUrl}
+              sourceIdentityKey={listingReview.sourceIdentityKey}
+            />
+          ) : (
+            <ListingImageGallery
+              images={listingPhotos}
+              title={listing.title}
+              isSold={isSold}
+            />
+          )}
 
           {/* Title + price + details */}
           <div>
@@ -478,10 +526,22 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               </Badge>
               <Badge variant="neutral">{listing.viewCount + (isVisible ? 1 : 0)} views</Badge>
               {isPreviewListing ? <Badge variant="warning">{ADMIN_PREVIEW_BADGE}</Badge> : null}
+              {listingReview.required ? (
+                <Badge variant="warning">{NEEDS_MANUAL_REVIEW_BADGE}</Badge>
+              ) : null}
               {isDisclosedWriteOff(writeOffCategory) ? (
                 <Badge variant="energy">{writeOffCategory} write-off</Badge>
               ) : null}
             </div>
+
+            {listingReview.required ? (
+              <PreviewReviewNotice
+                className="mt-6 rounded-lg border border-premium-gold-500/30 bg-premium-gold-500/5 p-4"
+                reasons={listingReview.reasons}
+                sourceUrl={listingReview.sourceUrl}
+                sourceIdentityKey={listingReview.sourceIdentityKey}
+              />
+            ) : null}
 
             <div className="mt-8">
               <h2 className="section-heading-accent text-lg font-bold text-text-primary mb-3">
@@ -623,13 +683,6 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
       {isOwner && listing.status === "LIVE" && (
         <div className="mt-8 space-y-4">
-          {canUpgradeToFeatured && (
-            <FeaturedUpgradeButton
-              listingId={listing.id}
-              featuredUpgradePricePence={featuredUpgradePricePence!}
-              previewTest={Boolean(getRippleTestFeaturedProduct())}
-            />
-          )}
           {canUpgradeToFeatured &&
             process.env.NODE_ENV !== "production" && (
               <DevFeaturedBypass listingId={listing.id} />
@@ -687,6 +740,10 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                 meta={item.category.name}
                 featured={item.featured}
                 badge={item.status === "ADMIN_PREVIEW" ? ADMIN_PREVIEW_BADGE : item.featured ? "Featured" : undefined}
+                {...listingPreviewCardProps(
+                  item,
+                  Boolean(toListingPhotoSource(item.images[0])),
+                )}
                 writeOffCategory={item.attributeValues[0]?.value ?? null}
                 href={buildListingPath(item.id)}
               />
@@ -731,4 +788,5 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     </div>
   );
 }
-import { getRippleTestFeaturedProduct } from "@/lib/payments/ripple-config";
+import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";

@@ -12,6 +12,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { CreateListingForm } from "../create-listing-form";
 import { getPolicyFlags } from "@/lib/policy/flags";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getSellFormData } from "../sell-form-data";
 
 export const metadata: Metadata = {
@@ -78,7 +79,10 @@ export default async function SellDealerPage({ searchParams }: Props) {
     );
   }
 
-  const { categories, regions, vehicleMakes } = await getSellFormData();
+  const [{ categories, regions, vehicleMakes }, pricing] = await Promise.all([
+    getSellFormData(),
+    getMarketplacePricing(),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -105,6 +109,8 @@ export default async function SellDealerPage({ searchParams }: Props) {
         mode="dealer"
         initialDraft={initialDraft}
         enforceListingNs={getPolicyFlags().enforceListingNs}
+        listingFeePence={pricing.privateListingPence}
+        featuredUpgradePricePence={pricing.featuredUpgradePence}
       />
     </div>
   );

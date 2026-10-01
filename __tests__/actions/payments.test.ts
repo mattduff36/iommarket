@@ -10,6 +10,9 @@ const {
   requireAuthMock,
   isPrivateListingFreeForUserMock,
   createListingCheckoutMock,
+  createListingAndFeaturedCheckoutMock,
+  createFeaturedUpgradeCheckoutMock,
+  submitListingForReviewMock,
   createDealerSubscriptionCheckoutMock,
   processProviderWebhookEventMock,
   captureExceptionMock,
@@ -26,6 +29,9 @@ const {
   requireAuthMock: vi.fn(),
   isPrivateListingFreeForUserMock: vi.fn(),
   createListingCheckoutMock: vi.fn(),
+  createListingAndFeaturedCheckoutMock: vi.fn(),
+  createFeaturedUpgradeCheckoutMock: vi.fn(),
+  submitListingForReviewMock: vi.fn(),
   createDealerSubscriptionCheckoutMock: vi.fn(),
   processProviderWebhookEventMock: vi.fn(),
   captureExceptionMock: vi.fn(),
@@ -109,12 +115,16 @@ vi.mock("@/lib/payments/provider", async () => {
   return {
     ...actual,
     createListingCheckout: createListingCheckoutMock,
+    createListingAndFeaturedCheckout: createListingAndFeaturedCheckoutMock,
+    createFeaturedUpgradeCheckout: createFeaturedUpgradeCheckoutMock,
     createDealerSubscriptionCheckout: createDealerSubscriptionCheckoutMock,
     isDemoListingCheckoutConfigured: isDemoListingCheckoutConfiguredMock,
     isDemoDealerSubscriptionCheckoutConfigured:
       isDemoDealerSubscriptionCheckoutConfiguredMock,
   };
 });
+
+vi.mock("@/actions/listings", () => ({ submitListingForReview: submitListingForReviewMock }));
 
 import {
   createDealerSubscription,
@@ -171,10 +181,16 @@ describe("payForListing", () => {
     mockDb.policyAcceptance.findUnique.mockResolvedValue(null);
     mockDb.policyAcceptance.upsert.mockResolvedValue({ id: "acceptance-1" });
     mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
     mockDb.payment.create.mockResolvedValue({
       id: "pending-pay",
       status: "PENDING",
     });
+    mockDb.payment.create.mockImplementation(async ({ data }) => ({
+      id: "pending-pay",
+      status: "PENDING",
+      ...data,
+    }));
     mockDb.payment.update.mockResolvedValue({
       id: "pending-pay",
       status: "PENDING",
@@ -182,6 +198,12 @@ describe("payForListing", () => {
     mockDb.listing.update.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",
       dealerId: null,
+    });
+    submitListingForReviewMock.mockResolvedValue({ data: { status: "PENDING" } });
+    createFeaturedUpgradeCheckoutMock.mockResolvedValue({
+      provider: "RIPPLE",
+      merchantReference: "featured-reference-new",
+      url: "https://portal.startyourripple.co.uk/card/client/pay/1BB714D5DBC446B6?reference=featured-reference-new",
     });
   });
 
@@ -222,6 +244,66 @@ describe("payForListing", () => {
     expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it("uses canonical combined pricing and binds the URL to the persisted merchant reference", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    getMarketplacePricingMock.mockResolvedValue({
+      privateListingPence: 499, featuredUpgradePence: 500,
+      dealerStarterMonthlyPence: 3999, dealerProMonthlyPence: 5999, optionalListingSupportPence: 500,
+    });
+    createListingAndFeaturedCheckoutMock.mockResolvedValue({
+      provider: "RIPPLE", merchantReference: "new-reference",
+      url: "https://portal.startyourripple.co.uk/card/client/pay/9AFE8E93CD3145D3?reference=new-reference",
+    });
+
+    const result = await payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true, includeFeatured: true,
+    });
+
+    expect(createListingAndFeaturedCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({ amountInPence: 999 }));
+    expect(mockDb.payment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ amount: 999, includesFeatured: true, providerReference: "new-reference" }),
+    }));
+    expect(result).toEqual({ data: { checkoutUrl: expect.stringContaining("reference=new-reference") } });
+  });
+
+  it("submits an already-claimed free listing before opening the standalone Featured checkout", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    getMarketplacePricingMock.mockResolvedValue({
+      privateListingPence: 499, featuredUpgradePence: 500,
+      dealerStarterMonthlyPence: 3999, dealerProMonthlyPence: 5999, optionalListingSupportPence: 500,
+    });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({ id: "claim-1", userId: "user_123" });
+    let status = "DRAFT";
+    mockDb.listing.findUnique.mockImplementation(async () => ({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", dealerId: null,
+      status, title: "Test listing", category: { slug: "car", attributeDefinitions: [] },
+    }));
+    submitListingForReviewMock.mockImplementation(async () => {
+      status = "PENDING";
+      return { data: { status } };
+    });
+
+    const result = await payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true, includeFeatured: true,
+    });
+
+    expect(submitListingForReviewMock).toHaveBeenCalledWith(expect.objectContaining({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }));
+    expect(createListingAndFeaturedCheckoutMock).not.toHaveBeenCalled();
+    expect(createFeaturedUpgradeCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({ amountInPence: 500 }));
+    expect(result).toEqual({ data: { checkoutUrl: expect.any(String), skippedPayment: false, listingSubmitted: true } });
+  });
+
+  it.each([true, false])("preserves free listing submission but blocks new preview charges (free=%s)", async (free) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    isPrivateListingFreeForUserMock.mockResolvedValue(free);
+    const result = await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" });
+    expect(result).toEqual(free
+      ? { data: { checkoutUrl: null, skippedPayment: true } }
+      : { error: "New payments are disabled on preview. Existing subscriptions continue to renew." });
+    expect(createListingCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
   });
 
   it("never opens checkout for a live listing revision ALR-PAY-001", async () => {
@@ -389,7 +471,7 @@ describe("payForListing", () => {
       privateSellerTermsAccepted: true,
     })).resolves.toEqual({
       data: {
-        checkoutUrl: "https://checkout.example.com/listing-renewal",
+      checkoutUrl: expect.stringContaining("https://checkout.example.com/listing-renewal?reference="),
       },
     });
 
@@ -533,7 +615,7 @@ describe("payForListing", () => {
         privateSellerTermsAccepted: true,
       }),
     ).resolves.toEqual({
-      data: { checkoutUrl: "https://checkout.example.com/listing-private" },
+      data: { checkoutUrl: expect.stringContaining("https://checkout.example.com/listing-private?reference=") },
     });
     expect(createListingCheckoutMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -688,14 +770,14 @@ describe("createDealerSubscription", () => {
     vi.stubEnv("RIPPLE_CLIENT_ID", "client");
     vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4");
     await expect(createDealerSubscription({ testPlan: true, acceptedDealerTerms: true })).resolves.toEqual({
-      error: "The weekly test subscription is only available on the staging site.",
+      error: "The weekly test subscription is no longer available for new signups.",
     });
     expect(createDealerSubscriptionCheckoutMock).not.toHaveBeenCalled();
     expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
 
-  it("uses the fixed weekly test amount and Starter entitlement on preview", async () => {
+  it.each([true, false])("blocks new preview subscriptions including testPlan=%s before side effects", async (testPlan) => {
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("RIPPLE_CLIENT_ID", "client");
     vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4");
@@ -703,15 +785,66 @@ describe("createDealerSubscription", () => {
       url: "https://portal.startyourripple.co.uk/card/client/pay/FE936242500F44E4",
       merchantReference: "signed-weekly-reference",
     });
-    const result = await createDealerSubscription({ testPlan: true, tier: "PRO", acceptedDealerTerms: true });
-    expect(result).toHaveProperty("data.checkoutUrl");
-    expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
-      testPlan: true, tier: "STARTER", amountInPence: 100,
-    }));
-    expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toMatchObject({
-      kind: "dealer_subscription", productCode: "FE936242500F44E4",
+    const result = await createDealerSubscription({ testPlan, tier: "PRO", acceptedDealerTerms: true });
+    expect(result).toEqual({
+      error: "New payments are disabled on preview. Existing subscriptions continue to renew.",
     });
+    expect(createDealerSubscriptionCheckoutMock).not.toHaveBeenCalled();
+    expect(mockDb.policyAcceptance.upsert).not.toHaveBeenCalled();
+    expect(setCookieMock).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
+  });
+
+  it("blocks new preview featured purchases before database writes", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa")).toEqual({
+      error: "New payments are disabled on preview. Existing subscriptions continue to renew.",
+    });
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+    expect(setCookieMock).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  it("allows an eligible free LIVE listing to buy a standalone Featured upgrade", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", dealerId: null,
+      status: "LIVE", featured: false, title: "Free live listing",
+    });
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({ id: "claim-1", userId: "user_123" });
+
+    const result = await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(result).toEqual({ data: { checkoutUrl: expect.any(String) } });
+    expect(createFeaturedUpgradeCheckoutMock).toHaveBeenCalled();
+  });
+
+  it("reuses a compatible pending Featured checkout reference rather than orphaning it", async () => {
+    const pending = {
+      id: "featured-pending", status: "PENDING", type: "FEATURED",
+      amount: 500, includesFeatured: false,
+      providerReference: "persisted-featured-reference",
+    };
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", dealerId: null,
+      status: "LIVE", featured: false, title: "Paid live listing",
+    });
+    mockDb.payment.findFirst.mockImplementation(async ({ where }) => {
+      if (where.type === "LISTING" && where.status === "SUCCEEDED") return { id: "listing-paid" };
+      if (where.status === "PENDING" && where.type === "FEATURED" && typeof where.amount === "object") return null;
+      if (where.status === "PENDING" && where.type === "FEATURED") return pending;
+      return null;
+    });
+
+    const result = await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa");
+    if (!result.data?.checkoutUrl) throw new Error("Expected a Featured checkout URL");
+    const url = new URL(result.data.checkoutUrl);
+
+    expect(url.searchParams.get("reference")).toBe("persisted-featured-reference");
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+    expect(setCookieMock).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(Object));
+    expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toMatchObject({
+      kind: "featured_upgrade", merchantReference: "persisted-featured-reference",
+    });
   });
 
   it("does not record acceptance or open checkout without acknowledgement POL-ACC-001-A", async () => {

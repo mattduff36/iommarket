@@ -273,6 +273,42 @@ function decodeImageAttribute(value: string) {
     .replace(/&amp;/gi, "&");
 }
 
+function extractImageAttributes(
+  html: string,
+  origin: string | null,
+  accepts: (value: string) => boolean,
+) {
+  const found: string[] = [];
+  const attributes =
+    html.matchAll(/\b(?:src|data-src|data-lazy-src|href)=["']([^"']+)["']/gi);
+  for (const match of attributes) {
+    const raw = decodeImageAttribute(match[1] ?? "").trim();
+    if (!raw || !accepts(raw)) continue;
+    const resolved = resolveMaybeUrl(raw, origin) ?? normalizeImageUrl(raw);
+    if (resolved) found.push(resolved);
+  }
+  return uniqueImageUrls(found, FEATURED_LISTING_PHOTO_LIMIT);
+}
+
+export function extractBccGalleryFromHtml(html: string, origin: string | null) {
+  return extractImageAttributes(
+    ownerHtmlFragment(html),
+    origin,
+    (value) => /\/media\/images\/\d+\/p0\.[^"'?\s>]+\.(?:jpe?g|png|webp)(?:[?&#]|$)/i.test(value),
+  );
+}
+
+export function extractSelectCarSalesGalleryFromHtml(
+  html: string,
+  origin: string | null,
+) {
+  return extractImageAttributes(
+    ownerHtmlFragment(html),
+    origin,
+    (value) => /\/Home\/Image\/\d+(?:[?&#]|$)/i.test(value),
+  );
+}
+
 export function extractSwiftGalleryFromHtml(html: string, origin?: string | null) {
   const gallery = html.match(/<bsk-gallery\b[^>]*\bimages=["']([^"']+)["']/i)?.[1];
   if (!gallery) return [];
@@ -309,6 +345,12 @@ export function extractWebsiteDetailImages(
   origin: string | null,
   options: { dealerKey?: string; detailUrl?: string | null } = {},
 ) {
+  if (options.dealerKey === "bcc-cars") {
+    return extractBccGalleryFromHtml(html, origin);
+  }
+  if (options.dealerKey === "select-car-sales") {
+    return extractSelectCarSalesGalleryFromHtml(html, origin);
+  }
   if (options.dealerKey === "swift-motors") {
     return extractSwiftGalleryFromHtml(html, origin);
   }

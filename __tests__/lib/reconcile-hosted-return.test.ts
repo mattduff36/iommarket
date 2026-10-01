@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ transaction: vi.fn(), apply: vi.fn(), submit: vi.fn(), notify: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { $transaction: mocks.transaction } }));
+const mocks = vi.hoisted(() => ({ transaction: vi.fn(), apply: vi.fn(), submit: vi.fn(), notify: vi.fn(), featured: vi.fn() }));
+  vi.mock("@/lib/db", () => ({ db: { $transaction: mocks.transaction } }));
 vi.mock("@/lib/payments/webhook-payments", () => ({ createOrUpdateListingPayment: mocks.apply, submitPaidListingForReview: mocks.submit }));
 vi.mock("@/lib/email/listing-notifications", () => ({ dispatchListingNotifications: mocks.notify }));
 vi.mock("@/lib/monitoring", () => ({ captureBusinessEvent: vi.fn() }));
+vi.mock("@/lib/payments/featured-entitlement", () => ({ applyPaidFeaturedEntitlement: mocks.featured }));
 import { reconcileHostedReturn, type HostedReturnContext } from "@/lib/payments/reconcile-hosted-return";
 import { createRippleReference } from "@/lib/payments/ripple-reference";
 import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
@@ -26,7 +27,7 @@ describe("authenticated hosted return reconciliation", () => {
     installRippleTestEnv();
     const now = Date.now();
     context = { userId: "user-1", email: "buyer@example.com", paymentId: "pending-1", listingId: "listing-1", issuedAt: now - 10_000, merchantReference: createRippleReference({ purpose: "listing_payment", targetId: "listing-1", linkCode: RIPPLE_CANONICAL_PRODUCTS.listing.code }) };
-    payment = { id: context.paymentId, listingId: context.listingId, listing: { userId: context.userId }, providerReference: context.merchantReference, paymentProvider: "RIPPLE", type: "LISTING", amount: 499, currency: "gbp", refundedAt: null, status: "PENDING", providerPaymentId: null };
+    payment = { id: context.paymentId, listingId: context.listingId, listing: { userId: context.userId }, providerReference: context.merchantReference, paymentProvider: "RIPPLE", type: "LISTING", includesFeatured: false, amount: 499, currency: "gbp", refundedAt: null, status: "PENDING", providerPaymentId: null };
     const parsed = parseRippleWebhookEnvelope(rippleEnvelope({ timestamp: new Date(now - 1_000).toISOString(), data: { payment_reference: job } }));
     inbox = { id: "inbox-1", status: "FAILED", lastErrorCode: "MISSING_REFERENCE", attemptCount: 1, eventType: "payment.received", clientId: parsed.event.clientId, paymentReference: job, merchantReference: null, linkCode: parsed.event.linkCode, amountPence: 499, currency: "gbp", recurring: false, linkType: "one-off", customerEmailNorm: "buyer@example.com", eventTimestamp: parsed.event.eventTimestamp, createdAt: new Date(now), minimizedPayload: parsed.minimized };
     tx = { payment: { findUnique: vi.fn().mockImplementation(({ where }) => Promise.resolve(where.id ? payment : null)), count: vi.fn().mockResolvedValue(1), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, paymentWebhookInbox: { findMany: vi.fn().mockImplementation(() => Promise.resolve([inbox])), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, subscriptionCharge: { findUnique: vi.fn().mockResolvedValue(null) } };
@@ -49,9 +50,8 @@ describe("authenticated hosted return reconciliation", () => {
     inbox.linkCode = product.code;
     inbox.amountPence = 500;
     inbox.minimizedPayload = { ...(inbox.minimizedPayload as object), link_code: product.code, amount: 5 };
-    tx.listing = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
     expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId, checkoutType: "featured_upgrade" });
-    expect(tx.listing.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { featured: true } }));
+    expect(mocks.featured).toHaveBeenCalledWith(context.listingId, tx);
     expect(mocks.submit).not.toHaveBeenCalled();
     expect(tx.payment.count).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ type: "FEATURED" }) }));
   });

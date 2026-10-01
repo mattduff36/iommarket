@@ -18,6 +18,7 @@ const productCode = z.string().regex(/^[A-F0-9]{16,64}$/);
 const contextSchema = z.union([
   z.object({ ...commonFields, ...listingFields, kind: z.literal("listing_payment").optional() }).strict(),
   z.object({ ...commonFields, ...listingFields, kind: z.literal("featured_upgrade"), productCode }).strict(),
+  z.object({ ...commonFields, ...listingFields, kind: z.literal("listing_and_featured"), productCode }).strict(),
   z.object({ ...commonFields, kind: z.literal("dealer_subscription"), dealerId: z.string().min(1).max(100), productCode }).strict(),
 ]);
 export type HostedReturnContext = z.infer<typeof contextSchema>;

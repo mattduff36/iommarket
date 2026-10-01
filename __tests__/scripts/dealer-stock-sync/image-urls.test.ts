@@ -37,6 +37,14 @@ describe("ND-IMG-002 S3 original vs CDN token", () => {
     const urls = uniqueImageUrls([s3, ndUrl("ndstock/a.jpg", 400)]);
     expect(urls).toEqual([s3]);
   });
+
+  it("rewrites legacy autofs objects to the readable Ireland bucket", () => {
+    expect(canonicalizeImageUrl(
+      "https://s3-eu-west-1.amazonaws.com/autofs/ndstock/images/stock/hash/NDS19360241_RMN398W_1.png",
+    )).toBe(
+      "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/images/stock/hash/NDS19360241_RMN398W_1.png",
+    );
+  });
 });
 
 describe("ND-IMG-003 WordPress -WxH thumbs", () => {
@@ -63,6 +71,31 @@ describe("ND-IMG-003 WordPress -WxH thumbs", () => {
       "https://dealer-one.example/images/vehicle.jpg",
       "https://dealer-two.example/images/vehicle.jpg",
     ]);
+  });
+});
+
+describe("rendered CDN transforms", () => {
+  it("removes resize-only ImageEngine and NetDirector transforms", () => {
+    expect(
+      canonicalizeImageUrl(
+        "https://bluesky.cdn.imgeng.in/cogstock-images/car.jpg?imgeng=/w_210/",
+      ),
+    ).toBe("https://bluesky.cdn.imgeng.in/cogstock-images/car.jpg");
+    expect(canonicalizeImageUrl(ndUrl("ndstock/NDS12345_1.jpg", 200))).toBe(
+      ndUrl("ndstock/NDS12345_1.jpg"),
+    );
+  });
+
+  it("uses the token's S3 object when NetDirector originals are not materialized", () => {
+    const transformed = encodeNetDirectorImageUrl({
+      bucket: "nd-stock-ireland-production",
+      key: "ndstock/images/NDS12345 PMN 1.jpg",
+      edits: { resize: { width: 100, height: 75 } },
+    });
+
+    expect(canonicalizeImageUrl(transformed)).toBe(
+      "https://s3-eu-west-1.amazonaws.com/nd-stock-ireland-production/ndstock/images/NDS12345%20PMN%201.jpg",
+    );
   });
 });
 
@@ -173,6 +206,14 @@ describe("IMG-SHARED-001 shared helper wiring", () => {
     expect(extractOceanHtml(html)).toHaveLength(2);
     expect(isIgnoredImageUrl("https://www.athol.im/media/coming-soon.jpg")).toBe(true);
     expect(isIgnoredImageUrl("https://cdn.example.com/no-image-stock.jpg")).toBe(true);
+    const encodedPlaceholder = encodeNetDirectorImageUrl({
+      key: "ndstock/images/waiting-for-image.jpg",
+      edits: { resize: { width: 800 } },
+    });
+    expect(isIgnoredImageUrl(encodedPlaceholder)).toBe(true);
+    expect(uniqueImageUrls([encodedPlaceholder, ndUrl("ndstock/real-car.jpg")])).toEqual([
+      canonicalizeImageUrl(ndUrl("ndstock/real-car.jpg")),
+    ]);
     expect(
       uniqueImageUrls([
         "https://www.athol.im/media/coming-soon.jpg",
@@ -188,5 +229,14 @@ describe("IMG-SHARED-001 shared helper wiring", () => {
         ],
       ).map((source) => source.url),
     ).toEqual(["https://sncc.im/wp-content/uploads/2026/08/IMG_1038.jpeg"]);
+  });
+
+  it("prefers Select originals when a query thumbnail appears first", () => {
+    expect(
+      uniqueImageUrls([
+        "http://www.selectcarsales.co.im/Home/Image/12292?size=thumb",
+        "http://www.selectcarsales.co.im/Home/Image/12292",
+      ]),
+    ).toEqual(["http://www.selectcarsales.co.im/Home/Image/12292"]);
   });
 });

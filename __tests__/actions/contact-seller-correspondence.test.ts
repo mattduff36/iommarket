@@ -13,6 +13,7 @@ const {
   sendContactConfirmationEmailMock: vi.fn(),
   mockDb: {
     listing: { findUnique: vi.fn() },
+    dealerProfile: { findFirst: vi.fn() },
     dealerCorrespondenceSettings: { findUnique: vi.fn() },
   },
 }));
@@ -63,6 +64,7 @@ const contactInput = {
 describe("contactSeller correspondence routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDb.dealerProfile.findFirst.mockResolvedValue({ id: "dealer-1" });
     requireAcceptedAuthMock.mockResolvedValue({ id: "buyer-1", role: "USER" });
     checkRateLimitMock.mockResolvedValue({
       allowed: true,
@@ -116,5 +118,13 @@ describe("contactSeller correspondence routing", () => {
     expect(sendContactConfirmationEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ buyerEmail: "buyer@example.com" }),
     );
+  });
+
+  it("rejects enquiries to a dealer whose membership is no longer public", async () => {
+    mockDb.dealerProfile.findFirst.mockResolvedValue(null);
+    mockDb.listing.findUnique.mockResolvedValue({ id: listingId, title: "Dealer van", status: "LIVE", expiresAt: null, dealerId: "dealer-1", user: { email: "owner@dealer.example" } });
+    expect(await contactSeller(contactInput)).toEqual({ error: "Listing unavailable" });
+    expect(sendSellerContactEmailMock).not.toHaveBeenCalled();
+    expect(sendContactConfirmationEmailMock).not.toHaveBeenCalled();
   });
 });

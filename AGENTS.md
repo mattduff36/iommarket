@@ -4,6 +4,12 @@ This document explains how to use the CursorPlaybook effectively in your day-to-
 
 ## Overview
 
+Preview and production share one application codebase. Implement intentional environment
+differences using explicit server-side runtime/configuration checks, never divergent
+branch-only implementations. Payment simulation must fail closed in production and
+against a production database. Preserve verified Ripple webhooks and existing real
+subscriptions when changing preview checkout. See `docs/preview-payment-simulator.md`.
+
 CursorPlaybook provides:
 1. **Rules** - Automatic guidelines that apply to your code
 2. **Commands** - Reusable prompt templates for common tasks

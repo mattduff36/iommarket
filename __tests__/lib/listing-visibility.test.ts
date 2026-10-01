@@ -7,6 +7,16 @@ import {
 } from "@/lib/listings/visibility";
 
 describe("listing visibility ALR-VIS-001", () => {
+  it("hides revoked dealer stock from buyers while retaining owner/admin inspection", () => {
+    const listing = { status: "LIVE" as const, expiresAt: null, listingUserId: "owner", dealerAccess: false };
+    expect(isListingPubliclyVisible(listing)).toBe(false);
+    expect(canViewListing({ ...listing, viewer: null })).toBe(false);
+    expect(canViewListing({ ...listing, viewer: { id: "buyer", role: "USER" } })).toBe(false);
+    expect(canViewListing({ ...listing, viewer: { id: "owner", role: "DEALER" } })).toBe(true);
+    expect(canViewListing({ ...listing, viewer: { id: "admin", role: "ADMIN" } })).toBe(true);
+    expect(isListingPubliclyVisible({ ...listing, dealerAccess: true })).toBe(true);
+    expect(isListingPubliclyVisible({ ...listing, status: "EXPIRED", dealerAccess: true })).toBe(false);
+  });
   it("keeps draft pending rejected and taken-down listings off the public web", () => {
     for (const status of ["DRAFT", "PENDING", "REJECTED", "TAKEN_DOWN", "EXPIRED"] as const) {
       expect(
@@ -28,7 +38,7 @@ describe("listing visibility ALR-VIS-001", () => {
     ).toBe(false);
   });
 
-  it("shows enabled preview listings only to admins", () => {
+  it("shows ADMIN_PREVIEW listings only to logged-in admins, including disabled packs", () => {
     expect(
       canViewListing({
         status: "ADMIN_PREVIEW",
@@ -64,7 +74,7 @@ describe("listing visibility ALR-VIS-001", () => {
         viewer: { id: "admin", role: "ADMIN" },
         previewPackEnabled: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canViewListing({
         status: "ADMIN_PREVIEW",

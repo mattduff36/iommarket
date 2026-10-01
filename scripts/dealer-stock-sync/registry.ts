@@ -489,7 +489,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
   dealer({
     key: "rex-motor-company",
     displayName: "Rex Motor Company",
-    status: "confirmed",
+    status: "archived",
     website: "https://www.rexmotorcompany.im/",
     stockUrls: [
       "https://www.rexmotorcompany.im/sales",
@@ -503,7 +503,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
       source("sales", "Rex sales", "https://www.rexmotorcompany.im/sales", "html-structured"),
       source("retail", "Rex retail", "https://www.rexmotorcompany.im/retail", "html-structured"),
     ],
-    notes: "Official site rexmotorcompany.im. /sales and /retail list current stock; year and miles are often on detail pages.",
+    notes: "ARCHIVED AT CLIENT REQUEST. Do not scrape, import, materialize, restore, or reactivate without the client's explicit written approval.",
     lastVerifiedAt: "2026-08-22",
   }),
   dealer({
@@ -695,6 +695,7 @@ export function archiveNameMatchesDealer(dealer: DealerRecord, archiveDisplayNam
 
 export function listDealers(filter?: { includeOptional?: boolean; includeUnverified?: boolean }) {
   return DEALER_REGISTRY.filter((item) => {
+    if (item.status === "archived") return false;
     if (item.status === "specialist_optional" && !filter?.includeOptional) return false;
     if (item.status === "unverified" && !filter?.includeUnverified) return false;
     return true;

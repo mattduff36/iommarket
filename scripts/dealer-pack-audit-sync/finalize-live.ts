@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { foundingListingSlug } from "../onboard-founding-dealers/identity";
 import { excludedListingEvidence } from "./classify";
+import { dealerCensusRecoveredAfterT0 } from "./live-census";
 import {
   canonicalizeLiveUrl,
   extractStockId,
   extractStockIdFromIdentity,
 } from "./live-match";
+import { galleryIdentityKey } from "./live-observe";
 import { assertPlanIntegrity, sealPlan } from "./plan-file";
 import {
   oceanManagedKey,
@@ -40,6 +42,8 @@ export const LIVE_VISUAL_HIDE_PACK_REASON = "live-visual-hide-pack";
 export const LIVE_VISUAL_NO_VALIDATED_LISTINGS_REASON =
   "live-visual-no-validated-listings";
 export const LIVE_VISUAL_EXCLUDED_REASON = "live-visual-excluded";
+export const DEALER_NOT_ONBOARDING_REASON = "dealer-not-onboarding";
+export const LIVE_ORDER_RECONCILED_FINDING = "live-order-reconciled";
 
 const FAILED_LIVE_STATUSES = new Set<LiveListingStatus>(
   LIVE_LISTING_STATUSES.filter((status) => status !== "pass"),
@@ -134,7 +138,8 @@ export const previewLiveFinalizationSchema = z.object({
   candidateRunId: z.string().min(1),
   candidateFingerprint: z.string().min(1),
   liveReportRunId: z.string().min(1),
-  liveReportFingerprint: z.string().min(1),
+  liveReportPlanFingerprint: z.string().min(1),
+  liveReportFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   liveReportCreatedAt: z.string().min(1),
 });
 
@@ -158,7 +163,7 @@ export function assertFinalizedPreviewPlan(
   }
   if (
     parsed.data.liveReportRunId !== parsed.data.candidateRunId ||
-    parsed.data.liveReportFingerprint !== parsed.data.candidateFingerprint
+    parsed.data.liveReportPlanFingerprint !== parsed.data.candidateFingerprint
   ) {
     throw new Error(
       "Refusing production plan: live report provenance does not match the candidate.",
@@ -241,9 +246,13 @@ function finalizeReplaceAction(
   const observed = reportListingsByIdentity(dealer);
   const retained: PlannedListing[] = [];
   const liveExcluded: ExcludedListingEvidence[] = [];
-  const hideReasons = dealer.hidePack
+  const dealerNotOnboarding = isTemporaryExcludedProductionAccount(action.dealerKey);
+  const effectiveHidePack =
+    dealer.hidePack && !dealerCensusRecoveredAfterT0(dealer.census);
+  const hideReasons = effectiveHidePack || dealerNotOnboarding
     ? uniqueSorted([
-        LIVE_VISUAL_HIDE_PACK_REASON,
+        ...(effectiveHidePack ? [LIVE_VISUAL_HIDE_PACK_REASON] : []),
+        ...(dealerNotOnboarding ? [DEALER_NOT_ONBOARDING_REASON] : []),
         ...(dealer.hideReason ? [dealer.hideReason] : []),
       ])
     : [];
@@ -256,17 +265,18 @@ function finalizeReplaceAction(
         `Refusing live finalization: listing is not covered (${action.dealerKey}:${listing.identityKey}).`,
       );
     }
-    const passed = result.status === "pass";
+    const reordered = reconcileLiveImageOrder(listing, result);
+    const passed = result.status === "pass" || reordered !== null;
     if (passed) passCount += 1;
-    if (!passed || dealer.hidePack) {
+    if (!passed || effectiveHidePack || dealerNotOnboarding) {
       liveExcluded.push(liveListingEvidence(listing, result, hideReasons));
       continue;
     }
-    retained.push(listing);
+    retained.push(reordered ?? listing);
   }
 
   const excludedListings = mergeExcluded(action.excludedListings, liveExcluded);
-  if (dealer.hidePack || passCount === 0) {
+  if (effectiveHidePack || dealerNotOnboarding || passCount === 0) {
     return {
       kind: "disable",
       dealerKey: action.dealerKey,
@@ -276,7 +286,7 @@ function finalizeReplaceAction(
       removeListings: true,
       reasons: uniqueSorted([
         ...hideReasons,
-        ...(passCount === 0 && !dealer.hidePack
+        ...(passCount === 0 && !effectiveHidePack
           ? [LIVE_VISUAL_NO_VALIDATED_LISTINGS_REASON]
           : []),
       ]),
@@ -287,6 +297,58 @@ function finalizeReplaceAction(
     ...action,
     listings: retained,
     excludedListings,
+  };
+}
+
+export function reconcileLiveImageOrder(
+  listing: PlannedListing,
+  result: LiveVisualListingResult,
+): PlannedListing | null {
+  if (
+    result.status !== "drift" ||
+    result.findings.length !== 1 ||
+    result.findings[0] !== "live-drift" ||
+    !result.heroSrc
+  ) {
+    return null;
+  }
+  const byIdentity = new Map<string, PlannedListing["images"][number]>();
+  for (const image of listing.images) {
+    const identity = galleryIdentityKey(image.sourceUrl);
+    if (!identity || byIdentity.has(identity)) return null;
+    byIdentity.set(identity, image);
+  }
+  const heroIdentity = galleryIdentityKey(result.heroSrc);
+  if (!heroIdentity || !byIdentity.has(heroIdentity)) return null;
+  const ordered: PlannedListing["images"] = [];
+  const used = new Set<string>();
+  for (const url of result.gallerySrcs) {
+    const identity = galleryIdentityKey(url);
+    const image = identity ? byIdentity.get(identity) : null;
+    if (!identity || !image) return null;
+    if (used.has(identity)) continue;
+    used.add(identity);
+    ordered.push(image);
+  }
+  if (ordered.length === 0) return null;
+  for (const image of listing.images) {
+    const identity = galleryIdentityKey(image.sourceUrl);
+    if (!identity || used.has(identity)) continue;
+    used.add(identity);
+    ordered.push(image);
+  }
+  if (ordered.length !== listing.images.length) return null;
+  return {
+    ...listing,
+    listing: {
+      ...listing.listing,
+      imageUrls: ordered.map((image) => image.sourceUrl),
+    },
+    images: ordered.map((image, order) => ({ ...image, order })),
+    findings: uniqueSorted([
+      ...listing.findings,
+      LIVE_ORDER_RECONCILED_FINDING,
+    ]),
   };
 }
 
@@ -358,7 +420,8 @@ export function finalizePreviewPlanFromLiveVisual(input: {
       candidateRunId: input.candidate.runId,
       candidateFingerprint: input.candidate.fingerprint,
       liveReportRunId: report.runId,
-      liveReportFingerprint: report.planFingerprint,
+      liveReportPlanFingerprint: report.planFingerprint,
+      liveReportFingerprint: report.fingerprint,
       liveReportCreatedAt: report.createdAt,
     },
   });
@@ -434,7 +497,7 @@ export function liveExclusionsFromFinalPreviewPlan(
   plan: PreviewPackAuditPlan,
 ): ProductionLiveExclusion[] {
   return plan.actions.flatMap((action) => {
-    if (isTemporaryExcludedProductionAccount(action.dealerKey)) return [];
+    if (!ALLOWED_PRODUCTION_LIVE_DEALERS.has(action.dealerKey)) return [];
     return action.excludedListings
       .filter((listing) => !isSyntheticLiveIdentity(listing.identityKey))
       .map((listing) => ({
@@ -452,7 +515,7 @@ export function liveAllowlistFromFinalPreviewPlan(
   plan: PreviewPackAuditPlan,
 ): ProductionLiveAllowlistListing[] {
   return plan.actions.flatMap((action) => {
-    if (isTemporaryExcludedProductionAccount(action.dealerKey)) return [];
+    if (!ALLOWED_PRODUCTION_LIVE_DEALERS.has(action.dealerKey)) return [];
     if (action.kind !== "replace") return [];
     return action.listings
       .filter((listing) => !isSyntheticLiveIdentity(listing.identityKey))
@@ -471,7 +534,7 @@ export function productionLiveGateFromFinalPreviewPlan(
   assertFinalizedPreviewPlan(plan);
   const coveredDealerKeys = uniqueSorted(
     plan.actions
-      .filter((action) => !isTemporaryExcludedProductionAccount(action.dealerKey))
+      .filter((action) => ALLOWED_PRODUCTION_LIVE_DEALERS.has(action.dealerKey))
       .map((action) => action.dealerKey),
   );
   return {
@@ -484,7 +547,7 @@ export function productionLiveGateFromFinalPreviewPlan(
       plan.actions
         .filter((action) =>
           action.kind === "disable" &&
-          !isTemporaryExcludedProductionAccount(action.dealerKey))
+          ALLOWED_PRODUCTION_LIVE_DEALERS.has(action.dealerKey))
         .map((action) => action.dealerKey),
     ),
     coveredDealerKeys,
@@ -495,7 +558,7 @@ export function liveExclusionsFromVisualReport(
   report: LiveVisualReport,
 ): ProductionLiveExclusion[] {
   return report.dealers.flatMap((dealer) => {
-    if (isTemporaryExcludedProductionAccount(dealer.dealerKey)) return [];
+    if (!ALLOWED_PRODUCTION_LIVE_DEALERS.has(dealer.dealerKey)) return [];
     return dealer.listings
       .filter((listing) =>
         dealer.hidePack || FAILED_LIVE_STATUSES.has(listing.status))

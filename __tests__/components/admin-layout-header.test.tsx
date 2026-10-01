@@ -14,6 +14,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
   usePathname: () => "/admin/users",
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 vi.mock("@/components/layout/site-header", () => ({

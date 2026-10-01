@@ -17,7 +17,7 @@ import type { DealerInspectEvidence } from "./inspect/evidence";
 import { collectLatestDealerCounts, writeInspectReport } from "./inspect/report";
 import { inspectRoot, runHeadedInspect } from "./inspect/run";
 import { probeDealer, runDealerPipeline } from "./pipeline";
-import { DEALER_REGISTRY, getDealer, listDealers } from "./registry";
+import { getDealer, listDealers } from "./registry";
 
 function argValue(flag: string) {
   const index = process.argv.indexOf(flag);
@@ -33,9 +33,19 @@ function write(line: string) {
   process.stdout.write(`${line}\n`);
 }
 
+function getActiveDealer(dealerKey: string) {
+  const dealer = getDealer(dealerKey);
+  if (dealer.status === "archived") {
+    throw new Error(
+      `${dealer.displayName} is archived and must not be scraped, imported, or reactivated without explicit client approval.`,
+    );
+  }
+  return dealer;
+}
+
 async function probe() {
   const dealerKey = argValue("--dealer");
-  const dealers = dealerKey ? [getDealer(dealerKey)] : listDealers({ includeUnverified: true, includeOptional: true });
+  const dealers = dealerKey ? [getActiveDealer(dealerKey)] : listDealers({ includeUnverified: true, includeOptional: true });
   for (const dealer of dealers) {
     const result = await probeDealer(dealer);
     write(JSON.stringify(result, null, 2));
@@ -50,7 +60,7 @@ async function archive() {
     throw new Error("Pass --dealer <key> or --all");
   }
   const dealers = dealerKey
-    ? [getDealer(dealerKey)]
+    ? [getActiveDealer(dealerKey)]
     : listDealers({ includeUnverified: true, includeOptional: true });
   const runId = createRunId();
   const manifests = [];
@@ -73,7 +83,11 @@ async function archive() {
       write(`${dealer.key}: failed ${message}`);
     }
   }
-  await writeRunManifest({ runId, dealers: [...DEALER_REGISTRY], dealerManifests: manifests });
+  await writeRunManifest({
+    runId,
+    dealers: listDealers({ includeUnverified: true, includeOptional: true }),
+    dealerManifests: manifests,
+  });
   write(`Run complete: ${runId}`);
 }
 

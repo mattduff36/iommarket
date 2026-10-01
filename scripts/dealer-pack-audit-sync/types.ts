@@ -87,6 +87,7 @@ export interface PreviewLiveFinalization {
   candidateRunId: string;
   candidateFingerprint: string;
   liveReportRunId: string;
+  liveReportPlanFingerprint: string;
   liveReportFingerprint: string;
   liveReportCreatedAt: string;
 }

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
+import { encodeNetDirectorImageUrl } from "@/scripts/dealer-stock-sync/image-urls";
 import { sealPlan } from "@/scripts/dealer-pack-audit-sync/plan-file";
 import {
   DEALER_PACK_AUDIT_VERSION,
@@ -17,6 +18,7 @@ import {
   compareLiveIdentities,
   extractStockId,
   extractStockIdFromUrl,
+  identityMismatch,
   isCardBadgeTitle,
   parsePricePence,
   plannedLiveIdentity,
@@ -63,7 +65,10 @@ import {
   parseLiveVisualArgs,
   runLiveVisualCli,
 } from "@/scripts/dealer-pack-audit-sync/live-visual";
-import { liveVisualReportSchema } from "@/scripts/dealer-pack-audit-sync/live-types";
+import {
+  liveVisualReportSchema,
+  parseLiveVisualReport,
+} from "@/scripts/dealer-pack-audit-sync/live-types";
 import type { LiveObservedIdentity, LivePlannedIdentity } from "@/scripts/dealer-pack-audit-sync/live-types";
 
 const LIVE_SOURCE_FILES = [
@@ -426,11 +431,31 @@ describe("live identity matching", () => {
     expect(differentVehicle.url).toBe(false);
     expect(differentVehicle.stockIdConflict).toBe(true);
     expect(differentVehicle.titleConflict).toBe(true);
+
+    const longTdUrl =
+      "https://www.tdcar.im/inventory/2015-volkswagen-golf-2-0-tsi-bluemotion-tech-r-dsg-4motion-euro-6-s-s-5dr";
+    const exactLongUrl = compareLiveIdentities(
+      planned({
+        canonicalUrl: canonicalizeLiveUrl(longTdUrl),
+        stockId:
+          "inventory/2015-volkswagen-golf-2-0-tsi-bluemotion-tech-r-dsg-4motion-euro-6-s-s-5dr",
+      }),
+      observed({
+        href: longTdUrl,
+        canonicalUrl: canonicalizeLiveUrl(longTdUrl),
+        stockId: "inventory",
+        title: "COMING SOON",
+        titleReliable: false,
+      }),
+    );
+    expect(exactLongUrl.stockIdConflict).toBe(true);
+    expect(exactLongUrl.assignedBy).toBe("url");
+    expect(identityMismatch(exactLongUrl)).toBe(false);
   });
 });
 
 describe("live observation and quality", () => {
-  it("reads visible stock cards and gallery order from rendered snapshots", () => {
+  it("reads visible stock cards and preserves rendered gallery DOM order", () => {
     const cards = collectVisibleStockCards([
       snapshot(),
       snapshot({ href: "https://dealer.example/used/abc123?utm_medium=cpc", top: 80 }),
@@ -442,10 +467,10 @@ describe("live observation and quality", () => {
       { ...snapshot({ tag: "img", href: null, src: "https://cdn.example/b.jpg", currentSrc: "https://cdn.example/b.jpg", top: 40, region: "gallery" }), width: 800, height: 500 },
       { ...snapshot({ tag: "img", href: null, src: "https://cdn.example/a.jpg", currentSrc: "https://cdn.example/a.jpg", top: 0, region: "gallery" }), width: 800, height: 500 },
     ]);
-    expect(gallery.heroSrc).toBe("https://cdn.example/a.jpg");
+    expect(gallery.heroSrc).toBe("https://cdn.example/b.jpg");
     expect(gallery.gallerySrcs).toEqual([
-      "https://cdn.example/a.jpg",
       "https://cdn.example/b.jpg",
+      "https://cdn.example/a.jpg",
     ]);
   });
 
@@ -453,6 +478,19 @@ describe("live observation and quality", () => {
     expect(isSafeRemoteImageUrl("file:///etc/passwd")).toBe(false);
     expect(() => assertSafeRemoteImageUrl("javascript:alert(1)")).toThrow("unsafe");
     expect(isPlaceholderImageUrl("https://cdn.example/placeholder-noimage.png")).toBe(true);
+    expect(
+      isPlaceholderImageUrl(
+        encodeNetDirectorImageUrl({
+          key: "ndstock/images/NDS21673655_TMN823D_2.jpg",
+          edits: { resize: { width: 600, height: 450 } },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isPlaceholderImageUrl(
+        encodeNetDirectorImageUrl({ key: "ndstock/images/waiting-for-image.jpg" }),
+      ),
+    ).toBe(true);
     const good = inspectLiveImageBytes("https://cdn.example/car.jpg", GOOD_IMAGE);
     expect(good.checksum).toBe(GOOD_CHECKSUM);
     expect(good.placeholder).toBe(false);
@@ -483,6 +521,35 @@ describe("live observation and quality", () => {
       observedChecksums: [VARIANT_CHECKSUM],
       canonicalize: canonicalizeLiveUrl,
     })).toBe(true);
+    expect(plannedGalleryAlignsWithLive({
+      plannedUrls: [
+        "https://cdn.example/1.jpg",
+        "https://cdn.example/2.jpg",
+        "https://cdn.example/3.jpg",
+      ],
+      observedUrls: [
+        "https://cdn.example/1.jpg",
+        "https://cdn.example/3.jpg",
+      ],
+      plannedChecksums: ["one", "two", "three"],
+      observedChecksums: ["one", "three"],
+      canonicalize: canonicalizeLiveUrl,
+    })).toBe(true);
+    expect(plannedGalleryAlignsWithLive({
+      plannedUrls: [
+        "https://cdn.example/1.jpg",
+        "https://cdn.example/2.jpg",
+        "https://cdn.example/3.jpg",
+      ],
+      observedUrls: [
+        "https://cdn.example/1.jpg",
+        "https://cdn.example/3.jpg",
+        "https://cdn.example/2.jpg",
+      ],
+      plannedChecksums: ["one", "two", "three"],
+      observedChecksums: ["one", "three", "two"],
+      canonicalize: canonicalizeLiveUrl,
+    })).toBe(false);
     expect(plannedUrlsAreOrderedSubsequence(
       ["https://cdn.example/a.jpg", "https://cdn.example/b.jpg"],
       [
@@ -506,7 +573,7 @@ describe("live observation and quality", () => {
       plannedChecksums: [GOOD_CHECKSUM, VARIANT_CHECKSUM],
       observedChecksums: ["lead", VARIANT_CHECKSUM, "mid", GOOD_CHECKSUM],
       canonicalize: canonicalizeLiveUrl,
-    })).toBe(true);
+    })).toBe(false);
     expect(plannedGalleryAlignsWithLive({
       plannedUrls: ["https://cdn.example/a.jpg", "https://cdn.example/b.jpg"],
       observedUrls: ["https://cdn.example/b.jpg", "https://cdn.example/a.jpg"],
@@ -568,6 +635,25 @@ describe("live census, status, and reports", () => {
       cardDeltas: { added: [], removed: ["https://dealer.example/used/gone"], unchanged: 1 },
     });
     expect(disappeared.drift).toBe(true);
+    expect(buildLiveDealerCensus({
+      dealerKey: "dealer-a",
+      plannedCount: 1,
+      matchedCount: 1,
+      extraObservedCount: 0,
+      t0Accessible: true,
+      t0PageUrl: "https://dealer.example/used",
+      t0CardCount: 1,
+      t1Attempted: 1,
+      t1AccessibleCount: 1,
+      t1InaccessibleCount: 0,
+      t1ListAccessible: true,
+      t1ListCardCount: 0,
+      cardDeltas: {
+        added: [],
+        removed: ["https://dealer.example/used/abc123"],
+        unchanged: 0,
+      },
+    }).drift).toBe(false);
     expect(dealerShouldHidePack({
       t0Accessible: false,
       t1AccessibleCount: 0,
@@ -575,12 +661,19 @@ describe("live census, status, and reports", () => {
       inaccessibleListings: 1,
     })).toBe(true);
     expect(dealerShouldHidePack({
+      t0Accessible: false,
+      t1AccessibleCount: 1,
+      plannedCount: 1,
+      inaccessibleListings: 0,
+      t1ListAccessible: true,
+    })).toBe(false);
+    expect(dealerShouldHidePack({
       t0Accessible: true,
       t1AccessibleCount: 1,
       plannedCount: 1,
       inaccessibleListings: 0,
       censusDrift: true,
-    })).toBe(true);
+    })).toBe(false);
     expect(hidePackReason({
       hidePack: true,
       t0Accessible: true,
@@ -593,11 +686,18 @@ describe("live census, status, and reports", () => {
       plannedCount: 1,
       inaccessibleListings: 0,
       t1ListAccessible: false,
+    })).toBe(false);
+    expect(dealerShouldHidePack({
+      t0Accessible: true,
+      t1AccessibleCount: 0,
+      plannedCount: 1,
+      inaccessibleListings: 1,
+      t1ListAccessible: false,
     })).toBe(true);
     expect(hidePackReason({
       hidePack: true,
       t0Accessible: true,
-      inaccessibleListings: 0,
+      inaccessibleListings: 1,
       t1ListAccessible: false,
     })).toBe(T1_STOCK_LIST_INACCESSIBLE_REASON);
     expect(applyCensusDriftToListings([{
@@ -617,6 +717,19 @@ describe("live census, status, and reports", () => {
       hidePack: true,
       findings: [CENSUS_DRIFT_HIDE_REASON],
     });
+    expect(applyCensusDriftToListings([{
+      identityKey: "stockId:abc123",
+      status: "pass",
+      hidePack: false,
+      planned: planned(),
+      observed: observed(),
+      match: compareLiveIdentities(planned(), observed()),
+      heroSrc: "https://cdn.example/car.jpg",
+      gallerySrcs: ["https://cdn.example/car.jpg"],
+      imageSignals: [],
+      findings: [],
+      evidencePaths: { stockCard: null, detail: null, images: [] },
+    }], true, ["https://dealer.example/used/other"])[0]?.status).toBe("pass");
     expect(resolveLiveListingStatus({
       inaccessible: false,
       empty: false,
@@ -708,6 +821,11 @@ describe("live census, status, and reports", () => {
     expect(report.ok).toBe(false);
     expect(report.hidePackCount).toBe(1);
     expect(liveVisualReportSchema.parse(report).hidePackCount).toBe(1);
+    const tampered = structuredClone(report);
+    tampered.hidePackCount = 0;
+    expect(() => parseLiveVisualReport(tampered)).toThrow(
+      "Live visual report fingerprint mismatch",
+    );
     const markdown = renderLiveVisualReport(report);
     expect(markdown).toContain("Hide pack: yes");
     expect(markdown).toContain("live-visual/dealer-a/t0-stock.png");
@@ -746,6 +864,23 @@ describe("live visual validation against a frozen plan", () => {
     expect(report.ok).toBe(true);
     expect(written.some((path) => path.includes("t0-stock"))).toBe(true);
     expect(written.some((path) => path.includes("t1-"))).toBe(true);
+  });
+
+  it("does not pass when rendered image bytes cannot be verified", async () => {
+    const report = await runLiveVisualValidation({
+      plan: frozenPlan(),
+      deps: {
+        browser: mockBrowser(passingPages()),
+        fetchImage: async (url) => ({ url, error: "fetch-failed" }),
+        resolveSite: () => site,
+        now: () => "2026-09-29T21:10:00.000Z",
+      },
+    });
+    expect(report.dealers[0]?.listings[0]?.status).toBe("unverified");
+    expect(report.dealers[0]?.listings[0]?.findings).toContain(
+      "unverified-image-evidence",
+    );
+    expect(report.ok).toBe(false);
   });
 
   it("classifies mismatch, placeholder, empty, drift, and inaccessible hide-pack", async () => {
@@ -955,7 +1090,7 @@ describe("live gallery extras, evidence, and schema", () => {
     const pages = passingPages() as Record<string, { images?: unknown[] }>;
     const detail = pages["https://dealer.example/used/abc123"] as { images: unknown[] };
     detail.images = [
-      { ...extraSlideImage(), top: 0 },
+      { ...extraSlideImage(), top: 0, width: 300, height: 200 },
       {
         tag: "img",
         href: "https://dealer.example/used/abc123",
@@ -1030,6 +1165,64 @@ describe("live gallery extras, evidence, and schema", () => {
       }],
     })).toThrow();
     expect(liveVisualReportSchema.parse(report).ok).toBe(true);
+  });
+
+  it("fails closed when a wrong full-size image is the live primary", async () => {
+    const pages = passingPages() as Record<string, { images?: unknown[] }>;
+    const detail = pages["https://dealer.example/used/abc123"] as { images: unknown[] };
+    detail.images = [
+      { ...extraSlideImage(), top: 0, width: 900, height: 600 },
+      {
+        ...extraSlideImage(),
+        src: "https://cdn.example/car.jpg",
+        currentSrc: "https://cdn.example/car.jpg",
+        alt: "planned car",
+        top: 10,
+        width: 900,
+        height: 600,
+      },
+    ];
+    const report = await runLiveVisualValidation({
+      plan: frozenPlan(),
+      deps: {
+        browser: mockBrowser(pages),
+        fetchImage: async (url) => ({
+          url,
+          bytes: GOOD_IMAGE,
+          contentType: "image/png",
+          status: 200,
+        }),
+        resolveSite: () => site,
+        evidence: { async write(relPath) { return relPath; } },
+        now: () => "2026-09-29T21:10:00.000Z",
+      },
+    });
+
+    expect(report.dealers[0]?.listings[0]).toMatchObject({
+      status: "drift",
+      findings: expect.arrayContaining(["live-drift"]),
+    });
+  });
+
+  it("fails closed when a matching live image cannot be fetched or verified", async () => {
+    const report = await runLiveVisualValidation({
+      plan: frozenPlan(),
+      deps: {
+        browser: mockBrowser(passingPages()),
+        fetchImage: async (url) => ({ url, error: "HTTP 403" }),
+        resolveSite: () => site,
+        evidence: { async write(relPath) { return relPath; } },
+        now: () => "2026-09-29T21:10:00.000Z",
+      },
+    });
+
+    expect(report.dealers[0]?.listings[0]).toMatchObject({
+      status: "unverified",
+      findings: expect.arrayContaining([
+        "unverified-image-evidence",
+        "fetch:HTTP 403",
+      ]),
+    });
   });
 });
 
@@ -1180,6 +1373,72 @@ describe("live validator dealer regressions", () => {
     expect(report.dealers[0]?.listings[0]?.status).toBe("pass");
     expect(visited.some((url) => url === "https://dealer.example")).toBe(false);
     expect(visited.some((url) => url.startsWith("https://dealer.example/used"))).toBe(true);
+  });
+
+  it("validates unmatched NetDirector stock through its derived detail URL", async () => {
+    const stockId = "20481102";
+    const imageUrl = encodeNetDirectorImageUrl({
+      key: `ndstock/images/NDS${stockId}_PMN999K_1.png`,
+    });
+    const listing = plannedListing({
+      identityKey: `sourceVehicleId:${stockId}`,
+      sourceUrl: null,
+      listing: {
+        ...plannedListing().listing,
+        title: "2020 Smart Fortwo",
+        pricePence: 699_500,
+        imageUrls: [imageUrl],
+      },
+      images: [{
+        ...plannedListing().images[0]!,
+        sourceUrl: imageUrl,
+      }],
+    });
+    const action: ReplacePackAction = {
+      ...replaceAction([listing]),
+      dealerKey: "athol-garage",
+      displayName: "Athol Garage",
+    };
+    const detailUrl =
+      `https://www.athol.im/used-cars/${stockId}-2020%20Smart%20Fortwo`;
+    const report = await runLiveVisualValidation({
+      plan: frozenPlan([action]),
+      deps: {
+        browser: mockBrowser({
+          "https://www.athol.im/used-cars": {
+            title: "Used cars",
+            anchors: [],
+            text: "",
+          },
+          [detailUrl]: {
+            title: "2020 Smart Fortwo £6,995",
+            text: "2020 Smart Fortwo £6,995",
+            images: [snapshot({
+              tag: "img",
+              href: null,
+              src: imageUrl,
+              currentSrc: imageUrl,
+              alt: "2020 Smart Fortwo",
+              text: "",
+              width: 900,
+              height: 600,
+              region: "gallery",
+            })],
+          },
+        }),
+        fetchImage: fetchGood,
+        resolveSite: () => ({
+          dealerKey: "athol-garage",
+          website: "https://www.athol.im/",
+          stockUrls: ["https://www.athol.im/used-cars/"],
+        }),
+        now: () => "2026-09-29T21:10:00.000Z",
+      },
+    });
+
+    expect(report.dealers[0]?.census.t1AccessibleCount).toBe(1);
+    expect(report.dealers[0]?.listings[0]?.status).toBe("pass");
+    expect(report.dealers[0]?.listings[0]?.observed?.stockId).toBe(stockId);
   });
 
   it("matches Swift, TD, Ocean, and Athol stock identities without treating extras as drift", async () => {

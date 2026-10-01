@@ -330,6 +330,14 @@ describe("dry-run archive importer", () => {
         expectedName: "Wrong Name",
       }),
     ).toThrow(ArchiveImportSafetyError);
+    expect(() =>
+      assertArchiveDealerMatch({
+        archiveDealerKey: "rex-motor-company",
+        archiveDisplayName: "Rex Motor Company",
+        requestedDealerKey: "rex-motor-company",
+        expectedName: "Rex Motor Company",
+      }),
+    ).toThrow(/archived/);
   });
 
   it("reports importability without writing listings", () => {

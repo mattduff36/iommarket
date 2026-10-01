@@ -7,6 +7,10 @@ import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { captureException } from "@/lib/monitoring";
 import {
+  ADMIN_CHECKLIST_DISABLED_ERROR,
+  isAdminChecklistEnabled,
+} from "@/lib/admin/checklist-feature";
+import {
   CHECKLIST_SETTING_KEY,
   createDefaultChecklistItems,
   normalizeChecklistLabels,
@@ -28,6 +32,9 @@ const CHECKLIST_MALFORMED_ERROR =
 
 export async function loadChecklist() {
   await requireRole("ADMIN");
+  if (!isAdminChecklistEnabled()) {
+    return { error: ADMIN_CHECKLIST_DISABLED_ERROR };
+  }
 
   try {
     const row = await db.siteSetting.findUnique({
@@ -70,6 +77,9 @@ export async function loadChecklist() {
 
 export async function saveChecklist(input: SaveChecklistInput) {
   const admin = await requireRole("ADMIN");
+  if (!isAdminChecklistEnabled()) {
+    return { error: ADMIN_CHECKLIST_DISABLED_ERROR };
+  }
   const parsed = saveChecklistSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
@@ -143,6 +153,9 @@ export async function updateChecklistCompletion(
   input: UpdateChecklistCompletionInput,
 ) {
   const admin = await requireRole("ADMIN");
+  if (!isAdminChecklistEnabled()) {
+    return { error: ADMIN_CHECKLIST_DISABLED_ERROR };
+  }
   const parsed = updateChecklistCompletionSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 

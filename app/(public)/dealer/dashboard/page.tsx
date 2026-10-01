@@ -25,16 +25,14 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Plus, ExternalLink, Star } from "lucide-react";
-import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
-import { MarkSoldButton } from "./mark-sold-button";
-import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
-import { WithdrawSubmissionButton } from "@/components/marketplace/withdraw-submission-button";
+import { AccountListingActions } from "@/components/account/account-listing-actions";
+import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import {
   DEALER_TIER_LABELS,
   getDealerListingCap,
 } from "@/lib/config/dealer-tiers";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getPolicyFlags } from "@/lib/policy/flags";
 import { CancellationRequestCard } from "./cancellation-request-card";
@@ -136,6 +134,15 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
         images: { take: 1, orderBy: { order: "asc" } },
         category: { select: { name: true } },
         region: { select: { name: true } },
+        payments: {
+          where: {
+            status: "SUCCEEDED",
+            refundedAt: null,
+            OR: [{ type: "FEATURED" }, { includesFeatured: true }],
+          },
+          select: { id: true },
+          take: 1,
+        },
       },
     }),
     db.listing.count({ where: listingWhere }),
@@ -475,7 +482,10 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
         </CardContent>
       </Card>
 
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Your Listings</h2>
+      <h2 className="text-lg font-semibold text-text-primary mb-2">Your Listings</h2>
+      <p className="mb-4 text-sm text-text-secondary">
+        Feature a listing that is awaiting review or live. Featured placement starts after approval.
+      </p>
 
       {listings.length > 0 ? (
         <>
@@ -513,56 +523,20 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                       : "-"}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/listings/${listing.id}`}
-                        className="text-sm text-text-trust hover:underline"
-                      >
-                        View
-                      </Link>
-                      {(listing.status === "DRAFT" ||
-                        listing.status === "LIVE" ||
-                        listing.status === "TAKEN_DOWN" ||
-                        listing.status === "REJECTED") && (
-                        <Link
-                          href={getDraftEditorHref({
-                            listingId: listing.id,
-                            dealerId: listing.dealerId,
-                          })}
-                          className="text-sm text-text-trust hover:underline"
-                        >
-                          {listing.status === "DRAFT" ? "Continue editing" : "Edit"}
-                        </Link>
-                      )}
-                      {listing.status === "LIVE" && !listing.featured && (
-                        <FeaturedUpgradeButton
-                          listingId={listing.id}
-                          featuredUpgradePricePence={getRippleTestFeaturedProduct()?.amountPence ?? pricing.featuredUpgradePence}
-                          previewTest={Boolean(getRippleTestFeaturedProduct())}
-                          variant="inline"
-                        />
-                      )}
-                      {listing.status === "LIVE" && (
-                        <MarkSoldButton listingId={listing.id} />
-                      )}
-                      {listing.status === "PENDING" && (
-                        <WithdrawSubmissionButton
-                          listingId={listing.id}
-                          expectedRevision={listing.lifecycleRevision}
-                          editHref={getDraftEditorHref({
-                            listingId: listing.id,
-                            dealerId: listing.dealerId,
-                          })}
-                        />
-                      )}
-                      {listing.status === "EXPIRED" && (
-                        <RenewListingButton
-                          listingId={listing.id}
-                          flow="dealer"
-                          variant="inline"
-                        />
-                      )}
-                    </div>
+                    <AccountListingActions
+                      listingId={listing.id}
+                      title={listing.title}
+                      status={listing.status}
+                      featured={listing.featured}
+                      dealerId={listing.dealerId}
+                      lifecycleRevision={listing.lifecycleRevision}
+                      hasListingPayment={false}
+                      featuredPurchased={listing.payments.length > 0}
+                      featuredUpgradePricePence={pricing.featuredUpgradePence}
+                      checkoutUnavailable={
+                        isRipplePreviewRuntime() && !isSampleCheckoutEnabled()
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -611,4 +585,3 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     </div>
   );
 }
-import { getRippleTestFeaturedProduct } from "@/lib/payments/ripple-config";

@@ -115,6 +115,24 @@ describe("ListingCard", () => {
     expect(screen.getByText("Category N write-off")).toBeTruthy();
   });
 
+  it("shows a review badge and explicit no-image placeholder", () => {
+    render(
+      <ListingCard
+        title={listing.title}
+        price={listing.price}
+        href={listing.href}
+        badge="Preview — not public"
+        needsManualReview
+        noImageReview
+      />,
+    );
+
+    expect(screen.getByText("Preview — not public")).toBeTruthy();
+    expect(screen.getAllByText("Needs manual review").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("preview-review-no-image")).toBeTruthy();
+    expect(screen.getByText("No source image")).toBeTruthy();
+  });
+
   it("uses the saved focal point for the listing-card crop", () => {
     render(
       <ListingCard

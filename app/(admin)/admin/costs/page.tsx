@@ -59,11 +59,12 @@ export default async function AdminCostsPage() {
     return <CostDashboardView dashboard={unavailableDashboard(access.reason, isOwner)} />;
   }
   if(access.mode==="accounts-preview"){
+    let dashboard: CostDashboardDto;
     try{
       const accountsSnapshot=await syncAccountsPreview();
-      const dashboard=await getCostDashboard({db:costDb,enabled,isOwner,accountsSnapshot});
-      return <CostDashboardView dashboard={dashboard}/>;
-    }catch{return <CostDashboardView dashboard={unavailableDashboard("The isolated Accounts preview could not be refreshed. Existing local records are retained; no live ledger was changed.",isOwner)}/>;}
+      dashboard=await getCostDashboard({db:costDb,enabled,isOwner,accountsSnapshot});
+    }catch{dashboard=unavailableDashboard("The isolated Accounts preview could not be refreshed. Existing local records are retained; no live ledger was changed.",isOwner);}
+    return <CostDashboardView dashboard={dashboard}/>;
   }
 
   if (access.mode === "remote") {

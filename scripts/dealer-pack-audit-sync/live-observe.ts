@@ -1,7 +1,12 @@
 import { isIP } from "node:net";
 import { isPublicIpAddress } from "../../lib/images/safe-remote-image";
 import { ownerTokenMatches } from "../dealer-stock-sync/image-ownership";
-import { imageIdentityKey } from "../dealer-stock-sync/image-urls";
+import {
+  canonicalizeImageUrl,
+  imageIdentityKey,
+  imageQualityScore,
+  normalizeHttpImageUrl,
+} from "../dealer-stock-sync/image-urls";
 import {
   canonicalizeLiveUrl,
   extractStockIdFromUrl,
@@ -36,6 +41,8 @@ export interface VisibleElementSnapshot {
   left: number;
   width: number;
   height: number;
+  naturalWidth?: number;
+  naturalHeight?: number;
   region?: LiveDomRegion;
   ownerHref?: string | null;
   imagePath?: string | null;
@@ -85,11 +92,11 @@ export interface LiveBrowserSession {
 export type LiveBrowserFactory = () => Promise<LiveBrowserSession>;
 
 export const MAX_STOCK_LIST_PAGES = 8;
-export const MAX_LOAD_MORE_CLICKS = 3;
+export const MAX_LOAD_MORE_CLICKS = 8;
 
 const MIN_CARD_EDGE = 48;
 const MIN_GALLERY_EDGE = 80;
-const PRICE = /(?:£|&pound;|GBP)\s*[\d,]{3,8}/i;
+const PRICE = /(?:£|&pound;|GBP)\s*[\d,]{3,8}/gi;
 const CHROME_REGIONS = new Set<LiveDomRegion>(["header", "nav", "footer"]);
 const RELATED_REGIONS = new Set<LiveDomRegion>(["aside", "related"]);
 const GALLERY_REGIONS = new Set<LiveDomRegion>(["main", "gallery"]);
@@ -104,6 +111,7 @@ export interface GalleryScope {
   listingUrl?: string | null;
   stockId?: string | null;
   ownerImagePaths?: string[];
+  preferredHeroUrl?: string | null;
 }
 
 function uniqueBy<T>(items: T[], key: (item: T) => string | null) {
@@ -279,20 +287,46 @@ export function srcsetCandidateUrls(srcset: string | null | undefined): string[]
   )];
 }
 
+const LAZY_PLACEHOLDER_SOURCE =
+  /(?:^|[/_.-])(?:grey|gray)[_-]?4[_-]?3(?:[/_.-]|$)|placeholder|no[-_]?image|blank\.(?:gif|png)|transparent\.(?:gif|png)|spacer\.(?:gif|png)/i;
+const IMAGE_HREF = /\.(?:avif|gif|jpe?g|png|webp)(?:$|[?#])/i;
+
+function preferredCandidate(urls: Array<string | null | undefined>) {
+  const unique = [...new Set(
+    urls
+      .map((url) => normalizeHttpImageUrl(url))
+      .filter((url): url is string =>
+        url != null && !/\.svg(?:$|[?#])/i.test(url)),
+  )];
+  let best: { url: string; score: number; index: number } | null = null;
+  for (const [index, url] of unique.entries()) {
+    let score = LAZY_PLACEHOLDER_SOURCE.test(url) ? -10_000_000 : 0;
+    try {
+      score += imageQualityScore(url);
+    } catch {
+      // Keep the stable candidate order when a URL cannot be scored.
+    }
+    if (!best || score > best.score) best = { url, score, index };
+  }
+  return best ? canonicalizeImageUrl(best.url) : null;
+}
+
 export function preferredImageSrc(
-  element: Pick<VisibleElementSnapshot, "currentSrc" | "src" | "dataSrc" | "srcset">,
+  element: Pick<VisibleElementSnapshot, "currentSrc" | "src" | "dataSrc" | "srcset"> &
+    Partial<Pick<VisibleElementSnapshot, "href">>,
 ): string | null {
-  return (
-    element.currentSrc ||
-    element.src ||
-    element.dataSrc ||
-    srcsetCandidateUrls(element.srcset)[0] ||
-    null
-  );
+  return preferredCandidate([
+    element.currentSrc,
+    element.dataSrc,
+    ...srcsetCandidateUrls(element.srcset),
+    element.src,
+    element.href && IMAGE_HREF.test(element.href) ? element.href : null,
+  ]);
 }
 
 export function visibleImageSrcs(
-  element: Pick<VisibleElementSnapshot, "currentSrc" | "src" | "dataSrc" | "srcset">,
+  element: Pick<VisibleElementSnapshot, "currentSrc" | "src" | "dataSrc" | "srcset"> &
+    Partial<Pick<VisibleElementSnapshot, "href">>,
 ): string[] {
   return [...new Set(
     [
@@ -300,6 +334,7 @@ export function visibleImageSrcs(
       element.src,
       element.dataSrc,
       ...srcsetCandidateUrls(element.srcset),
+      element.href && IMAGE_HREF.test(element.href) ? element.href : null,
     ].filter((url): url is string => Boolean(url)),
   )];
 }
@@ -307,7 +342,15 @@ export function visibleImageSrcs(
 function netDirectorOwned(src: string, stockId: string | null | undefined) {
   if (!stockId) return false;
   const numericCores = stockIdCores(stockId).filter((core) => /^\d{5,}$/.test(core));
-  return numericCores.some((core) => new RegExp(`nds${core}_`, "i").test(src));
+  let identity = src;
+  try {
+    identity = imageIdentityKey(src);
+  } catch {
+    // Fall back to the raw URL.
+  }
+  return numericCores.some((core) =>
+    new RegExp(`nds${core}(?:_|[^0-9]|$)`, "i").test(identity),
+  );
 }
 
 function isChromeRegion(region: LiveDomRegion) {
@@ -350,6 +393,28 @@ function isStockCardShape(input: {
   return Boolean(input.src && input.priceText);
 }
 
+export function preferredListingPriceText(text: string) {
+  const candidates: Array<{ text: string; value: number }> = [];
+  for (const match of text.matchAll(PRICE)) {
+    const index = match.index ?? 0;
+    const prefix = text.slice(Math.max(0, index - 32), index).toLowerCase();
+    const suffix = text
+      .slice(index + match[0].length, index + match[0].length + 20)
+      .toLowerCase();
+    if (
+      /\b(?:deposit|save|saving|apr|total payable)[^£\d]{0,12}$/.test(prefix) ||
+      /^\s*(?:off|deposit|saving)\b/.test(suffix)
+    ) {
+      continue;
+    }
+    const value = parsePricePence(match[0]);
+    if (value != null) candidates.push({ text: match[0], value });
+  }
+  const cashPrices = candidates.filter((candidate) => candidate.value >= 100_000);
+  const ranked = cashPrices.length > 0 ? cashPrices : candidates;
+  return ranked.sort((left, right) => left.value - right.value)[0]?.text ?? null;
+}
+
 export function collectVisibleStockCards(
   elements: VisibleElementSnapshot[],
   options: { planned?: LivePlannedIdentity[] } = {},
@@ -361,7 +426,7 @@ export function collectVisibleStockCards(
     const largeEnough =
       element.width >= MIN_CARD_EDGE && element.height >= MIN_CARD_EDGE;
     const src = preferredImageSrc(element);
-    const priceText = element.text.match(PRICE)?.[0] ?? null;
+    const priceText = preferredListingPriceText(element.text);
     const stockId = extractStockIdFromUrl(href);
     const region = regionOf(element);
     if (!largeEnough && !src) return [];
@@ -374,7 +439,7 @@ export function collectVisibleStockCards(
       title,
       titleReliable: !isCardBadgeTitle(title),
       priceText,
-      pricePence: parsePricePence(priceText ?? element.text),
+      pricePence: priceText ? parsePricePence(priceText) : null,
       imageSrc: src,
       top: element.top,
       left: element.left,
@@ -396,6 +461,13 @@ export function imageAnchoredToOtherListing(
 ) {
   const href = element.ownerHref ?? element.href;
   if (!href || !scope.listingUrl) return false;
+  try {
+    if (/\.(?:jpe?g|png|webp|gif|avif)(?:$|[?#])/i.test(new URL(href).pathname)) {
+      return false;
+    }
+  } catch {
+    // Continue with the identity check for malformed hrefs.
+  }
   const owner = canonicalizeLiveUrl(href);
   const listing = canonicalizeLiveUrl(scope.listingUrl);
   if (!owner || !listing || owner === listing) return false;
@@ -441,36 +513,71 @@ export function collectVisibleGallery(
   const images = elements
     .filter((element) => {
       const src = preferredImageSrc(element);
-      if (
-        !element.visible ||
-        !src ||
-        element.width < MIN_GALLERY_EDGE ||
-        element.height < MIN_GALLERY_EDGE
-      ) {
-        return false;
-      }
+      if (!src) return false;
       const region = regionOf(element);
       if (isChromeRegion(region) || RELATED_REGIONS.has(region)) return false;
       if (scoped && imageAnchoredToOtherListing(element, scope)) return false;
-      if (GALLERY_REGIONS.has(region)) return true;
+      const explicitGallery = GALLERY_REGIONS.has(region);
+      const width = Math.max(element.width, element.naturalWidth ?? 0);
+      const height = Math.max(element.height, element.naturalHeight ?? 0);
+      if (width < MIN_GALLERY_EDGE || height < MIN_GALLERY_EDGE) return false;
+      if (!element.visible && !explicitGallery) return false;
+      if (explicitGallery) {
+        return scoped
+          ? imageOwnedByListing(src, scope, element)
+          : element.visible;
+      }
       return scoped && imageOwnedByListing(src, scope, element);
-    })
-    .sort((left, right) => left.top - right.top || left.left - right.left);
-  const unique = uniqueBy(
-    images,
+    });
+  const nonCloneImages = images.filter(
     (image) =>
+      !(image.ancestorHints ?? []).some((hint) =>
+        /swiper-slide-duplicate|slick-cloned|owl-cloned|splide__slide--clone/i.test(hint),
+      ),
+  );
+  const candidates = nonCloneImages.length > 0 ? nonCloneImages : images;
+  const byIdentity = new Map<string, VisibleElementSnapshot>();
+  const identityOrder: string[] = [];
+  for (const image of candidates) {
+    const identity =
       galleryIdentityKey(preferredImageSrc(image)) ??
       canonicalizeLiveUrl(preferredImageSrc(image) ?? "") ??
-      preferredImageSrc(image),
+      preferredImageSrc(image);
+    if (!identity) continue;
+    const existing = byIdentity.get(identity);
+    if (!existing) identityOrder.push(identity);
+    const imageArea = image.visible ? image.width * image.height : -1;
+    const existingArea = existing?.visible
+      ? existing.width * existing.height
+      : -1;
+    if (!existing || imageArea > existingArea) byIdentity.set(identity, image);
+  }
+  const unique = identityOrder.flatMap((identity) => {
+    const image = byIdentity.get(identity);
+    return image ? [image] : [];
+  });
+  const maxVisibleArea = unique.reduce(
+    (max, image) =>
+      image.visible ? Math.max(max, image.width * image.height) : max,
+    0,
   );
-  const gallerySrcs = unique.flatMap((image) => {
+  const heroIndex = unique.findIndex(
+    (image) =>
+      image.visible &&
+      image.width * image.height >= maxVisibleArea * 0.5,
+  );
+  const ordered =
+    heroIndex > 0
+      ? [unique[heroIndex]!, ...unique.slice(0, heroIndex), ...unique.slice(heroIndex + 1)]
+      : unique;
+  const gallerySrcs = ordered.flatMap((image) => {
     const src = preferredImageSrc(image);
     return src ? [src] : [];
   });
   return {
     heroSrc: gallerySrcs[0] ?? null,
     gallerySrcs,
-    galleryAlts: unique.map((image) => {
+    galleryAlts: ordered.map((image) => {
       const preferred = preferredImageSrc(image);
       return visibleImageSrcs(image).find((candidate) => candidate !== preferred) ?? null;
     }),

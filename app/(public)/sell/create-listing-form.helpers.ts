@@ -1,3 +1,5 @@
+import type { UploadedImage } from "@/components/marketplace/image-upload";
+import type { EditableDraft } from "@/lib/listings/editable-draft";
 import { isAttributeVisible } from "@/lib/listings/attribute-ui";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
 import { normalizeCatalogueName } from "@/lib/vehicle-catalogue/normalize";
@@ -178,4 +180,18 @@ export function defendVehicleCatalogueSelection({
         modelMode: "manual",
         canonicalMake: selection.canonicalMake,
       };
+}
+
+export function toUploadedImage(image: EditableDraft["images"][number]): UploadedImage {
+  return {
+    ...image,
+    uploadIntentId: image.uploadIntentId ?? image.id,
+    provider: image.provider,
+  };
+}
+
+export function createPhotoMutationId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

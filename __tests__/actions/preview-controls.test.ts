@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { revalidatePath } from "next/cache";
 
 const { requireRoleMock, findManyMock, upsertMock } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
@@ -48,7 +49,7 @@ describe("preview controls admin actions", () => {
     await expect(getPreviewControls()).rejects.toThrow(/Insufficient permissions/);
   });
 
-  it("lists only loaded packs and default-visible sample switches", async () => {
+  it("lists disabled and empty packs while excluding archived dealers", async () => {
     await expect(getPreviewControls()).resolves.toEqual({
       data: {
         packs: [
@@ -65,7 +66,7 @@ describe("preview controls admin actions", () => {
     });
     expect(findManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { listings: { some: {} } },
+        where: { dealerKey: { notIn: ["rex-motor-company"] } },
       }),
     );
   });
@@ -94,5 +95,8 @@ describe("preview controls admin actions", () => {
         update: { value: false },
       }),
     );
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/listings");
+    expect(revalidatePath).toHaveBeenCalledWith("/");
+    expect(revalidatePath).toHaveBeenCalledWith("/search");
   });
 });

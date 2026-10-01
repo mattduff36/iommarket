@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 import { afterEach, describe, expect, it } from "vitest";
 import { wrapPlaywrightPage } from "@/scripts/dealer-pack-audit-sync/live-browser";
 import {
@@ -288,10 +288,9 @@ describe("live browser HTTP redirect interception", () => {
     });
     closers.push(() => closeServer(allowed.server));
 
-    let browser: Browser | undefined;
-    browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true });
     closers.push(async () => {
-      await browser?.close();
+      await browser.close();
     });
     const context = await browser.newContext();
     closers.push(async () => {

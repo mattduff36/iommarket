@@ -1,22 +1,16 @@
 import type { ListingStatus, Prisma, UserRole } from "@prisma/client";
 import {
+  applySampleListingVisibility,
+  DEFAULT_SAMPLE_VISIBILITY,
+  type SampleVisibility,
+} from "@/lib/listings/sample-visibility";
+import {
   PREVIEW_AUTH_USER_ID_PREFIX,
   PREVIEW_EMAIL_DOMAIN,
 } from "@/lib/preview-packs/safety";
 
-export const ADMIN_LISTING_STATUS_FILTERS = [
-  "ALL",
-  "PENDING",
-  "PENDING_EDITS",
-  "LIVE",
-  "TAKEN_DOWN",
-  "REJECTED",
-  "DRAFT",
-  "EXPIRED",
-  "SOLD",
-] as const;
-
-export type AdminListingStatusFilter = (typeof ADMIN_LISTING_STATUS_FILTERS)[number];
+import { ADMIN_LISTING_STATUS_FILTERS, type AdminListingStatusFilter } from "./listing-status-filters";
+export { ADMIN_LISTING_STATUS_FILTERS, type AdminListingStatusFilter } from "./listing-status-filters";
 
 export const ADMIN_LISTING_PAGE_SIZE = 25;
 
@@ -105,6 +99,7 @@ function listingSearchWhere(query: string): Prisma.ListingWhereInput {
 export function buildAdminListingArchiveWhere(input: {
   status: AdminListingStatusFilter;
   query: string;
+  sampleVisibility?: SampleVisibility;
 }): Prisma.ListingWhereInput {
   const statusWhere: Prisma.ListingWhereInput =
     input.status === "PENDING_EDITS"
@@ -120,9 +115,17 @@ export function buildAdminListingArchiveWhere(input: {
           ? { status: input.status as ListingStatus }
           : { status: { not: "ADMIN_PREVIEW" } };
 
-  if (!input.query) return statusWhere;
-  const queryWhere = listingSearchWhere(input.query);
-  return statusWhere.OR ? { AND: [statusWhere, queryWhere] } : { ...statusWhere, ...queryWhere };
+  const queryWhere = input.query ? listingSearchWhere(input.query) : null;
+  const archiveWhere = !queryWhere
+    ? statusWhere
+    : statusWhere.OR
+      ? { AND: [statusWhere, queryWhere] }
+      : { ...statusWhere, ...queryWhere };
+
+  return applySampleListingVisibility(
+    archiveWhere,
+    input.sampleVisibility ?? DEFAULT_SAMPLE_VISIBILITY,
+  );
 }
 
 export function pendingFirstListingWhere(where: Prisma.ListingWhereInput): {

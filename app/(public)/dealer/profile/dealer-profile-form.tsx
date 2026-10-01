@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateMyDealerProfile } from "@/actions/account";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DealerLogoUpload } from "./dealer-logo-upload";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   firstFieldError,
   splitActionError,
@@ -39,14 +40,32 @@ export function DealerProfileForm({ initialData }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState<string | null>(null);
+  const [savedSlug, setSavedSlug] = useState(initialData.slug);
+  const [origin, setOrigin] = useState("");
+  const [confirmAddress, setConfirmAddress] = useState(false);
+  const saving = useRef(false);
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const profileUrl = `${origin}/dealers/${encodeURIComponent(savedSlug)}`;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving.current) return;
+    if (slug.trim().toLowerCase() !== savedSlug) {
+      setConfirmAddress(true);
+      return;
+    }
+    saveProfile();
+  }
+
+  function saveProfile() {
+    if (saving.current) return;
+    saving.current = true;
     setError(null);
     setFieldErrors({});
     setSuccess(null);
 
     startTransition(async () => {
+      try {
       const result = await updateMyDealerProfile({
         name,
         slug,
@@ -58,12 +77,19 @@ export function DealerProfileForm({ initialData }: Props) {
       if (result.error) {
         const split = splitActionError(result.error);
         setFieldErrors(split.fieldErrors);
-        setError(split.formError ?? (Object.keys(split.fieldErrors).length > 0 ? null : "We could not update your dealer profile. Check the highlighted fields and try again."));
+        setError(split.formError ?? (Object.keys(split.fieldErrors).length > 0 ? null : "We could not update your dealer profile. Please try again."));
         return;
       }
 
       setSuccess("Dealer profile updated.");
+      setSavedSlug(slug.trim().toLowerCase());
       router.refresh();
+      } catch {
+        setError("We could not update your dealer profile. Please try again.");
+      } finally {
+        saving.current = false;
+        setConfirmAddress(false);
+      }
     });
   }
 
@@ -88,7 +114,8 @@ export function DealerProfileForm({ initialData }: Props) {
         </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate aria-busy={isPending}>
+          <fieldset disabled={isPending} className="space-y-4">
           <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
           <Input
             label="Dealer name"
@@ -101,7 +128,7 @@ export function DealerProfileForm({ initialData }: Props) {
           />
 
           <Input
-            label="Public profile slug"
+            label="Public profile address"
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase())}
             required
@@ -109,6 +136,19 @@ export function DealerProfileForm({ initialData }: Props) {
             maxLength={100}
             error={firstFieldError(fieldErrors, "slug")}
           />
+
+          <div className="space-y-2 text-sm text-text-secondary">
+            <p>Choose a short address customers can use to find your dealership. Share your saved profile link on social media, adverts and business cards.</p>
+            <p className="break-all font-medium text-text-primary">{profileUrl}</p>
+            <div className="flex gap-3">
+              <Button type="button" variant="ghost" size="sm" onClick={async () => {
+                try { await navigator.clipboard.writeText(profileUrl); setSuccess("Profile link copied."); }
+                catch { setError("Unable to copy the link. Select and copy the address above."); }
+              }}>Copy profile link</Button>
+              <Button asChild variant="ghost" size="sm"><a href={`/dealers/${encodeURIComponent(savedSlug)}`} target="_blank" rel="noopener noreferrer">View profile</a></Button>
+            </div>
+            <p className="text-xs">After your initial choice, you can change this address twice in any 365 days. Keeping it stable helps customers and search engines find you. Previous addresses redirect to your latest profile.</p>
+          </div>
 
           <Input
             label="Website (optional)"
@@ -148,7 +188,7 @@ export function DealerProfileForm({ initialData }: Props) {
             ) : null}
           </div>
 
-          {success ? <p className="text-sm text-neon-blue-400">{success}</p> : null}
+          {success ? <p role="status" className="text-sm text-neon-blue-400">{success}</p> : null}
 
           <div className="space-y-2">
             <Button type="submit" loading={isPending}>
@@ -162,7 +202,20 @@ export function DealerProfileForm({ initialData }: Props) {
               best. Maximum 5 MB.
             </p>
           </div>
+          </fieldset>
         </form>
+        <Dialog open={confirmAddress} onOpenChange={(open) => { if (!saving.current) setConfirmAddress(open); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change your public profile address?</DialogTitle>
+              <DialogDescription>Your new address will end in /dealers/{slug.trim().toLowerCase()}. You can change it twice in any 365 days after your initial choice. Previous addresses will redirect to your profile.</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button type="button" variant="ghost" disabled={isPending} onClick={() => setConfirmAddress(false)}>Keep editing</Button>
+              <Button type="button" loading={isPending} onClick={saveProfile}>Save profile and address</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

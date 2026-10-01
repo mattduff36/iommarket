@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
@@ -15,7 +15,17 @@ import { Globe, Phone, Calendar } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealerReviewForm } from "./dealer-review-form";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { marketplaceListingBadge, marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
+import {
+  ADMIN_PREVIEW_BADGE,
+  marketplaceListingBadge,
+  marketplaceListingWhereWithSettings,
+} from "@/lib/listings/marketplace";
+import { PreviewReviewNotice } from "@/components/preview/preview-review-notice";
+import {
+  listingPreviewCardProps,
+  previewPackVisibilitySelect,
+  readPreviewPackReview,
+} from "@/lib/preview-packs/review";
 import { getSampleVisibility, isHiddenSampleDealer } from "@/lib/listings/sample-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getDealerEntitlement } from "@/lib/dealers/entitlement";
@@ -37,7 +47,7 @@ function stars(rating: number) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const currentUser = await getCurrentUser();
-  const dealer = await db.dealerProfile.findUnique({
+  let dealer = await db.dealerProfile.findUnique({
     where: { slug },
     select: {
       id: true,
@@ -46,10 +56,37 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       slug: true,
       tier: true,
       isAdminPreview: true,
-      previewPack: { select: { enabled: true } },
+      previewPack: { select: previewPackVisibilitySelect() },
       user: { select: { role: true, authUserId: true, disabledAt: true, deletedAt: true } },
     },
   });
+  if (!dealer) {
+    const historicalAddress = await db.dealerProfileSlugHistory.findUnique({
+      where: { slug },
+      select: {
+        dealer: {
+          select: {
+            id: true,
+            name: true,
+            bio: true,
+            slug: true,
+            tier: true,
+            isAdminPreview: true,
+            previewPack: { select: previewPackVisibilitySelect() },
+            user: {
+              select: {
+                role: true,
+                authUserId: true,
+                disabledAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    dealer = historicalAddress?.dealer ?? null;
+  }
   if (
     !dealer ||
     (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
@@ -93,11 +130,79 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DealerProfilePage({ params }: Props) {
-  await expireStaleLiveListings();
   const { slug } = await params;
   const currentUser = await getCurrentUser();
   const sampleVisibility = await getSampleVisibility();
-  const liveWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser });
+
+  const historicalAddress = await db.dealerProfileSlugHistory.findUnique({
+    where: { slug },
+    select: {
+      dealer: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          tier: true,
+          isAdminPreview: true,
+          previewPack: { select: previewPackVisibilitySelect() },
+          userId: true,
+          user: {
+            select: {
+              role: true,
+              authUserId: true,
+              disabledAt: true,
+              deletedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (historicalAddress?.dealer) {
+    const historicalDealer = historicalAddress.dealer;
+    const currentAddressOwner = await db.dealerProfile.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (!currentAddressOwner) {
+      if (
+        (historicalDealer.user.role !== "DEALER" &&
+          historicalDealer.user.role !== "ADMIN") ||
+        historicalDealer.user.disabledAt ||
+        historicalDealer.user.deletedAt ||
+        isHiddenSampleDealer({
+          authUserId: historicalDealer.user.authUserId,
+          isAdminPreview: historicalDealer.isAdminPreview,
+          sampleVisibility,
+        })
+      ) {
+        notFound();
+      }
+
+      const entitlement = await getDealerEntitlement(
+        historicalDealer.id,
+        historicalDealer.tier,
+      );
+      if (
+        !canViewMarketplaceDealerProfile({
+          viewer: currentUser,
+          isAdminPreview: historicalDealer.isAdminPreview,
+          previewPackEnabled: historicalDealer.previewPack?.enabled === true,
+          hasEntitlement: Boolean(entitlement),
+        })
+      ) {
+        notFound();
+      }
+
+      permanentRedirect(buildDealerProfilePath(historicalDealer.slug));
+    }
+  }
+
+  await expireStaleLiveListings();
+  const liveWhere = await marketplaceListingWhereWithSettings({
+    viewer: currentUser,
+    includeDisabledPreviewPacks: true,
+  });
 
   const dealer = await db.dealerProfile.findUnique({
     where: { slug },
@@ -126,7 +231,7 @@ export default async function DealerProfilePage({ params }: Props) {
           deletedAt: true,
         },
       },
-      previewPack: { select: { enabled: true } },
+      previewPack: { select: previewPackVisibilitySelect() },
     },
   });
 
@@ -202,6 +307,7 @@ export default async function DealerProfilePage({ params }: Props) {
   const profileCompletionPercent = Math.round(
     (profileFields.filter(Boolean).length / profileFields.length) * 100
   );
+  const packReview = readPreviewPackReview(dealer.previewPack);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -220,12 +326,25 @@ export default async function DealerProfilePage({ params }: Props) {
         />
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-text-primary font-heading sm:text-3xl">
               {dealer.name}
             </h1>
             {dealer.verified && <Badge variant="success">Verified Dealer</Badge>}
+            {dealer.isAdminPreview ? (
+              <Badge variant="warning">{ADMIN_PREVIEW_BADGE}</Badge>
+            ) : null}
+            {dealer.isAdminPreview && dealer.previewPack?.enabled !== true ? (
+              <Badge variant="neutral">Disabled pack</Badge>
+            ) : null}
           </div>
+          {packReview.required ? (
+            <PreviewReviewNotice
+              className="mt-4"
+              reasons={packReview.reasons}
+              sourceRunId={packReview.sourceRunId}
+            />
+          ) : null}
 
           {dealer.bio && (
             <p className="mt-3 text-text-secondary leading-relaxed">{dealer.bio}</p>
@@ -405,6 +524,10 @@ export default async function DealerProfilePage({ params }: Props) {
               })}
               writeOffCategory={listing.attributeValues[0]?.value ?? null}
               href={buildListingPath(listing.id)}
+              {...listingPreviewCardProps(
+                listing,
+                Boolean(toListingPhotoSource(listing.images[0])),
+              )}
             />
           ))}
         </div>

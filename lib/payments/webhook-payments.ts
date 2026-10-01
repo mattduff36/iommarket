@@ -2,7 +2,6 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
-import { liveListingWhere } from "@/lib/listings/expiry";
 import { transitionListingStatus } from "@/lib/listings/status-events";
 import { captureBusinessEvent } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
@@ -38,7 +37,7 @@ async function findPaymentByProviderEvent(
   ];
   if (orConditions.length === 0) return null;
   const matches = await client.payment.findMany({
-    where: { OR: orConditions },
+    where: { paymentProvider: "RIPPLE", OR: orConditions },
   });
   const uniqueIds = new Set(matches.map((payment) => payment.id));
   if (uniqueIds.size > 1) {
@@ -54,7 +53,14 @@ async function findExistingListingTypedPayment(
 ) {
   const type = listingPaymentTypeFromEvent(event);
   return client.payment.findFirst({
-    where: { listingId, type, status: { in: ["PENDING", "FAILED"] } },
+    where: {
+      listingId,
+      type,
+      paymentProvider: "RIPPLE",
+      amount: event.amount ?? undefined,
+      includesFeatured: event.metadata.checkoutType === "listing_and_featured",
+      status: "PENDING",
+    },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -263,12 +269,24 @@ export async function createOrUpdateListingPayment(
 
   const incomingAt = event.eventTimestamp ?? new Date();
   const incomingFingerprint = event.fingerprint ?? event.id;
-  const existing =
-    (await findPaymentByProviderEvent(event, client)) ??
-    (status === "SUCCEEDED" && event.providerReference
-      ? await findExistingListingTypedPayment(event, listingId, client)
-      : null);
+  let existing = await findPaymentByProviderEvent(event, client);
+  if (!existing && status === "SUCCEEDED" && event.providerReference) {
+    const pendingForDifferentReference = await findExistingListingTypedPayment(event, listingId, client);
+    if (pendingForDifferentReference && pendingForDifferentReference.providerReference !== event.providerReference) {
+      throw new Error("subscription charge collision: payment reference conflicts with an open listing checkout");
+    }
+    existing = pendingForDifferentReference;
+  }
   if (existing) {
+    if (existing.status === "REFUNDED" || existing.refundedAt) {
+      return { payment: existing, applied: false };
+    }
+    if (existing.providerReference && event.providerReference && existing.providerReference !== event.providerReference) {
+      throw new Error("subscription charge collision: provider payment ID is bound to another reference");
+    }
+    if (existing.providerPaymentId && event.providerPaymentId && existing.providerPaymentId !== event.providerPaymentId) {
+      throw new Error("subscription charge collision: a second provider payment ID claimed this checkout");
+    }
     if (existing.status === "SUCCEEDED" && status !== "SUCCEEDED") {
       return { payment: existing, applied: false };
     }
@@ -292,6 +310,7 @@ export async function createOrUpdateListingPayment(
         amount: event.amount ?? existing.amount,
         currency: event.currency ?? existing.currency,
         status,
+        includesFeatured: event.metadata.checkoutType === "listing_and_featured",
         lastProviderEventAt: incomingAt,
         lastProviderEventType: event.type,
         lastProviderEventFingerprint: incomingFingerprint,
@@ -309,6 +328,7 @@ export async function createOrUpdateListingPayment(
       amount: event.amount ?? 0,
       currency: event.currency ?? "gbp",
       type: listingPaymentTypeFromEvent(event),
+      includesFeatured: event.metadata.checkoutType === "listing_and_featured",
       status,
       idempotencyKey: event.providerReference ?? `provider-webhook-${event.id}`,
       lastProviderEventAt: incomingAt,
@@ -339,17 +359,17 @@ export async function handleOneOffPaymentReceived(
     if (!result?.applied) return [];
 
     if (event.metadata.checkoutType === "featured_upgrade") {
-      await tx.listing.updateMany({
-        where: {
-          id: result.payment.listingId,
-          ...liveListingWhere(),
-        },
-        data: { featured: true },
-      });
+      const { applyPaidFeaturedEntitlement } = await import(
+        "@/lib/payments/featured-entitlement"
+      );
+      await applyPaidFeaturedEntitlement(result.payment.listingId, tx);
       return [];
     }
 
-    if (event.metadata.checkoutType === "listing_payment") {
+    if (
+      event.metadata.checkoutType === "listing_payment" ||
+      event.metadata.checkoutType === "listing_and_featured"
+    ) {
       return submitPaidListingForReview(result.payment.listingId, event, tx);
     }
     return [];

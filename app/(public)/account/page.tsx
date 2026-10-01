@@ -9,19 +9,46 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
+  CARD_OVERLAY_CONTROL_CLASS,
   CardOverlayLink,
   NAVIGABLE_CARD_LINK_CLASS,
 } from "@/components/ui/card-overlay-link";
+import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 import { cn } from "@/lib/cn";
 import { Alert } from "@/components/ui/alert";
 import { findPendingDealerUpgradeOffer } from "@/lib/dealers/upgrade-offers";
 
 const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
+function featuredListingState(listing: {
+  status: string;
+  featured?: boolean;
+  payments?: Array<{ type?: string; includesFeatured?: boolean }>;
+}) {
+  const purchased =
+    listing.featured === true ||
+    (listing.payments ?? []).some(
+      (payment) => payment.type === "FEATURED" || payment.includesFeatured === true,
+    );
+  const eligibleStatus = listing.status === "PENDING" || listing.status === "LIVE";
+  return {
+    canBuy: eligibleStatus && !purchased,
+    pendingBenefit: listing.status === "PENDING" && purchased,
+  };
+}
+
 export default async function AccountDashboardPage() {
   await expireStaleLiveListings();
   const user = await requireAcceptedUser("/account");
+  const sampleVisibility = await getSampleVisibility();
 
   const [
     statusGroups,
@@ -31,6 +58,7 @@ export default async function AccountDashboardPage() {
     savedSearchCount,
     reviewCount,
     pendingDealerUpgrade,
+    pricing,
   ] = await Promise.all([
     db.listing.groupBy({
       by: ["status"],
@@ -47,6 +75,16 @@ export default async function AccountDashboardPage() {
         status: true,
         createdAt: true,
         price: true,
+        featured: true,
+        payments: {
+          where: {
+            status: "SUCCEEDED",
+            refundedAt: null,
+            OR: [{ type: "FEATURED" }, { includesFeatured: true }],
+          },
+          select: { type: true, includesFeatured: true },
+          take: 1,
+        },
       },
     }),
     db.listingStatusEvent.findMany({
@@ -58,7 +96,10 @@ export default async function AccountDashboardPage() {
       take: 8,
     }),
     db.favourite.count({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        listing: applySampleListingVisibility({}, sampleVisibility),
+      },
     }),
     db.savedSearch.count({
       where: { userId: user.id },
@@ -67,7 +108,12 @@ export default async function AccountDashboardPage() {
       where: { reviewerUserId: user.id },
     }),
     findPendingDealerUpgradeOffer(user.id),
+    getMarketplacePricing(),
   ]);
+  const checkoutUnavailable = isRipplePreviewRuntime() && !isSampleCheckoutEnabled();
+  const featuredListings = recentListings.filter(
+    (listing) => featuredListingState(listing).canBuy,
+  );
 
   const counts = Object.fromEntries(
     statusGroups.map((item) => [item.status, item._count._all])
@@ -386,6 +432,11 @@ export default async function AccountDashboardPage() {
                 </Link>
               </CardHeader>
               <CardContent className="space-y-3">
+                {featuredListings.length > 0 ? (
+                  <p className="text-sm text-text-secondary">
+                    Feature a listing that is awaiting review or live. Featured placement starts after approval.
+                  </p>
+                ) : null}
                 {recentListings.length > 0 ? (
                   recentListings.map((listing) => (
                     <div
@@ -402,6 +453,22 @@ export default async function AccountDashboardPage() {
                           £{(listing.price / 100).toLocaleString()} ·{" "}
                           {listing.createdAt.toLocaleDateString("en-GB")}
                         </p>
+                        {featuredListingState(listing).canBuy ? (
+                          <div className={cn(CARD_OVERLAY_CONTROL_CLASS, "mt-2")}>
+                            <FeaturedUpgradeButton
+                              listingId={listing.id}
+                              featuredUpgradePricePence={pricing.featuredUpgradePence}
+                              checkoutUnavailable={checkoutUnavailable}
+                              pendingReview={listing.status === "PENDING"}
+                              variant="inline"
+                            />
+                          </div>
+                        ) : null}
+                        {featuredListingState(listing).pendingBenefit ? (
+                          <p className="mt-2 text-xs text-text-secondary">
+                            Featured purchased — starts after approval
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="neutral">{listing.status}</Badge>

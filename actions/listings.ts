@@ -1,4 +1,5 @@
 "use server";
+import { hasPublicDealerListingAccess } from "@/lib/listings/dealer-visibility";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -1000,10 +1001,11 @@ export async function reportListing(input: ReportListingInput) {
 
   const targetListing = await db.listing.findUnique({
     where: { id: parsed.data.listingId },
-    select: { id: true, title: true, status: true, expiresAt: true },
+    select: { id: true, title: true, status: true, expiresAt: true, dealerId: true },
   });
   if (
     !targetListing ||
+    !(await hasPublicDealerListingAccess(targetListing.dealerId)) ||
     isAdminPreviewListing(targetListing.status) ||
     !isListingPubliclyVisible({
       status: targetListing.status,
@@ -1109,6 +1111,7 @@ export async function contactSeller(input: ContactSellerInput) {
   if (
     !listing ||
     isAdminPreviewListing(listing.status) ||
+    !(await hasPublicDealerListingAccess(listing.dealerId)) ||
     !isListingPubliclyVisible({
       status: listing.status,
       expiresAt: listing.expiresAt,

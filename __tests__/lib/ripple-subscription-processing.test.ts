@@ -150,6 +150,34 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     expect(subscriptionChargeCreate).not.toHaveBeenCalled();
   });
 
+  it("renews an existing weekly subscription after new preview checkouts are retired", async () => {
+    const code = "ABCDEF0123456789";
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    const existing = {
+      id: "sub-1", dealerId: "dealer-1", providerPlanId: code,
+      providerSubscriptionId: "synthetic-weekly", status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-10-07T02:34:14.408Z"),
+      lastProviderEventAt: new Date("2026-09-30T02:34:14.408Z"),
+      lastProviderEventType: "payment.succeeded", lastProviderEventFingerprint: "first-charge",
+    };
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(existing);
+    subscriptionUpdate.mockResolvedValue({ ...existing, currentPeriodEnd: new Date("2026-10-14T02:34:14.408Z") });
+    await processProviderWebhookEvent(renewalEvent({
+      amount: 100, linkCode: code, providerPlanId: code, providerPaymentId: "weekly-second-charge",
+      eventTimestamp: new Date("2026-10-07T02:34:14.408Z"), fingerprint: "second-charge",
+    }));
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "sub-1" },
+      data: expect.objectContaining({ status: "ACTIVE", currentPeriodEnd: new Date("2026-10-14T02:34:14.408Z") }),
+    }));
+    expect(subscriptionChargeCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: [expect.objectContaining({ subscriptionId: "sub-1", paymentReference: "weekly-second-charge", amount: 100 })],
+    }));
+  });
+
   it("matches a renewal to the stored payer email when it differs from the account email", async () => {
     subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
     subscriptionFindFirst.mockResolvedValue(null);

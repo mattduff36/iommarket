@@ -53,6 +53,9 @@ describe("listing payment skip ALR-PAY-001 ALR-RESUB-001", () => {
         dealerId: null,
       }),
     ).resolves.toEqual({ skip: false, reason: "ineligible" });
+    expect(client.payment.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ refundedAt: null }),
+    }));
   });
 
   it("skips when the dealer has an active entitlement ALR-RESUB-001", async () => {

@@ -9,6 +9,7 @@ const {
   paymentCreate,
   paymentUpdate,
   listingFindUnique,
+  listingFindFirst,
   listingUpdateMany,
   listingStatusEventFindFirst,
   listingImageCount,
@@ -24,6 +25,7 @@ const {
   const paymentCreate = vi.fn();
   const paymentUpdate = vi.fn();
   const listingFindUnique = vi.fn();
+  const listingFindFirst = vi.fn();
   const listingUpdateMany = vi.fn();
   const listingStatusEventFindFirst = vi.fn();
   const listingImageCount = vi.fn();
@@ -37,7 +39,7 @@ const {
       create: typeof paymentCreate;
       update: typeof paymentUpdate;
     };
-    listing: { findUnique: typeof listingFindUnique; updateMany: typeof listingUpdateMany };
+    listing: { findUnique: typeof listingFindUnique; findFirst: typeof listingFindFirst; updateMany: typeof listingUpdateMany };
     listingStatusEvent: { findFirst: typeof listingStatusEventFindFirst };
     listingImage: { count: typeof listingImageCount };
     listingAttributeValue: { findFirst: typeof listingAttributeValueFindFirst };
@@ -53,6 +55,7 @@ const {
     },
     listing: {
       findUnique: listingFindUnique,
+      findFirst: listingFindFirst,
       updateMany: listingUpdateMany,
     },
     listingStatusEvent: {
@@ -78,6 +81,7 @@ const {
     paymentCreate,
     paymentUpdate,
     listingFindUnique,
+    listingFindFirst,
     listingUpdateMany,
     listingStatusEventFindFirst,
     listingImageCount,
@@ -152,6 +156,7 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     paymentFindMany.mockResolvedValue([]);
     paymentFindFirst.mockResolvedValue(null);
     paymentCreate.mockResolvedValue({ id: "local-pay", listingId: "listing-1" });
+    listingFindFirst.mockResolvedValue(null);
     listingFindUnique.mockResolvedValue({
       id: "listing-1",
       status: "DRAFT",
@@ -436,8 +441,6 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
   });
 
   it("records delayed featured payment without featuring a non-live listing RIP-FEATURE-001", async () => {
-    listingUpdateMany.mockResolvedValueOnce({ count: 0 });
-
     await processProviderWebhookEvent(
       listingEvent({
         providerReference: "v1:featured_upgrade:listing-1:nonce:mac",
@@ -455,13 +458,10 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     );
 
     expect(paymentCreate).toHaveBeenCalledOnce();
-    expect(listingUpdateMany).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        id: "listing-1",
-        status: "LIVE",
-      }),
-      data: { featured: true },
-    });
+    expect(listingFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "listing-1", status: "LIVE" }),
+    }));
+    expect(listingUpdateMany).not.toHaveBeenCalled();
     expect(transitionListingStatus).not.toHaveBeenCalled();
   });
 

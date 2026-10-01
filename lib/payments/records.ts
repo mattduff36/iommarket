@@ -19,6 +19,7 @@ export function getSubscriptionDisplayId(subscription: {
 }
 
 export function getProviderLabel(value: string | null | undefined): string {
+  if (value === "DEV") return "SAMPLE PAYMENT";
   return value ?? "STRIPE";
 }
 

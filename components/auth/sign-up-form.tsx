@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -10,11 +10,15 @@ import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import {
   firstFieldError,
   firstZodMessage,
-  publicAuthErrorMessage,
   uniqueErrorMessages,
   type FieldErrors,
 } from "@/lib/forms/action-error";
 import { emailField } from "@/lib/validations/email";
+import {
+  signupFailureMessage,
+  withoutFieldError,
+  SIGNUP_PROVIDER_RETRY_MESSAGE,
+} from "@/components/auth/signup-feedback";
 
 function getSafeNextPath(nextPath: string | null): string {
   if (!nextPath) return "/";
@@ -48,9 +52,28 @@ export function SignUpForm() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitLock = useRef(false);
+  const focusInvalidRef = useRef(false);
+
+  function showFieldErrors(next: FieldErrors) {
+    focusInvalidRef.current = Object.keys(next).length > 0;
+    setFieldErrors(next);
+  }
+
+  function clearFieldError(field: string) {
+    setFieldErrors((current) => withoutFieldError(current, field));
+  }
+
+  useEffect(() => {
+    if (!focusInvalidRef.current) return;
+    focusInvalidRef.current = false;
+    formRef.current?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
+  }, [fieldErrors]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitLock.current) return;
     setError(null);
     const nextErrors: FieldErrors = {};
     const parsedEmail = emailField.safeParse(email);
@@ -62,11 +85,12 @@ export function SignUpForm() {
       nextErrors.password = ["Password must be at least 8 characters."];
     }
     if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
+      showFieldErrors(nextErrors);
       return;
     }
 
-    setFieldErrors({});
+    showFieldErrors({});
+    submitLock.current = true;
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
@@ -81,12 +105,7 @@ export function SignUpForm() {
         },
       });
       if (err) {
-        setError(
-          publicAuthErrorMessage(
-            err.message,
-            "We could not create your account. Check the highlighted fields and try again.",
-          ),
-        );
+        setError(signupFailureMessage(err.message, false));
         return;
       }
       if (data.user && data.user.identities?.length === 0) {
@@ -97,7 +116,10 @@ export function SignUpForm() {
       }
       setSuccess(true);
       router.refresh();
+    } catch {
+      setError(SIGNUP_PROVIDER_RETRY_MESSAGE);
     } finally {
+      submitLock.current = false;
       setLoading(false);
     }
   }
@@ -116,14 +138,22 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="mx-auto w-full max-w-sm space-y-4">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      className="mx-auto w-full max-w-sm space-y-4"
+    >
       <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
       <Input
         label="Email"
         type="email"
         autoComplete="email"
         value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          clearFieldError("email");
+        }}
         required
         error={firstFieldError(fieldErrors, "email")}
       />
@@ -132,7 +162,10 @@ export function SignUpForm() {
         type="password"
         autoComplete="new-password"
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={(e) => {
+          setPassword(e.target.value);
+          clearFieldError("password");
+        }}
         required
         error={firstFieldError(fieldErrors, "password")}
       />
@@ -144,7 +177,12 @@ export function SignUpForm() {
         onChange={(e) => setName(e.target.value)}
       />
       <div className="flex flex-col gap-3">
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button
+          type="submit"
+          className="w-full"
+          loading={loading}
+          aria-busy={loading || undefined}
+        >
           {loading ? "Creating account…" : "Sign up"}
         </Button>
         <p className="text-center text-sm text-text-secondary">

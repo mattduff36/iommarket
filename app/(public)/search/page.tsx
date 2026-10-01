@@ -23,7 +23,12 @@ import {
 import {
   expireStaleLiveListings,
 } from "@/lib/listings/expiry";
-import { marketplaceListingWhereWithSettings, marketplaceListingBadge } from "@/lib/listings/marketplace";
+import {
+  combineMarketplaceListingWhere,
+  marketplaceListingWhereWithSettings,
+  marketplaceListingBadge,
+} from "@/lib/listings/marketplace";
+import { listingPreviewCardProps } from "@/lib/preview-packs/review";
 import {
   FUEL_CONSUMPTION_MAX,
   FUEL_CONSUMPTION_MIN,
@@ -89,7 +94,11 @@ export default async function SearchPage({ searchParams }: Props) {
 
   const includeSold = sp.includeSold === "true";
   const now = new Date();
-  const liveVisibilityWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser, now });
+  const liveVisibilityWhere = await marketplaceListingWhereWithSettings({
+    viewer: currentUser,
+    now,
+    includeDisabledPreviewPacks: true,
+  });
   const currentYear = getCurrentYear();
   const minPrice = parseOptionalBoundedInteger(sp.minPrice, PRICE_MIN, PRICE_MAX);
   const maxPrice = parseOptionalBoundedInteger(sp.maxPrice, PRICE_MIN, PRICE_MAX);
@@ -162,11 +171,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
     const result = await db.$queryRaw<{ id: string }[]>`
       SELECT l.id FROM listings l
-      WHERE (
-        (l.status = 'LIVE' AND (l.expires_at IS NULL OR l.expires_at > NOW()))
-        OR (${includeSold} AND l.status = 'SOLD')
-      )
-      AND ${combined}
+      WHERE ${combined}
     `;
     listingIdsFromAttributes = result.map((r) => r.id);
   }
@@ -222,21 +227,25 @@ export default async function SearchPage({ searchParams }: Props) {
     viewer: currentUser,
     includeSold,
     now,
+    includeDisabledPreviewPacks: true,
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = {
-    ...statusFilter,
+  const where = combineMarketplaceListingWhere({
+    visibility: statusFilter,
+    clauses: [
+      ...(query
+        ? [{
+            OR: [
+              { title: { contains: query, mode: "insensitive" as const } },
+              { description: { contains: query, mode: "insensitive" as const } },
+            ],
+          }]
+        : []),
+      ...attrAndClauses,
+    ],
+    filters: {
     ...(listingIdsFromAttributes !== null
       ? { id: { in: listingIdsFromAttributes } }
-      : {}),
-    ...(query
-      ? {
-          OR: [
-            { title: { contains: query, mode: "insensitive" as const } },
-            { description: { contains: query, mode: "insensitive" as const } },
-          ],
-        }
       : {}),
     ...(sp.category ? { category: { slug: sp.category } } : {}),
     ...(sp.featured === "true" ? { featured: true } : {}),
@@ -251,8 +260,8 @@ export default async function SearchPage({ searchParams }: Props) {
       : {}),
     ...(sp.sellerType === "private" ? { dealerId: null } : {}),
     ...(sp.sellerType === "dealer" ? { dealerId: { not: null } } : {}),
-    ...(attrAndClauses.length > 0 ? { AND: attrAndClauses } : {}),
-  };
+    },
+  });
 
   const [
     listings,
@@ -462,6 +471,10 @@ export default async function SearchPage({ searchParams }: Props) {
               featured: listing.featured,
             }),
             showFavourite: listing.status !== "ADMIN_PREVIEW",
+            ...listingPreviewCardProps(
+              listing,
+              Boolean(toListingPhotoSource(listing.images[0])),
+            ),
           }))}
           total={total}
           pageSize={pageSize}

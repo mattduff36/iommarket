@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { parseEnv } from "node:util";
 import { assertNoSafetyKeysInEnvFile } from "./safety";
 
 const CONNECTION_KEYS = new Set([
@@ -15,6 +16,7 @@ const CONNECTION_KEYS = new Set([
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_SECRET_KEY",
+  "SUPABASE_DB_CA_CERT",
 ]);
 
 export interface ConnectionEnv {
@@ -26,6 +28,7 @@ export interface ConnectionEnv {
   postgresPassword?: string;
   postgresUser?: string;
   postgresDatabase?: string;
+  dbCaCert?: string;
 }
 
 export function buildDirectDatabaseUrl(input: {
@@ -45,17 +48,11 @@ function parseEnvFile(filePath: string) {
   if (!existsSync(filePath)) {
     throw new Error(`Refusing mirror: env file not found (${filePath}).`);
   }
-  const values: Record<string, string> = {};
-  for (const line of readFileSync(filePath, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
-    if (key) values[key] = val;
+  const parsed: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parseEnv(readFileSync(filePath, "utf8")))) {
+    if (value !== undefined) parsed[key] = value;
   }
-  return values;
+  return parsed;
 }
 
 export function loadConnectionEnv(filePath: string, cwd = process.cwd()): ConnectionEnv {
@@ -75,6 +72,7 @@ export function loadConnectionEnv(filePath: string, cwd = process.cwd()): Connec
     postgresPassword: picked.POSTGRES_PASSWORD,
     postgresUser: picked.POSTGRES_USER,
     postgresDatabase: picked.POSTGRES_DATABASE,
+    dbCaCert: picked.SUPABASE_DB_CA_CERT,
   };
 }
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from "react";
-import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,6 +49,7 @@ vi.mock("@/actions/listings", () => ({
 vi.mock("@/actions/payments", () => ({
   payForListing: vi.fn(),
   simulateDemoListingPaymentOutcome: vi.fn(),
+  upgradeFeatured: vi.fn(),
 }));
 
 vi.mock("@/components/marketplace/image-upload", () => ({
@@ -114,9 +115,17 @@ import {
 import {
   payForListing,
   simulateDemoListingPaymentOutcome,
+  upgradeFeatured,
 } from "@/actions/payments";
 
 const fetchMock = vi.fn();
+const openMock = vi.fn();
+let checkoutWindowMock: {
+  opener: null;
+  document: { createElement: ReturnType<typeof vi.fn>; head: { appendChild: ReturnType<typeof vi.fn> } };
+  location: { replace: ReturnType<typeof vi.fn> };
+  focus: ReturnType<typeof vi.fn>;
+};
 
 const categories = [
   {
@@ -225,6 +234,71 @@ const categories = [
 
 const regions = [{ id: "iom", name: "IOM Central" }];
 
+function reachPrivateReviewStep() {
+  fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+  fireEvent.change(screen.getByLabelText(/^Title/), {
+    target: { value: "2019 BMW 320d M Sport" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Description/), {
+    target: { value: "A well-kept BMW with full history and plenty of specification." },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price \(£\)/), {
+    target: { value: "15000" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Region/), {
+    target: { value: "iom" },
+  });
+  fireEvent.change(screen.getByLabelText(/Make/i), {
+    target: { value: "BMW" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Model \(manual entry\)/), {
+    target: { value: "320d M Sport" },
+  });
+  fireEvent.change(screen.getByLabelText(/Year/i), {
+    target: { value: "2019" },
+  });
+  fireEvent.change(screen.getByLabelText(/Mileage/i), {
+    target: { value: "45000" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByTestId("mock-image-upload"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(
+    screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+  );
+  fireEvent.click(
+    screen.getByRole("checkbox", {
+      name: /I expressly accept the current Private Seller Terms/i,
+    }),
+  );
+}
+
+function mockSavedPrivateListing() {
+  vi.mocked(createListing).mockResolvedValue({
+    data: { id: "listing-123" },
+  } as Awaited<ReturnType<typeof createListing>>);
+  vi.mocked(syncListingImages).mockResolvedValue({
+    data: { count: 2, photoRevision: 1 },
+  } as Awaited<ReturnType<typeof syncListingImages>>);
+  vi.mocked(submitListingForReview).mockResolvedValue({
+    data: null,
+  } as unknown as Awaited<ReturnType<typeof submitListingForReview>>);
+}
+
+const revisionDraft = {
+  id: "draft-revision",
+  title: "Live listing",
+  description: "A saved description with enough detail to remain valid.",
+  price: 10000,
+  categoryId: "car-category",
+  regionId: "iom",
+  trustDeclarationAccepted: true,
+  featured: false,
+  photoRevision: 1,
+  images: [],
+  attributes: [],
+};
+
 describe("CreateListingForm registration lookup", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -237,9 +311,20 @@ describe("CreateListingForm registration lookup", () => {
     vi.mocked(submitListingForReview).mockReset();
     vi.mocked(updateListing).mockReset();
     vi.mocked(payForListing).mockReset();
+    vi.mocked(upgradeFeatured).mockReset();
     vi.mocked(simulateDemoListingPaymentOutcome).mockReset();
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("open", vi.fn());
+    checkoutWindowMock = {
+      opener: null,
+      document: {
+        createElement: vi.fn(() => ({})),
+        head: { appendChild: vi.fn() },
+      },
+      location: { replace: vi.fn() },
+      focus: vi.fn(),
+    };
+    openMock.mockReset().mockReturnValue(checkoutWindowMock);
+    vi.spyOn(window, "open").mockImplementation(openMock);
     vi.stubGlobal(
       "ResizeObserver",
       class ResizeObserver {
@@ -975,10 +1060,9 @@ describe("CreateListingForm registration lookup", () => {
         listingId: "listing-123",
         privateSellerTermsAccepted: true,
       });
-      expect(window.open).toHaveBeenCalledWith(
+      expect(window.open).toHaveBeenCalledWith("about:blank", "_blank");
+      expect(checkoutWindowMock.location.replace).toHaveBeenCalledWith(
         "https://checkout.example/pay/123",
-        "_blank",
-        "noopener,noreferrer"
       );
     });
 
@@ -992,6 +1076,207 @@ describe("CreateListingForm registration lookup", () => {
     });
     expect(replaceMock).not.toHaveBeenCalledWith("/sell/private?draft=listing-123");
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("recovers from a rejected checkout action without losing the saved draft or photos", async () => {
+    mockSavedPrivateListing();
+    vi.mocked(updateListing).mockResolvedValue({
+      data: { id: "listing-123" },
+    } as Awaited<ReturnType<typeof updateListing>>);
+    vi.mocked(payForListing)
+      .mockRejectedValueOnce(new Error("Connection lost"))
+      .mockResolvedValueOnce({
+        data: { checkoutUrl: "https://checkout.example/recovered" },
+      } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    reachPrivateReviewStep();
+
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+
+    expect(await screen.findByText(/Something interrupted submission/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2019 BMW 320d M Sport")).toBeInTheDocument();
+    expect(screen.getByText("Photos selected: 2")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalledWith(
+      "/sell/checkout?listing=listing-123&flow=private&opened=1",
+    );
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(submit);
+    await waitFor(() => {
+      expect(payForListing).toHaveBeenCalledTimes(2);
+      expect(updateListing).toHaveBeenCalledWith(expect.objectContaining({ id: "listing-123" }));
+    });
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/sell/checkout?listing=listing-123&flow=private&opened=1",
+    );
+  });
+
+  it("keeps the checkout status page open and shows fallback when the browser blocks the new tab", async () => {
+    mockSavedPrivateListing();
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/blocked" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+    openMock.mockReturnValueOnce(null);
+
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    reachPrivateReviewStep();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "Your checkout is ready, but your browser did not open the payment tab.",
+    );
+    expect(replaceMock).not.toHaveBeenCalledWith(
+      "/sell/checkout?listing=listing-123&flow=private&opened=1",
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Open checkout in a new tab" }));
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/sell/checkout?listing=listing-123&flow=private&opened=1",
+    );
+    expect(payForListing).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Featured off by default and ignores a duplicate submit", async () => {
+    mockSavedPrivateListing();
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/pay/123" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        listingFeePence={499}
+        featuredUpgradePricePence={500}
+      />,
+    );
+    reachPrivateReviewStep();
+
+    const featured = screen.getByRole("checkbox", { name: "Add Featured to this checkout" });
+    expect(featured.getAttribute("aria-checked")).not.toBe("true");
+    expect(screen.getByText(/Total/).textContent).toMatch(/£4\.99/);
+    expect(screen.queryByText(/£9\.99/)).toBeNull();
+
+    const submit = screen.getByRole("button", { name: "Continue to Checkout" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(payForListing).toHaveBeenCalledTimes(1);
+    });
+    expect(payForListing).toHaveBeenCalledWith({
+      listingId: "listing-123",
+      privateSellerTermsAccepted: true,
+    });
+    expect(upgradeFeatured).not.toHaveBeenCalled();
+  });
+
+  it("adds Featured to a paid private checkout only when selected", async () => {
+    mockSavedPrivateListing();
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/pay/123" },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        listingFeePence={499}
+        featuredUpgradePricePence={500}
+      />,
+    );
+    reachPrivateReviewStep();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Add Featured to this checkout" }));
+    expect(screen.getByText(/Total/).textContent).toMatch(/£9\.99/);
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    await waitFor(() => {
+      expect(payForListing).toHaveBeenCalledWith({
+        listingId: "listing-123",
+        privateSellerTermsAccepted: true,
+        includeFeatured: true,
+      });
+    });
+    expect(upgradeFeatured).not.toHaveBeenCalled();
+  });
+
+  it("submits a free listing before a separate Featured checkout", async () => {
+    mockSavedPrivateListing();
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: null, skippedPayment: true },
+    } as Awaited<ReturnType<typeof payForListing>>);
+    vi.mocked(upgradeFeatured).mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/featured/123" },
+    } as Awaited<ReturnType<typeof upgradeFeatured>>);
+
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        isFreeForUser
+        listingFeePence={499}
+        featuredUpgradePricePence={500}
+      />,
+    );
+    reachPrivateReviewStep();
+    expect(screen.getByText(/If that Featured payment is declined/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Add Featured after submission" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Listing" }));
+
+    await waitFor(() => {
+      expect(upgradeFeatured).toHaveBeenCalledWith("listing-123");
+    });
+    expect(payForListing).toHaveBeenCalledWith({
+      listingId: "listing-123",
+      privateSellerTermsAccepted: true,
+    });
+    expect(submitListingForReview).toHaveBeenCalled();
+    expect(window.open).toHaveBeenCalledWith("about:blank", "_blank");
+    expect(checkoutWindowMock.location.replace).toHaveBeenCalledWith(
+      "https://checkout.example/featured/123",
+    );
+  });
+
+  it("hides Featured on revision, resubmit, and listings that are already featured", () => {
+    const prices = { listingFeePence: 499, featuredUpgradePricePence: 500 };
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        {...prices}
+        initialDraft={{ ...revisionDraft, editMode: "revision" }}
+      />,
+    );
+    expect(screen.queryByRole("checkbox", { name: /Add Featured/i, hidden: true })).toBeNull();
+
+    cleanup();
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        {...prices}
+        initialDraft={{ ...revisionDraft, editMode: "resubmit" }}
+      />,
+    );
+    expect(screen.queryByRole("checkbox", { name: /Add Featured/i, hidden: true })).toBeNull();
+
+    cleanup();
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        {...prices}
+        initialDraft={{ ...revisionDraft, featured: true }}
+      />,
+    );
+    expect(screen.queryByRole("checkbox", { name: /Add Featured/i, hidden: true })).toBeNull();
   });
 
   it("updates an existing draft instead of creating a new listing", async () => {
@@ -1455,6 +1740,7 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     vi.mocked(submitListingForReview).mockReset();
     vi.mocked(updateListing).mockReset();
     vi.mocked(payForListing).mockReset();
+    vi.mocked(upgradeFeatured).mockReset();
     vi.mocked(simulateDemoListingPaymentOutcome).mockReset();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("open", vi.fn());
@@ -1778,6 +2064,7 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
 
   it("LST-DRAFT-NAV-002 LST-CHECKOUT-NAV-002 updates the draft URL without router navigation before checkout", async () => {
     const historyReplaceSpy = vi.spyOn(window.history, "replaceState");
+    openMock.mockReturnValue(checkoutWindowMock);
     vi.mocked(createListing).mockResolvedValue({
       data: { id: "listing-redirect" },
     } as Awaited<ReturnType<typeof createListing>>);
@@ -1809,12 +2096,15 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
         "",
         "/sell/private?draft=listing-redirect",
       );
-      expect(replaceMock).toHaveBeenCalledWith(
-        "/sell/checkout?listing=listing-redirect&flow=private&opened=1",
+      expect(screen.getByRole("dialog")).toHaveTextContent(
+        "Your checkout is ready, but your browser did not open the payment tab.",
       );
     });
     expect(window.location.pathname + window.location.search).toBe(
       "/sell/private?draft=listing-redirect",
+    );
+    expect(replaceMock).not.toHaveBeenCalledWith(
+      "/sell/checkout?listing=listing-redirect&flow=private&opened=1",
     );
     expect(replaceMock).not.toHaveBeenCalledWith(
       "/sell/private?draft=listing-redirect",

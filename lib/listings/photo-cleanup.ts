@@ -22,6 +22,8 @@ export async function enqueueListingImageCleanup({
 
 const CLEANUP_PROCESSING_MARKER = "__PROCESSING_LISTING_IMAGE_CLEANUP__";
 const CLEANUP_CLAIM_TTL_MS = 5 * 60 * 1000;
+const DEALER_PACK_PRODUCTION_SYNC_REASON_PREFIX = "dealer-pack-production-sync:";
+export const DEALER_PACK_PRODUCTION_CLEANUP_HOLD_MS = 30 * 24 * 60 * 60 * 1000;
 const CLEANUP_PUBLIC_ID_PREFIXES = [
   `${IMAGE_CONSTRAINTS.folder}/staging/`,
   `${IMAGE_CONSTRAINTS.folder}/import/`,
@@ -34,12 +36,26 @@ function cleanupClaimWhere(now: Date) {
   return {
     status: { in: ["PENDING" as const, "FAILED" as const] },
     attempts: { lt: 5 },
-    OR: [
-      { lastError: null },
-      { lastError: { not: CLEANUP_PROCESSING_MARKER } },
+    AND: [
       {
-        lastError: CLEANUP_PROCESSING_MARKER,
-        updatedAt: { lt: new Date(now.getTime() - CLEANUP_CLAIM_TTL_MS) },
+        OR: [
+          { lastError: null },
+          { lastError: { not: CLEANUP_PROCESSING_MARKER } },
+          {
+            lastError: CLEANUP_PROCESSING_MARKER,
+            updatedAt: { lt: new Date(now.getTime() - CLEANUP_CLAIM_TTL_MS) },
+          },
+        ],
+      },
+      {
+        OR: [
+          { reason: { not: { startsWith: DEALER_PACK_PRODUCTION_SYNC_REASON_PREFIX } } },
+          {
+            createdAt: {
+              lte: new Date(now.getTime() - DEALER_PACK_PRODUCTION_CLEANUP_HOLD_MS),
+            },
+          },
+        ],
       },
     ],
   };

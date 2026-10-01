@@ -6,6 +6,10 @@ import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { provisionDealerProfile } from "@/lib/dealers/access";
 import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
+import {
   grantAdminDealerAccess,
   revokeAdminDealerAccess,
 } from "@/lib/dealers/entitlement";
@@ -14,6 +18,7 @@ import {
   deliverDealerUpgradeOffer,
 } from "@/lib/dealers/upgrade-offers";
 import { captureException } from "@/lib/monitoring";
+import { sendDealerAccessRevokedEmail } from "@/lib/email/dealer-access-revoked";
 import { hasActiveLegalHold } from "@/lib/privacy/account-deletion";
 import {
   assertUserCanBePurged,
@@ -52,6 +57,7 @@ export async function listUsers(input: ListUsersInput) {
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const { query, role, regionId, disabled, page, pageSize } = parsed.data;
+  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
 
   const where = buildAdminUsersWhere({
     query,
@@ -69,7 +75,7 @@ export async function listUsers(input: ListUsersInput) {
       include: {
         region: { select: { name: true } },
         dealerProfile: { select: { id: true, name: true, verified: true, tier: true } },
-        _count: { select: { listings: true, favourites: true } },
+        _count: { select: { listings: { where: visibleListings }, favourites: true } },
       },
     }),
     db.user.count({ where }),
@@ -89,6 +95,8 @@ export async function listUsers(input: ListUsersInput) {
 export async function getUserAdminView(userId: string) {
   await requireRole("ADMIN");
   if (!userId) return { error: "Missing userId" };
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -101,7 +109,7 @@ export async function getUserAdminView(userId: string) {
       },
       _count: {
         select: {
-          listings: true,
+          listings: { where: visibleListings },
           favourites: true,
           savedSearches: true,
           reports: true,
@@ -114,7 +122,7 @@ export async function getUserAdminView(userId: string) {
   if (!user) return { error: "User not found" };
 
   const recentListings = await db.listing.findMany({
-    where: { userId },
+    where: applySampleListingVisibility({ userId }, sampleVisibility),
     orderBy: { createdAt: "desc" },
     take: 10,
     select: { id: true, title: true, status: true, createdAt: true, price: true },
@@ -407,6 +415,7 @@ export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
           where: { id: parsed.data.userId },
           select: {
             id: true,
+            email: true,
             dealerProfile: { select: { id: true } },
           },
         });
@@ -417,9 +426,19 @@ export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
           tx,
           targetUser.dealerProfile.id
         );
+        if (revoked.count > 0) {
+          await logAdminAction({
+            adminId: admin.id,
+            action: "REVOKE_DEALER_ADMIN_GRANT",
+            entityType: "DealerProfile",
+            entityId: targetUser.dealerProfile.id,
+            details: { userId: parsed.data.userId, source: "ADMIN_GRANT" },
+          }, tx);
+        }
         return {
           kind: "revoked" as const,
           dealerId: targetUser.dealerProfile.id,
+          email: targetUser.email,
           count: revoked.count,
         };
       },
@@ -430,15 +449,24 @@ export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
       return { error: "No active admin grant exists for this dealer." };
     }
 
-    await logAdminAction({
-      adminId: admin.id,
-      action: "REVOKE_DEALER_ADMIN_GRANT",
-      entityType: "DealerProfile",
-      entityId: result.dealerId,
-      details: { userId: parsed.data.userId, source: "ADMIN_GRANT" },
-    });
     revalidateDealerAccessPaths(parsed.data.userId);
-    return { data: { success: true } };
+    let warning: string | undefined;
+    try {
+      await sendDealerAccessRevokedEmail(result.email);
+    } catch (error) {
+      warning = "Dealer access was revoked, but the notification email could not be sent. Please contact the user directly.";
+      try {
+        await captureException({
+          source: "BUSINESS",
+          error,
+          action: "sendDealerAccessRevokedEmail",
+          userId: parsed.data.userId,
+        });
+      } catch {
+        // Monitoring must not turn a committed change into a failed action.
+      }
+    }
+    return { data: { success: true }, ...(warning ? { warning } : {}) };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -501,6 +529,12 @@ async function runDealerGrantTransaction(input: {
 }
 
 function revalidateDealerAccessPaths(userId: string) {
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/dealers");
+  revalidatePath("/dealers/[slug]", "page");
+  revalidatePath("/listings/[id]", "page");
+  revalidatePath("/account/listings");
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${userId}`);
   revalidatePath("/admin/dealers");

@@ -45,6 +45,7 @@ export async function canSkipListingPayment(
       listingId: input.listingId,
       type: "LISTING",
       status: "SUCCEEDED",
+      refundedAt: null,
     },
     select: { id: true },
   });

@@ -5,6 +5,10 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 import { OPEN_CANCELLATION_STATUSES } from "@/lib/policy/cancellation";
 import {
   AdminActionQueue,
@@ -34,7 +38,9 @@ export default async function AdminDashboardPage() {
   await expireStaleLiveListings();
 
   const now = new Date();
-  const liveWhere = liveListingWhere(now);
+  const sampleVisibility = await getSampleVisibility();
+  const liveWhere = applySampleListingVisibility(liveListingWhere(now), sampleVisibility);
+  const catalogWhere = applySampleListingVisibility({}, sampleVisibility);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -59,14 +65,17 @@ export default async function AdminDashboardPage() {
     recentReports,
     recentPaymentsList,
   ] = await Promise.all([
-    db.listing.count(),
+    db.listing.count({ where: catalogWhere }),
     db.listing.count({
-      where: {
-        OR: [
-          { status: "PENDING" },
-          { revisions: { some: { status: "PENDING" } } },
-        ],
-      },
+      where: applySampleListingVisibility(
+        {
+          OR: [
+            { status: "PENDING" },
+            { revisions: { some: { status: "PENDING" } } },
+          ],
+        },
+        sampleVisibility,
+      ),
     }),
     db.listing.count({ where: liveWhere }),
     db.dealerProfile.count(),
@@ -92,6 +101,7 @@ export default async function AdminDashboardPage() {
       _sum: { amount: true },
     }),
     db.listing.findMany({
+      where: catalogWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {

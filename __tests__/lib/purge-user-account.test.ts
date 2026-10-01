@@ -71,6 +71,7 @@ describe("purgeUserAccountRecords", () => {
     const result = await purgeUserAccountRecords(tx as never, "user-1");
 
     expect(result.email).toBe(user.email);
+    expect(result.listingIds).toEqual(["listing-1"]);
     expect(result.imagePublicIds).toEqual(["photo-1", "intent-1"]);
     expect(calls).toContain("user.delete");
     expect(calls).not.toContain("user.update");
@@ -116,5 +117,13 @@ describe("deleteAuthUser", () => {
     deleteUserMock.mockResolvedValue({ error: { message: "User not found" } });
 
     await expect(deleteAuthUser("auth-1")).resolves.toBeUndefined();
+  });
+
+  it("does not call Supabase for preview-system placeholder identities", async () => {
+    await expect(
+      deleteAuthUser("preview-system:rex-motor-company"),
+    ).resolves.toBeUndefined();
+
+    expect(deleteUserMock).not.toHaveBeenCalled();
   });
 });

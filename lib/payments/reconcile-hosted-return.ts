@@ -5,14 +5,13 @@ import { eventFromMinimizedPayload, type RippleMinimizedPayload } from "@/lib/pa
 import { getRippleClientId, RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import { normalizeRippleEmail, parseRippleReference } from "@/lib/payments/ripple-reference";
 import { createOrUpdateListingPayment, submitPaidListingForReview } from "@/lib/payments/webhook-payments";
-import { liveListingWhere } from "@/lib/listings/expiry";
 import { getRippleProductByLinkCode } from "@/lib/payments/ripple-mapping";
 import type { HostedReturnContext } from "@/lib/payments/hosted-return-context";
 import { reconcileHostedSubscriptionReturn } from "@/lib/payments/reconcile-hosted-subscription-return";
 
 // The caller verifies the signed cookie, authentication and confirmed auth email.
 export type { HostedReturnContext } from "@/lib/payments/hosted-return-context";
-export type HostedReturnResult = { status: "confirmed"; listingId?: string; checkoutType?: "listing_payment" | "featured_upgrade" | "dealer_subscription" } | { status: "waiting" | "review" };
+export type HostedReturnResult = { status: "confirmed"; listingId?: string; checkoutType?: "listing_payment" | "listing_and_featured" | "featured_upgrade" | "dealer_subscription" } | { status: "waiting" | "review" };
 const MAX_AGE = 30 * 60_000;
 class ClaimChangedError extends Error {}
 
@@ -20,7 +19,7 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
   const now = Date.now();
   if (context.kind === "dealer_subscription") return reconcileHostedSubscriptionReturn(context, paymentJobRef);
   const checkoutType = context.kind ?? "listing_payment";
-  const product = context.kind === "featured_upgrade"
+  const product = context.kind === "featured_upgrade" || context.kind === "listing_and_featured"
     ? getRippleProductByLinkCode(context.productCode) : RIPPLE_CANONICAL_PRODUCTS.listing;
   if (!product || product.checkoutType !== checkoutType) return { status: "review" };
   const paymentType = checkoutType === "featured_upgrade" ? "FEATURED" : "LISTING";
@@ -37,6 +36,7 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
       if (!payment || payment.listingId !== context.listingId || payment.listing.userId !== context.userId ||
           payment.providerReference !== context.merchantReference || payment.paymentProvider !== "RIPPLE" ||
           payment.type !== paymentType || payment.amount !== product.amountPence || payment.currency !== "gbp" ||
+          payment.includesFeatured !== (checkoutType === "listing_and_featured") ||
           payment.refundedAt || !["PENDING", "SUCCEEDED"].includes(payment.status)) return { status: "review" as const };
 
       const receipts = await tx.paymentWebhookInbox.findMany({ where: { paymentReference: paymentJobRef } });
@@ -86,9 +86,10 @@ export async function reconcileHostedReturn(context: HostedReturnContext, paymen
       const applied = await createOrUpdateListingPayment(event, "SUCCEEDED", tx);
       if (!applied?.applied) throw new ClaimChangedError();
       if (checkoutType === "featured_upgrade") {
-        await tx.listing.updateMany({ where: { id: payment.listingId, ...liveListingWhere() }, data: { featured: true } });
+        const { applyPaidFeaturedEntitlement } = await import("@/lib/payments/featured-entitlement");
+        await applyPaidFeaturedEntitlement(payment.listingId, tx);
       }
-      const notifications = checkoutType === "listing_payment" ? await submitPaidListingForReview(payment.listingId, event, tx) : [];
+      const notifications = checkoutType === "listing_payment" || checkoutType === "listing_and_featured" ? await submitPaidListingForReview(payment.listingId, event, tx) : [];
       const completed = await tx.paymentWebhookInbox.updateMany({ where: { id: inbox.id, status: "PROCESSING", attemptCount: inbox.attemptCount + 1 }, data: { status: "PROCESSED", processedAt: new Date(), lastErrorCode: null } });
       if (completed.count !== 1) throw new ClaimChangedError();
       return { status: "confirmed" as const, listingId: payment.listingId, notifications };

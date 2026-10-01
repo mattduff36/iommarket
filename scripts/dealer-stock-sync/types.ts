@@ -1,5 +1,6 @@
 export type DealerStatus =
   | "confirmed"
+  | "archived"
   | "unverified"
   | "no_public_site"
   | "specialist_optional";

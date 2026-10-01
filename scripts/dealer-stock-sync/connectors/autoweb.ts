@@ -15,8 +15,8 @@ const base = createWebsiteConnector({
 
 export const autowebConnector = {
   ...base,
-  async fetchDetails(_context: ConnectorContext, frozen: CanonicalVehicle[]) {
-    return { vehicles: frozen, detailMissing: 0 };
+  async fetchDetails(context: ConnectorContext, frozen: CanonicalVehicle[]) {
+    return base.fetchDetails(context, frozen);
   },
   async fetchList(context: ConnectorContext): Promise<SourceListResult> {
     const startUrl = context.source.startUrl;

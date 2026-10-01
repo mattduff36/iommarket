@@ -63,6 +63,8 @@ describe("SellPrivatePage", () => {
     isPrivateListingFreeForUserMock.mockResolvedValue(true);
     getMarketplacePricingMock.mockResolvedValue({
       optionalListingSupportPence: 500,
+      privateListingPence: 499,
+      featuredUpgradePence: 500,
     });
   });
 

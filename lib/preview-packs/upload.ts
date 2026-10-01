@@ -109,6 +109,17 @@ export function isUsablePreviewImageUrl(url: string) {
   if (parseNetDirectorImageToken(url) || /images\.netdirector\.auto/i.test(url)) {
     return /^https?:\/\//i.test(url);
   }
+  try {
+    const parsed = new URL(url);
+    if (
+      /^(?:www\.)?selectcarsales\.co\.im$/i.test(parsed.hostname) &&
+      /^\/Home\/Image\/\d+$/i.test(parsed.pathname)
+    ) {
+      return /^https?:$/i.test(parsed.protocol);
+    }
+  } catch {
+    return false;
+  }
   return /^https?:\/\//i.test(url) && /\.(jpe?g|png|webp)$/i.test(path);
 }
 
@@ -282,25 +293,39 @@ export async function uploadPreviewPackImages(input: {
   attemptId: string;
   downloadImpl?: typeof downloadSafeRemoteImage;
 }): Promise<PreviewUploadedImage[]> {
-  const uploaded = await mapWithConcurrency(
+  const attempts = await mapWithConcurrency(
     input.sources,
     PREVIEW_PACK_UPLOAD_CONCURRENCY,
     async (source, index) => {
       try {
-        return await uploadOneSource({
-          dealerKey: input.dealerKey,
-          identityKey: input.identityKey,
-          source,
-          order: source.order ?? index,
-          attemptId: input.attemptId,
-          downloadImpl: input.downloadImpl,
-        });
-      } catch {
-        return null;
+        return {
+          image: await uploadOneSource({
+            dealerKey: input.dealerKey,
+            identityKey: input.identityKey,
+            source,
+            order: source.order ?? index,
+            attemptId: input.attemptId,
+            downloadImpl: input.downloadImpl,
+          }),
+          error: null,
+        };
+      } catch (error) {
+        return {
+          image: null,
+          error: error instanceof Error ? error.message : "Preview image upload failed.",
+        };
       }
     },
   );
-  return uploaded.filter((image): image is PreviewUploadedImage => image !== null);
+  const uploaded = attempts
+    .map((attempt) => attempt.image)
+    .filter((image): image is PreviewUploadedImage => image !== null);
+  const failed = attempts.find((attempt) => attempt.error);
+  if (failed?.error) {
+    await cleanupPreviewUploadedImages(uploaded).catch(() => undefined);
+    throw new Error(failed.error);
+  }
+  return uploaded;
 }
 
 export async function cleanupPreviewUploadedImages(
@@ -320,7 +345,7 @@ export async function cleanupPreviewUploadedImages(
 }
 
 export async function enqueuePreviewUploadedImageCleanup(
-  prisma: PrismaClient,
+  prisma: Pick<PrismaClient, "listingImageCleanupJob">,
   images: PreviewUploadedImage[],
   reason: string,
 ) {

@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/card-overlay-link";
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
+import { PreviewReviewImagePlaceholder } from "@/components/preview/preview-review-image-placeholder";
 import { toListingPhotoSource, type ListingPhotoSource } from "@/lib/images/photo";
+import { NEEDS_MANUAL_REVIEW_BADGE } from "@/lib/preview-packs/review-labels";
 
 export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   title: string;
@@ -29,6 +31,8 @@ export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
   listingId?: string;
   showFavourite?: boolean;
   initialIsFavourite?: boolean;
+  needsManualReview?: boolean;
+  noImageReview?: boolean;
 }
 
 function formatPrice(price: number, currency = "£"): string {
@@ -57,6 +61,8 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
     listingId,
     showFavourite = false,
     initialIsFavourite = false,
+    needsManualReview = false,
+    noImageReview = false,
       className,
       ...props
     },
@@ -83,7 +89,9 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
         {href ? <CardOverlayLink href={href} label={title} /> : null}
         {/* Image container with overlay gradient */}
         <div className="pointer-events-none relative aspect-[4/3] w-full overflow-hidden bg-graphite-800">
-          {photo || imageSrc ? (
+          {noImageReview ? (
+            <PreviewReviewImagePlaceholder compact />
+          ) : photo || imageSrc ? (
             <ListingPhoto
               photo={
                 photo ??
@@ -118,11 +126,14 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
               </span>
             </div>
           )}
-          {!sold && badge && (
-            <div className="absolute top-3 left-3">
-              <Badge variant="energy">{badge}</Badge>
+          {!sold && (badge || needsManualReview) ? (
+            <div className="absolute top-3 left-3 flex flex-col items-start gap-1">
+              {badge ? <Badge variant="energy">{badge}</Badge> : null}
+              {needsManualReview ? (
+                <Badge variant="warning">{NEEDS_MANUAL_REVIEW_BADGE}</Badge>
+              ) : null}
             </div>
-          )}
+          ) : null}
           {sold && (
             <div className="absolute top-3 left-3">
               <Badge variant="success">Sold</Badge>

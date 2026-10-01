@@ -12,6 +12,10 @@ import {
 import { logAdminAction } from "@/lib/admin/audit";
 import { liveListingWhere } from "@/lib/listings/expiry";
 import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
+import {
   createCategorySchema,
   createAttributeDefinitionSchema,
   type CreateCategoryInput,
@@ -197,6 +201,7 @@ export async function createAttributeDefinition(
 
 export async function getAdminStats() {
   await requireRole("ADMIN");
+  const sampleVisibility = await getSampleVisibility();
 
   const [
     totalListings,
@@ -206,16 +211,23 @@ export async function getAdminStats() {
     openReports,
     recentPayments,
   ] = await Promise.all([
-    db.listing.count(),
     db.listing.count({
-      where: {
-        OR: [
-          { status: "PENDING" },
-          { revisions: { some: { status: "PENDING" } } },
-        ],
-      },
+      where: applySampleListingVisibility({}, sampleVisibility),
     }),
-    db.listing.count({ where: liveListingWhere() }),
+    db.listing.count({
+      where: applySampleListingVisibility(
+        {
+          OR: [
+            { status: "PENDING" },
+            { revisions: { some: { status: "PENDING" } } },
+          ],
+        },
+        sampleVisibility,
+      ),
+    }),
+    db.listing.count({
+      where: applySampleListingVisibility(liveListingWhere(), sampleVisibility),
+    }),
     db.dealerProfile.count(),
     db.report.count({ where: { status: "OPEN" } }),
     db.payment.count({

@@ -33,7 +33,6 @@ import { DEALER_TERMS_ACCEPTANCE_MESSAGE } from "@/lib/validations/payment";
 
 interface SubscribeFormProps {
   checkoutUnavailable?: boolean;
-  testPlan?: boolean;
   tier: "STARTER" | "PRO";
   tierLabel: string;
   tierPrice: string;
@@ -43,7 +42,6 @@ interface SubscribeFormProps {
 
 export function SubscribeForm({
   checkoutUnavailable = false,
-  testPlan = false,
   tier,
   tierLabel,
   tierPrice,
@@ -54,7 +52,7 @@ export function SubscribeForm({
   const [isPending, startTransition] = useTransition();
   const [isRecordingTerms, startRecordingTerms] = useTransition();
   const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
-  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
+  const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen, sampleCheckoutId } =
     useRippleDemoCheckout();
   const [hasProfile, setHasProfile] = useState(initialHasProfile);
   const [businessName, setBusinessName] = useState("");
@@ -102,7 +100,7 @@ export function SubscribeForm({
     }
     startTransition(async () => {
       const result = await createDealerSubscription({
-        testPlan,
+        testPlan: false,
         tier,
         acceptedDealerTerms: true,
       });
@@ -116,12 +114,10 @@ export function SubscribeForm({
         openCheckout(result.data.checkoutUrl);
         setIsAwaitingPayment(true);
         if (isRippleDemoCheckoutUrl(result.data.checkoutUrl)) {
-          setNotice(
-            "Demo checkout is ready in the modal below. Use the temporary outcome buttons after previewing the hosted tab."
-          );
+          setNotice("Demo checkout is open in the panel below.");
         } else {
           setNotice(
-            "Ripple checkout is open in another tab. Keep this page open so we can confirm your subscription."
+            "Payment checkout is open in another tab. Keep this page open so we can confirm your subscription."
           );
         }
       }
@@ -160,12 +156,7 @@ export function SubscribeForm({
     <div className="space-y-6">
       {checkoutUnavailable && (
         <p className="rounded-lg border p-4 text-sm text-text-secondary" role="note">
-          Subscription checkout on preview needs a dedicated test payment link. It is not configured yet.
-        </p>
-      )}
-      {testPlan && (
-        <p className="rounded-lg border border-neon-blue-500/30 p-4 text-sm text-text-secondary" role="note">
-          Preview test plan: this is a real £1 payment today and every week until cancelled in Ripple. It provides Starter access on preview only.
+          New subscriptions are disabled on preview. Existing subscriptions continue to renew.
         </p>
       )}
       <Card>
@@ -187,7 +178,7 @@ export function SubscribeForm({
             {tierPrice}
             <span className="text-sm font-normal text-text-secondary">
               {" "}
-              / {testPlan ? "week" : "month"}
+              / month
             </span>
           </p>
         </CardContent>
@@ -312,10 +303,10 @@ export function SubscribeForm({
               className="w-full mt-4"
               loading={isPending}
             >
-              Subscribe for {tierPrice} per {testPlan ? "week" : "month"}
+              Subscribe for {tierPrice} per month
             </Button>
             <div className="mt-4">
-              <PaymentAwaitingStatus
+              <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
                 isAwaitingPayment={isAwaitingPayment}
                 message="This page checks for subscription confirmation automatically. Please do not pay again while confirmation is pending."
               />
