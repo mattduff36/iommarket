@@ -26,6 +26,28 @@ function dealer(
 }
 
 describe("dealer onboarding eligibility", () => {
+  it.each([
+    ["swift-motors", "swiftmotors@itrader.im.preview"],
+    ["manx-car-warehouse", "manxcarwarehouse@itrader.im.preview"],
+  ])("allows prepared %s accounts with genuine authentication in production", (key, email) => {
+    const preparedDealer = dealer({
+      user: {
+        ...dealer().user,
+        email,
+        authUserId: "075baf98-1b14-4c20-bb92-78331871888e",
+      },
+    });
+    expect(isOnboardingEligibleDealer(preparedDealer, [], "production")).toBe(true);
+    expect(isOnboardingEligibleDealer(preparedDealer, [key], "preview")).toBe(true);
+    expect(isOnboardingEligibleDealer(preparedDealer, [], "preview")).toBe(false);
+    expect(isOnboardingEligibleDealer(preparedDealer, [key], undefined)).toBe(false);
+    expect(isOnboardingEligibleDealer({ ...preparedDealer, isAdminPreview: true }, [key], "production")).toBe(false);
+    expect(isOnboardingEligibleDealer({
+      ...preparedDealer,
+      user: { ...preparedDealer.user, authUserId: `${PREVIEW_AUTH_USER_ID_PREFIX}${key}` },
+    }, [key], "production")).toBe(false);
+  });
+
   it("includes an enabled preview pack only when its founding account can be claimed", () => {
     const where = onboardingEligibleDealerWhere(
       ["athol-garage"],

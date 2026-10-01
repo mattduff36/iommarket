@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   applySampleDealerVisibility,
   applySampleListingVisibility,
+  applySampleUserVisibility,
   isHiddenSampleDealer,
   isHiddenSampleListing,
+  isHiddenSampleUser,
   isPlaceholderAuthUserId,
   PLACEHOLDER_AUTH_PREFIX,
   sampleDealerListingWhere,
   samplePrivateListingWhere,
+  sampleDealerUserWhere,
+  samplePrivateUserWhere,
 } from "@/lib/listings/sample-visibility";
 
 describe("sample listing identity", () => {
@@ -40,6 +44,30 @@ describe("sample listing identity", () => {
         authUserId: "preview-system:athol-garage",
         isAdminPreview: true,
         sampleVisibility: { privateListings: true, dealerListings: false },
+      }),
+    ).toBe(false);
+  });
+
+  it("classifies private and dealer sample users independently", () => {
+    expect(
+      isHiddenSampleUser({
+        authUserId: `${PLACEHOLDER_AUTH_PREFIX}201`,
+        hasDealerProfile: false,
+        sampleVisibility: { privateListings: false, dealerListings: true },
+      }),
+    ).toBe(true);
+    expect(
+      isHiddenSampleUser({
+        authUserId: `${PLACEHOLDER_AUTH_PREFIX}101`,
+        hasDealerProfile: true,
+        sampleVisibility: { privateListings: true, dealerListings: false },
+      }),
+    ).toBe(true);
+    expect(
+      isHiddenSampleUser({
+        authUserId: "preview-system:athol-garage",
+        hasDealerProfile: true,
+        sampleVisibility: { privateListings: false, dealerListings: false },
       }),
     ).toBe(false);
   });
@@ -78,6 +106,25 @@ describe("sample visibility filters", () => {
       }),
     ).toEqual({
       AND: [{ status: "LIVE" }, { NOT: sampleDealerListingWhere() }],
+    });
+  });
+
+  it("excludes private and dealer sample accounts independently", () => {
+    expect(
+      applySampleUserVisibility({ role: "USER" }, {
+        privateListings: false,
+        dealerListings: true,
+      }),
+    ).toEqual({
+      AND: [{ role: "USER" }, { NOT: samplePrivateUserWhere() }],
+    });
+    expect(
+      applySampleUserVisibility({ role: "DEALER" }, {
+        privateListings: true,
+        dealerListings: false,
+      }),
+    ).toEqual({
+      AND: [{ role: "DEALER" }, { NOT: sampleDealerUserWhere() }],
     });
   });
 });

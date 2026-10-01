@@ -25,6 +25,11 @@ import {
   getSubscriptionDisplayId,
   isPaidSubscriptionRecord,
 } from "@/lib/payments/records";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import {
+  applySamplePaymentVisibility,
+  applySampleSubscriptionVisibility,
+} from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "Revenue" };
 
@@ -59,8 +64,10 @@ function MetricCard({ label, value }: { label: string; value: string | number })
 }
 
 export default async function AdminRevenuePage() {
+  const sampleVisibility = await getSampleVisibility();
   const [payments, subscriptions, totals] = await Promise.all([
     db.payment.findMany({
+      where: applySamplePaymentVisibility({}, sampleVisibility),
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
@@ -68,6 +75,7 @@ export default async function AdminRevenuePage() {
       },
     }),
     db.subscription.findMany({
+      where: applySampleSubscriptionVisibility({}, sampleVisibility),
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
@@ -75,7 +83,10 @@ export default async function AdminRevenuePage() {
       },
     }),
     db.payment.aggregate({
-      where: { status: "SUCCEEDED" },
+      where: applySamplePaymentVisibility(
+        { status: "SUCCEEDED" },
+        sampleVisibility,
+      ),
       _sum: { amount: true },
       _count: true,
     }),

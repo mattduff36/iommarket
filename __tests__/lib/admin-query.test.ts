@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
 import {
+  sampleDealerProfileWhere,
   sampleDealerListingWhere,
+  sampleDealerUserWhere,
   samplePrivateListingWhere,
+  samplePrivateUserWhere,
 } from "@/lib/listings/sample-visibility";
 import {
   ADMIN_LISTING_STATUS_FILTERS,
@@ -306,6 +309,22 @@ describe("admin users list", () => {
       role: "DEALER",
     });
   });
+
+  it("hides disabled private and dealer sample accounts from the list", () => {
+    const base = buildAdminUsersWhere({});
+    expect(
+      buildAdminUsersWhere({}, {
+        privateListings: false,
+        dealerListings: false,
+      }),
+    ).toEqual({
+      AND: [
+        base,
+        { NOT: samplePrivateUserWhere() },
+        { NOT: sampleDealerUserWhere() },
+      ],
+    });
+  });
 });
 
 describe("admin dealers list", () => {
@@ -323,5 +342,17 @@ describe("admin dealers list", () => {
       ],
     });
     expect(buildAdminDealersWhere({ id: "   " })).not.toHaveProperty("id");
+  });
+
+  it("hides sample dealer accounts when dealer samples are disabled", () => {
+    const base = buildAdminDealersWhere({});
+    expect(
+      buildAdminDealersWhere(
+        {},
+        { privateListings: true, dealerListings: false },
+      ),
+    ).toEqual({
+      AND: [base, { NOT: sampleDealerProfileWhere() }],
+    });
   });
 });

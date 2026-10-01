@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { EMAIL_LOGO_URL, renderBrandedEmail } from "@/lib/email/layout";
+import {
+  EMAIL_LOGO_URL,
+  EMAIL_SITE_URL,
+  renderBrandedEmail,
+} from "@/lib/email/layout";
 
 describe("branded email layout", () => {
   it("always loads the logo from the public production asset host", () => {
@@ -22,6 +26,10 @@ describe("branded email layout", () => {
     expect(rendered.html).toContain(
       'href="https://preview.itrader.im/dealer/onboarding/claim?token=test"',
     );
+    expect(rendered.html).toContain("v-text-anchor:middle");
+    expect(rendered.html).toContain('align="center" valign="middle"');
+    expect(rendered.html).toContain("line-height:48px");
+    expect(rendered.html).toContain("text-align:center");
   });
 
   it("escapes content and omits optional sections that were not provided", () => {
@@ -48,5 +56,23 @@ describe("branded email layout", () => {
         actionLabel: "Continue",
       }).html,
     ).not.toContain("javascript:");
+  });
+
+  it("links visible iTrader.im brand references without changing email addresses", () => {
+    const rendered = renderBrandedEmail({
+      title: "Welcome to iTrader.im",
+      paragraphs: [
+        "Explore iTrader.im before launch.",
+        "Email hello@itrader.im if you need help.",
+      ],
+    });
+
+    expect(EMAIL_SITE_URL).toBe("https://itrader.im/");
+    expect(rendered.html.match(/href="https:\/\/itrader\.im\/"/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(rendered.html).toContain(
+      `Explore <a href="${EMAIL_SITE_URL}"`,
+    );
+    expect(rendered.html).not.toContain("hello@<a");
+    expect(rendered.html).toContain('href="mailto:hello@itrader.im"');
   });
 });

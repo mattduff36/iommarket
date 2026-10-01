@@ -21,6 +21,12 @@ import {
   ResponseRevisionActions,
   ReviewDisputeActions,
 } from "./response-dispute-actions";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import {
+  applySampleDealerReviewVisibility,
+  applySampleReviewDisputeVisibility,
+  applySampleReviewResponseRevisionVisibility,
+} from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "Dealer Reviews" };
 
@@ -63,9 +69,14 @@ export default async function AdminReviewsPage({
   const status = params.status ?? "PENDING";
   const page = parseAdminPage(params.page);
   const where = status === "ALL" ? {} : { status: status as "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN" };
+  const sampleVisibility = await getSampleVisibility();
+  const visibleReviewWhere = applySampleDealerReviewVisibility(
+    where,
+    sampleVisibility,
+  );
   const [reviews, total, responseRevisions, disputes] = await Promise.all([
     db.dealerReview.findMany({
-      where,
+      where: visibleReviewWhere,
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       skip: (page - 1) * 25,
       take: 25,
@@ -74,9 +85,12 @@ export default async function AdminReviewsPage({
         reviewer: { select: { email: true } },
       },
     }),
-    db.dealerReview.count({ where }),
+    db.dealerReview.count({ where: visibleReviewWhere }),
     db.dealerReviewResponseRevision.findMany({
-      where: { status: "PENDING" },
+      where: applySampleReviewResponseRevisionVisibility(
+        { status: "PENDING" },
+        sampleVisibility,
+      ),
       orderBy: { submittedAt: "asc" },
       take: 50,
       include: {
@@ -92,7 +106,10 @@ export default async function AdminReviewsPage({
       },
     }),
     db.dealerReviewDispute.findMany({
-      where: { status: "OPEN" },
+      where: applySampleReviewDisputeVisibility(
+        { status: "OPEN" },
+        sampleVisibility,
+      ),
       orderBy: { createdAt: "asc" },
       take: 50,
       include: {

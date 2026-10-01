@@ -32,8 +32,14 @@ import {
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import {
   applySampleListingVisibility,
+  applySampleUserVisibility,
   getSampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import {
+  applySampleFavouriteVisibility,
+  applySampleListingViewVisibility,
+  applySampleReportVisibility,
+} from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "User Detail | Admin" };
 
@@ -56,8 +62,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
   const sampleVisibility = await getSampleVisibility();
   const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
-  const user = await db.user.findUnique({
-    where: { id },
+  const user = await db.user.findFirst({
+    where: applySampleUserVisibility({ id }, sampleVisibility),
     include: {
       region: true,
       dealerProfile: {
@@ -74,10 +80,16 @@ export default async function AdminUserDetailPage({ params }: Props) {
       _count: {
         select: {
           listings: { where: visibleListings },
-          favourites: true,
+          favourites: {
+            where: applySampleFavouriteVisibility({}, sampleVisibility),
+          },
           savedSearches: true,
-          reports: true,
-          listingViews: true,
+          reports: {
+            where: applySampleReportVisibility({}, sampleVisibility),
+          },
+          listingViews: {
+            where: applySampleListingViewVisibility({}, sampleVisibility),
+          },
         },
       },
     },

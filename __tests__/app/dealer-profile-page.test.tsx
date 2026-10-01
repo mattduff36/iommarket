@@ -15,6 +15,7 @@ const findFirstMock = vi.fn();
 const findHistoricalSlugMock = vi.fn();
 const aggregateMock = vi.fn();
 const findManyReviewsMock = vi.fn();
+const getSampleVisibilityMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -50,10 +51,16 @@ vi.mock("@/lib/listings/marketplace", () => ({
   ADMIN_PREVIEW_BADGE: "Preview — not public",
 }));
 
-vi.mock("@/lib/listings/sample-visibility", () => ({
-  getSampleVisibility: async () => ({ privateListings: true, dealerListings: true }),
-  isHiddenSampleDealer: () => false,
-}));
+vi.mock("@/lib/listings/sample-visibility", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/lib/listings/sample-visibility")
+  >();
+  return {
+    ...actual,
+    getSampleVisibility: getSampleVisibilityMock,
+    isHiddenSampleDealer: () => false,
+  };
+});
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -133,6 +140,10 @@ describe("DealerProfilePage", () => {
     });
     findManyReviewsMock.mockResolvedValue([]);
     findHistoricalSlugMock.mockResolvedValue(null);
+    getSampleVisibilityMock.mockResolvedValue({
+      privateListings: true,
+      dealerListings: true,
+    });
   });
 
   it("adds a canonical URL only for a publicly eligible dealer", async () => {
@@ -453,6 +464,25 @@ describe("DealerProfilePage", () => {
       _avg: { rating: true },
       _count: { _all: true },
     });
+  });
+
+  it("hides private-sample reviews when their visibility toggle is off", async () => {
+    getSampleVisibilityMock.mockResolvedValue({
+      privateListings: false,
+      dealerListings: true,
+    });
+    findUniqueMock.mockResolvedValue(buildDealer({ verified: true }));
+
+    await DealerProfilePage({
+      params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+    });
+
+    expect(
+      JSON.stringify(aggregateMock.mock.calls[0][0].where),
+    ).toContain("00000000-0000-0000-0000-");
+    expect(findManyReviewsMock.mock.calls[0][0].where).toEqual(
+      aggregateMock.mock.calls[0][0].where,
+    );
   });
 
   it("does not publish a response for a rating-only review", async () => {

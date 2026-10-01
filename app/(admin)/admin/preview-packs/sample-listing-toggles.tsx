@@ -55,8 +55,8 @@ export function SampleListingToggles({
           Sample listings
         </h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Show or hide placeholder private and dealer listings on the marketplace
-          and in admin listing views.
+          Show or hide placeholder listings and all related sample data throughout
+          the marketplace and admin.
         </p>
       </div>
       <div className="divide-y divide-border">

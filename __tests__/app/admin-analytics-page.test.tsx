@@ -8,7 +8,7 @@ const { dbMock, expireStaleLiveListingsMock, getSampleVisibilityMock } = vi.hois
       listingView: { count: vi.fn() },
       user: { count: vi.fn() },
       listing: { count: vi.fn(), findMany: vi.fn() },
-      favourite: { count: vi.fn() },
+      favourite: { count: vi.fn(), groupBy: vi.fn() },
       savedSearch: { count: vi.fn() },
       $queryRaw: vi.fn(),
     },
@@ -48,6 +48,7 @@ describe("AdminAnalyticsPage sample visibility", () => {
     dbMock.listing.count.mockResolvedValue(0);
     dbMock.listing.findMany.mockResolvedValue([]);
     dbMock.favourite.count.mockResolvedValue(0);
+    dbMock.favourite.groupBy.mockResolvedValue([]);
     dbMock.savedSearch.count.mockResolvedValue(0);
     dbMock.$queryRaw.mockResolvedValue([]);
   });
@@ -60,19 +61,25 @@ describe("AdminAnalyticsPage sample visibility", () => {
     await AdminAnalyticsPage();
 
     for (const [input] of dbMock.listingView.count.mock.calls) {
-      expect(input.where.listing.AND).toHaveLength(3);
+      expect(JSON.stringify(input.where)).toContain(PLACEHOLDER_AUTH_PREFIX);
     }
-    expect(dbMock.favourite.count.mock.calls[0][0].where.listing.AND).toHaveLength(3);
+    expect(
+      JSON.stringify(dbMock.favourite.count.mock.calls[0][0].where),
+    ).toContain(PLACEHOLDER_AUTH_PREFIX);
+    expect(
+      JSON.stringify(dbMock.favourite.groupBy.mock.calls[0][0].where),
+    ).toContain(PLACEHOLDER_AUTH_PREFIX);
 
     const rawQuery = dbMock.$queryRaw.mock.calls[0][0] as {
       strings: string[];
       values: unknown[];
     };
     expect(rawQuery.strings.join(" ")).toContain('dealer."isAdminPreview" = FALSE');
+    expect(rawQuery.strings.join(" ")).toContain('viewer_dealer."isAdminPreview" = FALSE');
     expect(
       rawQuery.values.filter(
         (value) => value === `${PLACEHOLDER_AUTH_PREFIX}%`,
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(4);
   });
 });

@@ -43,6 +43,20 @@ export function sampleDealerProfileWhere(): Prisma.DealerProfileWhereInput {
   };
 }
 
+export function samplePrivateUserWhere(): Prisma.UserWhereInput {
+  return {
+    ...placeholderAuthUserWhere(),
+    dealerProfile: null,
+  };
+}
+
+export function sampleDealerUserWhere(): Prisma.UserWhereInput {
+  return {
+    ...placeholderAuthUserWhere(),
+    dealerProfile: { isAdminPreview: false },
+  };
+}
+
 export function sampleListingNotFilters(
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
 ): Prisma.ListingWhereInput[] {
@@ -73,6 +87,19 @@ export function applySampleDealerVisibility(
   };
 }
 
+export function applySampleUserVisibility(
+  where: Prisma.UserWhereInput,
+  sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+): Prisma.UserWhereInput {
+  const hidden: Prisma.UserWhereInput[] = [];
+  if (!sample.privateListings) hidden.push(samplePrivateUserWhere());
+  if (!sample.dealerListings) hidden.push(sampleDealerUserWhere());
+  if (hidden.length === 0) return where;
+  return {
+    AND: [where, ...hidden.map((filter) => ({ NOT: filter }))],
+  };
+}
+
 export function isHiddenSampleListing(input: {
   authUserId: string;
   dealerId: string | null;
@@ -93,6 +120,17 @@ export function isHiddenSampleDealer(input: {
   if (input.isAdminPreview) return false;
   if (!isPlaceholderAuthUserId(input.authUserId)) return false;
   return !input.sampleVisibility.dealerListings;
+}
+
+export function isHiddenSampleUser(input: {
+  authUserId: string;
+  hasDealerProfile: boolean;
+  sampleVisibility: SampleVisibility;
+}) {
+  if (!isPlaceholderAuthUserId(input.authUserId)) return false;
+  return input.hasDealerProfile
+    ? !input.sampleVisibility.dealerListings
+    : !input.sampleVisibility.privateListings;
 }
 
 export async function getSampleVisibility(): Promise<SampleVisibility> {

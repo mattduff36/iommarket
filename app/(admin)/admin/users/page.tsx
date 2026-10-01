@@ -78,14 +78,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const sort = parseAdminSort(params, USER_TABLE_COLUMNS, USER_TABLE_SORT);
   const now = new Date();
   const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
-  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const where = buildAdminUsersWhere({
     query,
     role: roleFilter,
     disabled: disabledFilter,
     deleted: params.disabled === "deleted",
-  });
+  }, sampleVisibility);
 
   const [users, total] = await Promise.all([
     db.user.findMany({

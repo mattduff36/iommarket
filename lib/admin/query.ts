@@ -1,6 +1,7 @@
 import type { ListingStatus, Prisma, UserRole } from "@prisma/client";
 import {
   applySampleListingVisibility,
+  applySampleUserVisibility,
   DEFAULT_SAMPLE_VISIBILITY,
   type SampleVisibility,
 } from "@/lib/listings/sample-visibility";
@@ -69,7 +70,7 @@ export function buildAdminUsersWhere(input: {
   regionId?: string;
   disabled?: boolean;
   deleted?: boolean;
-}): Prisma.UserWhereInput {
+}, sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY): Prisma.UserWhereInput {
   const where: Prisma.UserWhereInput = {
     ...excludePreviewSystemUsersWhere(),
   };
@@ -84,7 +85,7 @@ export function buildAdminUsersWhere(input: {
   if (input.disabled === true) where.disabledAt = { not: null };
   if (input.disabled === false) where.disabledAt = null;
   if (input.deleted) where.deletedAt = { not: null };
-  return where;
+  return applySampleUserVisibility(where, sampleVisibility);
 }
 
 function listingSearchWhere(query: string): Prisma.ListingWhereInput {

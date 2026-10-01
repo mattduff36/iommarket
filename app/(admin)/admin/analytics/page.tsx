@@ -7,9 +7,15 @@ import { db } from "@/lib/db";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import {
   applySampleListingVisibility,
+  applySampleUserVisibility,
   getSampleVisibility,
   PLACEHOLDER_AUTH_PREFIX,
 } from "@/lib/listings/sample-visibility";
+import {
+  applySampleFavouriteVisibility,
+  applySampleListingViewVisibility,
+  applySampleSavedSearchVisibility,
+} from "@/lib/listings/sample-related-visibility";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   TableHeader,
@@ -59,7 +65,6 @@ export default async function AdminAnalyticsPage() {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sampleVisibility = await getSampleVisibility();
-  const visibleListingWhere = applySampleListingVisibility({}, sampleVisibility);
   const liveWhere = applySampleListingVisibility(
     liveListingWhere(now),
     sampleVisibility,
@@ -74,6 +79,13 @@ export default async function AdminAnalyticsPage() {
         listing."dealerId" IS NULL
         AND owner."authUserId" LIKE ${placeholderAuthPattern}
       )`,
+      Prisma.sql`(
+        views."viewerId" IS NULL
+        OR NOT (
+          viewer."authUserId" LIKE ${placeholderAuthPattern}
+          AND viewer_dealer."id" IS NULL
+        )
+      )`,
     );
   }
   if (!sampleVisibility.dealerListings) {
@@ -83,8 +95,20 @@ export default async function AdminAnalyticsPage() {
         AND dealer."isAdminPreview" = FALSE
         AND owner."authUserId" LIKE ${placeholderAuthPattern}
       )`,
+      Prisma.sql`(
+        views."viewerId" IS NULL
+        OR NOT (
+          viewer."authUserId" LIKE ${placeholderAuthPattern}
+          AND viewer_dealer."id" IS NOT NULL
+          AND viewer_dealer."isAdminPreview" = FALSE
+        )
+      )`,
     );
   }
+  const visibleLiveFavouriteWhere = applySampleFavouriteVisibility(
+    { listing: liveWhere },
+    sampleVisibility,
+  );
 
   const [
     totalViews30d,
@@ -94,21 +118,31 @@ export default async function AdminAnalyticsPage() {
     totalFavourites,
     totalSavedSearches,
     topByViews,
-    topByFavourites,
+    topFavouriteGroups,
     recentViews,
     dealerListingCount,
     privateListingCount,
   ] = await Promise.all([
     db.listingView.count({
-      where: { createdAt: { gte: thirtyDaysAgo }, listing: visibleListingWhere },
+      where: applySampleListingViewVisibility(
+        { createdAt: { gte: thirtyDaysAgo } },
+        sampleVisibility,
+      ),
     }),
     db.listingView.count({
-      where: { createdAt: { gte: sevenDaysAgo }, listing: visibleListingWhere },
+      where: applySampleListingViewVisibility(
+        { createdAt: { gte: sevenDaysAgo } },
+        sampleVisibility,
+      ),
     }),
-    db.user.count(),
+    db.user.count({ where: applySampleUserVisibility({}, sampleVisibility) }),
     db.listing.count({ where: liveWhere }),
-    db.favourite.count({ where: { listing: visibleListingWhere } }),
-    db.savedSearch.count(),
+    db.favourite.count({
+      where: applySampleFavouriteVisibility({}, sampleVisibility),
+    }),
+    db.savedSearch.count({
+      where: applySampleSavedSearchVisibility({}, sampleVisibility),
+    }),
     db.listing.findMany({
       where: liveWhere,
       orderBy: { viewCount: "desc" },
@@ -121,17 +155,12 @@ export default async function AdminAnalyticsPage() {
         user: { select: { email: true } },
       },
     }),
-    db.listing.findMany({
-      where: liveWhere,
-      orderBy: { favouritedBy: { _count: "desc" } },
+    db.favourite.groupBy({
+      by: ["listingId"],
+      where: visibleLiveFavouriteWhere,
+      _count: { _all: true },
+      orderBy: { _count: { listingId: "desc" } },
       take: 10,
-      select: {
-        id: true,
-        title: true,
-        _count: { select: { favouritedBy: true } },
-        dealer: { select: { name: true } },
-        user: { select: { email: true } },
-      },
     }),
     db.$queryRaw<Array<{ day: string; count: bigint }>>(Prisma.sql`
       SELECT DATE(views."createdAt") AS day, COUNT(*)::bigint AS count
@@ -139,6 +168,8 @@ export default async function AdminAnalyticsPage() {
       JOIN "Listing" AS listing ON listing."id" = views."listingId"
       JOIN "User" AS owner ON owner."id" = listing."userId"
       LEFT JOIN "DealerProfile" AS dealer ON dealer."id" = listing."dealerId"
+      LEFT JOIN "User" AS viewer ON viewer."id" = views."viewerId"
+      LEFT JOIN "DealerProfile" AS viewer_dealer ON viewer_dealer."userId" = viewer."id"
       WHERE ${Prisma.join(recentViewConditions, " AND ")}
       GROUP BY DATE(views."createdAt")
       ORDER BY day DESC
@@ -146,6 +177,27 @@ export default async function AdminAnalyticsPage() {
     db.listing.count({ where: { ...liveWhere, dealerId: { not: null } } }),
     db.listing.count({ where: { ...liveWhere, dealerId: null } }),
   ]);
+  const favouriteListingIds = topFavouriteGroups.map((row) => row.listingId);
+  const favouriteListings = favouriteListingIds.length > 0
+    ? await db.listing.findMany({
+        where: { id: { in: favouriteListingIds } },
+        select: {
+          id: true,
+          title: true,
+          dealer: { select: { name: true } },
+          user: { select: { email: true } },
+        },
+      })
+    : [];
+  const favouriteListingsById = new Map(
+    favouriteListings.map((listing) => [listing.id, listing]),
+  );
+  const topByFavourites = topFavouriteGroups.flatMap((group) => {
+    const listing = favouriteListingsById.get(group.listingId);
+    return listing
+      ? [{ ...listing, _count: { favouritedBy: group._count._all } }]
+      : [];
+  });
 
   return (
     <>

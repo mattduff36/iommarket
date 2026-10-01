@@ -31,6 +31,8 @@ import {
   attachUnmatchedListingPayment,
 } from "@/lib/payments/attach-unmatched-listing";
 import type { Prisma } from "@prisma/client";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { applySamplePaymentVisibility } from "@/lib/listings/sample-related-visibility";
 
 export async function searchPayments(input: SearchPaymentsInput) {
   await requireRole("ADMIN");
@@ -51,10 +53,14 @@ export async function searchPayments(input: SearchPaymentsInput) {
     ];
   }
   if (status) where.status = status;
+  const visibleWhere = applySamplePaymentVisibility(
+    where,
+    await getSampleVisibility(),
+  );
 
   const [payments, total] = await Promise.all([
     db.payment.findMany({
-      where,
+      where: visibleWhere,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -62,7 +68,7 @@ export async function searchPayments(input: SearchPaymentsInput) {
         listing: { select: { title: true, userId: true, user: { select: { email: true } } } },
       },
     }),
-    db.payment.count({ where }),
+    db.payment.count({ where: visibleWhere }),
   ]);
 
   return {

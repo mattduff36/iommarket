@@ -35,6 +35,7 @@ import {
   buildListingPath,
 } from "@/lib/navigation-paths";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { applySampleDealerReviewVisibility } from "@/lib/listings/sample-related-visibility";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -249,21 +250,19 @@ export default async function DealerProfilePage({ params }: Props) {
     notFound();
   }
 
+  const approvedReviewWhere = applySampleDealerReviewVisibility(
+    { dealerId: dealer.id, status: "APPROVED" },
+    sampleVisibility,
+  );
   const [entitlement, reviewStats, approvedReviews] = await Promise.all([
     getDealerEntitlement(dealer.id, dealer.tier),
     db.dealerReview.aggregate({
-      where: {
-        dealerId: dealer.id,
-        status: "APPROVED",
-      },
+      where: approvedReviewWhere,
       _avg: { rating: true },
       _count: { _all: true },
     }),
     db.dealerReview.findMany({
-      where: {
-        dealerId: dealer.id,
-        status: "APPROVED",
-      },
+      where: approvedReviewWhere,
       orderBy: { createdAt: "desc" },
       take: 20,
       select: {

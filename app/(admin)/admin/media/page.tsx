@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/card-overlay-link";
 import { DeleteImageButton } from "./delete-image-button";
 import type { Prisma } from "@prisma/client";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { applySampleListingImageVisibility } from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "Media | Admin" };
 
@@ -46,9 +48,13 @@ export default async function AdminMediaPage({ searchParams }: Props) {
   const filter = params.filter;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
-  const where: Prisma.ListingImageWhereInput = filter === "orphan"
+  const baseWhere: Prisma.ListingImageWhereInput = filter === "orphan"
     ? { listing: { status: { in: ["TAKEN_DOWN", "EXPIRED"] } } }
     : {};
+  const where = applySampleListingImageVisibility(
+    baseWhere,
+    await getSampleVisibility(),
+  );
 
   const [images, total] = await Promise.all([
     db.listingImage.findMany({

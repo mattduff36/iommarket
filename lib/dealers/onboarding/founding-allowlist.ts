@@ -31,6 +31,20 @@ export const FOUNDING_DEALERS = [
     website: "https://www.tdcar.im/",
     regionSlug: "iom-east",
   },
+  {
+    key: "swift-motors",
+    displayName: "Swift Motors",
+    email: "swiftmotors@itrader.im.preview",
+    website: "https://www.swiftmotors.net/",
+    regionSlug: "iom-east",
+  },
+  {
+    key: "manx-car-warehouse",
+    displayName: "Manx Car Warehouse",
+    email: "manxcarwarehouse@itrader.im.preview",
+    website: "https://www.manxcarwarehouse.im/",
+    regionSlug: "iom-south",
+  },
 ] as const;
 
 export type FoundingDealerKey = (typeof FOUNDING_DEALERS)[number]["key"];

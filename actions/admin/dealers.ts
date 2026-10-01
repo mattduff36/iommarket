@@ -15,6 +15,11 @@ import {
 import type { Prisma } from "@prisma/client";
 import { reportHandledException } from "@/lib/monitoring";
 import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
+import {
+  applySampleDealerVisibility,
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 export async function listDealers(input: { query?: string; verified?: boolean; page?: number; pageSize?: number }) {
   await requireRole("ADMIN");
@@ -23,6 +28,7 @@ export async function listDealers(input: { query?: string; verified?: boolean; p
   const verified = input.verified;
   const page = Math.max(1, input.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 25));
+  const sampleVisibility = await getSampleVisibility();
 
   const where: Prisma.DealerProfileWhereInput = getAdminDealerWhere();
 
@@ -34,19 +40,26 @@ export async function listDealers(input: { query?: string; verified?: boolean; p
     ];
   }
   if (verified !== undefined) where.verified = verified;
+  const visibleDealers = applySampleDealerVisibility(where, sampleVisibility);
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const [dealers, total] = await Promise.all([
     db.dealerProfile.findMany({
-      where,
+      where: visibleDealers,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
         user: { select: { id: true, email: true, name: true, role: true } },
-        _count: { select: { listings: true, subscriptions: true } },
+        _count: {
+          select: {
+            listings: { where: visibleListings },
+            subscriptions: true,
+          },
+        },
       },
     }),
-    db.dealerProfile.count({ where }),
+    db.dealerProfile.count({ where: visibleDealers }),
   ]);
 
   return { data: { dealers, total, page, pageSize, totalPages: Math.ceil(total / pageSize) } };

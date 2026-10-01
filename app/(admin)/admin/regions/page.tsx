@@ -21,14 +21,27 @@ import {
 } from "@/components/admin/admin-table";
 import { RegionActions } from "./region-actions";
 import { CreateRegionForm } from "./create-region-form";
+import {
+  applySampleListingVisibility,
+  applySampleUserVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 export const metadata: Metadata = { title: "Regions | Admin" };
 
 export default async function AdminRegionsPage() {
+  const sampleVisibility = await getSampleVisibility();
   const regions = await db.region.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
-      _count: { select: { users: true, listings: true } },
+      _count: {
+        select: {
+          users: { where: applySampleUserVisibility({}, sampleVisibility) },
+          listings: {
+            where: applySampleListingVisibility({}, sampleVisibility),
+          },
+        },
+      },
     },
   });
 

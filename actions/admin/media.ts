@@ -7,6 +7,8 @@ import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { reportHandledException } from "@/lib/monitoring";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { applySampleListingImageVisibility } from "@/lib/listings/sample-related-visibility";
 
 const ORDER_SHIFT = 10_000;
 
@@ -17,13 +19,17 @@ export async function listImages(input: { filter?: string; page?: number; pageSi
   const page = Math.max(1, input.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 30));
 
-  const where: Prisma.ListingImageWhereInput = filter === "orphan"
+  const baseWhere: Prisma.ListingImageWhereInput = filter === "orphan"
     ? {
         listing: {
           status: { in: ["TAKEN_DOWN", "EXPIRED"] },
         },
       }
     : {};
+  const where = applySampleListingImageVisibility(
+    baseWhere,
+    await getSampleVisibility(),
+  );
 
   const [images, total] = await Promise.all([
     db.listingImage.findMany({

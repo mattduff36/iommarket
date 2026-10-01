@@ -21,6 +21,10 @@ import {
 import { CreateCategoryForm } from "./create-category-form";
 import { AddAttributeForm } from "./add-attribute-form";
 import { AttributeDeleteButton, CategoryRowActions } from "./category-actions";
+import {
+  applySampleListingVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 export const metadata: Metadata = { title: "Manage Categories" };
 
@@ -32,12 +36,16 @@ const DATA_TYPE_LABEL: Record<string, string> = {
 };
 
 export default async function AdminCategoriesPage() {
+  const visibleListings = applySampleListingVisibility(
+    {},
+    await getSampleVisibility(),
+  );
   const categories = await db.category.findMany({
     orderBy: { sortOrder: "asc" },
     include: {
       parent: { select: { name: true } },
       attributeDefinitions: { orderBy: { sortOrder: "asc" } },
-      _count: { select: { listings: true } },
+      _count: { select: { listings: { where: visibleListings } } },
     },
   });
 

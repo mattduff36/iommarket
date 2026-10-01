@@ -6,9 +6,19 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
 import {
+  applySampleDealerVisibility,
   applySampleListingVisibility,
+  applySampleUserVisibility,
   getSampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import {
+  applySampleCancellationVisibility,
+  applySampleDealerReviewVisibility,
+  applySamplePaymentVisibility,
+  applySampleReportVisibility,
+  applySampleReviewDisputeVisibility,
+  applySampleReviewResponseRevisionVisibility,
+} from "@/lib/listings/sample-related-visibility";
 import { OPEN_CANCELLATION_STATUSES } from "@/lib/policy/cancellation";
 import {
   AdminActionQueue,
@@ -41,6 +51,16 @@ export default async function AdminDashboardPage() {
   const sampleVisibility = await getSampleVisibility();
   const liveWhere = applySampleListingVisibility(liveListingWhere(now), sampleVisibility);
   const catalogWhere = applySampleListingVisibility({}, sampleVisibility);
+  const dealerWhere = applySampleDealerVisibility({}, sampleVisibility);
+  const userWhere = applySampleUserVisibility({}, sampleVisibility);
+  const openReportWhere = applySampleReportVisibility(
+    { status: "OPEN" },
+    sampleVisibility,
+  );
+  const succeededPaymentWhere = applySamplePaymentVisibility(
+    { status: "SUCCEEDED" },
+    sampleVisibility,
+  );
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -78,26 +98,45 @@ export default async function AdminDashboardPage() {
       ),
     }),
     db.listing.count({ where: liveWhere }),
-    db.dealerProfile.count(),
-    db.dealerProfile.count({ where: { verified: true } }),
-    db.report.count({ where: { status: "OPEN" } }),
-    db.dealerReview.count({ where: { status: "PENDING" } }),
-    db.dealerReviewResponseRevision.count({ where: { status: "PENDING" } }),
-    db.dealerReviewDispute.count({ where: { status: "OPEN" } }),
+    db.dealerProfile.count({ where: dealerWhere }),
+    db.dealerProfile.count({
+      where: applySampleDealerVisibility({ verified: true }, sampleVisibility),
+    }),
+    db.report.count({ where: openReportWhere }),
+    db.dealerReview.count({
+      where: applySampleDealerReviewVisibility({ status: "PENDING" }, sampleVisibility),
+    }),
+    db.dealerReviewResponseRevision.count({
+      where: applySampleReviewResponseRevisionVisibility(
+        { status: "PENDING" },
+        sampleVisibility,
+      ),
+    }),
+    db.dealerReviewDispute.count({
+      where: applySampleReviewDisputeVisibility({ status: "OPEN" }, sampleVisibility),
+    }),
     db.dealerCancellationRequest.count({
-      where: { status: { in: [...OPEN_CANCELLATION_STATUSES] } },
+      where: applySampleCancellationVisibility(
+        { status: { in: [...OPEN_CANCELLATION_STATUSES] } },
+        sampleVisibility,
+      ),
     }),
     db.monitoringIssue.count({ where: { status: "OPEN" } }),
     db.payment.count({
-      where: {
-        status: "SUCCEEDED",
-        createdAt: { gte: thirtyDaysAgo },
-      },
+      where: applySamplePaymentVisibility(
+        { status: "SUCCEEDED", createdAt: { gte: thirtyDaysAgo } },
+        sampleVisibility,
+      ),
     }),
-    db.user.count(),
-    db.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    db.user.count({ where: userWhere }),
+    db.user.count({
+      where: applySampleUserVisibility(
+        { createdAt: { gte: sevenDaysAgo } },
+        sampleVisibility,
+      ),
+    }),
     db.payment.aggregate({
-      where: { status: "SUCCEEDED" },
+      where: succeededPaymentWhere,
       _sum: { amount: true },
     }),
     db.listing.findMany({
@@ -114,12 +153,13 @@ export default async function AdminDashboardPage() {
       },
     }),
     db.user.findMany({
+      where: userWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, name: true, email: true, role: true, createdAt: true },
     }),
     db.report.findMany({
-      where: { status: "OPEN" },
+      where: openReportWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -130,6 +170,7 @@ export default async function AdminDashboardPage() {
       },
     }),
     db.payment.findMany({
+      where: applySamplePaymentVisibility({}, sampleVisibility),
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
