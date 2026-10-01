@@ -41,6 +41,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Install Chromium for browser-backed unit tests
+        run: npx playwright install --with-deps chromium
+
       - name: Run deterministic unit tests
         run: npm run test:run
 
