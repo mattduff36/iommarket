@@ -34,6 +34,7 @@ interface SignUpWithPlansProps {
   slotsRemaining: number;
   isFreeWindowActive: boolean;
   dealerTierIntent: "STARTER" | "PRO" | null;
+  inviteEmail?: string | null;
 }
 
 export function SignUpWithPlans({
@@ -41,7 +42,9 @@ export function SignUpWithPlans({
   slotsRemaining,
   isFreeWindowActive,
   dealerTierIntent,
+  inviteEmail = null,
 }: SignUpWithPlansProps) {
+  const lockedEmail = inviteEmail?.trim() || null;
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialNextPath = getSafeNextPath(searchParams.get("next"));
@@ -51,7 +54,7 @@ export function SignUpWithPlans({
     ? `/sign-in?next=${encodeURIComponent(signedUpNextPath)}`
     : "/sign-in";
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(lockedEmail ?? "");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -112,8 +115,9 @@ export function SignUpWithPlans({
     setError(null);
 
     const safeNextPath = getSafeNextPath(defaultNextPath);
+    const submittedEmail = lockedEmail ?? email;
     const parsed = signUpSchema.safeParse({
-      email,
+      email: submittedEmail,
       password,
       name,
       nextPath: safeNextPath,
@@ -137,6 +141,11 @@ export function SignUpWithPlans({
         const hasFieldErrors = Object.keys(split.fieldErrors).length > 0;
         showFieldErrors(split.fieldErrors);
         setError(signupFailureMessage(split.formError, hasFieldErrors));
+        return;
+      }
+      if (result.data && "signedIn" in result.data && result.data.signedIn) {
+        router.push("/");
+        router.refresh();
         return;
       }
       setSuccess(true);
@@ -203,12 +212,16 @@ export function SignUpWithPlans({
             label="Email"
             type="email"
             autoComplete="email"
-            value={email}
+            value={lockedEmail ?? email}
             onChange={(e) => {
+              if (lockedEmail) return;
               setEmail(e.target.value);
               clearFieldError("email");
             }}
             required
+            readOnly={Boolean(lockedEmail)}
+            disabled={Boolean(lockedEmail)}
+            helperText={lockedEmail ? "This invitation is locked to this email address." : undefined}
             error={firstFieldError(fieldErrors, "email")}
           />
           <Input

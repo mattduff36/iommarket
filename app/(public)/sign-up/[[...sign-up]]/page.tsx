@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { SignUpWithPlans } from "@/components/auth/sign-up-with-plans";
+import { Button } from "@/components/ui/button";
 import {
   getFreeLaunchSlotsRemaining,
   isListingFreeNowAsync,
 } from "@/lib/config/marketplace";
+import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
+import { readVerifiedEarlyAccessClaim } from "@/lib/waitlist/early-access/invite";
 
 export const metadata: Metadata = {
   title: "Sign Up",
@@ -35,6 +39,23 @@ export default async function SignUpPage({ searchParams }: Props) {
           Sign-up is not configured. Set NEXT_PUBLIC_SUPABASE_URL and
           NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.
         </p>
+      </div>
+    );
+  }
+
+  const gated = shouldEnforceLaunchGate();
+  const claim = gated ? await readVerifiedEarlyAccessClaim() : null;
+  if (gated && !claim) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-20 text-center">
+        <h1 className="text-3xl font-bold text-text-primary">Invitation required</h1>
+        <p className="mt-4 text-text-secondary">
+          Early access is available from the personal invitation sent to your email address.
+          If you already created an account, sign in on this or another device.
+        </p>
+        <Button asChild className="mt-8" variant="trust">
+          <Link href="/sign-in">Sign in</Link>
+        </Button>
       </div>
     );
   }
@@ -68,6 +89,7 @@ export default async function SignUpPage({ searchParams }: Props) {
         slotsRemaining={slotsRemaining}
         isFreeWindowActive={isFreeWindowActive}
         dealerTierIntent={dealerTierIntent}
+        inviteEmail={claim?.email ?? null}
       />
     </div>
   );

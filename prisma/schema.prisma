@@ -98,6 +98,7 @@ model User {
   dealerUpgradeOffersCreated DealerUpgradeOffer[] @relation("DealerUpgradeOfferCreatedBy")
   dealerUpgradeOffersCancelled DealerUpgradeOffer[] @relation("DealerUpgradeOfferCancelledBy")
   dealerUpgradeAcceptances DealerUpgradeAcceptance[]
+  earlyAccessTestRecipients WaitlistEarlyAccessRecipient[] @relation("EarlyAccessTestAdmin")
 
   @@index([authUserId])
   @@index([email])
@@ -1114,9 +1115,78 @@ model WaitlistUser {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  earlyAccessRecipients WaitlistEarlyAccessRecipient[]
+
   @@index([email])
   @@index([createdAt])
   @@index([deletedAt])
+}
+
+enum WaitlistEarlyAccessCampaignStatus {
+  DRAFT
+  QUEUED
+  SENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum WaitlistEarlyAccessDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model WaitlistEarlyAccessCampaign {
+  id                 String                            @id @default(cuid())
+  key                String                            @unique
+  bodyText           String
+  status             WaitlistEarlyAccessCampaignStatus @default(DRAFT)
+  createdByAdminId   String
+  confirmedAt        DateTime?
+  confirmedByAdminId String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  recipientTotal     Int                               @default(0)
+  sentCount          Int                               @default(0)
+  failedCount        Int                               @default(0)
+  skippedCount       Int                               @default(0)
+  createdAt          DateTime                          @default(now())
+  updatedAt          DateTime                          @updatedAt
+
+  recipients WaitlistEarlyAccessRecipient[]
+
+  @@index([status, createdAt])
+}
+
+model WaitlistEarlyAccessRecipient {
+  id                  String                           @id @default(cuid())
+  campaignId          String
+  waitlistUserId      String?
+  testAdminUserId     String?
+  nonce               String
+  deliveryStatus      WaitlistEarlyAccessDeliveryStatus @default(PENDING)
+  attemptCount        Int                              @default(0)
+  lastError           String?
+  resendMessageId     String?
+  sentAt              DateTime?
+  skippedReason       String?
+  nextAttemptAt       DateTime?
+  claimedAt           DateTime?
+  claimLeaseExpiresAt DateTime?
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
+
+  campaign     WaitlistEarlyAccessCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  waitlistUser WaitlistUser?               @relation(fields: [waitlistUserId], references: [id], onDelete: Restrict)
+  testAdmin    User?                       @relation("EarlyAccessTestAdmin", fields: [testAdminUserId], references: [id], onDelete: Restrict)
+
+  @@unique([campaignId, waitlistUserId])
+  @@unique([campaignId, testAdminUserId])
+  @@index([deliveryStatus, nextAttemptAt])
+  @@index([campaignId, deliveryStatus])
+  @@index([claimedAt])
 }
 
 // ---------------------------------------------------------------------------

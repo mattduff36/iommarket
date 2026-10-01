@@ -85,6 +85,8 @@ describe("Supabase auth email hook", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://itrader.im");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
     vi.stubEnv("SUPABASE_AUTH_HOOK_SECRET", hookSecret);
+    vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "1");
+    vi.stubEnv("PREVIEW_LAUNCH_GATE_QA", "");
   });
 
   afterEach(() => {
@@ -204,6 +206,29 @@ describe("Supabase auth email hook", () => {
     );
     expect(verifyUrl.origin).toBe("https://itrader.im");
     expect(verifyUrl.searchParams.get("next")).toBe("/");
+  });
+
+  it("does not send a public signup email while the launch gate is closed", async () => {
+    vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "");
+    const { POST } = await import("@/app/api/auth/send-email/route");
+    const signup = await POST(signedRequest(signupPayload()));
+    expect(signup.status).toBe(200);
+    expect(sendSignupConfirmationEmail).not.toHaveBeenCalled();
+
+    const recovery = await POST(
+      signedRequest(
+        JSON.stringify({
+          user: { email: "seller@example.com" },
+          email_data: {
+            token_hash: "token_hash",
+            email_action_type: "recovery",
+            redirect_to: "https://itrader.im/auth/callback",
+          },
+        }),
+      ),
+    );
+    expect(recovery.status).toBe(200);
+    expect(sendPasswordResetEmail).toHaveBeenCalledTimes(1);
   });
 
   it("returns a generic provider error while retaining internal reporting", async () => {

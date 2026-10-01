@@ -11,6 +11,10 @@ import {
 } from "@/lib/launch/session";
 import { resolvePreviewAccessPath } from "@/lib/preview-access";
 import {
+  hasConfirmedSupabaseSession,
+  hasSupabaseAuthCookie,
+} from "@/lib/launch/supabase-unlock";
+import {
   isOnboardingSessionStale,
   readOnboardingSessionInvalidBefore,
 } from "@/lib/dealers/onboarding/session-cutoff";
@@ -23,6 +27,7 @@ export function isPublicPath(pathname: string): boolean {
     pathname === "/sign-up" ||
     pathname === "/forgot-password" ||
     pathname === "/auth/callback" ||
+    pathname === "/early-access" ||
     pathname === "/preview" ||
     pathname.startsWith("/dealer/onboarding")
   ) {
@@ -118,11 +123,21 @@ export async function proxy(request: NextRequest) {
   }
 
   const gated = shouldEnforceLaunchGate();
-  const unlocked = !gated || hasValidLaunchSession(request);
+  const launchUnlocked = hasValidLaunchSession(request);
+  const sessionResponse = NextResponse.next({
+    request: { headers: request.headers },
+  });
+  const sessionUnlocked =
+    gated &&
+    !launchUnlocked &&
+    hasSupabaseAuthCookie(request) &&
+    (await hasConfirmedSupabaseSession(request, sessionResponse));
+  const unlocked = !gated || launchUnlocked || sessionUnlocked;
   const isApi = pathname === "/api" || pathname.startsWith("/api/");
 
   if (isApi) {
     if (!unlocked && routeClass === "gated-api") return gatedApiResponse();
+    if (sessionUnlocked) return sessionResponse;
     return NextResponse.next();
   }
 
@@ -135,6 +150,8 @@ export async function proxy(request: NextRequest) {
     }
     return NextResponse.redirect(new URL("/", request.url));
   }
+
+  if (sessionUnlocked) return sessionResponse;
 
   if (shouldBypassSupabaseSessionRefresh(pathname)) {
     return NextResponse.next();
