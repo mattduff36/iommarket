@@ -37,6 +37,26 @@ vi.mock("@/actions/admin/dealer-tier", () => ({
 import { UserActions } from "@/app/(admin)/admin/users/user-actions";
 
 describe("UserActions", () => {
+  for (const variant of ["row", "detail"] as const) {
+    for (const paid of [false, true]) {
+      for (const granted of [false, true]) {
+        it(`${variant}: free-grant control respects paid=${paid}, grant=${granted}`, async () => {
+          const user = userEvent.setup();
+          render(<UserActions variant={variant} userId="user-1" currentRole="DEALER"
+            isDisabled={false} userLabel="Alice" currentTier="PRO"
+            hasActivePaidSubscription={paid} hasActiveAdminGrant={granted} />);
+          if (variant === "row") {
+            await user.click(screen.getByRole("button", { name: "Actions for Alice" }));
+          }
+          const role = variant === "row" ? "menuitem" : "button";
+          const control = screen.queryByRole(role, { name: granted ? "Extend free access" : "Grant free access" });
+          if (paid) expect(control).not.toBeInTheDocument();
+          else expect(control).toBeInTheDocument();
+          if (granted) expect(screen.getByRole(role, { name: "Revoke free access" })).toBeInTheDocument();
+        });
+      }
+    }
+  }
   beforeEach(() => {
     vi.clearAllMocks();
     deleteUser.mockResolvedValue({ data: { success: true } });

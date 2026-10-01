@@ -221,7 +221,7 @@ export function UserActions({
           onSelect: (value) => handlePackageChange(value as DealerTier),
         }
       : null,
-    currentRole === "DEALER"
+    currentRole === "DEALER" && !hasActivePaidSubscription
       ? {
           kind: "command",
           id: "grant",
@@ -353,7 +353,7 @@ export function UserActions({
           >
             {isDeleted ? "Delete permanently" : "Delete"}
           </AdminActionButton>
-          {currentRole === "DEALER" ? (
+          {currentRole === "DEALER" && !hasActivePaidSubscription ? (
             <AdminActionButton
               onClick={() => setIsDealerAccessDialogOpen(true)}
               disabled={isWorking}
