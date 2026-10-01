@@ -123,12 +123,17 @@ export default async function AdminWaitlistPage({ searchParams }: Props) {
         title="Waitlist"
         description="Review pre-launch signups captured from the coming soon page."
         actions={
-          <Link
-            href="/api/admin/waitlist/export"
-            className={adminSearchButtonClass}
-          >
-            Export CSV
-          </Link>
+          <>
+            <Link href="/admin/waitlist/early-access" className={adminSearchButtonClass}>
+              Early access
+            </Link>
+            <Link
+              href="/api/admin/waitlist/export"
+              className={adminSearchButtonClass}
+            >
+              Export CSV
+            </Link>
+          </>
         }
       />
 

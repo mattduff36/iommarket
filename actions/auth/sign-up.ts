@@ -10,7 +10,9 @@ import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { signUpSchema, type SignUpInput } from "@/lib/validations/auth";
 import { publicAuthErrorMessage } from "@/lib/forms/action-error";
+import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { reportHandledException } from "@/lib/monitoring";
+import { completeInvitedSignUp } from "@/lib/waitlist/early-access/signup";
 
 function getSafeNextPath(nextPath: string) {
   if (
@@ -65,6 +67,20 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
   if (!isSupabaseAuthConfigured()) {
     return { error: "Account sign-up is temporarily unavailable. Please try again shortly." };
   }
+
+  if (shouldEnforceLaunchGate()) {
+    try {
+      return await completeInvitedSignUp(parsed.data, await getSignupClientAddress());
+    } catch (err) {
+      await reportHandledException({
+        error: err,
+        action: "signUpWithPolicyAcceptance",
+        route: "/sign-up",
+      });
+      return { error: "We could not create your account. Please try again shortly." };
+    }
+  }
+
   if (
     !process.env.RESEND_API_KEY?.trim() ||
     !process.env.RESEND_FROM_EMAIL?.trim()

@@ -11,6 +11,23 @@ describe("DEV-GATE-001 holding-page password", () => {
     ).toBe(false);
   });
 
+  it("can reproduce the production gate on Preview only when QA is exactly 1", () => {
+    expect(
+      shouldEnforceDevGate({
+        NODE_ENV: "production",
+        VERCEL_ENV: "preview",
+        PREVIEW_LAUNCH_GATE_QA: "1",
+      }),
+    ).toBe(true);
+    expect(
+      shouldEnforceDevGate({
+        NODE_ENV: "production",
+        VERCEL_ENV: "preview",
+        PREVIEW_LAUNCH_GATE_QA: "true",
+      }),
+    ).toBe(false);
+  });
+
   it("enforces the /dev gate on Vercel Production", () => {
     expect(
       shouldEnforceDevGate({

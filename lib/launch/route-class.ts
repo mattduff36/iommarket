@@ -23,6 +23,11 @@ const PUBLIC_WHILE_GATED = [
   "/faq",
   "/vehicle-check",
   "/dealer/onboarding",
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
+  "/auth/callback",
+  "/early-access",
 ];
 
 export function matchesPathBoundary(pathname: string, prefix: string): boolean {

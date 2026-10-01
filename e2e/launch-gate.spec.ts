@@ -28,9 +28,18 @@ test("keeps a gated runtime closed, readable to crawlers, and zoomable", async (
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.getByText("Under Construction")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign In" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign Up" })).toHaveCount(0);
   const viewport = await page.locator('meta[name="viewport"]').getAttribute("content");
   expect(viewport ?? "").not.toMatch(/maximum-scale/i);
   expect(viewport ?? "").not.toMatch(/user-scalable\s*=\s*no/i);
+});
+
+test("keeps early-access signup invite-only while sign-in stays available", async ({ page }) => {
+  await page.goto("/sign-up");
+  await expect(page.getByRole("heading", { name: "Invitation required" })).toBeVisible();
+  await page.goto("/sign-in");
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
 
 test("a signed gate session unlocks catalogue APIs without a preview redirect", async ({ page }) => {

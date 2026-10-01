@@ -6,11 +6,12 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignUpWithPlans } from "@/components/auth/sign-up-with-plans";
 
 const refreshMock = vi.fn();
+const pushMock = vi.fn();
 const signUpMock = vi.fn();
 let nextPath: string | null = null;
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  useRouter: () => ({ refresh: refreshMock, push: pushMock }),
   useSearchParams: () => ({
     get: (key: string) => (key === "next" ? nextPath : null),
   }),
@@ -71,6 +72,7 @@ describe("SignUpWithPlans", () => {
 
   beforeEach(() => {
     refreshMock.mockReset();
+    pushMock.mockReset();
     signUpMock.mockReset();
     nextPath = null;
     process.env.NEXT_PUBLIC_APP_URL = "https://iomarket.test";
@@ -330,5 +332,33 @@ describe("SignUpWithPlans", () => {
 
     await waitFor(() => expect(signUpMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole("heading", { name: "Check your email" })).toBeTruthy();
+  });
+
+  it("keeps an invited email locked and opens the site after verified signup", async () => {
+    signUpMock.mockResolvedValue({ data: { email: "member@example.com", signedIn: true } });
+    render(
+      <SignUpWithPlans
+        showFreeOffer={false}
+        slotsRemaining={0}
+        isFreeWindowActive={false}
+        dealerTierIntent={null}
+        inviteEmail="member@example.com"
+      />,
+    );
+
+    const email = screen.getByRole("textbox", { name: "Email" });
+    expect(email).toBeDisabled();
+    expect(email).toHaveValue("member@example.com");
+    fireEvent.change(email, { target: { value: "other@example.com" } });
+    fireEvent.change(getPasswordInput(), { target: { value: "strong-password-123" } });
+    await completeRequiredAcknowledgements();
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() => expect(signUpMock).toHaveBeenCalledTimes(1));
+    expect(signUpMock).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "member@example.com" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/");
+    expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
   });
 });

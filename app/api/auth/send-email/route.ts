@@ -8,6 +8,7 @@ import {
   sendInviteEmail,
 } from "@/lib/email/resend";
 import { reportHandledException } from "@/lib/monitoring";
+import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 
 function getHookSecret(): string | null {
@@ -119,6 +120,14 @@ export async function POST(req: NextRequest) {
   }
 
   const { token_hash, token_hash_new, email_action_type, new_email } = email_data;
+  if (
+    shouldEnforceLaunchGate() &&
+    (email_action_type === "signup" ||
+      email_action_type === "magiclink" ||
+      email_action_type === "invite")
+  ) {
+    return NextResponse.json({});
+  }
   const redirectTo = email_data.redirect_to || `${appOrigin}/auth/callback`;
   const verifyUrl = buildVerifyUrl(
     token_hash,

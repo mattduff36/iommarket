@@ -2,11 +2,13 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { CookieBanner } from "@/components/layout/cookie-banner";
-import { WaitlistForm } from "@/components/waitlist/waitlist-form";
+import { HoldingHeader } from "@/components/layout/holding-header";
+import { LaunchCountdown } from "@/components/holding/launch-countdown";
+import styles from "./holding.module.css";
 
 export const metadata: Metadata = {
-  title: "Coming Soon",
-  description: "Join the iTrader.im waiting list for launch updates.",
+  title: "Launching Saturday 3 October",
+  description: "iTrader.im launches Saturday 3 October 2026 at 10:00 BST. The Isle of Man's dedicated vehicle marketplace. Buy, sell and upgrade locally.",
 };
 
 export default function HoldingPage() {
@@ -15,7 +17,8 @@ export default function HoldingPage() {
       className="relative flex min-h-screen flex-col"
       style={{ background: HERO_GRADIENT }}
     >
-      <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+      <HoldingHeader />
+      <main className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
         <Image
           src="/images/logo-itrader-hq.png"
           alt="iTrader.im – Buy · Sell · Upgrade"
@@ -25,23 +28,10 @@ export default function HoldingPage() {
           className="w-auto max-w-[260px] sm:max-w-[340px] drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
         />
 
-        <div className="mt-10 inline-flex items-center gap-2.5 rounded-full border border-amber-500/30 bg-amber-500/[0.06] px-4 py-1.5">
-          <svg className="h-3.5 w-2.5 shrink-0" viewBox="0 0 10 14" aria-hidden="true">
-            <path d="M5 0L9 11H1L5 0Z" fill="#f59e0b" />
-            <rect x="0" y="11.5" width="10" height="2" rx="0.5" fill="#d97706" />
-          </svg>
-          <span className="h-1.5 w-1.5 animate-strobe rounded-full bg-amber-400" />
-          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-amber-400">
-            Under Construction
-          </span>
-          <span
-            className="h-1.5 w-1.5 animate-strobe rounded-full bg-amber-400"
-            style={{ animationDelay: "0.3s" }}
-          />
-          <svg className="h-3.5 w-2.5 shrink-0" viewBox="0 0 10 14" aria-hidden="true">
-            <path d="M5 0L9 11H1L5 0Z" fill="#f59e0b" />
-            <rect x="0" y="11.5" width="10" height="2" rx="0.5" fill="#d97706" />
-          </svg>
+        <div className={styles.badge}>
+          <span className={styles.dot} aria-hidden="true" />
+          <span>Launching this Saturday</span>
+          <span className={styles.dot} aria-hidden="true" />
         </div>
 
         <h1 className="mt-6 text-center font-heading font-bold leading-tight text-text-primary">
@@ -59,37 +49,26 @@ export default function HoldingPage() {
           {" "}cars, vans and motorcycles.
         </p>
 
-        <p className="mt-3 max-w-md text-center text-[15px] leading-relaxed text-text-secondary/80">
-          We&apos;re building something special for the Isle of Man.
-          <br />
-          Join the waiting list to be first in line.
+        <p className="mt-8 text-center font-heading text-sm font-semibold text-text-primary sm:text-base">
+          <time dateTime="2026-10-03T10:00:00+01:00">
+            Saturday 3 October <span className="whitespace-nowrap text-[#ff714a]">· 10:00 BST</span>
+          </time>
         </p>
-
-        <div className="mx-auto mt-10 h-px w-12 bg-gradient-to-r from-transparent via-metallic-400/30 to-transparent sm:w-20" />
-
-        <section className="mt-10 w-full max-w-lg rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6 shadow-2xl ring-1 ring-white/[0.03] backdrop-blur-md sm:p-8">
-          <h2 className="text-center text-lg font-semibold text-text-primary sm:text-xl">
-            Join the Waiting List
-          </h2>
-          <p className="mt-1.5 text-center text-sm text-text-secondary">
-            Be first to know when iTrader.im opens to the island.
-          </p>
-          <div className="mt-6">
-            <WaitlistForm />
-          </div>
-        </section>
-      </div>
+        <LaunchCountdown />
+        <p className="mt-2 text-center text-sm text-metallic-300">
+          The wait is almost over. Be here for the start.
+        </p>
+        <div className={styles.divider} />
+      </main>
 
       <footer className="relative z-10 border-t border-border/30 px-4 py-4">
         <p className="mx-auto max-w-3xl text-center text-[11px] leading-relaxed text-text-tertiary">
-          Launch updates are sent only if you give explicit marketing consent. You can
-          unsubscribe or request removal at any time. We use processors such as our email
-          and hosting providers to operate the waitlist; we do not sell your data for
-          independent third-party marketing. View our{" "}
+          iTrader.im · Buy · Sell · Upgrade
+          <br />
           <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-text-secondary">
             Privacy Policy
           </a>
-          {" "}and{" "}
+          {" · "}
           <a href="/cookies" target="_blank" rel="noopener noreferrer" className="underline hover:text-text-secondary">
             Cookie Policy
           </a>.
