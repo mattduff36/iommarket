@@ -121,7 +121,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
         description={user.name ? user.email : "Account details and activity"}
         meta={
           <>
-            <Badge variant={user.role === "ADMIN" ? "warning" : user.role === "DEALER" ? "info" : "neutral"}>
+            <Badge variant={user.role === "ADMIN" ? "error" : user.role === "DEALER" ? "info" : "neutral"}>
               {user.role}
             </Badge>
             {user.deletedAt ? <Badge variant="error">Deleted</Badge> : null}
@@ -166,7 +166,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
             <CardTitle className="text-sm text-text-secondary">Role</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge variant={user.role === "ADMIN" ? "warning" : user.role === "DEALER" ? "info" : "neutral"}>
+            <Badge variant={user.role === "ADMIN" ? "error" : user.role === "DEALER" ? "info" : "neutral"}>
               {user.role}
             </Badge>
           </CardContent>

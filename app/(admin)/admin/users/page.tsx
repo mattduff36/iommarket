@@ -58,7 +58,7 @@ interface Props {
 const ROLE_BADGE: Record<string, "neutral" | "info" | "warning" | "error"> = {
   USER: "neutral",
   DEALER: "info",
-  ADMIN: "warning",
+  ADMIN: "error",
 };
 
 const ROLE_LABEL: Record<string, string> = {

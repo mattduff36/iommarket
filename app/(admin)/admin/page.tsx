@@ -163,10 +163,10 @@ export default async function AdminDashboardPage() {
     REFUNDED: "neutral",
   };
 
-  const ROLE_BADGE: Record<string, "neutral" | "info" | "warning"> = {
+  const ROLE_BADGE: Record<string, "neutral" | "info" | "error"> = {
     USER: "neutral",
     DEALER: "info",
-    ADMIN: "warning",
+    ADMIN: "error",
   };
 
   return (
