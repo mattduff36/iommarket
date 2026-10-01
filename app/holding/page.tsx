@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { CookieBanner } from "@/components/layout/cookie-banner";
+import { HoldingHeader } from "@/components/layout/holding-header";
 import { WaitlistForm } from "@/components/waitlist/waitlist-form";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default function HoldingPage() {
       className="relative flex min-h-screen flex-col"
       style={{ background: HERO_GRADIENT }}
     >
+      <HoldingHeader />
       <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
         <Image
           src="/images/logo-itrader-hq.png"

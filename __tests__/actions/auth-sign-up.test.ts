@@ -77,6 +77,8 @@ describe("signUpWithPolicyAcceptance", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "preview-anon-key");
     vi.stubEnv("RESEND_API_KEY", "resend-test-key");
     vi.stubEnv("RESEND_FROM_EMAIL", "iTrader <no-reply@itrader.im>");
+    vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "1");
+    vi.stubEnv("PREVIEW_LAUNCH_GATE_QA", "");
     mocks.createClient.mockReturnValue({
       auth: { signInWithPassword: mocks.signInWithPassword },
     });
