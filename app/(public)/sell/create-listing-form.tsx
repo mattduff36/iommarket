@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { simulateDemoListingPaymentOutcome } from "@/actions/payments";
 import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,
@@ -20,20 +19,26 @@ import {
   ListingFieldLabel,
 } from "./create-listing-attribute-fields";
 import { validateListingDetailsStep } from "./create-listing-form.validation";
+import { FeaturedCheckoutOffer } from "./create-listing-featured-offer";
 import {
   collectListingAttributes,
   executeCreateListingSubmit,
+  getHostedCheckoutHref,
   releaseSubmitFlight,
   tryBeginSubmitFlight,
 } from "./create-listing-submit";
+import { shouldOfferFeaturedUpsell } from "./featured-checkout";
 import { runVehicleLookup } from "./create-listing-form.lookup";
 import {
   CATEGORY_TILE_META,
   DEFAULT_CATEGORY_TILE_ICON,
 } from "./create-listing-form.constants";
+import { useListingDemoOutcome } from "./create-listing-form.demo";
 import {
+  createPhotoMutationId,
   pruneHiddenAttributes,
   REGISTRATION_LOOKUP_CATEGORY_SLUGS,
+  toUploadedImage,
 } from "./create-listing-form.helpers";
 import type { EditableDraft } from "@/lib/listings/editable-draft";
 import { getListingPhotoLimit } from "@/lib/listings/photo-limits";
@@ -73,6 +78,8 @@ interface Props {
   isFreeForUser?: boolean;
   initialDraft?: EditableDraft | null;
   enforceListingNs?: boolean;
+  listingFeePence?: number;
+  featuredUpgradePricePence?: number;
 }
 
 export function CreateListingForm({
@@ -83,6 +90,8 @@ export function CreateListingForm({
   isFreeForUser = false,
   initialDraft = null,
   enforceListingNs = false,
+  listingFeePence,
+  featuredUpgradePricePence,
 }: Props) {
   const router = useRouter();
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
@@ -99,16 +108,34 @@ export function CreateListingForm({
   const isEditingDraft = Boolean(initialDraft);
   const editMode = initialDraft?.editMode ?? (isEditingDraft ? "draft" : undefined);
   const skipCheckout = editMode === "revision" || editMode === "resubmit";
+  const listingFeeDue = mode === "private" && !isFreeForUser;
+  const showFeaturedOffer = shouldOfferFeaturedUpsell({
+    skipCheckout,
+    alreadyFeatured: Boolean(initialDraft?.featured),
+    listingFeePence,
+    featuredUpgradePricePence,
+  });
   const revisionLocked = Boolean(initialDraft?.revisionPending);
+  const [includeFeatured, setIncludeFeatured] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialDraft?.categoryId ?? "");
   const [titleValue, setTitleValue] = useState(initialDraft?.title ?? "");
   const [pendingListingId, setPendingListingId] = useState<string | null>(initialDraft?.id ?? null);
+  const {
+    demoOutcomeError,
+    isSimulatingDemoOutcome,
+    handleSimulatedDemoOutcome,
+    clearDemoOutcomeError,
+  } = useListingDemoOutcome({
+    pendingListingId,
+    mode,
+    setDemoDialogOpen,
+    replace: (href) => router.replace(href),
+    refresh: () => router.refresh(),
+  });
   const [attributeValues, setAttributeValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       initialDraft?.attributes.map((attribute) => [attribute.attributeDefinitionId, attribute.value]) ??
@@ -319,40 +346,6 @@ export function CreateListingForm({
     setStep((currentStep) => Math.max(1, currentStep - 1));
   }
 
-  function handleSimulatedDemoOutcome(outcome: "success" | "declined") {
-    if (!pendingListingId) {
-      setDemoOutcomeError("A listing must be created before simulating payment.");
-      return;
-    }
-
-    setDemoOutcomeError(null);
-    startSimulatingDemoOutcome(async () => {
-      const result = await simulateDemoListingPaymentOutcome({
-        listingId: pendingListingId,
-        flow: mode,
-        outcome,
-      });
-
-      if (result.error) {
-        setDemoOutcomeError(
-          typeof result.error === "string"
-            ? result.error
-            : "Could not simulate the demo payment outcome."
-        );
-        return;
-      }
-
-      setDemoDialogOpen(false);
-
-      if (result.data?.nextUrl) {
-        router.replace(result.data.nextUrl);
-        return;
-      }
-
-      router.refresh();
-    });
-  }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!tryBeginSubmitFlight(submitFlightRef)) {
@@ -407,41 +400,50 @@ export function CreateListingForm({
     }
 
     startTransition(async () => {
-      const navigation = await executeCreateListingSubmit({
-        form,
-        attributes,
-        mode,
-        skipCheckout,
-        isEditingDraft,
-        uploadedImages,
-        listingIdRef,
-        photoRevisionRef,
-        photoMutationRef,
-        submitFlightRef,
-        vehicleCatalogueSelection,
-        isVehicleCatalogueCategory,
-        selectedCategoryAttributes: selectedCategory?.attributes ?? [],
-        createMutationId: createPhotoMutationId,
-        onListingId: setPendingListingId,
-        onDraftUrl: (href) => window.history.replaceState(null, "", href),
-        onPhotoRevision: setPhotoRevision,
-        openCheckout: (url) => {
-          setDemoOutcomeError(null);
-          openCheckout(url);
-        },
-      });
-      if (navigation.kind === "stay") {
-        if (navigation.error) setError(navigation.error);
-        if (navigation.fieldErrors) {
-          setFieldErrors(navigation.fieldErrors);
+      try {
+        const navigation = await executeCreateListingSubmit({
+          form,
+          attributes,
+          mode,
+          skipCheckout,
+          isEditingDraft,
+          uploadedImages,
+          listingIdRef,
+          photoRevisionRef,
+          photoMutationRef,
+          submitFlightRef,
+          vehicleCatalogueSelection,
+          isVehicleCatalogueCategory,
+          selectedCategoryAttributes: selectedCategory?.attributes ?? [],
+          createMutationId: createPhotoMutationId,
+          includeFeatured: showFeaturedOffer && includeFeatured,
+          listingFeeDue,
+          onListingId: setPendingListingId,
+          onDraftUrl: (href) => window.history.replaceState(null, "", href),
+          onPhotoRevision: setPhotoRevision,
+          openCheckout: (url) => {
+            clearDemoOutcomeError();
+            return openCheckout(url);
+          },
+        });
+        if (navigation.kind === "stay") {
+          if (navigation.error) setError(navigation.error);
+          if (navigation.fieldErrors) {
+            setFieldErrors(navigation.fieldErrors);
+          }
+          if (navigation.step) setStep(navigation.step);
+          return;
         }
-        if (navigation.step) setStep(navigation.step);
-        return;
+        if (navigation.kind === "demo") {
+          return;
+        }
+        router.replace(navigation.href);
+      } catch {
+        releaseSubmitFlight(submitFlightRef);
+        setError(
+          "Something interrupted submission. Your entered details and selected photos are still in this form. If checkout may have opened or payment may have completed, check My listings before retrying.",
+        );
       }
-      if (navigation.kind === "demo") {
-        return;
-      }
-      router.replace(navigation.href);
     });
   }
 
@@ -677,6 +679,17 @@ export function CreateListingForm({
               <p className="text-sm text-text-secondary">
                 Photos selected: {uploadedImages.length}
               </p>
+              {showFeaturedOffer &&
+              typeof listingFeePence === "number" &&
+              typeof featuredUpgradePricePence === "number" ? (
+                <FeaturedCheckoutOffer
+                  listingFeePence={listingFeePence}
+                  featuredUpgradePricePence={featuredUpgradePricePence}
+                  listingFeeDue={listingFeeDue}
+                  includeFeatured={includeFeatured}
+                  onIncludeFeaturedChange={setIncludeFeatured}
+                />
+              ) : null}
               <CreateListingDeclarations
                 mode={mode}
                 step={step}
@@ -765,6 +778,11 @@ export function CreateListingForm({
         onOpenChange={setDemoDialogOpen}
         checkoutUrl={demoCheckoutUrl}
         checkoutLabel="listing payment"
+        onManualCheckoutOpened={() => {
+          if (pendingListingId) {
+            router.replace(getHostedCheckoutHref({ listingId: pendingListingId, mode }));
+          }
+        }}
         demoOutcomeControls={
           pendingListingId
             ? {
@@ -778,18 +796,4 @@ export function CreateListingForm({
       />
     </>
   );
-}
-
-function toUploadedImage(image: EditableDraft["images"][number]): UploadedImage {
-  return {
-    ...image,
-    uploadIntentId: image.uploadIntentId ?? image.id,
-    provider: image.provider,
-  };
-}
-
-function createPhotoMutationId() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

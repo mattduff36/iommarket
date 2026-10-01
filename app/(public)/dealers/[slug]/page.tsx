@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListingCard } from "@/components/marketplace/listing-card";
@@ -47,7 +47,7 @@ function stars(rating: number) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const currentUser = await getCurrentUser();
-  const dealer = await db.dealerProfile.findUnique({
+  let dealer = await db.dealerProfile.findUnique({
     where: { slug },
     select: {
       id: true,
@@ -60,6 +60,33 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       user: { select: { role: true, authUserId: true, disabledAt: true, deletedAt: true } },
     },
   });
+  if (!dealer) {
+    const historicalAddress = await db.dealerProfileSlugHistory.findUnique({
+      where: { slug },
+      select: {
+        dealer: {
+          select: {
+            id: true,
+            name: true,
+            bio: true,
+            slug: true,
+            tier: true,
+            isAdminPreview: true,
+            previewPack: { select: previewPackVisibilitySelect() },
+            user: {
+              select: {
+                role: true,
+                authUserId: true,
+                disabledAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    dealer = historicalAddress?.dealer ?? null;
+  }
   if (
     !dealer ||
     (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
@@ -103,10 +130,75 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DealerProfilePage({ params }: Props) {
-  await expireStaleLiveListings();
   const { slug } = await params;
   const currentUser = await getCurrentUser();
   const sampleVisibility = await getSampleVisibility();
+
+  const historicalAddress = await db.dealerProfileSlugHistory.findUnique({
+    where: { slug },
+    select: {
+      dealer: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          tier: true,
+          isAdminPreview: true,
+          previewPack: { select: previewPackVisibilitySelect() },
+          userId: true,
+          user: {
+            select: {
+              role: true,
+              authUserId: true,
+              disabledAt: true,
+              deletedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (historicalAddress?.dealer) {
+    const historicalDealer = historicalAddress.dealer;
+    const currentAddressOwner = await db.dealerProfile.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (!currentAddressOwner) {
+      if (
+        (historicalDealer.user.role !== "DEALER" &&
+          historicalDealer.user.role !== "ADMIN") ||
+        historicalDealer.user.disabledAt ||
+        historicalDealer.user.deletedAt ||
+        isHiddenSampleDealer({
+          authUserId: historicalDealer.user.authUserId,
+          isAdminPreview: historicalDealer.isAdminPreview,
+          sampleVisibility,
+        })
+      ) {
+        notFound();
+      }
+
+      const entitlement = await getDealerEntitlement(
+        historicalDealer.id,
+        historicalDealer.tier,
+      );
+      if (
+        !canViewMarketplaceDealerProfile({
+          viewer: currentUser,
+          isAdminPreview: historicalDealer.isAdminPreview,
+          previewPackEnabled: historicalDealer.previewPack?.enabled === true,
+          hasEntitlement: Boolean(entitlement),
+        })
+      ) {
+        notFound();
+      }
+
+      permanentRedirect(buildDealerProfilePath(historicalDealer.slug));
+    }
+  }
+
+  await expireStaleLiveListings();
   const liveWhere = await marketplaceListingWhereWithSettings({
     viewer: currentUser,
     includeDisabledPreviewPacks: true,

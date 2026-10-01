@@ -18,6 +18,7 @@ import {
   deliverDealerUpgradeOffer,
 } from "@/lib/dealers/upgrade-offers";
 import { captureException } from "@/lib/monitoring";
+import { sendDealerAccessRevokedEmail } from "@/lib/email/dealer-access-revoked";
 import { hasActiveLegalHold } from "@/lib/privacy/account-deletion";
 import {
   assertUserCanBePurged,
@@ -414,6 +415,7 @@ export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
           where: { id: parsed.data.userId },
           select: {
             id: true,
+            email: true,
             dealerProfile: { select: { id: true } },
           },
         });
@@ -424,9 +426,19 @@ export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
           tx,
           targetUser.dealerProfile.id
         );
+        if (revoked.count > 0) {
+          await logAdminAction({
+            adminId: admin.id,
+            action: "REVOKE_DEALER_ADMIN_GRANT",
+            entityType: "DealerProfile",
+            entityId: targetUser.dealerProfile.id,
+            details: { userId: parsed.data.userId, source: "ADMIN_GRANT" },
+          }, tx);
+        }
         return {
           kind: "revoked" as const,
           dealerId: targetUser.dealerProfile.id,
+          email: targetUser.email,
           count: revoked.count,
         };
       },
@@ -437,15 +449,24 @@ export async function revokeDealerAccess(input: RevokeDealerAccessInput) {
       return { error: "No active admin grant exists for this dealer." };
     }
 
-    await logAdminAction({
-      adminId: admin.id,
-      action: "REVOKE_DEALER_ADMIN_GRANT",
-      entityType: "DealerProfile",
-      entityId: result.dealerId,
-      details: { userId: parsed.data.userId, source: "ADMIN_GRANT" },
-    });
     revalidateDealerAccessPaths(parsed.data.userId);
-    return { data: { success: true } };
+    let warning: string | undefined;
+    try {
+      await sendDealerAccessRevokedEmail(result.email);
+    } catch (error) {
+      warning = "Dealer access was revoked, but the notification email could not be sent. Please contact the user directly.";
+      try {
+        await captureException({
+          source: "BUSINESS",
+          error,
+          action: "sendDealerAccessRevokedEmail",
+          userId: parsed.data.userId,
+        });
+      } catch {
+        // Monitoring must not turn a committed change into a failed action.
+      }
+    }
+    return { data: { success: true }, ...(warning ? { warning } : {}) };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -508,6 +529,12 @@ async function runDealerGrantTransaction(input: {
 }
 
 function revalidateDealerAccessPaths(userId: string) {
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/dealers");
+  revalidatePath("/dealers/[slug]", "page");
+  revalidatePath("/listings/[id]", "page");
+  revalidatePath("/account/listings");
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${userId}`);
   revalidatePath("/admin/dealers");

@@ -66,6 +66,7 @@ const NEXT_ROW_UPDATED_AT = new Date("2026-08-14T21:06:00.000Z");
 describe("loadChecklist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ADMIN_CHECKLIST_ENABLED = "1";
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -135,6 +136,7 @@ describe("loadChecklist", () => {
 describe("saveChecklist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ADMIN_CHECKLIST_ENABLED = "1";
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -237,6 +239,7 @@ describe("saveChecklist", () => {
 describe("updateChecklistCompletion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ADMIN_CHECKLIST_ENABLED = "1";
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -306,6 +309,47 @@ describe("updateChecklistCompletion", () => {
     });
 
     expect(result.error).toContain("changed in another session");
+    expect(mockDb.siteSetting.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("disabled checklist actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ADMIN_CHECKLIST_ENABLED = "0";
+    requireRoleMock.mockResolvedValue({ id: "cladminxxxxxxxxxxxxxxxxxx", role: "ADMIN" });
+  });
+
+  it("does not read or seed storage on direct load", async () => {
+    await expect(loadChecklist()).resolves.toEqual({
+      error: "Admin checklist is disabled.",
+    });
+    expect(requireRoleMock).toHaveBeenCalledWith("ADMIN");
+    expect(mockDb.siteSetting.findUnique).not.toHaveBeenCalled();
+    expect(mockDb.siteSetting.create).not.toHaveBeenCalled();
+  });
+
+  it("blocks whole-checklist writes before touching the database", async () => {
+    const result = await saveChecklist({
+      items: createDefaultChecklistItems(NOW),
+      expectedUpdatedAt: ROW_UPDATED_AT.toISOString(),
+    });
+    expect(result).toEqual({ error: "Admin checklist is disabled." });
+    expect(requireRoleMock).toHaveBeenCalledWith("ADMIN");
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect(mockDb.siteSetting.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("blocks completion writes before touching the database", async () => {
+    const result = await updateChecklistCompletion({
+      itemId: "first",
+      done: true,
+      expectedUpdatedAt: ROW_UPDATED_AT.toISOString(),
+      expectedItemUpdatedAt: NOW.toISOString(),
+    });
+    expect(result).toEqual({ error: "Admin checklist is disabled." });
+    expect(requireRoleMock).toHaveBeenCalledWith("ADMIN");
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
     expect(mockDb.siteSetting.updateMany).not.toHaveBeenCalled();
   });
 });

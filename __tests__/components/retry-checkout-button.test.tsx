@@ -7,6 +7,7 @@ import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared
 
 const {
   payForListingMock,
+  upgradeFeaturedMock,
   submitListingForReviewMock,
   pushMock,
   replaceMock,
@@ -16,6 +17,7 @@ const {
   const replaceMock = vi.fn();
   return {
     payForListingMock: vi.fn(),
+    upgradeFeaturedMock: vi.fn(),
     submitListingForReviewMock: vi.fn(),
     pushMock,
     replaceMock,
@@ -33,6 +35,7 @@ const {
 
 vi.mock("@/actions/payments", () => ({
   payForListing: payForListingMock,
+  upgradeFeatured: upgradeFeaturedMock,
   simulateDemoListingPaymentOutcome: vi.fn(),
 }));
 
@@ -113,6 +116,30 @@ describe("RetryCheckoutButton private acceptance", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("shows rejected checkout requests and allows a deliberate retry", async () => {
+    payForListingMock
+      .mockRejectedValueOnce(new Error("Connection lost"))
+      .mockResolvedValueOnce({
+        data: { checkoutUrl: "https://checkout.example/recovered" },
+      });
+    render(<RetryCheckoutButton listingId="listing-1" flow="private" />);
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+
+    const retry = screen.getByRole("button", { name: "Open payment in new tab" });
+    fireEvent.click(retry);
+    expect(await screen.findByText(/couldn't confirm the checkout request/i)).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+    await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(payForListingMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(/couldn't confirm the checkout request/i)).not.toBeInTheDocument();
+  });
+
   it("LST-REDIRECT-001 uses replace for automatic success navigation", async () => {
     render(<RetryCheckoutButton listingId="listing-1" flow="private" />);
     fireEvent.click(
@@ -128,5 +155,107 @@ describe("RetryCheckoutButton private acceptance", () => {
       );
     });
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("adds Featured to a paid retry only when selected", async () => {
+    payForListingMock.mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/pay/listing-1" },
+    });
+    render(
+      <RetryCheckoutButton
+        listingId="listing-1"
+        flow="private"
+        listingFeePence={499}
+        featuredUpgradePricePence={500}
+        listingFeeDue
+      />,
+    );
+
+    expect(
+      screen.getByRole("checkbox", { name: "Add Featured to this checkout" }).getAttribute("aria-checked"),
+    ).not.toBe("true");
+    expect(screen.getByText(/Total/).textContent).toMatch(/£4\.99/);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Add Featured to this checkout" }));
+    expect(screen.getByText(/Total/).textContent).toMatch(/£9\.99/);
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open payment in new tab" }));
+
+    await waitFor(() => {
+      expect(payForListingMock).toHaveBeenCalledWith({
+        listingId: "listing-1",
+        privateSellerTermsAccepted: true,
+        includeFeatured: true,
+      });
+    });
+    expect(submitListingForReviewMock).not.toHaveBeenCalled();
+    expect(upgradeFeaturedMock).not.toHaveBeenCalled();
+  });
+
+  it("does not offer Featured again when it is already purchased", async () => {
+    render(
+      <RetryCheckoutButton
+        listingId="listing-1"
+        flow="private"
+        listingFeePence={499}
+        featuredUpgradePricePence={500}
+        listingFeeDue
+        featuredAlreadyPurchased
+      />,
+    );
+
+    expect(screen.getByText(/does not buy it again/)).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /Add Featured/i })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open payment in new tab" }));
+
+    await waitFor(() => {
+      expect(payForListingMock).toHaveBeenCalledWith({
+        listingId: "listing-1",
+        privateSellerTermsAccepted: true,
+      });
+    });
+    expect(upgradeFeaturedMock).not.toHaveBeenCalled();
+  });
+
+  it("starts a separate Featured checkout after a free listing is submitted", async () => {
+    upgradeFeaturedMock.mockResolvedValue({
+      data: { checkoutUrl: "https://checkout.example/featured/listing-1" },
+    });
+    render(
+      <RetryCheckoutButton
+        listingId="listing-1"
+        flow="private"
+        listingFeePence={499}
+        featuredUpgradePricePence={500}
+        listingFeeDue={false}
+      />,
+    );
+
+    expect(screen.getByText(/If that Featured payment is declined/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Add Featured after submission" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open payment in new tab" }));
+
+    await waitFor(() => {
+      expect(upgradeFeaturedMock).toHaveBeenCalledWith("listing-1");
+    });
+    expect(payForListingMock).toHaveBeenCalledWith({
+      listingId: "listing-1",
+      privateSellerTermsAccepted: true,
+    });
+    expect(submitListingForReviewMock).toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

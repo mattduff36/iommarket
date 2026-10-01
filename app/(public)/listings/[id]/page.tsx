@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
+import { hasPublicDealerListingAccess } from "@/lib/listings/dealer-visibility";
 import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { ListingDealerIdentity } from "@/components/dealers/listing-dealer-identity";
 import { DevFeaturedBypass } from "@/components/dev/dev-featured-bypass";
-import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
+import { FeaturedOwnerBanner } from "@/components/marketplace/featured-owner-banner";
 import { MarkSoldButton } from "./mark-sold-button";
 import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
@@ -87,6 +88,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
   });
   if (!listing) return {};
+  const dealerAccess = await hasPublicDealerListingAccess(listing.dealerId);
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
@@ -100,6 +102,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   if (
     !canViewListing({
+      dealerAccess,
       status: listing.status,
       expiresAt: listing.expiresAt,
       listingUserId: listing.userId,
@@ -159,6 +162,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   });
 
   if (!listing) notFound();
+  const dealerAccess = await hasPublicDealerListingAccess(listing.dealerId);
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
@@ -185,10 +189,12 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     viewer: currentUser,
   });
   const isVisible = isListingPubliclyVisible({
+    dealerAccess,
     status: listing.status,
     expiresAt: listing.expiresAt,
   });
   const canView = canViewListing({
+    dealerAccess,
     status: listing.status,
     expiresAt: listing.expiresAt,
     listingUserId: listing.userId,
@@ -327,16 +333,20 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   const isOwner = currentUser && (listing.userId === currentUser.id || isAdminUser);
   const canUpgradeToFeatured =
-    isOwner &&
-    listing.status === "LIVE" &&
+    currentUser?.id === listing.userId &&
+    (listing.status === "PENDING" || listing.status === "LIVE") &&
     !listing.featured &&
-    (listing.dealerId !== null ||
-      Boolean(
-        await db.payment.findFirst({
-          where: { listingId: listing.id, status: "SUCCEEDED", type: "LISTING" },
-          select: { id: true },
-        })
-      ));
+    !Boolean(
+      await db.payment.findFirst({
+        where: {
+          listingId: listing.id,
+          status: "SUCCEEDED",
+          refundedAt: null,
+          OR: [{ type: "FEATURED" }, { type: "LISTING", includesFeatured: true }],
+        },
+        select: { id: true },
+      })
+    );
   const featuredUpgradePricePence = canUpgradeToFeatured
     ? (await getMarketplacePricing()).featuredUpgradePence
     : null;
@@ -415,13 +425,24 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
         />
       ) : null}
 
+      {canUpgradeToFeatured ? (
+        <div className="mb-8">
+          <FeaturedOwnerBanner
+            listingId={listing.id}
+            featuredUpgradePricePence={featuredUpgradePricePence!}
+            checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
+            pendingReview={listing.status === "PENDING"}
+          />
+        </div>
+      ) : null}
+
       {isOwner && listing.status === "LIVE" ? (
         <div className="mb-8 rounded-lg border border-neon-blue-500/30 bg-neon-blue-500/10 px-5 py-4 text-sm text-neon-blue-400">
           You can edit this live listing. Submitted changes stay private until they are approved.
         </div>
       ) : null}
 
-      {justUpgraded && (
+      {justUpgraded && currentUser?.id === listing.userId && listing.featured && listing.status === "LIVE" && (
         <div className="mb-8 flex items-center gap-2 rounded-lg bg-premium-gold-500/10 px-5 py-4 text-sm text-premium-gold-400 border border-premium-gold-500/30">
           <Star className="h-4 w-4 shrink-0" />
           Featured upgrade successful! Your listing will now appear in promoted positions.
@@ -662,13 +683,6 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
       {isOwner && listing.status === "LIVE" && (
         <div className="mt-8 space-y-4">
-          {canUpgradeToFeatured && (
-            <FeaturedUpgradeButton
-              listingId={listing.id}
-              featuredUpgradePricePence={featuredUpgradePricePence!}
-              checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
-            />
-          )}
           {canUpgradeToFeatured &&
             process.env.NODE_ENV !== "production" && (
               <DevFeaturedBypass listingId={listing.id} />

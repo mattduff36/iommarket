@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
+import { hasPublicDealerListingAccess } from "@/lib/listings/dealer-visibility";
 import { isAdminPreviewListing, isListingPubliclyVisible } from "@/lib/listings/visibility";
 import { z } from "zod";
 
@@ -35,10 +36,11 @@ export async function toggleFavourite(input: { listingId: string }) {
 
   const listing = await db.listing.findUnique({
     where: { id: parsed.data.listingId },
-    select: { status: true, expiresAt: true },
+    select: { status: true, expiresAt: true, dealerId: true },
   });
   if (
     !listing ||
+    !(await hasPublicDealerListingAccess(listing.dealerId)) ||
     isAdminPreviewListing(listing.status) ||
     !isListingPubliclyVisible({
       status: listing.status,

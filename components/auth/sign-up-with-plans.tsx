@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signUpWithPolicyAcceptance } from "@/actions/auth/sign-up";
@@ -12,12 +12,16 @@ import { Check, ChevronRight, Heart, Search, ShieldCheck, Star } from "lucide-re
 import {
   firstFieldError,
   flattenZodFieldErrors,
-  publicAuthErrorMessage,
   splitActionError,
   uniqueErrorMessages,
   type FieldErrors,
 } from "@/lib/forms/action-error";
 import { signUpSchema } from "@/lib/validations/auth";
+import {
+  signupFailureMessage,
+  withoutFieldError,
+  SIGNUP_PROVIDER_RETRY_MESSAGE,
+} from "@/components/auth/signup-feedback";
 
 function getSafeNextPath(nextPath: string | null | undefined): string {
   if (!nextPath) return "/";
@@ -56,6 +60,24 @@ export function SignUpWithPlans({
   const [success, setSuccess] = useState(false);
   const [ageAttested, setAgeAttested] = useState(false);
   const [policiesAccepted, setPoliciesAccepted] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitLock = useRef(false);
+  const focusInvalidRef = useRef(false);
+
+  function showFieldErrors(next: FieldErrors) {
+    focusInvalidRef.current = Object.keys(next).length > 0;
+    setFieldErrors(next);
+  }
+
+  function clearFieldError(field: string) {
+    setFieldErrors((current) => withoutFieldError(current, field));
+  }
+
+  useEffect(() => {
+    if (!focusInvalidRef.current) return;
+    focusInvalidRef.current = false;
+    formRef.current?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
+  }, [fieldErrors]);
 
   const isDealerSignup = dealerTierIntent !== null;
   const isPrivateSellerIntent =
@@ -86,8 +108,8 @@ export function SignUpWithPlans({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitLock.current) return;
     setError(null);
-    setFieldErrors({});
 
     const safeNextPath = getSafeNextPath(defaultNextPath);
     const parsed = signUpSchema.safeParse({
@@ -99,34 +121,31 @@ export function SignUpWithPlans({
       policiesAccepted,
     });
     if (!parsed.success) {
-      setFieldErrors(flattenZodFieldErrors(parsed.error));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      showFieldErrors(flattenZodFieldErrors(parsed.error));
       return;
     }
 
+    showFieldErrors({});
     setSignedUpNextPath(parsed.data.nextPath);
+    submitLock.current = true;
     setLoading(true);
 
     try {
       const result = await signUpWithPolicyAcceptance(parsed.data);
       if (result.error) {
         const split = splitActionError(result.error);
-        setFieldErrors(split.fieldErrors);
-        setError(
-          split.formError
-            ? publicAuthErrorMessage(
-                split.formError,
-                "We could not create your account. Check the highlighted fields and try again.",
-              )
-            : Object.keys(split.fieldErrors).length > 0
-              ? null
-              : "We could not create your account. Check the highlighted fields and try again.",
-        );
+        const hasFieldErrors = Object.keys(split.fieldErrors).length > 0;
+        showFieldErrors(split.fieldErrors);
+        setError(signupFailureMessage(split.formError, hasFieldErrors));
         return;
       }
       setSuccess(true);
       router.refresh();
+    } catch {
+      showFieldErrors({});
+      setError(SIGNUP_PROVIDER_RETRY_MESSAGE);
     } finally {
+      submitLock.current = false;
       setLoading(false);
     }
   }
@@ -149,6 +168,7 @@ export function SignUpWithPlans({
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         noValidate
         className="rounded-2xl border border-neon-blue-500/25 bg-surface p-6 shadow-low sm:p-8"
@@ -184,7 +204,10 @@ export function SignUpWithPlans({
             type="email"
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              clearFieldError("email");
+            }}
             required
             error={firstFieldError(fieldErrors, "email")}
           />
@@ -193,7 +216,10 @@ export function SignUpWithPlans({
             type="password"
             autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              clearFieldError("password");
+            }}
             required
             error={firstFieldError(fieldErrors, "password")}
           />
@@ -202,19 +228,28 @@ export function SignUpWithPlans({
             type="text"
             autoComplete="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              clearFieldError("name");
+            }}
             error={firstFieldError(fieldErrors, "name")}
           />
           <Checkbox
             checked={ageAttested}
-            onCheckedChange={(value) => setAgeAttested(value === true)}
+            onCheckedChange={(value) => {
+              setAgeAttested(value === true);
+              clearFieldError("ageAttested");
+            }}
             required
             error={firstFieldError(fieldErrors, "ageAttested")}
             label="I confirm I am 18 or over."
           />
           <Checkbox
             checked={policiesAccepted}
-            onCheckedChange={(value) => setPoliciesAccepted(value === true)}
+            onCheckedChange={(value) => {
+              setPoliciesAccepted(value === true);
+              clearFieldError("policiesAccepted");
+            }}
             required
             error={firstFieldError(fieldErrors, "policiesAccepted")}
             label={
@@ -241,7 +276,13 @@ export function SignUpWithPlans({
               Sign in
             </Link>
           </p>
-          <Button type="submit" variant="trust" className="w-full" loading={loading}>
+          <Button
+            type="submit"
+            variant="trust"
+            className="w-full"
+            loading={loading}
+            aria-busy={loading || undefined}
+          >
             {loading ? "Creating account…" : submitLabel}
           </Button>
           <p className="text-xs leading-5 text-text-secondary">

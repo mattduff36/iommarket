@@ -4,11 +4,18 @@ import {
   submitListingForReview,
   updateListing,
 } from "@/actions/listings";
-import { payForListing } from "@/actions/payments";
+import { payForListing, upgradeFeatured } from "@/actions/payments";
 import { summarizeFieldErrors, type FieldErrors } from "@/lib/forms/action-error";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { defendVehicleCatalogueSelection } from "./create-listing-form.helpers";
+import {
+  FEATURED_AFTER_SUBMIT_MESSAGE,
+  buildPayForListingInput,
+  featuredPurchaseFailure,
+  readListingPaymentResult,
+  shouldStartSeparateFeaturedCheckout,
+} from "./featured-checkout";
 import type { VehicleCatalogueSelection } from "./vehicle-catalogue-fields";
 
 export type PhotoMutationPending = {
@@ -208,10 +215,12 @@ export async function executeCreateListingSubmit(params: {
   isVehicleCatalogueCategory: boolean;
   selectedCategoryAttributes: Array<{ id: string; slug: string }>;
   createMutationId: () => string;
+  includeFeatured?: boolean;
+  listingFeeDue?: boolean;
   onListingId: (listingId: string) => void;
   onDraftUrl: (href: string) => void;
   onPhotoRevision: (photoRevision: number) => void;
-  openCheckout: (url: string) => void;
+  openCheckout: (url: string) => boolean | void;
 }): Promise<ListingSubmitNavigation> {
   const listingPayload = {
     title: params.form.get("title") as string,
@@ -329,10 +338,14 @@ export async function executeCreateListingSubmit(params: {
 
   const payResult = params.skipCheckout
     ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
-    : await payForListing({
-        listingId,
-        privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
-      });
+    : await payForListing(
+        buildPayForListingInput({
+          listingId,
+          privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
+          includeFeatured: params.includeFeatured,
+          listingFeeDue: params.listingFeeDue,
+        }),
+      );
   if (payResult.error) {
     releaseSubmitFlight(params.submitFlightRef);
     if (typeof payResult.error === "string") {
@@ -349,7 +362,8 @@ export async function executeCreateListingSubmit(params: {
     };
   }
 
-  if (payResult.data?.skippedPayment) {
+  const listingSubmitted = readListingPaymentResult(payResult.data).listingSubmitted;
+  if (payResult.data?.skippedPayment && !listingSubmitted) {
     const reviewResult = await submitListingForReview({
       listingId,
       privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
@@ -366,9 +380,38 @@ export async function executeCreateListingSubmit(params: {
     }
   }
 
+  if (
+    shouldStartSeparateFeaturedCheckout({
+      includeFeatured: params.includeFeatured,
+      listingFeeDue: params.listingFeeDue,
+      skipCheckout: params.skipCheckout,
+      skippedPayment: Boolean(payResult.data?.skippedPayment),
+    })
+  ) {
+    try {
+      const featuredResult = await upgradeFeatured(listingId);
+      if (featuredResult.error || !featuredResult.data?.checkoutUrl) {
+        releaseSubmitFlight(params.submitFlightRef);
+        return { kind: "stay", error: featuredPurchaseFailure(featuredResult.error) };
+      }
+      const opened = params.openCheckout(featuredResult.data.checkoutUrl);
+      if (opened === false || isRippleDemoCheckoutUrl(featuredResult.data.checkoutUrl)) {
+        releaseSubmitFlight(params.submitFlightRef);
+        return { kind: "demo" };
+      }
+      return {
+        kind: "checkout",
+        href: getHostedCheckoutHref({ listingId, mode: params.mode }),
+      };
+    } catch {
+      releaseSubmitFlight(params.submitFlightRef);
+      return { kind: "stay", error: FEATURED_AFTER_SUBMIT_MESSAGE };
+    }
+  }
+
   if (payResult.data?.checkoutUrl) {
-    params.openCheckout(payResult.data.checkoutUrl);
-    if (isRippleDemoCheckoutUrl(payResult.data.checkoutUrl)) {
+    const opened = params.openCheckout(payResult.data.checkoutUrl);
+    if (opened === false || isRippleDemoCheckoutUrl(payResult.data.checkoutUrl)) {
       releaseSubmitFlight(params.submitFlightRef);
       return { kind: "demo" };
     }

@@ -7,6 +7,7 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { applySampleListingVisibility, getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
+import { getPublicDealerWhere } from "@/lib/dealers/access";
 
 export default async function FavouritesPage() {
   const user = await requireAcceptedUser("/account/favourites");
@@ -35,6 +36,12 @@ export default async function FavouritesPage() {
     },
   });
 
+  const dealerIds = [...new Set(favourites.flatMap(({ listing }) => listing.dealerId ? [listing.dealerId] : []))];
+  const visibleDealers = new Set(dealerIds.length ? (await db.dealerProfile.findMany({
+    where: { AND: [{ id: { in: dealerIds } }, getPublicDealerWhere()] },
+    select: { id: true },
+  })).map((dealer) => dealer.id) : []);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
@@ -50,6 +57,7 @@ export default async function FavouritesPage() {
             const available = isListingPubliclyVisible({
               status: listing.status,
               expiresAt: listing.expiresAt,
+              dealerAccess: !listing.dealerId || visibleDealers.has(listing.dealerId),
             });
             return (
               <ListingCard

@@ -126,8 +126,20 @@ model DealerProfile {
   previewPack   DealerPreviewPack?
   onboardingInvites DealerOnboardingInvite[]
   correspondenceSettings DealerCorrespondenceSettings?
+  historicalSlugs      DealerProfileSlugHistory[]
 
   @@index([slug])
+}
+
+model DealerProfileSlugHistory {
+  id                 String         @id @default(cuid())
+  dealerId           String?
+  slug               String         @unique
+  changedAt          DateTime       @default(now())
+  countsTowardsLimit Boolean        @default(false)
+  dealer             DealerProfile? @relation(fields: [dealerId], references: [id], onDelete: SetNull, onUpdate: Restrict)
+
+  @@index([dealerId, countsTowardsLimit, changedAt])
 }
 
 enum DealerEmailCategory {
@@ -734,6 +746,8 @@ model Payment {
   amount                         Int             // in pence
   currency                       String          @default("gbp")
   type                           PaymentType     @default(LISTING)
+  includesFeatured               Boolean         @default(false)
+  featuredAppliedAt              DateTime?
   status                         PaymentStatus   @default(PENDING)
   idempotencyKey                 String?         @unique
   refundReason                   RefundReason?

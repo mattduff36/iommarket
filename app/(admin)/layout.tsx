@@ -4,6 +4,8 @@ import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { AdminNavLink } from "@/components/admin/admin-nav-link";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
+import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
+import { LiveAccountUpdates } from "@/components/account/live-account-updates";
 
 export default async function AdminLayout({
   children,
@@ -12,16 +14,19 @@ export default async function AdminLayout({
 }) {
   const admin = await isAdmin();
   if (!admin) redirect("/");
+  const checklistEnabled = isAdminChecklistEnabled();
+  const navigation = ADMIN_NAV.filter((item) => item.icon !== "checklist" || checklistEnabled);
 
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
+      <LiveAccountUpdates />
       <div className="flex min-w-0 flex-1">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block w-64 shrink-0 border-r border-border bg-surface">
           <div className="px-4 py-4 space-y-5 overflow-y-auto max-h-[calc(100vh-4rem)]">
             {ADMIN_NAV_GROUPS.map((group) => {
-              const items = ADMIN_NAV.filter((i) => i.group === group.key);
+              const items = navigation.filter((i) => i.group === group.key);
               if (items.length === 0) return null;
               return (
                 <div key={group.key}>
@@ -45,7 +50,7 @@ export default async function AdminLayout({
 
         {/* Content */}
         <div className="flex-1 flex flex-col min-w-0 bg-canvas">
-          <AdminMobileNav />
+          <AdminMobileNav items={navigation} />
           <main className="flex-1">
             <div className="p-4 sm:p-6 lg:p-8">{children}</div>
           </main>

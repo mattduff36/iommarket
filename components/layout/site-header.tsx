@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { getAccountNavItems, PUBLIC_NAV_ITEMS } from "@/lib/navigation";
@@ -13,10 +14,14 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
 import { isExpectedClientCancellation } from "@/lib/monitoring/console-filter";
 
+const ListingEditDialog = dynamic(() => import("@/components/admin/listing-edit-dialog").then((module) => module.ListingEditDialog), { ssr: false });
+
 export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [editingListingId, setEditingListingId] = useState<string | null>(null);
+  const currentListingId = /^\/listings\/([^/]+)\/?$/.exec(pathname)?.[1] ?? null;
 
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
@@ -66,6 +71,12 @@ export function SiteHeader() {
       }));
     }
   }
+
+  useEffect(() => {
+    const refreshAccount = () => { void fetchMe(authState.user?.email); };
+    window.addEventListener("itrader:account-updated", refreshAccount);
+    return () => window.removeEventListener("itrader:account-updated", refreshAccount);
+  }, [authState.user?.email]);
 
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -193,7 +204,7 @@ export function SiteHeader() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
-            <HeaderAuthButtons authState={{ ...authState, handleSignOut }} />
+            <HeaderAuthButtons authState={{ ...authState, handleSignOut }} onEditListingAsAdmin={role === "ADMIN" && currentListingId ? () => setEditingListingId(currentListingId) : undefined} />
             <Button
               type="button"
               variant="ghost"
@@ -269,6 +280,12 @@ export function SiteHeader() {
                     </Link>
                   ) : null}
                   {role === "ADMIN" ? <PreviewPacksMobileExpander /> : null}
+                  {role === "ADMIN" && currentListingId ? (
+                    <button type="button" onClick={() => { setEditingListingId(currentListingId); setMobileOpen(false); }}
+                      className="flex items-center gap-2 px-3 py-2.5 text-left text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors">
+                      <ShieldCheck className="h-4 w-4 shrink-0" />Edit as Admin
+                    </button>
+                  ) : null}
                   <button
                     onClick={handleSignOut}
                     className="text-left px-3 py-2.5 text-sm font-medium rounded-sm text-metallic-400 hover:text-text-primary hover:bg-surface-elevated transition-colors"
@@ -291,6 +308,10 @@ export function SiteHeader() {
           </div>
         )}
       </header>
+
+      {role === "ADMIN" && editingListingId && editingListingId === currentListingId ? (
+        <ListingEditDialog listingId={editingListingId} open onOpenChange={(open) => { if (!open) setEditingListingId(null); }} />
+      ) : null}
 
       {/* Mobile menu backdrop - blurs page content behind the open panel.
           MUST be a sibling of <header>, not a child: the header's

@@ -72,6 +72,13 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
+      {dealerProfile && (
+        <div role="status" className="mb-8 rounded-lg border border-border bg-surface p-4 text-sm text-text-secondary">
+          <p className="font-semibold text-text-primary">Your dealer membership is not active</p>
+          <p className="mt-2">Your dealer listings are hidden from buyers until membership is restored. Your account and saved listings are still available. Expired listings will still need renewal.</p>
+          <p className="mt-2">Choose a plan below, or contact iTrader if you believe your access should still be active.</p>
+        </div>
+      )}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-text-primary font-heading">
           Dealer {tierLabel} Plan

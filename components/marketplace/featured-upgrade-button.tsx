@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { upgradeFeatured } from "@/actions/payments";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ interface FeaturedUpgradeButtonProps {
   listingId: string;
   featuredUpgradePricePence: number;
   checkoutUnavailable?: boolean;
+  pendingReview?: boolean;
   variant?: "card" | "inline";
 }
 
@@ -22,29 +23,40 @@ export function FeaturedUpgradeButton({
   listingId,
   featuredUpgradePricePence,
   checkoutUnavailable = false,
+  pendingReview = false,
   variant = "card",
 }: FeaturedUpgradeButtonProps) {
   const [isPending, startTransition] = useTransition();
+  const submitLock = useRef(false);
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen, sampleCheckoutId } =
     useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
+  const pendingCopy = "This purchase activates after the listing is approved.";
 
   function handleUpgrade() {
+    if (submitLock.current || checkoutUnavailable) return;
+    submitLock.current = true;
     setError(null);
     startTransition(async () => {
-      const result = await upgradeFeatured(listingId);
-      if (result.error) {
-        setError(
-          typeof result.error === "string"
-            ? result.error
-            : "Failed to start checkout. Please try again."
-        );
-        return;
-      }
-      if (result.data?.checkoutUrl) {
-        openCheckout(result.data.checkoutUrl);
-        setIsAwaitingPayment(true);
+      try {
+        const result = await upgradeFeatured(listingId);
+        if (result.error) {
+          setError(
+            typeof result.error === "string"
+              ? result.error
+              : "Failed to start checkout. Please try again.",
+          );
+          return;
+        }
+        if (result.data?.checkoutUrl) {
+          openCheckout(result.data.checkoutUrl);
+          setIsAwaitingPayment(true);
+        }
+      } catch {
+        setError("Failed to start checkout. Please try again.");
+      } finally {
+        submitLock.current = false;
       }
     });
   }
@@ -59,12 +71,16 @@ export function FeaturedUpgradeButton({
           onClick={handleUpgrade}
           disabled={checkoutUnavailable}
           loading={isPending}
+          aria-busy={isPending || undefined}
           className="text-premium-gold-400 hover:text-premium-gold-500"
           title="Upgrade to featured"
         >
           <Star className="h-3.5 w-3.5" />
-          Feature
+          Feature for {formatGbpFromPence(featuredUpgradePricePence)}
         </Button>
+        {pendingReview ? (
+          <p className="text-xs text-text-secondary">{pendingCopy}</p>
+        ) : null}
         {checkoutUnavailable && (
           <p className="text-xs text-text-secondary" role="note">
             New payments are disabled on preview.
@@ -100,13 +116,18 @@ export function FeaturedUpgradeButton({
           Get more visibility with a promoted position in search results and on
           the homepage. One-time fee of {formatGbpFromPence(featuredUpgradePricePence)}.
         </p>
+        {pendingReview ? (
+          <p className="text-sm text-text-secondary mt-1">{pendingCopy}</p>
+        ) : null}
       </div>
       <Button
+        type="button"
         variant="premium"
         size="sm"
         onClick={handleUpgrade}
         disabled={checkoutUnavailable}
         loading={isPending}
+        aria-busy={isPending || undefined}
         className="shrink-0"
       >
         <Star className="h-3.5 w-3.5" />

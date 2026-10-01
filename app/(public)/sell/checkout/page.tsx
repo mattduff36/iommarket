@@ -5,6 +5,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
+import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +63,7 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
       userId: true,
       dealerId: true,
       status: true,
+      featured: true,
     },
   });
 
@@ -69,17 +72,32 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
   }
 
   const flow = listing.dealerId ? "dealer" : "private";
-  const listingPayment = await db.payment.findFirst({
-    where: {
-      listingId: listing.id,
-      type: "LISTING",
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      status: true,
-      createdAt: true,
-    },
-  });
+  const [listingPayment, featuredPayment, pricing, privateListingIsFree] = await Promise.all([
+    db.payment.findFirst({
+      where: {
+        listingId: listing.id,
+        type: "LISTING",
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        status: true,
+        createdAt: true,
+      },
+    }),
+    db.payment.findFirst({
+      where: {
+        listingId: listing.id,
+        status: "SUCCEEDED",
+        refundedAt: null,
+        OR: [{ type: "FEATURED" }, { includesFeatured: true }],
+      },
+      select: { id: true },
+    }),
+    getMarketplacePricing(),
+    flow === "private" ? isPrivateListingFreeForUser(user.id) : Promise.resolve(false),
+  ]);
+  const listingFeeDue = flow === "private" && !privateListingIsFree;
+  const featuredAlreadyPurchased = listing.featured || featuredPayment !== null;
   const openedInNewTab = sp.opened === "1";
   const viewState = resolveCheckoutViewState({
     listingStatus: listing.status,
@@ -155,10 +173,24 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
                     If you have paid or are unsure, wait for confirmation or
                     contact payment support instead.
                   </p>
-                  <RetryCheckoutButton listingId={listing.id} flow={flow} />
+                  <RetryCheckoutButton
+                    listingId={listing.id}
+                    flow={flow}
+                    listingFeePence={pricing.privateListingPence}
+                    featuredUpgradePricePence={pricing.featuredUpgradePence}
+                    listingFeeDue={listingFeeDue}
+                    featuredAlreadyPurchased={featuredAlreadyPurchased}
+                  />
                 </details>
               ) : viewState !== "paid" ? (
-                <RetryCheckoutButton listingId={listing.id} flow={flow} />
+                <RetryCheckoutButton
+                  listingId={listing.id}
+                  flow={flow}
+                  listingFeePence={pricing.privateListingPence}
+                  featuredUpgradePricePence={pricing.featuredUpgradePence}
+                  listingFeeDue={listingFeeDue}
+                  featuredAlreadyPurchased={featuredAlreadyPurchased}
+                />
               ) : null}
               <Button asChild variant="ghost">
                 <Link

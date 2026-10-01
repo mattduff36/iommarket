@@ -9,6 +9,7 @@ const {
   logAdminActionMock,
   captureExceptionMock,
   revalidatePathMock,
+  sendDealerAccessRevokedEmailMock,
   createPendingDealerUpgradeOfferMock,
   deliverDealerUpgradeOfferMock,
   findPendingDealerUpgradeOfferMock,
@@ -20,6 +21,7 @@ const {
   logAdminActionMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+  sendDealerAccessRevokedEmailMock: vi.fn(),
   createPendingDealerUpgradeOfferMock: vi.fn(),
   deliverDealerUpgradeOfferMock: vi.fn(),
   findPendingDealerUpgradeOfferMock: vi.fn(),
@@ -47,6 +49,10 @@ const {
 
 vi.mock("@/lib/auth", () => ({
   requireRole: requireRoleMock,
+}));
+
+vi.mock("@/lib/email/dealer-access-revoked", () => ({
+  sendDealerAccessRevokedEmail: sendDealerAccessRevokedEmailMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -87,6 +93,7 @@ const targetUser = {
 describe("setUserRole dealer provisioning", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sendDealerAccessRevokedEmailMock.mockReset().mockResolvedValue({ id: "email-id" });
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -120,6 +127,35 @@ describe("setUserRole dealer provisioning", () => {
       role: data.role,
     }));
     mockDb.$transaction.mockImplementation(async (callback) => callback(transaction));
+  });
+
+  it("revokes only complimentary access and notifies the dealer", async () => {
+    transaction.user.findUnique.mockResolvedValue({ ...targetUser, role: "DEALER", dealerProfile: { id: "dealer-1" } });
+    const { revokeDealerAccess } = await import("@/actions/admin/users");
+    await expect(revokeDealerAccess({ userId: targetUser.id })).resolves.toEqual({ data: { success: true } });
+    expect(transaction.subscription.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { dealerId: "dealer-1", source: "ADMIN_GRANT", status: "ACTIVE" },
+    }));
+    expect(transaction.user.update).not.toHaveBeenCalled();
+    expect(sendDealerAccessRevokedEmailMock).toHaveBeenCalledWith(targetUser.email);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/listings/[id]", "page");
+  });
+
+  it("reports notification failure without reporting a committed revocation as failed", async () => {
+    transaction.user.findUnique.mockResolvedValue({ ...targetUser, dealerProfile: { id: "dealer-1" } });
+    sendDealerAccessRevokedEmailMock.mockRejectedValue(new Error("Email unavailable"));
+    const { revokeDealerAccess } = await import("@/actions/admin/users");
+    await expect(revokeDealerAccess({ userId: targetUser.id })).resolves.toEqual({
+      data: { success: true }, warning: expect.stringContaining("notification email could not be sent"),
+    });
+  });
+
+  it("does not send a duplicate revocation notice when no grant remains", async () => {
+    transaction.user.findUnique.mockResolvedValue({ ...targetUser, dealerProfile: { id: "dealer-1" } });
+    transaction.subscription.updateMany.mockResolvedValue({ count: 0 });
+    const { revokeDealerAccess } = await import("@/actions/admin/users");
+    await expect(revokeDealerAccess({ userId: targetUser.id })).resolves.toHaveProperty("error");
+    expect(sendDealerAccessRevokedEmailMock).not.toHaveBeenCalled();
   });
 
   it("creates a pending offer without activating the private user", async () => {

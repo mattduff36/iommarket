@@ -11,6 +11,7 @@ import {
   createListingCheckout,
   createDealerSubscriptionCheckout,
   createFeaturedUpgradeCheckout,
+  createListingAndFeaturedCheckout,
   isDemoDealerSubscriptionCheckoutConfigured,
   isDemoListingCheckoutConfigured,
 } from "@/lib/payments/provider";
@@ -84,6 +85,15 @@ function buildHostedReturnUrl(params: {
   return url.toString();
 }
 
+function bindCheckoutToPersistedReference(
+  session: { url: string; merchantReference: string },
+  merchantReference: string,
+) {
+  const url = new URL(session.url);
+  url.searchParams.set("reference", merchantReference);
+  return { ...session, merchantReference, url: url.toString() };
+}
+
 function toUserPaymentError(message: string) {
   if (message.includes("RIPPLE_PREVIEW_CHECKOUT_DISABLED") || message.includes("RIPPLE_STAGING_LINK_REQUIRED")) {
     return "New payments are disabled on preview. Existing subscriptions continue to renew.";
@@ -122,7 +132,7 @@ export async function payForListing(input: PayForListingInput) {
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
-  const { listingId, privateSellerTermsAccepted } = parsed.data;
+  const { listingId, privateSellerTermsAccepted, includeFeatured = false } = parsed.data;
   const checkoutRateError = rateLimitActionError(
     await checkRateLimit(
       makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
@@ -243,6 +253,7 @@ export async function payForListing(input: PayForListingInput) {
     const isRenewal = Boolean(
       listing.expiresAt && listing.expiresAt.getTime() <= Date.now(),
     );
+    let priorListingEntitlementSkip = false;
     if (!isRenewal && listing.status === "DRAFT" && !effectiveDealerId) {
       const { canSkipListingPayment } = await import(
         "@/lib/listings/payment-skip"
@@ -252,7 +263,8 @@ export async function payForListing(input: PayForListingInput) {
         userId: user.id,
         dealerId: effectiveDealerId,
       });
-      if (priorEntitlement.skip) {
+      priorListingEntitlementSkip = priorEntitlement.skip;
+      if (priorListingEntitlementSkip && !includeFeatured) {
         return { data: { checkoutUrl: null, skippedPayment: true } };
       }
     }
@@ -276,24 +288,51 @@ export async function payForListing(input: PayForListingInput) {
       !effectiveDealerId &&
       (await isPrivateListingFreeForUser(user.id));
     const shouldSkipPayment =
-      hasDealerAccess || (!isRenewal && isFreePrivateSeller);
-    if (shouldSkipPayment) {
+      hasDealerAccess || priorListingEntitlementSkip || (!isRenewal && isFreePrivateSeller);
+    if (shouldSkipPayment && !includeFeatured) {
       // Do NOT update status here. The caller must still invoke submitListingForReview
       // so that server-side image validation (≥ 2 photos) is enforced before the
       // listing enters the moderation queue.
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
 
+    if (includeFeatured && shouldSkipPayment) {
+      const { submitListingForReview } = await import("@/actions/listings");
+      const submitted = await submitListingForReview({ listingId: listing.id, privateSellerTermsAccepted });
+      if ("error" in submitted) return { error: submitted.error };
+      const featured = await upgradeFeatured(listing.id);
+      if ("error" in featured) return { error: featured.error };
+      if (!featured.data?.checkoutUrl) return { error: "Unable to create the Featured checkout. Please try again." };
+      return { data: { ...featured.data, skippedPayment: false, listingSubmitted: true } };
+    }
+
+    const combinedPricePence = pricing.privateListingPence + pricing.featuredUpgradePence;
+    if (includeFeatured) {
+      const product = getRippleProductByCheckoutType("listing_and_featured");
+      if (combinedPricePence !== product.amountPence) {
+        throw new Error("Combined listing and Featured pricing does not match the Ripple payment link.");
+      }
+    }
+
     if (isSampleCheckoutEnabled()) {
-      const sample = await createSampleCheckout({ userId: user.id, kind: "listing_payment",
-        targetId: listing.id, description: `Listing fee: ${listing.title}`,
-        amountPence: pricing.privateListingPence, returnUrl: listingReturnTo });
+      const sample = await createSampleCheckout({ userId: user.id,
+        kind: includeFeatured ? "listing_and_featured" : "listing_payment",
+        targetId: listing.id, description: includeFeatured ? `Listing and Featured: ${listing.title}` : `Listing fee: ${listing.title}`,
+        amountPence: includeFeatured ? combinedPricePence : pricing.privateListingPence, returnUrl: listingReturnTo });
       return { data: { ...sample.data, skippedPayment: false } };
     }
     if (isRipplePreviewRuntime()) {
       return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
     }
-    const session = await createListingCheckout({
+    const session = includeFeatured ? await createListingAndFeaturedCheckout({
+      listingId: listing.id,
+      listingTitle: listing.title,
+      amountInPence: combinedPricePence,
+      customerName: user.name ?? undefined,
+      customerEmail: user.email,
+      successUrl: buildHostedReturnUrl({ status: "success", context: "listing", listingId: listing.id, flow, returnTo: listingReturnTo }),
+      cancelUrl: buildHostedReturnUrl({ status: "cancel", context: "listing", listingId: listing.id, flow, returnTo: listingReturnTo }),
+    }) : await createListingCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
       amountInPence: pricing.privateListingPence,
@@ -320,22 +359,34 @@ export async function payForListing(input: PayForListingInput) {
     const pendingPayment = await persistPendingListingPayment({
       listingId: listing.id,
       merchantReference: session.merchantReference,
-      amountPence: pricing.privateListingPence,
+      amountPence: includeFeatured ? combinedPricePence : pricing.privateListingPence,
+      includesFeatured: includeFeatured,
       allowNewAfterSucceeded: isRenewal,
     });
     if (pendingPayment.alreadyPaid) {
       return { data: { checkoutUrl: null, skippedPayment: true } };
     }
+    if (!pendingPayment.payment.providerReference) {
+      throw new Error("Persisted payment reference is missing");
+    }
+    const boundSession = bindCheckoutToPersistedReference(session, pendingPayment.payment.providerReference);
 
-    await setHostedReturnContext({
+    const hostedContext = {
       userId: user.id,
       email: user.email.trim().toLowerCase(),
       paymentId: pendingPayment.payment.id,
       listingId: listing.id,
-      merchantReference: session.merchantReference,
+      merchantReference: boundSession.merchantReference,
       issuedAt: Date.now(),
-    });
-    return { data: { checkoutUrl: session.url } };
+    };
+    if (includeFeatured) {
+      const productCode = extractRippleLinkCode(session.url);
+      if (!productCode) throw new Error("Invalid combined listing checkout link");
+      await setHostedReturnContext({ ...hostedContext, kind: "listing_and_featured", productCode });
+    } else {
+      await setHostedReturnContext(hostedContext);
+    }
+    return { data: { checkoutUrl: boundSession.url } };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -482,22 +533,18 @@ export async function upgradeFeatured(listingId: string) {
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
-  if (listing.status !== "LIVE") {
-    return { error: "Only live listings can be featured" };
+  if (listing.status !== "LIVE" && listing.status !== "PENDING") {
+    return { error: "Only submitted listings can be featured" };
   }
   if (listing.featured) {
     return { error: "This listing is already featured" };
   }
   if (listing.dealerId === null) {
-    const paidListing = await db.payment.findFirst({
-      where: {
-        listingId: listing.id,
-        status: "SUCCEEDED",
-        type: "LISTING",
-      },
-      select: { id: true },
+    const { canSkipListingPayment } = await import("@/lib/listings/payment-skip");
+    const listingEntitlement = await canSkipListingPayment(db, {
+      listingId: listing.id, userId: user.id, dealerId: null,
     });
-    if (!paidListing) {
+    if (!listingEntitlement.skip) {
       return {
         error:
           "Free listings cannot be featured. Choose a paid listing plan to unlock featured upgrades.",
@@ -507,6 +554,20 @@ export async function upgradeFeatured(listingId: string) {
 
   try {
     const pricing = await getMarketplacePricing();
+    const consumedEntitlement = await db.payment.findFirst({ where: {
+      listingId: listing.id, refundedAt: null, status: "SUCCEEDED", featuredAppliedAt: null,
+      OR: [{ type: "FEATURED" }, { type: "LISTING", includesFeatured: true }],
+    }, select: { id: true } });
+    const pendingBundle = await db.payment.findFirst({ where: {
+      listingId: listing.id, refundedAt: null, type: "LISTING", includesFeatured: true, status: "PENDING",
+    }, select: { id: true } });
+    const incompatiblePendingFeatured = await db.payment.findFirst({ where: {
+      listingId: listing.id, refundedAt: null, type: "FEATURED", status: "PENDING",
+      amount: { not: pricing.featuredUpgradePence },
+    }, select: { id: true } });
+    if (consumedEntitlement || pendingBundle || incompatiblePendingFeatured) {
+      return { error: "A Featured payment is already pending or has been applied to this listing." };
+    }
     const listingReturnTo = `/listings/${listing.id}`;
     if (isSampleCheckoutEnabled()) {
       const sample = await createSampleCheckout({ userId: user.id, kind: "featured_upgrade",
@@ -542,12 +603,14 @@ export async function upgradeFeatured(listingId: string) {
       amountPence: product.amountPence, allowNewAfterSucceeded: true,
     });
     if (pending.alreadyPaid) return { error: "This featured upgrade has already been paid. Refresh your listing." };
+    if (!pending.payment.providerReference) throw new Error("Persisted payment reference is missing");
+    const boundSession = bindCheckoutToPersistedReference(session, pending.payment.providerReference);
     await setHostedReturnContext({
       kind: "featured_upgrade", userId: user.id, email: user.email.trim().toLowerCase(),
       paymentId: pending.payment.id, listingId: listing.id, productCode,
-      merchantReference: session.merchantReference, issuedAt: Date.now(),
+      merchantReference: boundSession.merchantReference, issuedAt: Date.now(),
     });
-    return { data: { checkoutUrl: session.url } };
+    return { data: { checkoutUrl: boundSession.url } };
   } catch (err) {
     await captureException({
       source: "SERVER",

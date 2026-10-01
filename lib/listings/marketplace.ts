@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { liveListingWhere, liveOrSoldListingWhere } from "@/lib/listings/expiry";
+import { publicListingSellerWhere } from "./dealer-visibility";
 import {
   applySampleListingVisibility,
   DEFAULT_SAMPLE_VISIBILITY,
@@ -32,9 +33,10 @@ export function marketplaceListingWhere(input: {
   sampleVisibility?: SampleVisibility;
   includeDisabledPreviewPacks?: boolean;
 }): Prisma.ListingWhereInput {
-  const publicWhere = input.includeSold
+  const statusWhere = input.includeSold
     ? liveOrSoldListingWhere(true, input.now)
     : liveListingWhere(input.now);
+  const publicWhere = { AND: [statusWhere, publicListingSellerWhere(input.now, input.sampleVisibility)] };
   const visible = isMarketplaceAdmin(input.viewer)
     ? {
         OR: [

@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import type { Prisma, SampleCheckout } from "@prisma/client";
 import { assertSampleCheckoutEnabled, isSampleCheckoutEnabled, SAMPLE_MAX_ATTEMPTS } from "./sample-checkout-config";
 
-export type SampleCheckoutKind = "listing_payment" | "featured_upgrade" | "dealer_subscription";
+export type SampleCheckoutKind = "listing_payment" | "listing_and_featured" | "featured_upgrade" | "dealer_subscription";
 export type SampleCheckoutView = {
   id: string; kind: SampleCheckoutKind; description: string; amountPence: number;
   currency: string; status: "PENDING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
@@ -43,9 +43,14 @@ export async function assertSampleTarget(tx: Prisma.TransactionClient, row: {
   await tx.$queryRaw`SELECT id FROM "Listing" WHERE id = ${row.targetId} FOR UPDATE`;
   const listing = await tx.listing.findFirst({ where: { id: row.targetId, userId: row.userId } });
   if (!listing) throw new Error("Listing not found.");
-  if (row.kind === "featured_upgrade" && (listing.status !== "LIVE" || listing.featured ||
+  if (row.kind === "listing_payment" || row.kind === "listing_and_featured") {
+    if (listing.status !== "DRAFT" && listing.status !== "EXPIRED") {
+      throw new Error("Only draft or expired listings can be submitted for payment.");
+    }
+  }
+  if (row.kind === "featured_upgrade" && (!(["LIVE", "PENDING"].includes(listing.status)) || listing.featured ||
     (listing.expiresAt && listing.expiresAt <= new Date()))) {
-    throw new Error("Only an eligible live listing can be featured.");
+    throw new Error("Only an eligible listing can be featured.");
   }
 }
 
@@ -73,6 +78,7 @@ export async function createSampleCheckout(input: {
     if (input.kind !== "dealer_subscription") {
       await tx.payment.create({ data: {
         listingId: input.targetId, type: input.kind === "featured_upgrade" ? "FEATURED" : "LISTING",
+        includesFeatured: input.kind === "listing_and_featured",
         paymentProvider: "DEV", status: "PENDING", amount: input.amountPence, currency: "gbp",
         providerReference: `sim_${row.id}`, idempotencyKey: `sim_${row.id}`,
       } });

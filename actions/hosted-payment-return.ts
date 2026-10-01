@@ -11,7 +11,7 @@ import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 export async function confirmHostedListingPayment(paymentJobRef: string): Promise<{
   status: "confirmed" | "waiting" | "review" | "sign-in";
   listingId?: string;
-  checkoutType?: "listing_payment" | "featured_upgrade" | "dealer_subscription";
+  checkoutType?: "listing_payment" | "listing_and_featured" | "featured_upgrade" | "dealer_subscription";
 }> {
   // Cashflows identifiers exceed JS's safe integer range: preserve exact strings.
   if (typeof paymentJobRef !== "string" || !/^\d{10,30}$/.test(paymentJobRef)) return { status: "review" };

@@ -1,29 +1,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+type SampleCheckoutRow = {
+  id: string;
+  userId: string;
+  kind: "listing_payment" | "dealer_subscription";
+  targetId: string;
+  description: string;
+  amountPence: number;
+  currency: string;
+  tier: string | null;
+  status: "PENDING" | "FAILED" | "SUCCEEDED" | "CANCELLED";
+  attemptCount: number;
+  returnUrl: string;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 const { authMock, rateLimitMock, revalidatePathMock, mockDb, tx } = vi.hoisted(() => {
-  const row = {
+  const row: SampleCheckoutRow = {
     id: "cmpl0000000000000000000000", userId: "user-1", kind: "listing_payment",
     targetId: "listing-1", description: "Listing payment", amountPence: 499,
     currency: "gbp", tier: null, status: "PENDING", attemptCount: 0,
     returnUrl: "/sell/checkout", expiresAt: new Date(Date.now() + 60_000),
     createdAt: new Date(), updatedAt: new Date(),
   };
-  const tx: Record<string, any> = {
+  const tx = {
     $queryRaw: vi.fn(),
     sampleCheckout: {
-      findFirst: vi.fn(async () => row),
-      update: vi.fn(async ({ data }) => Object.assign(row, data)),
+      findFirst: vi.fn(async (): Promise<SampleCheckoutRow | null> => row),
+      update: vi.fn(async ({ data }: { data: Partial<SampleCheckoutRow> }) => Object.assign(row, data)),
     },
     payment: { updateMany: vi.fn(async () => ({ count: 1 })) },
     listing: { findFirst: vi.fn(async () => ({ id: "listing-1", userId: "user-1", status: "DRAFT", featured: false, expiresAt: null })) },
     dealerProfile: { findFirst: vi.fn(), update: vi.fn() },
-    subscription: { findFirst: vi.fn(async () => null), upsert: vi.fn(async () => ({ id: "subscription-1" })) },
+    subscription: { findFirst: vi.fn(async (): Promise<{ id: string; paymentProvider: string; source?: string; status: string } | null> => null), upsert: vi.fn(async () => ({ id: "subscription-1" })) },
     subscriptionCharge: { create: vi.fn() },
     user: { updateMany: vi.fn() },
   };
   const mockDb = {
     $transaction: vi.fn(async (callback: (client: unknown) => unknown) => callback(tx)),
-    sampleCheckout: { findFirst: vi.fn(async () => row) },
+    sampleCheckout: { findFirst: vi.fn(async (): Promise<SampleCheckoutRow | null> => row) },
   };
   return { authMock: vi.fn(), rateLimitMock: vi.fn(), revalidatePathMock: vi.fn(), mockDb, tx, row };
 });
@@ -40,7 +57,7 @@ vi.mock("@/lib/payments/webhook-payments", () => ({ submitPaidListingForReview: 
 import { cancelSamplePayment, submitSamplePayment } from "@/actions/sample-payments";
 
 const originalEnvironment = { ...process.env };
-const state = vi.hoisted(() => ({ row: null as Record<string, any> | null }));
+const state = vi.hoisted(() => ({ row: null as SampleCheckoutRow | null }));
 
 describe("sample payment actions", () => {
   beforeEach(() => {

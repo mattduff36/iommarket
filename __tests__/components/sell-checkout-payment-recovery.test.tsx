@@ -15,6 +15,19 @@ vi.mock("@/lib/db", () => ({ db: {
   listing: { findUnique: listingFindUnique },
   payment: { findFirst: paymentFindFirst },
 } }));
+vi.mock("@/lib/config/marketplace-pricing", () => ({
+  getMarketplacePricing: vi.fn().mockResolvedValue({
+    privateListingPence: 499,
+    featuredUpgradePence: 500,
+  }),
+}));
+vi.mock("@/lib/config/marketplace", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/config/marketplace")>();
+  return {
+    ...actual,
+    isPrivateListingFreeForUser: vi.fn().mockResolvedValue(false),
+  };
+});
 vi.mock("@/app/(public)/sell/checkout/retry-checkout-button", () => ({
   RetryCheckoutButton: () => <button>Open payment in new tab</button>,
 }));

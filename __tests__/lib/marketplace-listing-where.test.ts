@@ -3,22 +3,23 @@ import {
   combineMarketplaceListingWhere,
   marketplaceListingWhere,
 } from "@/lib/listings/marketplace";
+import { publicListingSellerWhere } from "@/lib/listings/dealer-visibility";
 import { liveListingWhere } from "@/lib/listings/expiry";
 import { sampleDealerListingWhere, samplePrivateListingWhere } from "@/lib/listings/sample-visibility";
 
 describe("marketplace listing visibility", () => {
   it("keeps public and dealer viewers on LIVE-only queries", () => {
     const now = new Date("2026-08-23T00:00:00.000Z");
-    expect(marketplaceListingWhere({ viewer: null, now })).toEqual(liveListingWhere(now));
-    expect(marketplaceListingWhere({ viewer: { role: "USER" }, now })).toEqual(liveListingWhere(now));
-    expect(marketplaceListingWhere({ viewer: { role: "DEALER" }, now })).toEqual(liveListingWhere(now));
+    expect(marketplaceListingWhere({ viewer: null, now })).toEqual({ AND: [liveListingWhere(now), publicListingSellerWhere(now)] });
+    expect(marketplaceListingWhere({ viewer: { role: "USER" }, now })).toEqual({ AND: [liveListingWhere(now), publicListingSellerWhere(now)] });
+    expect(marketplaceListingWhere({ viewer: { role: "DEALER" }, now })).toEqual({ AND: [liveListingWhere(now), publicListingSellerWhere(now)] });
   });
 
   it("adds enabled ADMIN_PREVIEW rows only for admins by default", () => {
     const now = new Date("2026-08-23T00:00:00.000Z");
     expect(marketplaceListingWhere({ viewer: { role: "ADMIN" }, now })).toEqual({
       OR: [
-        liveListingWhere(now),
+        { AND: [liveListingWhere(now), publicListingSellerWhere(now)] },
         { status: "ADMIN_PREVIEW", previewPack: { enabled: true } },
       ],
     });
@@ -73,7 +74,7 @@ describe("marketplace listing visibility", () => {
       AND: [
         {
           OR: [
-            liveListingWhere(now),
+            { AND: [liveListingWhere(now), publicListingSellerWhere(now)] },
             { status: "ADMIN_PREVIEW", previewPack: { enabled: true } },
           ],
         },
@@ -91,7 +92,7 @@ describe("marketplace listing visibility", () => {
       sampleVisibility: { privateListings: true, dealerListings: false },
     });
     expect(where).toEqual({
-      AND: [liveListingWhere(now), { NOT: sampleDealerListingWhere() }],
+      AND: [{ AND: [liveListingWhere(now), publicListingSellerWhere(now, { privateListings: true, dealerListings: false })] }, { NOT: sampleDealerListingWhere() }],
     });
   });
 

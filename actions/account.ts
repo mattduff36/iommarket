@@ -14,6 +14,11 @@ import {
   type UpdateMyProfileInput,
 } from "@/lib/validations/account";
 import { reportHandledException } from "@/lib/monitoring";
+import {
+  getDealerProfileAddressChangeError,
+  getDealerProfileAddressChangeWindowStart,
+  shouldCountDealerProfileAddressChange,
+} from "@/lib/dealers/profile-address";
 
 export async function updateMyProfile(input: UpdateMyProfileInput) {
   const user = await requireAcceptedAuth();
@@ -79,33 +84,91 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
   const data = parsed.data;
 
   try {
-    const existingSlug = await db.dealerProfile.findFirst({
-      where: {
-        slug: data.slug,
-        id: { not: user.dealerProfile.id },
-      },
-      select: { id: true },
+    const result = await db.$transaction(async (tx) => {
+      const [profile] = await tx.$queryRaw<Array<{ id: string; slug: string }>>`
+        SELECT "id", "slug"
+        FROM "DealerProfile"
+        WHERE "id" = ${user.dealerProfile.id}
+        FOR UPDATE
+      `;
+      if (!profile) return { error: { slug: ["Dealer profile not found"] } };
+
+      const slugChanged = profile.slug !== data.slug;
+      if (slugChanged) {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(candidate, 0))
+          FROM (
+            SELECT DISTINCT candidate COLLATE "C" AS candidate
+            FROM unnest(ARRAY[${profile.slug}, ${data.slug}]::TEXT[]) AS keys(candidate)
+            ORDER BY candidate
+          ) AS ordered_slugs
+        `;
+
+        const [existingProfile, reservedAddress] = await Promise.all([
+          tx.dealerProfile.findFirst({
+            where: { slug: data.slug, id: { not: profile.id } },
+            select: { id: true },
+          }),
+          tx.dealerProfileSlugHistory.findUnique({
+            where: { slug: data.slug },
+            select: { id: true },
+          }),
+        ]);
+        if (existingProfile || reservedAddress) {
+          return { error: { slug: ["This public profile address is already in use"] } };
+        }
+
+        const now = new Date();
+        const changesInWindow = await tx.dealerProfileSlugHistory.count({
+          where: {
+            dealerId: profile.id,
+            countsTowardsLimit: true,
+            changedAt: { gte: getDealerProfileAddressChangeWindowStart(now) },
+          },
+        });
+        const limitError = getDealerProfileAddressChangeError({
+          currentSlug: profile.slug,
+          nextSlug: data.slug,
+          changesInWindow,
+        });
+        if (limitError) return { error: { slug: [limitError] } };
+
+        if (
+          shouldCountDealerProfileAddressChange({
+            source: "SELF_SERVICE",
+            previousSlug: profile.slug,
+            userId: user.id,
+          })
+        ) {
+          await tx.$executeRaw`
+            SELECT set_config('app.dealer_profile_address_source', 'SELF_SERVICE', true)
+          `;
+        }
+      }
+
+      const updated = await tx.dealerProfile.update({
+        where: { id: profile.id },
+        data: {
+          name: data.name,
+          slug: data.slug,
+          bio: data.bio || null,
+          website: data.website || null,
+          phone: data.phone || null,
+        },
+      });
+
+      return { data: updated, previousSlug: profile.slug };
     });
 
-    if (existingSlug) {
-      return { error: { slug: ["This slug is already in use"] } };
-    }
-
-    const updated = await db.dealerProfile.update({
-      where: { id: user.dealerProfile.id },
-      data: {
-        name: data.name,
-        slug: data.slug,
-        bio: data.bio || null,
-        website: data.website || null,
-        phone: data.phone || null,
-      },
-    });
+    if ("error" in result) return result;
 
     revalidatePath("/dealer/dashboard");
     revalidatePath("/dealer/profile");
-    revalidatePath(`/dealers/${updated.slug}`);
-    return { data: updated };
+    revalidatePath(`/dealers/${result.data.slug}`);
+    if (result.previousSlug !== result.data.slug) {
+      revalidatePath(`/dealers/${result.previousSlug}`);
+    }
+    return { data: result.data };
   } catch (err) {
     await reportHandledException({
       error: err,
@@ -114,7 +177,11 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
       userId: user.id,
     });
     const message =
-      err instanceof Error ? err.message : "Failed to update dealer profile";
+      err instanceof Error && err.message.includes("Dealer profile address is permanently reserved")
+        ? "This public profile address is already in use"
+        : err instanceof Error
+          ? err.message
+          : "Failed to update dealer profile";
     return { error: message };
   }
 }

@@ -9,7 +9,7 @@ import {
   CardOverlayLink,
   NAVIGABLE_CARD_LINK_CLASS,
 } from "@/components/ui/card-overlay-link";
-import { DeleteSavedSearchButton } from "@/app/(public)/account/saved-searches/delete-saved-search-button";
+import { SavedSearchActions } from "@/app/(public)/account/saved-searches/saved-search-actions";
 import { ReportActions } from "@/app/(admin)/admin/reports/report-actions";
 import { ReviewActions } from "@/app/(admin)/admin/reviews/review-actions";
 import { DeleteImageButton } from "@/app/(admin)/admin/media/delete-image-button";
@@ -70,17 +70,20 @@ describe("CardOverlayLink", () => {
       <div className="relative">
         <CardOverlayLink href="/search?q=bmw" label="Open BMW search" />
         <div className={CARD_OVERLAY_CONTROL_CLASS}>
-          <DeleteSavedSearchButton savedSearchId="ss-1" />
+          <SavedSearchActions savedSearchId="ss-1" />
         </div>
       </div>,
     );
 
+    const user = userEvent.setup();
     const primaryLink = screen.getByRole("link", { name: "Open BMW search" });
-    const deleteButton = screen.getByRole("button", { name: "Delete" });
+    const actionsButton = screen.getByRole("button", { name: "Actions for this saved search" });
 
-    expect(primaryLink.contains(deleteButton)).toBe(false);
+    expect(primaryLink.contains(actionsButton)).toBe(false);
 
-    fireEvent.click(deleteButton);
+    await user.click(actionsButton);
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete saved search" }));
 
     await waitFor(() => {
       expect(deleteSavedSearchMock).toHaveBeenCalledWith({ savedSearchId: "ss-1" });

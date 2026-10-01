@@ -13,13 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
-import { MarkSoldButton } from "@/app/(public)/dealer/dashboard/mark-sold-button";
-import { RenewListingButton } from "@/components/marketplace/renew-listing-button";
-import { WithdrawSubmissionButton } from "@/components/marketplace/withdraw-submission-button";
+import { AccountListingActions } from "@/components/account/account-listing-actions";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
-import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
+import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
+import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
@@ -104,9 +102,16 @@ export default async function AccountListingsPage({ searchParams }: Props) {
           select: { createdAt: true, fromStatus: true, toStatus: true },
         },
         payments: {
-          where: { status: "SUCCEEDED", type: "LISTING" },
-          select: { id: true },
-          take: 1,
+          where: {
+            status: "SUCCEEDED",
+            refundedAt: null,
+            OR: [
+              { type: "LISTING" },
+              { type: "FEATURED" },
+              { includesFeatured: true },
+            ],
+          },
+          select: { type: true, includesFeatured: true },
         },
       },
     }),
@@ -131,6 +136,9 @@ export default async function AccountListingsPage({ searchParams }: Props) {
         <p className="mt-2 text-sm text-text-secondary">
           A listing awaiting review cannot be edited. Withdraw its submission first
           to return it to Draft.
+        </p>
+        <p className="mt-2 text-sm text-text-secondary">
+          Feature a listing that is awaiting review or live. Featured placement starts after approval.
         </p>
       </div>
 
@@ -209,58 +217,25 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                   {listing.createdAt.toLocaleDateString("en-GB")}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/listings/${listing.id}`}
-                      className="text-sm text-text-trust hover:underline"
-                    >
-                      View
-                    </Link>
-                    {(listing.status === "DRAFT" ||
-                      listing.status === "LIVE" ||
-                      listing.status === "TAKEN_DOWN" ||
-                      listing.status === "REJECTED") && (
-                      <Link
-                        href={getDraftEditorHref({
-                          listingId: listing.id,
-                          dealerId: listing.dealerId,
-                        })}
-                        className="text-sm text-text-trust hover:underline"
-                      >
-                        {listing.status === "DRAFT" ? "Continue editing" : "Edit"}
-                      </Link>
+                  <AccountListingActions
+                    listingId={listing.id}
+                    title={listing.title}
+                    status={listing.status}
+                    featured={listing.featured}
+                    dealerId={listing.dealerId}
+                    lifecycleRevision={listing.lifecycleRevision}
+                    hasListingPayment={listing.payments.some(
+                      (payment) => payment.type === "LISTING",
                     )}
-                    {listing.status === "LIVE" &&
-                      !listing.featured &&
-                      (listing.dealerId !== null || listing.payments.length > 0) && (
-                      <FeaturedUpgradeButton
-                        listingId={listing.id}
-                        featuredUpgradePricePence={pricing.featuredUpgradePence}
-                        checkoutUnavailable={isRipplePreviewRuntime() && !isSampleCheckoutEnabled()}
-                        variant="inline"
-                      />
+                    featuredPurchased={listing.payments.some(
+                      (payment) =>
+                        payment.type === "FEATURED" || payment.includesFeatured,
                     )}
-                    {listing.status === "LIVE" && (
-                      <MarkSoldButton listingId={listing.id} />
-                    )}
-                    {listing.status === "PENDING" && (
-                      <WithdrawSubmissionButton
-                        listingId={listing.id}
-                        expectedRevision={listing.lifecycleRevision}
-                        editHref={getDraftEditorHref({
-                          listingId: listing.id,
-                          dealerId: listing.dealerId,
-                        })}
-                      />
-                    )}
-                    {listing.status === "EXPIRED" && (
-                      <RenewListingButton
-                        listingId={listing.id}
-                        flow={listing.dealerId ? "dealer" : "private"}
-                        variant="inline"
-                      />
-                    )}
-                  </div>
+                    featuredUpgradePricePence={pricing.featuredUpgradePence}
+                    checkoutUnavailable={
+                      isRipplePreviewRuntime() && !isSampleCheckoutEnabled()
+                    }
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -302,5 +277,3 @@ export default async function AccountListingsPage({ searchParams }: Props) {
     </div>
   );
 }
-import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
-import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";

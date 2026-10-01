@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import {
   ADMIN_LISTING_STATUS_FILTERS,
   type AdminListingStatusFilter,
-} from "@/lib/admin/query";
+} from "@/lib/admin/listing-status-filters";
 import {
   AdminFilterBar,
   adminSearchButtonClass,

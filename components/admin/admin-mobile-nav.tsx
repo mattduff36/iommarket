@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
-import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
+import { ADMIN_NAV, ADMIN_NAV_GROUPS, type AdminNavItem } from "@/lib/admin/nav";
 import { AdminNavLink } from "@/components/admin/admin-nav-link";
 
-export function AdminMobileNav() {
+export function AdminMobileNav({ items: navigation = ADMIN_NAV.filter((item) => item.icon !== "checklist") }: { items?: AdminNavItem[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -47,7 +47,7 @@ export function AdminMobileNav() {
           className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] touch-pan-y"
         >
           {ADMIN_NAV_GROUPS.map((group) => {
-            const items = ADMIN_NAV.filter((i) => i.group === group.key);
+            const items = navigation.filter((i) => i.group === group.key);
             if (items.length === 0) return null;
             return (
               <div key={group.key}>

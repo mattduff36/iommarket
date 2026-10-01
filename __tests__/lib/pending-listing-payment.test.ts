@@ -46,7 +46,7 @@ describe("persistPendingListingPayment", () => {
         type: "LISTING",
         amount: 499,
         idempotencyKey:
-          "ripple-pending:LISTING:caaaaaaaaaaaaaaaaaaaaaaaa:initial",
+          "ripple-pending:LISTING:caaaaaaaaaaaaaaaaaaaaaaaa:initial:none:499:standard",
       }),
     });
     expect(paymentUpdate).not.toHaveBeenCalled();
@@ -55,15 +55,13 @@ describe("persistPendingListingPayment", () => {
   it("RIP-PEND-002 reuses the same PENDING row on a second checkout open", async () => {
     paymentFindFirst
       .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         id: "pending-1",
         listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        providerReference: "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n1:mac",
         status: "PENDING",
       });
-    paymentUpdate.mockResolvedValue({
-      id: "pending-1",
-      providerReference: "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n2:mac",
-    });
 
     const result = await persistPendingListingPayment({
       listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
@@ -72,13 +70,9 @@ describe("persistPendingListingPayment", () => {
     });
 
     expect(result.alreadyPaid).toBe(false);
+    expect(result.payment.providerReference).toBe("v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n1:mac");
     expect(paymentCreate).not.toHaveBeenCalled();
-    expect(paymentUpdate).toHaveBeenCalledWith({
-      where: { id: "pending-1" },
-      data: expect.objectContaining({
-        providerReference: "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:n2:mac",
-      }),
-    });
+    expect(paymentUpdate).not.toHaveBeenCalled();
   });
 
   it("does not insert PENDING after a SUCCEEDED listing fee", async () => {
@@ -104,6 +98,7 @@ describe("persistPendingListingPayment", () => {
         id: "paid-1",
         status: "SUCCEEDED",
       })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
     paymentCreate.mockResolvedValue({
       id: "renewal-pending",
@@ -126,7 +121,7 @@ describe("persistPendingListingPayment", () => {
         providerReference:
           "v1:listing_payment:caaaaaaaaaaaaaaaaaaaaaaaa:renewal:mac",
         idempotencyKey:
-          "ripple-pending:LISTING:caaaaaaaaaaaaaaaaaaaaaaaa:paid-1",
+          "ripple-pending:LISTING:caaaaaaaaaaaaaaaaaaaaaaaa:paid-1:none:499:standard",
       }),
     });
   });

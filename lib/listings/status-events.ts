@@ -259,6 +259,13 @@ async function runTransition(
     );
   }
 
+  if (input.action === "APPROVE") {
+    const { applyPaidFeaturedEntitlement } = await import(
+      "@/lib/payments/featured-entitlement"
+    );
+    await applyPaidFeaturedEntitlement(existing.id, client);
+  }
+
   const event = await createListingStatusEvent(
     {
       listingId: existing.id,

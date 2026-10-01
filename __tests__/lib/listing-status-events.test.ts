@@ -4,6 +4,7 @@ const { mockTx, mockDb } = vi.hoisted(() => {
   const tx = {
     listing: {
       findUnique: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue(null),
       findUniqueOrThrow: vi.fn(),
       updateMany: vi.fn(),
     },

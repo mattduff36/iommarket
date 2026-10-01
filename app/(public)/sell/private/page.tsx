@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
+import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CreateListingForm } from "../create-listing-form";
@@ -30,9 +31,10 @@ export default async function SellPrivatePage({ searchParams }: Props) {
   const params = searchParams ? await searchParams : {};
   const draftId = params.draft?.trim();
 
-  const [{ categories, regions, vehicleMakes }, isFreeForUser] = await Promise.all([
+  const [{ categories, regions, vehicleMakes }, isFreeForUser, pricing] = await Promise.all([
     getSellFormData(),
     isPrivateListingFreeForUser(user.id),
+    getMarketplacePricing(),
   ]);
   const initialDraft = draftId
     ? await getEditableDraft({
@@ -78,6 +80,8 @@ export default async function SellPrivatePage({ searchParams }: Props) {
         isFreeForUser={isFreeForUser}
         initialDraft={initialDraft}
         enforceListingNs={getPolicyFlags().enforceListingNs}
+        listingFeePence={pricing.privateListingPence}
+        featuredUpgradePricePence={pricing.featuredUpgradePence}
       />
     </div>
   );

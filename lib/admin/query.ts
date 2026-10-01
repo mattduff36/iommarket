@@ -9,19 +9,8 @@ import {
   PREVIEW_EMAIL_DOMAIN,
 } from "@/lib/preview-packs/safety";
 
-export const ADMIN_LISTING_STATUS_FILTERS = [
-  "ALL",
-  "PENDING",
-  "PENDING_EDITS",
-  "LIVE",
-  "TAKEN_DOWN",
-  "REJECTED",
-  "DRAFT",
-  "EXPIRED",
-  "SOLD",
-] as const;
-
-export type AdminListingStatusFilter = (typeof ADMIN_LISTING_STATUS_FILTERS)[number];
+import { ADMIN_LISTING_STATUS_FILTERS, type AdminListingStatusFilter } from "./listing-status-filters";
+export { ADMIN_LISTING_STATUS_FILTERS, type AdminListingStatusFilter } from "./listing-status-filters";
 
 export const ADMIN_LISTING_PAGE_SIZE = 25;
 

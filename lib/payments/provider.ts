@@ -72,6 +72,8 @@ function buildFixedCheckoutUrl(
     purpose:
       checkoutType === "listing_payment"
         ? "listing_payment"
+        : checkoutType === "listing_and_featured"
+          ? "listing_and_featured"
         : checkoutType === "featured_upgrade"
           ? "featured_upgrade"
           : "dealer_subscription",
@@ -150,6 +152,23 @@ export async function createListingCheckout(params: {
     throw new Error("RIPPLE_LISTING_SUPPORT_URL");
   }
   return buildFixedCheckoutUrl("listing_payment", {
+    targetId: params.listingId,
+    amountInPence: params.amountInPence,
+    customerName: params.customerName,
+    customerEmail: params.customerEmail,
+  });
+}
+
+export async function createListingAndFeaturedCheckout(params: {
+  listingId: string;
+  listingTitle: string;
+  amountInPence: number;
+  customerName?: string;
+  customerEmail?: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<ProviderCheckoutResult> {
+  return buildFixedCheckoutUrl("listing_and_featured", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
     customerName: params.customerName,

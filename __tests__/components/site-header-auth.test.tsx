@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/layout/site-header";
 
 const authMocks = vi.hoisted(() => ({
+  pathname: "/",
   getSession: vi.fn(),
   signOut: vi.fn(),
   unsubscribe: vi.fn(),
@@ -15,9 +16,11 @@ const authMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
+  usePathname: () => authMocks.pathname,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
+
+vi.mock("next/dynamic", () => ({ default: () => ({ listingId, open }: { listingId: string; open: boolean }) => open ? <section role="dialog">Admin editor for {listingId}</section> : null }));
 
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
@@ -84,6 +87,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 describe("SiteHeader auth initialization", () => {
   beforeEach(() => {
+    authMocks.pathname = "/";
     authMocks.getSession.mockReset();
     authMocks.signOut.mockReset();
     authMocks.unsubscribe.mockReset();
@@ -186,6 +190,18 @@ describe("SiteHeader auth initialization", () => {
     await waitFor(() => {
       expect(screen.getByText("Preview packs")).toBeTruthy();
     });
+  });
+
+  it("opens the admin editor from a listing's mobile menu", async () => {
+    authMocks.pathname = "/listings/cmtestlisting";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ name: "Admin", role: "ADMIN" }) }));
+    authMocks.getSession.mockResolvedValue({ data: { session: { user: { email: "admin@example.test" } } } });
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await waitFor(() => expect(screen.getByTestId("header-auth-state")).toHaveTextContent("ready"));
+    await user.click(screen.getByRole("button", { name: "Toggle menu" }));
+    await user.click(screen.getByRole("button", { name: "Edit as Admin" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("cmtestlisting");
   });
 
   it("hides the mobile Preview packs expander for members", async () => {

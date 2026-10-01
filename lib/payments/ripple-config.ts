@@ -2,6 +2,7 @@ import type { DealerTier } from "@prisma/client";
 
 export type RippleCheckoutType =
   | "listing_payment"
+  | "listing_and_featured"
   | "listing_support"
   | "featured_upgrade"
   | "dealer_subscription";
@@ -13,6 +14,13 @@ export const RIPPLE_CANONICAL_PRODUCTS = {
     amountPence: 499,
     checkoutType: "listing_payment" as const,
     envUrlKey: "RIPPLE_LISTING_PAYMENT_URL",
+  },
+  listingAndFeatured: {
+    key: "listing-and-featured",
+    code: "9AFE8E93CD3145D3",
+    amountPence: 999,
+    checkoutType: "listing_and_featured" as const,
+    envUrlKey: "RIPPLE_LISTING_AND_FEATURED_PAYMENT_URL",
   },
   featured: {
     key: "featured",
@@ -209,6 +217,7 @@ export function getRippleProductByCheckoutType(
   tier?: DealerTier
 ): RippleProduct {
   if (checkoutType === "listing_payment") return RIPPLE_CANONICAL_PRODUCTS.listing;
+  if (checkoutType === "listing_and_featured") return RIPPLE_CANONICAL_PRODUCTS.listingAndFeatured;
   if (checkoutType === "featured_upgrade") return RIPPLE_CANONICAL_PRODUCTS.featured;
   if (checkoutType === "dealer_subscription") {
     return tier === "PRO"

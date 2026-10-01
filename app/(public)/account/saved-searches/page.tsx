@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
@@ -9,7 +8,7 @@ import {
   CARD_OVERLAY_CONTROL_CLASS,
   CardOverlayLink,
 } from "@/components/ui/card-overlay-link";
-import { DeleteSavedSearchButton } from "./delete-saved-search-button";
+import { SavedSearchActions } from "./saved-search-actions";
 
 export default async function SavedSearchesPage() {
   const user = await requireAcceptedUser("/account/saved-searches");
@@ -45,13 +44,12 @@ export default async function SavedSearchesPage() {
                     Saved {saved.createdAt.toLocaleDateString("en-GB")}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span aria-hidden="true" className="text-sm text-text-trust">
-                    Open
-                  </span>
-                  <div className={CARD_OVERLAY_CONTROL_CLASS}>
-                    <DeleteSavedSearchButton savedSearchId={saved.id} />
-                  </div>
+                <div className={CARD_OVERLAY_CONTROL_CLASS}>
+                  <SavedSearchActions
+                    savedSearchId={saved.id}
+                    name={saved.name}
+                    href={href}
+                  />
                 </div>
               </div>
             );

@@ -30,10 +30,14 @@ describe('Accounts isolated preview boundary',()=>{
 });
 
 function fixture(){
- const sources:Array<Record<string,any>>=[],entries:Array<Record<string,any>>=[];
- const tx={costSourceSnapshot:{findMany:vi.fn(async({where}:any)=>sources.filter(row=>row.sourceKind===where.sourceKind&&row.bucketKey.startsWith(where.bucketKey.startsWith)).sort((a,b)=>b.revision-a.revision).map(row=>({...row,entries:entries.filter(entry=>entry.sourceSnapshotId===row.id&&entry.kind==='CHARGE')}))),create:vi.fn(async({data}:any)=>{const row={id:`s${sources.length}`,...data};sources.push(row);return row;})},costEntry:{create:vi.fn(async({data}:any)=>{const row={id:`e${entries.length}`,...data};entries.push(row);return row;})},siteSetting:{upsert:vi.fn()}};
- (tx.costSourceSnapshot as any).createMany=vi.fn(async({data}:any)=>{sources.push(...data);});
- (tx.costEntry as any).createMany=vi.fn(async({data}:any)=>{entries.push(...data);});
+ type SourceRow={id:string;sourceKind:string;bucketKey:string;revision:number;[key:string]:unknown};
+ type EntryInput={sourceSnapshotId:string;kind:string;markedGbpMinor:bigint;servicePeriodStart:Date;[key:string]:unknown};
+ type EntryRow=EntryInput & {id:string};
+ type SourceInput=Omit<SourceRow,'id'>;
+ const sources:SourceRow[]=[],entries:EntryRow[]=[];
+ const costSourceSnapshot={findMany:vi.fn(async({where}:{where:{sourceKind:string;bucketKey:{startsWith:string}}})=>sources.filter(row=>row.sourceKind===where.sourceKind&&row.bucketKey.startsWith(where.bucketKey.startsWith)).sort((a,b)=>b.revision-a.revision).map(row=>({...row,entries:entries.filter(entry=>entry.sourceSnapshotId===row.id&&entry.kind==='CHARGE')}))),create:vi.fn(async({data}: {data:SourceInput})=>{const row={id:`s${sources.length}`,...data} as SourceRow;sources.push(row);return row;}),createMany:vi.fn(async({data}:{data:SourceInput[]})=>{sources.push(...data.map((row,index)=>({id:`s${sources.length+index}`,...row} as SourceRow)));})};
+ const costEntry={create:vi.fn(async({data}:{data:EntryInput})=>{const row={id:`e${entries.length}`,...data};entries.push(row);return row;}),createMany:vi.fn(async({data}:{data:EntryInput[]})=>{entries.push(...data.map((row,index)=>({id:`e${entries.length+index}`,...row})));})};
+ const tx={costSourceSnapshot,costEntry,siteSetting:{upsert:vi.fn()}};
  return {sources,entries,tx:tx as unknown as Prisma.TransactionClient};
 }
 describe('Accounts append-only projection',()=>{

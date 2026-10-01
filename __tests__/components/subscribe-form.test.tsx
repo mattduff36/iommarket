@@ -65,7 +65,8 @@ describe("SubscribeForm demo checkout flow", () => {
     fireEvent.click(subscribe);
     await waitFor(() => expect(createDealerSubscription).toHaveBeenCalledWith({ tier: "STARTER", testPlan: false, acceptedDealerTerms: true }));
     await waitFor(() => expect(openSpy).toHaveBeenCalled());
-    expect(openSpy.mock.calls[0][0]).toBe(checkoutUrl);
+    expect(openSpy.mock.calls[0][0]).toBe("about:blank");
+    expect(await screen.findByRole("link", { name: "Open checkout in a new tab" })).toHaveAttribute("href", checkoutUrl);
     openSpy.mockRestore();
   });
 

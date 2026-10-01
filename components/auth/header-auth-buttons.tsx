@@ -30,6 +30,7 @@ export interface AuthState {
 
 interface Props {
   authState: AuthState;
+  onEditListingAsAdmin?: () => void;
 }
 
 type FlyoutSide = "left" | "right" | "bottom";
@@ -47,7 +48,7 @@ export function resolveFlyoutSide(trigger: HTMLElement | null): FlyoutSide {
   return "bottom";
 }
 
-export function HeaderAuthButtons({ authState }: Props) {
+export function HeaderAuthButtons({ authState, onEditListingAsAdmin }: Props) {
   const { user, displayName, role, loading, handleSignOut } = authState;
   const accountNavItems = getAccountNavItems(role);
   const previewControls = usePreviewControls();
@@ -155,6 +156,11 @@ export function HeaderAuthButtons({ authState }: Props) {
                     {item.label}
                   </Link>
                 </DropdownMenuItem>,
+                onEditListingAsAdmin ? (
+                  <DropdownMenuItem key="edit-listing-admin" className="!text-red-400 hover:!text-red-300" onSelect={() => { setAccountMenuOpen(false); onEditListingAsAdmin(); }}>
+                    <ShieldCheck className="mr-2 h-4 w-4 shrink-0" />Edit as Admin
+                  </DropdownMenuItem>
+                ) : null,
                 <DropdownMenuSub key="preview-packs">
                   <DropdownMenuSubTrigger
                     ref={previewTriggerRef}

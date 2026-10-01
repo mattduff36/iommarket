@@ -18,6 +18,7 @@ interface RippleDemoCheckoutDialogProps {
   onOpenChange: (open: boolean) => void;
   checkoutUrl: string | null;
   checkoutLabel: string;
+  onManualCheckoutOpened?: () => void;
   demoOutcomeControls?: {
     isPending?: boolean;
     error?: string | null;
@@ -27,13 +28,18 @@ interface RippleDemoCheckoutDialogProps {
 }
 
 export function openCheckoutInNewTab(checkoutUrl: string) {
-  const checkoutWindow = window.open(
-    checkoutUrl,
-    "_blank",
-    "noopener,noreferrer"
-  );
-
-  checkoutWindow?.focus();
+  // A noopener window.open returns null even when it opens, so first obtain a
+  // blank tab and sever its opener before navigating to provider content.
+  const checkoutWindow = window.open("about:blank", "_blank");
+  if (!checkoutWindow) return false;
+  checkoutWindow.opener = null;
+  const policy = checkoutWindow.document.createElement("meta");
+  policy.name = "referrer";
+  policy.content = "no-referrer";
+  checkoutWindow.document.head.appendChild(policy);
+  checkoutWindow.location.replace(checkoutUrl);
+  checkoutWindow.focus();
+  return true;
 }
 
 export function RippleDemoCheckoutDialog({
@@ -41,11 +47,33 @@ export function RippleDemoCheckoutDialog({
   onOpenChange,
   checkoutUrl,
   checkoutLabel,
+  onManualCheckoutOpened,
   demoOutcomeControls,
 }: RippleDemoCheckoutDialogProps) {
   function handleContinue() {
     if (!checkoutUrl) return;
     openCheckoutInNewTab(checkoutUrl);
+  }
+
+  if (checkoutUrl && !isRippleDemoCheckoutUrl(checkoutUrl)) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Open payment checkout</DialogTitle>
+            <DialogDescription>
+              Your checkout is ready, but your browser did not open the payment tab.
+              Use the button below to continue. Your saved listing is safe.
+            </DialogDescription>
+          </DialogHeader>
+          <Button asChild>
+            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={onManualCheckoutOpened}>
+              Open checkout in a new tab
+            </a>
+          </Button>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -177,10 +205,15 @@ export function useRippleDemoCheckout() {
     if (isRippleDemoCheckoutUrl(checkoutUrl)) {
       setDemoCheckoutUrl(checkoutUrl);
       setDemoDialogOpen(true);
-      return;
+      return false;
     }
 
-    openCheckoutInNewTab(checkoutUrl);
+    const opened = openCheckoutInNewTab(checkoutUrl);
+    if (!opened) {
+      setDemoCheckoutUrl(checkoutUrl);
+      setDemoDialogOpen(true);
+    }
+    return opened;
   }, []);
 
   return {

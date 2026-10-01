@@ -163,6 +163,7 @@ export function parseRippleWebhookEnvelope(payload: unknown): {
       if (claims) {
         if (
           claims.purpose === "listing_payment" ||
+          claims.purpose === "listing_and_featured" ||
           claims.purpose === "featured_upgrade"
         ) {
           listingId = claims.targetId;

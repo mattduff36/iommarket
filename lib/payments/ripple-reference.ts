@@ -8,6 +8,7 @@ import {
 
 export type RippleReferencePurpose =
   | "listing_payment"
+  | "listing_and_featured"
   | "featured_upgrade"
   | "dealer_subscription";
 
@@ -22,6 +23,7 @@ export interface RippleReferenceClaims {
 
 const PURPOSE_ALIASES: Record<string, RippleReferencePurpose> = {
   listing_payment: "listing_payment",
+  listing_and_featured: "listing_and_featured",
   featured_upgrade: "featured_upgrade",
   dealer_subscription: "dealer_subscription",
 };

@@ -11,6 +11,7 @@ const hasOperationalDealerAccessMock = vi.fn();
 const getSellFormDataMock = vi.fn();
 const getEditableDraftMock = vi.fn();
 const ensureAdminDealerProfileMock = vi.fn();
+const getMarketplacePricingMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => redirectMock(path),
@@ -39,6 +40,10 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/listings/editable-draft", () => ({
   getEditableDraft: getEditableDraftMock,
+}));
+
+vi.mock("@/lib/config/marketplace-pricing", () => ({
+  getMarketplacePricing: (...args: unknown[]) => getMarketplacePricingMock(...args),
 }));
 
 vi.mock("@/app/(public)/sell/sell-form-data", () => ({
@@ -72,6 +77,10 @@ describe("SellDealerPage", () => {
     getEditableDraftMock.mockResolvedValue(null);
     ensureAdminDealerProfileMock.mockImplementation(async (user: unknown) => user);
     hasOperationalDealerAccessMock.mockResolvedValue(true);
+    getMarketplacePricingMock.mockResolvedValue({
+      privateListingPence: 499,
+      featuredUpgradePence: 500,
+    });
   });
 
   it("unlocks dealer listing creation for an active admin grant", async () => {

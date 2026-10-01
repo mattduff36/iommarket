@@ -8,10 +8,11 @@ import {
 } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
+import { ADMIN_NAV } from "@/lib/admin/nav";
 
 describe("AdminMobileNav", () => {
   it("keeps every navigation group in an independently scrollable menu region", async () => {
-    render(<AdminMobileNav />);
+    render(<AdminMobileNav items={ADMIN_NAV} />);
 
     const adminBar = screen.getByRole("button", { name: "Open admin menu" }).parentElement;
     expect(adminBar?.className).toContain("top-16");
@@ -37,6 +38,14 @@ describe("AdminMobileNav", () => {
         .getAttribute("href"),
     ).toBe("/admin/checklist");
     expect(within(dialog).queryByRole("link", { name: "Back to site" })).toBeNull();
+  });
+
+  it("omits the optional checklist when no feature-gated navigation is supplied", async () => {
+    render(<AdminMobileNav />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open admin menu" }));
+    const dialog = await screen.findByRole("dialog", { name: "Admin Navigation" });
+    expect(within(dialog).queryByRole("link", { name: "Checklist" })).toBeNull();
   });
 
   it("returns focus to the menu trigger and can reopen", async () => {

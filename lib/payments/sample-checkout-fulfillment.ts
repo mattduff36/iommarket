@@ -44,7 +44,8 @@ export async function fulfillSampleCheckout(
   if (payment.count !== 1) throw new Error("Sample payment record is unavailable.");
   if (outcome !== "SUCCEEDED") return;
   if (checkout.kind === "featured_upgrade") {
-    await tx.listing.update({ where: { id: checkout.targetId }, data: { featured: true } });
+    const { applyPaidFeaturedEntitlement } = await import("./featured-entitlement");
+    await applyPaidFeaturedEntitlement(checkout.targetId, tx);
     return;
   }
   const event: NormalizedProviderWebhookEvent = {
@@ -55,7 +56,7 @@ export async function fulfillSampleCheckout(
     currentPeriodEnd: null, cancelAtPeriodEnd: null, eventTimestamp: now, clientId: null,
     customerEmail: null, linkCode: null, packageName: null, recurring: false, linkType: "one-off",
     fingerprint: attemptReference,
-    metadata: { checkoutType: "listing_payment", listingId: checkout.targetId, dealerId: null, tier: null },
+    metadata: { checkoutType: checkout.kind === "listing_and_featured" ? "listing_and_featured" : "listing_payment", listingId: checkout.targetId, dealerId: null, tier: null },
     payload: { simulated: true },
   };
   // Reuse actual moderation/validation rules. Sample payments do not send external emails.
