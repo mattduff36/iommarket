@@ -3,7 +3,7 @@ import { Inter, Orbitron } from "next/font/google";
 import { ThemeProvider } from "@once-ui-system/core";
 import { PreviewArrival } from "@/components/launch/preview-arrival";
 import { ClientErrorListener } from "@/components/monitoring/client-error-listener";
-import { isPreviewRehearsalBranch, PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
+import { launchWelcomeEnvironment, PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 import { ConsentedAnalytics } from "@/components/layout/consented-analytics";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
@@ -59,7 +59,12 @@ export default function RootLayout({
       <body className="min-h-screen antialiased bg-canvas text-text-primary">
         <ThemeProvider theme="dark" brand="blue" accent="indigo">
           {children}
-          {isPreviewRehearsalBranch() ? <PreviewArrival opensAt={PREVIEW_GATE_OPENS_AT} /> : null}
+          {process.env.VERCEL_ENV === "preview" ? null : (
+            <PreviewArrival
+              opensAt={PUBLIC_LAUNCH_AT}
+              environment={launchWelcomeEnvironment()}
+            />
+          )}
           <ClientErrorListener />
           <ConsentedAnalytics />
         </ThemeProvider>

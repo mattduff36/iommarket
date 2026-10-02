@@ -5,15 +5,21 @@ import { HeadlightsReveal } from "@/components/launch/headlights-reveal";
 import { hasSeenLaunch, markSeenLaunch } from "@/lib/launch/launch-seen";
 import { previewWelcomeEndsAt } from "@/lib/launch/preview-welcome";
 
-export function PreviewArrival({ opensAt }: { opensAt: number }) {
+export function PreviewArrival({
+  opensAt,
+  environment = "public",
+}: {
+  opensAt: number;
+  environment?: string;
+}) {
   const [play, setPlay] = useState(false);
 
   useEffect(() => {
     const now = Date.now();
-    if (now < opensAt || now >= previewWelcomeEndsAt(opensAt) || hasSeenLaunch(opensAt)) return;
-    markSeenLaunch(opensAt);
+    if (now < opensAt || now >= previewWelcomeEndsAt(opensAt) || hasSeenLaunch(opensAt, environment)) return;
+    markSeenLaunch(opensAt, environment);
     setPlay(true);
-  }, [opensAt]);
+  }, [opensAt, environment]);
 
   if (!play) return null;
 

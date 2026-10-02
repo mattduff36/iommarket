@@ -11,8 +11,8 @@ function readCookie(name: string): string {
   }
 }
 
-export function hasSeenLaunch(opensAt: number): boolean {
-  const name = previewWelcomeCookieName(opensAt);
+export function hasSeenLaunch(opensAt: number, environment = "public"): boolean {
+  const name = previewWelcomeCookieName(opensAt, environment);
   if (memorySeen.has(name)) return true;
   if (typeof document === "undefined") return false;
   if (readCookie(name) === "1") return true;
@@ -23,8 +23,8 @@ export function hasSeenLaunch(opensAt: number): boolean {
   }
 }
 
-export function markSeenLaunch(opensAt: number): void {
-  const name = previewWelcomeCookieName(opensAt);
+export function markSeenLaunch(opensAt: number, environment = "public"): void {
+  const name = previewWelcomeCookieName(opensAt, environment);
   memorySeen.add(name);
   try {
     document.cookie = `${name}=1; Path=/; SameSite=Lax`;

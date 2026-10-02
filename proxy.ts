@@ -3,7 +3,6 @@ import { isPaymentReturnPath } from "@/lib/payments/return-routes";
 import { CHECKOUT_ENVIRONMENT_COOKIE, stagingReturnDestination } from "@/lib/payments/staging-return-routing";
 import { createServerClient } from "@supabase/ssr";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
-import { previewRehearsalStillClosed } from "@/lib/launch/preview-rehearsal";
 import { classifyLaunchRoute } from "@/lib/launch/route-class";
 import {
   launchEnvironmentLabel,
@@ -63,10 +62,8 @@ function hasValidLaunchSession(request: NextRequest): boolean {
   });
 }
 
-function rehearsalResponse(response: NextResponse): NextResponse {
-  if (previewRehearsalStillClosed()) {
-    response.headers.set("Cache-Control", "no-store");
-  }
+function launchGateResponse(response: NextResponse): NextResponse {
+  response.headers.set("Cache-Control", "no-store");
   return response;
 }
 
@@ -85,9 +82,8 @@ function gatedApiResponse(): NextResponse {
 
 /**
  * Request proxy:
- * 1. Gates production and local runtimes until the launch flag is enabled.
- *    The preview branch stays gated until its rehearsal time, then opens.
- *    Other Vercel Preview deployments stay open. A signed expiring cookie
+ * 1. Gates production and local runtimes until 10:00 BST on 3 October 2026.
+ *    Vercel Preview stays open. A signed expiring cookie
  *    unlocks production without granting a Supabase identity.
  * 2. Refreshes Supabase sessions and guards private pages.
  */
@@ -152,12 +148,12 @@ export async function proxy(request: NextRequest) {
 
   if (!unlocked) {
     if (routeClass === "homepage") {
-      return rehearsalResponse(NextResponse.rewrite(new URL("/holding", request.url)));
+      return launchGateResponse(NextResponse.rewrite(new URL("/holding", request.url)));
     }
     if (routeClass === "legal") {
       return NextResponse.next();
     }
-    return rehearsalResponse(NextResponse.redirect(new URL("/", request.url)));
+    return launchGateResponse(NextResponse.redirect(new URL("/", request.url)));
   }
 
   if (sessionUnlocked) return sessionResponse;

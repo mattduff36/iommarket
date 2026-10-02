@@ -29,6 +29,7 @@ describe("early-access launch gate", () => {
   afterEach(() => {
     restoreEnv();
     hasConfirmedSupabaseSession.mockReset();
+    vi.useRealTimers();
   });
 
   it("keeps Preview open unless the QA flag is exactly 1", async () => {
@@ -46,6 +47,8 @@ describe("early-access launch gate", () => {
   });
 
   it("allows sign-in and blocks catalogue APIs until a confirmed session is present", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     process.env.VERCEL_ENV = "production";
     delete process.env.PRODUCTION_LAUNCH_ENABLED;
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;

@@ -5,7 +5,7 @@ import { CookieBanner } from "@/components/layout/cookie-banner";
 import { HoldingHeader } from "@/components/layout/holding-header";
 import { PreviewHoldingLaunch } from "@/components/launch/preview-holding-launch";
 import { LaunchCountdown } from "@/components/holding/launch-countdown";
-import { holdingCountdownTarget, PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
+import { holdingCountdownTarget, launchWelcomeEnvironment } from "@/lib/launch/preview-rehearsal";
 import styles from "./holding.module.css";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function HoldingPage() {
   const countdown = holdingCountdownTarget();
-  const previewRehearsal = countdown.opensAt === PREVIEW_GATE_OPENS_AT;
+  const launchEnvironment = launchWelcomeEnvironment();
 
   return (
     <div
@@ -40,7 +40,7 @@ export default function HoldingPage() {
 
         <div className={styles.badge} data-launch-chrome>
           <span className={styles.dot} aria-hidden="true" />
-          <span>{previewRehearsal ? "Opening shortly" : "Launching this Saturday"}</span>
+          <span>Launching this Saturday</span>
           <span className={styles.dot} aria-hidden="true" />
         </div>
 
@@ -60,17 +60,15 @@ export default function HoldingPage() {
         </p>
 
         <p data-launch-chrome className="mt-8 text-center font-heading text-sm font-semibold text-text-primary sm:text-base">
-          <time dateTime={previewRehearsal ? "2026-10-03T00:40:00+01:00" : "2026-10-03T10:00:00+01:00"}>
+          <time dateTime="2026-10-03T10:00:00+01:00">
             Saturday 3 October{" "}
-            <span className="whitespace-nowrap text-[#ff714a]">
-              {previewRehearsal ? "· 00:40 BST" : "· 10:00 BST"}
-            </span>
+            <span className="whitespace-nowrap text-[#ff714a]">· 10:00 BST</span>
           </time>
         </p>
-        {previewRehearsal ? (
-          <PreviewHoldingLaunch opensAt={countdown.opensAt} />
+        {countdown.releaseOnZero ? (
+          <PreviewHoldingLaunch opensAt={countdown.opensAt} environment={launchEnvironment} />
         ) : (
-          <LaunchCountdown opensAt={countdown.opensAt} releaseOnZero={countdown.releaseOnZero} />
+          <LaunchCountdown opensAt={countdown.opensAt} releaseOnZero={false} />
         )}
         <p data-launch-chrome className="mt-2 text-center text-sm text-metallic-300">
           The wait is almost over. Be here for the start.

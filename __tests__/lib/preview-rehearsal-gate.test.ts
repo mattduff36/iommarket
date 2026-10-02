@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
-import { PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
+import { PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 
 const hasConfirmedSupabaseSession = vi.hoisted(() => vi.fn());
 
@@ -31,42 +31,41 @@ const previewBranch = {
   VERCEL_GIT_COMMIT_REF: "preview",
 } as const;
 
-describe("preview launch rehearsal", () => {
+describe("public launch gate", () => {
   afterEach(() => {
     restoreEnv();
     hasConfirmedSupabaseSession.mockReset();
     vi.useRealTimers();
   });
 
-  it("keeps the preview branch closed until 00:40 BST and then opens it", () => {
-    expect(shouldEnforceLaunchGate(previewBranch, PREVIEW_GATE_OPENS_AT - 1)).toBe(true);
-    expect(
-      shouldEnforceLaunchGate(
-        { ...previewBranch, PREVIEW_LAUNCH_GATE_QA: "1" },
-        PREVIEW_GATE_OPENS_AT,
-      ),
-    ).toBe(false);
-  });
-
-  it("leaves other preview deployments and production on their existing switches", () => {
+  it("leaves preview open, including the preview branch", () => {
+    expect(shouldEnforceLaunchGate(previewBranch, PUBLIC_LAUNCH_AT - 1)).toBe(false);
     expect(
       shouldEnforceLaunchGate(
         { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "feature/other" },
-        PREVIEW_GATE_OPENS_AT - 1,
+        PUBLIC_LAUNCH_AT - 1,
       ),
     ).toBe(false);
     expect(
-      shouldEnforceLaunchGate({ VERCEL_ENV: "production" }, PREVIEW_GATE_OPENS_AT),
+      shouldEnforceLaunchGate(
+        { ...previewBranch, PREVIEW_LAUNCH_GATE_QA: "1" },
+        PUBLIC_LAUNCH_AT,
+      ),
     ).toBe(true);
+  });
+
+  it("keeps production closed until 10:00 BST and then opens it", () => {
+    expect(shouldEnforceLaunchGate({ VERCEL_ENV: "production" }, PUBLIC_LAUNCH_AT - 1)).toBe(true);
+    expect(shouldEnforceLaunchGate({ VERCEL_ENV: "production" }, PUBLIC_LAUNCH_AT)).toBe(false);
     expect(
       shouldEnforceLaunchGate(
         { VERCEL_ENV: "production", PRODUCTION_LAUNCH_ENABLED: "1" },
-        PREVIEW_GATE_OPENS_AT - 1,
+        PUBLIC_LAUNCH_AT - 1,
       ),
     ).toBe(false);
   });
 
-  it("serves the holding page on the preview branch and removes it at 00:40", async () => {
+  it("serves the holding page on production until 10:00 and leaves preview open", async () => {
     vi.useFakeTimers();
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_GIT_COMMIT_REF = "preview";
@@ -76,23 +75,22 @@ describe("preview launch rehearsal", () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const { proxy } = await import("@/proxy");
 
-    vi.setSystemTime(PREVIEW_GATE_OPENS_AT - 1);
-    const closed = await proxy(new NextRequest("https://preview.itrader.im/"));
-    expect(closed.headers.get("x-middleware-rewrite")).toContain("/holding");
-    expect(closed.headers.get("cache-control")).toBe("no-store");
-
-    const redirected = await proxy(new NextRequest("https://preview.itrader.im/search"));
-    expect(redirected.headers.get("location")).toBe("https://preview.itrader.im/");
-    expect(redirected.headers.get("cache-control")).toBe("no-store");
-
-    vi.setSystemTime(PREVIEW_GATE_OPENS_AT);
-    const open = await proxy(new NextRequest("https://preview.itrader.im/"));
-    expect(open.headers.get("x-middleware-rewrite")).toBeNull();
+    vi.setSystemTime(PUBLIC_LAUNCH_AT - 1);
+    const preview = await proxy(new NextRequest("https://preview.itrader.im/"));
+    expect(preview.headers.get("x-middleware-rewrite")).toBeNull();
 
     process.env.VERCEL_ENV = "production";
     delete process.env.VERCEL_GIT_COMMIT_REF;
-    const production = await proxy(new NextRequest("https://itrader.im/"));
-    expect(production.headers.get("x-middleware-rewrite")).toContain("/holding");
-    expect(production.headers.get("cache-control")).not.toBe("no-store");
+    const closed = await proxy(new NextRequest("https://itrader.im/"));
+    expect(closed.headers.get("x-middleware-rewrite")).toContain("/holding");
+    expect(closed.headers.get("cache-control")).toBe("no-store");
+
+    const redirected = await proxy(new NextRequest("https://itrader.im/search"));
+    expect(redirected.headers.get("location")).toBe("https://itrader.im/");
+    expect(redirected.headers.get("cache-control")).toBe("no-store");
+
+    vi.setSystemTime(PUBLIC_LAUNCH_AT);
+    const open = await proxy(new NextRequest("https://itrader.im/"));
+    expect(open.headers.get("x-middleware-rewrite")).toBeNull();
   });
 });

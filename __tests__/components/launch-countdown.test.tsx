@@ -5,7 +5,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LaunchCountdown, launchRelease } from "@/components/holding/launch-countdown";
-import { PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
+import { PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 
 function digits() {
   return Array.from(screen.getByRole("timer").children).map((tile) => tile.firstElementChild?.textContent);
@@ -58,21 +58,21 @@ describe("LaunchCountdown", () => {
   it("reloads the preview rehearsal when the clock reaches zero", () => {
     const reload = vi.spyOn(launchRelease, "reload").mockImplementation(() => undefined);
     window.sessionStorage.clear();
-    vi.setSystemTime(new Date(PREVIEW_GATE_OPENS_AT));
-    render(<LaunchCountdown opensAt={PREVIEW_GATE_OPENS_AT} releaseOnZero />);
+    vi.setSystemTime(new Date(PUBLIC_LAUNCH_AT));
+    render(<LaunchCountdown opensAt={PUBLIC_LAUNCH_AT} releaseOnZero />);
     act(() => vi.advanceTimersByTime(0));
     expect(screen.getByRole("status")).toHaveTextContent("Opening the site…");
     act(() => vi.advanceTimersByTime(0));
     expect(reload).toHaveBeenCalledTimes(1);
-    expect(window.sessionStorage.getItem(`itrader-preview-launch-release:${PREVIEW_GATE_OPENS_AT}`)).toBe("1");
+    expect(window.sessionStorage.getItem(`itrader-preview-launch-release:${PUBLIC_LAUNCH_AT}`)).toBe("1");
     reload.mockRestore();
   });
 
   it("stops reloading after the rehearsal retries are used", () => {
     const reload = vi.spyOn(launchRelease, "reload").mockImplementation(() => undefined);
-    window.sessionStorage.setItem(`itrader-preview-launch-release:${PREVIEW_GATE_OPENS_AT}`, "12");
-    vi.setSystemTime(new Date(PREVIEW_GATE_OPENS_AT));
-    render(<LaunchCountdown opensAt={PREVIEW_GATE_OPENS_AT} releaseOnZero />);
+    window.sessionStorage.setItem(`itrader-preview-launch-release:${PUBLIC_LAUNCH_AT}`, "12");
+    vi.setSystemTime(new Date(PUBLIC_LAUNCH_AT));
+    render(<LaunchCountdown opensAt={PUBLIC_LAUNCH_AT} releaseOnZero />);
     act(() => vi.advanceTimersByTime(10_000));
     expect(reload).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("Please refresh to check for access.");

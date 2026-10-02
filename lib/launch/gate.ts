@@ -1,10 +1,10 @@
-import { isPreviewRehearsalBranch, PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
+import { PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 import type { RuntimeEnv } from "@/lib/runtime-env";
 
 /**
- * Production stays gated until PRODUCTION_LAUNCH_ENABLED is exactly "1".
- * The preview branch stays gated until 00:40 BST on 3 October 2026, then opens.
- * Other Vercel Preview deployments stay open unless PREVIEW_LAUNCH_GATE_QA is exactly "1".
+ * Production and local runtimes stay gated until 10:00 BST on 3 October 2026.
+ * PRODUCTION_LAUNCH_ENABLED exactly "1" opens them sooner.
+ * Vercel Preview stays open unless PREVIEW_LAUNCH_GATE_QA is exactly "1".
  * Missing or malformed configuration fails closed.
  */
 export const PRODUCTION_LAUNCH_FLAG = "PRODUCTION_LAUNCH_ENABLED";
@@ -22,11 +22,10 @@ export function shouldEnforceLaunchGate(
   now = Date.now(),
 ): boolean {
   if (env.VERCEL_ENV === "preview") {
-    if (isPreviewRehearsalBranch(env)) return now < PREVIEW_GATE_OPENS_AT;
     return env[PREVIEW_LAUNCH_GATE_QA_FLAG] === PRODUCTION_LAUNCH_ENABLED_VALUE;
   }
   if (isProductionLaunchEnabled(env)) return false;
-  return true;
+  return now < PUBLIC_LAUNCH_AT;
 }
 
 export function isCataloguePubliclyVisible(

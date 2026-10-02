@@ -44,6 +44,7 @@ describe("sitemap", () => {
     else process.env.PRODUCTION_LAUNCH_ENABLED = originalLaunch;
     if (originalVercel === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = originalVercel;
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -121,6 +122,8 @@ describe("sitemap", () => {
   });
 
   it("omits catalogue URLs and does not query the database while production is gated", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     process.env.VERCEL_ENV = "production";
     delete process.env.PRODUCTION_LAUNCH_ENABLED;
     const entries = await sitemap();

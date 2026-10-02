@@ -48,7 +48,13 @@ function centerTransform(from: DOMRect) {
   return `translate(${left - from.left}px, ${top - from.top}px) scale(${scale})`;
 }
 
-export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
+export function PreviewHoldingLaunch({
+  opensAt,
+  environment = "public",
+}: {
+  opensAt: number;
+  environment?: string;
+}) {
   const secondsRef = useRef<HTMLDivElement>(null);
   const focusCardRef = useRef<HTMLDivElement>(null);
   const focusDigitsRef = useRef<HTMLSpanElement>(null);
@@ -69,7 +75,7 @@ export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
         setSecondsLeft(0);
         if (!releaseStarted.current) {
           releaseStarted.current = true;
-          const expired = Date.now() >= previewWelcomeEndsAt(opensAt) || hasSeenLaunch(opensAt);
+          const expired = Date.now() >= previewWelcomeEndsAt(opensAt) || hasSeenLaunch(opensAt, environment);
           if (expired) {
             const attempts = releaseAttempts(opensAt);
             if (attempts >= RELEASE_MAX_ATTEMPTS) setExhausted(true);
@@ -84,7 +90,7 @@ export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
               }, attempts === 0 ? 0 : RELEASE_RETRY_MS);
             }
           } else {
-            markSeenLaunch(opensAt);
+            markSeenLaunch(opensAt, environment);
             setReveal(true);
           }
         }
@@ -106,7 +112,7 @@ export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [opensAt]);
+  }, [opensAt, environment]);
 
   const focusing = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 0;
 
