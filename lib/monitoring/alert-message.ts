@@ -1,11 +1,15 @@
 import type { MonitoringSeverity } from "./types";
 
+export function normaliseAlertSubject(subject: string): string {
+  return subject.replace(/[\r\n\t]+/g, " ").replace(/ {2,}/g, " ").trim().slice(0, 300);
+}
+
 export function buildAlertSubject(params: {
   severity: MonitoringSeverity;
   source: string;
   title: string;
 }) {
-  return `[Monitoring][${params.severity}] ${params.source} - ${params.title}`;
+  return normaliseAlertSubject(`[Monitoring][${params.severity}] ${params.source} - ${params.title}`);
 }
 
 export function buildAlertText(params: {

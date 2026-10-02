@@ -1,5 +1,6 @@
 import { sendResendEmail } from "@/lib/email/client";
 import { renderBrandedEmail } from "@/lib/email/layout";
+import { normaliseAlertSubject } from "@/lib/monitoring/alert-message";
 
 export function buildMonitoringAlertEmail(input: { subject: string; text: string }) {
   const reviewPrefix = "Review in admin: ";
@@ -9,7 +10,7 @@ export function buildMonitoringAlertEmail(input: { subject: string; text: string
   const safeReviewUrl = reviewUrl && /^https?:\/\//i.test(reviewUrl) ? reviewUrl : undefined;
   const rendered = renderBrandedEmail({
     title: "Monitoring alert",
-    intro: input.subject,
+    intro: normaliseAlertSubject(input.subject),
     paragraphs: lines.filter((line) => line !== reviewLine && line.trim().length > 0),
     ...(safeReviewUrl
       ? { actionHref: safeReviewUrl, actionLabel: "Review alert" }
@@ -17,7 +18,7 @@ export function buildMonitoringAlertEmail(input: { subject: string; text: string
   });
 
   return {
-    subject: input.subject,
+    subject: normaliseAlertSubject(input.subject),
     text: input.text,
     html: rendered.html,
   };
