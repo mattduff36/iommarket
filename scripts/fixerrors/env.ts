@@ -1,18 +1,13 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { parseEnv } from "node:util";
 
 function parseEnvFile(filePath: string): Record<string, string> {
   if (!existsSync(filePath)) return {};
   const values: Record<string, string> = {};
-  for (const line of readFileSync(filePath, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
-    if (key) values[key] = val;
+  for (const [key, value] of Object.entries(parseEnv(readFileSync(filePath, "utf8")))) {
+    if (value !== undefined) values[key] = value;
   }
   return values;
 }
