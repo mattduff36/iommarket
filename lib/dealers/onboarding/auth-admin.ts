@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   assertRecoveryRedirectTarget,
@@ -122,36 +120,4 @@ export async function invalidateDealerAuthSessions(authUserId: string) {
     },
   });
   if (error) throw new Error("Unable to revoke the dealer session.");
-
-  await deleteAuthRows(
-    Prisma.sql`DELETE FROM auth.sessions WHERE user_id = CAST(${authUserId} AS uuid)`,
-  );
-  await deleteAuthRows(
-    Prisma.sql`DELETE FROM auth.refresh_tokens WHERE user_id = ${authUserId}`,
-  );
-  await deleteAuthRows(
-    Prisma.sql`DELETE FROM auth.one_time_tokens WHERE user_id = CAST(${authUserId} AS uuid)`,
-  );
-}
-
-async function deleteAuthRows(query: Prisma.Sql) {
-  try {
-    await db.$executeRaw(query);
-  } catch (error) {
-    if (isMissingAuthRelation(error)) return;
-    throw new Error("Unable to revoke the dealer session.");
-  }
-}
-
-function isMissingAuthRelation(error: unknown) {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2010"
-  ) {
-    return String(error.meta?.code) === "42P01";
-  }
-  return (
-    error instanceof Error &&
-    error.message.toLowerCase().includes("does not exist")
-  );
 }
