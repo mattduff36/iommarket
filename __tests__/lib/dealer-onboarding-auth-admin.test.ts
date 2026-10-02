@@ -1,21 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { generateLinkMock } = vi.hoisted(() => ({
+const { generateLinkMock, getUserByIdMock, updateUserByIdMock } = vi.hoisted(() => ({
   generateLinkMock: vi.fn(),
+  getUserByIdMock: vi.fn(),
+  updateUserByIdMock: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: () => ({
     auth: {
       admin: {
         generateLink: generateLinkMock,
+        getUserById: getUserByIdMock,
+        updateUserById: updateUserByIdMock,
       },
     },
   }),
 }));
 
-import { generateDealerRecoveryLink } from "@/lib/dealers/onboarding/auth-admin";
+import {
+  generateDealerRecoveryLink,
+  invalidateDealerAuthSessions,
+} from "@/lib/dealers/onboarding/auth-admin";
 import { buildOnboardingRedirectUrl } from "@/lib/dealers/onboarding/recovery-link";
 
 describe("dealer onboarding recovery generation", () => {
@@ -86,5 +92,36 @@ describe("dealer onboarding recovery generation", () => {
         redirectTo,
       }),
     ).rejects.toThrow("Unable to start secure account claim.");
+  });
+
+  it("invalidates old sessions through supported auth metadata without direct auth table writes", async () => {
+    getUserByIdMock.mockResolvedValue({
+      data: {
+        user: {
+          app_metadata: { dealer: true },
+        },
+      },
+      error: null,
+    });
+    updateUserByIdMock.mockResolvedValue({
+      data: { user: { id: "11111111-1111-1111-1111-111111111111" } },
+      error: null,
+    });
+
+    await expect(
+      invalidateDealerAuthSessions(
+        "11111111-1111-1111-1111-111111111111",
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(updateUserByIdMock).toHaveBeenCalledWith(
+      "11111111-1111-1111-1111-111111111111",
+      {
+        app_metadata: {
+          dealer: true,
+          onboarding_session_invalid_before: expect.any(Number),
+        },
+      },
+    );
   });
 });

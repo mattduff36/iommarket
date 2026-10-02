@@ -55,8 +55,19 @@ describe("FeaturedOwnerBanner", () => {
     await user.click(screen.getByRole("button", { name: "How to upgrade later" }));
     const dialog = screen.getByRole("dialog", { name: "Upgrade later" });
     expect(dialog).toHaveTextContent("My listings");
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "OK" })).toHaveClass("w-full");
 
     await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Upgrade later" })).not.toBeInTheDocument();
+  });
+
+  it("closes the upgrade-later dialog from the labelled OK button", async () => {
+    const user = userEvent.setup();
+    render(<FeaturedOwnerBanner listingId="listing-4" featuredUpgradePricePence={500} />);
+
+    await user.click(screen.getByRole("button", { name: "How to upgrade later" }));
+    await user.click(screen.getByRole("button", { name: "OK" }));
     expect(screen.queryByRole("dialog", { name: "Upgrade later" })).not.toBeInTheDocument();
   });
 

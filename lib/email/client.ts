@@ -41,20 +41,26 @@ export async function sendResendEmail(input: {
   text: string;
   html?: string;
   replyTo?: string;
+  idempotencyKey?: string;
 }): Promise<void> {
   const resend = getResendClient();
   if (!resend) return;
   const recipients = Array.isArray(input.to) ? input.to : [input.to];
   if (recipients.length === 0) return;
 
-  const result = await resend.emails.send({
-    from: getFromEmail(),
-    to: recipients,
-    subject: input.subject,
-    text: input.text,
-    html: input.html,
-    replyTo: input.replyTo,
-  });
+  const result = await resend.emails.send(
+    {
+      from: getFromEmail(),
+      to: recipients,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      replyTo: input.replyTo,
+    },
+    input.idempotencyKey
+      ? { idempotencyKey: input.idempotencyKey }
+      : undefined,
+  );
 
   if (result.error) {
     throw new Error(result.error.message);

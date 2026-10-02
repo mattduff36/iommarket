@@ -9,6 +9,8 @@ const {
   checkRateLimitMock,
   makeRateLimitKeyMock,
   revalidatePathMock,
+  paymentFindUnique,
+  chargeFindFirst,
 } = vi.hoisted(() => ({
   cookiesMock: vi.fn(),
   getCurrentUserMock: vi.fn(),
@@ -18,6 +20,8 @@ const {
   checkRateLimitMock: vi.fn(),
   makeRateLimitKeyMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+  paymentFindUnique: vi.fn(),
+  chargeFindFirst: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
@@ -37,8 +41,14 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: checkRateLimitMock,
   makeRateLimitKey: makeRateLimitKeyMock,
 }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    payment: { findUnique: (...args: unknown[]) => paymentFindUnique(...args) },
+    subscriptionCharge: { findFirst: (...args: unknown[]) => chargeFindFirst(...args) },
+  },
+}));
 
-import { confirmHostedListingPayment } from "@/actions/hosted-payment-return";
+import { confirmHostedListingPayment, readHostedCheckoutLink } from "@/actions/hosted-payment-return";
 
 const context = {
   userId: "user-1",
@@ -141,5 +151,48 @@ describe("confirmHostedListingPayment", () => {
       ["/sell/checkout"],
       ["/account/listings"],
     ]);
+  });
+});
+
+describe("readHostedCheckoutLink", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cookiesMock.mockResolvedValue({ get: () => ({ value: "signed-context" }) });
+    decodeContextMock.mockReturnValue(context);
+    getCurrentUserMock.mockResolvedValue(sessionUser);
+    supabaseGetUserMock.mockResolvedValue({ data: { user: authUser } });
+    makeRateLimitKeyMock.mockReturnValue("hosted-return:user-1");
+    checkRateLimitMock.mockResolvedValue({ allowed: true, unavailable: false });
+  });
+
+  it("confirms a linked payment from the signed cookie without reconciling a provider reference", async () => {
+    paymentFindUnique.mockResolvedValue({
+      status: "SUCCEEDED",
+      refundedAt: null,
+      listingId: "listing-1",
+      listing: { userId: "user-1" },
+    });
+
+    await expect(readHostedCheckoutLink()).resolves.toEqual({
+      status: "confirmed",
+      context: "listing",
+      listingId: "listing-1",
+    });
+    expect(reconcileMock).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a pending payment as linked", async () => {
+    paymentFindUnique.mockResolvedValue({
+      status: "PENDING",
+      refundedAt: null,
+      listingId: "listing-1",
+      listing: { userId: "user-1" },
+    });
+
+    await expect(readHostedCheckoutLink()).resolves.toEqual({
+      status: "waiting",
+      context: "listing",
+      listingId: "listing-1",
+    });
   });
 });

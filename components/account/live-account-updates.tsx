@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { readSamplePaymentStatus } from "@/actions/sample-payments";
+import {
+  PAYMENT_RETURN_STORAGE_KEY,
+  PAYMENT_UPDATE_STORAGE_KEY,
+  acknowledgeCheckoutHandoff,
+  parsePaymentReturnEvent,
+  shouldAcknowledgeCheckoutHandoff,
+} from "@/lib/payments/checkout-handoff";
 
 export function shouldWatchAccountPage(pathname: string) {
   return /^\/(account(?:\/listings)?|dealer\/(dashboard|subscribe)|admin(?:\/(users|listings|dealers)(?:\/[^/]+)?)?)\/?$/.test(pathname);
@@ -56,6 +64,32 @@ export function LiveAccountUpdates() {
       }
     };
     const resume = () => { if (isVisible()) void poll(); else clearTimeout(timeout); };
+    async function onCheckoutHandoff(storageEvent: StorageEvent) {
+      const parsed = storageEvent.key === PAYMENT_RETURN_STORAGE_KEY
+        ? parsePaymentReturnEvent(storageEvent.newValue)
+        : null;
+      if (storageEvent.key !== PAYMENT_RETURN_STORAGE_KEY && storageEvent.key !== PAYMENT_UPDATE_STORAGE_KEY) return;
+      router.refresh();
+      if (!parsed) return;
+      try {
+        const sample = parsed.sampleCheckoutId
+          ? await readSamplePaymentStatus(parsed.sampleCheckoutId)
+          : null;
+        const link = parsed.sampleCheckoutId
+          ? null
+          : await (await import("@/actions/hosted-payment-return")).readHostedCheckoutLink();
+        if (shouldAcknowledgeCheckoutHandoff({
+          event: parsed,
+          sampleStatus: sample?.status,
+          link,
+        })) {
+          acknowledgeCheckoutHandoff(parsed.id);
+        }
+      } catch {
+        // The checkout tab keeps its return fallback when this refresh cannot acknowledge.
+      }
+    }
+    window.addEventListener("storage", onCheckoutHandoff);
     window.addEventListener("focus", resume);
     document.addEventListener("visibilitychange", resume);
     document.addEventListener("input", markDirty);
@@ -64,6 +98,7 @@ export function LiveAccountUpdates() {
       stopped = true;
       controller.abort();
       clearTimeout(timeout);
+      window.removeEventListener("storage", onCheckoutHandoff);
       window.removeEventListener("focus", resume);
       document.removeEventListener("visibilitychange", resume);
       document.removeEventListener("input", markDirty);

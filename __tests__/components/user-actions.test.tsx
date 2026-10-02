@@ -3,15 +3,24 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { deleteUser, setUserRole, setDealerTier, revokeDealerAccess } = vi.hoisted(() => ({
+const {
+  deleteUser,
+  setUserRole,
+  setDealerTier,
+  revokeDealerAccess,
+  setUserDisabled,
+  routerRefresh,
+} = vi.hoisted(() => ({
   deleteUser: vi.fn(),
   setUserRole: vi.fn(),
   setDealerTier: vi.fn(),
   revokeDealerAccess: vi.fn(),
+  setUserDisabled: vi.fn(),
+  routerRefresh: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ refresh: routerRefresh, push: vi.fn() }),
 }));
 
 vi.mock("@/actions/admin/users", () => ({
@@ -21,7 +30,7 @@ vi.mock("@/actions/admin/users", () => ({
   resendDealerUpgradeOffer: vi.fn(),
   cancelDealerUpgradeOffer: vi.fn(),
   setUserRole,
-  setUserDisabled: vi.fn(),
+  setUserDisabled,
   grantDealerAccess: vi.fn(),
 }));
 
@@ -63,6 +72,50 @@ describe("UserActions", () => {
     setUserRole.mockResolvedValue({ data: { role: "ADMIN" } });
     setDealerTier.mockResolvedValue({ data: { success: true } });
     revokeDealerAccess.mockResolvedValue({ data: { success: true } });
+    setUserDisabled.mockResolvedValue({ data: { disabledAt: null } });
+  });
+
+  it("shows only Enable for a disabled row and refreshes after enabling", async () => {
+    const user = userEvent.setup();
+    render(
+      <UserActions
+        variant="row"
+        userId="user-1"
+        currentRole="USER"
+        isDisabled
+        userLabel="Alice"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Actions for Alice" }));
+    expect(screen.getByRole("menuitem", { name: "Enable" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Disable" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitem", { name: "Enable" }));
+
+    expect(setUserDisabled).toHaveBeenCalledWith({
+      userId: "user-1",
+      disabled: false,
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("Account enabled.");
+    expect(routerRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows only Disable for an enabled row", async () => {
+    const user = userEvent.setup();
+    render(
+      <UserActions
+        variant="row"
+        userId="user-1"
+        currentRole="USER"
+        isDisabled={false}
+        userLabel="Alice"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Actions for Alice" }));
+    expect(screen.getByRole("menuitem", { name: "Disable" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Enable" })).not.toBeInTheDocument();
   });
 
   it("confirms a permanent delete from the row menu", async () => {

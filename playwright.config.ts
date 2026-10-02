@@ -8,6 +8,7 @@ if (!process.env.DEV_GATE_SECRET || process.env.DEV_GATE_SECRET.trim().length < 
 }
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:4000";
+const webCommand = process.env.PLAYWRIGHT_WEB_COMMAND ?? "npm run dev";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -60,13 +61,16 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: webCommand,
     url: baseURL,
-    reuseExistingServer: true,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER !== "0",
     timeout: 120_000,
     env: {
       DEV_GATE_SECRET: process.env.DEV_GATE_SECRET,
       PRODUCTION_LAUNCH_ENABLED: process.env.PRODUCTION_LAUNCH_ENABLED ?? "0",
+      ...(process.env.PLAYWRIGHT_VERCEL_ENV
+        ? { VERCEL_ENV: process.env.PLAYWRIGHT_VERCEL_ENV }
+        : {}),
     },
   },
 });

@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-badges";
 import {
   Table,
   TableBody,
@@ -202,11 +202,14 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                 <TableCell>{listing.region.name}</TableCell>
                 <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
                 <TableCell>
-                  <Badge variant="neutral">
-                    {listing.status === "PENDING"
-                      ? "Awaiting review"
-                      : listing.status.replaceAll("_", " ")}
-                  </Badge>
+                  <ListingOwnerStatusBadges
+                    status={listing.status}
+                    featured={listing.featured}
+                    featuredPurchased={listing.payments.some(
+                      (payment) =>
+                        payment.type === "FEATURED" || payment.includesFeatured,
+                    )}
+                  />
                 </TableCell>
                 <TableCell className="text-text-secondary text-xs">
                   {listing.statusEvents[0]

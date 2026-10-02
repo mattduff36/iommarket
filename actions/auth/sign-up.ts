@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { checkSignupRateLimit } from "@/lib/auth/signup-rate-limit";
 import { sendSignupConfirmationEmail } from "@/lib/email/resend";
+import { notifyAdminOfNewSignup } from "@/lib/email/signup-notifications";
 import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { signUpSchema, type SignUpInput } from "@/lib/validations/auth";
@@ -105,18 +106,31 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
 
     const appOrigin = getCanonicalBaseUrl().origin;
     const admin = createSupabaseAdminClient();
-    const userMetadata = parsed.data.name
-      ? { full_name: parsed.data.name }
-      : {};
-    const { error: createError } = await admin.auth.admin.createUser({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      email_confirm: false,
-      user_metadata: userMetadata,
-      app_metadata: {
-        policy_acceptance: receipt,
-      },
-    });
+    const userMetadata = { full_name: parsed.data.name };
+    const { data: createdData, error: createError } =
+      await admin.auth.admin.createUser({
+        email: parsed.data.email,
+        password: parsed.data.password,
+        email_confirm: false,
+        user_metadata: userMetadata,
+        app_metadata: {
+          policy_acceptance: receipt,
+        },
+      });
+    const createdUserId = createError ? null : createdData.user?.id;
+    const createdAt = new Date();
+    if (!createError && !createdUserId) {
+      throw new Error("Supabase returned an incomplete created user.");
+    }
+    if (createdUserId) {
+      await notifyAdminOfNewSignup({
+        userId: createdUserId,
+        email: parsed.data.email,
+        name: parsed.data.name,
+        source: "credential",
+        createdAt,
+      });
+    }
     if (createError) {
       const createMessage = createError.message.toLowerCase();
       const duplicate =

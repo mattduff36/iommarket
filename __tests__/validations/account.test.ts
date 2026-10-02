@@ -25,6 +25,18 @@ describe("updateMyProfileSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects a blank profile name", () => {
+    const result = updateMyProfileSchema.safeParse({
+      name: "   ",
+      regionId: null,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.flatten().fieldErrors.name).toEqual([
+      "Enter a name of at least 2 characters.",
+    ]);
+  });
 });
 
 describe("updateDealerSelfProfileSchema", () => {

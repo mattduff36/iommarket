@@ -1,88 +1,69 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { readLinkMock } = vi.hoisted(() => ({
+  readLinkMock: vi.fn(),
+}));
+
+vi.mock("@/actions/sample-payments", () => ({
+  readSamplePaymentStatus: vi.fn(),
+}));
+vi.mock("@/actions/hosted-payment-return", () => ({
+  readHostedCheckoutLink: (...args: unknown[]) => readLinkMock(...args),
+}));
+
 import { CheckoutStatusActions } from "@/app/(public)/sell/checkout/checkout-status-actions";
+import { createPaymentReturnEvent } from "@/lib/payments/checkout-handoff";
 
-const replaceMock = vi.fn();
+describe("CheckoutStatusActions handoff", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    readLinkMock.mockResolvedValue({
+      status: "confirmed",
+      context: "listing",
+      listingId: "listing-1",
+    });
+  });
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    replace: replaceMock,
-    refresh: vi.fn(),
-  }),
-}));
-
-vi.mock("@/components/payments/payment-awaiting-status", () => ({
-  usePaymentConfirmationPoll: vi.fn(),
-}));
-
-describe("CheckoutStatusActions", () => {
-  it("offers staff review without redirecting or initiating a new payment", () => {
-    render(
+  it("acknowledges a linked payment only after the original page shows the confirmed state", async () => {
+    const event = createPaymentReturnEvent({
+      status: "success",
+      context: "listing",
+      listingId: "listing-1",
+    });
+    const view = render(
       <CheckoutStatusActions
-        listingId="caaaaaaaaaaaaaaaaaaaaaaaa"
+        listingId="listing-1"
         flow="private"
-        viewState="review"
+        viewState="opened"
         isAwaitingPayment
       />,
     );
-    expect(replaceMock).not.toHaveBeenCalled();
-    const contact = screen.getByRole("link", { name: /email payment support/i });
-    expect(contact.getAttribute("href")).toMatch(/^mailto:hello@itrader.im\?/);
-    expect(decodeURIComponent(contact.getAttribute("href")!)).toContain("caaaaaaaaaaaaaaaaaaaaaaaa");
-    expect(screen.getByText(/sending the email does not confirm payment/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /open payment/i })).not.toBeInTheDocument();
-  });
-  beforeEach(() => {
-    replaceMock.mockReset();
-  });
 
-  it("redirects to /sell/success when the listing is submitted", () => {
-    render(
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: "iomarket-payment-return",
+        newValue: JSON.stringify(event),
+      }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(window.localStorage.getItem("iomarket-payment-return-ack")).toBeNull();
+    expect(screen.getByRole("button", { name: /refresh payment status/i })).toBeInTheDocument();
+
+    view.rerender(
       <CheckoutStatusActions
-        listingId="caaaaaaaaaaaaaaaaaaaaaaaa"
-        flow="private"
-        viewState="submitted"
-        isAwaitingPayment={false}
-      />,
-    );
-
-    expect(replaceMock).toHaveBeenCalledWith(
-      "/sell/success?listing=caaaaaaaaaaaaaaaaaaaaaaaa&flow=private&payment=paid",
-    );
-  });
-
-  it("redirects to /sell/success when payment is recorded", () => {
-    render(
-      <CheckoutStatusActions
-        listingId="caaaaaaaaaaaaaaaaaaaaaaaa"
+        listingId="listing-1"
         flow="private"
         viewState="paid"
         isAwaitingPayment={false}
       />,
     );
 
-    expect(replaceMock).toHaveBeenCalledWith(
-      "/sell/success?listing=caaaaaaaaaaaaaaaaaaaaaaaa&flow=private&payment=paid",
-    );
-    expect(screen.getByRole("button", { name: /refresh payment status/i })).toBeTruthy();
-  });
-
-  it("does not redirect while waiting for the webhook", () => {
-    render(
-      <CheckoutStatusActions
-        listingId="caaaaaaaaaaaaaaaaaaaaaaaa"
-        flow="private"
-        viewState="waiting"
-        isAwaitingPayment
-      />,
-    );
-
-    expect(replaceMock).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(/checks for payment confirmation automatically/i),
-    ).toBeTruthy();
+    expect(window.localStorage.getItem("iomarket-payment-return-ack")).toBe(event.id);
   });
 });

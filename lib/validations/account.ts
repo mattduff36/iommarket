@@ -1,11 +1,8 @@
 import { z } from "zod";
+import { profileNameSchema } from "@/lib/validations/profile-name";
 
 export const updateMyProfileSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Enter a name of at least 2 characters.")
-    .max(100, "Name must be under 100 characters."),
+  name: profileNameSchema,
   regionId: z.string().cuid("Choose a valid region.").nullable(),
   phone: z
     .string()

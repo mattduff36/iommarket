@@ -99,6 +99,52 @@ describe("transitionListingStatus", () => {
     expect(mockTx.adminAuditLog.create).not.toHaveBeenCalled();
   });
 
+  it("returns the committed transition before listing notification delivery finishes", async () => {
+    const { dispatchListingNotifications } = await import(
+      "@/lib/email/listing-notifications"
+    );
+    let releaseNotification: (() => void) | undefined;
+    const notificationGate = new Promise<void>((resolve) => {
+      releaseNotification = resolve;
+    });
+    vi.mocked(dispatchListingNotifications).mockReturnValue(notificationGate);
+    mockTx.listing.findUnique.mockResolvedValue({
+      id: "listing-1",
+      status: "DRAFT",
+      userId: "user-1",
+      expiresAt: null,
+      lifecycleRevision: 0,
+    });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "event-1" });
+    mockTx.listingRevision.findMany.mockResolvedValue([]);
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({
+      id: "listing-1",
+      status: "PENDING",
+      lifecycleRevision: 1,
+    });
+
+    await expect(
+      transitionListingStatus({
+        listingId: "listing-1",
+        action: "SUBMIT",
+        expectedRevision: 0,
+        actor: { id: "user-1", role: "USER" },
+        source: "USER",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        listing: expect.objectContaining({ status: "PENDING" }),
+      }),
+    );
+    expect(dispatchListingNotifications).toHaveBeenCalledWith([
+      expect.objectContaining({ action: "SUBMIT", listingId: "listing-1" }),
+    ]);
+
+    releaseNotification?.();
+    await notificationGate;
+  });
+
   it("withdraws pending to draft without clearing Featured or revisions MD-LIFE-001", async () => {
     mockTx.listing.findUnique.mockResolvedValue({
       id: "listing-withdraw",

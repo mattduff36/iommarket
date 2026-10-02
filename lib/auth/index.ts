@@ -6,6 +6,7 @@ import {
   isOnboardingSessionStale,
   readOnboardingSessionInvalidBefore,
 } from "@/lib/dealers/onboarding/session-cutoff";
+import { profileNameSchema } from "@/lib/validations/profile-name";
 import type { UserRole } from "@prisma/client";
 
 export class AuthenticationRequiredError extends Error {
@@ -34,12 +35,28 @@ export class DeletedAccountError extends Error {
   }
 }
 
+export class ProfileNameRequiredError extends Error {
+  readonly statusCode = 400 as const;
+  constructor(message = "A valid name is required to create an account profile") {
+    super(message);
+    this.name = "ProfileNameRequiredError";
+  }
+}
+
 export class InsufficientPermissionsError extends Error {
   readonly statusCode = 403 as const;
   constructor(message = "Insufficient permissions") {
     super(message);
     this.name = "InsufficientPermissionsError";
   }
+}
+
+function getAuthProfileName(metadata: Record<string, unknown>): string | undefined {
+  for (const key of ["full_name", "name", "display_name"] as const) {
+    const parsed = profileNameSchema.safeParse(metadata[key]);
+    if (parsed.success) return parsed.data;
+  }
+  return undefined;
 }
 
 /**
@@ -75,7 +92,7 @@ export async function getCurrentUser() {
       const synced = await syncUser(
         authUser.id,
         authUser.email ?? "",
-        authUser.user_metadata?.full_name as string | undefined,
+        getAuthProfileName(authUser.user_metadata ?? {}),
         authUser.app_metadata?.policy_acceptance
       );
       return db.user.findUnique({
@@ -114,11 +131,30 @@ export async function syncUser(
 ) {
   try {
     return await db.$transaction(async (tx) => {
-      const user = await tx.user.upsert({
+      const parsedName = profileNameSchema.safeParse(name);
+      const existing = await tx.user.findUnique({
         where: { authUserId },
-        update: { email, name },
-        create: { authUserId, email, name, role: "USER" },
+        select: { id: true },
       });
+      const user = existing
+        ? await tx.user.update({
+            where: { authUserId },
+            data: {
+              email,
+              ...(parsedName.success ? { name: parsedName.data } : {}),
+            },
+          })
+        : parsedName.success
+          ? await tx.user.create({
+              data: {
+                authUserId,
+                email,
+                name: parsedName.data,
+                role: "USER",
+              },
+            })
+          : null;
+      if (!user) throw new ProfileNameRequiredError();
       if (policyAcceptanceReceipt) {
         const { importSignupAcceptances } = await import(
           "@/lib/policy/acceptance"

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SampleCheckoutView } from "@/lib/payments/sample-checkout";
@@ -43,8 +43,9 @@ describe("SampleCheckout", () => {
     window.localStorage.clear();
   });
 
-  it("submits the selected sample approval and returns after showing the server result", async () => {
+  it("submits the selected sample approval and closes only after the original tab acknowledges it", async () => {
     const user = userEvent.setup();
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
     submitMock.mockResolvedValue({ data: checkout({ status: "SUCCEEDED", attemptCount: 1 }) });
     render(<SampleCheckout checkout={checkout()} />);
 
@@ -52,13 +53,43 @@ describe("SampleCheckout", () => {
     await user.click(screen.getByRole("button", { name: "Pay using Card" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Sample payment approved");
+    expect(screen.getByText(/updating your original itrader tab/i)).toBeInTheDocument();
     expect(submitMock).toHaveBeenCalledWith({
       checkoutId: "caaaaaaaaaaaaaaaaaaaaaaaa",
       card: "approve",
       attempt: 1,
     });
+    const raw = window.localStorage.getItem("iomarket-payment-return");
+    expect(raw).toContain("caaaaaaaaaaaaaaaaaaaaaaaa");
     expect(window.localStorage.getItem("itrader:payment-update")).toMatch(/^\d+$/);
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/account/listings"), { timeout: 3000 });
+    expect(pushMock).not.toHaveBeenCalled();
+
+    const event = JSON.parse(raw ?? "{}") as { id?: string };
+    window.localStorage.setItem("iomarket-payment-return-ack", event.id ?? "");
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: "iomarket-payment-return-ack",
+      newValue: event.id ?? "",
+    }));
+    await waitFor(() => expect(closeSpy).toHaveBeenCalled());
+    expect(pushMock).not.toHaveBeenCalled();
+    closeSpy.mockRestore();
+  });
+
+  it("keeps the approved sample tab open when the original tab cannot acknowledge it", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+    });
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+    render(<SampleCheckout checkout={checkout({ status: "SUCCEEDED" })} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+
+    expect(screen.getByRole("button", { name: /return to itrader/i })).toBeInTheDocument();
+    expect(closeSpy).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    closeSpy.mockRestore();
   });
 
   it("keeps a declined result visible after reload and offers a retry picker", async () => {

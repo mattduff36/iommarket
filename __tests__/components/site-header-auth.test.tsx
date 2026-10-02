@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -205,8 +205,40 @@ describe("SiteHeader auth initialization", () => {
     render(<SiteHeader />);
     await waitFor(() => expect(screen.getByTestId("header-auth-state")).toHaveTextContent("ready"));
     await user.click(screen.getByRole("button", { name: "Toggle menu" }));
-    await user.click(screen.getByRole("button", { name: "Edit as Admin" }));
+    await user.click(within(screen.getByTestId("mobile-menu-session")).getByRole("button", { name: "Edit as Admin" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("cmtestlisting");
+  });
+
+  it("places Edit as Admin in the desktop utility strip only for an admin on a listing", async () => {
+    authMocks.pathname = "/listings/cmtestlisting";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ name: "Admin", role: "ADMIN" }) }));
+    authMocks.getSession.mockResolvedValue({ data: { session: { user: { email: "admin@example.test" } } } });
+    const user = userEvent.setup();
+    const view = render(<SiteHeader />);
+    await waitFor(() => expect(screen.getByTestId("header-auth-role")).toHaveTextContent("ADMIN"));
+
+    const desktopEdit = within(screen.getByTestId("utility-strip")).getByRole("button", { name: "Edit as Admin" });
+    expect(desktopEdit.className).toMatch(/text-red-/);
+    await user.click(desktopEdit);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("cmtestlisting");
+
+    view.unmount();
+    authMocks.pathname = "/search";
+    render(<SiteHeader />);
+    await waitFor(() => expect(screen.getByTestId("header-auth-role")).toHaveTextContent("ADMIN"));
+    expect(within(screen.getByTestId("utility-strip")).queryByRole("button", { name: "Edit as Admin" })).toBeNull();
+  });
+
+  it("does not offer Edit as Admin to a member viewing a listing", async () => {
+    authMocks.pathname = "/listings/cmtestlisting";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ name: "Member", role: "USER" }) }));
+    authMocks.getSession.mockResolvedValue({ data: { session: { user: { email: "member@example.test" } } } });
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await waitFor(() => expect(screen.getByTestId("header-auth-role")).toHaveTextContent("USER"));
+    expect(within(screen.getByTestId("utility-strip")).queryByRole("button", { name: "Edit as Admin" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Toggle menu" }));
+    expect(screen.queryByRole("button", { name: "Edit as Admin" })).toBeNull();
   });
 
   it("hides the mobile Preview packs expander for members", async () => {

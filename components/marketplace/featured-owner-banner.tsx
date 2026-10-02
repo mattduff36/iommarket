@@ -6,8 +6,10 @@ import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -104,12 +106,23 @@ export function FeaturedOwnerBanner({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upgrade later</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl">Upgrade later</DialogTitle>
+            <DialogDescription className="text-base text-text-primary">
               You can buy Featured later from My listings while this listing is awaiting review
               or live.
             </DialogDescription>
           </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            Open My listings, find this listing, and choose Feature. Placement starts after the
+            listing is approved.
+          </p>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" className="w-full sm:w-auto sm:min-w-24">
+                OK
+              </Button>
+            </DialogClose>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

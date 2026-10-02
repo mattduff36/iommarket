@@ -20,6 +20,7 @@ import { validateModerationReason } from "@/lib/listings/moderation-reasons";
 import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
 import { discardOpenRevisions } from "@/lib/listings/revision-discard";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
+import { after } from "next/server";
 import {
   ListingLifecycleConflictError,
   ListingLifecycleError,
@@ -331,6 +332,25 @@ async function runTransition(
   };
 }
 
+function isOutsideRequestScope(error: unknown) {
+  return error instanceof Error && error.message.includes("outside a request scope");
+}
+
+function scheduleListingNotifications(notification: ListingNotificationIntent | null) {
+  const deliver = () =>
+    Promise.resolve(dispatchListingNotifications([notification])).catch(() => {
+      // Email is best-effort and must not fail a committed transition.
+    });
+  try {
+    after(() => {
+      void deliver();
+    });
+  } catch (error) {
+    if (!isOutsideRequestScope(error)) throw error;
+    void deliver();
+  }
+}
+
 export async function transitionListingStatus(
   input: TransitionListingStatusInput,
   client?: DbClient,
@@ -340,10 +360,6 @@ export async function transitionListingStatus(
   }
 
   const result = await db.$transaction((tx) => runTransition(tx, input));
-  try {
-    await dispatchListingNotifications([result.notification]);
-  } catch {
-    // Email is best-effort and must not fail a committed transition.
-  }
+  scheduleListingNotifications(result.notification);
   return result;
 }

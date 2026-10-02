@@ -65,10 +65,6 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
     });
     mockDb.accountDeletionJob.findUnique.mockResolvedValue(null);
     mockDb.accountDeletionJob.updateMany.mockResolvedValue({ count: 1 });
-    applyAccountDisableMock.mockResolvedValue({
-      count: 56,
-      notifications: [],
-    });
   });
 
   it("rejects unauthorized callers", async () => {
@@ -131,7 +127,7 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
     expect(mockDb.user.update).not.toHaveBeenCalled();
   });
 
-  it("allows bulk dealer disable work to exceed Prisma's default transaction timeout", async () => {
+  it("hides a disabled dealer without rewriting its listings", async () => {
     const { setUserDisabled } = await import("@/actions/admin/users");
 
     await expect(
@@ -145,15 +141,61 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
       data: expect.objectContaining({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
     });
 
-    expect(mockDb.$transaction).toHaveBeenCalledWith(
-      expect.any(Function),
-      { timeout: 30_000 },
-    );
-    expect(applyAccountDisableMock).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      data: expect.objectContaining({ disabledAt: expect.any(Date) }),
+    });
+    expect(applyAccountDisableMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dealers");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/search");
+  });
+
+  it("enables an account, audits it, and revalidates both admin user views", async () => {
+    const { setUserDisabled } = await import("@/actions/admin/users");
+
+    await expect(
+      setUserDisabled({
         userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-        actor: { id: "cladminxxxxxxxxxxxxxxxxxx", role: "ADMIN" },
+        disabled: false,
       }),
+    ).resolves.toEqual({
+      data: expect.objectContaining({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+    });
+
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      data: {
+        disabledAt: null,
+        disabledReason: null,
+        disabledReasonCode: null,
+      },
+    });
+    expect(applyAccountDisableMock).not.toHaveBeenCalled();
+    expect(logAdminActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ENABLE_USER",
+        entityType: "User",
+        entityId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      }),
+      expect.anything(),
     );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/users");
+    expect(revalidatePathMock).toHaveBeenCalledWith(
+      "/admin/users/clxxxxxxxxxxxxxxxxxxxxxxxxx",
+    );
+  });
+
+  it("rejects non-admin account status changes before writing", async () => {
+    requireRoleMock.mockRejectedValueOnce(new Error("Forbidden"));
+    const { setUserDisabled } = await import("@/actions/admin/users");
+
+    await expect(
+      setUserDisabled({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        disabled: false,
+      }),
+    ).rejects.toThrow("Forbidden");
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect(mockDb.user.update).not.toHaveBeenCalled();
   });
 });

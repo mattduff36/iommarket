@@ -3,10 +3,30 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { confirmHostedListingPayment } from "@/actions/hosted-payment-return";
+import { useCheckoutWindowHandoff } from "@/components/payments/checkout-window-handoff";
 import { Button } from "@/components/ui/button";
+import { createPaymentReturnEvent, type PaymentReturnEvent } from "@/lib/payments/checkout-handoff";
+
+function confirmedReturnEvent(
+  result: Awaited<ReturnType<typeof confirmHostedListingPayment>>,
+): PaymentReturnEvent | null {
+  if (result.status !== "confirmed") return null;
+  const context = result.checkoutType === "dealer_subscription"
+    ? "subscription"
+    : result.checkoutType === "featured_upgrade"
+      ? "featured"
+      : "listing";
+  return createPaymentReturnEvent({
+    status: "success",
+    context,
+    listingId: result.listingId,
+  });
+}
 
 export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: string }) {
   const [result, setResult] = useState<Awaited<ReturnType<typeof confirmHostedListingPayment>>>({ status: "waiting" });
+  const [handoffEvent, setHandoffEvent] = useState<PaymentReturnEvent | null>(null);
+  const showReturnFallback = useCheckoutWindowHandoff(handoffEvent);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -26,14 +46,7 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
         if (next.status === "waiting" && attempts >= 40) next = { status: "review" };
         setResult(next);
         if (next.status === "confirmed") {
-          try {
-            // The original checkout tab only refreshes its server-backed status.
-            window.localStorage.setItem("iomarket-payment-return", JSON.stringify({
-              status: "success", context: next.checkoutType === "dealer_subscription" ? "dealer" : "listing", listingId: next.listingId, at: Date.now(),
-            }));
-          } catch {
-            // Storage may be unavailable; the explicit continuation still works.
-          }
+          setHandoffEvent((current) => current ?? confirmedReturnEvent(next));
         } else if (next.status === "waiting") {
           timer = setTimeout(check, 3000);
         }
@@ -48,15 +61,15 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
       {result.status === "confirmed" && result.checkoutType === "dealer_subscription" ? <>
         <h2 className="text-lg font-semibold">Your dealer subscription is confirmed</h2>
         <p className="text-sm text-text-secondary">Your payment has been linked to your dealer account. Your subscription is ready to use.</p>
-        <Button asChild><Link href="/account">Continue to my account</Link></Button>
+        {showReturnFallback ? <Button asChild><Link href="/account">Continue to my account</Link></Button> : <p className="text-sm text-text-secondary">Returning to your original itrader tab…</p>}
       </> : result.status === "confirmed" && result.checkoutType === "featured_upgrade" && result.listingId ? <>
         <h2 className="text-lg font-semibold">Your featured upgrade payment is confirmed</h2>
         <p className="text-sm text-text-secondary">Your payment has been linked to your listing. Continue to check its featured status.</p>
-        <Button asChild><Link href="/account/listings">Continue to my listings</Link></Button>
+        {showReturnFallback ? <Button asChild><Link href="/account/listings">Continue to my listings</Link></Button> : <p className="text-sm text-text-secondary">Returning to your original itrader tab…</p>}
       </> : result.status === "confirmed" && result.listingId ? <>
         <h2 className="text-lg font-semibold">Your listing payment is confirmed</h2>
         <p className="text-sm text-text-secondary">Your payment has been linked to your listing. Continue to see its status and any remaining steps.</p>
-        <Button asChild><Link href={`/sell/checkout?listing=${encodeURIComponent(result.listingId)}`}>Continue to my listing</Link></Button>
+        {showReturnFallback ? <Button asChild><Link href={`/sell/checkout?listing=${encodeURIComponent(result.listingId)}`}>Continue to my listing</Link></Button> : <p className="text-sm text-text-secondary">Returning to your original itrader tab…</p>}
       </> : result.status === "waiting" ? <>
         <h2 className="text-lg font-semibold">Confirming your payment</h2>
         <p className="text-sm text-text-secondary">We’re checking your payment confirmation. This can take a moment. Please don’t pay again.</p>

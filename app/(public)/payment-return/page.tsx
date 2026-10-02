@@ -53,24 +53,24 @@ function getPaymentReturnCopy(
   if (status === "success") {
     if (context === "listing") {
       return {
-        title: "Payment successful",
+        title: "Confirming your payment",
         message:
-          "Your hosted payment is complete. Return to the original itrader tab to see the listing draft update and continue from the saved checkout screen.",
+          "The payment tab is open so itrader can check that this payment is linked. Please don’t pay again.",
       };
     }
 
     if (context === "featured") {
       return {
-        title: "Featured payment successful",
+        title: "Confirming your Featured payment",
         message:
-          "Your featured upgrade payment completed successfully. Return to itrader to refresh the listing and confirm the upgrade.",
+          "The payment tab is open so itrader can check that this Featured upgrade is linked. Please don’t pay again.",
       };
     }
 
     return {
-      title: "Subscription payment successful",
+      title: "Confirming your subscription payment",
       message:
-        "Your subscription checkout completed successfully. Return to itrader to refresh the dealer dashboard and continue onboarding.",
+        "The payment tab is open so itrader can check that this subscription is linked. Please don’t pay again.",
     };
   }
 

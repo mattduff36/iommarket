@@ -85,6 +85,7 @@
   - `RESEND_FROM_EMAIL`
   - `RESEND_REPLY_TO_EMAIL`
   - `RESEND_REPORTS_TO_EMAIL` (moderation/report notifications)
+  - `RESEND_SIGNUPS_TO_EMAIL` (comma-separated new-user alerts; falls back to `RESEND_REPORTS_TO_EMAIL`)
   - `RESEND_WAITLIST_TO_EMAIL` (comma-separated; falls back to `RESEND_REPORTS_TO_EMAIL`)
 - **Local**: Resend test/dev domain and non-production sender.
 - **Staging/Prod**: verified domain and monitored bounce/reject logs.

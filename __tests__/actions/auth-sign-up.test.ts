@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
     createSupabaseAdminClient: vi.fn(() => admin),
     isSupabaseAuthConfigured: vi.fn(() => true),
     sendSignupConfirmationEmail: vi.fn(),
+    notifyAdminOfNewSignup: vi.fn(),
     reportHandledException: vi.fn(),
     checkSignupRateLimit: vi.fn(),
     headers: vi.fn(),
@@ -43,6 +44,10 @@ vi.mock("@/lib/auth/supabase-config", () => ({
 
 vi.mock("@/lib/email/resend", () => ({
   sendSignupConfirmationEmail: mocks.sendSignupConfirmationEmail,
+}));
+
+vi.mock("@/lib/email/signup-notifications", () => ({
+  notifyAdminOfNewSignup: mocks.notifyAdminOfNewSignup,
 }));
 
 vi.mock("@/lib/policy/acceptance", () => ({
@@ -109,6 +114,7 @@ describe("signUpWithPolicyAcceptance", () => {
     });
     mocks.admin.auth.admin.updateUserById.mockResolvedValue({ error: null });
     mocks.sendSignupConfirmationEmail.mockResolvedValue(undefined);
+    mocks.notifyAdminOfNewSignup.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -155,6 +161,13 @@ describe("signUpWithPolicyAcceptance", () => {
       verifyUrl:
         "https://preview.itrader.im/auth/callback?token_hash=hashed-signup-token&type=signup&next=%2Fdealer%2Fsubscribe%3Ftier%3DPRO",
     });
+    expect(mocks.notifyAdminOfNewSignup).toHaveBeenCalledWith({
+      userId: "auth-user-id",
+      email: "member@example.com",
+      name: "Test Member",
+      source: "credential",
+      createdAt: expect.any(Date),
+    });
   });
 
   it("reports branded email delivery failure without deleting the auth account", async () => {
@@ -168,6 +181,7 @@ describe("signUpWithPolicyAcceptance", () => {
     });
 
     expect(mocks.reportHandledException).toHaveBeenCalledTimes(1);
+    expect(mocks.notifyAdminOfNewSignup).toHaveBeenCalledTimes(1);
   });
 
   it("returns the existing-account message without sending another email", async () => {
@@ -185,6 +199,7 @@ describe("signUpWithPolicyAcceptance", () => {
     });
 
     expect(mocks.sendSignupConfirmationEmail).not.toHaveBeenCalled();
+    expect(mocks.notifyAdminOfNewSignup).not.toHaveBeenCalled();
   });
 
   it("fails before creating an account when branded email is not configured", async () => {
@@ -197,6 +212,7 @@ describe("signUpWithPolicyAcceptance", () => {
 
     expect(mocks.admin.auth.admin.generateLink).not.toHaveBeenCalled();
     expect(mocks.sendSignupConfirmationEmail).not.toHaveBeenCalled();
+    expect(mocks.notifyAdminOfNewSignup).not.toHaveBeenCalled();
   });
 
   it("resends confirmation only when an unconfirmed account password matches", async () => {
@@ -216,6 +232,7 @@ describe("signUpWithPolicyAcceptance", () => {
     });
     expect(mocks.admin.auth.admin.generateLink).toHaveBeenCalledTimes(1);
     expect(mocks.sendSignupConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.notifyAdminOfNewSignup).not.toHaveBeenCalled();
   });
 
   it("does not issue a link for an unconfirmed account with a different password", async () => {
@@ -275,6 +292,25 @@ describe("signUpWithPolicyAcceptance", () => {
       error: "Too many signup attempts. Please wait a moment and try again.",
     });
 
+    expect(mocks.admin.auth.admin.generateLink).not.toHaveBeenCalled();
+    expect(mocks.sendSignupConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a missing name", { ...validInput, name: undefined }],
+    ["a blank name", { ...validInput, name: "   " }],
+  ])("rejects %s before creating an auth account", async (_label, input) => {
+    const { signUpWithPolicyAcceptance } = await import("@/actions/auth/sign-up");
+
+    await expect(
+      signUpWithPolicyAcceptance(
+        input as unknown as Parameters<typeof signUpWithPolicyAcceptance>[0],
+      ),
+    ).resolves.toEqual({
+      error: { name: ["Enter a name of at least 2 characters."] },
+    });
+
+    expect(mocks.admin.auth.admin.createUser).not.toHaveBeenCalled();
     expect(mocks.admin.auth.admin.generateLink).not.toHaveBeenCalled();
     expect(mocks.sendSignupConfirmationEmail).not.toHaveBeenCalled();
   });

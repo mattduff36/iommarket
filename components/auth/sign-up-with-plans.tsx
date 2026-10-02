@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signUpWithPolicyAcceptance } from "@/actions/auth/sign-up";
+import { SignupVerificationWait } from "@/components/auth/signup-verification-wait";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -161,16 +162,12 @@ export function SignUpWithPlans({
 
   if (success) {
     return (
-      <div className="mx-auto max-w-sm space-y-4 text-center py-20">
-        <h2 className="text-2xl font-bold text-text-primary">Check your email</h2>
-        <p className="text-text-secondary">
-          We&apos;ve sent a confirmation link to <span className="font-medium text-text-primary">{email}</span>.
-          Click the link to activate your account.
-        </p>
-        <Button asChild variant="ghost" className="w-full">
-          <Link href={signInHref}>Go to sign in</Link>
-        </Button>
-      </div>
+      <SignupVerificationWait
+        email={lockedEmail ?? email}
+        password={password}
+        nextPath={signedUpNextPath}
+        signInHref={signInHref}
+      />
     );
   }
 
@@ -237,7 +234,7 @@ export function SignUpWithPlans({
             error={firstFieldError(fieldErrors, "password")}
           />
           <Input
-            label="Name (optional)"
+            label="Name"
             type="text"
             autoComplete="name"
             value={name}
@@ -245,6 +242,9 @@ export function SignUpWithPlans({
               setName(e.target.value);
               clearFieldError("name");
             }}
+            required
+            minLength={2}
+            maxLength={100}
             error={firstFieldError(fieldErrors, "name")}
           />
           <Checkbox
