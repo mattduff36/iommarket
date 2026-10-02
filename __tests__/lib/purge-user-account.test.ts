@@ -80,6 +80,10 @@ describe("purgeUserAccountRecords", () => {
     const profileDelete = calls.indexOf("user.delete");
     expect(listingDelete).toBeGreaterThan(calls.indexOf("payment.deleteMany"));
     expect(profileDelete).toBeGreaterThan(listingDelete);
+    const preparePurge = calls.indexOf("$executeRaw");
+    const receiptDelete = calls.indexOf("dealerUpgradeAcceptance.deleteMany");
+    expect(preparePurge).toBeGreaterThan(-1);
+    expect(receiptDelete).toBeGreaterThan(preparePurge);
   });
 
   it("removes early-access references before deleting the waitlist entry or account", async () => {

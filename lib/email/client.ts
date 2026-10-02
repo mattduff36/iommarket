@@ -9,7 +9,7 @@ export function getResendClient(): Resend | null {
 }
 
 export function getFromEmail(): string {
-  return process.env.RESEND_FROM_EMAIL ?? "iTrader <no-reply@example.com>";
+  return process.env.RESEND_FROM_EMAIL?.trim() || "iTrader <no-reply@itrader.im>";
 }
 
 export function parseEmailRecipients(raw: string | undefined): string[] {
@@ -45,7 +45,9 @@ export async function sendResendEmail(input: {
 }): Promise<void> {
   const resend = getResendClient();
   if (!resend) return;
-  const recipients = Array.isArray(input.to) ? input.to : [input.to];
+  const recipients = (Array.isArray(input.to) ? input.to : [input.to])
+    .map((email) => email.trim())
+    .filter((email) => email.length > 0 && !email.toLowerCase().endsWith("@example.com"));
   if (recipients.length === 0) return;
 
   const result = await resend.emails.send(

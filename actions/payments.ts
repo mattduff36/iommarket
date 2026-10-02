@@ -22,6 +22,7 @@ import {
   type PayForListingInput,
 } from "@/lib/validations/payment";
 import {
+  isMissingListingPaymentUrlError,
   isPrivateListingFreeForUser,
 } from "@/lib/config/marketplace";
 import {
@@ -388,16 +389,18 @@ export async function payForListing(input: PayForListingInput) {
     }
     return { data: { checkoutUrl: boundSession.url } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
-      action: "payForListing",
-      route: "/sell/checkout",
-      requestPath: "/sell/checkout",
-      userId: user.id,
-      userEmail: user.email,
-      tags: { listingId },
-    });
+    if (!isMissingListingPaymentUrlError(err)) {
+      await captureException({
+        source: "SERVER",
+        error: err,
+        action: "payForListing",
+        route: "/sell/checkout",
+        requestPath: "/sell/checkout",
+        userId: user.id,
+        userEmail: user.email,
+        tags: { listingId },
+      });
+    }
     const message =
       err instanceof Error ? err.message : "Failed to create checkout";
     return { error: toUserPaymentError(message) };

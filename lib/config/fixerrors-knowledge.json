@@ -1,4 +1,32 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {
+      "fingerprint": "539873bbebc97a0bddd0cff8985e49016557c53851524ece7a73e383dd35c144",
+      "lane": "standard",
+      "outcome": "fixed",
+      "summary": "Stop recording successful listing emails as monitoring issues.",
+      "files": [
+        "lib/email/listing-notifications.ts",
+        "__tests__/lib/listing-notification-dispatch.test.ts"
+      ],
+      "tests": [
+        "npx vitest run __tests__/lib/listing-notification-dispatch.test.ts"
+      ],
+      "recordedAt": "2026-10-02T14:24:39.846Z"
+    },
+    {
+      "fingerprint": "659f5676f6133d03b06c808a9949923f9e72a46f66065d409809d1e428c0c6da",
+      "lane": "standard",
+      "outcome": "fixed",
+      "summary": "Keep admin user actions as direct async server functions.",
+      "files": [
+        "__tests__/actions/admin-users-server-boundary.test.ts"
+      ],
+      "tests": [
+        "npx vitest run __tests__/actions/admin-users-server-boundary.test.ts"
+      ],
+      "recordedAt": "2026-10-02T14:24:44.368Z"
+    }
+  ]
 }

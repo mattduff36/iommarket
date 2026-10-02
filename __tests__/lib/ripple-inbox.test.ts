@@ -36,6 +36,7 @@ vi.mock("@/lib/monitoring", () => ({
   captureBusinessEvent: vi.fn(),
 }));
 
+import { captureBusinessEvent } from "@/lib/monitoring";
 import {
   ingestVerifiedRippleWebhook,
   persistRippleWebhookInbox,
@@ -189,6 +190,11 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     await expect(processRippleInboxRecord("inbox-2")).resolves.toEqual({
       status: "failed",
     });
+    expect(captureBusinessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "A verified Ripple webhook could not be applied (WEBHOOK_PROCESS).",
+      }),
+    );
     await expect(retryFailedRippleWebhooks()).resolves.toEqual({
       attempted: 1,
       processed: 1,

@@ -170,7 +170,7 @@ export async function processRippleInboxRecord(inboxId: string) {
       title: quarantined
         ? "Ripple webhook quarantined"
         : "Ripple webhook processing failed",
-      message: "A verified Ripple webhook could not be applied.",
+      message: `A verified Ripple webhook could not be applied (${code}).`,
       action: "processRippleInboxRecord",
       route: "/api/webhooks/payments",
       requestPath: "/api/webhooks/payments",

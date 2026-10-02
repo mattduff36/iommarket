@@ -164,6 +164,17 @@ describe("dealer logo upload route", () => {
     });
   });
 
+  it("returns 503 when the logo bucket is missing", async () => {
+    uploadMock.mockResolvedValue({ error: { message: "Bucket not found" } });
+    const { POST } = await import("@/app/api/dealer-profile/logo/route");
+    const response = await POST(createLogoRequest());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "Logo storage is not available. Please try again later.",
+    });
+  });
+
   it("denies an unauthenticated upload", async () => {
     requireAuthMock.mockRejectedValue(new AuthenticationRequiredError());
     requireAcceptedAuthMock.mockRejectedValue(new AuthenticationRequiredError());

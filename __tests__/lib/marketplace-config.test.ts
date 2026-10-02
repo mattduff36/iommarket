@@ -40,6 +40,7 @@ import {
   claimFreeListingSlot,
   getFreeLaunchSlotsTotal,
   getPrivateListingPaymentLinkUrl,
+  isMissingListingPaymentUrlError,
   getLaunchFreeUntil,
   isPrivateListingFreeForUser,
   isListingFreeNow,
@@ -58,6 +59,11 @@ describe("marketplace config", () => {
     mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
     mockDb.freeListingClaim.create.mockResolvedValue({ id: "claim_1" });
     mockDb.$transaction.mockImplementation(async (callback) => callback(mockDb));
+  });
+
+  it("recognises a missing listing payment URL without treating other errors as configuration", () => {
+    expect(isMissingListingPaymentUrlError(new Error("RIPPLE_LISTING_PAYMENT_URL is not set"))).toBe(true);
+    expect(isMissingListingPaymentUrlError(new Error("provider timeout"))).toBe(false);
   });
 
   it("reads the private listing Ripple payment link from env", () => {

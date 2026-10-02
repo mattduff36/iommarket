@@ -5,6 +5,7 @@ import {
   extractConsoleStack,
   isExpectedClientCancellation,
   serializeConsoleArgs,
+  shouldIgnoreClientMonitoringMessage,
   shouldIgnoreConsoleError,
 } from "@/lib/monitoring/console-filter";
 import {
@@ -35,6 +36,7 @@ export function ClientErrorListener() {
         ? event.error.message
         : event.message || "Unhandled client error";
       const stack = event.error instanceof Error ? event.error.stack : undefined;
+      if (shouldIgnoreClientMonitoringMessage(message)) return;
       const payload = {
         message,
         stack,
@@ -55,6 +57,7 @@ export function ClientErrorListener() {
       if (isExpectedClientCancellation(event.reason)) return;
       const message = stringifyReason(event.reason);
       const stack = event.reason instanceof Error ? event.reason.stack : undefined;
+      if (shouldIgnoreClientMonitoringMessage(message)) return;
       const payload = {
         message,
         stack,

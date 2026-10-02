@@ -18,6 +18,15 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = error.message;
+    if (typeof message === "string") return message;
+  }
+  return "";
+}
+
 function hasTrustedOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   return origin === request.nextUrl.origin;
@@ -175,6 +184,7 @@ export async function POST(request: NextRequest) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    const missingBucket = /bucket not found/i.test(errorText(error));
     await captureException({
       source: "SERVER",
       error,
@@ -184,8 +194,12 @@ export async function POST(request: NextRequest) {
       userId: user.id,
     });
     return NextResponse.json(
-      { error: "Could not upload your logo. Please try again." },
-      { status: 500 },
+      {
+        error: missingBucket
+          ? "Logo storage is not available. Please try again later."
+          : "Could not upload your logo. Please try again.",
+      },
+      { status: missingBucket ? 503 : 500 },
     );
   }
 }

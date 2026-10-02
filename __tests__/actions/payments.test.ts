@@ -82,6 +82,8 @@ vi.mock("@/lib/policy/gate", () => ({
 
 vi.mock("@/lib/config/marketplace", () => ({
   isPrivateListingFreeForUser: isPrivateListingFreeForUserMock,
+  isMissingListingPaymentUrlError: (error: unknown) =>
+    error instanceof Error && error.message.includes("RIPPLE_LISTING_PAYMENT_URL"),
 }));
 
 vi.mock("@/lib/config/marketplace-pricing", () => ({
@@ -498,6 +500,31 @@ describe("payForListing", () => {
         type: "LISTING",
       }),
     });
+  });
+
+  it("returns the support message without capturing a missing listing payment URL", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: null,
+      status: "DRAFT",
+      expiresAt: new Date("2025-01-01T00:00:00Z"),
+      title: "Test listing",
+    });
+    createListingCheckoutMock.mockRejectedValue(
+      new Error("RIPPLE_LISTING_PAYMENT_URL is not set"),
+    );
+
+    await expect(
+      payForListing({
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        privateSellerTermsAccepted: true,
+      }),
+    ).resolves.toEqual({
+      error: "Listing checkout is not configured yet. Please contact support.",
+    });
+    expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
   it("returns a safe action error when an enforced receipt lookup fails", async () => {

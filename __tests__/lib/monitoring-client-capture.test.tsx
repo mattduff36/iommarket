@@ -25,6 +25,10 @@ describe("MON-CLIENT-001 / MON-CLIENT-002 console and window capture", () => {
     expect(shouldIgnoreConsoleError("Failed to POST /api/monitoring/events")).toBe(true);
     expect(shouldIgnoreConsoleError("{}")).toBe(true);
     expect(shouldIgnoreConsoleError("Payment failed")).toBe(false);
+    expect(shouldIgnoreConsoleError('{"isTrusted":true}')).toBe(true);
+    expect(shouldIgnoreConsoleError("Error invoking postMessage: Java object is gone")).toBe(true);
+    expect(shouldIgnoreConsoleError("Load failed")).toBe(true);
+    expect(shouldIgnoreConsoleError("Console Error: Failed to fetch RSC payload for /admin")).toBe(true);
     expect(
       isExpectedClientCancellation(
         new DOMException("signal is aborted without reason", "AbortError"),

@@ -19,6 +19,10 @@ export function getPrivateListingPaymentLinkUrl(): string {
   return url;
 }
 
+export function isMissingListingPaymentUrlError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("RIPPLE_LISTING_PAYMENT_URL");
+}
+
 export function getLaunchFreeUntil(): Date | null {
   const raw = process.env.LAUNCH_FREE_UNTIL;
   if (!raw) return null;
