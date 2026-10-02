@@ -5,7 +5,7 @@ import type { RuntimeEnv } from "@/lib/runtime-env";
  * Production stays gated until PRODUCTION_LAUNCH_ENABLED is exactly "1".
  */
 export const PREVIEW_REHEARSAL_BRANCH = "preview";
-export const PREVIEW_GATE_OPENS_AT = Date.parse("2026-10-03T00:35:00+01:00");
+export const PREVIEW_GATE_OPENS_AT = Date.parse("2026-10-03T00:31:00+01:00");
 export const PUBLIC_LAUNCH_AT = Date.parse("2026-10-03T10:00:00+01:00");
 
 export function isPreviewRehearsalBranch(env: RuntimeEnv = process.env): boolean {
