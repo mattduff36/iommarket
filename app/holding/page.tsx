@@ -4,6 +4,7 @@ import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { CookieBanner } from "@/components/layout/cookie-banner";
 import { HoldingHeader } from "@/components/layout/holding-header";
 import { LaunchCountdown } from "@/components/holding/launch-countdown";
+import { holdingCountdownTarget, PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
 import styles from "./holding.module.css";
 
 export const metadata: Metadata = {
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default function HoldingPage() {
+  const countdown = holdingCountdownTarget();
+  const previewRehearsal = countdown.opensAt === PREVIEW_GATE_OPENS_AT;
+
   return (
     <div
       className="relative flex min-h-screen flex-col"
@@ -30,7 +34,7 @@ export default function HoldingPage() {
 
         <div className={styles.badge}>
           <span className={styles.dot} aria-hidden="true" />
-          <span>Launching this Saturday</span>
+          <span>{previewRehearsal ? "Opening tonight" : "Launching this Saturday"}</span>
           <span className={styles.dot} aria-hidden="true" />
         </div>
 
@@ -50,11 +54,14 @@ export default function HoldingPage() {
         </p>
 
         <p className="mt-8 text-center font-heading text-sm font-semibold text-text-primary sm:text-base">
-          <time dateTime="2026-10-03T10:00:00+01:00">
-            Saturday 3 October <span className="whitespace-nowrap text-[#ff714a]">· 10:00 BST</span>
+          <time dateTime={previewRehearsal ? "2026-10-02T21:45:00+01:00" : "2026-10-03T10:00:00+01:00"}>
+            {previewRehearsal ? "Friday 2 October" : "Saturday 3 October"}{" "}
+            <span className="whitespace-nowrap text-[#ff714a]">
+              {previewRehearsal ? "· 21:45 BST" : "· 10:00 BST"}
+            </span>
           </time>
         </p>
-        <LaunchCountdown />
+        <LaunchCountdown opensAt={countdown.opensAt} releaseOnZero={countdown.releaseOnZero} />
         <p className="mt-2 text-center text-sm text-metallic-300">
           The wait is almost over. Be here for the start.
         </p>

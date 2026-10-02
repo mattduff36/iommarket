@@ -4,7 +4,8 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LaunchCountdown } from "@/components/holding/launch-countdown";
+import { LaunchCountdown, launchRelease } from "@/components/holding/launch-countdown";
+import { PREVIEW_GATE_OPENS_AT } from "@/lib/launch/preview-rehearsal";
 
 function digits() {
   return Array.from(screen.getByRole("timer").children).map((tile) => tile.firstElementChild?.textContent);
@@ -17,6 +18,8 @@ describe("LaunchCountdown", () => {
   });
   afterEach(() => {
     cleanup();
+    window.sessionStorage.clear();
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -50,6 +53,30 @@ describe("LaunchCountdown", () => {
     render(<LaunchCountdown />);
     act(() => vi.advanceTimersByTime(1000));
     expect(digits()).toEqual(["00", "00", "00", "00"]);
+  });
+
+  it("reloads the preview rehearsal when the clock reaches zero", () => {
+    const reload = vi.spyOn(launchRelease, "reload").mockImplementation(() => undefined);
+    window.sessionStorage.clear();
+    vi.setSystemTime(new Date(PREVIEW_GATE_OPENS_AT));
+    render(<LaunchCountdown opensAt={PREVIEW_GATE_OPENS_AT} releaseOnZero />);
+    act(() => vi.advanceTimersByTime(0));
+    expect(screen.getByRole("status")).toHaveTextContent("Opening the site…");
+    act(() => vi.advanceTimersByTime(0));
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem("itrader-preview-launch-release")).toBe("1");
+    reload.mockRestore();
+  });
+
+  it("stops reloading after the rehearsal retries are used", () => {
+    const reload = vi.spyOn(launchRelease, "reload").mockImplementation(() => undefined);
+    window.sessionStorage.setItem("itrader-preview-launch-release", "12");
+    vi.setSystemTime(new Date(PREVIEW_GATE_OPENS_AT));
+    render(<LaunchCountdown opensAt={PREVIEW_GATE_OPENS_AT} releaseOnZero />);
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(reload).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Please refresh to check for access.");
+    reload.mockRestore();
   });
 
   it("removes scheduled updates when unmounted", () => {

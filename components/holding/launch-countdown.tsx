@@ -1,19 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 
-const LAUNCH_TIME = Date.parse("2026-10-03T10:00:00+01:00");
 const UNITS = ["Days", "Hours", "Minutes", "Seconds"];
+const RELEASE_STORAGE_KEY = "itrader-preview-launch-release";
+const RELEASE_MAX_ATTEMPTS = 12;
+const RELEASE_RETRY_MS = 5000;
 
-function remainingSeconds() {
-  return Math.max(0, Math.ceil((LAUNCH_TIME - Date.now()) / 1000));
+export const launchRelease = {
+  reload() {
+    window.location.reload();
+  },
+};
+
+function remainingSeconds(opensAt: number) {
+  return Math.max(0, Math.ceil((opensAt - Date.now()) / 1000));
 }
 
-export function LaunchCountdown() {
+function releaseAttempts(): number {
+  try {
+    const stored = Number(window.sessionStorage.getItem(RELEASE_STORAGE_KEY) ?? "0");
+    return Number.isFinite(stored) ? stored : RELEASE_MAX_ATTEMPTS;
+  } catch {
+    return RELEASE_MAX_ATTEMPTS;
+  }
+}
+
+function rememberReleaseAttempt(attempt: number) {
+  try {
+    window.sessionStorage.setItem(RELEASE_STORAGE_KEY, String(attempt));
+  } catch {
+    // A blocked storage API must not reload the holding page in a loop.
+  }
+}
+
+export function LaunchCountdown({
+  opensAt = PUBLIC_LAUNCH_AT,
+  releaseOnZero = false,
+}: {
+  opensAt?: number;
+  releaseOnZero?: boolean;
+}) {
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [releaseExhausted, setReleaseExhausted] = useState(false);
 
   useEffect(() => {
-    const update = () => setRemaining(remainingSeconds());
+    const update = () => setRemaining(remainingSeconds(opensAt));
     // The server and first client render share placeholders, avoiding hydration drift.
     const initialUpdate = window.setTimeout(update, 0);
     const interval = window.setInterval(update, 1000);
@@ -21,7 +54,21 @@ export function LaunchCountdown() {
       window.clearTimeout(initialUpdate);
       window.clearInterval(interval);
     };
-  }, []);
+  }, [opensAt]);
+
+  useEffect(() => {
+    if (!releaseOnZero || remaining !== 0) return;
+    const attempts = releaseAttempts();
+    if (attempts >= RELEASE_MAX_ATTEMPTS) {
+      setReleaseExhausted(true);
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      rememberReleaseAttempt(attempts + 1);
+      launchRelease.reload();
+    }, attempts === 0 ? 0 : RELEASE_RETRY_MS);
+    return () => window.clearTimeout(timeout);
+  }, [releaseOnZero, remaining]);
 
   const values = remaining === null ? null : [
     Math.floor(remaining / 86400),
@@ -29,6 +76,7 @@ export function LaunchCountdown() {
     Math.floor((remaining % 3600) / 60),
     remaining % 60,
   ];
+  const showRefreshMessage = remaining === 0 && (!releaseOnZero || releaseExhausted);
 
   return (
     <div className="my-6 w-full max-w-[425px] text-center">
@@ -42,7 +90,12 @@ export function LaunchCountdown() {
           </div>
         ))}
       </div>
-      {remaining === 0 && (
+      {remaining === 0 && releaseOnZero && !releaseExhausted && (
+        <p role="status" className="mt-5 text-sm text-white/70">
+          Opening the site…
+        </p>
+      )}
+      {showRefreshMessage && (
         <p role="status" className="mt-5 text-sm text-white/70">
           Launch time has arrived. Please refresh to check for access.
         </p>
