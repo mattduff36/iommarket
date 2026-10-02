@@ -9,7 +9,7 @@ import { ONBOARDING_PRO_ENDS_AT } from "@/lib/dealers/onboarding/grant-plan";
 const userUpdate = vi.fn();
 const acceptanceUpsert = vi.fn();
 const dealerUpdate = vi.fn();
-const subscriptionUpdate = vi.fn();
+const subscriptionUpdateMany = vi.fn();
 const subscriptionCreate = vi.fn();
 const inviteUpdateMany = vi.fn();
 const eventCreate = vi.fn();
@@ -49,12 +49,16 @@ const dealer = {
       status: "ACTIVE",
       grantStartsAt: new Date("2026-09-01T00:00:00.000Z"),
       grantEndsAt: new Date("2026-12-01T00:00:00.000Z"),
-      revokedAt: null,
+      revokedAt: null as Date | null,
       currentPeriodEnd: new Date("2026-12-01T00:00:00.000Z"),
       promotionCampaignId: null as string | null,
     },
   ],
-  listings: [{ id: "listing-1", userId: "user-1", dealerId: "dealer-1" }],
+  listings: Array.from({ length: 90 }, (_, index) => ({
+    id: `listing-${index + 1}`,
+    userId: "user-1",
+    dealerId: "dealer-1",
+  })),
 };
 
 function tx() {
@@ -77,7 +81,7 @@ function tx() {
       })),
     },
     policyAcceptance: { upsert: acceptanceUpsert },
-    subscription: { update: subscriptionUpdate, create: subscriptionCreate },
+    subscription: { updateMany: subscriptionUpdateMany, create: subscriptionCreate },
     dealerOnboardingInviteEvent: { create: eventCreate },
   };
 }
@@ -86,22 +90,30 @@ describe("dealer onboarding activation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     invite.status = "SENT";
-    dealer.listings = [{ id: "listing-1", userId: "user-1", dealerId: "dealer-1" }];
-    dealer.subscriptions[0].source = "ADMIN_GRANT";
-    dealer.subscriptions[0].grantStartsAt = new Date("2026-09-01T00:00:00.000Z");
-    dealer.subscriptions[0].grantEndsAt = new Date("2026-12-01T00:00:00.000Z");
-    dealer.subscriptions[0].currentPeriodEnd = new Date("2026-12-01T00:00:00.000Z");
-    dealer.subscriptions[0].promotionCampaignId = null;
-    dealer.subscriptions[0].revokedAt = null;
+    dealer.listings = Array.from({ length: 90 }, (_, index) => ({
+      id: `listing-${index + 1}`,
+      userId: "user-1",
+      dealerId: "dealer-1",
+    }));
+    dealer.subscriptions = [{
+      id: "grant-1",
+      source: "ADMIN_GRANT",
+      status: "ACTIVE",
+      grantStartsAt: new Date("2026-09-01T00:00:00.000Z"),
+      grantEndsAt: new Date("2026-12-01T00:00:00.000Z"),
+      revokedAt: null,
+      currentPeriodEnd: new Date("2026-12-01T00:00:00.000Z"),
+      promotionCampaignId: null,
+    }];
     inviteUpdateMany.mockResolvedValue({ count: 1 });
     acceptanceUpsert.mockResolvedValue({ id: "acceptance" });
     userUpdate.mockResolvedValue({});
     dealerUpdate.mockResolvedValue({});
-    subscriptionUpdate.mockResolvedValue({});
+    subscriptionUpdateMany.mockResolvedValue({ count: 1 });
     eventCreate.mockResolvedValue({});
   });
 
-  it("preserves identities, records every current policy, and starts Pro at acceptance", async () => {
+  it("reuses the existing active admin grant without inserting a conflicting grant", async () => {
     const acceptedAt = new Date("2026-10-15T00:00:00.000Z");
     const result = await commitOnboardingClaim(tx() as never, {
       inviteId: invite.id,
@@ -123,6 +135,60 @@ describe("dealer onboarding activation", () => {
       where: { id: "dealer-1" },
       data: { tier: "PRO" },
     });
+    expect(subscriptionUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "grant-1",
+        dealerId: "dealer-1",
+        source: "ADMIN_GRANT",
+        status: "ACTIVE",
+        revokedAt: null,
+      },
+      data: {
+        currentPeriodEnd: ONBOARDING_PRO_ENDS_AT,
+        grantEndsAt: ONBOARDING_PRO_ENDS_AT,
+        promotionCampaignId: "campaign-1",
+      },
+    });
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(eventCreate.mock.calls[0][0].data.policySnapshot.versions.DEALER_BUNDLE).toBeTruthy();
+    expect(eventCreate.mock.calls[0][0].data.metadata).toMatchObject({
+      preservedUserId: "user-1",
+      preservedAuthUserId: "auth-1",
+      preservedDealerId: "dealer-1",
+      listingCount: 90,
+      grantAction: "reconcile",
+      grantSubscriptionId: "grant-1",
+    });
+
+    invite.status = "FINALIZING_AUTH";
+    await expect(
+      commitOnboardingClaim(tx() as never, {
+        inviteId: invite.id,
+        tokenHash: invite.tokenHash,
+        leaseToken: "lease-retry",
+        now: new Date("2026-10-15T00:01:00.000Z"),
+        leaseExpiresAt: new Date("2026-10-15T00:03:00.000Z"),
+        recipientEmailNorm: invite.recipientEmailNorm,
+        actorUserId: "user-1",
+      }),
+    ).resolves.toEqual({ kind: "resume" });
+    expect(subscriptionUpdateMany).toHaveBeenCalledTimes(1);
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(eventCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a grant only when no active admin grant exists", async () => {
+    dealer.subscriptions = [];
+    const acceptedAt = new Date("2026-10-15T00:00:00.000Z");
+    await commitOnboardingClaim(tx() as never, {
+      inviteId: invite.id,
+      tokenHash: invite.tokenHash,
+      leaseToken: "lease-create",
+      now: acceptedAt,
+      leaseExpiresAt: new Date("2026-10-15T00:02:00.000Z"),
+      recipientEmailNorm: invite.recipientEmailNorm,
+      actorUserId: "user-1",
+    });
     expect(subscriptionCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         dealerId: "dealer-1",
@@ -132,17 +198,10 @@ describe("dealer onboarding activation", () => {
         promotionCampaignId: "campaign-1",
       }),
     });
-    expect(subscriptionUpdate).not.toHaveBeenCalled();
-    expect(eventCreate.mock.calls[0][0].data.policySnapshot.versions.DEALER_BUNDLE).toBeTruthy();
-    expect(eventCreate.mock.calls[0][0].data.metadata).toMatchObject({
-      preservedUserId: "user-1",
-      preservedAuthUserId: "auth-1",
-      preservedDealerId: "dealer-1",
-      listingCount: 1,
-    });
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("leaves a longer complimentary grant unchanged and reuses only the campaign grant", async () => {
+  it("leaves a longer complimentary grant unchanged", async () => {
     dealer.subscriptions[0].grantEndsAt = new Date("2027-06-01T00:00:00.000Z");
     await expect(
       commitOnboardingClaim(tx() as never, {
@@ -156,28 +215,7 @@ describe("dealer onboarding activation", () => {
       }),
     ).resolves.toMatchObject({ kind: "finalizing" });
     expect(subscriptionCreate).not.toHaveBeenCalled();
-    expect(subscriptionUpdate).not.toHaveBeenCalled();
-
-    dealer.subscriptions[0].grantEndsAt = new Date("2026-12-01T00:00:00.000Z");
-    dealer.subscriptions[0].promotionCampaignId = "campaign-1";
-    await commitOnboardingClaim(tx() as never, {
-      inviteId: invite.id,
-      tokenHash: invite.tokenHash,
-      leaseToken: "lease-2",
-      now: new Date("2026-10-16T00:00:00.000Z"),
-      leaseExpiresAt: new Date("2026-10-16T00:02:00.000Z"),
-      recipientEmailNorm: invite.recipientEmailNorm,
-      actorUserId: "user-1",
-    });
-    expect(subscriptionUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "grant-1" },
-        data: expect.objectContaining({
-          grantStartsAt: new Date("2026-10-16T00:00:00.000Z"),
-          grantEndsAt: ONBOARDING_PRO_ENDS_AT,
-        }),
-      }),
-    );
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
   });
 
   it("does not change a paid subscription or mismatched listing ownership", async () => {
@@ -196,7 +234,7 @@ describe("dealer onboarding activation", () => {
     ).rejects.toBeInstanceOf(OnboardingClaimError);
     expect(userUpdate).not.toHaveBeenCalled();
     expect(subscriptionCreate).not.toHaveBeenCalled();
-    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
 
     dealer.subscriptions[0].source = "ADMIN_GRANT";
     dealer.subscriptions[0].currentPeriodEnd = new Date("2026-12-01T00:00:00.000Z");
@@ -228,6 +266,27 @@ describe("dealer onboarding activation", () => {
     ).rejects.toThrow("can no longer be claimed");
   });
 
+  it("rejects a genuinely conflicting active admin grant transactionally", async () => {
+    dealer.subscriptions[0].revokedAt = new Date("2026-10-01T00:00:00.000Z");
+    await expect(
+      commitOnboardingClaim(tx() as never, {
+        inviteId: invite.id,
+        tokenHash: invite.tokenHash,
+        leaseToken: "lease-conflict",
+        now: new Date("2026-10-15T00:00:00.000Z"),
+        leaseExpiresAt: new Date("2026-10-15T00:02:00.000Z"),
+        recipientEmailNorm: invite.recipientEmailNorm,
+        actorUserId: "user-1",
+      }),
+    ).rejects.toThrow("conflicting complimentary access");
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(acceptanceUpsert).not.toHaveBeenCalled();
+    expect(dealerUpdate).not.toHaveBeenCalled();
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
   it("resumes a finalizing claim without repeating acceptance or the grant", async () => {
     invite.status = "FINALIZING_AUTH";
     await expect(
@@ -243,7 +302,8 @@ describe("dealer onboarding activation", () => {
     ).resolves.toEqual({ kind: "resume" });
     expect(userUpdate).not.toHaveBeenCalled();
     expect(acceptanceUpsert).not.toHaveBeenCalled();
-    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
+    expect(subscriptionCreate).not.toHaveBeenCalled();
   });
 
   it("lets one concurrent claim win and resumes finalization without a second event", async () => {

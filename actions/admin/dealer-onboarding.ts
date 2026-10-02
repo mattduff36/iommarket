@@ -269,12 +269,14 @@ async function prepareInvite(input: {
       },
       subscriptions: {
         select: {
+          id: true,
           source: true,
           status: true,
           grantStartsAt: true,
           grantEndsAt: true,
           revokedAt: true,
           currentPeriodEnd: true,
+          promotionCampaignId: true,
         },
       },
     },
@@ -294,13 +296,16 @@ async function prepareInvite(input: {
   const grant = planPromotionGrant({
     subscriptions: dealer.subscriptions,
     now,
+    campaignId: campaign.id,
   });
   if ("blocked" in grant) {
     return {
       error:
         grant.blocked === "paid-subscription"
           ? "This dealer has a paid subscription, so onboarding was not sent."
-          : "Complimentary Pro access has ended.",
+          : grant.blocked === "promotion-ended"
+            ? "Complimentary Pro access has ended."
+            : "This dealer has conflicting complimentary access, so onboarding was not sent.",
     };
   }
 

@@ -22,6 +22,7 @@ import {
   applySampleListingVisibility,
   getSampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import { publicListingSellerWhere } from "@/lib/listings/dealer-visibility";
 import { cn } from "@/lib/cn";
 import { Alert } from "@/components/ui/alert";
 import { findPendingDealerUpgradeOffer } from "@/lib/dealers/upgrade-offers";
@@ -98,7 +99,12 @@ export default async function AccountDashboardPage() {
     db.favourite.count({
       where: {
         userId: user.id,
-        listing: applySampleListingVisibility({}, sampleVisibility),
+        listing: {
+          AND: [
+            applySampleListingVisibility({}, sampleVisibility),
+            publicListingSellerWhere(undefined, sampleVisibility),
+          ],
+        },
       },
     }),
     db.savedSearch.count({

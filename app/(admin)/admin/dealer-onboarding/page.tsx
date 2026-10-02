@@ -2,7 +2,10 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { formatIsleOfManDateTime } from "@/lib/dealers/onboarding/campaign-window";
+import {
+  formatIsleOfManDateTime,
+  LAUNCH_PROMOTION_KEY,
+} from "@/lib/dealers/onboarding/campaign-window";
 import { onboardingEligibleDealerWhere } from "@/lib/dealers/onboarding/eligible-dealers";
 import {
   ONBOARDING_PRO_END_LABEL,
@@ -37,7 +40,7 @@ export default async function AdminDealerOnboardingPage({
 }: Props) {
   const params = await searchParams;
   const now = new Date();
-  const [enabledPacks, invites] = await Promise.all([
+  const [enabledPacks, invites, campaign] = await Promise.all([
     db.dealerPreviewPack.findMany({
       where: { enabled: true },
       select: { dealerKey: true },
@@ -46,6 +49,10 @@ export default async function AdminDealerOnboardingPage({
       orderBy: { createdAt: "desc" },
       take: 50,
       include: { dealer: { select: { name: true } } },
+    }),
+    db.dealerPromotionCampaign.findUnique({
+      where: { key: LAUNCH_PROMOTION_KEY },
+      select: { id: true },
     }),
   ]);
   const dealers = await db.dealerProfile.findMany({
@@ -62,12 +69,14 @@ export default async function AdminDealerOnboardingPage({
       user: { select: { email: true } },
       subscriptions: {
         select: {
+          id: true,
           source: true,
           status: true,
           grantStartsAt: true,
           grantEndsAt: true,
           revokedAt: true,
           currentPeriodEnd: true,
+          promotionCampaignId: true,
         },
       },
     },
@@ -76,6 +85,7 @@ export default async function AdminDealerOnboardingPage({
     const grant = planPromotionGrant({
       subscriptions: dealer.subscriptions,
       now,
+      campaignId: campaign?.id ?? null,
     });
     const activeGrant = dealer.subscriptions.find(
       (subscription) =>
@@ -97,7 +107,9 @@ export default async function AdminDealerOnboardingPage({
         "blocked" in grant
           ? grant.blocked === "paid-subscription"
             ? "Blocked by a paid subscription"
-            : "Complimentary Pro has ended"
+            : grant.blocked === "promotion-ended"
+              ? "Complimentary Pro has ended"
+              : "Blocked by conflicting complimentary access"
           : grant.kind === "preserve"
             ? formatIsleOfManDateTime(grant.endsAt)
             : ONBOARDING_PRO_END_LABEL,

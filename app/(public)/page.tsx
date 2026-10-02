@@ -18,6 +18,7 @@ import {
   applySampleListingVisibility,
   getSampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import { publicListingSellerWhere } from "@/lib/listings/dealer-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
@@ -73,7 +74,12 @@ export default async function HomePage() {
       getMarketplaceDealerSpotlightQuery(liveWhere, currentUser, sampleVisibility),
     ),
     db.listing.count({
-      where: applySampleListingVisibility({ status: "SOLD" }, sampleVisibility),
+      where: {
+        AND: [
+          applySampleListingVisibility({ status: "SOLD" }, sampleVisibility),
+          publicListingSellerWhere(undefined, sampleVisibility),
+        ],
+      },
     }),
     getMarketplacePricing(),
   ]);
