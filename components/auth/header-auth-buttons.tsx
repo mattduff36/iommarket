@@ -104,7 +104,7 @@ export function HeaderAuthButtons({ authState, onEditListingAsAdmin }: Props) {
         <span className="max-w-[140px] truncate text-sm font-medium text-text-secondary">
           {displayName ?? user.email ?? "Account"}
         </span>
-        <span className="text-[10px] uppercase tracking-wider text-text-tertiary">
+        <span className={`text-[10px] uppercase tracking-wider ${role === "ADMIN" ? "text-neon-red-400" : "text-text-tertiary"}`}>
           {roleLabel}
         </span>
       </div>
@@ -130,7 +130,7 @@ export function HeaderAuthButtons({ authState, onEditListingAsAdmin }: Props) {
               <span className="max-w-[180px] truncate">
                 {displayName ?? user.email ?? "Account"}
               </span>
-              <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-normal">
+              <span className={`text-[10px] uppercase tracking-wider font-normal ${role === "ADMIN" ? "text-neon-red-400" : "text-text-tertiary"}`}>
                 {roleLabel}
               </span>
             </span>

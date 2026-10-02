@@ -346,7 +346,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
               Subscription:
             </span>
             {showAdminOperationalAccess ? (
-              <Badge variant="info">Admin operational access</Badge>
+              <Badge variant="error">Admin operational access</Badge>
             ) : entitlement ? (
               <>
                 <Badge variant="success">

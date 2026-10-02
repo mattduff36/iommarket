@@ -12,9 +12,14 @@ import {
 import { logAdminAction } from "@/lib/admin/audit";
 import { liveListingWhere } from "@/lib/listings/expiry";
 import {
+  applySampleDealerVisibility,
   applySampleListingVisibility,
   getSampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import {
+  applySamplePaymentVisibility,
+  applySampleReportVisibility,
+} from "@/lib/listings/sample-related-visibility";
 import {
   createCategorySchema,
   createAttributeDefinitionSchema,
@@ -228,13 +233,20 @@ export async function getAdminStats() {
     db.listing.count({
       where: applySampleListingVisibility(liveListingWhere(), sampleVisibility),
     }),
-    db.dealerProfile.count(),
-    db.report.count({ where: { status: "OPEN" } }),
+    db.dealerProfile.count({
+      where: applySampleDealerVisibility({}, sampleVisibility),
+    }),
+    db.report.count({
+      where: applySampleReportVisibility({ status: "OPEN" }, sampleVisibility),
+    }),
     db.payment.count({
-      where: {
-        status: "SUCCEEDED",
-        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-      },
+      where: applySamplePaymentVisibility(
+        {
+          status: "SUCCEEDED",
+          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        },
+        sampleVisibility,
+      ),
     }),
   ]);
 
@@ -461,8 +473,12 @@ export async function toggleCategoryActive(id: string, active: boolean) {
   const admin = await requireRole("ADMIN");
   if (!id) return { error: "Missing id" };
   try {
+    const sampleVisibility = await getSampleVisibility();
     const listingCount = await db.listing.count({
-      where: { categoryId: id, ...liveListingWhere() },
+      where: applySampleListingVisibility(
+        { categoryId: id, ...liveListingWhere() },
+        sampleVisibility,
+      ),
     });
     const category = await db.category.update({ where: { id }, data: { active } });
     await logAdminAction({
@@ -496,7 +512,9 @@ export async function deleteCategory(id: string) {
   if (!id) return { error: "Missing id" };
   const listingCount = await db.listing.count({ where: { categoryId: id } });
   if (listingCount > 0) {
-    return { error: `Cannot delete: category has ${listingCount} listing${listingCount !== 1 ? "s" : ""}` };
+    return {
+      error: "Cannot delete: category is referenced by existing listings. Disable it instead.",
+    };
   }
   try {
     await db.category.delete({ where: { id } });

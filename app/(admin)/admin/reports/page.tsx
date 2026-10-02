@@ -17,6 +17,8 @@ import {
 import { ReportActions } from "./report-actions";
 import { AdminPager } from "@/components/admin/admin-pager";
 import { adminTotalPages, parseAdminPage } from "@/lib/admin/query";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { applySampleReportVisibility } from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "Moderation Reports" };
 
@@ -41,10 +43,14 @@ export default async function AdminReportsPage({
     : "OPEN";
   const page = parseAdminPage(params.page);
   const where = status === "ALL" ? {} : { status };
+  const visibleWhere = applySampleReportVisibility(
+    where,
+    await getSampleVisibility(),
+  );
 
   const [reports, total] = await Promise.all([
     db.report.findMany({
-      where,
+      where: visibleWhere,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -54,7 +60,7 @@ export default async function AdminReportsPage({
         },
       },
     }),
-    db.report.count({ where }),
+    db.report.count({ where: visibleWhere }),
   ]);
   const totalPages = adminTotalPages(total, PAGE_SIZE);
 

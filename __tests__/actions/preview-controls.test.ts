@@ -98,5 +98,6 @@ describe("preview controls admin actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/admin/listings");
     expect(revalidatePath).toHaveBeenCalledWith("/");
     expect(revalidatePath).toHaveBeenCalledWith("/search");
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 });

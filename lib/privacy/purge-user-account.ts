@@ -30,6 +30,7 @@ const ACCOUNT_TABLES = [
   "PaymentWebhookInbox",
   "AdminAuditLog",
   "WaitlistUser",
+  "WaitlistEarlyAccessRecipient",
 ] as const;
 
 export async function loadPublicTables(client: {
@@ -110,6 +111,17 @@ export async function assertUserCanBePurged(
       "This account is still referenced by other admin records and cannot be deleted.",
     );
   }
+  // Also verifies the database supports the narrowly scoped immutable-record
+  // exception before the caller removes the external login. Scope ends at commit.
+  const [capability] = await tx.$queryRaw<Array<{ ready: boolean }>>`
+    SELECT to_regprocedure('public.prepare_account_purge(text)') IS NOT NULL AS ready
+  `;
+  if (!capability?.ready) {
+    throw new PurgeUserError(
+      "Account deletion requires a database update. No login or profile has been removed.",
+    );
+  }
+  await tx.$executeRaw`SELECT public.prepare_account_purge(${userId}::text)`;
 }
 
 export async function deleteEmailResidues(
@@ -119,6 +131,16 @@ export async function deleteEmailResidues(
   tables: Set<string> = new Set(ACCOUNT_TABLES),
 ) {
   const pattern = escapeRegExp(email);
+  if (tableExists(tables, "WaitlistEarlyAccessRecipient")) {
+    await tx.waitlistEarlyAccessRecipient.deleteMany({
+      where: {
+        OR: [
+          ...(userId ? [{ testAdminUserId: userId }] : []),
+          { waitlistUser: { email: { equals: email, mode: "insensitive" } } },
+        ],
+      },
+    });
+  }
   if (tableExists(tables, "MonitoringEvent")) {
     await tx.monitoringEvent.deleteMany({
       where: {

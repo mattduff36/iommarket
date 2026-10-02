@@ -67,11 +67,13 @@ const userId = "cluserxxxxxxxxxxxxxxxxxxxx";
 describe("deleteUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    captureExceptionMock.mockResolvedValue(null);
     requireRoleMock.mockResolvedValue({ id: "cladminxxxxxxxxxxxxxxxxxxx", role: "ADMIN" });
     legalHoldMock.mockResolvedValue(false);
     loadTablesMock.mockResolvedValue(new Set(["User"]));
     assertMock.mockResolvedValue(undefined);
     deleteAuthUserMock.mockResolvedValue(undefined);
+    deleteMediaMock.mockResolvedValue({ failedPublicIds: [] });
     purgeMock.mockResolvedValue({
       email: "deleted.user@example.com",
       authUserId: "auth-1",
@@ -127,5 +129,37 @@ describe("deleteUser", () => {
     });
     expect(deleteAuthUserMock).not.toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();
+  });
+
+  it("does not permit deleting the signed-in administrator", async () => {
+    requireRoleMock.mockResolvedValue({ id: userId, role: "ADMIN" });
+    expect(await deleteUser({ userId })).toEqual({ error: "Cannot delete your own account" });
+    expect(deleteAuthUserMock).not.toHaveBeenCalled();
+    expect(purgeMock).not.toHaveBeenCalled();
+  });
+
+  it("stops before login removal when purge preflight fails", async () => {
+    assertMock.mockRejectedValue(new PurgeUserError("Account deletion needs a database update."));
+    expect(await deleteUser({ userId })).toEqual({ error: "Account deletion needs a database update." });
+    expect(deleteAuthUserMock).not.toHaveBeenCalled();
+  });
+
+  it("does not instruct the admin to repeat a deterministic database failure", async () => {
+    purgeMock.mockRejectedValue(new Error("constraint failure"));
+    const result = await deleteUser({ userId });
+    expect(result).toEqual({ error: expect.stringContaining("profile deletion failed") });
+    expect(JSON.stringify(result)).not.toContain("Delete the account again");
+  });
+
+  it("does not report a remaining profile after postcommit media failure", async () => {
+    deleteMediaMock.mockRejectedValue(new Error("media service unavailable"));
+    expect(await deleteUser({ userId })).toEqual({ data: { success: true } });
+    expect(captureExceptionMock).toHaveBeenCalled();
+  });
+
+  it("returns deletion success even if postcommit cleanup and monitoring both fail", async () => {
+    deleteMediaMock.mockRejectedValue(new Error("media service unavailable"));
+    captureExceptionMock.mockRejectedValue(new Error("monitoring unavailable"));
+    expect(await deleteUser({ userId })).toEqual({ data: { success: true } });
   });
 });

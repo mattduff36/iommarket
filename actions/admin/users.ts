@@ -7,8 +7,14 @@ import { logAdminAction } from "@/lib/admin/audit";
 import { provisionDealerProfile } from "@/lib/dealers/access";
 import {
   applySampleListingVisibility,
+  applySampleUserVisibility,
   getSampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import {
+  applySampleFavouriteVisibility,
+  applySampleListingViewVisibility,
+  applySampleReportVisibility,
+} from "@/lib/listings/sample-related-visibility";
 import {
   grantAdminDealerAccess,
   revokeAdminDealerAccess,
@@ -57,14 +63,15 @@ export async function listUsers(input: ListUsersInput) {
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const { query, role, regionId, disabled, page, pageSize } = parsed.data;
-  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const where = buildAdminUsersWhere({
     query,
     role,
     regionId,
     disabled,
-  });
+  }, sampleVisibility);
 
   const [users, total] = await Promise.all([
     db.user.findMany({
@@ -75,7 +82,14 @@ export async function listUsers(input: ListUsersInput) {
       include: {
         region: { select: { name: true } },
         dealerProfile: { select: { id: true, name: true, verified: true, tier: true } },
-        _count: { select: { listings: { where: visibleListings }, favourites: true } },
+        _count: {
+          select: {
+            listings: { where: visibleListings },
+            favourites: {
+              where: applySampleFavouriteVisibility({}, sampleVisibility),
+            },
+          },
+        },
       },
     }),
     db.user.count({ where }),
@@ -98,8 +112,8 @@ export async function getUserAdminView(userId: string) {
   const sampleVisibility = await getSampleVisibility();
   const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
+  const user = await db.user.findFirst({
+    where: applySampleUserVisibility({ id: userId }, sampleVisibility),
     include: {
       region: true,
       dealerProfile: {
@@ -110,10 +124,16 @@ export async function getUserAdminView(userId: string) {
       _count: {
         select: {
           listings: { where: visibleListings },
-          favourites: true,
+          favourites: {
+            where: applySampleFavouriteVisibility({}, sampleVisibility),
+          },
           savedSearches: true,
-          reports: true,
-          listingViews: true,
+          reports: {
+            where: applySampleReportVisibility({}, sampleVisibility),
+          },
+          listingViews: {
+            where: applySampleListingViewVisibility({}, sampleVisibility),
+          },
         },
       },
     },
@@ -658,6 +678,7 @@ export async function deleteUser(input: DeleteUserInput) {
   }
 
   let loginRemoved = false;
+  let profileRemoved = false;
   try {
     const tables = await loadPublicTables(db);
     await db.$transaction((tx) => assertUserCanBePurged(tx, userId, tables));
@@ -679,7 +700,8 @@ export async function deleteUser(input: DeleteUserInput) {
         tx,
       );
       return purged.imagePublicIds;
-    });
+    }, { timeout: 30_000 });
+    profileRemoved = true;
     await deleteAccountMedia(imagePublicIds);
 
     revalidatePath("/admin/users");
@@ -697,12 +719,16 @@ export async function deleteUser(input: DeleteUserInput) {
       requestPath: "/admin/users",
       userId: admin.id,
       tags: { userId },
-    });
+    }).catch(() => null);
+    if (profileRemoved) {
+      // Postcommit cleanup cannot undo deletion or leave a remaining profile.
+      return { data: { success: true } };
+    }
     if (err instanceof PurgeUserError && !loginRemoved) return { error: err.message };
     if (loginRemoved) {
       return {
         error:
-          "The login was removed, but the profile is still in the database. Delete the account again to finish.",
+          "The login was removed, but profile deletion failed. The error has been recorded for investigation; the database issue must be resolved before retrying.",
       };
     }
     const message = err instanceof Error ? err.message : "Failed to delete user";

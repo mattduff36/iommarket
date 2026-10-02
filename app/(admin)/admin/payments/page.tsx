@@ -60,6 +60,11 @@ import {
 import { paymentOrderBy, subscriptionOrderBy } from "@/lib/admin/table-order";
 import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
 import type { Prisma } from "@prisma/client";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import {
+  applySamplePaymentVisibility,
+  applySampleSubscriptionVisibility,
+} from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "Payments | Admin" };
 
@@ -115,6 +120,7 @@ function PaymentTabs({
 
 export default async function AdminPaymentsPage({ searchParams }: Props) {
   const params = await searchParams;
+  const sampleVisibility = await getSampleVisibility();
   const capabilities = getPaymentProviderCapabilities();
   const providerPortalUrl = getPaymentProviderPortalUrl();
   const tab = params.tab ?? "payments";
@@ -186,16 +192,20 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
   if (tab === "subscriptions") {
     const subWhere: Prisma.SubscriptionWhereInput = {};
     if (subscriptionStatus) subWhere.status = subscriptionStatus;
+    const visibleSubWhere = applySampleSubscriptionVisibility(
+      subWhere,
+      sampleVisibility,
+    );
 
     const [subscriptions, subTotal] = await Promise.all([
       db.subscription.findMany({
-        where: subWhere,
+        where: visibleSubWhere,
         orderBy: subscriptionOrderBy(sort),
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
         include: { dealer: { select: { name: true, slug: true, tier: true } } },
       }),
-      db.subscription.count({ where: subWhere }),
+      db.subscription.count({ where: visibleSubWhere }),
     ]);
 
     const subPages = Math.ceil(subTotal / PAGE_SIZE);
@@ -363,10 +373,14 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
   }
   if (paymentStatus) payWhere.status = paymentStatus;
   if (typeFilter) payWhere.type = typeFilter;
+  const visiblePayWhere = applySamplePaymentVisibility(
+    payWhere,
+    sampleVisibility,
+  );
 
   const [payments, payTotal] = await Promise.all([
     db.payment.findMany({
-      where: payWhere,
+      where: visiblePayWhere,
       orderBy: paymentOrderBy(sort),
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -374,7 +388,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         listing: { select: { title: true, user: { select: { email: true } } } },
       },
     }),
-    db.payment.count({ where: payWhere }),
+    db.payment.count({ where: visiblePayWhere }),
   ]);
 
   const payPages = Math.ceil(payTotal / PAGE_SIZE);

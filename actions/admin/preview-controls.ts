@@ -26,6 +26,7 @@ function revalidateMarketplaceSurfaces() {
   revalidatePath("/categories");
   revalidatePath("/account");
   revalidatePath("/account/favourites");
+  revalidatePath("/", "layout");
 }
 
 export async function getPreviewControls() {

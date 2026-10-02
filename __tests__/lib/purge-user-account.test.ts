@@ -30,13 +30,14 @@ const user = {
   listingImageUploadIntents: [{ publicId: "intent-1" }],
 };
 
-function createTx(counts: Record<string, number> = {}) {
+function createTx(counts: Record<string, number> = {}, purgeReady = true) {
   const calls: string[] = [];
   const tx = new Proxy(
     {},
     {
       get(_target, prop) {
         if (prop === "then") return undefined;
+        if (prop === "$queryRaw") return async () => [{ ready: purgeReady }];
         if (prop === "$executeRaw") {
           return async () => {
             calls.push("$executeRaw");
@@ -81,6 +82,15 @@ describe("purgeUserAccountRecords", () => {
     expect(profileDelete).toBeGreaterThan(listingDelete);
   });
 
+  it("removes early-access references before deleting the waitlist entry or account", async () => {
+    const { tx, calls } = createTx();
+    await purgeUserAccountRecords(tx as never, "user-1");
+    expect(calls.indexOf("waitlistEarlyAccessRecipient.deleteMany")).toBeGreaterThan(-1);
+    expect(calls.indexOf("waitlistEarlyAccessRecipient.deleteMany")).toBeLessThan(
+      calls.indexOf("waitlistUser.deleteMany"),
+    );
+  });
+
   it("refuses when the account owns records for other people", async () => {
     const { tx, calls } = createTx({ dealerPromotionCampaign: 1 });
 
@@ -88,6 +98,14 @@ describe("purgeUserAccountRecords", () => {
       PurgeUserError,
     );
     expect(calls).not.toContain("user.delete");
+  });
+
+  it("refuses before deleting records when the database fix is not installed", async () => {
+    const { tx, calls } = createTx({}, false);
+    await expect(purgeUserAccountRecords(tx as never, "user-1")).rejects.toThrow(
+      "Account deletion requires a database update",
+    );
+    expect(calls.some((call) => call.endsWith(".deleteMany") || call === "user.delete")).toBe(false);
   });
 });
 

@@ -35,6 +35,8 @@ import {
   parseAdminSort,
 } from "@/lib/admin/table-state";
 import { CancellationActions } from "./cancellation-actions";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
+import { applySampleCancellationVisibility } from "@/lib/listings/sample-related-visibility";
 
 export const metadata: Metadata = { title: "Cancellation Requests" };
 
@@ -57,7 +59,10 @@ export default async function AdminCancellationsPage({
   const params = await searchParams;
   const page = parseAdminPage(params.page);
   const sort = parseAdminSort(params, CANCELLATION_TABLE_COLUMNS, CANCELLATION_TABLE_SORT);
-  const where = {};
+  const where = applySampleCancellationVisibility(
+    {},
+    await getSampleVisibility(),
+  );
   const [requests, total] = await Promise.all([
     db.dealerCancellationRequest.findMany({
       where,

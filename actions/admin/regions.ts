@@ -12,14 +12,27 @@ import {
   type UpdateRegionInput,
 } from "@/lib/validations/admin";
 import { reportHandledException } from "@/lib/monitoring";
+import {
+  applySampleListingVisibility,
+  applySampleUserVisibility,
+  getSampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 export async function listRegions() {
   await requireRole("ADMIN");
+  const sampleVisibility = await getSampleVisibility();
 
   const regions = await db.region.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
-      _count: { select: { users: true, listings: true } },
+      _count: {
+        select: {
+          users: { where: applySampleUserVisibility({}, sampleVisibility) },
+          listings: {
+            where: applySampleListingVisibility({}, sampleVisibility),
+          },
+        },
+      },
     },
   });
 
@@ -93,8 +106,12 @@ export async function toggleRegionActive(id: string, active: boolean) {
   if (!id) return { error: "Missing id" };
 
   try {
+    const sampleVisibility = await getSampleVisibility();
     const liveListingCount = await db.listing.count({
-      where: { regionId: id, ...liveListingWhere() },
+      where: applySampleListingVisibility(
+        { regionId: id, ...liveListingWhere() },
+        sampleVisibility,
+      ),
     });
     const region = await db.region.update({ where: { id }, data: { active } });
 
@@ -130,7 +147,8 @@ export async function deleteRegion(id: string) {
 
   if (userCount > 0 || listingCount > 0) {
     return {
-      error: `Cannot delete: region has ${userCount} user${userCount !== 1 ? "s" : ""} and ${listingCount} listing${listingCount !== 1 ? "s" : ""}. Disable it instead.`,
+      error:
+        "Cannot delete: region is referenced by existing users or listings. Disable it instead.",
     };
   }
 

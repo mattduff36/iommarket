@@ -64,13 +64,14 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const sort = parseAdminSort(params, DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT);
   const now = new Date();
-  const visibleListings = applySampleListingVisibility({}, await getSampleVisibility());
+  const sampleVisibility = await getSampleVisibility();
+  const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
   const where: Prisma.DealerProfileWhereInput = buildAdminDealersWhere({
     query,
     verified: verifiedFilter,
     id: params.id,
-  });
+  }, sampleVisibility);
 
   const [dealers, total] = await Promise.all([
     db.dealerProfile.findMany({

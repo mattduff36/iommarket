@@ -1,6 +1,7 @@
 import { escapeHtml } from "@/lib/email/client";
 
 export const EMAIL_LOGO_URL = "https://itrader.im/images/logo-itrader-hq.png";
+export const EMAIL_SITE_URL = "https://itrader.im/";
 
 const FONT = "Arial,sans-serif";
 const TEXT = "#d7dff2";
@@ -44,20 +45,37 @@ function cleanLines(lines: Array<string | undefined>) {
   return lines.filter((line): line is string => Boolean(line && line.trim()));
 }
 
+function linkedBrandHtml(text: string) {
+  return escapeHtml(text).replace(
+    /(^|[^@\w])iTrader\.im/g,
+    `$1<a href="${EMAIL_SITE_URL}" style="color:${BLUE};text-decoration:underline;">iTrader.im</a>`,
+  );
+}
+
 function paragraphHtml(text: string, align: "left" | "center") {
-  return `<p style="margin:0 0 14px 0;font-family:${FONT};font-size:16px;line-height:24px;color:${TEXT};text-align:${align};">${escapeHtml(text)}</p>`;
+  return `<p style="margin:0 0 14px 0;font-family:${FONT};font-size:16px;line-height:24px;color:${TEXT};text-align:${align};">${linkedBrandHtml(text)}</p>`;
 }
 
 function buttonHtml(href: string, label: string) {
   const safeHref = escapeHtml(href);
   const safeLabel = escapeHtml(label);
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0 0 0;">
+  return `<div style="margin:18px 0 0 0;">
+    <!--[if mso]>
+    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:48px;v-text-anchor:middle;width:210px;" arcsize="17%" stroke="f" fillcolor="${BLUE}">
+      <w:anchorlock />
+      <center style="color:#ffffff;font-family:${FONT};font-size:15px;font-weight:700;">${safeLabel}</center>
+    </v:roundrect>
+    <![endif]-->
+    <!--[if !mso]><!-->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
     <tr>
-      <td bgcolor="${BLUE}" style="border-radius:8px;">
-        <a href="${safeHref}" style="display:inline-block;padding:14px 22px;border-radius:8px;background:${BLUE};color:#ffffff;font-family:${FONT};font-size:15px;line-height:20px;font-weight:700;text-decoration:none;">${safeLabel}</a>
+      <td align="center" valign="middle" width="210" height="48" bgcolor="${BLUE}" style="width:210px;height:48px;border-radius:8px;text-align:center;vertical-align:middle;">
+        <a href="${safeHref}" style="display:block;width:210px;height:48px;border-radius:8px;background-color:${BLUE};color:#ffffff;font-family:${FONT};font-size:15px;line-height:48px;mso-line-height-rule:exactly;font-weight:700;text-align:center;text-decoration:none;-webkit-text-size-adjust:none;">${safeLabel}</a>
       </td>
     </tr>
-  </table>`;
+    </table>
+    <!--<![endif]-->
+  </div>`;
 }
 
 export function renderBrandedEmail(input: BrandedEmailContent): { text: string; html: string } {
@@ -94,7 +112,7 @@ export function renderBrandedEmail(input: BrandedEmailContent): { text: string; 
           .map(
             (detail) => `<tr>
               <td style="padding:10px 14px;border-bottom:1px solid #1e2a46;font-family:${FONT};font-size:13px;line-height:18px;color:${MUTED};width:34%;">${escapeHtml(detail.label)}</td>
-              <td style="padding:10px 14px;border-bottom:1px solid #1e2a46;font-family:${FONT};font-size:15px;line-height:22px;color:#ffffff;">${escapeHtml(detail.value)}</td>
+              <td style="padding:10px 14px;border-bottom:1px solid #1e2a46;font-family:${FONT};font-size:15px;line-height:22px;color:#ffffff;">${linkedBrandHtml(detail.value)}</td>
             </tr>`,
           )
           .join("")}
@@ -117,11 +135,11 @@ export function renderBrandedEmail(input: BrandedEmailContent): { text: string; 
     : "";
 
   const noticeHtml = input.notice
-    ? `<p style="margin:16px 0 0 0;padding:12px 14px;border:1px solid #1e2a46;border-radius:8px;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};text-align:${align};">${escapeHtml(input.notice)}</p>`
+    ? `<p style="margin:16px 0 0 0;padding:12px 14px;border:1px solid #1e2a46;border-radius:8px;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};text-align:${align};">${linkedBrandHtml(input.notice)}</p>`
     : "";
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -139,7 +157,9 @@ export function renderBrandedEmail(input: BrandedEmailContent): { text: string; 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;border:1px solid #1e2a46;border-radius:14px;background-color:#0f1628;">
             <tr>
               <td align="center" style="padding:26px 24px 14px 24px;">
-                <img src="${EMAIL_LOGO_URL}" alt="iTrader.im" width="230" style="display:block;width:230px;max-width:100%;height:auto;border:0;" />
+                <a href="${EMAIL_SITE_URL}" style="text-decoration:none;">
+                  <img src="${EMAIL_LOGO_URL}" alt="iTrader.im" width="230" style="display:block;width:230px;max-width:100%;height:auto;border:0;" />
+                </a>
               </td>
             </tr>
             <tr>
@@ -149,7 +169,7 @@ export function renderBrandedEmail(input: BrandedEmailContent): { text: string; 
                     ? `<p style="margin:0 0 12px 0;font-family:${FONT};font-size:13px;line-height:18px;color:${BLUE};font-weight:700;letter-spacing:0.14em;text-transform:uppercase;text-align:${align};">${escapeHtml(input.eyebrow)}</p>`
                     : ""
                 }
-                <h1 style="margin:0 0 12px 0;font-family:${FONT};font-size:26px;line-height:32px;font-weight:800;color:#ffffff;text-align:${align};">${escapeHtml(input.title)}</h1>
+                <h1 style="margin:0 0 12px 0;font-family:${FONT};font-size:26px;line-height:32px;font-weight:800;color:#ffffff;text-align:${align};">${linkedBrandHtml(input.title)}</h1>
                 ${input.intro ? paragraphHtml(input.intro, align) : ""}
                 ${paragraphs.map((paragraph) => paragraphHtml(paragraph, align)).join("")}
                 ${detailsHtml}
@@ -166,7 +186,7 @@ export function renderBrandedEmail(input: BrandedEmailContent): { text: string; 
             <tr>
               <td align="center" style="padding:18px 24px;border-top:1px solid #1e2a46;">
                 <p style="margin:0;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};text-align:center;">
-                  iTrader.im<br />
+                  <a href="${EMAIL_SITE_URL}" style="color:${MUTED};text-decoration:underline;">iTrader.im</a><br />
                   Buy &bull; Sell &bull; Upgrade<br />
                   <a href="mailto:hello@itrader.im" style="color:${MUTED};text-decoration:none;">hello@itrader.im</a>
                 </p>

@@ -1,13 +1,18 @@
 import type { Prisma } from "@prisma/client";
 import { getAdminDealerWhere } from "@/lib/dealers/access";
+import {
+  applySampleDealerVisibility,
+  DEFAULT_SAMPLE_VISIBILITY,
+  type SampleVisibility,
+} from "@/lib/listings/sample-visibility";
 
 export function buildAdminDealersWhere(input: {
   query?: string;
   verified?: boolean;
   id?: string;
-}): Prisma.DealerProfileWhereInput {
+}, sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY): Prisma.DealerProfileWhereInput {
   const dealerId = input.id?.trim();
-  return {
+  return applySampleDealerVisibility({
     ...getAdminDealerWhere(),
     ...(dealerId ? { id: dealerId } : {}),
     ...(input.query
@@ -20,5 +25,5 @@ export function buildAdminDealersWhere(input: {
         }
       : {}),
     ...(input.verified !== undefined ? { verified: input.verified } : {}),
-  };
+  }, sampleVisibility);
 }
