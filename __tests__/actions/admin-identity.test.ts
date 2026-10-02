@@ -65,10 +65,6 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
     });
     mockDb.accountDeletionJob.findUnique.mockResolvedValue(null);
     mockDb.accountDeletionJob.updateMany.mockResolvedValue({ count: 1 });
-    applyAccountDisableMock.mockResolvedValue({
-      count: 56,
-      notifications: [],
-    });
   });
 
   it("rejects unauthorized callers", async () => {
@@ -131,7 +127,7 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
     expect(mockDb.user.update).not.toHaveBeenCalled();
   });
 
-  it("allows bulk dealer disable work to exceed Prisma's default transaction timeout", async () => {
+  it("hides a disabled dealer without rewriting its listings", async () => {
     const { setUserDisabled } = await import("@/actions/admin/users");
 
     await expect(
@@ -145,15 +141,12 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
       data: expect.objectContaining({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
     });
 
-    expect(mockDb.$transaction).toHaveBeenCalledWith(
-      expect.any(Function),
-      { timeout: 30_000 },
-    );
-    expect(applyAccountDisableMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-        actor: { id: "cladminxxxxxxxxxxxxxxxxxx", role: "ADMIN" },
-      }),
-    );
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      data: expect.objectContaining({ disabledAt: expect.any(Date) }),
+    });
+    expect(applyAccountDisableMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dealers");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/search");
   });
 });
