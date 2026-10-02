@@ -65,6 +65,10 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
     });
     mockDb.accountDeletionJob.findUnique.mockResolvedValue(null);
     mockDb.accountDeletionJob.updateMany.mockResolvedValue({ count: 1 });
+    applyAccountDisableMock.mockResolvedValue({
+      count: 56,
+      notifications: [],
+    });
   });
 
   it("rejects unauthorized callers", async () => {
@@ -125,5 +129,31 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
         "This account has a processing or completed deletion job and cannot be restored.",
     });
     expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
+
+  it("allows bulk dealer disable work to exceed Prisma's default transaction timeout", async () => {
+    const { setUserDisabled } = await import("@/actions/admin/users");
+
+    await expect(
+      setUserDisabled({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        disabled: true,
+        reasonCode: "POLICY",
+        reason: "Disabled by admin",
+      }),
+    ).resolves.toEqual({
+      data: expect.objectContaining({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+    });
+
+    expect(mockDb.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { timeout: 30_000 },
+    );
+    expect(applyAccountDisableMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        actor: { id: "cladminxxxxxxxxxxxxxxxxxx", role: "ADMIN" },
+      }),
+    );
   });
 });
