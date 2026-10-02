@@ -1,0 +1,142 @@
+.timer {
+  display: grid;
+  width: min(100%, 425px);
+  margin: 24px auto;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .timer { gap: 12px; }
+}
+
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 16px 8px 20px;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .card { padding: 20px 8px; }
+}
+
+.digit {
+  display: block;
+  color: #fff;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+@media (min-width: 640px) {
+  .digit { font-size: 40px; }
+}
+
+.unit {
+  display: block;
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 640px) {
+  .unit { font-size: 10px; letter-spacing: 0.2em; }
+}
+
+.fade {
+  opacity: 0;
+  transition: opacity 1.7s linear;
+  pointer-events: none;
+}
+
+.snap .fade { transition-duration: 0.45s; }
+
+.hiddenSource { visibility: hidden; }
+
+.focus {
+  position: fixed;
+  z-index: 180;
+  inset: 0;
+  pointer-events: none;
+}
+
+.handoff { opacity: 0; transition: opacity 0.35s linear; }
+
+.focusCard {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  transform-origin: 0 0;
+}
+
+.focusDigit {
+  color: #fff;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 28px;
+  line-height: 1;
+  transition: color 0.35s linear, text-shadow 0.35s linear;
+}
+
+.focusUnit {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  transition: opacity 0.8s linear;
+}
+
+.large .focusUnit { opacity: 0; }
+
+.red .focusDigit {
+  color: #ff1f1f;
+  text-shadow: 0 10px 18px rgba(255, 31, 31, 0.35);
+}
+
+.pulse { animation: digit-pulse 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+
+.dim :global([data-launch-chrome]) {
+  opacity: 0;
+  transition: opacity 1.7s linear;
+  pointer-events: none;
+}
+
+.dim :global([data-launch-logo]) {
+  opacity: 0.22;
+  transition: opacity 1.7s linear;
+}
+
+.snapDim :global([data-launch-chrome]),
+.snapDim :global([data-launch-logo]) {
+  transition-duration: 0.45s;
+}
+
+.status {
+  margin-top: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+@keyframes digit-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+}
