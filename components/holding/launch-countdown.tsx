@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 
 const UNITS = ["Days", "Hours", "Minutes", "Seconds"];
-const RELEASE_STORAGE_KEY = "itrader-preview-launch-release";
+
+function releaseStorageKey(opensAt: number) {
+  return `itrader-preview-launch-release:${opensAt}`;
+}
 const RELEASE_MAX_ATTEMPTS = 12;
 const RELEASE_RETRY_MS = 5000;
 
@@ -18,18 +21,18 @@ function remainingSeconds(opensAt: number) {
   return Math.max(0, Math.ceil((opensAt - Date.now()) / 1000));
 }
 
-function releaseAttempts(): number {
+function releaseAttempts(opensAt: number): number {
   try {
-    const stored = Number(window.sessionStorage.getItem(RELEASE_STORAGE_KEY) ?? "0");
+    const stored = Number(window.sessionStorage.getItem(releaseStorageKey(opensAt)) ?? "0");
     return Number.isFinite(stored) ? stored : RELEASE_MAX_ATTEMPTS;
   } catch {
     return RELEASE_MAX_ATTEMPTS;
   }
 }
 
-function rememberReleaseAttempt(attempt: number) {
+function rememberReleaseAttempt(opensAt: number, attempt: number) {
   try {
-    window.sessionStorage.setItem(RELEASE_STORAGE_KEY, String(attempt));
+    window.sessionStorage.setItem(releaseStorageKey(opensAt), String(attempt));
   } catch {
     // A blocked storage API must not reload the holding page in a loop.
   }
@@ -58,17 +61,17 @@ export function LaunchCountdown({
 
   useEffect(() => {
     if (!releaseOnZero || remaining !== 0) return;
-    const attempts = releaseAttempts();
+    const attempts = releaseAttempts(opensAt);
     if (attempts >= RELEASE_MAX_ATTEMPTS) {
       setReleaseExhausted(true);
       return;
     }
     const timeout = window.setTimeout(() => {
-      rememberReleaseAttempt(attempts + 1);
+      rememberReleaseAttempt(opensAt, attempts + 1);
       launchRelease.reload();
     }, attempts === 0 ? 0 : RELEASE_RETRY_MS);
     return () => window.clearTimeout(timeout);
-  }, [releaseOnZero, remaining]);
+  }, [opensAt, releaseOnZero, remaining]);
 
   const values = remaining === null ? null : [
     Math.floor(remaining / 86400),

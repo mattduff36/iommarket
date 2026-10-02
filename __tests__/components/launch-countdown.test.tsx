@@ -64,13 +64,13 @@ describe("LaunchCountdown", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Opening the site…");
     act(() => vi.advanceTimersByTime(0));
     expect(reload).toHaveBeenCalledTimes(1);
-    expect(window.sessionStorage.getItem("itrader-preview-launch-release")).toBe("1");
+    expect(window.sessionStorage.getItem(`itrader-preview-launch-release:${PREVIEW_GATE_OPENS_AT}`)).toBe("1");
     reload.mockRestore();
   });
 
   it("stops reloading after the rehearsal retries are used", () => {
     const reload = vi.spyOn(launchRelease, "reload").mockImplementation(() => undefined);
-    window.sessionStorage.setItem("itrader-preview-launch-release", "12");
+    window.sessionStorage.setItem(`itrader-preview-launch-release:${PREVIEW_GATE_OPENS_AT}`, "12");
     vi.setSystemTime(new Date(PREVIEW_GATE_OPENS_AT));
     render(<LaunchCountdown opensAt={PREVIEW_GATE_OPENS_AT} releaseOnZero />);
     act(() => vi.advanceTimersByTime(10_000));

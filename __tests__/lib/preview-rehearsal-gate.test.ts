@@ -38,7 +38,7 @@ describe("preview launch rehearsal", () => {
     vi.useRealTimers();
   });
 
-  it("keeps the preview branch closed until 21:45 BST and then opens it", () => {
+  it("keeps the preview branch closed until 22:15 BST and then opens it", () => {
     expect(shouldEnforceLaunchGate(previewBranch, PREVIEW_GATE_OPENS_AT - 1)).toBe(true);
     expect(
       shouldEnforceLaunchGate(
@@ -66,7 +66,7 @@ describe("preview launch rehearsal", () => {
     ).toBe(false);
   });
 
-  it("serves the holding page on the preview branch and removes it at 21:45", async () => {
+  it("serves the holding page on the preview branch and removes it at 22:15", async () => {
     vi.useFakeTimers();
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_GIT_COMMIT_REF = "preview";
