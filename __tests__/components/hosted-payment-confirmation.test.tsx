@@ -49,12 +49,18 @@ describe("HostedPaymentConfirmation", () => {
     });
 
     expect(screen.getByText("Your listing payment is confirmed")).toBeInTheDocument();
+    expect(screen.getByText(/returning to your original itrader tab/i)).toBeInTheDocument();
+    expect(confirmMock).toHaveBeenCalledTimes(2);
+    expect(window.localStorage.getItem("iomarket-payment-return")).toContain('"listingId":"listing/one"');
+    expect(screen.queryByRole("link", { name: "Continue to my listing" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
     expect(screen.getByRole("link", { name: "Continue to my listing" })).toHaveAttribute(
       "href",
       "/sell/checkout?listing=listing%2Fone",
     );
-    expect(confirmMock).toHaveBeenCalledTimes(2);
-    expect(window.localStorage.getItem("iomarket-payment-return")).toContain('"listingId":"listing/one"');
   });
 
   it("shows review after a server review response without implying payment succeeded", async () => {
@@ -76,6 +82,10 @@ describe("HostedPaymentConfirmation", () => {
     confirmMock.mockResolvedValue({ status: "confirmed", checkoutType, listingId: checkoutType === "featured_upgrade" ? "listing-1" : undefined });
     await renderAndFlush(<HostedPaymentConfirmation paymentJobRef="1234567890" />);
     expect(screen.getByText(heading)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
     expect(screen.getByRole("link")).toHaveAttribute("href", href);
   });
 

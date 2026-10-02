@@ -147,9 +147,9 @@ export function SiteHeader() {
   return (
     <>
       {/* Top utility bar - hidden on small mobile to save vertical space */}
-      <div className="hidden sm:block bg-graphite-950 text-text-secondary">
-        <div className="mx-auto flex h-9 max-w-7xl items-center justify-between px-4 text-xs sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
+      <div className="hidden sm:block bg-graphite-950 text-text-secondary" data-testid="utility-strip">
+        <div className="mx-auto grid h-9 max-w-7xl grid-cols-3 items-center px-4 text-xs sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4 justify-self-start">
             <a
               href="mailto:hello@itrader.im"
               className="inline-flex items-center gap-1.5 hover:text-neon-blue-400 transition-colors"
@@ -158,7 +158,19 @@ export function SiteHeader() {
               <span className="hidden sm:inline">hello@itrader.im</span>
             </a>
           </div>
-          <div className="flex items-center gap-3 text-metallic-400">
+          <div className="justify-self-center">
+            {role === "ADMIN" && currentListingId ? (
+              <button
+                type="button"
+                onClick={() => setEditingListingId(currentListingId)}
+                className="inline-flex items-center gap-1.5 font-semibold text-red-500 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                Edit as Admin
+              </button>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-3 justify-self-end text-metallic-400">
             <span className="text-xs">The Isle of Man&apos;s Trusted Vehicle Marketplace</span>
           </div>
         </div>
@@ -204,7 +216,7 @@ export function SiteHeader() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
-            <HeaderAuthButtons authState={{ ...authState, handleSignOut }} onEditListingAsAdmin={role === "ADMIN" && currentListingId ? () => setEditingListingId(currentListingId) : undefined} />
+            <HeaderAuthButtons authState={{ ...authState, handleSignOut }} />
             <Button
               type="button"
               variant="ghost"

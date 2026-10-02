@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, ExternalLink, Star } from "lucide-react";
 import { AccountListingActions } from "@/components/account/account-listing-actions";
+import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-badges";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import {
@@ -511,11 +512,12 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
                   <TableCell>{listing.region.name}</TableCell>
                   <TableCell>£{(listing.price / 100).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANT[listing.status] ?? "neutral"}>
-                      {listing.status === "PENDING"
-                        ? "Awaiting review"
-                        : listing.status.replaceAll("_", " ")}
-                    </Badge>
+                    <ListingOwnerStatusBadges
+                      status={listing.status}
+                      featured={listing.featured}
+                      featuredPurchased={listing.payments.length > 0}
+                      statusVariant={STATUS_VARIANT[listing.status] ?? "neutral"}
+                    />
                   </TableCell>
                   <TableCell className="text-text-secondary">
                     {listing.expiresAt

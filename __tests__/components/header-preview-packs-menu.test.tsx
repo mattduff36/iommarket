@@ -73,6 +73,7 @@ describe("header preview packs menu", () => {
     await user.click(accountTrigger);
     expect(screen.getByText("Preview packs")).toBeTruthy();
     expect(screen.getByText("Admin area")).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Edit as Admin" })).toBeNull();
     expect(screen.getByText("Preview packs").closest("[data-chevron]")).toHaveAttribute(
       "data-chevron",
       "left",

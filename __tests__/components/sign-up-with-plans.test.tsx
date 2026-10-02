@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
 import * as React from "react";
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignUpWithPlans } from "@/components/auth/sign-up-with-plans";
+import {
+  SIGNUP_VERIFICATION_POLL_MS,
+  SIGNUP_VERIFICATION_WINDOW_MS,
+  SignupVerificationWait,
+} from "@/components/auth/signup-verification-wait";
 
 const refreshMock = vi.fn();
 const pushMock = vi.fn();
 const signUpMock = vi.fn();
+const signInWithPasswordMock = vi.fn();
 let nextPath: string | null = null;
 
 vi.mock("next/navigation", () => ({
@@ -19,6 +25,14 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/actions/auth/sign-up", () => ({
   signUpWithPolicyAcceptance: (...args: unknown[]) => signUpMock(...args),
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  createSupabaseBrowserClient: () => ({
+    auth: {
+      signInWithPassword: (...args: unknown[]) => signInWithPasswordMock(...args),
+    },
+  }),
 }));
 
 function getPasswordInput(): HTMLInputElement {
@@ -74,9 +88,14 @@ describe("SignUpWithPlans", () => {
     refreshMock.mockReset();
     pushMock.mockReset();
     signUpMock.mockReset();
+    signInWithPasswordMock.mockReset();
     nextPath = null;
     process.env.NEXT_PUBLIC_APP_URL = "https://iomarket.test";
     signUpMock.mockResolvedValue({ data: { email: "member@example.com" } });
+    signInWithPasswordMock.mockResolvedValue({
+      data: { session: null },
+      error: { message: "Email not confirmed" },
+    });
   });
 
   afterAll(() => {
@@ -360,5 +379,161 @@ describe("SignUpWithPlans", () => {
     );
     expect(pushMock).toHaveBeenCalledWith("/");
     expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
+  });
+
+  function renderVerificationWait(next = "/account") {
+    return render(
+      <SignupVerificationWait
+        email="member@example.com"
+        password="strong-password-123"
+        nextPath={next}
+        signInHref={`/sign-in?next=${encodeURIComponent(next)}`}
+      />,
+    );
+  }
+
+  it("keeps retrying an unconfirmed email without opening the account", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+    });
+    renderVerificationWait();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(signInWithPasswordMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "Check your email" })).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIGNUP_VERIFICATION_POLL_MS);
+    });
+
+    expect(signInWithPasswordMock).toHaveBeenCalledTimes(2);
+    expect(signInWithPasswordMock).toHaveBeenNthCalledWith(2, {
+      email: "member@example.com",
+      password: "strong-password-123",
+    });
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(document.body).not.toHaveTextContent("strong-password-123");
+  });
+
+  it("does not start another sign-in while the first attempt is still running", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+    });
+    let resolveSignIn: ((value: unknown) => void) | undefined;
+    signInWithPasswordMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSignIn = resolve;
+        }),
+    );
+    renderVerificationWait();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIGNUP_VERIFICATION_POLL_MS * 3);
+    });
+    expect(signInWithPasswordMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveSignIn?.({
+        data: { session: null },
+        error: { message: "Email not confirmed" },
+      });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIGNUP_VERIFICATION_POLL_MS);
+    });
+    expect(signInWithPasswordMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the saved destination only after this browser session is confirmed", async () => {
+    signInWithPasswordMock.mockResolvedValue({ data: { session: { access_token: "token" } }, error: null });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "user-1" }), { status: 200 }),
+    );
+    renderSignup();
+    fillAccountDetails();
+    await completeRequiredAcknowledgements();
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/account"));
+    expect(refreshMock).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith("/api/me", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    expect(screen.queryByRole("heading", { name: /my listing history/i })).toBeNull();
+    fetchMock.mockRestore();
+  });
+
+  it("guides the user to sign in when verification succeeds but this browser has no session", async () => {
+    signInWithPasswordMock.mockResolvedValue({ data: { session: { access_token: "token" } }, error: null });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
+    );
+    renderVerificationWait("/dealer/subscribe?tier=PRO");
+
+    expect(
+      await screen.findByRole("heading", { name: "Verified — sign in to continue" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/this browser still needs you to sign in/i),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go to sign in" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fdealer%2Fsubscribe%3Ftier%3DPRO",
+    );
+    expect(pushMock).not.toHaveBeenCalled();
+    fetchMock.mockRestore();
+  });
+
+  it("stops automatic sign-in after the waiting window and keeps the manual link", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+    });
+    renderVerificationWait();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIGNUP_VERIFICATION_WINDOW_MS);
+    });
+
+    expect(screen.getByRole("heading", { name: "Sign in to continue" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go to sign in" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Faccount",
+    );
+    const attempts = signInWithPasswordMock.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIGNUP_VERIFICATION_POLL_MS * 2);
+    });
+    expect(signInWithPasswordMock).toHaveBeenCalledTimes(attempts);
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate after the waiting view unmounts", async () => {
+    let resolveSignIn: ((value: unknown) => void) | undefined;
+    signInWithPasswordMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSignIn = resolve;
+        }),
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const view = renderVerificationWait();
+    view.unmount();
+
+    await act(async () => {
+      resolveSignIn?.({ data: { session: { access_token: "token" } }, error: null });
+      await Promise.resolve();
+    });
+
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockRestore();
   });
 });

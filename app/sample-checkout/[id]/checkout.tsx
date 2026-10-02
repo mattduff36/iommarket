@@ -7,9 +7,22 @@ import {
   cancelSamplePayment,
   submitSamplePayment,
 } from "@/actions/sample-payments";
-import type { SampleCheckoutView } from "@/lib/payments/sample-checkout";
+import { useCheckoutWindowHandoff } from "@/components/payments/checkout-window-handoff";
+import {
+  createPaymentReturnEvent,
+  publishCheckoutHandoff,
+  type PaymentReturnContext,
+  type PaymentReturnEvent,
+} from "@/lib/payments/checkout-handoff";
+import type { SampleCheckoutKind, SampleCheckoutView } from "@/lib/payments/sample-checkout";
 
 type CardChoice = "approve" | "decline";
+
+function sampleReturnContext(kind: SampleCheckoutKind): PaymentReturnContext {
+  if (kind === "featured_upgrade") return "featured";
+  if (kind === "dealer_subscription") return "subscription";
+  return "listing";
+}
 
 function formatAmount(amountPence: number, currency: string) {
   return new Intl.NumberFormat("en-GB", {
@@ -30,6 +43,8 @@ export function SampleCheckout({
   const [isExpired, setIsExpired] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [handoffEvent, setHandoffEvent] = useState<PaymentReturnEvent | null>(null);
+  const showReturnFallback = useCheckoutWindowHandoff(handoffEvent);
   const isTerminal = checkout.status === "SUCCEEDED" || checkout.status === "CANCELLED";
   const attemptsLeft = Math.max(0, 3 - checkout.attemptCount);
   const formattedAmount = formatAmount(checkout.amountPence, checkout.currency);
@@ -48,12 +63,20 @@ export function SampleCheckout({
     return () => window.clearTimeout(timer);
   }, [checkout.expiresAt]);
 
-  function notifyMarketplace() {
-    try {
-      window.localStorage.setItem("itrader:payment-update", String(Date.now()));
-    } catch {
-      // The sample checkout result remains authoritative when storage is unavailable.
+  function notifyMarketplace(nextStatus: SampleCheckoutView["status"]) {
+    if (nextStatus === "SUCCEEDED") {
+      setHandoffEvent(createPaymentReturnEvent({
+        status: "success",
+        context: sampleReturnContext(checkout.kind),
+        sampleCheckoutId: checkout.id,
+      }));
+      return;
     }
+    publishCheckoutHandoff(createPaymentReturnEvent({
+      status: nextStatus === "FAILED" ? "failed" : "cancel",
+      context: sampleReturnContext(checkout.kind),
+      sampleCheckoutId: checkout.id,
+    }));
   }
 
   function submitPayment() {
@@ -68,8 +91,8 @@ export function SampleCheckout({
           card,
           attempt,
         });
-        notifyMarketplace();
         if (result.data) {
+          notifyMarketplace(result.data.status);
           setCheckout(result.data);
           setRetrying(result.data.status !== "FAILED");
           setMessage(result.data.status === "FAILED" ? "The sample payment was declined." : "");
@@ -88,8 +111,10 @@ export function SampleCheckout({
     startTransition(async () => {
       try {
         const result = await cancelSamplePayment({ checkoutId: checkout.id });
-        notifyMarketplace();
-        if (result.data) setCheckout(result.data);
+        if (result.data) {
+          notifyMarketplace(result.data.status);
+          setCheckout(result.data);
+        }
         if (result.error) {
           setMessage(result.error);
           return;
@@ -110,10 +135,13 @@ export function SampleCheckout({
   const declined = checkout.status === "FAILED";
 
   useEffect(() => {
-    if (!terminalSuccess) return;
-    const timer = window.setTimeout(() => router.push(checkout.returnUrl), 1500);
-    return () => window.clearTimeout(timer);
-  }, [checkout.returnUrl, router, terminalSuccess]);
+    if (!terminalSuccess || handoffEvent) return;
+    setHandoffEvent(createPaymentReturnEvent({
+      status: "success",
+      context: sampleReturnContext(checkout.kind),
+      sampleCheckoutId: checkout.id,
+    }));
+  }, [checkout.id, checkout.kind, handoffEvent, terminalSuccess]);
 
   return (
     <main className="flowpay-page font-body">
@@ -140,7 +168,16 @@ export function SampleCheckout({
           {terminalSuccess ? (
             <div className="flowpay-result" role="status">
               <strong>Sample payment approved</strong>
-              <p>No money was charged. Returning to iTrader…</p>
+              <p>
+                {showReturnFallback
+                  ? "This tab stayed open. Return to your original itrader tab."
+                  : "No money was charged. Updating your original itrader tab…"}
+              </p>
+              {showReturnFallback ? (
+                <button type="button" className="flowpay-pay" onClick={continueToMarketplace}>
+                  Return to itrader
+                </button>
+              ) : null}
             </div>
           ) : terminalCancel ? (
             <div className="flowpay-result" role="status">

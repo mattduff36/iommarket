@@ -4,6 +4,7 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { usePaymentConfirmationPoll } from "@/components/payments/payment-awaiting-status";
+import { acknowledgeCheckoutHandoff } from "@/lib/payments/checkout-handoff";
 import type { CheckoutViewState } from "@/lib/payments/checkout-view";
 
 interface CheckoutStatusActionsProps {
@@ -21,7 +22,17 @@ export function CheckoutStatusActions({
 }: CheckoutStatusActionsProps) {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
-  usePaymentConfirmationPoll(isAwaitingPayment || viewState === "failed");
+  const { pendingSuccessEvent } = usePaymentConfirmationPoll(
+    isAwaitingPayment || viewState === "failed",
+    null,
+    { deferSuccessAck: true },
+  );
+
+  useEffect(() => {
+    if (!pendingSuccessEvent || pendingSuccessEvent.status !== "success") return;
+    if (viewState !== "submitted" && viewState !== "paid") return;
+    acknowledgeCheckoutHandoff(pendingSuccessEvent.id);
+  }, [pendingSuccessEvent, viewState]);
   const reviewEmail = `mailto:hello@itrader.im?subject=${encodeURIComponent("Please check my listing payment")}&body=${encodeURIComponent(
     `Please check my Ripple payment for listing ${listingId}.\n\nRipple transaction reference: \nPayment date and time: \nEmail used at checkout: \nCurrent payment status in Ripple (paid or refunded): \n\nI understand this needs admin review before my listing payment can be confirmed.`,
   )}`;

@@ -51,6 +51,7 @@
     "test:e2e:env": "playwright test --config=playwright.env-check.config.ts",
     "test:e2e:env:list": "playwright test --config=playwright.env-check.config.ts --list",
     "test:e2e:ui": "playwright test --ui",
+    "test:e2e:account-actions": "playwright test e2e/account-actions.spec.ts --project=desktop",
     "finalise": "tsx scripts/finalise.ts",
     "finalise:push": "tsx scripts/finalise.ts --push",
     "finalise:full": "tsx scripts/finalise.ts --full",
