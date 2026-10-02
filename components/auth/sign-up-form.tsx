@@ -19,6 +19,7 @@ import {
   withoutFieldError,
   SIGNUP_PROVIDER_RETRY_MESSAGE,
 } from "@/components/auth/signup-feedback";
+import { profileNameSchema } from "@/lib/validations/profile-name";
 
 function getSafeNextPath(nextPath: string | null): string {
   if (!nextPath) return "/";
@@ -84,6 +85,11 @@ export function SignUpForm() {
     if (password.length < 8) {
       nextErrors.password = ["Password must be at least 8 characters."];
     }
+    const parsedName = profileNameSchema.safeParse(name);
+    if (!parsedName.success) {
+      const message = firstZodMessage(parsedName.error);
+      if (message) nextErrors.name = [message];
+    }
     if (Object.keys(nextErrors).length > 0) {
       showFieldErrors(nextErrors);
       return;
@@ -99,7 +105,7 @@ export function SignUpForm() {
         password,
         options: {
           data: {
-            ...(name ? { full_name: name } : {}),
+            full_name: parsedName.success ? parsedName.data : name,
           },
           emailRedirectTo: buildAuthCallbackUrl(next),
         },
@@ -170,11 +176,18 @@ export function SignUpForm() {
         error={firstFieldError(fieldErrors, "password")}
       />
       <Input
-        label="Name (optional)"
+        label="Name"
         type="text"
         autoComplete="name"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => {
+          setName(e.target.value);
+          clearFieldError("name");
+        }}
+        required
+        minLength={2}
+        maxLength={100}
+        error={firstFieldError(fieldErrors, "name")}
       />
       <div className="flex flex-col gap-3">
         <Button

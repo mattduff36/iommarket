@@ -223,7 +223,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
           <form onSubmit={handleProfileSubmit} noValidate className="space-y-4">
             <FormErrorSummary messages={uniqueErrorMessages(profileFieldErrors, profileError)} />
             <Input
-              label="Display name"
+              label="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required

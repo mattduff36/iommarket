@@ -71,6 +71,9 @@ function fillAccountDetails() {
   fireEvent.change(getPasswordInput(), {
     target: { value: "strong-password-123" },
   });
+  fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    target: { value: "Test Member" },
+  });
 }
 
 function ageCheckbox() {
@@ -125,6 +128,9 @@ describe("SignUpWithPlans", () => {
     fireEvent.change(getPasswordInput(), {
       target: { value: "strong-password-123" },
     });
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Test Member" },
+    });
     await completeRequiredAcknowledgements();
     fireEvent.click(screen.getByRole("button", { name: /Create account/i }));
 
@@ -133,7 +139,7 @@ describe("SignUpWithPlans", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: "member@example.com",
       password: "strong-password-123",
-      name: "",
+      name: "Test Member",
       nextPath: "/account",
       ageAttested: true,
       policiesAccepted: true,
@@ -164,6 +170,9 @@ describe("SignUpWithPlans", () => {
     fireEvent.change(getPasswordInput(), {
       target: { value: "strong-password-123" },
     });
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Dealer Member" },
+    });
     await completeRequiredAcknowledgements();
     fireEvent.click(
       screen.getByRole("button", {
@@ -176,7 +185,7 @@ describe("SignUpWithPlans", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: "dealer@example.com",
       password: "strong-password-123",
-      name: "",
+      name: "Dealer Member",
       nextPath: "/dealer/subscribe?tier=PRO",
       ageAttested: true,
       policiesAccepted: true,
@@ -226,6 +235,25 @@ describe("SignUpWithPlans", () => {
     expect(policiesCheckbox()).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute("aria-invalid");
     await waitFor(() => expect(ageCheckbox()).toHaveFocus());
+  });
+
+  it("requires a name before calling the signup action", async () => {
+    renderSignup();
+    fireEvent.change(screen.getByRole("textbox", { name: "Email" }), {
+      target: { value: "member@example.com" },
+    });
+    fireEvent.change(getPasswordInput(), {
+      target: { value: "strong-password-123" },
+    });
+    await completeRequiredAcknowledgements();
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(signUpMock).not.toHaveBeenCalled();
+    const name = screen.getByRole("textbox", { name: "Name" });
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter a name of at least 2 characters.",
+    );
   });
 
   it("keeps the error on the acceptance box that is still unticked", () => {
@@ -370,6 +398,9 @@ describe("SignUpWithPlans", () => {
     expect(email).toHaveValue("member@example.com");
     fireEvent.change(email, { target: { value: "other@example.com" } });
     fireEvent.change(getPasswordInput(), { target: { value: "strong-password-123" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Invited Member" },
+    });
     await completeRequiredAcknowledgements();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 

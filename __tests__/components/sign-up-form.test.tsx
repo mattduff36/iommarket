@@ -30,6 +30,9 @@ function fillValidAccount() {
   fireEvent.change(screen.getByLabelText(/^Password/), {
     target: { value: "strong-password-123" },
   });
+  fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    target: { value: "Test Member" },
+  });
 }
 
 describe("SignUpForm", () => {
@@ -49,6 +52,9 @@ describe("SignUpForm", () => {
     });
     fireEvent.change(screen.getByLabelText(/^Password/), {
       target: { value: "short" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Test Member" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
 
@@ -83,6 +89,23 @@ describe("SignUpForm", () => {
     expect(screen.queryByText(/highlighted fields/i)).toBeNull();
     expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute("aria-invalid");
     expect(screen.getByRole("button", { name: "Sign up" })).toBeEnabled();
+  });
+
+  it("requires a name before calling the auth provider", () => {
+    render(<SignUpForm />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Email" }), {
+      target: { value: "member@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Password/), {
+      target: { value: "strong-password-123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
+
+    expect(signUpMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("shows a retry message when signup throws, then accepts another attempt", async () => {

@@ -3,6 +3,7 @@ import { syncUser } from "@/lib/auth";
 import { checkSignupRateLimit } from "@/lib/auth/signup-rate-limit";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { db } from "@/lib/db";
+import { notifyAdminOfNewSignup } from "@/lib/email/signup-notifications";
 import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -89,7 +90,7 @@ export async function completeInvitedSignUp(
   }
 
   const receipt = buildSignupAcceptanceReceipt();
-  const userMetadata = input.name ? { full_name: input.name } : {};
+  const userMetadata = { full_name: input.name };
   const admin = createSupabaseAdminClient();
   try {
     const { data, error } = await admin.auth.admin.createUser({
@@ -115,13 +116,20 @@ export async function completeInvitedSignUp(
       await releaseClaimLease(claim.recipientId);
       return { error: "We could not create your account. Please try again shortly." };
     }
+    await notifyAdminOfNewSignup({
+      userId: data.user.id,
+      email: claim.email,
+      name: input.name,
+      source: "early_access",
+      createdAt: new Date(),
+    });
 
     const supabase = await createSupabaseServerClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: claim.email,
       password: input.password,
     });
-    await syncUser(data.user.id, claim.email, input.name || undefined, receipt);
+    await syncUser(data.user.id, claim.email, input.name, receipt);
     await completeClaim(claim.recipientId);
     await clearClaimCookie();
     if (signInError) {

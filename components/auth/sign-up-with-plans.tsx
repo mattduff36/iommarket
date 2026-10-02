@@ -234,7 +234,7 @@ export function SignUpWithPlans({
             error={firstFieldError(fieldErrors, "password")}
           />
           <Input
-            label="Name (optional)"
+            label="Name"
             type="text"
             autoComplete="name"
             value={name}
@@ -242,6 +242,9 @@ export function SignUpWithPlans({
               setName(e.target.value);
               clearFieldError("name");
             }}
+            required
+            minLength={2}
+            maxLength={100}
             error={firstFieldError(fieldErrors, "name")}
           />
           <Checkbox

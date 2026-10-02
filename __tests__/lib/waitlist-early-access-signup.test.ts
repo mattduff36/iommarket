@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   signIn: vi.fn(),
   syncUser: vi.fn(),
   checkSignupRateLimit: vi.fn(),
+  notifyAdminOfNewSignup: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -41,6 +42,10 @@ vi.mock("@/lib/auth", () => ({ syncUser: mocks.syncUser }));
 
 vi.mock("@/lib/auth/signup-rate-limit", () => ({
   checkSignupRateLimit: mocks.checkSignupRateLimit,
+}));
+
+vi.mock("@/lib/email/signup-notifications", () => ({
+  notifyAdminOfNewSignup: mocks.notifyAdminOfNewSignup,
 }));
 
 vi.mock("@/lib/auth/supabase-config", () => ({ isSupabaseAuthConfigured: () => true }));
@@ -87,6 +92,7 @@ describe("completeInvitedSignUp", () => {
     mocks.createUser.mockResolvedValue({ data: { user: { id: "auth-1" } }, error: null });
     mocks.signIn.mockResolvedValue({ error: null });
     mocks.syncUser.mockResolvedValue({ id: "user-1" });
+    mocks.notifyAdminOfNewSignup.mockResolvedValue(undefined);
   });
 
   it("creates a verified account, signs in, and claims the invitation once", async () => {
@@ -106,6 +112,13 @@ describe("completeInvitedSignUp", () => {
       password: "strong-password-123",
     });
     expect(mocks.syncUser).toHaveBeenCalled();
+    expect(mocks.notifyAdminOfNewSignup).toHaveBeenCalledWith({
+      userId: "auth-1",
+      email: "member@example.com",
+      name: "Member",
+      source: "early_access",
+      createdAt: expect.any(Date),
+    });
     expect(mocks.updateMany).toHaveBeenCalledTimes(2);
 
     const { signUpWithPolicyAcceptance } = await import("@/actions/auth/sign-up");
@@ -135,6 +148,7 @@ describe("completeInvitedSignUp", () => {
       error: "An account with this email already exists. Please sign in instead.",
     });
     expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.notifyAdminOfNewSignup).not.toHaveBeenCalled();
     expect(mocks.updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ claimedAt: expect.any(Date) }),

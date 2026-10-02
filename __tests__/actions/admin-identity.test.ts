@@ -156,4 +156,53 @@ describe("admin identity lifecycle ALR-IDN-001 ALR-IDN-002", () => {
       }),
     );
   });
+
+  it("enables an account, audits it, and revalidates both admin user views", async () => {
+    const { setUserDisabled } = await import("@/actions/admin/users");
+
+    await expect(
+      setUserDisabled({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        disabled: false,
+      }),
+    ).resolves.toEqual({
+      data: expect.objectContaining({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+    });
+
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      data: {
+        disabledAt: null,
+        disabledReason: null,
+        disabledReasonCode: null,
+      },
+    });
+    expect(applyAccountDisableMock).not.toHaveBeenCalled();
+    expect(logAdminActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ENABLE_USER",
+        entityType: "User",
+        entityId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      }),
+      expect.anything(),
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/users");
+    expect(revalidatePathMock).toHaveBeenCalledWith(
+      "/admin/users/clxxxxxxxxxxxxxxxxxxxxxxxxx",
+    );
+  });
+
+  it("rejects non-admin account status changes before writing", async () => {
+    requireRoleMock.mockRejectedValueOnce(new Error("Forbidden"));
+    const { setUserDisabled } = await import("@/actions/admin/users");
+
+    await expect(
+      setUserDisabled({
+        userId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        disabled: false,
+      }),
+    ).rejects.toThrow("Forbidden");
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
 });
