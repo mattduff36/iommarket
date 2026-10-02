@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
-import { hasPublicDealerListingAccess } from "@/lib/listings/dealer-visibility";
+import { hasPublicListingSellerAccess } from "@/lib/listings/dealer-visibility";
 import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,14 +81,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       expiresAt: true,
       userId: true,
       dealerId: true,
-      user: { select: { authUserId: true } },
+      user: {
+        select: {
+          authUserId: true,
+          disabledAt: true,
+          deletedAt: true,
+        },
+      },
       dealer: { select: { isAdminPreview: true } },
       previewPack: { select: previewPackVisibilitySelect() },
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
   if (!listing) return {};
-  const dealerAccess = await hasPublicDealerListingAccess(listing.dealerId);
+  const dealerAccess = await hasPublicListingSellerAccess(
+    listing.dealerId,
+    Boolean(listing.user.disabledAt),
+    Boolean(listing.user.deletedAt),
+  );
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
@@ -152,7 +162,15 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       images: { orderBy: { order: "asc" }, select: listingPhotoSelect },
       category: true,
       region: true,
-      user: { select: { name: true, email: true, authUserId: true } },
+      user: {
+        select: {
+          name: true,
+          email: true,
+          authUserId: true,
+          disabledAt: true,
+          deletedAt: true,
+        },
+      },
       dealer: { select: { name: true, slug: true, phone: true, verified: true, isAdminPreview: true } },
       previewPack: { select: previewPackVisibilitySelect() },
       attributeValues: {
@@ -162,7 +180,11 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   });
 
   if (!listing) notFound();
-  const dealerAccess = await hasPublicDealerListingAccess(listing.dealerId);
+  const dealerAccess = await hasPublicListingSellerAccess(
+    listing.dealerId,
+    Boolean(listing.user.disabledAt),
+    Boolean(listing.user.deletedAt),
+  );
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({

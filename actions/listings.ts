@@ -1,5 +1,5 @@
 "use server";
-import { hasPublicDealerListingAccess } from "@/lib/listings/dealer-visibility";
+import { hasPublicListingSellerAccess } from "@/lib/listings/dealer-visibility";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -1001,12 +1001,23 @@ export async function reportListing(input: ReportListingInput) {
 
   const targetListing = await db.listing.findUnique({
     where: { id: parsed.data.listingId },
-    select: { id: true, title: true, status: true, expiresAt: true, dealerId: true },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      expiresAt: true,
+      dealerId: true,
+      user: { select: { disabledAt: true, deletedAt: true } },
+    },
   });
   if (
     !targetListing ||
-    !(await hasPublicDealerListingAccess(targetListing.dealerId)) ||
     isAdminPreviewListing(targetListing.status) ||
+    !(await hasPublicListingSellerAccess(
+      targetListing.dealerId,
+      Boolean(targetListing.user?.disabledAt),
+      Boolean(targetListing.user?.deletedAt),
+    )) ||
     !isListingPubliclyVisible({
       status: targetListing.status,
       expiresAt: targetListing.expiresAt,
@@ -1105,13 +1116,19 @@ export async function contactSeller(input: ContactSellerInput) {
   const listing = await db.listing.findUnique({
     where: { id: parsed.data.listingId },
     include: {
-      user: { select: { email: true } },
+      user: {
+        select: { email: true, disabledAt: true, deletedAt: true },
+      },
     },
   });
   if (
     !listing ||
     isAdminPreviewListing(listing.status) ||
-    !(await hasPublicDealerListingAccess(listing.dealerId)) ||
+    !(await hasPublicListingSellerAccess(
+      listing.dealerId,
+      Boolean(listing.user?.disabledAt),
+      Boolean(listing.user?.deletedAt),
+    )) ||
     !isListingPubliclyVisible({
       status: listing.status,
       expiresAt: listing.expiresAt,
