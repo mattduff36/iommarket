@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sendResendEmailMock, captureExceptionMock, listingFindUnique, correspondenceFindUnique } = vi.hoisted(
+const { sendResendEmailMock, captureBusinessEventMock, captureExceptionMock, listingFindUnique, correspondenceFindUnique } = vi.hoisted(
   () => ({
     sendResendEmailMock: vi.fn(),
+    captureBusinessEventMock: vi.fn(),
     captureExceptionMock: vi.fn(),
     listingFindUnique: vi.fn(),
     correspondenceFindUnique: vi.fn(),
@@ -19,7 +20,7 @@ vi.mock("@/lib/email/client", async (importOriginal) => {
 });
 
 vi.mock("@/lib/monitoring", () => ({
-  captureBusinessEvent: vi.fn(),
+  captureBusinessEvent: captureBusinessEventMock,
   captureException: captureExceptionMock,
 }));
 
@@ -90,6 +91,10 @@ describe("listing notification dispatch ALR-MAIL-002", () => {
         },
       ]),
     ).resolves.toBeUndefined();
+    expect(captureExceptionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "dispatchListingNotifications", severity: "MEDIUM" }),
+    );
+    expect(captureBusinessEventMock).not.toHaveBeenCalled();
   });
 
   it("sends selected listing updates to a verified second address", async () => {

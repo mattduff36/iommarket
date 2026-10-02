@@ -14,7 +14,7 @@ import {
   type ListingNotificationIntent,
 } from "@/lib/listings/notification-intents";
 import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
-import { captureBusinessEvent, captureException } from "@/lib/monitoring";
+import { captureException } from "@/lib/monitoring";
 
 function listingLinks(listingId?: string) {
   if (!listingId) return {};
@@ -232,14 +232,6 @@ export async function dispatchListingNotifications(
     if (!intent) continue;
     try {
       await sendOneNotification(intent);
-      await captureBusinessEvent({
-        source: "BUSINESS",
-        severity: "LOW",
-        title: "Listing notification sent",
-        message: "A listing lifecycle notification was dispatched.",
-        action: "dispatchListingNotifications",
-        tags: { listingId: intent.listingId, action: intent.action },
-      });
     } catch (error) {
       try {
         await captureException({
