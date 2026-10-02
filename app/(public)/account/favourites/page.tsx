@@ -8,14 +8,21 @@ import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { applySampleListingVisibility, getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { isListingPubliclyVisible } from "@/lib/listings/visibility";
 import { getPublicDealerWhere } from "@/lib/dealers/access";
+import { publicListingSellerWhere } from "@/lib/listings/dealer-visibility";
 
 export default async function FavouritesPage() {
   const user = await requireAcceptedUser("/account/favourites");
+  const sampleVisibility = await getSampleVisibility();
 
   const favourites = await db.favourite.findMany({
     where: {
       userId: user.id,
-      listing: applySampleListingVisibility({}, await getSampleVisibility()),
+      listing: {
+        AND: [
+          applySampleListingVisibility({}, sampleVisibility),
+          publicListingSellerWhere(undefined, sampleVisibility),
+        ],
+      },
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -38,7 +45,12 @@ export default async function FavouritesPage() {
 
   const dealerIds = [...new Set(favourites.flatMap(({ listing }) => listing.dealerId ? [listing.dealerId] : []))];
   const visibleDealers = new Set(dealerIds.length ? (await db.dealerProfile.findMany({
-    where: { AND: [{ id: { in: dealerIds } }, getPublicDealerWhere()] },
+    where: {
+      AND: [
+        { id: { in: dealerIds } },
+        getPublicDealerWhere(undefined, sampleVisibility),
+      ],
+    },
     select: { id: true },
   })).map((dealer) => dealer.id) : []);
 

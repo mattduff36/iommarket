@@ -11,20 +11,32 @@ vi.mock("@/components/marketplace/listing-card", () => ({ ListingCard: ({ title,
 import FavouritesPage from "@/app/(public)/account/favourites/page";
 
 describe("saved listing entitlement visibility", () => {
-  it("retains a saved listing as unavailable after dealer access ends, using one dealer query", async () => {
+  it("excludes hidden sellers before rendering saved listings", async () => {
     const base = { status: "LIVE", expiresAt: new Date("2099-01-01"), price: 100, featured: false, images: [], region: { name: "Douglas" }, category: { name: "Cars" }, attributeValues: [] };
     mocks.favourites.mockResolvedValue([
-      { id: "f1", listing: { ...base, id: "l1", title: "Revoked dealer car", dealerId: "revoked" } },
-      { id: "f2", listing: { ...base, id: "l2", title: "Active dealer car", dealerId: "active" } },
-      { id: "f3", listing: { ...base, id: "l3", title: "Private car", dealerId: null } },
+      { id: "f1", listing: { ...base, id: "l1", title: "Active dealer car", dealerId: "active" } },
+      { id: "f2", listing: { ...base, id: "l2", title: "Private car", dealerId: null } },
     ]);
     mocks.dealers.mockResolvedValue([{ id: "active" }]);
     render(await FavouritesPage());
-    expect(screen.getByText("Revoked dealer car").closest("article")).toHaveTextContent("Unavailable");
-    expect(screen.queryByRole("link", { name: "Open Revoked dealer car" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Open Active dealer car" })).toHaveAttribute("href", "/listings/l2");
-    expect(screen.getByRole("link", { name: "Open Private car" })).toHaveAttribute("href", "/listings/l3");
+    expect(screen.getByRole("link", { name: "Open Active dealer car" })).toHaveAttribute("href", "/listings/l1");
+    expect(screen.getByRole("link", { name: "Open Private car" })).toHaveAttribute("href", "/listings/l2");
     expect(mocks.dealers).toHaveBeenCalledTimes(1);
-    expect(mocks.favourites).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ userId: "viewer" }) }));
+    expect(mocks.favourites).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        userId: "viewer",
+        listing: {
+          AND: expect.arrayContaining([
+            {
+              user: {
+                disabledAt: null,
+                deletedAt: null,
+              },
+              OR: expect.any(Array),
+            },
+          ]),
+        },
+      },
+    }));
   });
 });

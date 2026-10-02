@@ -9,13 +9,32 @@ export function publicListingSellerWhere(
   now = new Date(),
   sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
 ): Prisma.ListingWhereInput {
-  return { OR: [{ dealerId: null }, { dealer: { is: getPublicDealerWhere(now, sampleVisibility) } }] };
+  return {
+    user: {
+      disabledAt: null,
+      deletedAt: null,
+    },
+    OR: [
+      { dealerId: null },
+      { dealer: { is: getPublicDealerWhere(now, sampleVisibility) } },
+    ],
+  };
 }
 
 /** Request-scoped only: never cache entitlement across requests or revocations. */
-export const hasPublicDealerListingAccess = cache(async (dealerId: string | null) => {
-  if (!dealerId) return true;
-  return Boolean(await db.dealerProfile.findFirst({
-    where: { AND: [{ id: dealerId }, getPublicDealerWhere()] }, select: { id: true },
-  }));
-});
+export const hasPublicListingSellerAccess = cache(
+  async (
+    dealerId: string | null,
+    ownerDisabled: boolean,
+    ownerDeleted: boolean,
+  ) => {
+    if (ownerDisabled || ownerDeleted) return false;
+    if (!dealerId) return true;
+    return Boolean(await db.dealerProfile.findFirst({
+      where: {
+        AND: [{ id: dealerId }, getPublicDealerWhere()],
+      },
+      select: { id: true },
+    }));
+  },
+);

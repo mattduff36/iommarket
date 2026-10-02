@@ -132,6 +132,22 @@ describe("AccountDashboardPage", () => {
     expect(screen.getByRole("heading", { name: /Become a dealer/i }).closest("a")).toBeNull();
     expect(screen.getByRole("heading", { name: /Become a dealer/i })).toBeTruthy();
     expect(getSellLandingPathMock).toHaveBeenCalledWith("USER");
+    expect(dbMock.favourite.count).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        listing: {
+          AND: expect.arrayContaining([
+            {
+              user: {
+                disabledAt: null,
+                deletedAt: null,
+              },
+              OR: expect.any(Array),
+            },
+          ]),
+        },
+      },
+    });
   });
 
   it("makes recent listing rows a single destination without nested anchors", async () => {
