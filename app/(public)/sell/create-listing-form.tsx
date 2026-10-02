@@ -34,6 +34,7 @@ import {
   DEFAULT_CATEGORY_TILE_ICON,
 } from "./create-listing-form.constants";
 import { useListingDemoOutcome } from "./create-listing-form.demo";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 import {
   createPhotoMutationId,
   pruneHiddenAttributes,
@@ -426,6 +427,12 @@ export function CreateListingForm({
             return openCheckout(url);
           },
         });
+        if (navigation.kind === "checkout" || navigation.kind === "demo") {
+          trackMarketplaceEvent("listing_submitted", { mode });
+          trackMarketplaceEvent("checkout_started", { context: "listing" });
+        } else if (navigation.kind === "success") {
+          trackMarketplaceEvent("listing_submitted", { mode });
+        }
         if (navigation.kind === "stay") {
           if (navigation.error) setError(navigation.error);
           if (navigation.fieldErrors) {

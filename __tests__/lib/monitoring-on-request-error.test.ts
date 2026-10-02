@@ -92,6 +92,7 @@ describe("MON-RUNTIME-002 edge/runtime guard", () => {
     expect(source).not.toMatch(/from ["']@\/lib\/db["']/);
     expect(source).not.toMatch(/from ["']@\/lib\/monitoring\/capture["']/);
     expect(source).toContain('process.env.NEXT_RUNTIME === "edge"');
-    expect(source).toContain('require("./instrumentation-node")');
+    expect(source).toContain('await import("./instrumentation-node")');
+    expect(source).toContain("typeof handle !== \"function\"");
   });
 });

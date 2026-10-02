@@ -20,6 +20,7 @@ import {
   SIGNUP_PROVIDER_RETRY_MESSAGE,
 } from "@/components/auth/signup-feedback";
 import { profileNameSchema } from "@/lib/validations/profile-name";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 
 function getSafeNextPath(nextPath: string | null): string {
   if (!nextPath) return "/";
@@ -120,6 +121,7 @@ export function SignUpForm() {
         );
         return;
       }
+      trackMarketplaceEvent("signup_completed", { method: "password" });
       setSuccess(true);
       router.refresh();
     } catch {

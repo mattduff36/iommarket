@@ -1,37 +1,18 @@
 import { db } from "@/lib/db";
-import { sendMonitoringAlertEmail } from "@/lib/email/resend";
 import {
   getMonitoringAlertCooldownMinutesAsync,
   getMonitoringAlertEmailRecipientsAsync,
   getMonitoringAlertMinSeverityAsync,
   getMonitoringAlertWebhookUrlAsync,
 } from "@/lib/config/monitoring";
-import { notifyMonitoringWebhook } from "./notify-webhook";
+import { buildAlertSubject, buildAlertText, monitoringAppUrl } from "./alert-message";
+import { decideMonitoringAlert } from "./alert-policy";
+import { enqueueMonitoringAlert, processMonitoringAlertOutbox } from "./alert-outbox";
+import { logMonitoringFallback } from "./fallback-log";
+import { recordAlertSuppression } from "./health";
 import type { MonitoringSeverity } from "./types";
 
-const SEVERITY_RANK: Record<MonitoringSeverity, number> = {
-  LOW: 1,
-  MEDIUM: 2,
-  HIGH: 3,
-  CRITICAL: 4,
-};
-
-function isSeverityAtOrAbove(
-  value: MonitoringSeverity,
-  minimum: MonitoringSeverity
-): boolean {
-  return SEVERITY_RANK[value] >= SEVERITY_RANK[minimum];
-}
-
-function buildAlertSubject(params: {
-  severity: MonitoringSeverity;
-  source: string;
-  title: string;
-}) {
-  return `[Monitoring][${params.severity}] ${params.source} - ${params.title}`;
-}
-
-function buildAlertText(params: {
+function webhookBody(params: {
   issueId: string;
   eventId: string;
   severity: MonitoringSeverity;
@@ -39,286 +20,151 @@ function buildAlertText(params: {
   source: string;
   title: string;
   message: string;
-  route?: string | null;
-  action?: string | null;
-  requestPath?: string | null;
-  environment: string;
+  route: string | null;
+  action: string | null;
   occurrences: number;
+  requestPath: string | null;
+  environment: string;
+  occurredAt: string;
+  reason: string;
   appUrl: string;
 }) {
-  const issueUrl = `${params.appUrl}/admin/monitoring/${params.issueId}`;
-  return [
-    "iTrader Monitoring Alert",
-    "",
-    `Issue: ${params.issueId}`,
-    `Event: ${params.eventId}`,
-    `Severity: ${params.severity}`,
-    `Status: ${params.status}`,
-    `Source: ${params.source}`,
-    `Environment: ${params.environment}`,
-    `Occurrences: ${params.occurrences}`,
-    "",
-    `Title: ${params.title}`,
-    `Message: ${params.message}`,
-    `Route: ${params.route ?? "n/a"}`,
-    `Action: ${params.action ?? "n/a"}`,
-    `Request path: ${params.requestPath ?? "n/a"}`,
-    "",
-    `Review in admin: ${issueUrl}`,
-  ].join("\n");
-}
-
-async function createSkippedDelivery(params: {
-  issueId: string;
-  eventId: string;
-  channel: "EMAIL" | "WEBHOOK";
-  target: string;
-  reason: string;
-}) {
-  await db.monitoringAlertDelivery.create({
-    data: {
-      issueId: params.issueId,
-      eventId: params.eventId,
-      channel: params.channel,
-      target: params.target,
-      status: "SKIPPED",
-      attempts: 0,
-      lastError: params.reason,
+  return {
+    app: "iommarket",
+    type: "monitoring_alert",
+    reason: params.reason,
+    issue: {
+      id: params.issueId,
+      severity: params.severity,
+      status: params.status,
+      source: params.source,
+      title: params.title,
+      message: params.message,
+      route: params.route,
+      action: params.action,
+      occurrences: params.occurrences,
     },
-  });
+    event: {
+      id: params.eventId,
+      occurredAt: params.occurredAt,
+      requestPath: params.requestPath,
+      environment: params.environment,
+    },
+    adminUrl: `${params.appUrl}/admin/monitoring/${params.issueId}`,
+  };
 }
 
 export async function dispatchMonitoringAlerts(input: {
   issueId: string;
   eventId: string;
+  reopened?: boolean;
+  previousLastSeenAt?: Date | null;
 }) {
   try {
-    const [issue, event] = await Promise.all([
+    const [issue, event, minSeverity, cooldownMinutes, emailRecipients, webhookUrl] = await Promise.all([
       db.monitoringIssue.findUnique({ where: { id: input.issueId } }),
       db.monitoringEvent.findUnique({ where: { id: input.eventId } }),
+      getMonitoringAlertMinSeverityAsync(),
+      getMonitoringAlertCooldownMinutesAsync(),
+      getMonitoringAlertEmailRecipientsAsync(),
+      getMonitoringAlertWebhookUrlAsync(),
     ]);
     if (!issue || !event) return;
 
-    const [minSeverity, cooldownMinutes, emailRecipients, webhookUrl] =
-      await Promise.all([
-        getMonitoringAlertMinSeverityAsync(),
-        getMonitoringAlertCooldownMinutesAsync(),
-        getMonitoringAlertEmailRecipientsAsync(),
-        getMonitoringAlertWebhookUrlAsync(),
-      ]);
-
-    const hasEmail = emailRecipients.length > 0;
-    const hasWebhook = webhookUrl.trim().length > 0;
-    if (!hasEmail && !hasWebhook) return;
-
-    if (issue.status === "MUTED" && issue.mutedUntil && issue.mutedUntil > new Date()) {
-      if (hasEmail) {
-        await createSkippedDelivery({
-          issueId: issue.id,
-          eventId: event.id,
-          channel: "EMAIL",
-          target: emailRecipients.join(","),
-          reason: "Issue is muted",
-        });
-      }
-      if (hasWebhook) {
-        await createSkippedDelivery({
-          issueId: issue.id,
-          eventId: event.id,
-          channel: "WEBHOOK",
-          target: webhookUrl,
-          reason: "Issue is muted",
-        });
-      }
-      return;
-    }
-
-    if (!isSeverityAtOrAbove(issue.severity, minSeverity)) {
-      if (hasEmail) {
-        await createSkippedDelivery({
-          issueId: issue.id,
-          eventId: event.id,
-          channel: "EMAIL",
-          target: emailRecipients.join(","),
-          reason: `Severity below threshold (${minSeverity})`,
-        });
-      }
-      if (hasWebhook) {
-        await createSkippedDelivery({
-          issueId: issue.id,
-          eventId: event.id,
-          channel: "WEBHOOK",
-          target: webhookUrl,
-          reason: `Severity below threshold (${minSeverity})`,
-        });
-      }
-      return;
-    }
-
-    if (issue.lastAlertedAt && cooldownMinutes > 0) {
-      const elapsedMs = Date.now() - issue.lastAlertedAt.getTime();
-      if (elapsedMs < cooldownMinutes * 60 * 1000) {
-        if (hasEmail) {
-          await createSkippedDelivery({
-            issueId: issue.id,
-            eventId: event.id,
-            channel: "EMAIL",
-            target: emailRecipients.join(","),
-            reason: `Cooldown active (${cooldownMinutes}m)`,
-          });
-        }
-        if (hasWebhook) {
-          await createSkippedDelivery({
-            issueId: issue.id,
-            eventId: event.id,
-            channel: "WEBHOOK",
-            target: webhookUrl,
-            reason: `Cooldown active (${cooldownMinutes}m)`,
-          });
-        }
-        return;
-      }
-    }
-
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
-      /\/$/,
-      ""
-    );
-    const subject = buildAlertSubject({
-      severity: issue.severity,
-      source: issue.source,
-      title: issue.title,
-    });
-    const text = buildAlertText({
-      issueId: issue.id,
-      eventId: event.id,
-      severity: issue.severity,
+    const decision = decideMonitoringAlert({
       status: issue.status,
-      source: issue.source,
-      title: issue.title,
-      message: issue.sampleMessage,
-      route: issue.sampleRoute,
-      action: issue.sampleAction,
-      requestPath: event.requestPath,
-      environment: event.environment,
-      occurrences: issue.occurrences,
-      appUrl,
+      reopened: input.reopened,
+      severity: issue.severity,
+      eventSeverity: event.severity,
+      acknowledgedSeverity: issue.acknowledgedSeverity,
+      mutedUntil: issue.mutedUntil,
+      lastAlertedAt: issue.lastAlertedAt,
+      previousLastSeenAt: input.previousLastSeenAt,
+      now: new Date(),
+      minSeverity,
+      cooldownMinutes,
+      hasChannel: emailRecipients.length > 0 || webhookUrl.trim().length > 0,
     });
 
-    let sentAny = false;
-
-    if (hasEmail) {
-      const delivery = await db.monitoringAlertDelivery.create({
-        data: {
-          issueId: issue.id,
-          eventId: event.id,
-          channel: "EMAIL",
-          target: emailRecipients.join(","),
-          status: "PENDING",
-          attempts: 0,
-        },
-      });
-
-      try {
-        await sendMonitoringAlertEmail({
-          to: emailRecipients,
-          subject,
-          text,
+    if (decision.action === "suppress") {
+      if (decision.reason !== "no-channel") {
+        await db.monitoringIssue.update({
+          where: { id: issue.id },
+          data: { suppressedAlertCount: { increment: 1 } },
         });
-        await db.monitoringAlertDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            status: "SENT",
-            attempts: 1,
-            sentAt: new Date(),
-            lastError: null,
-          },
-        });
-        sentAny = true;
-      } catch (err) {
-        await db.monitoringAlertDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            status: "FAILED",
-            attempts: 1,
-            lastError: err instanceof Error ? err.message : "Email send failed",
-          },
-        });
+        await recordAlertSuppression();
       }
+      return;
     }
+    if (decision.action === "digest") return;
 
-    if (hasWebhook) {
-      const delivery = await db.monitoringAlertDelivery.create({
-        data: {
-          issueId: issue.id,
-          eventId: event.id,
-          channel: "WEBHOOK",
-          target: webhookUrl,
-          status: "PENDING",
-          attempts: 0,
-        },
-      });
+    const appUrl = monitoringAppUrl();
+    const payload = {
+      subject: buildAlertSubject({
+        severity: issue.severity,
+        source: issue.source,
+        title: issue.title,
+      }),
+      text: buildAlertText({
+        issueId: issue.id,
+        eventId: event.id,
+        severity: issue.severity,
+        status: issue.status,
+        source: issue.source,
+        title: issue.title,
+        message: issue.sampleMessage,
+        route: issue.sampleRoute,
+        action: issue.sampleAction,
+        requestPath: event.requestPath,
+        environment: event.environment,
+        occurrences: issue.occurrences,
+        reason: decision.reason,
+        appUrl,
+      }),
+      webhookBody: webhookBody({
+        issueId: issue.id,
+        eventId: event.id,
+        severity: issue.severity,
+        status: issue.status,
+        source: issue.source,
+        title: issue.title,
+        message: issue.sampleMessage,
+        route: issue.sampleRoute,
+        action: issue.sampleAction,
+        occurrences: issue.occurrences,
+        requestPath: event.requestPath,
+        environment: event.environment,
+        occurredAt: event.occurredAt.toISOString(),
+        reason: decision.reason,
+        appUrl,
+      }),
+    };
 
-      const webhookResult = await notifyMonitoringWebhook({
-        webhookUrl,
-        payload: {
-          app: "iommarket",
-          type: "monitoring_alert",
-          issue: {
-            id: issue.id,
-            severity: issue.severity,
-            status: issue.status,
-            source: issue.source,
-            title: issue.title,
-            message: issue.sampleMessage,
-            route: issue.sampleRoute,
-            action: issue.sampleAction,
-            occurrences: issue.occurrences,
-          },
-          event: {
-            id: event.id,
-            occurredAt: event.occurredAt.toISOString(),
-            requestPath: event.requestPath,
-            environment: event.environment,
-          },
-          adminUrl: `${appUrl}/admin/monitoring/${issue.id}`,
-        },
-      });
-
-      if (webhookResult.ok) {
-        await db.monitoringAlertDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            status: "SENT",
-            attempts: 1,
-            sentAt: new Date(),
-            lastError: null,
-          },
-        });
-        sentAny = true;
-      } else {
-        await db.monitoringAlertDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            status: "FAILED",
-            attempts: 1,
-            lastError:
-              webhookResult.error ??
-              (webhookResult.status
-                ? `Webhook status ${webhookResult.status}`
-                : "Webhook failed"),
-          },
-        });
-      }
-    }
-
-    if (sentAny) {
-      await db.monitoringIssue.update({
-        where: { id: issue.id },
-        data: { lastAlertedAt: new Date() },
+    if (emailRecipients.length > 0) {
+      await enqueueMonitoringAlert({
+        issueId: issue.id,
+        eventId: event.id,
+        channel: "EMAIL",
+        target: emailRecipients.join(","),
+        payload,
       });
     }
-  } catch {
-    // Alerting failures must never crash the request path.
+    if (webhookUrl.trim()) {
+      await enqueueMonitoringAlert({
+        issueId: issue.id,
+        eventId: event.id,
+        channel: "WEBHOOK",
+        target: webhookUrl.trim(),
+        payload,
+      });
+    }
+    await processMonitoringAlertOutbox({ limit: 5 });
+  } catch (error) {
+    logMonitoringFallback({
+      kind: "alert-dispatch-failed",
+      message: error instanceof Error ? error.message : "Alert dispatch failed",
+      issueId: input.issueId,
+      eventId: input.eventId,
+    });
   }
 }

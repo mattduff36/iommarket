@@ -11,7 +11,9 @@ import {
   adminSearchInputClass,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { MonitoringIssueCard } from "@/components/admin/monitoring-issue-card";
+import { MonitoringHealthSummary } from "@/components/admin/monitoring-health-summary";
+import { MonitoringQueue } from "@/components/admin/monitoring-queue";
+import { decodeMonitoringCursor, encodeMonitoringCursor } from "@/lib/monitoring/pagination";
 
 export const metadata: Metadata = { title: "Monitoring | Admin" };
 
@@ -24,12 +26,14 @@ function buildFilterHref(params: {
   severity?: string;
   source?: string;
   q?: string;
+  cursor?: string;
 }) {
   const sp = new URLSearchParams();
   if (params.status) sp.set("status", params.status);
   if (params.severity) sp.set("severity", params.severity);
   if (params.source) sp.set("source", params.source);
   if (params.q) sp.set("q", params.q);
+  if (params.cursor) sp.set("cursor", params.cursor);
   const query = sp.toString();
   return query ? `/admin/monitoring?${query}` : "/admin/monitoring";
 }
@@ -40,6 +44,7 @@ interface Props {
     severity?: string;
     source?: string;
     q?: string;
+    cursor?: string;
   }>;
 }
 
@@ -57,28 +62,42 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
     ? (params.source as (typeof SOURCE_OPTIONS)[number])
     : undefined;
   const q = params.q?.trim();
+  const cursor = decodeMonitoringCursor(params.cursor);
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const previousDay = new Date(dayAgo.getTime() - 24 * 60 * 60 * 1000);
 
+  const constraints: Prisma.MonitoringIssueWhereInput[] = [
+    ...(cursor
+      ? [{
+          OR: [
+            { lastSeenAt: { lt: cursor.lastSeenAt } },
+            { lastSeenAt: cursor.lastSeenAt, id: { lt: cursor.id } },
+          ],
+        }]
+      : []),
+    ...(q
+      ? [{
+          OR: [
+            { title: { contains: q, mode: "insensitive" as const } },
+            { sampleMessage: { contains: q, mode: "insensitive" as const } },
+            { sampleRoute: { contains: q, mode: "insensitive" as const } },
+            { sampleAction: { contains: q, mode: "insensitive" as const } },
+          ],
+        }]
+      : []),
+  ];
   const where: Prisma.MonitoringIssueWhereInput = {
     ...(status ? { status } : {}),
     ...(severity ? { severity } : {}),
     ...(source ? { source } : {}),
-    ...(q
-      ? {
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { sampleMessage: { contains: q, mode: "insensitive" } },
-            { sampleRoute: { contains: q, mode: "insensitive" } },
-            { sampleAction: { contains: q, mode: "insensitive" } },
-          ],
-        }
-      : {}),
+    ...(constraints.length > 0 ? { AND: constraints } : {}),
   };
 
-  const [issues, openCount, criticalOpenCount] = await Promise.all([
+  const [pageIssues, openCount, criticalOpenCount, recentEvents, previousEvents, recurringCount, failedDeliveries, health] = await Promise.all([
     db.monitoringIssue.findMany({
       where,
-      orderBy: [{ severity: "desc" }, { lastSeenAt: "desc" }],
-      take: 200,
+      orderBy: [{ lastSeenAt: "desc" }, { id: "desc" }],
+      take: 21,
       include: {
         _count: { select: { events: true } },
         statusEvents: {
@@ -96,7 +115,26 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
     db.monitoringIssue.count({
       where: { status: { in: ["OPEN", "ACKNOWLEDGED"] }, severity: "CRITICAL" },
     }),
+    db.monitoringEvent.count({ where: { occurredAt: { gte: dayAgo } } }),
+    db.monitoringEvent.count({ where: { occurredAt: { gte: previousDay, lt: dayAgo } } }),
+    db.monitoringIssue.count({
+      where: {
+        status: { in: ["OPEN", "ACKNOWLEDGED"] },
+        occurrences: { gt: 1 },
+        lastSeenAt: { gte: dayAgo },
+      },
+    }),
+    db.monitoringAlertDelivery.count({
+      where: { status: "FAILED", createdAt: { gte: dayAgo } },
+    }),
+    db.monitoringPipelineHealth.findUnique({ where: { id: "singleton" } }),
   ]);
+  const hasNextPage = pageIssues.length > 20;
+  const issues = hasNextPage ? pageIssues.slice(0, 20) : pageIssues;
+  const lastIssue = issues.at(-1);
+  const nextCursor = hasNextPage && lastIssue
+    ? encodeMonitoringCursor(lastIssue.lastSeenAt, lastIssue.id)
+    : null;
 
   return (
     <>
@@ -105,16 +143,15 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
         description="Centralized error and anomaly triage for production and staging issues."
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface p-4 shadow-low">
-          <p className="text-xs uppercase tracking-wider text-text-tertiary">Open Issues</p>
-          <p className="mt-2 text-2xl font-bold text-text-primary">{openCount}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-4 shadow-low">
-          <p className="text-xs uppercase tracking-wider text-text-tertiary">Critical Active</p>
-          <p className="mt-2 text-2xl font-bold text-text-energy">{criticalOpenCount}</p>
-        </div>
-      </div>
+      <MonitoringHealthSummary
+        health={health}
+        openCount={openCount}
+        criticalCount={criticalOpenCount}
+        recentEvents={recentEvents}
+        previousEvents={previousEvents}
+        recurringCount={recurringCount}
+        failedDeliveries={failedDeliveries}
+      />
 
       <AdminFilterBar
         count={`${issues.length} matching ${issues.length === 1 ? "issue" : "issues"}`}
@@ -181,17 +218,24 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
         </div>
       </AdminFilterBar>
 
-      <div className="space-y-3">
-        {issues.map((issue) => (
-          <MonitoringIssueCard key={issue.id} issue={issue} />
-        ))}
-        {issues.length === 0 ? (
-          <AdminEmptyState
-            title="No matching issues"
-            description="Adjust the current filters to see other monitoring issues."
-          />
-        ) : null}
-      </div>
+      {issues.length === 0 ? (
+        <AdminEmptyState
+          title="No matching issues"
+          description="Adjust the current filters to see other monitoring issues."
+        />
+      ) : (
+        <MonitoringQueue issues={issues} />
+      )}
+      {nextCursor ? (
+        <div className="mt-4">
+          <a
+            href={buildFilterHref({ status, severity, source, q, cursor: nextCursor })}
+            className="text-sm font-medium text-text-trust hover:text-text-primary"
+          >
+            Next page
+          </a>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -30,6 +30,7 @@ import {
   type FieldErrors,
 } from "@/lib/forms/action-error";
 import { DEALER_TERMS_ACCEPTANCE_MESSAGE } from "@/lib/validations/payment";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 
 interface SubscribeFormProps {
   checkoutUnavailable?: boolean;
@@ -111,6 +112,7 @@ export function SubscribeForm({
         return;
       }
       if (result.data?.checkoutUrl) {
+        trackMarketplaceEvent("dealer_conversion", { stage: "checkout", tier });
         openCheckout(result.data.checkoutUrl);
         setIsAwaitingPayment(true);
         if (isRippleDemoCheckoutUrl(result.data.checkoutUrl)) {

@@ -6,6 +6,7 @@ import { confirmHostedListingPayment } from "@/actions/hosted-payment-return";
 import { useCheckoutWindowHandoff } from "@/components/payments/checkout-window-handoff";
 import { Button } from "@/components/ui/button";
 import { createPaymentReturnEvent, type PaymentReturnEvent } from "@/lib/payments/checkout-handoff";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 
 function confirmedReturnEvent(
   result: Awaited<ReturnType<typeof confirmHostedListingPayment>>,
@@ -46,6 +47,13 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
         if (next.status === "waiting" && attempts >= 40) next = { status: "review" };
         setResult(next);
         if (next.status === "confirmed") {
+          trackMarketplaceEvent("checkout_completed", {
+            context: next.checkoutType === "dealer_subscription"
+              ? "subscription"
+              : next.checkoutType === "featured_upgrade"
+                ? "featured"
+                : "listing",
+          });
           setHandoffEvent((current) => current ?? confirmedReturnEvent(next));
         } else if (next.status === "waiting") {
           timer = setTimeout(check, 3000);

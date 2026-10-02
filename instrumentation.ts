@@ -11,24 +11,38 @@ import { assertPolicyFlagsValid } from "@/lib/policy/flags";
  * and every other outbound HTTPS request.
  *
  * onRequestError must not import Prisma or capture code at top level so Edge
- * evaluation cannot load the Node database client.
+ * evaluation cannot load the Node database client. The runtime split uses the
+ * dynamic import shown by the installed Next.js instrumentation guide.
  */
 export function register() {
   assertPolicyFlagsValid();
 }
 
-export const onRequestError: Instrumentation.onRequestError = (
+export const onRequestError: Instrumentation.onRequestError = async (
   error,
   request,
   context,
 ) => {
   if (process.env.NEXT_RUNTIME === "edge") {
+    const message = error instanceof Error ? error.message : "Unknown edge error";
+    const path = request.path.split("?")[0]?.slice(0, 300) ?? "/";
+    console.error(JSON.stringify({
+      monitoringFallback: true,
+      kind: "edge-request-error",
+      message: message.slice(0, 300),
+      path,
+    }));
     return;
-  } else {
-    // Next compiles instrumentation once per runtime. This exact documented
-    // runtime branch keeps the Node-only module out of the Edge bundle.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { handleNodeRequestError } = require("./instrumentation-node") as typeof import("./instrumentation-node");
-    return handleNodeRequestError(error, request, context);
   }
+
+  const imported = await import("./instrumentation-node");
+  const handle = imported.handleNodeRequestError;
+  if (typeof handle !== "function") {
+    console.error(JSON.stringify({
+      monitoringFallback: true,
+      kind: "instrumentation-handler-missing",
+    }));
+    return;
+  }
+  await handle(error, request, context);
 };

@@ -24,6 +24,8 @@ import {
 import { db } from "@/lib/db";
 import { IssueStatusControls } from "./issue-status-controls";
 import { CursorPromptControls } from "./cursor-prompt-controls";
+import { MonitoringEventContext, RetryAlertButton } from "./event-context";
+import { maskMonitoringIdentity } from "@/lib/monitoring/identity";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -62,8 +64,18 @@ export default async function MonitoringIssuePage({ params }: Props) {
         orderBy: { createdAt: "desc" },
         take: 30,
       },
+      statusEvents: {
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      },
     },
   });
+  const assignee = issue?.assigneeAdminId
+    ? await db.user.findUnique({
+        where: { id: issue.assigneeAdminId },
+        select: { email: true },
+      })
+    : null;
 
   if (!issue) notFound();
 
@@ -134,6 +146,16 @@ export default async function MonitoringIssuePage({ params }: Props) {
                 Resolved at {issue.resolvedAt.toLocaleString("en-GB")}
               </p>
             )}
+            <p>
+              <span className="text-text-secondary">Assignee:</span>{" "}
+              <span className="font-medium text-text-primary">
+                {maskMonitoringIdentity(assignee?.email ?? issue.assigneeAdminId)}
+              </span>
+            </p>
+            <p>
+              <span className="text-text-secondary">Suppressed alerts:</span>{" "}
+              <span className="font-medium text-text-primary">{issue.suppressedAlertCount}</span>
+            </p>
           </CardContent>
         </Card>
 
@@ -170,34 +192,14 @@ export default async function MonitoringIssuePage({ params }: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           {issue.events.map((event) => (
-            <div key={event.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={severityVariant(event.severity)}>{event.severity}</Badge>
-                <Badge variant="neutral">{event.source}</Badge>
-                <span className="text-xs text-text-secondary">
-                  {event.occurredAt.toLocaleString("en-GB")}
-                </span>
-                {event.requestPath && (
-                  <span className="text-xs font-mono text-text-secondary">
-                    {event.requestPath}
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-sm text-text-primary">{event.message}</p>
-              <div className="mt-2 grid gap-2 text-xs text-text-secondary sm:grid-cols-2">
-                <p>Route: {event.route ?? "-"}</p>
-                <p>Action: {event.action ?? "-"}</p>
-                <p>Component: {event.component ?? "-"}</p>
-                <p>Request ID: {event.requestId ?? "-"}</p>
-                <p>User: {event.userEmail ?? event.userId ?? "anonymous"}</p>
-                <p>Environment: {event.environment}</p>
-              </div>
-              {event.stack ? (
-                <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-canvas p-3 text-[11px] text-text-secondary">
-                  {event.stack}
-                </pre>
-              ) : null}
-            </div>
+            <MonitoringEventContext
+              key={event.id}
+              logsBaseUrl={process.env.MONITORING_VERCEL_LOGS_BASE_URL}
+              event={{
+                ...event,
+                occurredAt: event.occurredAt.toISOString(),
+              }}
+            />
           ))}
           {issue.events.length === 0 && (
             <AdminEmptyState
@@ -222,7 +224,9 @@ export default async function MonitoringIssuePage({ params }: Props) {
                 <TableHead>Target</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Attempts</TableHead>
+                <TableHead>Error</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead>Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -234,20 +238,46 @@ export default async function MonitoringIssuePage({ params }: Props) {
                   <TableCell className={adminNumericCellClass}>
                     {delivery.attempts}
                   </TableCell>
+                  <TableCell className="max-w-xs truncate text-xs">{delivery.lastError ?? "-"}</TableCell>
                   <TableCell className={adminDateCellClass}>
                     {delivery.createdAt.toLocaleString("en-GB")}
+                  </TableCell>
+                  <TableCell>
+                    {delivery.status === "FAILED" ? <RetryAlertButton deliveryId={delivery.id} /> : null}
                   </TableCell>
                 </TableRow>
               ))}
               {issue.alertDeliveries.length === 0 && (
                 <TableRow>
-                  <AdminTableEmpty colSpan={5}>
+                  <AdminTableEmpty colSpan={7}>
                     No alerts have been sent for this issue yet.
                   </AdminTableEmpty>
                 </TableRow>
               )}
             </TableBody>
           </AdminTable>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status history</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {issue.statusEvents.map((statusEvent) => (
+            <div key={statusEvent.id} className="rounded-md border border-border px-3 py-2 text-sm">
+              <p className="font-medium text-text-primary">
+                {statusEvent.fromStatus ?? "NEW"} → {statusEvent.toStatus}
+              </p>
+              <p className="text-xs text-text-secondary">
+                {statusEvent.createdAt.toLocaleString("en-GB")}
+                {statusEvent.notes ? ` · ${statusEvent.notes}` : ""}
+              </p>
+            </div>
+          ))}
+          {issue.statusEvents.length === 0 ? (
+            <AdminEmptyState compact title="No status changes" description="Triage notes will appear here." />
+          ) : null}
         </CardContent>
       </Card>
     </div>

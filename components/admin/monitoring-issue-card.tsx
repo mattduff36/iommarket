@@ -2,10 +2,12 @@ import Link from "next/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+type TimestampValue = Date | string;
+
 interface StatusEventSummary {
   toStatus: string;
   notes: string | null;
-  createdAt: Date;
+  createdAt: TimestampValue;
 }
 
 export interface MonitoringIssueCardData {
@@ -15,19 +17,19 @@ export interface MonitoringIssueCardData {
   status: string;
   severity: string;
   source: string;
-  firstSeenAt: Date;
-  lastSeenAt: Date;
+  firstSeenAt: TimestampValue;
+  lastSeenAt: TimestampValue;
   occurrences: number;
   sampleMessage: string;
   sampleRoute: string | null;
   sampleAction: string | null;
   sampleComponent: string | null;
-  mutedUntil: Date | null;
-  resolvedAt: Date | null;
-  lastAlertedAt: Date | null;
-  lastPromptGeneratedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  mutedUntil: TimestampValue | null;
+  resolvedAt: TimestampValue | null;
+  lastAlertedAt: TimestampValue | null;
+  lastPromptGeneratedAt: TimestampValue | null;
+  createdAt: TimestampValue;
+  updatedAt: TimestampValue;
   _count: { events: number };
   statusEvents: StatusEventSummary[];
 }
@@ -48,11 +50,18 @@ function severityVariant(
   return "neutral";
 }
 
-function Timestamp({ value }: { value: Date | null }) {
-  if (!value) return <span>-</span>;
+function asDate(value: TimestampValue | null): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function Timestamp({ value }: { value: TimestampValue | null }) {
+  const date = asDate(value);
+  if (!date) return <span>-</span>;
   return (
-    <time dateTime={value.toISOString()} className="tabular-nums">
-      {value.toLocaleString("en-GB")}
+    <time dateTime={date.toISOString()} className="tabular-nums">
+      {date.toLocaleString("en-GB")}
     </time>
   );
 }

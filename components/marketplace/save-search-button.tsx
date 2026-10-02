@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { saveSearch } from "@/actions/user-tools";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -15,10 +16,11 @@ export function SaveSearchButton({ queryParams }: Props) {
     const name = window.prompt("Name this saved search");
     if (!name) return;
     startTransition(async () => {
-      await saveSearch({
+      const result = await saveSearch({
         name,
         queryParamsJson: queryParams,
       });
+      if (!result.error) trackMarketplaceEvent("saved_search_created");
     });
   }
 

@@ -9,6 +9,8 @@ import {
 } from "./redact";
 import { coerceSeverity, maxSeverity } from "./severity";
 import { dispatchMonitoringAlerts } from "./alerts";
+import { logMonitoringFallback } from "./fallback-log";
+import { recordCaptureFailure, recordCaptureSuccess } from "./health";
 import type {
   CapturedMonitoringEvent,
   CaptureBusinessEventInput,
@@ -96,6 +98,11 @@ async function persistCapture(
     component: prepared.component,
   });
 
+  const existing = await db.monitoringIssue.findUnique({
+    where: { fingerprint },
+    select: { lastSeenAt: true },
+  });
+
   const issue = await db.monitoringIssue.upsert({
     where: { fingerprint },
     create: {
@@ -134,9 +141,26 @@ async function persistCapture(
         ...(desiredSeverity !== issue.severity
           ? { severity: desiredSeverity }
           : {}),
-        ...(shouldReopen ? { status: "OPEN", resolvedAt: null } : {}),
+        ...(shouldReopen
+          ? {
+              status: "OPEN",
+              resolvedAt: null,
+              acknowledgedAt: null,
+              acknowledgedSeverity: null,
+            }
+          : {}),
       },
     });
+    if (shouldReopen) {
+      await db.monitoringIssueStatusEvent.create({
+        data: {
+          issueId: issue.id,
+          fromStatus: "RESOLVED",
+          toStatus: "OPEN",
+          notes: "Reopened because the issue occurred again",
+        },
+      });
+    }
   }
 
   const event = await db.monitoringEvent.create({
@@ -163,10 +187,20 @@ async function persistCapture(
     select: { id: true },
   });
 
+  await recordCaptureSuccess(now);
   dispatchMonitoringAlerts({
     issueId: issue.id,
     eventId: event.id,
-  }).catch(() => {});
+    reopened: shouldReopen,
+    previousLastSeenAt: existing?.lastSeenAt ?? null,
+  }).catch((error: unknown) => {
+    logMonitoringFallback({
+      kind: "alert-dispatch-failed",
+      message: error instanceof Error ? error.message : "Alert dispatch failed",
+      issueId: issue.id,
+      eventId: event.id,
+    });
+  });
 
   return {
     issueId: issue.id,
@@ -186,7 +220,7 @@ export async function captureException(
     const context = sanitizeMonitoringContext(input);
 
     const message = redactFreeText(payload.message);
-    return persistCapture({
+    return await persistCapture({
       source,
       severity,
       title: context.title ?? message.slice(0, 180),
@@ -205,7 +239,13 @@ export async function captureException(
       tags: context.tags,
       extra: context.extra,
     });
-  } catch {
+  } catch (error) {
+    logMonitoringFallback({
+      kind: "capture-failed",
+      message: error instanceof Error ? error.message : "Capture failed",
+      route: input.route,
+    });
+    await recordCaptureFailure(error);
     return null;
   }
 }
@@ -219,7 +259,7 @@ export async function captureBusinessEvent(
     const context = sanitizeMonitoringContext(input);
 
     const message = redactFreeText(input.message);
-    return persistCapture({
+    return await persistCapture({
       source,
       severity,
       title: context.title ?? message.slice(0, 180),
@@ -238,7 +278,13 @@ export async function captureBusinessEvent(
       tags: context.tags,
       extra: context.extra,
     });
-  } catch {
+  } catch (error) {
+    logMonitoringFallback({
+      kind: "capture-failed",
+      message: error instanceof Error ? error.message : "Capture failed",
+      route: input.route,
+    });
+    await recordCaptureFailure(error);
     return null;
   }
 }

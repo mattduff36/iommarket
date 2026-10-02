@@ -16,6 +16,7 @@ export function IssueStatusControls({ issueId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [muteHours, setMuteHours] = useState("24");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function submitStatus(status: "OPEN" | "ACKNOWLEDGED" | "MUTED" | "RESOLVED") {
@@ -24,6 +25,7 @@ export function IssueStatusControls({ issueId }: Props) {
       const result = await setMonitoringIssueStatus({
         issueId,
         status,
+        notes: notes.trim() || undefined,
         mutedHours: status === "MUTED" ? Math.max(1, Number(muteHours) || 24) : undefined,
       });
       if (result.error) {
@@ -37,8 +39,17 @@ export function IssueStatusControls({ issueId }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-sm leading-6 text-text-secondary">
-        Update the triage state or mute recurring alerts for a fixed period.
+        Acknowledge to suppress unchanged repeats. A higher severity or a new occurrence after six quiet hours alerts again.
       </p>
+      <label className="block text-sm text-text-secondary">
+        Note
+        <textarea
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          maxLength={500}
+          className="mt-1 min-h-20 w-full rounded-md border border-border bg-canvas px-2 py-1 text-sm text-text-primary"
+        />
+      </label>
       <AdminActionBar>
         <AdminActionButton
           onClick={() => submitStatus("OPEN")}

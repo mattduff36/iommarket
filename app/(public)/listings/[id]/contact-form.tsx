@@ -13,6 +13,7 @@ import {
   type FieldErrors,
 } from "@/lib/forms/action-error";
 import { contactSellerSchema } from "@/lib/validations/listing";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 
 interface Props {
   listingId: string;
@@ -54,6 +55,7 @@ export function ContactSellerForm({ listingId }: Props) {
       setError(split.formError);
       return;
     }
+    trackMarketplaceEvent("contact_seller_submitted", { seller: "listing" });
     setSent(true);
   }
 

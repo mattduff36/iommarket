@@ -11,6 +11,8 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { clusterErrorPatterns, generateAnalysisReport, groupOpenIssues, summarizeClusterLanes } from "./fixerrors/analysis";
+import { commitVerifiedCluster, readClusterReview } from "./fixerrors/commit-cluster";
+import { buildFixerrorsDecisions, writeFixerrorsDecisions } from "./fixerrors/decision";
 import { asPgClient, createFixerrorsClient } from "./fixerrors/db";
 import { createDatabaseTargetFingerprint, loadFixerrorsEnv, requireNonPoolingConnectionString } from "./fixerrors/env";
 import {
@@ -86,9 +88,38 @@ export function getResolvableSnapshotIssueIds(
     .filter((issueId) => !reportOnly.has(issueId));
 }
 
+function commitFromArguments(args: string[]) {
+  const reviewPath = getArgumentValue(args, "--review");
+  const lane = getArgumentValue(args, "--lane") ?? "";
+  const clusterId = getArgumentValue(args, "--cluster-id") ?? "";
+  const fingerprint = getArgumentValue(args, "--fingerprint") ?? "";
+  const issueIds = (getArgumentValue(args, "--issue-ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const paths = (getArgumentValue(args, "--paths") ?? "").split(",").map((file) => file.trim()).filter(Boolean);
+  if (!reviewPath || !clusterId || !fingerprint) {
+    throw new Error("Commit requires --review, --cluster-id, and --fingerprint");
+  }
+  return commitVerifiedCluster({
+    lane,
+    clusterId,
+    fingerprint,
+    review: readClusterReview(reviewPath),
+    clusterIssueIds: issueIds,
+    paths,
+    apply: args.includes("--apply"),
+    pushRequested: args.includes("--push"),
+  });
+}
+
 async function main() {
-  loadFixerrorsEnv();
   const args = process.argv.slice(2);
+  if (args.includes("--commit-cluster")) {
+    const result = commitFromArguments(args);
+    console.log(JSON.stringify(result, null, 2));
+    if (!("ok" in result) || !result.ok) process.exitCode = 1;
+    return;
+  }
+
+  loadFixerrorsEnv();
   const connectionString = requireNonPoolingConnectionString();
   const databaseTargetFingerprint = createDatabaseTargetFingerprint(connectionString);
   const client = createFixerrorsClient();
@@ -141,6 +172,8 @@ async function main() {
     let snapshot = await fetchOpenIssueSnapshot(databaseClient, databaseTargetFingerprint);
     const patterns = groupOpenIssues(snapshot.issues);
     const clusters = clusterErrorPatterns(patterns);
+    const decisions = buildFixerrorsDecisions(clusters);
+    writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "decision.json"), decisions);
     const report = generateAnalysisReport(snapshot.issues, patterns, clusters);
     writeAndVerifyTextArtifactAtomic(ERROR_ANALYSIS_PATH, report);
     snapshot = markSnapshotAnalysisCompleted(

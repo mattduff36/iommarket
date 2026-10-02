@@ -7,11 +7,21 @@ const RANK: Record<MonitoringSeverity, number> = {
   CRITICAL: 4,
 };
 
+export function severityRank(value: MonitoringSeverity): number {
+  return RANK[value];
+}
+
 export function maxSeverity(
   a: MonitoringSeverity,
   b: MonitoringSeverity
 ): MonitoringSeverity {
   return RANK[a] >= RANK[b] ? a : b;
+}
+
+export function severitiesBelow(minimum: MonitoringSeverity): MonitoringSeverity[] {
+  return (Object.keys(RANK) as MonitoringSeverity[]).filter(
+    (severity) => RANK[severity] < RANK[minimum],
+  );
 }
 
 export function defaultSeverityForSource(

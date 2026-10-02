@@ -32,6 +32,9 @@ import {
   AdminTableEmpty,
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
+import { analyticsRange, loadBusinessFunnel } from "@/lib/analytics/business-funnel";
+import { MARKETPLACE_EVENTS } from "@/lib/analytics/events";
+import { loadVercelAcquisition } from "@/lib/analytics/vercel-web-analytics";
 
 export const metadata: Metadata = { title: "Analytics | Admin" };
 
@@ -59,8 +62,12 @@ function MetricCard({
   );
 }
 
-export default async function AdminAnalyticsPage() {
+export default async function AdminAnalyticsPage(
+  props: { searchParams?: Promise<{ range?: string }> } = {},
+) {
   await expireStaleLiveListings();
+  const params = props.searchParams ? await props.searchParams : {};
+  const range = analyticsRange(params.range);
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -192,6 +199,25 @@ export default async function AdminAnalyticsPage() {
   const favouriteListingsById = new Map(
     favouriteListings.map((listing) => [listing.id, listing]),
   );
+  const [funnel, acquisition] = await Promise.all([
+    loadBusinessFunnel({
+      since: range.since,
+      sampleVisibility,
+      liveWhere,
+    }),
+    loadVercelAcquisition({ since: range.since, until: now }),
+  ]);
+  const funnelSteps = [
+    ["Listing views", funnel.views],
+    ["Accounts created", funnel.signups],
+    ["Listings submitted", funnel.listingsSubmitted],
+    ["Checkouts started", funnel.checkoutStarted],
+    ["Checkouts completed", funnel.checkoutCompleted],
+    ["Live listings created", funnel.listingsLive],
+    ["Favourites", funnel.favourites],
+    ["Saved searches", funnel.savedSearches],
+    ["Dealer subscriptions", funnel.dealerSubscriptions],
+  ] as const;
   const topByFavourites = topFavouriteGroups.flatMap((group) => {
     const listing = favouriteListingsById.get(group.listingId);
     return listing
@@ -204,8 +230,89 @@ export default async function AdminAnalyticsPage() {
       <AdminPageHeader
         title="Analytics"
         description="Track marketplace engagement, audience growth, and the listings attracting attention."
-        meta={<span>Live marketplace data</span>}
+        meta={<span>Database totals are authoritative. Visitor analytics include only consented browsers.</span>}
       />
+
+      <section className="mb-8" aria-labelledby="funnel-heading">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="funnel-heading" className="text-sm font-semibold text-text-primary">
+            Activity and conversion
+            <span className="ml-2 font-normal text-text-tertiary">{range.key}</span>
+          </h2>
+          <div className="flex gap-2 text-sm">
+            {(["7d", "30d", "90d"] as const).map((option) => (
+              <a
+                key={option}
+                href={`/admin/analytics?range=${option}`}
+                aria-current={range.key === option ? "page" : undefined}
+                className={range.key === option ? "font-semibold text-text-primary" : "text-text-secondary"}
+              >
+                {option}
+              </a>
+            ))}
+          </div>
+        </div>
+        <p className="mb-3 text-xs text-text-tertiary">
+          These are activity totals for the selected range, not one visitor cohort. Search and contact steps are consented Vercel events because those actions are not stored as marketplace records.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {funnelSteps.map(([label, value], index) => {
+            const previous = index > 0 ? funnelSteps[index - 1]?.[1] : undefined;
+            const rate = previous && previous > 0 ? Math.round((value / previous) * 100) : null;
+            return (
+              <MetricCard
+                key={label}
+                label={label}
+                value={value.toLocaleString()}
+                detail={rate === null ? undefined : `${rate}% of previous step`}
+              />
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="mb-8" aria-labelledby="acquisition-heading">
+        <h2 id="acquisition-heading" className="mb-3 text-sm font-semibold text-text-primary">
+          Consented visitor analytics
+        </h2>
+        {acquisition.available ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MetricCard label="Visitors" value={(acquisition.visitors ?? 0).toLocaleString()} />
+              <MetricCard label="Pageviews" value={(acquisition.pageviews ?? 0).toLocaleString()} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-xs font-semibold text-text-secondary">Custom events</h3>
+                <ul className="space-y-1 text-sm text-text-primary">
+                  {MARKETPLACE_EVENTS.map((eventName) => {
+                    const match = acquisition.events.find((event) => event.name === eventName);
+                    return <li key={eventName}>{eventName}: {(match?.count ?? 0).toLocaleString()}</li>;
+                  })}
+                </ul>
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold text-text-secondary">Devices</h3>
+                {acquisition.devices.length > 0 ? (
+                  <ul className="space-y-1 text-sm text-text-primary">
+                    {acquisition.devices.map((device) => (
+                      <li key={device.name}>{device.name}: {device.count.toLocaleString()}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-text-tertiary">No device breakdown in this range.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <AdminEmptyState
+            compact
+            title="Vercel acquisition data is unavailable"
+            description="Pageviews still collect after consent. Server reporting needs VERCEL_ACCESS_TOKEN, VERCEL_PROJECT_ID, and VERCEL_ORG_ID."
+          />
+        )}
+      </section>
 
       {/* Overview cards */}
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

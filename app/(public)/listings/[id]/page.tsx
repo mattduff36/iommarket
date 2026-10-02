@@ -14,6 +14,7 @@ import { MapPin, Calendar, Tag, AlertTriangle, Star } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { JsonLd } from "@/components/seo/json-ld";
 import { ContactSellerForm } from "./contact-form";
+import { ConsentedTrack } from "@/components/analytics/consented-track";
 import { ReportButton } from "./report-button";
 import { ExpandableDescription } from "./expandable-description";
 import { ShareLinks } from "./share-links";
@@ -446,6 +447,11 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             .filter((image): image is NonNullable<typeof image> => Boolean(image))}
         />
       ) : null}
+
+      <ConsentedTrack
+        event="listing_viewed"
+        properties={{ seller: listing.dealerId ? "dealer" : "private" }}
+      />
 
       {canUpgradeToFeatured ? (
         <div className="mb-8">

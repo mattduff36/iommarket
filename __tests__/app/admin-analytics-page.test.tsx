@@ -10,6 +10,8 @@ const { dbMock, expireStaleLiveListingsMock, getSampleVisibilityMock } = vi.hois
       listing: { count: vi.fn(), findMany: vi.fn() },
       favourite: { count: vi.fn(), groupBy: vi.fn() },
       savedSearch: { count: vi.fn() },
+      payment: { count: vi.fn() },
+      subscription: { count: vi.fn() },
       $queryRaw: vi.fn(),
     },
   }),
@@ -50,6 +52,8 @@ describe("AdminAnalyticsPage sample visibility", () => {
     dbMock.favourite.count.mockResolvedValue(0);
     dbMock.favourite.groupBy.mockResolvedValue([]);
     dbMock.savedSearch.count.mockResolvedValue(0);
+    dbMock.payment.count.mockResolvedValue(0);
+    dbMock.subscription.count.mockResolvedValue(0);
     dbMock.$queryRaw.mockResolvedValue([]);
   });
 

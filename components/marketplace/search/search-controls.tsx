@@ -27,6 +27,7 @@ import {
   parseYearRange,
 } from "@/lib/constants/search-filters";
 import { cn } from "@/lib/cn";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 
 interface FilterOption {
   label: string;
@@ -128,6 +129,7 @@ export function SearchControls({
 
   function instantNav(overrides: Partial<SearchParams>) {
     if (mode === "instant") {
+      trackMarketplaceEvent("search_performed", { source: "filters" });
       router.push(buildSearchUrl(initial, overrides));
     }
   }
@@ -174,6 +176,7 @@ export function SearchControls({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    trackMarketplaceEvent("search_performed", { source: "submit" });
     router.push(buildSearchUrl({}, getAllParams()));
   }
 

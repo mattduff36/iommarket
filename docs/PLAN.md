@@ -143,7 +143,7 @@
   - sell wizard happy path
   - moderation smoke
 - Integrate Vercel Analytics event hooks.
-- Optional minimal Sentry setup.
+- Use the built-in monitoring queue and Vercel runtime alerts. Do not add Sentry.
 - Run lint/type/test pass and fix regressions.
 
 ### Files/Routes Affected

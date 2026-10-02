@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { shouldSampleClientEvent } from "@/lib/monitoring/ingest-guard";
 
 const captureException = vi.fn();
 const getCurrentUser = vi.fn();
@@ -56,15 +57,32 @@ describe("OPS-INGEST-001 monitoring events ingest", () => {
     }
   });
 
-  it("preserves LOW client severity", async () => {
+  it("preserves sampled LOW client severity and drops the rest", async () => {
     const { POST } = await import("@/app/api/monitoring/events/route");
     const response = await POST(postEvent({ message: "minor glitch", severity: "LOW" }));
     expect(response.status).toBe(202);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: "CLIENT",
-        severity: "LOW",
-      }),
-    );
+    if (shouldSampleClientEvent("minor glitch", "LOW")) {
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ source: "CLIENT", severity: "LOW" }),
+      );
+    } else {
+      expect(captureException).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects events from a foreign origin", async () => {
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    const request = new NextRequest("http://localhost:4000/api/monitoring/events", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://evil.example",
+        host: "localhost:4000",
+      },
+      body: JSON.stringify({ message: "client boom" }),
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    expect(captureException).not.toHaveBeenCalled();
   });
 });

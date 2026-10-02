@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Heart } from "lucide-react";
 import { toggleFavourite } from "@/actions/user-tools";
+import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -24,6 +25,7 @@ export function FavouriteToggle({
       const result = await toggleFavourite({ listingId });
       if (result.data) {
         setIsFavourite(result.data.isFavourite);
+        if (result.data.isFavourite) trackMarketplaceEvent("favourite_added");
       }
     });
   }

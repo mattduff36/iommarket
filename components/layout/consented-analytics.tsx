@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Analytics } from "@vercel/analytics/next";
+import { Analytics, type BeforeSendEvent } from "@vercel/analytics/next";
+import { redactAnalyticsUrl } from "@/lib/analytics/privacy";
 import {
   COOKIE_CONSENT_STORAGE_KEY,
   isAnalyticsAllowed,
@@ -25,5 +26,12 @@ export function ConsentedAnalytics() {
   }, []);
 
   if (!allowed) return null;
-  return <Analytics />;
+  return (
+    <Analytics
+      beforeSend={(event: BeforeSendEvent) => ({
+        ...event,
+        url: redactAnalyticsUrl(event.url),
+      })}
+    />
+  );
 }

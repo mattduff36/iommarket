@@ -87,7 +87,9 @@ describe("ListingEditDialog", () => {
     await screen.findByText(/Your edits are still here/);
     expect(screen.getByDisplayValue("Updated island runabout")).toBeInTheDocument();
     expect(mocks.onOpenChange).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Review and save" })).not.toBeDisabled();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Review and save" })).not.toBeDisabled();
+    });
   });
 
   it("asks before discarding dirty edits and keeps them when editing continues", async () => {

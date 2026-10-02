@@ -103,16 +103,23 @@
 - **Local**: optional/no-op acceptable.
 - **Staging/Prod**: enabled in deployment project.
 
-## Error Monitoring (Recommended)
+## Error Monitoring
 
-- **Service**: Sentry (minimal setup).
-- **Why**: production-ready error visibility for server actions/routes.
+- **Service**: First-party admin monitoring plus Vercel runtime alerts. Sentry is not part of the production stack.
+- **Why**: `/admin/monitoring` is the operational queue, while Vercel error alerts still fire if the app database or alert pipeline is unavailable.
 - **Env vars**:
-  - `SENTRY_DSN`
-  - optional `SENTRY_AUTH_TOKEN` (build sourcemaps)
-  - optional `SENTRY_ENVIRONMENT`
-- **Local**: optional disabled.
-- **Staging/Prod**: enabled with environment tags.
+  - `MONITORING_ALERT_EMAILS`
+  - `MONITORING_ALERT_WEBHOOK_URL` (public HTTPS endpoint)
+  - `MONITORING_ALERT_WEBHOOK_SECRET` (HMAC secret; webhook delivery fails closed without it)
+  - `MONITORING_ALERT_MIN_SEVERITY`
+  - `MONITORING_ALERT_COOLDOWN_MINUTES`
+  - `MONITORING_CAPTURE_SERVER` (`false` disables server capture)
+  - `NEXT_PUBLIC_MONITORING_CAPTURE_CONSOLE`
+  - `MONITORING_CANARY_SEND` (`1` sends one real canary alert per day)
+  - `VERCEL_OBSERVABILITY_ALERTS_CONFIGURED` (`1` after the independent Vercel alert exists)
+  - `MONITORING_VERCEL_LOGS_BASE_URL` (optional log deep-link override)
+- **Local**: capture stays on unless explicitly disabled. Webhook signing can use a local secret.
+- **Staging/Prod**: email and signed webhook alerts, five-minute maintenance cron, and a Vercel project error-anomaly alert that does not depend on Postgres.
 
 ## Moderation Tooling
 

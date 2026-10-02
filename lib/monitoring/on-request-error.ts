@@ -2,6 +2,7 @@ import { captureException } from "./capture";
 import { isEdgeRuntime, isServerCaptureEnabled } from "./flags";
 import { isExpectedControlFlowError } from "./handled";
 import { isMonitoringIngestPath, sanitizeRequestPath } from "./redact";
+import { monitoringRequestContext } from "./request-context";
 
 export type RequestErrorLike = Error & { digest?: string };
 
@@ -47,6 +48,7 @@ export async function reportRequestError(
 
   const path = sanitizeRequestPath(request.path);
   if (isMonitoringIngestPath(path)) return;
+  const requestContext = monitoringRequestContext(request.headers);
 
   const capture = deps.captureException ?? captureException;
   try {
@@ -57,9 +59,11 @@ export async function reportRequestError(
       route: sanitizeRequestPath(context.routePath) ?? path,
       requestPath: path,
       requestMethod: request.method,
+      requestId: requestContext.requestId,
       action: context.routeType,
       tags: {
         type: "onRequestError",
+        traceId: requestContext.traceId ?? null,
         routerKind: context.routerKind ?? null,
         routeType: context.routeType ?? null,
         renderSource: context.renderSource ?? null,

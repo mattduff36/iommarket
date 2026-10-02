@@ -2,7 +2,8 @@ import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { captureException } from "@/lib/monitoring";
-import { capClientIngestSeverity } from "@/lib/monitoring/severity";
+import { assessClientIngest } from "@/lib/monitoring/ingest-guard";
+import { capClientIngestSeverity, coerceSeverity } from "@/lib/monitoring/severity";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { ingestMonitoringClientEventSchema } from "@/lib/validations/monitoring";
@@ -35,15 +36,46 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const severity = coerceSeverity(capClientIngestSeverity(parsed.data.severity), "CLIENT");
+  const assessment = assessClientIngest({
+    origin: req.headers.get("origin"),
+    host: req.headers.get("host"),
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    contentType: req.headers.get("content-type"),
+    message: parsed.data.message,
+    route: parsed.data.route,
+    severity,
+  });
+  if (!assessment.ok) {
+    return NextResponse.json({ error: assessment.error }, { status: assessment.status });
+  }
+  if (!assessment.sampled) {
+    return NextResponse.json({ ok: true, accepted: false }, { status: 202 });
+  }
+
   const forwarded = req.headers.get("x-forwarded-for");
   const ip = forwarded?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip");
   const userAgent = req.headers.get("user-agent") ?? "unknown";
 
+  const identity = `${ip ?? "unknown"}:${userAgent}`;
+  const fingerprintKey = createHash("sha256")
+    .update(`${parsed.data.route ?? ""}|${parsed.data.message.slice(0, 180)}`)
+    .digest("hex")
+    .slice(0, 16);
+  const clientLimit = await checkRateLimit(
+    makeRateLimitKey("monitoring-client", identity),
+    { windowMs: 60_000, maxRequests: 20, policy: "monitoring-client" },
+  );
+  const globalLimit = await checkRateLimit(
+    makeRateLimitKey("monitoring-client-global", "all"),
+    { windowMs: 60_000, maxRequests: 300, policy: "monitoring-client-global" },
+  );
+  const fingerprintLimit = await checkRateLimit(
+    makeRateLimitKey("monitoring-client-fingerprint", `${identity}:${fingerprintKey}`),
+    { windowMs: 60_000, maxRequests: 5, policy: "monitoring-client-fingerprint" },
+  );
   const rateDenial = toRateLimitDenial(
-    await checkRateLimit(
-      makeRateLimitKey("monitoring-client", `${ip ?? "unknown"}:${userAgent}`),
-      { windowMs: 60_000, maxRequests: 20, policy: "monitoring-client" },
-    ),
+    [clientLimit, globalLimit, fingerprintLimit].find((result) => !result.allowed) ?? clientLimit,
     "Rate limit exceeded",
   );
   if (rateDenial) {

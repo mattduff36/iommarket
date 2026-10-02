@@ -228,7 +228,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 - **Payments**: Ripple hosted checkout + subscriptions + webhooks + idempotency.
 - **Email**: Resend for contact/report confirmations.
 - **Analytics**: Vercel Analytics baseline events.
-- **Error Monitoring**: optional Sentry (minimal MVP setup).
+- **Error Monitoring**: first-party admin monitoring with email/webhook alerts and independent Vercel runtime alerts.
 - **Moderation**: in-app admin dashboard tooling.
 
 ## 9) Acceptance Criteria (Testable)
@@ -676,11 +676,10 @@ Refund/dispute handling:
 
 ### Backups, logging, monitoring
 - DB backups daily (Supabase/Neon built-in)
-- Sentry for exceptions
-- Logtail (or Vercel logs + retention) for runtime logs
+- First-party monitoring for exceptions, with Vercel runtime logs and an independent Vercel error alert
 
 ### Analytics
-- Plausible (simple) or PostHog (deeper)
+- Vercel Web Analytics for consented visitor behaviour; database records for business totals
 - Track:
   - listing create started → paid → approved → live
   - search → listing view → contact form submit
@@ -690,7 +689,7 @@ Refund/dispute handling:
 - Vercel: £0–£20
 - DB: £0–£25
 - Cloudinary: £0–£20
-- Sentry/analytics: £0–£20
+- Vercel observability/analytics: £0–£20
 - Ripple/Cashflows: per transaction fees
 
 ---

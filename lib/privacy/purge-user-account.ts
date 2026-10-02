@@ -27,6 +27,8 @@ const ACCOUNT_TABLES = [
   "Report",
   "Listing",
   "MonitoringEvent",
+  "MonitoringIssue",
+  "MonitoringAlertDelivery",
   "PaymentWebhookInbox",
   "AdminAuditLog",
   "WaitlistUser",
@@ -156,6 +158,29 @@ export async function deleteEmailResidues(
          OR position(lower(${email}) in lower(coalesce("stack", ''))) > 0
          OR position(lower(${email}) in lower(coalesce("extra"::text, ''))) > 0
          OR position(lower(${email}) in lower(coalesce("tags"::text, ''))) > 0
+    `;
+  }
+  if (tableExists(tables, "MonitoringIssue")) {
+    await tx.$executeRaw`
+      UPDATE "MonitoringIssue"
+      SET "sampleMessage" = regexp_replace("sampleMessage", ${pattern}, '[deleted]', 'gi'),
+          "lastGeneratedPrompt" = CASE
+            WHEN "lastGeneratedPrompt" IS NULL THEN NULL
+            ELSE regexp_replace("lastGeneratedPrompt", ${pattern}, '[deleted]', 'gi')
+          END
+      WHERE position(lower(${email}) in lower("sampleMessage")) > 0
+         OR position(lower(${email}) in lower(coalesce("lastGeneratedPrompt", ''))) > 0
+    `;
+  }
+  if (tableExists(tables, "MonitoringAlertDelivery")) {
+    await tx.$executeRaw`
+      UPDATE "MonitoringAlertDelivery"
+      SET payload = NULL,
+          "lastError" = '[deleted]',
+          target = '[deleted]'
+      WHERE position(lower(${email}) in lower(coalesce(payload::text, ''))) > 0
+         OR position(lower(${email}) in lower(coalesce("lastError", ''))) > 0
+         OR position(lower(${email}) in lower(target)) > 0
     `;
   }
   if (tableExists(tables, "PaymentWebhookInbox")) {

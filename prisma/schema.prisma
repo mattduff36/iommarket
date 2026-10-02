@@ -1226,6 +1226,12 @@ enum MonitoringAlertStatus {
   SKIPPED
 }
 
+enum MonitoringAlertKind {
+  IMMEDIATE
+  DIGEST
+  CANARY
+}
+
 model MonitoringIssue {
   id               String                @id @default(cuid())
   fingerprint      String                @unique
@@ -1242,6 +1248,9 @@ model MonitoringIssue {
   sampleComponent  String?
   mutedUntil       DateTime?
   resolvedAt       DateTime?
+  acknowledgedAt   DateTime?
+  acknowledgedSeverity MonitoringSeverity?
+  suppressedAlertCount Int               @default(0)
   assigneeAdminId  String?
   lastAlertedAt    DateTime?
   lastGeneratedPrompt String?
@@ -1308,10 +1317,15 @@ model MonitoringAlertDelivery {
   issueId      String?
   eventId      String?
   channel      MonitoringAlertChannel
+  kind         MonitoringAlertKind   @default(IMMEDIATE)
   target       String
   status       MonitoringAlertStatus @default(PENDING)
   attempts     Int                   @default(0)
   lastError    String?
+  payload      Json?
+  nextAttemptAt DateTime?
+  claimedAt    DateTime?
+  claimExpiresAt DateTime?
   sentAt       DateTime?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
@@ -1320,9 +1334,30 @@ model MonitoringAlertDelivery {
   event        MonitoringEvent?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+  @@index([status, nextAttemptAt])
   @@index([channel, status, createdAt])
   @@index([issueId, createdAt])
   @@index([eventId, createdAt])
+}
+
+model MonitoringPipelineHealth {
+  id                         String    @id @default("singleton")
+  lastCaptureAt              DateTime?
+  lastCaptureFailureAt       DateTime?
+  lastCaptureFailure         String?
+  consecutiveCaptureFailures Int       @default(0)
+  lastAlertSuccessAt         DateTime?
+  lastAlertFailureAt         DateTime?
+  lastAlertFailure           String?
+  consecutiveAlertFailures   Int       @default(0)
+  suppressedAlertCount       Int       @default(0)
+  lastDigestAt               DateTime?
+  lastCanaryAt               DateTime?
+  lastCanaryResult           String?
+  lastRetentionAt            DateTime?
+  vercelFallbackStatus       String?
+  vercelFallbackCheckedAt    DateTime?
+  updatedAt                  DateTime  @updatedAt
 }
 
 // ---------------------------------------------------------------------------
