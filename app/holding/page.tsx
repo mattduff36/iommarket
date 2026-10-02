@@ -54,10 +54,10 @@ export default function HoldingPage() {
         </p>
 
         <p className="mt-8 text-center font-heading text-sm font-semibold text-text-primary sm:text-base">
-          <time dateTime={previewRehearsal ? "2026-10-02T22:30:00+01:00" : "2026-10-03T10:00:00+01:00"}>
+          <time dateTime={previewRehearsal ? "2026-10-02T22:23:00+01:00" : "2026-10-03T10:00:00+01:00"}>
             {previewRehearsal ? "Friday 2 October" : "Saturday 3 October"}{" "}
             <span className="whitespace-nowrap text-[#ff714a]">
-              {previewRehearsal ? "· 22:30 BST" : "· 10:00 BST"}
+              {previewRehearsal ? "· 22:23 BST" : "· 10:00 BST"}
             </span>
           </time>
         </p>
