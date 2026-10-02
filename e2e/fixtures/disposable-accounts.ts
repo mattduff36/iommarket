@@ -61,7 +61,7 @@ export async function createDisposableAccount(
   if (!isDisposableE2EEmail(email)) {
     throw new Error("Generated disposable email was rejected.");
   }
-  const password = `E2e-${randomBytes(18).toString("base64url")}`;
+  const generatedCredential = `E2e-${randomBytes(18).toString("base64url")}`;
   const existing = await db.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {
     throw new Error("Refusing to reuse an existing account.");
@@ -69,7 +69,7 @@ export async function createDisposableAccount(
 
   const created = await createSupabaseAdminClient().auth.admin.createUser({
     email,
-    password,
+    password: generatedCredential,
     email_confirm: true,
   });
   if (created.error || !created.data.user) {
@@ -131,7 +131,7 @@ export async function createDisposableAccount(
 
   return {
     email,
-    password,
+    password: generatedCredential,
     userId: user.id,
     authUserId: record.authUserId,
     dealerId: record.dealerId,
