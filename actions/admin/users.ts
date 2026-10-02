@@ -55,6 +55,7 @@ import {
 import { buildAdminUsersWhere } from "@/lib/admin/query";
 
 const ROLE_CHANGE_TRANSACTION_ATTEMPTS = 3;
+const ACCOUNT_DISABLE_TRANSACTION_TIMEOUT_MS = 30_000;
 
 export async function listUsers(input: ListUsersInput) {
   await requireRole("ADMIN");
@@ -583,48 +584,51 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
   if (userId === admin.id) return { error: "Cannot disable your own account" };
 
   try {
-    const { user, notifications } = await db.$transaction(async (tx) => {
-      const updated = await tx.user.update({
-        where: { id: userId },
-        data: {
-          disabledAt: disabled ? new Date() : null,
-          disabledReason: disabled ? (reason ?? "Disabled by admin") : null,
-          disabledReasonCode: disabled ? reasonCode ?? null : null,
-        },
-      });
-
-      let listingNotifications: Awaited<
-        ReturnType<
-          typeof import("@/lib/listings/account-disable").applyAccountDisableToListings
-        >
-      >["notifications"] = [];
-      if (disabled) {
-        const { applyAccountDisableToListings } = await import(
-          "@/lib/listings/account-disable"
-        );
-        const disabledListings = await applyAccountDisableToListings({
-          tx,
-          userId,
-          actor: { id: admin.id, role: "ADMIN" },
-          source: "ADMIN",
-          notes: reason ?? "Account disabled by admin",
+    const { user, notifications } = await db.$transaction(
+      async (tx) => {
+        const updated = await tx.user.update({
+          where: { id: userId },
+          data: {
+            disabledAt: disabled ? new Date() : null,
+            disabledReason: disabled ? (reason ?? "Disabled by admin") : null,
+            disabledReasonCode: disabled ? reasonCode ?? null : null,
+          },
         });
-        listingNotifications = disabledListings.notifications;
-      }
 
-      await logAdminAction(
-        {
-          adminId: admin.id,
-          action: disabled ? "DISABLE_USER" : "ENABLE_USER",
-          entityType: "User",
-          entityId: userId,
-          details: { reason, reasonCode },
-        },
-        tx,
-      );
+        let listingNotifications: Awaited<
+          ReturnType<
+            typeof import("@/lib/listings/account-disable").applyAccountDisableToListings
+          >
+        >["notifications"] = [];
+        if (disabled) {
+          const { applyAccountDisableToListings } = await import(
+            "@/lib/listings/account-disable"
+          );
+          const disabledListings = await applyAccountDisableToListings({
+            tx,
+            userId,
+            actor: { id: admin.id, role: "ADMIN" },
+            source: "ADMIN",
+            notes: reason ?? "Account disabled by admin",
+          });
+          listingNotifications = disabledListings.notifications;
+        }
 
-      return { user: updated, notifications: listingNotifications };
-    });
+        await logAdminAction(
+          {
+            adminId: admin.id,
+            action: disabled ? "DISABLE_USER" : "ENABLE_USER",
+            entityType: "User",
+            entityId: userId,
+            details: { reason, reasonCode },
+          },
+          tx,
+        );
+
+        return { user: updated, notifications: listingNotifications };
+      },
+      { timeout: ACCOUNT_DISABLE_TRANSACTION_TIMEOUT_MS },
+    );
 
     const { dispatchListingNotifications } = await import(
       "@/lib/email/listing-notifications"
