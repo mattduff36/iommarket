@@ -113,7 +113,7 @@ export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
   useEffect(() => {
     return () => {
       const page = document.querySelector("[data-holding-page]");
-      page?.classList.remove(styles.dim, styles.snapDim);
+      page?.classList.remove(styles.dim, styles.snapDim, styles.hideLogo);
       page?.removeAttribute("inert");
     };
   }, []);
@@ -127,6 +127,11 @@ export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
     if (!animate) page.classList.add(styles.snapDim);
     page.setAttribute("inert", "");
   }, [opensAt, secondsLeft]);
+
+  useEffect(() => {
+    if (!reveal) return;
+    document.querySelector("[data-holding-page]")?.classList.add(styles.hideLogo);
+  }, [reveal]);
 
   useEffect(() => {
     if (!focusing || flightPlayed.current) return;
@@ -189,14 +194,14 @@ export function PreviewHoldingLaunch({ opensAt }: { opensAt: number }) {
 
   return (
     <>
-      <div className={`${styles.timer} ${snap ? styles.snap : ""}`} role="timer" aria-label="Time until iTrader launches" aria-live="off">
+      <div className={`${styles.timer} ${snap ? styles.snap : ""} ${reveal ? styles.timerGone : ""}`} role="timer" aria-label="Time until iTrader launches" aria-live="off">
         {UNITS.map((unit, index) => {
           const isSeconds = unit === "Seconds";
           return (
             <div
               key={unit}
               ref={isSeconds ? secondsRef : undefined}
-              className={`${styles.card} ${!isSeconds && focusing ? styles.fade : ""} ${isSeconds && (focusing || reveal) ? styles.hiddenSource : ""}`}
+              className={`${styles.card} ${!isSeconds && (focusing || reveal) ? styles.fade : ""} ${isSeconds && (focusing || reveal) ? styles.hiddenSource : ""}`}
             >
               <span className={styles.digit}>{values ? String(values[index]).padStart(2, "0") : "--"}</span>
               <span className={styles.unit}>{unit}</span>

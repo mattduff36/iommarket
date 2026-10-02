@@ -124,6 +124,15 @@
   transition-duration: 0.45s;
 }
 
+.dim.hideLogo :global([data-launch-logo]) {
+  opacity: 0;
+  transition-duration: 0.45s;
+}
+
+.timerGone {
+  visibility: hidden;
+}
+
 .status {
   margin-top: 20px;
   color: rgba(255, 255, 255, 0.7);

@@ -7,13 +7,13 @@ import {
 } from "@/lib/launch/preview-welcome";
 
 describe("preview welcome window", () => {
-  it("opens the rehearsal at 00:31 BST and keeps the welcome for two hours", () => {
-    expect(new Date(PREVIEW_GATE_OPENS_AT).toISOString()).toBe("2026-10-02T23:31:00.000Z");
+  it("opens the rehearsal at 00:40 BST and keeps the welcome for two hours", () => {
+    expect(new Date(PREVIEW_GATE_OPENS_AT).toISOString()).toBe("2026-10-02T23:40:00.000Z");
     expect(previewWelcomeEndsAt()).toBe(PREVIEW_GATE_OPENS_AT + 2 * 60 * 60 * 1000);
   });
 
   it("namespaces the seen marker by this preview launch", () => {
-    expect(previewWelcomeCookieName()).toBe("itrader_launch_seen_preview_20261002T233100Z");
+    expect(previewWelcomeCookieName()).toBe("itrader_launch_seen_preview_20261002T234000Z");
     expect(previewWelcomeCookieName(Date.parse("2026-10-03T10:00:00+01:00"))).not.toBe(previewWelcomeCookieName());
   });
 

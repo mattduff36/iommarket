@@ -60,10 +60,10 @@ export default function HoldingPage() {
         </p>
 
         <p data-launch-chrome className="mt-8 text-center font-heading text-sm font-semibold text-text-primary sm:text-base">
-          <time dateTime={previewRehearsal ? "2026-10-03T00:31:00+01:00" : "2026-10-03T10:00:00+01:00"}>
+          <time dateTime={previewRehearsal ? "2026-10-03T00:40:00+01:00" : "2026-10-03T10:00:00+01:00"}>
             Saturday 3 October{" "}
             <span className="whitespace-nowrap text-[#ff714a]">
-              {previewRehearsal ? "· 00:31 BST" : "· 10:00 BST"}
+              {previewRehearsal ? "· 00:40 BST" : "· 10:00 BST"}
             </span>
           </time>
         </p>

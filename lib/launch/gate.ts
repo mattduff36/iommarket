@@ -3,7 +3,7 @@ import type { RuntimeEnv } from "@/lib/runtime-env";
 
 /**
  * Production stays gated until PRODUCTION_LAUNCH_ENABLED is exactly "1".
- * The preview branch stays gated until 00:31 BST on 3 October 2026, then opens.
+ * The preview branch stays gated until 00:40 BST on 3 October 2026, then opens.
  * Other Vercel Preview deployments stay open unless PREVIEW_LAUNCH_GATE_QA is exactly "1".
  * Missing or malformed configuration fails closed.
  */
