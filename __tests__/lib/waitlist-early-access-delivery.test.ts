@@ -1,6 +1,6 @@
 /* @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
@@ -36,6 +36,8 @@ vi.mock("@/lib/email/send-strict", () => ({
 
 describe("early-access delivery", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     vi.clearAllMocks();
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "");
@@ -67,6 +69,10 @@ describe("early-access delivery", () => {
     ]);
     mocks.count.mockResolvedValue(0);
     mocks.update.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("does not send the audience from Preview", async () => {

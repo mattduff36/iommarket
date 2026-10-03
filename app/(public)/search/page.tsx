@@ -12,7 +12,10 @@ import {
   normalizeSearchParams,
   type SearchParams,
 } from "@/lib/search/search-url";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { categoryLandingCopy } from "@/lib/seo/category-copy";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
+import { buildCategorySearchPath } from "@/lib/navigation-paths";
+import Link from "next/link";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
 import {
@@ -52,22 +55,21 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const activeCategory = sp.category
     ? await db.category.findFirst({
         where: { slug: sp.category, active: true },
-        select: { slug: true },
+        select: { slug: true, name: true },
       })
     : null;
   const seo = getSearchSeoState(sp, activeCategory?.slug);
-  return {
-    title: sp.q ? `Search: ${sp.q}` : "Search",
+  const categoryCopy = activeCategory
+    ? categoryLandingCopy(activeCategory.slug, activeCategory.name)
+    : null;
+  return publicPageMetadata({
+    title: sp.q ? `Search: ${sp.q}` : categoryCopy?.title ?? "Search",
     description:
+      categoryCopy?.description ??
       "Search cars, vans, motorbikes and motorhomes on iTrader.im, including vehicles located in the Isle of Man and the United Kingdom.",
-    alternates: {
-      canonical: buildCanonicalUrl(seo.canonicalPath),
-    },
-    robots: {
-      index: seo.indexable,
-      follow: true,
-    },
-  };
+    path: seo.canonicalPath,
+    index: seo.indexable,
+  });
 }
 
 function safeInt(v: string | undefined): number | undefined {
@@ -375,11 +377,13 @@ export default async function SearchPage({ searchParams }: Props) {
   const makes = Object.entries(makeCounts)
     .map(([label, count]) => ({ label, value: label, count }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
-  const canonicalPath = getSearchSeoState(
-    sp,
-    selectedCategory?.slug,
-  ).canonicalPath;
-  const resultHeading = query ? `Results for “${query}”` : "All Listings";
+  const searchSeo = getSearchSeoState(sp, selectedCategory?.slug);
+  const canonicalPath = searchSeo.canonicalPath;
+  const categoryCopy = selectedCategory
+    ? categoryLandingCopy(selectedCategory.slug, selectedCategory.name)
+    : null;
+  const categoryLanding = Boolean(categoryCopy && !query && searchSeo.indexable);
+  const resultHeading = query ? `Results for “${query}”` : categoryCopy?.heading ?? "All Listings";
   const breadcrumbLabel = query
     ? resultHeading
     : selectedCategory?.name ??
@@ -421,6 +425,31 @@ export default async function SearchPage({ searchParams }: Props) {
         <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
           {resultHeading}
         </h1>
+        {categoryLanding && categoryCopy ? (
+          <div className="mt-3 max-w-3xl space-y-3 text-sm leading-relaxed text-text-secondary">
+            <p>{categoryCopy.intro}</p>
+            <p>
+              <Link href="/sell-on-the-isle-of-man" className="text-text-trust hover:underline">
+                Sell a vehicle on the Isle of Man
+              </Link>
+              {" · "}
+              <Link href="/dealer-advertising" className="text-text-trust hover:underline">
+                Advertise as a dealer
+              </Link>
+            </p>
+            <ul className="flex flex-wrap gap-x-4 gap-y-2">
+              {categories
+                .filter((category) => category.slug !== selectedCategory?.slug)
+                .map((category) => (
+                  <li key={category.slug}>
+                    <Link href={buildCategorySearchPath(category.slug)} className="text-text-trust hover:underline">
+                      {category.name}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
       <div className="sticky top-16 z-20 bg-canvas/95 backdrop-blur-sm py-2 mb-5 border-b border-border">
         <SearchControls

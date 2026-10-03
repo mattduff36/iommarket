@@ -5,6 +5,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { FAQ_CATEGORIES } from "@/lib/faq/content";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { defaultSocialImage } from "@/lib/seo/page-metadata";
 
 const title =
   "Frequently Asked Questions – Buying & Selling Vehicles on the Isle of Man";
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     description,
     url: buildCanonicalUrl("/faq"),
+    images: [defaultSocialImage()],
   },
 };
 

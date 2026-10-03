@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { VehicleCheckClient } from "@/components/vehicle-check/vehicle-check-client";
 import { getPolicyDefinition } from "@/lib/policies/registry";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 
 interface VehicleCheckPageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Vehicle Check",
   description:
     "Check UK and Isle of Man vehicle tax, MOT history, mileage, and auction references on itrader.im.",
-  alternates: { canonical: buildCanonicalUrl("/vehicle-check") },
-};
+  path: "/vehicle-check",
+});
 
 export default async function VehicleCheckPage({
   searchParams,

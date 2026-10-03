@@ -428,10 +428,10 @@ export function CreateListingForm({
           },
         });
         if (navigation.kind === "checkout" || navigation.kind === "demo") {
-          trackMarketplaceEvent("listing_submitted", { mode });
-          trackMarketplaceEvent("checkout_started", { context: "listing" });
+          trackMarketplaceEvent("listing_submitted", { listingId: listingIdRef.current, context: "listing" });
+          trackMarketplaceEvent("checkout_started", { listingId: listingIdRef.current, context: "listing" });
         } else if (navigation.kind === "success") {
-          trackMarketplaceEvent("listing_submitted", { mode });
+          trackMarketplaceEvent("listing_submitted", { listingId: listingIdRef.current, context: "listing" });
         }
         if (navigation.kind === "stay") {
           if (navigation.error) setError(navigation.error);

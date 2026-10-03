@@ -55,7 +55,7 @@ export function ContactSellerForm({ listingId }: Props) {
       setError(split.formError);
       return;
     }
-    trackMarketplaceEvent("contact_seller_submitted", { seller: "listing" });
+    trackMarketplaceEvent("contact_seller_submitted", { listingId });
     setSent(true);
   }
 

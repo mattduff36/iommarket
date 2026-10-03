@@ -21,7 +21,9 @@ import {
 import { publicListingSellerWhere } from "@/lib/listings/dealer-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { buildSiteIdentityJsonLd } from "@/lib/seo/listing-json-ld";
+import { buildCanonicalUrl, getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
   getMarketplaceDealerSpotlightQuery,
@@ -162,6 +164,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <JsonLd data={buildSiteIdentityJsonLd(getCanonicalBaseUrl().origin)} />
       {/* ============ HERO ============ */}
       <section
         className="relative overflow-hidden"

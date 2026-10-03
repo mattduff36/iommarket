@@ -19,6 +19,7 @@ import {
   readOnboardingSessionInvalidBefore,
 } from "@/lib/dealers/onboarding/session-cutoff";
 import { shouldBypassSupabaseSessionRefresh } from "@/lib/supabase/proxy-routing";
+import { applyIndexingHeader } from "@/lib/seo/indexing-policy";
 
 export function isPublicPath(pathname: string): boolean {
   if (
@@ -51,7 +52,9 @@ export function isPublicPath(pathname: string): boolean {
     pathname === "/vehicle-check-terms" ||
     pathname === "/contact" ||
     pathname === "/safety" ||
-    pathname === "/faq"
+    pathname === "/faq" ||
+    pathname === "/sell-on-the-isle-of-man" ||
+    pathname === "/dealer-advertising"
   );
 }
 
@@ -87,7 +90,7 @@ function gatedApiResponse(): NextResponse {
  *    unlocks production without granting a Supabase identity.
  * 2. Refreshes Supabase sessions and guards private pages.
  */
-export async function proxy(request: NextRequest) {
+async function routeProxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // A provider return must remain readable even if the login or launch cookie expired.
@@ -205,6 +208,11 @@ export async function proxy(request: NextRequest) {
   }
 
   return response;
+}
+
+export async function proxy(request: NextRequest) {
+  const response = await routeProxy(request);
+  return applyIndexingHeader(response, request.nextUrl.pathname);
 }
 
 export const config = {

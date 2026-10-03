@@ -4,6 +4,7 @@ import {
   currentCookieConsentVersion,
   defaultCookieConsent,
   isAnalyticsAllowed,
+  isMarketingAllowed,
   parseCookieConsent,
 } from "@/lib/consent/cookie-consent";
 import { getPolicyDefinition } from "@/lib/policies/registry";
@@ -39,5 +40,21 @@ describe("POL-COOKIE-001 cookie consent", () => {
     });
     expect(parseCookieConsent("not-json")).toBeNull();
     expect(parseCookieConsent(JSON.stringify({ accepted: true }))).toBeNull();
+  });
+
+  it("does not treat an analytics-only decision as marketing consent", () => {
+    const legacy = parseCookieConsent(JSON.stringify({
+      version: currentCookieConsentVersion(),
+      analytics: true,
+      decidedAt: "2026-08-17T00:00:00.000Z",
+    }));
+    expect(isAnalyticsAllowed(legacy)).toBe(true);
+    expect(isMarketingAllowed(legacy)).toBe(false);
+    expect(isMarketingAllowed(buildCookieConsent(true, false))).toBe(false);
+    expect(isMarketingAllowed(buildCookieConsent(true, true))).toBe(true);
+    expect(isMarketingAllowed({
+      ...buildCookieConsent(true, true),
+      version: "stale-version",
+    })).toBe(false);
   });
 });

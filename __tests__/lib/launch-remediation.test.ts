@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
 import { classifyLaunchRoute } from "@/lib/launch/route-class";
@@ -47,6 +47,7 @@ function gateProduction() {
 describe("launch gate", () => {
   afterEach(() => {
     restoreEnv();
+    vi.useRealTimers();
   });
 
   it("classifies exact route boundaries", () => {
@@ -121,6 +122,8 @@ describe("launch gate", () => {
   });
 
   it("returns JSON 503 for gated catalogue APIs and leaves trusted hooks reachable", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     gateProduction();
     const search = await proxy(new NextRequest("https://itrader.im/api/search"));
     expect(search.status).toBe(503);
@@ -154,7 +157,9 @@ describe("launch gate", () => {
   });
 
   it("keeps robots and sitemap readable without a database read while gated", async () => {
-    const gated = { VERCEL_ENV: "production" };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
+    const gated = { VERCEL_ENV: "production", NODE_ENV: "production" };
     expect(buildLaunchRobots(gated).rules).toEqual({ userAgent: "*", disallow: "/" });
     expect(buildLaunchRobots(gated).sitemap).toBeUndefined();
     let loaded = false;
@@ -166,7 +171,7 @@ describe("launch gate", () => {
     ).resolves.toEqual([]);
     expect(loaded).toBe(false);
 
-    const live = { VERCEL_ENV: "production", PRODUCTION_LAUNCH_ENABLED: "1" };
+    const live = { VERCEL_ENV: "production", NODE_ENV: "production", PRODUCTION_LAUNCH_ENABLED: "1" };
     expect(buildLaunchRobots(live).sitemap).toContain("/sitemap.xml");
     await expect(
       buildLaunchSitemap(live, async () => [{ url: "https://itrader.im/" }]),

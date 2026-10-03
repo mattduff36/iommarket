@@ -10,6 +10,7 @@ import { decodeHostedReturnContext, HOSTED_RETURN_COOKIE, type HostedReturnConte
 import { reconcileHostedReturn } from "@/lib/payments/reconcile-hosted-return";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { reportVerifiedServicePurchase } from "@/lib/advertising/purchase";
 
 type HostedReturnGate =
   | { ok: true; context: HostedReturnContext }
@@ -46,6 +47,11 @@ export async function confirmHostedListingPayment(paymentJobRef: string): Promis
     if (!gate.ok) return { status: gate.status };
     const result = await reconcileHostedReturn(gate.context, paymentJobRef);
     if (result.status === "confirmed") {
+      try {
+        await reportVerifiedServicePurchase(paymentJobRef);
+      } catch {
+        // Advertising delivery must not change a confirmed payment.
+      }
       revalidatePath("/sell/checkout");
       revalidatePath("/account/listings");
       if (result.checkoutType === "dealer_subscription") {

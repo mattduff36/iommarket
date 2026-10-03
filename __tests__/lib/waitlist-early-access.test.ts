@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   isEligibleEarlyAccessWaitlistUser,
   waitlistInterestsIncludeCars,
@@ -51,6 +51,8 @@ describe("early-access audience", () => {
 
 describe("early-access delivery guard", () => {
   it("allows bulk delivery only on closed production and tests on closed or preview runtimes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     expect(canSendEarlyAccessBulk({ VERCEL_ENV: "production" })).toBe(true);
     expect(
       canSendEarlyAccessBulk({ VERCEL_ENV: "production", PRODUCTION_LAUNCH_ENABLED: "1" }),
@@ -65,6 +67,7 @@ describe("early-access delivery guard", () => {
     expect(
       canSendEarlyAccessTest({ VERCEL_ENV: "production", PRODUCTION_LAUNCH_ENABLED: "1" }),
     ).toBe(false);
+    vi.useRealTimers();
   });
 });
 

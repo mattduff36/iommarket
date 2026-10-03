@@ -1,4 +1,9 @@
 import { track } from "@vercel/analytics";
+import { enqueueAdvertisingEvent } from "@/lib/advertising/browser-queue";
+import {
+  marketplaceEventToAdvertising,
+  safeAdvertisingFields,
+} from "@/lib/advertising/outcomes";
 import {
   COOKIE_CONSENT_STORAGE_KEY,
   isAnalyticsAllowed,
@@ -6,12 +11,36 @@ import {
 } from "@/lib/consent/cookie-consent";
 import { sanitizeAnalyticsProperties, type MarketplaceEvent } from "./events";
 
+function forwardAdvertisingEvent(
+  name: MarketplaceEvent,
+  properties: Record<string, unknown> | undefined,
+  consent: ReturnType<typeof parseCookieConsent>,
+) {
+  const eventName = marketplaceEventToAdvertising(name);
+  if (!eventName) return;
+  const fields = safeAdvertisingFields(properties);
+  const key = fields.contentId || fields.category || fields.context || "event";
+  const path = /^\/[A-Za-z0-9/_-]{0,100}$/.test(window.location.pathname)
+    ? window.location.pathname
+    : undefined;
+  enqueueAdvertisingEvent(
+    {
+      eventName,
+      eventId: `${eventName}:${key}`.slice(0, 80),
+      ...fields,
+      path,
+    },
+    consent,
+  );
+}
+
 export function trackMarketplaceEvent(
   name: MarketplaceEvent,
   properties?: Record<string, unknown>,
 ): void {
   if (typeof window === "undefined") return;
   const consent = parseCookieConsent(window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
+  forwardAdvertisingEvent(name, properties, consent);
   if (!isAnalyticsAllowed(consent)) return;
   track(name, sanitizeAnalyticsProperties(properties));
 }

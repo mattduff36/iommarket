@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setNodeEnv } from "@/__tests__/lib/seo-test-env";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 const mocks = vi.hoisted(() => ({
@@ -38,12 +39,14 @@ const { default: sitemap } = await import("@/app/sitemap");
 describe("sitemap", () => {
   const originalLaunch = process.env.PRODUCTION_LAUNCH_ENABLED;
   const originalVercel = process.env.VERCEL_ENV;
+  const originalNode = process.env.NODE_ENV;
 
   afterEach(() => {
     if (originalLaunch === undefined) delete process.env.PRODUCTION_LAUNCH_ENABLED;
     else process.env.PRODUCTION_LAUNCH_ENABLED = originalLaunch;
     if (originalVercel === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = originalVercel;
+    setNodeEnv(originalNode);
     vi.useRealTimers();
   });
 
@@ -72,7 +75,18 @@ describe("sitemap", () => {
     ]);
   });
 
+  it("returns no preview entries and does not query the catalogue", async () => {
+    const entries = await sitemap();
+    expect(entries).toEqual([]);
+    expect(mocks.listingFindMany).not.toHaveBeenCalled();
+    expect(mocks.dealerFindMany).not.toHaveBeenCalled();
+  });
+
   it("includes first-class routes and only dealer rows selected by public rules", async () => {
+    process.env.VERCEL_ENV = "production";
+    setNodeEnv("production");
+    process.env.PRODUCTION_LAUNCH_ENABLED = "1";
+    process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3000";
     const entries = await sitemap();
     const urls = entries.map((entry) => entry.url);
 

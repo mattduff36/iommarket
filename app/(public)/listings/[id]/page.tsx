@@ -58,11 +58,15 @@ import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
 import { isDisclosedWriteOff, writeOffFromAttributeValues } from "@/lib/listings/write-off-category";
 import { buildViewerHash } from "@/lib/privacy/viewer-hash";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { buildListingProductJsonLd } from "@/lib/seo/listing-json-ld";
+import { buildListingShareDescription } from "@/lib/seo/listing-description";
+import { defaultSocialImage, publicPageMetadata } from "@/lib/seo/page-metadata";
+import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
   buildListingBreadcrumbItems,
   getPublicListingDealer,
 } from "@/lib/dealers/public-listing-dealer";
-import { buildListingPath } from "@/lib/navigation-paths";
+import { buildDealerProfilePath, buildListingPath } from "@/lib/navigation-paths";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -80,6 +84,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       price: true,
       status: true,
       expiresAt: true,
+      region: { select: { name: true } },
       userId: true,
       dealerId: true,
       user: {
@@ -94,7 +99,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
     },
   });
-  if (!listing) return {};
+  if (!listing) return { robots: { index: false, follow: false } };
   const dealerAccess = await hasPublicListingSellerAccess(
     listing.dealerId,
     Boolean(listing.user.disabledAt),
@@ -109,7 +114,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       sampleVisibility,
     })
   ) {
-    return {};
+    return { robots: { index: false, follow: false } };
   }
   if (
     !canViewListing({
@@ -121,33 +126,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       previewPackEnabled: listing.previewPack?.enabled ?? false,
     })
   ) {
-    return { title: "Listing unavailable" };
+    return { title: "Listing unavailable", robots: { index: false, follow: false } };
   }
-  const canonicalUrl = buildCanonicalUrl(buildListingPath(id));
   const primaryPhoto = toListingPhotoSource(listing.images[0]);
   const socialImage = primaryPhoto
     ? signPrivateCloudinaryUrl(buildSocialImageUrl(primaryPhoto))
-    : undefined;
-  return {
+    : null;
+  let priceLabel: string | null = null;
+  try {
+    priceLabel = formatGbpFromPence(listing.price);
+  } catch {
+    priceLabel = null;
+  }
+  const description = buildListingShareDescription({
     title: listing.title,
-    description: listing.description.slice(0, 160),
-    openGraph: {
-      title: listing.title,
-      description: listing.description.slice(0, 160),
-      url: canonicalUrl,
-      images: socialImage ? [{ url: socialImage, width: 1200, height: 630 }] : undefined,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: listing.title,
-      description: listing.description.slice(0, 160),
-      images: socialImage ? [socialImage] : undefined,
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-    robots: listing.status === "ADMIN_PREVIEW" ? { index: false, follow: false } : undefined,
-  };
+    priceLabel,
+    location: listing.region?.name,
+    status: listing.status,
+    description: listing.description,
+  });
+  const publiclyVisible = isListingPubliclyVisible({
+    dealerAccess,
+    status: listing.status,
+    expiresAt: listing.expiresAt,
+  });
+  return publicPageMetadata({
+    title: listing.title,
+    description,
+    path: buildListingPath(id),
+    index: publiclyVisible,
+    follow: listing.status !== "ADMIN_PREVIEW",
+    image: socialImage
+      ? { url: socialImage, width: 1200, height: 630, alt: listing.title }
+      : defaultSocialImage(listing.title),
+  });
 }
 
 export default async function ListingDetailPage({ params, searchParams }: Props) {
@@ -450,7 +462,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
       <ConsentedTrack
         event="listing_viewed"
-        properties={{ seller: listing.dealerId ? "dealer" : "private" }}
+        properties={{ seller: listing.dealerId ? "dealer" : "private", listingId: listing.id }}
       />
 
       {canUpgradeToFeatured ? (
@@ -782,12 +794,17 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
       {isVisible ? (
         <JsonLd
-          data={{
-            "@context": "https://schema.org",
-            "@type": "Product",
+          data={buildListingProductJsonLd({
+            id: listing.id,
+            url: shareUrl,
             name: listing.title,
-            description: listing.description.slice(0, 500),
-            image: listing.images
+            description: buildListingShareDescription({
+              title: listing.title,
+              location: listing.region.name,
+              status: listing.status,
+              description: listing.description,
+            }),
+            images: listing.images
               .map((image, index) => {
                 const photo = toListingPhotoSource(image);
                 if (!photo) return null;
@@ -802,15 +819,25 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
                     );
               })
               .filter((url): url is string => Boolean(url)),
-            offers: {
-              "@type": "Offer",
-              price: price,
-              priceCurrency: "GBP",
-              availability: isSold
-                ? "https://schema.org/SoldOut"
-                : "https://schema.org/InStock",
-            },
-          }}
+            price,
+            currency: "GBP",
+            availability: isSold
+              ? "https://schema.org/SoldOut"
+              : "https://schema.org/InStock",
+            attributes: listing.attributeValues.map((value) => ({
+              slug: value.attributeDefinition.slug,
+              value: value.value,
+            })),
+            seller: listing.dealer
+              ? {
+                  kind: "dealer",
+                  name: listing.dealer.name,
+                  url: buildCanonicalUrl(buildDealerProfilePath(listing.dealer.slug)),
+                }
+              : listing.user.name
+                ? { kind: "private", name: listing.user.name }
+                : null,
+          })}
         />
       ) : null}
     </div>

@@ -1,6 +1,6 @@
 /* @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(),
@@ -51,6 +51,8 @@ const draft = {
 
 describe("confirmEarlyAccessCampaign", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     vi.clearAllMocks();
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "");
@@ -68,6 +70,10 @@ describe("confirmEarlyAccessCampaign", () => {
     mocks.createMany.mockResolvedValue({ count: 2 });
     mocks.update.mockResolvedValue(draft);
     mocks.deliver.mockResolvedValue({ sent: 2, failed: 0, skipped: 0, blocked: false });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("freezes the audience once and does not enroll again after confirmation", async () => {
