@@ -3,7 +3,7 @@ import type { RuntimeEnv } from "@/lib/runtime-env";
 import { isSearchIndexingEnabled } from "@/lib/seo/indexing-policy";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
-export const DEFAULT_SOCIAL_IMAGE_PATH = "/og/itrader-social.png";
+export const DEFAULT_SOCIAL_IMAGE_PATH = "/og/itrader-social.png?v=official-20261003";
 export const DEFAULT_SOCIAL_IMAGE_WIDTH = 1200;
 export const DEFAULT_SOCIAL_IMAGE_HEIGHT = 630;
 export const DEFAULT_SOCIAL_IMAGE_ALT = "iTrader.im, the Isle of Man vehicle marketplace";

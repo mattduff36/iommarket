@@ -189,7 +189,7 @@ describe("DealerProfilePage", () => {
     );
     expect(metadata.robots).toEqual({ index: true, follow: true });
     expect(metadata.openGraph?.images).toEqual([
-      expect.objectContaining({ url: "/og/itrader-social.png", width: 1200, height: 630 }),
+      expect.objectContaining({ url: "/og/itrader-social.png?v=official-20261003", width: 1200, height: 630 }),
     ]);
     expect(findUniqueMock).toHaveBeenCalledWith(
       expect.objectContaining({

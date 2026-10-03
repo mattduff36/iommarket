@@ -73,7 +73,7 @@ describe("search metadata robots", () => {
     );
     const images = metadata.openGraph?.images;
     const image = Array.isArray(images) ? images[0] : images;
-    expect(image).toMatchObject({ url: "/og/itrader-social.png", width: 1200, height: 630 });
+    expect(image).toMatchObject({ url: "/og/itrader-social.png?v=official-20261003", width: 1200, height: 630 });
   });
 
   it("noindexes a category page on preview even when the category is valid", async () => {
