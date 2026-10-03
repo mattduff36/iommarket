@@ -1,6 +1,6 @@
 /* @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { issueEarlyAccessClaimCookie } from "@/lib/waitlist/early-access/tokens";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
@@ -71,9 +71,12 @@ function issuedCookie() {
   });
 }
 
+const BEFORE_PUBLIC_LAUNCH = Date.parse("2026-10-03T08:00:00.000+01:00");
+
 describe("completeInvitedSignUp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(Date, "now").mockReturnValue(BEFORE_PUBLIC_LAUNCH);
     vi.stubEnv("DEV_GATE_SECRET", SECRET);
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "");
@@ -93,6 +96,10 @@ describe("completeInvitedSignUp", () => {
     mocks.signIn.mockResolvedValue({ error: null });
     mocks.syncUser.mockResolvedValue({ id: "user-1" });
     mocks.notifyAdminOfNewSignup.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("creates a verified account, signs in, and claims the invitation once", async () => {
@@ -136,6 +143,27 @@ describe("completeInvitedSignUp", () => {
     });
     expect(mocks.createUser).not.toHaveBeenCalled();
     expect(mocks.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns a supabase password rejection without consuming the invitation", async () => {
+    const message =
+      "Password should contain at least one character of each: abcdefghijklmnopqrstuvwxyz, ABCDEFGHIJKLMNOPQRSTUVWXYZ, 0123456789.";
+    mocks.createUser.mockResolvedValue({
+      data: { user: null },
+      error: { message, code: "weak_password", reasons: ["characters"] },
+    });
+    const { completeInvitedSignUp } = await import("@/lib/waitlist/early-access/signup");
+
+    await expect(completeInvitedSignUp(input, "203.0.113.8")).resolves.toEqual({
+      error: { password: [message] },
+    });
+    expect(mocks.signIn).not.toHaveBeenCalled();
+    expect(mocks.notifyAdminOfNewSignup).not.toHaveBeenCalled();
+    expect(mocks.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: { claimLeaseExpiresAt: null },
+      }),
+    );
   });
 
   it("sends an existing account to sign in and does not create another", async () => {

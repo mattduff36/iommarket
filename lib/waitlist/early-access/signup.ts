@@ -5,6 +5,7 @@ import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { db } from "@/lib/db";
 import { notifyAdminOfNewSignup } from "@/lib/email/signup-notifications";
 import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
+import { supabasePasswordErrorMessage } from "@/lib/forms/password-policy-message";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { SignUpInput } from "@/lib/validations/auth";
@@ -104,6 +105,11 @@ export async function completeInvitedSignUp(
       },
     });
     if (error) {
+      const passwordError = supabasePasswordErrorMessage(error);
+      if (passwordError) {
+        await releaseClaimLease(claim.recipientId);
+        return { error: { password: [passwordError] } };
+      }
       if (!duplicateAccount(error.message)) {
         await releaseClaimLease(claim.recipientId);
         return { error: "We could not create your account. Please try again shortly." };

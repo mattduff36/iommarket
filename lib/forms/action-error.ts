@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { publicPasswordPolicyMessage } from "@/lib/forms/password-policy-message";
 
 export type FieldErrors = Record<string, string[]>;
 
@@ -100,6 +101,8 @@ export function uniqueErrorMessages(
 export function publicAuthErrorMessage(message: string, fallback: string): string {
   const trimmed = message.trim();
   if (!trimmed) return fallback;
+  const passwordError = publicPasswordPolicyMessage(trimmed);
+  if (passwordError) return passwordError;
   const lower = trimmed.toLowerCase();
   if (lower.includes("invalid login") || lower.includes("invalid credentials")) {
     return "Check your email and password and try again.";

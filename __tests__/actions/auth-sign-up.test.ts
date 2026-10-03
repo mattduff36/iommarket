@@ -284,6 +284,29 @@ describe("signUpWithPolicyAcceptance", () => {
     expect(mocks.sendSignupConfirmationEmail).toHaveBeenCalledTimes(1);
   });
 
+  it("returns a supabase password rejection on the password field", async () => {
+    const message =
+      "Password is known to be weak and easy to guess, please choose a different one.";
+    mocks.admin.auth.admin.createUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: {
+        message,
+        code: "weak_password",
+        name: "AuthWeakPasswordError",
+        reasons: ["pwned"],
+      },
+    });
+    const { signUpWithPolicyAcceptance } = await import("@/actions/auth/sign-up");
+
+    await expect(signUpWithPolicyAcceptance(validInput)).resolves.toEqual({
+      error: { password: [message] },
+    });
+
+    expect(mocks.admin.auth.admin.generateLink).not.toHaveBeenCalled();
+    expect(mocks.sendSignupConfirmationEmail).not.toHaveBeenCalled();
+    expect(mocks.notifyAdminOfNewSignup).not.toHaveBeenCalled();
+  });
+
   it("stops rate-limited requests before creating an account", async () => {
     mocks.checkSignupRateLimit.mockResolvedValueOnce({ allowed: false });
     const { signUpWithPolicyAcceptance } = await import("@/actions/auth/sign-up");

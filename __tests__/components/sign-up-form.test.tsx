@@ -74,6 +74,21 @@ describe("SignUpForm", () => {
     await waitFor(() => expect(signUpMock).toHaveBeenCalledTimes(1));
   });
 
+  it("shows a supabase password rejection instead of the generic account error", async () => {
+    const message =
+      "Password is known to be weak and easy to guess, please choose a different one.";
+    signUpMock.mockResolvedValue({
+      data: { user: null },
+      error: { message },
+    });
+    render(<SignUpForm />);
+    fillValidAccount();
+    fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.queryByText(/Please try again shortly/i)).toBeNull();
+  });
+
   it("does not promise highlighted fields when signup fails without field errors", async () => {
     signUpMock.mockResolvedValue({
       data: { user: null },

@@ -293,6 +293,24 @@ describe("SignUpWithPlans", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("shows a supabase password rejection on the password field", async () => {
+    const message =
+      "Password is known to be weak and easy to guess, please choose a different one.";
+    signUpMock.mockResolvedValue({
+      error: { password: [message] },
+    });
+    renderSignup();
+    fillAccountDetails();
+    await completeRequiredAcknowledgements();
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.getAllByText(message)).toHaveLength(2);
+    expect(screen.queryByText(/Please try again shortly/i)).toBeNull();
+    expect(getPasswordInput()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Create account" })).toBeEnabled();
+  });
+
   it("does not promise highlighted fields for a provider failure", async () => {
     signUpMock.mockResolvedValue({
       error: "We could not create your account. Check the highlighted fields and try again.",

@@ -11,9 +11,23 @@ import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { signUpSchema, type SignUpInput } from "@/lib/validations/auth";
 import { publicAuthErrorMessage } from "@/lib/forms/action-error";
+import { supabasePasswordErrorMessage } from "@/lib/forms/password-policy-message";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { reportHandledException } from "@/lib/monitoring";
 import { completeInvitedSignUp } from "@/lib/waitlist/early-access/signup";
+
+function signupProviderError(error: { message: string }) {
+  const passwordError = supabasePasswordErrorMessage(error);
+  if (passwordError) {
+    return { error: { password: [passwordError] } };
+  }
+  return {
+    error: publicAuthErrorMessage(
+      error.message,
+      "We could not create your account. Please try again shortly.",
+    ),
+  };
+}
 
 function getSafeNextPath(nextPath: string) {
   if (
@@ -132,6 +146,10 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
       });
     }
     if (createError) {
+      const passwordError = supabasePasswordErrorMessage(createError);
+      if (passwordError) {
+        return { error: { password: [passwordError] } };
+      }
       const createMessage = createError.message.toLowerCase();
       const duplicate =
         createMessage.includes("already registered") ||
@@ -143,12 +161,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
           parsed.data.password,
         ))
       ) {
-        return {
-          error: publicAuthErrorMessage(
-            createError.message,
-            "We could not create your account. Please try again shortly.",
-          ),
-        };
+        return signupProviderError(createError);
       }
     }
     const { data, error } = await admin.auth.admin.generateLink({
@@ -162,12 +175,7 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
     });
 
     if (error) {
-      return {
-        error: publicAuthErrorMessage(
-          error.message,
-          "We could not create your account. Please try again shortly.",
-        ),
-      };
+      return signupProviderError(error);
     }
     if (
       !data.user?.id ||
