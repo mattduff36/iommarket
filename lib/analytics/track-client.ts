@@ -1,4 +1,3 @@
-import { track } from "@vercel/analytics";
 import { enqueueAdvertisingEvent } from "@/lib/advertising/browser-queue";
 import {
   marketplaceEventToAdvertising,
@@ -9,7 +8,9 @@ import {
   isAnalyticsAllowed,
   parseCookieConsent,
 } from "@/lib/consent/cookie-consent";
-import { sanitizeAnalyticsProperties, type MarketplaceEvent } from "./events";
+import type { MarketplaceEvent } from "./events";
+import { sendMarketplaceAnalyticsEvent } from "./google-tag-client";
+import { safeAnalyticsPageView } from "./privacy";
 
 function forwardAdvertisingEvent(
   name: MarketplaceEvent,
@@ -43,5 +44,14 @@ export function trackMarketplaceEvent(
   const consent = parseCookieConsent(window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
   forwardAdvertisingEvent(name, properties, consent);
   if (!isAnalyticsAllowed(consent)) return;
-  track(name, sanitizeAnalyticsProperties(properties));
+  const measurementId = window.itraderGa4MeasurementId;
+  if (!measurementId || window[`ga-disable-${measurementId}`]) return;
+  const page = safeAnalyticsPageView({
+    protocol: window.location.protocol,
+    hostname: window.location.hostname,
+    pathname: window.location.pathname,
+    referrer: document.referrer,
+  });
+  if (!page) return;
+  sendMarketplaceAnalyticsEvent(measurementId, name, properties, page);
 }

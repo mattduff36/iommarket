@@ -15,6 +15,7 @@ import {
   readCampaignParams,
 } from "@/lib/advertising/attribution";
 import type { PublicAdvertisingConfig } from "@/lib/advertising/config";
+import { ensureGoogleTag } from "@/lib/analytics/google-tag-client";
 
 function readConsent() {
   return parseCookieConsent(window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
@@ -104,7 +105,7 @@ export function MarketingMeasurement({ config }: { config: PublicAdvertisingConf
         const activeGtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
         activeGtag?.("consent", "update", {
           ad_storage: "denied",
-          analytics_storage: "denied",
+          analytics_storage: analytics ? "granted" : "denied",
           ad_user_data: "denied",
           ad_personalization: "denied",
         });
@@ -112,9 +113,8 @@ export function MarketingMeasurement({ config }: { config: PublicAdvertisingConf
         removeScript("itrader-ga4");
         clearCookie("_fbp");
         clearCookie("_fbc");
-        const win = window as Window & { fbq?: (...args: unknown[]) => void; gtag?: (...args: unknown[]) => void };
+        const win = window as Window & { fbq?: (...args: unknown[]) => void };
         win.fbq = () => undefined;
-        win.gtag = () => undefined;
         return;
       }
       if (config.metaPixelId) {
@@ -122,26 +122,22 @@ export function MarketingMeasurement({ config }: { config: PublicAdvertisingConf
       }
       if (config.ga4MeasurementId) {
         loadScript("itrader-ga4", `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(config.ga4MeasurementId)}`);
-        const win = window as Window & { dataLayer?: unknown[]; gtag?: (...args: unknown[]) => void };
-        win.dataLayer = win.dataLayer ?? [];
-        win.gtag = function gtag(...args: unknown[]) {
-          win.dataLayer?.push(args);
-        };
-        win.gtag("consent", "default", {
+        const gtag = ensureGoogleTag();
+        gtag("consent", "default", {
           ad_storage: "denied",
-          analytics_storage: "denied",
+          analytics_storage: analytics ? "granted" : "denied",
           ad_user_data: "denied",
           ad_personalization: "denied",
         });
-        win.gtag("consent", "update", {
+        gtag("consent", "update", {
           ad_storage: "granted",
           ad_user_data: "granted",
           ad_personalization: "denied",
           analytics_storage: analytics ? "granted" : "denied",
         });
-        win.gtag("js", new Date());
-        win.gtag("config", config.ga4MeasurementId, { send_page_view: true });
-        if (config.googleAdsId) win.gtag("config", config.googleAdsId);
+        gtag("js", new Date());
+        gtag("config", config.ga4MeasurementId, { send_page_view: true });
+        if (config.googleAdsId) gtag("config", config.googleAdsId);
       }
     }
     sync();
