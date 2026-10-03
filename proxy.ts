@@ -21,6 +21,7 @@ import {
 import { shouldBypassSupabaseSessionRefresh } from "@/lib/supabase/proxy-routing";
 import { applyIndexingHeader } from "@/lib/seo/indexing-policy";
 import { stagingAccessResponse } from "@/lib/deployment/staging-access";
+import { retiredPreviewResponse } from "@/lib/deployment/retired-preview";
 
 export function isPublicPath(pathname: string): boolean {
   if (
@@ -212,6 +213,8 @@ async function routeProxy(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const retired = retiredPreviewResponse(request);
+  if (retired) return retired;
   const staging = await stagingAccessResponse(request);
   if (staging) return applyIndexingHeader(staging, request.nextUrl.pathname);
   const response = await routeProxy(request);
@@ -220,6 +223,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    { source: "/:path*", has: [{ type: "host", value: "preview\\.itrader\\.im" }] },
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],

@@ -1,6 +1,6 @@
 import { PREVIEW_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
 
-const STAGING_ORIGIN = "https://preview.itrader.im";
+const STAGING_ORIGIN = "https://staging.itrader.im";
 const STAGING_SUPABASE_ORIGIN = `https://${PREVIEW_PROJECT_REF}.supabase.co`;
 
 function isPreviewDatabaseUrl(raw: string): boolean {

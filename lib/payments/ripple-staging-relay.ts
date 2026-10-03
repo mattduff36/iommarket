@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getRippleClientId, isRipplePreviewRuntime, isRippleStagingLinkCode } from "@/lib/payments/ripple-config";
 import { RIPPLE_EVENT_TYPES, type RippleMinimizedPayload } from "@/lib/payments/ripple-contract";
 
-export const RIPPLE_STAGING_RECEIVER = "https://preview.itrader.im/api/webhooks/ripple-staging";
+export const RIPPLE_STAGING_RECEIVER = "https://staging.itrader.im/api/webhooks/ripple-staging";
 export const RIPPLE_STAGING_MAX_BODY_BYTES = 16_384;
 const nullableText = z.string().max(2048).nullable();
 const relaySchema = z.object({
