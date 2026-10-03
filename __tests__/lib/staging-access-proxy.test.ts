@@ -36,7 +36,7 @@ function configureStaging() {
   process.env.NEXT_PUBLIC_APP_URL = "https://preview.itrader.im";
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://syneonzucehwlghqmfbg.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
-  process.env.POSTGRES_URL = "postgresql://postgres:test@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres";
+  process.env.POSTGRES_URL = "postgresql://postgres@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres";
   delete process.env.POSTGRES_URL_NON_POOLING;
   delete process.env.DATABASE_URL;
 }
@@ -86,7 +86,7 @@ describe("staging access proxy", () => {
   });
 
   it("fails closed on signed-machine routes when staging database configuration is invalid", async () => {
-    process.env.DATABASE_URL = "postgresql://postgres:test@production.example:5432/postgres";
+    process.env.DATABASE_URL = "postgresql://postgres@production.example:5432/postgres";
     const response = await proxy(new NextRequest("https://preview.itrader.im/api/webhooks/payments", {
       method: "POST",
     }));
@@ -107,7 +107,7 @@ describe("staging access proxy", () => {
   it.each(["/sign-in", "/forgot-password", "/auth/callback", "/staging-access"])(
     "blocks auth entry %s when the configured database is not staging",
     async (path) => {
-      process.env.DATABASE_URL = "postgresql://postgres:test@production.example:5432/postgres";
+      process.env.DATABASE_URL = "postgresql://postgres@production.example:5432/postgres";
       const response = await proxy(new NextRequest(`https://preview.itrader.im${path}`));
       expect(response.status).toBe(503);
       expect(createClientMock).not.toHaveBeenCalled();
