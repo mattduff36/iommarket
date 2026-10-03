@@ -90,6 +90,7 @@ describe("Supabase auth email hook", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
   });
 
@@ -209,6 +210,8 @@ describe("Supabase auth email hook", () => {
   });
 
   it("does not send a public signup email while the launch gate is closed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T08:00:00Z"));
     vi.stubEnv("PRODUCTION_LAUNCH_ENABLED", "");
     const { POST } = await import("@/app/api/auth/send-email/route");
     const signup = await POST(signedRequest(signupPayload()));

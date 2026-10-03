@@ -2,6 +2,7 @@
 import * as React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setNodeEnv } from "@/__tests__/lib/seo-test-env";
 import { buildDealerProfilePath } from "@/lib/navigation-paths";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
@@ -158,16 +159,38 @@ describe("DealerProfilePage", () => {
       user: { role: "DEALER", disabledAt: null, deletedAt: null },
     });
 
-    const metadata = await generateMetadata({
-      params: Promise.resolve({ slug: "douglas-auto-exchange" }),
-    });
+    const previousNode = process.env.NODE_ENV;
+    const previousVercel = process.env.VERCEL_ENV;
+    const previousLaunch = process.env.PRODUCTION_LAUNCH_ENABLED;
+    const previousUrl = process.env.NEXT_PUBLIC_APP_URL;
+    setNodeEnv("production");
+    process.env.VERCEL_ENV = "production";
+    process.env.PRODUCTION_LAUNCH_ENABLED = "1";
+    process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3000";
+    let metadata: Awaited<ReturnType<typeof generateMetadata>>;
+    try {
+      metadata = await generateMetadata({
+        params: Promise.resolve({ slug: "douglas-auto-exchange" }),
+      });
+    } finally {
+      setNodeEnv(previousNode);
+      if (previousVercel === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = previousVercel;
+      if (previousLaunch === undefined) delete process.env.PRODUCTION_LAUNCH_ENABLED;
+      else process.env.PRODUCTION_LAUNCH_ENABLED = previousLaunch;
+      if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+      else process.env.NEXT_PUBLIC_APP_URL = previousUrl;
+    }
 
     expect(metadata.alternates?.canonical).toBe(
       buildCanonicalUrl(
         buildDealerProfilePath("douglas-auto-exchange-canonical"),
       ),
     );
-    expect(metadata.robots).toBeUndefined();
+    expect(metadata.robots).toEqual({ index: true, follow: true });
+    expect(metadata.openGraph?.images).toEqual([
+      expect.objectContaining({ url: "/og/itrader-social.png", width: 1200, height: 630 }),
+    ]);
     expect(findUniqueMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { slug: "douglas-auto-exchange" },

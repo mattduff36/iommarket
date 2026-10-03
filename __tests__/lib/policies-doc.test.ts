@@ -24,7 +24,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
   it("publishes all policies with per-document versions and hashes", () => {
     expect(documents.map((doc) => doc.slug)).toEqual([...POLICY_SLUGS]);
     for (const doc of documents) {
-      expect(doc.version).toMatch(/^2026-(08-\d{2}|09-23)\.\d+$/);
+      expect(doc.version).toMatch(/^2026-(08-\d{2}|09-23|10-03)\.\d+$/);
       expect(doc.markdown.length).toBeGreaterThan(400);
       expect(doc.contentHash).toMatch(/^[a-f0-9]{64}$/);
       expect(doc.markdown).toContain(COMPANY.companyNumber);
@@ -33,7 +33,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
       expect(doc.markdown).toContain("Port Erin");
       expect(doc.markdown).toContain("IM9 6NA");
       expect(doc.markdown).toContain(COMPANY.email);
-      expect(doc.effectiveDate).toMatch(/^(14 August 2026|23 September 2026|on launch)$/);
+      expect(doc.effectiveDate).toMatch(/^(14 August 2026|23 September 2026|3 October 2026|on launch)$/);
     }
   });
 
@@ -114,7 +114,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
     expect(LEGAL_NAV_ITEMS).toHaveLength(8);
 
     const sitemap = readFileSync(
-      resolve(process.cwd(), "app", "sitemap.ts"),
+      resolve(process.cwd(), "app", "catalogue", "sitemap.ts"),
       "utf8",
     );
     for (const href of LEGAL_ROUTES) {

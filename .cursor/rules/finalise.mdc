@@ -21,3 +21,5 @@ When the user says `finalise`, `/finalise`, `fap`, `/fap`, `finalise-full`, `/ff
 - Repair only allowlisted failed steps with `npm run finalise:repair`, then rerun the original command once
 - Never generically repair commit, push, database, or unknown steps
 - State the branch and a short summary before any push
+- Push changes to `staging` first. Direct pushes targeting `main` are rejected by finalise and the installed pre-push hook.
+- Production changes go through an approved `staging` to `main` pull request. Never bypass the safeguards as a routine shortcut.

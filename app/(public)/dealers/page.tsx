@@ -13,14 +13,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Isle of Man Dealers",
   description:
     "Browse active Isle of Man vehicle dealers and visit their profiles on itrader.im.",
-  alternates: { canonical: buildCanonicalUrl("/dealers") },
-};
+  path: "/dealers",
+});
 
 export default async function DealersPage() {
   await expireStaleLiveListings();

@@ -144,7 +144,7 @@ export function SignUpWithPlans({
         setError(signupFailureMessage(split.formError, hasFieldErrors));
         return;
       }
-      if (result.data && "signedIn" in result.data && result.data.signedIn) {
+      if ("data" in result && result.data && "signedIn" in result.data && result.data.signedIn) {
         router.push("/");
         router.refresh();
         return;

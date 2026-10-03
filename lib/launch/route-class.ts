@@ -28,6 +28,8 @@ const PUBLIC_WHILE_GATED = [
   "/forgot-password",
   "/auth/callback",
   "/early-access",
+  "/sell-on-the-isle-of-man",
+  "/dealer-advertising",
 ];
 
 export function matchesPathBoundary(pathname: string, prefix: string): boolean {
@@ -50,7 +52,8 @@ export function isPublicWhileGated(pathname: string): boolean {
 }
 
 export function classifyLaunchRoute(pathname: string): LaunchRouteClass {
-  if (pathname === "/robots.txt" || pathname === "/sitemap.xml") return "seo";
+  if (pathname === "/robots.txt" || pathname === "/sitemap.xml" ||
+      /^\/catalogue\/sitemap\/\d+\.xml$/.test(pathname)) return "seo";
   if (pathname === "/holding") return "holding";
   if (pathname === "/") return "homepage";
   if (isPublicWhileGated(pathname)) return "legal";

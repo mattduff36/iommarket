@@ -65,7 +65,7 @@ describe("public launch gate", () => {
     ).toBe(false);
   });
 
-  it("serves the holding page on production until 10:00 and leaves preview open", async () => {
+  it("fails closed on preview and serves the holding page on production until launch", async () => {
     vi.useFakeTimers();
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_GIT_COMMIT_REF = "preview";
@@ -76,7 +76,9 @@ describe("public launch gate", () => {
     const { proxy } = await import("@/proxy");
 
     vi.setSystemTime(PUBLIC_LAUNCH_AT - 1);
-    const preview = await proxy(new NextRequest("https://preview.itrader.im/"));
+    const preview = await proxy(new NextRequest("https://staging.itrader.im/"));
+    expect(preview.status).toBe(503);
+    expect(preview.headers.get("x-robots-tag")).toBe("noindex");
     expect(preview.headers.get("x-middleware-rewrite")).toBeNull();
 
     process.env.VERCEL_ENV = "production";

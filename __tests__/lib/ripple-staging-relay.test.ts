@@ -58,6 +58,7 @@ describe("staging webhook authentication and destination", () => {
     expect(shouldRelayRippleToStaging("74A7510E33E94821")).toBe(false);
   });
   it("uses fixed HTTPS destination, forbids redirects and requires exact acknowledgement", async () => {
+    expect(RIPPLE_STAGING_RECEIVER).toBe("https://staging.itrader.im/api/webhooks/ripple-staging");
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ received: true, bodyHash: input.bodyHash }) });
     vi.stubGlobal("fetch", fetcher);
     await forwardRippleWebhookToStaging(input);

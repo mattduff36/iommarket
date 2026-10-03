@@ -179,7 +179,7 @@ describe("SiteHeader auth initialization", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ name: "Admin", role: "ADMIN" }),
+        json: async () => ({ name: "Admin", role: "ADMIN", stagingFeaturesEnabled: true }),
       }),
     );
     authMocks.getSession.mockResolvedValue({

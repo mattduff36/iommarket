@@ -1,7 +1,7 @@
 import { isPaymentReturnPath } from "@/lib/payments/return-routes";
 
 export const CHECKOUT_ENVIRONMENT_COOKIE = "itrader-checkout-environment";
-export const STAGING_ORIGIN = "https://preview.itrader.im";
+export const STAGING_ORIGIN = "https://staging.itrader.im";
 export const CHECKOUT_ROUTING_MAX_AGE = 30 * 60;
 
 // This cookie only chooses a fixed destination. It never authenticates a user

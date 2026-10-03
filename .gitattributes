@@ -1,0 +1,2 @@
+# Shell hooks must remain executable after Windows checkouts.
+scripts/git-hooks/* text eol=lf

@@ -11,13 +11,13 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
 import { buildCategorySearchPath } from "@/lib/navigation-paths";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Categories",
   description: "Browse vehicle categories on itrader.im. Cars, vans, motorbikes, motorhomes.",
-  alternates: { canonical: buildCanonicalUrl("/categories") },
-};
+  path: "/categories",
+});
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   car: <Car className="h-8 w-8" />,

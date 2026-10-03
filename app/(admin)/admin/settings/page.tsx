@@ -7,6 +7,7 @@ import {
   getFreeLaunchSlotsTotal,
 } from "@/lib/config/marketplace";
 import { SETTING_KEYS } from "@/lib/config/site-settings";
+import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { SettingsForm } from "./settings-form";
@@ -16,7 +17,10 @@ export const metadata: Metadata = { title: "Settings | Admin" };
 
 export default async function AdminSettingsPage() {
   const [settings, freeSlotsTotal, pricing] = await Promise.all([
-    db.siteSetting.findMany({ orderBy: { key: "asc" } }),
+    db.siteSetting.findMany({
+      ...(isAdminChecklistEnabled() ? {} : { where: { key: { not: SETTING_KEYS.ADMIN_CHECKLIST } } }),
+      orderBy: { key: "asc" },
+    }),
     getFreeLaunchSlotsTotal(),
     getMarketplacePricing(),
   ]);

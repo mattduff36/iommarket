@@ -25,6 +25,7 @@ export interface AuthState {
   displayName: string | null;
   role: AuthRole;
   loading: boolean;
+  stagingFeaturesEnabled?: boolean;
   handleSignOut: () => Promise<void>;
 }
 
@@ -52,6 +53,7 @@ export function HeaderAuthButtons({ authState }: Props) {
   const accountNavItems = getAccountNavItems(role);
   const previewControls = usePreviewControls();
   const isAdmin = role === "ADMIN";
+  const showPreviewPacks = isAdmin && authState.stagingFeaturesEnabled === true;
   const previewTriggerRef = useRef<HTMLDivElement | null>(null);
   const [flyoutSide, setFlyoutSide] = useState<FlyoutSide>("left");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -61,11 +63,11 @@ export function HeaderAuthButtons({ authState }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!accountMenuOpen || !isAdmin) return;
+    if (!accountMenuOpen || !showPreviewPacks) return;
     updateFlyoutSide();
     window.addEventListener("resize", updateFlyoutSide);
     return () => window.removeEventListener("resize", updateFlyoutSide);
-  }, [accountMenuOpen, isAdmin, updateFlyoutSide]);
+  }, [accountMenuOpen, showPreviewPacks, updateFlyoutSide]);
 
   if (loading) {
     return (
@@ -113,7 +115,7 @@ export function HeaderAuthButtons({ authState }: Props) {
         open={accountMenuOpen}
         onOpenChange={(open) => {
           setAccountMenuOpen(open);
-          if (open && isAdmin) {
+          if (open && showPreviewPacks) {
             void previewControls.ensureLoaded();
             requestAnimationFrame(updateFlyoutSide);
           }
@@ -155,7 +157,7 @@ export function HeaderAuthButtons({ authState }: Props) {
                     {item.label}
                   </Link>
                 </DropdownMenuItem>,
-                <DropdownMenuSub key="preview-packs">
+                showPreviewPacks ? <DropdownMenuSub key="preview-packs">
                   <DropdownMenuSubTrigger
                     ref={previewTriggerRef}
                     chevron={flyoutSide === "bottom" ? "down" : flyoutSide}
@@ -184,7 +186,7 @@ export function HeaderAuthButtons({ authState }: Props) {
                       }}
                     />
                   </DropdownMenuSubContent>
-                </DropdownMenuSub>,
+                </DropdownMenuSub> : null,
               ]
             ) : (
               <DropdownMenuItem key={item.href} asChild>

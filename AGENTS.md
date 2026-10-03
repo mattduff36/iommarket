@@ -10,6 +10,14 @@ branch-only implementations. Payment simulation must fail closed in production a
 against a production database. Preserve verified Ripple webhooks and existing real
 subscriptions when changing preview checkout. See `docs/preview-payment-simulator.md`.
 
+## Branch and release policy
+
+`staging` is the shared development/preview branch. Push every change there first
+and verify its preview deployment. `main` is production and must receive changes
+only through an approved pull request from `staging`; never push directly to
+`main` unless the owner explicitly authorizes a reviewed emergency procedure.
+The finalise push guard and installed Git pre-push hook enforce this locally.
+
 CursorPlaybook provides:
 1. **Rules** - Automatic guidelines that apply to your code
 2. **Commands** - Reusable prompt templates for common tasks

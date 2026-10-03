@@ -5,15 +5,21 @@ const {
   materializePreviewPackMock,
   setPreviewPackEnabledMock,
   previewPackExistsMock,
+  stagingEnabledMock,
 } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
   materializePreviewPackMock: vi.fn(),
   setPreviewPackEnabledMock: vi.fn(),
   previewPackExistsMock: vi.fn(),
+  stagingEnabledMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
   requireRole: requireRoleMock,
+}));
+
+vi.mock("@/lib/deployment/environment", () => ({
+  isStagingOnlyFeatureEnabled: stagingEnabledMock,
 }));
 
 vi.mock("@/lib/preview-packs/materialize", () => ({
@@ -34,6 +40,7 @@ describe("preview pack admin actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireRoleMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+    stagingEnabledMock.mockReturnValue(true);
     previewPackExistsMock.mockResolvedValue(false);
     materializePreviewPackMock.mockResolvedValue({ created: 3, skipped: 0, packId: "pack-1" });
     setPreviewPackEnabledMock.mockResolvedValue({ enabled: false });
@@ -83,5 +90,14 @@ describe("preview pack admin actions", () => {
     await expect(disablePreviewPack({ dealerKey: "vehicles-im" })).resolves.toEqual({
       data: { enabled: false },
     });
+  });
+
+  it("rejects both direct writes outside staging", async () => {
+    stagingEnabledMock.mockReturnValue(false);
+    await expect(enablePreviewPack({ dealerKey: "athol-garage" })).resolves.toEqual({ error: "Preview packs are unavailable in this environment." });
+    await expect(disablePreviewPack({ dealerKey: "athol-garage" })).resolves.toEqual({ error: "Preview packs are unavailable in this environment." });
+    expect(previewPackExistsMock).not.toHaveBeenCalled();
+    expect(materializePreviewPackMock).not.toHaveBeenCalled();
+    expect(setPreviewPackEnabledMock).not.toHaveBeenCalled();
   });
 });

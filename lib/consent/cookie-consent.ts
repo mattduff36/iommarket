@@ -6,6 +6,7 @@ export const COOKIE_CONSENT_COOKIE_NAME = "itrader-cookie-consent";
 export interface CookieConsentState {
   version: string;
   analytics: boolean;
+  marketing: boolean;
   decidedAt: string;
 }
 
@@ -17,6 +18,7 @@ export function defaultCookieConsent(): CookieConsentState {
   return {
     version: currentCookieConsentVersion(),
     analytics: false,
+    marketing: false,
     decidedAt: "",
   };
 }
@@ -31,6 +33,7 @@ export function parseCookieConsent(raw: string | null | undefined): CookieConsen
     return {
       version: parsed.version,
       analytics: parsed.analytics,
+      marketing: parsed.marketing === true,
       decidedAt: typeof parsed.decidedAt === "string" ? parsed.decidedAt : "",
     };
   } catch {
@@ -44,13 +47,21 @@ export function isAnalyticsAllowed(state: CookieConsentState | null) {
   return state.analytics === true;
 }
 
+export function isMarketingAllowed(state: CookieConsentState | null) {
+  if (!state) return false;
+  if (state.version !== currentCookieConsentVersion()) return false;
+  return state.marketing === true;
+}
+
 export function buildCookieConsent(
   analytics: boolean,
+  marketing = false,
   decidedAt = new Date().toISOString(),
 ): CookieConsentState {
   return {
     version: currentCookieConsentVersion(),
     analytics,
+    marketing,
     decidedAt,
   };
 }

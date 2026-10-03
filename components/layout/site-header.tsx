@@ -27,6 +27,7 @@ export function SiteHeader() {
     user: null,
     displayName: null,
     role: null,
+    stagingFeaturesEnabled: false,
     loading: true,
     handleSignOut,
   });
@@ -49,6 +50,7 @@ export function SiteHeader() {
         setAuthState((s) => ({
           ...s,
           displayName: userEmail || null,
+          stagingFeaturesEnabled: false,
           loading: false,
         }));
         return;
@@ -62,11 +64,18 @@ export function SiteHeader() {
         data.role === "USER" || data.role === "DEALER" || data.role === "ADMIN"
           ? data.role
           : null;
-      setAuthState((s) => ({ ...s, role, displayName, loading: false }));
+      setAuthState((s) => ({
+        ...s,
+        role,
+        displayName,
+        stagingFeaturesEnabled: data.stagingFeaturesEnabled === true,
+        loading: false,
+      }));
     } catch {
       setAuthState((s) => ({
         ...s,
         displayName: userEmail || null,
+        stagingFeaturesEnabled: false,
         loading: false,
       }));
     }
@@ -96,6 +105,7 @@ export function SiteHeader() {
           ...s,
           user: u,
           role: null,
+          stagingFeaturesEnabled: false,
           loading: Boolean(u),
           displayName: null,
         }));
@@ -115,6 +125,7 @@ export function SiteHeader() {
           ...s,
           user: null,
           role: null,
+          stagingFeaturesEnabled: false,
           displayName: null,
           loading: false,
         }));
@@ -123,6 +134,7 @@ export function SiteHeader() {
           ...s,
           user: u,
           role: null,
+          stagingFeaturesEnabled: false,
           displayName: null,
           loading: true,
         }));
@@ -291,7 +303,7 @@ export function SiteHeader() {
                       {adminMenuItem.label}
                     </Link>
                   ) : null}
-                  {role === "ADMIN" ? <PreviewPacksMobileExpander /> : null}
+                  {role === "ADMIN" && authState.stagingFeaturesEnabled ? <PreviewPacksMobileExpander /> : null}
                   {role === "ADMIN" && currentListingId ? (
                     <button type="button" onClick={() => { setEditingListingId(currentListingId); setMobileOpen(false); }}
                       className="flex items-center gap-2 px-3 py-2.5 text-left text-sm font-medium rounded-sm text-red-400 hover:text-red-300 hover:bg-surface-elevated transition-colors">

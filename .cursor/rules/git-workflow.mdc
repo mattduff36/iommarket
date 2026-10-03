@@ -32,21 +32,22 @@ globs: ""
 
 ## Branch Strategy
 
-- `main` - Production-ready code
-- `develop` - Integration branch (optional)
-- `feature/*` - New features
-- `fix/*` - Bug fixes
-- `refactor/*` - Code improvements
+- `main` is production. Never push directly to it.
+- `staging` is the shared development and preview branch. All changes must be pushed there first.
+- Merge `staging` into `main` only through an approved pull request after review and validation.
+- Use short-lived feature/fix branches when isolation helps, then merge them into `staging` before proposing production.
+- Do not rename or repurpose `main` or `staging` without the owner's explicit instruction.
+
+The finalise push command and installed pre-push hook reject pushes whose destination is `main`. Do not bypass either safeguard. A production emergency requires written owner authorization, an independent review, an audited repository-admin exception to branch protection, and a follow-up staging sync; there is no environment-variable override.
 
 ## Pull Request Workflow
 
 When creating PRs:
 
-1. Analyze full commit history (not just latest commit)
-2. Use `git diff main...HEAD` to see all changes
-3. Draft comprehensive PR summary
-4. Include test plan with TODOs
-5. Push with `-u` flag if new branch
+1. For ordinary work, merge the completed change into `staging` and verify the preview deployment.
+2. For production, open a pull request from `staging` to `main`; analyze the full history and use `git diff main...staging`.
+3. Draft a concise PR summary and include actual validation results.
+4. Do not push a working branch directly to `main` or merge production changes outside the reviewed PR.
 
 ## PR Template
 

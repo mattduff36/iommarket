@@ -29,6 +29,7 @@ export function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [managing, setManaging] = useState(false);
   const [analytics, setAnalytics] = useState(false);
+  const [marketing, setMarketing] = useState(false);
 
   useEffect(() => {
     function sync() {
@@ -36,6 +37,7 @@ export function CookieBanner() {
       const stale = !stored || stored.version !== currentCookieConsentVersion();
       setVisible(stale);
       setAnalytics(stored?.analytics ?? false);
+      setMarketing(stored?.marketing ?? false);
     }
     function openPreferences() {
       setManaging(true);
@@ -50,8 +52,8 @@ export function CookieBanner() {
     };
   }, []);
 
-  function decide(nextAnalytics: boolean) {
-    persistConsent(buildCookieConsent(nextAnalytics));
+  function decide(nextAnalytics: boolean, nextMarketing: boolean) {
+    persistConsent(buildCookieConsent(nextAnalytics, nextMarketing));
     setVisible(false);
     setManaging(false);
   }
@@ -65,7 +67,8 @@ export function CookieBanner() {
     >
       <p className="text-xs leading-relaxed text-text-secondary sm:text-sm">
         We use essential cookies to keep the marketplace secure and functional.
-        Analytics cookies are optional and off until you choose. Read our{" "}
+        Analytics and marketing cookies are separate, optional, and off until you choose.
+        An older analytics choice does not allow marketing. Read our{" "}
         <Link href="/cookies" className="text-text-trust hover:underline">
           cookie policy
         </Link>
@@ -78,21 +81,26 @@ export function CookieBanner() {
             onCheckedChange={(value) => setAnalytics(value === true)}
             label="Analytics cookies help us understand how the site is used. They are not required."
           />
+          <Checkbox
+            checked={marketing}
+            onCheckedChange={(value) => setMarketing(value === true)}
+            label="Marketing cookies measure advertising. They stay off until you opt in, and you can withdraw them here."
+          />
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button type="button" size="sm" onClick={() => decide(analytics)}>
+            <Button type="button" size="sm" onClick={() => decide(analytics, marketing)}>
               Save preferences
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => decide(false)}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => decide(false, false)}>
               Reject non-essential
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Button type="button" size="sm" onClick={() => decide(true)}>
+          <Button type="button" size="sm" onClick={() => decide(true, true)}>
             Accept all
           </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => decide(false)}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => decide(false, false)}>
             Reject non-essential
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={() => setManaging(true)}>

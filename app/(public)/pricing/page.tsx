@@ -11,13 +11,13 @@ import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { getCurrentUser } from "@/lib/auth";
 import { PricingCards } from "@/components/pricing/pricing-cards";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Pricing",
   description: "Simple pricing for sellers and dealers on itrader.im.",
-  alternates: { canonical: buildCanonicalUrl("/pricing") },
-};
+  path: "/pricing",
+});
 
 export default async function PricingPage() {
   const [slotsRemaining, slotsTotal, isFreeWindowActive, user, pricing] = await Promise.all([

@@ -1,6 +1,6 @@
 # COOKIE POLICY
 *iTrader.im - Online Vehicle Marketplace*
-*Effective on launch*
+*Effective 3 October 2026*
 
 ## 1. INTRODUCTION
 
@@ -17,7 +17,7 @@
 
 **2.2** Cookies may be "session cookies", which are deleted automatically when you close your browser, or "persistent cookies", which remain on your device for a set period or until you delete them.
 
-**2.3** We also use similar technologies, including local storage, which we refer to collectively as "cookies" for the purposes of this policy unless the context requires otherwise. We do not currently use advertising pixels or marketing scripts.
+**2.3** We also use similar technologies, including local storage, which we refer to collectively as "cookies" for the purposes of this policy unless the context requires otherwise. Marketing scripts stay unloaded until you opt in and the deployment has an advertising destination switched on.
 
 
 ## 3. HOW WE USE COOKIES
@@ -28,14 +28,14 @@
 
 **3.3** Analytics and performance cookies. These cookies collect information about how you use the Platform, such as which pages you visit and how long you spend on them, so that we can understand and improve the performance of the Platform. Information collected by these cookies is generally aggregated and used on a statistical basis.
 
-**3.4** Advertising and marketing cookies. We do not currently enable advertising or marketing cookies or scripts on the Platform. If that changes, we will update this Cookie Policy and request consent before any such cookies are used.
+**3.4** Advertising and marketing cookies. These are optional and off by default. If you opt in, and only on a deployment where advertising measurement is configured, the Platform may load Meta and Google measurement scripts. An earlier analytics-only choice does not allow marketing. Withdrawing marketing consent stops unsent marketing events and removes the first-party campaign cookie. Campaign parameters are limited to an allowlist of source, medium, campaign, content, term and supported click identifiers, are kept for up to 90 days, and are not used to authorise a payment or set a payment amount.
 
-**3.5** Analytics cookies are the only non-essential cookie category currently controlled by our cookie banner. They are placed only with your consent. The Vehicle Check local-storage record in clause 3.2 is created only when you actively acknowledge the Vehicle Check Terms in that feature and can be removed through your browser storage controls.
+**3.5** Analytics and marketing are separate choices in the cookie banner. Analytics currently means Vercel Analytics. Marketing measurement is not loaded merely because a page is rendered on the server. The Vehicle Check local-storage record in clause 3.2 is created only when you actively acknowledge the Vehicle Check Terms in that feature and can be removed through your browser storage controls. This policy describes the controls in the product. It is not a legal sign-off, and live advertising activation still needs owner review.
 
 
 ## 4. THIRD-PARTY COOKIES
 
-**4.1** Some cookies on the Platform may be placed by third parties that support the Service. Analytics cookies (currently Vercel Analytics) are loaded only after you consent to analytics. Our Payment Provider, Ripple, may set cookies that are necessary to complete a payment you request. We do not currently load advertising-network or social-media marketing cookies.
+**4.1** Some cookies on the Platform may be placed by third parties that support the Service. Vercel Analytics is loaded only after you consent to analytics. Meta and Google measurement scripts are loaded only after you consent to marketing and only when that deployment's advertising destination is switched on. Our Payment Provider, Ripple, may set cookies that are necessary to complete a payment you request.
 
 **4.2** These third parties are responsible for their own cookies and privacy practices, and we encourage you to review their respective privacy and cookie policies for further information.
 
@@ -44,7 +44,7 @@
 
 ## 5. MANAGING YOUR COOKIE PREFERENCES
 
-**5.1** When you first visit the Platform, you will be presented with a cookie banner allowing you to accept or reject analytics and to access the analytics preference control.
+**5.1** When you first visit the Platform, or after this policy version changes, you will be presented with a cookie banner allowing you to accept or reject non-essential cookies and to choose analytics and marketing separately.
 
 **5.2** You can change your cookie preferences at any time by accessing the cookie preference centre, typically available via a link in the footer of the Platform.
 

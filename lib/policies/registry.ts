@@ -25,8 +25,8 @@ export const POLICY_DEFINITIONS: Record<PolicySlug, PolicyDefinition> = {
     slug: "cookies",
     title: "Cookie Policy",
     route: "/cookies",
-    version: LAUNCH_VERSION,
-    effectiveDate: EFFECTIVE_ON_LAUNCH,
+    version: "2026-10-03.1",
+    effectiveDate: "3 October 2026",
     fileName: "cookies.md",
   },
   terms: {

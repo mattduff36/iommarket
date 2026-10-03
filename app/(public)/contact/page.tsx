@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Contact",
   description: "Contact iTrader.im support.",
-  alternates: { canonical: buildCanonicalUrl("/contact") },
-};
+  path: "/contact",
+});
 
 export default function ContactPage() {
   return (

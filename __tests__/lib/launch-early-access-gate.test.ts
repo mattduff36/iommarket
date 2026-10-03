@@ -32,18 +32,19 @@ describe("early-access launch gate", () => {
     vi.useRealTimers();
   });
 
-  it("keeps Preview open unless the QA flag is exactly 1", async () => {
+  it("fails closed on preview when the staging deployment is not verified", async () => {
     process.env.VERCEL_ENV = "preview";
     delete process.env.PREVIEW_LAUNCH_GATE_QA;
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const { proxy } = await import("@/proxy");
     const open = await proxy(new NextRequest("https://preview.itrader.im/"));
-    expect(open.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(open.status).toBe(503);
+    expect(open.headers.get("x-robots-tag")).toBe("noindex");
 
     process.env.PREVIEW_LAUNCH_GATE_QA = "1";
     const gated = await proxy(new NextRequest("https://preview.itrader.im/"));
-    expect(gated.headers.get("x-middleware-rewrite")).toContain("/holding");
+    expect(gated.status).toBe(503);
   });
 
   it("allows sign-in and blocks catalogue APIs until a confirmed session is present", async () => {

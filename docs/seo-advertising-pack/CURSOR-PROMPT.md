@@ -1,0 +1,21 @@
+Implement the iTrader SEO and advertising pack in `docs/seo-advertising-pack/`.
+
+Read `README.md`, `IMPLEMENTATION.md`, and `VALIDATION-AND-RELEASE.md`, then inspect the relevant current code and repository instructions. This is an implementation request: write a concise phased plan and continue with safe local implementation without waiting for plan approval. Do not invoke a separate plan template that stops for confirmation.
+
+Work on the `preview` branch, preserving any concurrent work. The pack was authored locally on `main`; preserve/copy these documentation files into the correct checkout before implementation. Verify current branch, remote tracking state and existing changes first. If the current checkout cannot safely switch, use an isolated checkout of preview and carry across only this pack. Do not reset, discard, stash someone else's changes, or commit unrelated work.
+
+Keep preview and production on one application implementation. Use explicit server-side environment/configuration rules so preview stays noindex and uses test advertising integrations, while production retains correct indexing and deliberately enabled live integrations after merge. Never hard-code preview-only behavior that would break production when merged.
+
+Deliver the core SEO changes, social previews, structured-data improvements, consent and attribution layer, Meta integration, optional Google measurement integration, focused landing pages and diagnostics specified in the pack. Implement safe disabled states when credentials or external approvals are unavailable; document those dependencies precisely. Inventory feed publication is conditional on platform eligibility. Do not invent business facts, credentials, tracking IDs, statistics, testimonials or eligibility.
+
+Use bounded parallel agents for independent investigation or review when useful, and efficient worker models where available. Keep overlapping edits sequential. Read the installed Next.js documentation before changing framework behavior. Reuse existing metadata, analytics, consent, brand assets and payment infrastructure.
+
+Maintain `docs/seo-advertising-pack/IMPLEMENTATION-STATUS.md` with work completed, changed files, decisions, tests, deployment SHA/URL, and account-dependent items. At each phase boundary, run its focused checks, update this status and give a concise progress checkpoint, then continue without seeking routine permission. Stop dependent work only for a genuine external dependency or release blocker and continue independent work where possible. Test proportionally, then obtain an independent review before release. Fix regressions and follow the pack's acceptance matrix. Never describe code-only or mocked checks as successful live integration.
+
+After local validation, prepare the exact preview release diff. This prompt authorizes committing this scoped work and pushing to the `preview` branch using the repository's registered full finalise-and-push command (`npm run finalise:full:push`), provided the release contains only this work and no unresolved release blockers. State the branch and scope first. Monitor checks and the resulting Vercel deployment through completion, confirm the preview alias points to the expected deployment, and verify the real preview user journeys. Do not force-push.
+
+Database migrations are separate from finalise. Prepare and validate any additive migration locally, explain its target and effect, and request explicit approval before applying it to a shared preview or production database. Do not reset or clone a database. Production advertising delivery must remain disabled until account setup, consent handling and event validation are complete.
+
+After live preview verification, prepare a concrete merge-to-main report including the complete preview-versus-main diff, checks, configuration, migration requirements, remaining account dependencies and rollback steps. Do not merge into main, deploy to production, enable live tracking, publish ad catalogs, create campaigns or spend money until I explicitly approve that next step. Missing credentials should block only their dependent activation, not independent implementation.
+
+Start now by checking branch/worktree state and reviewing the pack, then proceed through implementation to verified live preview wherever the stated gates permit.

@@ -20,6 +20,8 @@ export const PUBLIC_NAV_ITEMS: NavItem[] = [
 
 export const FOOTER_NAV_ITEMS: NavItem[] = [
   ...PUBLIC_NAV_ITEMS,
+  { label: "Sell on the Isle of Man", href: "/sell-on-the-isle-of-man" },
+  { label: "Dealer advertising", href: "/dealer-advertising" },
   { label: "Terms", href: "/terms" },
   { label: "Privacy", href: "/privacy" },
   { label: "Cookies", href: "/cookies" },

@@ -5,7 +5,10 @@ import { PreviewArrival } from "@/components/launch/preview-arrival";
 import { ClientErrorListener } from "@/components/monitoring/client-error-listener";
 import { launchWelcomeEnvironment, PUBLIC_LAUNCH_AT } from "@/lib/launch/preview-rehearsal";
 import { ConsentedAnalytics } from "@/components/layout/consented-analytics";
+import { MarketingMeasurement } from "@/components/advertising/marketing-measurement";
+import { publicAdvertisingConfig } from "@/lib/advertising/config";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
+import { defaultSocialImage, resolvePageRobots } from "@/lib/seo/page-metadata";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
 import "./globals.css";
 
@@ -28,21 +31,30 @@ export const viewport: Viewport = {
   themeColor: faviconThemeColor,
 };
 
-export const metadata: Metadata = {
-  title: {
-    default: "iTrader.im – Isle of Man Vehicle Sales",
-    template: "%s | itrader.im",
-  },
-  description: "Buy and sell cars, vans, motorbikes, and motorhomes on the Isle of Man.",
-  metadataBase: getCanonicalBaseUrl(),
-  manifest: faviconManifest,
-  icons: faviconIcons,
-  openGraph: {
-    type: "website",
-    locale: "en_GB",
-    siteName: "itrader.im",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const image = defaultSocialImage();
+  return {
+    title: {
+      default: "iTrader.im – Isle of Man Vehicle Sales",
+      template: "%s | itrader.im",
+    },
+    description: "Buy and sell cars, vans, motorbikes, and motorhomes on the Isle of Man.",
+    metadataBase: getCanonicalBaseUrl(),
+    manifest: faviconManifest,
+    icons: faviconIcons,
+    robots: resolvePageRobots(true),
+    openGraph: {
+      type: "website",
+      locale: "en_GB",
+      siteName: "itrader.im",
+      images: [image],
+    },
+    twitter: {
+      card: "summary_large_image",
+      images: [image.url],
+    },
+  };
+}
 
 export default function RootLayout({
   children,
@@ -67,6 +79,7 @@ export default function RootLayout({
           )}
           <ClientErrorListener />
           <ConsentedAnalytics />
+          <MarketingMeasurement config={publicAdvertisingConfig()} />
         </ThemeProvider>
       </body>
     </html>

@@ -8,6 +8,7 @@ import {
 } from "@/lib/dealers/onboarding/session-cutoff";
 import { profileNameSchema } from "@/lib/validations/profile-name";
 import type { UserRole } from "@prisma/client";
+import { hasStagingAdminRole, requiresStagingAdmin } from "@/lib/deployment/staging-access-policy";
 
 export class AuthenticationRequiredError extends Error {
   readonly statusCode = 401 as const;
@@ -191,6 +192,9 @@ export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
     throw new AuthenticationRequiredError();
+  }
+  if (requiresStagingAdmin() && !hasStagingAdminRole(user)) {
+    throw new InsufficientPermissionsError("Staging is restricted to administrators.");
   }
   if (user.disabledAt) {
     throw new AccountDisabledError();

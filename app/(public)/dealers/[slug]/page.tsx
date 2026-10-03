@@ -35,6 +35,10 @@ import {
   buildListingPath,
 } from "@/lib/navigation-paths";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { PhoneContactLink } from "@/components/advertising/phone-contact-link";
+import { buildDealerJsonLd } from "@/lib/seo/listing-json-ld";
+import { defaultSocialImage, publicHttpsImageUrl, publicPageMetadata } from "@/lib/seo/page-metadata";
 import { applySampleDealerReviewVisibility } from "@/lib/listings/sample-related-visibility";
 
 interface Props {
@@ -55,6 +59,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       name: true,
       bio: true,
       slug: true,
+      logoUrl: true,
       tier: true,
       isAdminPreview: true,
       previewPack: { select: previewPackVisibilitySelect() },
@@ -71,6 +76,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             name: true,
             bio: true,
             slug: true,
+            logoUrl: true,
             tier: true,
             isAdminPreview: true,
             previewPack: { select: previewPackVisibilitySelect() },
@@ -116,18 +122,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const viewerOnlyUnpaidProfile =
     !entitlement && currentUser?.role === "ADMIN" && !dealer.isAdminPreview;
+  const indexable = !dealer.isAdminPreview && !viewerOnlyUnpaidProfile;
+  const logo = publicHttpsImageUrl(dealer.logoUrl);
+  const bio = dealer.bio?.replace(/\s+/g, " ").trim();
+  const description = !bio
+    ? `Listings from ${dealer.name} on iTrader.im.`
+    : bio.length <= 180
+      ? bio
+      : bio.split(/(?<=[.!?])\s+/).find((sentence) => sentence.length > 0 && sentence.length <= 180)
+        ?? `Listings from ${dealer.name} on iTrader.im.`;
 
-  return {
+  return publicPageMetadata({
     title: dealer.name,
-    description: dealer.bio?.slice(0, 160) ?? `View ${dealer.name}'s listings on itrader.im.`,
-    alternates: {
-      canonical: buildCanonicalUrl(buildDealerProfilePath(dealer.slug)),
-    },
-    robots:
-      dealer.isAdminPreview || viewerOnlyUnpaidProfile
-        ? { index: false, follow: false }
-        : undefined,
-  };
+    description,
+    path: buildDealerProfilePath(dealer.slug),
+    index: indexable,
+    follow: indexable,
+    image: logo
+      ? { url: logo, alt: `${dealer.name} logo` }
+      : defaultSocialImage(`${dealer.name} on iTrader.im`),
+  });
 }
 
 export default async function DealerProfilePage({ params }: Props) {
@@ -310,6 +324,15 @@ export default async function DealerProfilePage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      {entitlement && !dealer.isAdminPreview ? (
+        <JsonLd
+          data={buildDealerJsonLd({
+            name: dealer.name,
+            url: buildCanonicalUrl(buildDealerProfilePath(dealer.slug)),
+            description: dealer.bio?.replace(/\s+/g, " ").trim() || `Listings from ${dealer.name} on iTrader.im.`,
+          })}
+        />
+      ) : null}
       <Breadcrumbs
         items={[
           { label: "Dealers", href: "/dealers" },
@@ -361,12 +384,13 @@ export default async function DealerProfilePage({ params }: Props) {
               </a>
             )}
             {dealer.phone && (
-              <a
+              <PhoneContactLink
                 href={`tel:${dealer.phone}`}
+                dealerKey={dealer.slug}
                 className="inline-flex items-center gap-1.5 hover:text-neon-blue-400 transition-colors"
               >
                 <Phone className="h-4 w-4" /> {dealer.phone}
-              </a>
+              </PhoneContactLink>
             )}
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="h-4 w-4" /> Member since{" "}
