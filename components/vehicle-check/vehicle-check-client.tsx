@@ -373,7 +373,7 @@ export function VehicleCheckClient({
                 </form>
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-neon-blue-500/20 bg-neon-blue-500/6 p-4">
+                  <div className="rounded-xl border border-border bg-canvas/40 p-4">
                     <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                       <ReceiptPoundSterling className="h-4 w-4 text-neon-blue-400" />
                       Tax and duty
@@ -383,7 +383,7 @@ export function VehicleCheckClient({
                       available.
                     </p>
                   </div>
-                  <div className="rounded-xl border border-neon-red-500/20 bg-neon-red-500/6 p-4">
+                  <div className="rounded-xl border border-border bg-canvas/40 p-4">
                     <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                       <CarFront className="h-4 w-4 text-neon-red-400" />
                       Roadworthiness history

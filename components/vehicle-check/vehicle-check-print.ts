@@ -1,3 +1,4 @@
+import { getPositionVariant, getDueDateVariant, getStatusVariant } from "@/lib/utils/vehicle-check-status";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
 
 function escapeHtml(value: string): string {
@@ -40,6 +41,13 @@ export function openVehicleCheckPrintWindow(
   const printWindow = window.open("", "_blank", "width=1040,height=1200");
   if (!printWindow) return;
 
+  const vehicle = result.vehicle;
+  const tones: Record<string, string> = {
+    "Tax status": getPositionVariant(vehicle?.taxStatus, vehicle?.taxDueDate, result.checkedAt),
+    "MOT status": getPositionVariant(vehicle?.motStatus, vehicle?.motExpiryDate, result.checkedAt),
+    "Tax due": getDueDateVariant(vehicle?.taxDueDate, result.checkedAt),
+    "MOT due": getDueDateVariant(vehicle?.motExpiryDate, result.checkedAt),
+  };
   const vehicleRows = [
     ["Registration", result.displayRegistration],
     ["Make", result.vehicle?.make ?? "Unavailable"],
@@ -58,7 +66,7 @@ export function openVehicleCheckPrintWindow(
       (test) => `
         <tr>
           <td>${escapeHtml(formatDate(test.completedDate))}</td>
-          <td>${escapeHtml(test.testResult)}</td>
+          <td class="${getStatusVariant(test.testResult)}">${escapeHtml(test.testResult)}</td>
           <td>${escapeHtml(
             test.odometerValue !== null && test.odometerValue !== undefined
               ? `${test.odometerValue.toLocaleString()} ${test.odometerUnit ?? ""}`.trim()
@@ -157,12 +165,14 @@ export function openVehicleCheckPrintWindow(
         margin-bottom: 24px;
       }
       .warning {
-        background: #fff7ed;
-        border-color: #fdba74;
+        background: #fefce8;
+        border-color: #eab308;
       }
+      .success { background: #ecfdf5; color: #065f46; }
+      .error { background: #fff1f2; color: #9f1239; }
       .disclaimer {
-        background: #eff6ff;
-        border-color: #93c5fd;
+        background: #f9fafb;
+        border-color: #e5e7eb;
         font-size: 13px;
         line-height: 1.55;
       }
@@ -194,7 +204,7 @@ export function openVehicleCheckPrintWindow(
                 ([label, value]) => `
                   <tr>
                     <th>${escapeHtml(label)}</th>
-                    <td>${escapeHtml(value)}</td>
+                    <td class="${tones[label] ?? "neutral"}">${escapeHtml(value)}</td>
                   </tr>
                 `
               )

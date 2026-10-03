@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildCostAuditView } from "@/lib/costs/audit-view";
 import { formatMarkedGbp } from "@/lib/costs/format";
-import type { CostLineDto } from "@/lib/costs/dto";
+import type { CostLineDto, CursorAuditDto } from "@/lib/costs/dto";
 import {
   COST_USAGE_RANGE_LABELS,
   COST_USAGE_RANGES,
@@ -14,12 +14,16 @@ import {
 } from "@/lib/costs/usage-view";
 import { CostSectionTable } from "./cost-section-table";
 import { CostUsageChart } from "./cost-usage-chart";
+import { CostAuditCharts } from "./cost-audit-charts";
+import { CostSourceAudit } from "./cost-source-audit";
 
 export function CostUsagePanel({
   sections,
   isOwner,
+  cursorAudit,
 }: {
   isOwner: boolean;
+  cursorAudit?: CursorAuditDto;
   sections: Array<{
     key: string;
     label: string;
@@ -52,14 +56,15 @@ export function CostUsagePanel({
         section.rawLines.reduce((total, line) => total + line.amountMinor, 0),
       ),
     }));
+  const audit = buildCostAuditView(model);
 
   return (
-    <div className="mb-8 space-y-6">
-      <section className="rounded-lg border border-border bg-surface p-4 shadow-low sm:p-6">
+    <div className="mb-8 space-y-8">
+      <section className="space-y-7 rounded-xl border border-border bg-surface p-4 shadow-low sm:p-7">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-text-primary">Usage</h2>
-            <p className="text-sm text-text-secondary">{model.rangeLabel}</p>
+            <p className="mt-1 text-sm text-text-secondary">{model.rangeLabel} · GBP · service dates in UTC</p>
           </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Usage period">
             {COST_USAGE_RANGES.map((value) => (
@@ -80,25 +85,26 @@ export function CostUsagePanel({
           </div>
         </div>
 
-        {model.series.length > 0 ? (
-          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {model.series.map((item) => (
-              <SummaryCard key={item.key} title={item.key} value={item.amountLabel} />
-            ))}
-          </div>
-        ) : null}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-6 lg:grid-cols-4">
+          <SummaryCard title="Net client charges" value={formatMarkedGbp(audit.netTotal)} />
+          <SummaryCard title="Development" value={formatMarkedGbp(model.series.find(item => item.key === "Development (Cursor)")?.amountMinor ?? 0)} />
+          <SummaryCard title="Other categories, net" value={formatMarkedGbp(model.series.filter(item => item.key !== "Development (Cursor)").reduce((sum, item) => sum + item.amountMinor, 0))} />
+          <SummaryCard title="Provisional portion" value={formatMarkedGbp(audit.provisionalTotal)} />
+        </div>
 
         <div>
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-sm font-medium text-text-primary">Project costs</h3>
+              <h3 className="text-lg font-semibold text-text-primary">How costs built up</h3>
               <p className="text-sm text-text-secondary">
                 Cumulative charges above zero, credits below, and net total as a line.
               </p>
             </div>
             <p className="text-xs text-text-secondary">Grouped by category</p>
           </div>
-          <CostUsageChart points={model.points} seriesKeys={model.seriesKeys} />
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Cumulative costs chart, scroll horizontally on small screens">
+            <div className="min-w-[560px]"><CostUsageChart points={model.points} seriesKeys={model.seriesKeys} /></div>
+          </div>
           {model.seriesKeys.length > 0 ? (
             <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-secondary">
               {model.seriesKeys.map((key, index) => (
@@ -121,7 +127,12 @@ export function CostUsagePanel({
             </ul>
           ) : null}
         </div>
+        <CostAuditCharts model={model} />
       </section>
+
+      {isOwner && cursorAudit ? <CostSourceAudit key={range} audit={{ ...cursorAudit,
+        rows: cursorAudit.rows.filter(row => (!model.fromDay || row.day >= model.fromDay) && (!model.toDay || row.day <= model.toDay)),
+      }} /> : null}
 
       {visibleSections.map((section) => (
         <CostSectionTable
@@ -139,13 +150,9 @@ export function CostUsagePanel({
 
 function SummaryCard({ title, value }: { title: string; value: string }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm text-text-secondary">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold tabular-nums text-text-primary">{value}</p>
-      </CardContent>
-    </Card>
+    <div>
+      <p className="text-2xl font-semibold tracking-tight tabular-nums text-text-primary">{value}</p>
+      <p className="mt-1 text-xs leading-5 text-text-secondary">{title}</p>
+    </div>
   );
 }

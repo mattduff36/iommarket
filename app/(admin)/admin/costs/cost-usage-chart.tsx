@@ -76,7 +76,7 @@ export function CostUsageChart({
   points: CostUsageDayPoint[];
   seriesKeys: string[];
 }) {
-  if (points.length === 0) {
+  if (points.length === 0 || seriesKeys.length === 0) {
     return (
       <p className="px-4 py-10 text-sm text-text-secondary">
         No costs in this period to chart.
@@ -197,6 +197,11 @@ export function CostUsageChart({
           vectorEffect="non-scaling-stroke"
           data-chart-line="net-total"
         />
+      ) : null}
+      {points.length === 1 ? (
+        <circle cx={xAt(0)} cy={yAt(netCostValues(points, seriesKeys)[0] ?? 0)} r={4} className="fill-text-primary">
+          <title>{`${first?.label}: ${formatMarkedGbp(netCostValues(points, seriesKeys)[0] ?? 0)}`}</title>
+        </circle>
       ) : null}
       {first && last ? (
         <>

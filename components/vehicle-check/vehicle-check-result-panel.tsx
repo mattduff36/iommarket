@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStatusVariant, getDueDateVariant, getPositionVariant, vehicleStatusClasses, type VehicleStatusTone } from "@/lib/utils/vehicle-check-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,64 +53,34 @@ function formatEngineSize(engineSizeCc: number | null | undefined): string {
   return `${(engineSizeCc / 1000).toFixed(1)}L (${engineSizeCc}cc)`;
 }
 
-function getStatusVariant(
-  value: string | null | undefined
-): "success" | "warning" | "error" | "info" | "neutral" {
-  if (!value) return "neutral";
-
-  const normalized = value.toLowerCase();
-  if (
-    normalized.includes("taxed") ||
-    normalized.includes("valid") ||
-    normalized.includes("active")
-  ) {
-    return "success";
-  }
-  if (normalized.includes("sorn")) return "warning";
-  if (
-    normalized.includes("untaxed") ||
-    normalized.includes("not valid") ||
-    normalized.includes("expired")
-  ) {
-    return "error";
-  }
-
-  return "info";
-}
-
 function getDefectVariant(
   type: string,
   dangerous: boolean
-): "error" | "warning" | "info" | "neutral" {
+): VehicleStatusTone {
   if (dangerous) return "error";
   if (type === "DANGEROUS" || type === "MAJOR" || type === "FAIL") return "error";
-  if (type === "MINOR") return "warning";
-  if (type === "PRS") return "info";
+  if (type === "MINOR" || type === "ADVISORY" || type === "PRS") return "warning";
   return "neutral";
 }
 
 function MetricCard({
   label,
   value,
-  accent,
+  tone = "neutral",
+  note,
 }: {
   label: string;
   value: string;
-  accent: "blue" | "red" | "gold" | "emerald";
+  tone?: VehicleStatusTone;
+  note?: string;
 }) {
-  const accentClass = {
-    blue: "border-neon-blue-500/30 bg-neon-blue-500/6",
-    red: "border-neon-red-500/30 bg-neon-red-500/6",
-    gold: "border-premium-gold-500/25 bg-premium-gold-500/6",
-    emerald: "border-emerald-500/25 bg-emerald-500/6",
-  }[accent];
-
   return (
-    <div className={`rounded-xl border p-4 ${accentClass}`}>
+    <div className={`rounded-xl border p-4 ${vehicleStatusClasses[tone]}`}>
       <p className="text-[11px] uppercase tracking-[0.18em] text-metallic-400">
         {label}
       </p>
       <p className="mt-2 text-lg font-semibold text-text-primary">{value}</p>
+      {note ? <p className="mt-1 text-xs text-text-secondary">{note}</p> : null}
     </div>
   );
 }
@@ -198,7 +169,7 @@ function MileageChart({ mileage }: { mileage: VehicleMileageSummary }) {
               ? `${mileage.latestMileage.toLocaleString()} miles`
               : "Unavailable"
           }
-          accent="blue"
+          tone="neutral"
         />
         <MetricCard
           label="First recorded"
@@ -207,7 +178,7 @@ function MileageChart({ mileage }: { mileage: VehicleMileageSummary }) {
               ? `${mileage.earliestMileage.toLocaleString()} miles`
               : "Unavailable"
           }
-          accent="gold"
+          tone="neutral"
         />
         <MetricCard
           label="Average annual"
@@ -216,7 +187,7 @@ function MileageChart({ mileage }: { mileage: VehicleMileageSummary }) {
               ? `${mileage.averageAnnualMileage.toLocaleString()} miles`
               : "Unavailable"
           }
-          accent="emerald"
+          tone="neutral"
         />
       </div>
     </div>
@@ -240,7 +211,7 @@ function MotHistoryList({ tests }: { tests: VehicleMotTest[] }) {
       {tests.map((test) => (
         <div
           key={`${test.completedDate}-${test.motTestNumber ?? test.testResult}`}
-          className="rounded-xl border border-border bg-canvas/50 p-4"
+          className={`rounded-xl border p-4 ${vehicleStatusClasses[getStatusVariant(test.testResult)]}`}
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -271,7 +242,7 @@ function MotHistoryList({ tests }: { tests: VehicleMotTest[] }) {
               test.defects.map((defect, index) => (
                 <div
                   key={`${defect.text}-${index}`}
-                  className="rounded-lg border border-border/70 bg-surface/80 px-3 py-2 text-sm"
+                  className={`rounded-lg border px-3 py-2 text-sm ${vehicleStatusClasses[getDefectVariant(defect.type, defect.dangerous)]}`}
                 >
                   <div className="mb-1">
                     <Badge variant={getDefectVariant(defect.type, defect.dangerous)}>
@@ -308,17 +279,22 @@ export function VehicleCheckResultPanel({
     return null;
   }
 
+  const taxTone = getPositionVariant(vehicle.taxStatus, vehicle.taxDueDate, result.checkedAt);
+  const motTone = getPositionVariant(vehicle.motStatus, vehicle.motExpiryDate, result.checkedAt);
+  const taxDueTone = getDueDateVariant(vehicle.taxDueDate, result.checkedAt);
+  const motDueTone = getDueDateVariant(vehicle.motExpiryDate, result.checkedAt);
+  const dueNote = (tone: VehicleStatusTone) => tone === "error" ? "Overdue" : tone === "warning" ? "Due within 30 days" : undefined;
   const heading = [vehicle.make, vehicle.model].filter(Boolean).join(" ");
 
   return (
     <div className="space-y-6">
       {result.warnings.length > 0 ? (
-        <Card className="border-premium-gold-500/30 bg-premium-gold-500/8">
+        <Card className="border-yellow-500/30 bg-yellow-500/10">
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 text-premium-gold-400" />
+              <AlertTriangle className="mt-0.5 h-5 w-5 text-yellow-400" />
               <div className="space-y-2">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-premium-gold-400">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-yellow-400">
                   Live lookup notes
                 </p>
                 <ul className="space-y-1 text-sm text-text-secondary">
@@ -332,17 +308,17 @@ export function VehicleCheckResultPanel({
         </Card>
       ) : null}
 
-      <Card className="overflow-hidden border-neon-blue-500/30 bg-[radial-gradient(circle_at_top_left,rgba(51,181,255,0.16),transparent_42%),linear-gradient(135deg,rgba(10,13,18,0.96),rgba(14,17,22,0.94))]">
+      <Card className="overflow-hidden border-border bg-surface">
         <CardContent className="p-0">
           <div className="grid gap-0 lg:grid-cols-[1.35fr_0.65fr]">
             <div className="border-b border-border/60 p-6 lg:border-r lg:border-b-0 lg:p-8">
               <div className="flex flex-wrap items-center gap-3">
-                <Badge variant={result.isManx ? "energy" : "trust"}>
+                <Badge variant="neutral">
                   {result.isManx ? "Isle of Man" : "UK"}
                 </Badge>
                 <Badge variant="neutral">{vehicle.lookupPath.toUpperCase()} lookup</Badge>
                 {vehicle.previousUkRegistration ? (
-                  <Badge variant="info">
+                  <Badge variant="neutral">
                     Previous UK reg {vehicle.previousUkRegistration}
                   </Badge>
                 ) : null}
@@ -364,22 +340,24 @@ export function VehicleCheckResultPanel({
                 <MetricCard
                   label="Tax status"
                   value={vehicle.taxStatus ?? "Unavailable"}
-                  accent="blue"
+                  tone={taxTone}
                 />
                 <MetricCard
                   label="MOT status"
                   value={vehicle.motStatus ?? "Unavailable"}
-                  accent="red"
+                  tone={motTone}
                 />
                 <MetricCard
                   label="Tax due"
                   value={formatDate(vehicle.taxDueDate)}
-                  accent="gold"
+                  tone={taxDueTone}
+                  note={dueNote(taxDueTone)}
                 />
                 <MetricCard
                   label="MOT due"
                   value={formatDate(vehicle.motExpiryDate)}
-                  accent="emerald"
+                  tone={motDueTone}
+                  note={dueNote(motDueTone)}
                 />
               </div>
             </div>
@@ -463,13 +441,13 @@ export function VehicleCheckResultPanel({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-border bg-canvas/40 p-4">
+              <div className={`rounded-xl border p-4 ${vehicleStatusClasses[taxTone]}`}>
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
-                  <ShieldCheck className="h-4 w-4 text-neon-blue-400" />
+                  <ShieldCheck className="h-4 w-4" />
                   Tax position
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <Badge variant={getStatusVariant(vehicle.taxStatus)}>
+                  <Badge variant={taxTone}>
                     {vehicle.taxStatus ?? "Unavailable"}
                   </Badge>
                   <span className="text-sm text-metallic-400">
@@ -477,13 +455,13 @@ export function VehicleCheckResultPanel({
                   </span>
                 </div>
               </div>
-              <div className="rounded-xl border border-border bg-canvas/40 p-4">
+              <div className={`rounded-xl border p-4 ${vehicleStatusClasses[motTone]}`}>
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
-                  <CalendarDays className="h-4 w-4 text-neon-red-400" />
+                  <CalendarDays className="h-4 w-4" />
                   MOT position
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <Badge variant={getStatusVariant(vehicle.motStatus)}>
+                  <Badge variant={motTone}>
                     {vehicle.motStatus ?? "Unavailable"}
                   </Badge>
                   <span className="text-sm text-metallic-400">
@@ -496,7 +474,7 @@ export function VehicleCheckResultPanel({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-border bg-canvas/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
-                  <Fuel className="h-4 w-4 text-neon-blue-400" />
+                  <Fuel className="h-4 w-4" />
                   Fuel and emissions
                 </div>
                 <p className="mt-3 text-sm text-text-primary">
@@ -508,7 +486,7 @@ export function VehicleCheckResultPanel({
               </div>
               <div className="rounded-xl border border-border bg-canvas/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
-                  <Gauge className="h-4 w-4 text-premium-gold-400" />
+                  <Gauge className="h-4 w-4" />
                   Mileage headline
                 </div>
                 <p className="mt-3 text-sm text-text-primary">
@@ -637,7 +615,7 @@ export function VehicleCheckResultPanel({
         </CardContent>
       </Card>
 
-      <Card className="border-neon-blue-500/25 bg-neon-blue-500/6">
+      <Card className="border-border bg-canvas/40">
         <CardContent className="p-5 text-sm leading-6 text-text-secondary">
           <p className="font-semibold text-text-primary">
             Information only - verify independently
