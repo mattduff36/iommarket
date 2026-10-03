@@ -34,7 +34,7 @@ import {
 } from "@/components/admin/admin-table";
 import { analyticsRange, loadBusinessFunnel } from "@/lib/analytics/business-funnel";
 import { MARKETPLACE_EVENTS } from "@/lib/analytics/events";
-import { loadVercelAcquisition } from "@/lib/analytics/vercel-web-analytics";
+import { loadGoogleAnalytics } from "@/lib/analytics/google-analytics";
 
 export const metadata: Metadata = { title: "Analytics | Admin" };
 
@@ -205,7 +205,7 @@ export default async function AdminAnalyticsPage(
       sampleVisibility,
       liveWhere,
     }),
-    loadVercelAcquisition({ since: range.since, until: now }),
+    loadGoogleAnalytics({ since: range.since, until: now }),
   ]);
   const funnelSteps = [
     ["Listing views", funnel.views],
@@ -253,7 +253,7 @@ export default async function AdminAnalyticsPage(
           </div>
         </div>
         <p className="mb-3 text-xs text-text-tertiary">
-          These are activity totals for the selected range, not one visitor cohort. Search and contact steps are consented Vercel events because those actions are not stored as marketplace records.
+          These are activity totals for the selected range, not one visitor cohort. Search and contact interactions appear as consented Google Analytics events below because those actions are not stored as marketplace records.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {funnelSteps.map(([label, value], index) => {
@@ -273,12 +273,12 @@ export default async function AdminAnalyticsPage(
 
       <section className="mb-8" aria-labelledby="acquisition-heading">
         <h2 id="acquisition-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Consented visitor analytics
+          Google Analytics (consented visitors)
         </h2>
-        {acquisition.available ? (
+        {acquisition.status === "available" ? (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <MetricCard label="Visitors" value={(acquisition.visitors ?? 0).toLocaleString()} />
+              <MetricCard label="Users" value={acquisition.users.toLocaleString()} />
               <MetricCard label="Pageviews" value={(acquisition.pageviews ?? 0).toLocaleString()} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -308,8 +308,16 @@ export default async function AdminAnalyticsPage(
         ) : (
           <AdminEmptyState
             compact
-            title="Vercel acquisition data is unavailable"
-            description="Pageviews still collect after consent. Server reporting needs VERCEL_ACCESS_TOKEN, VERCEL_PROJECT_ID, and VERCEL_ORG_ID."
+            title={acquisition.status === "not-configured"
+              ? "Google Analytics reporting is not configured"
+              : acquisition.status === "no-data"
+                ? "No Google Analytics data in this range"
+                : "Google Analytics reporting is temporarily unavailable"}
+            description={acquisition.status === "not-configured"
+              ? "Configure GA4_PROPERTY_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY in the server environment."
+              : acquisition.status === "no-data"
+                ? "Consented visitor reports will appear here after Google Analytics records activity in this date range."
+                : "Google Analytics could not return this report. The dashboard will continue to show marketplace database totals."}
           />
         )}
       </section>

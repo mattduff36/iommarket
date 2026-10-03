@@ -7,6 +7,7 @@ import { launchWelcomeEnvironment, PUBLIC_LAUNCH_AT } from "@/lib/launch/preview
 import { ConsentedAnalytics } from "@/components/layout/consented-analytics";
 import { MarketingMeasurement } from "@/components/advertising/marketing-measurement";
 import { publicAdvertisingConfig } from "@/lib/advertising/config";
+import { googleTagConfig } from "@/lib/analytics/google-tag";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { defaultSocialImage, resolvePageRobots } from "@/lib/seo/page-metadata";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
@@ -78,7 +79,7 @@ export default function RootLayout({
             />
           )}
           <ClientErrorListener />
-          <ConsentedAnalytics />
+          <ConsentedAnalytics {...googleTagConfig()} />
           <MarketingMeasurement config={publicAdvertisingConfig()} />
         </ThemeProvider>
       </body>
