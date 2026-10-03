@@ -90,8 +90,11 @@ export async function loadBusinessFunnel(input: {
 export function analyticsRange(value: string | undefined, now = new Date()) {
   const key = value === "7d" || value === "90d" ? value : "30d";
   const days = key === "7d" ? 7 : key === "90d" ? 90 : 30;
+  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   return {
     key,
-    since: new Date(now.getTime() - days * 24 * 60 * 60 * 1000),
+    days,
+    since,
+    previousSince: new Date(since.getTime() - days * 24 * 60 * 60 * 1000),
   };
 }
