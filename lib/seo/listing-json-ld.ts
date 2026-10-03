@@ -73,7 +73,7 @@ export function buildSiteIdentityJsonLd(origin: string) {
         "@id": `${origin}/#organization`,
         name: "iTrader.im",
         url: site,
-        logo: `${origin}/og/itrader-social.png`,
+        logo: `${origin}/images/logo-itrader-hq.png`,
       },
       {
         "@type": "WebSite",
