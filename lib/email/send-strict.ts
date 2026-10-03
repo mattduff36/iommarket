@@ -1,4 +1,4 @@
-import { getResendClient, getFromEmail } from "@/lib/email/client";
+import { getResendClient, getFromEmail, isSyntheticEmailRecipient } from "@/lib/email/client";
 
 export async function sendStrictResendEmail(input: {
   to: string;
@@ -9,6 +9,7 @@ export async function sendStrictResendEmail(input: {
   from?: string;
   replyTo?: string;
 }): Promise<{ id: string }> {
+  if (isSyntheticEmailRecipient(input.to)) throw new Error("Email delivery is disabled for synthetic development identities.");
   const resend = getResendClient();
   if (!resend) {
     throw new Error("Email delivery is not configured.");

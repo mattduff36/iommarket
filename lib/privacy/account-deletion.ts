@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getPolicyFlags } from "@/lib/policy/flags";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { deleteImage } from "@/lib/upload/cloudinary";
+import { isDatabaseSyncReference } from "@/lib/images/database-sync-reference";
 
 const LEASE_MS = 5 * 60_000;
 const RETRY_MS = 15 * 60_000;
@@ -53,7 +54,7 @@ export async function hasActiveLegalHold(entityType: string, entityId: string) {
 }
 
 function cloudinaryPublicIdFromUrl(url: string | null | undefined) {
-  if (!url) return null;
+  if (!url || isDatabaseSyncReference(url)) return null;
   try {
     const parsed = new URL(url);
     if (!parsed.hostname.endsWith("res.cloudinary.com")) return null;
@@ -242,7 +243,7 @@ export async function processAccountDeletionJob(job: AccountDeletionJob) {
     });
     if (!user) throw new AccountDeletionError("User not found");
 
-    if (user.authUserId && !user.authUserId.startsWith("deleted:")) {
+    if (user.authUserId && !user.authUserId.startsWith("deleted:") && !user.authUserId.startsWith("database-sync:")) {
       const admin = createSupabaseAdminClient();
       const { error } = await admin.auth.admin.deleteUser(user.authUserId);
       if (error && !/not found|user not found/i.test(error.message)) {

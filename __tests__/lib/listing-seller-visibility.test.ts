@@ -6,6 +6,7 @@ const { dealerFindFirstMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    siteSetting: { findMany: vi.fn().mockResolvedValue([]) },
     dealerProfile: {
       findFirst: dealerFindFirstMock,
     },

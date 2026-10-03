@@ -1,42 +1,54 @@
-# Production-to-development database sync
+# Production-to-development database management
 
-The staging admin page at `/admin/database` is currently an inspection tool. It does not copy, reset, merge, migrate, or alter either database. The page is available only when the server identifies this deployment as staging and the signed-in user is an admin. It reports a selected set of table counts, public table structure, Prisma migration agreement, and blockers. Counts are a momentary observation, not a backup or an approval to sync.
+This design powers the staging-only `/admin/database` page. Code and local verification do not establish that a live sync has run: record the deployed commit, reviewed plan and successful application separately. Production remains a read-only source throughout.
 
-## Connections and permissions
+## Access and configuration
 
-Set `DATABASE_SYNC_SOURCE_READONLY_URL` **only on the staging deployment** after creating a dedicated production PostgreSQL role with SELECT on the required production tables. This key is never inferred from `.env.production`, a normal application connection, or production service-role credentials. The destination is the staging application's existing preview-project database connection. The preflight checks the known Supabase project identities and refuses a writable, owner, superuser, bypass-RLS, role-creation, database-creation, replication, or elevated server-file source role. It also runs all SQL inside `BEGIN READ ONLY` with a statement timeout.
+Every page/action requires a development administrator and the server-verified staging environment. Mutations require the exact `https://staging.itrader.im` Origin. Explicitly configured local development may use its exact localhost origin; missing or foreign origins are rejected. The production deployment cannot expose or run these tools.
 
-Grant creation, credential installation, and any remote database access require separate review. Grant only the SELECT and catalog visibility needed for inspection; future Auth and Storage reads require a separate design. Do not place database URLs, passwords, exports, personal data, or provider credentials in tickets, logs, the browser response, or version control.
+`DATABASE_SYNC_SOURCE_READONLY_URL` is configured only on staging and points to a dedicated `itrader_staging_reader` production role. The worker never derives it from the application's production connection. The destination is the existing verified development Supabase project. Both identities and source privileges are checked before preparing a snapshot.
 
-## Replace development
+The reader has SELECT on 15 named tables: the 12 sync tables below plus `DealerPreviewPack`, `Subscription` and `_prisma_migrations`. The latter tables support exclusion, public visibility and compatibility checks; they are not copied. The role has no write, ownership, elevated server-file, role-membership or administration privileges. Role-scoped SELECT policies support complete inspection under RLS. Source reads run in a read-only transaction with bounded timeouts. See `PRODUCTION-READER.sql` and the provisioning script for exact grants.
 
-Replace means a verified production snapshot becomes the development marketplace state. Development-only rows disappear unless explicitly preserved and restored. A production snapshot can include real customer accounts, payments, subscriptions, consent records, and contact information; staging must suppress all external side effects before such records become visible to application workers. A complete workflow needs:
+A staging-only `DATABASE_SYNC_ENCRYPTION_KEY` protects snapshots and recovery backups with AES-256-GCM. Records live in the private `staging_admin.database_sync_runs` store, outside public application data. Retain the encryption key securely: losing it prevents backup recovery. Never place connection strings, keys, row exports or customer data in logs, browser responses or version control.
 
-1. A table-by-table manifest of data to copy, exclude, transform, and preserve, checked against the live schema and foreign keys.
-2. A consistent read-only production snapshot, plus independently verified destination backup and rollback instructions.
-3. Paused staging writers, background jobs, webhooks, notifications, payment capture, and monitoring alerts while the restore runs.
-4. A destination-only restore that verifies project identities again immediately before writing. Production credentials must not be usable for writes by this worker.
-5. Explicit Supabase Auth identity/session treatment and Storage object copy or URL rewrite. The application `User.authUserId` values must match destination Auth users. Copying only public tables breaks sign-in; copying live sessions or refresh tokens is unacceptable.
-6. Post-copy migration, integrity, row-count, Auth, image, login, listing and payment-simulator checks before staging traffic resumes.
-7. Reinstatement of development-only checklist and preview packs from separately verified staging backups, if those are to survive Replace.
+## The three operations
 
-## Merge into development
+| Operation | Behaviour |
+|---|---|
+| Replace development | Make the ordinary development marketplace reflect the approved production snapshot. Preserve administrators, checklist and dealer preview packs. Remove development-only rows where safe; archive listings and hide dealer profiles when history must remain. |
+| Merge production into development | Add or update approved production records while retaining development-only records. Use explicit source IDs, natural-key checks and per-table rules. Conflicts block application rather than silently combining unrelated identities. |
+| Reset development | Clear the ordinary development marketplace without copying production. Preserve administrators, checklist, preview packs and required history. Archive/hide referenced records instead of erasing their history. |
 
-Merge retains development-only records and adds or updates approved production records. It is a separate operation from Replace. It needs stable natural or source IDs, per-table conflict rules, foreign-key mapping, deletion policy, privacy review, and a dry-run diff that names exactly which rows would be inserted, updated, preserved, or rejected. It must never silently reconcile money, identity, legal-retention, or pending work records by generic `upsert`. A skipped conflict remains visible in the report.
+Reset is **not** backup restore. Recovery from a verified encrypted backup is a separate, reviewed manual procedure.
 
-## Initial data policy to refine before enabling either mode
+The owner approved archiving the existing 302 development listings and hiding the 13 development dealer profiles while retaining their payment and review history. These are the reviewed starting counts, not permanent constants. Each new plan computes fresh archive/hide counts and separately reports physical deletions. Do not equate hiding or archiving with deleting history.
 
-| Data | Initial policy |
-| --- | --- |
-| Vehicle catalogue, categories, regions, published content | Candidate for copy or merge after schema and reference checks. |
-| Listings, listing images, dealer profiles | Copy only with owner identity and image objects/URLs resolved. Preserve genuine live stock; never hide all rows linked to a preview pack as a shortcut. |
-| `DealerPreviewPack`, admin preview dealers, sample listings/checkouts | Staging-only. Preserve from staging backup on Replace; exclude from production import unless a named pack is deliberately mapped and reviewed. |
-| `SiteSetting(admin_checklist)` | Staging is the only checklist writer. Preserve its one staging row on Replace; never import a production checklist row. Production UI and actions stay closed. |
-| Other `SiteSetting` rows | Review keys individually. Pricing, sample visibility, launch controls, alert recipients/webhooks, and cost settings can change behavior or send external messages. |
-| Supabase Auth, `User`, policy acceptance, favourites, saved searches, waitlist | Treat as linked identity and personal data. Define consent, retention, role mapping, test-account and sign-in behavior before any copy. |
-| Payments, subscriptions, charges, webhook inboxes | Never activate cloned provider IDs, pending retries, or real entitlements in staging. Define a verified inert snapshot policy and simulator separation. |
-| Email, cost, onboarding and deletion outboxes/jobs | Exclude or neutralize pending side effects; decide whether historical records are useful before import. |
-| Monitoring issues/events/alert deliveries/pipeline health | Keep production and staging separate. A staging dashboard may show a source-labelled read-only production summary without merging records or replaying alerts. |
-| Audit logs, retention holds/runs, account deletion jobs | Preserve provenance and legal constraints. Do not reattribute historical actors or release holds during a sync. |
+## Copy, preserve and exclude policy
 
-The preflight page intentionally has no Replace or Merge button. Add those only after the worker, backup, Auth/Storage plan, audited per-table policy, conflict report, and rollback have been reviewed and tested against disposable data. A successful inspection alone does not authorize database mutation.
+The explicit sync manifest covers `Region`, `Category`, `AttributeDefinition`, `VehicleMake`, `VehicleModel`, `VehicleModelAlias`, `User`, `DealerProfile`, `Listing`, `ListingImage`, `ListingAttributeValue` and `ContentPage`. The source extractor and sanitizer select only approved fields.
+
+- Copied application users receive synthetic, non-login identities and sanitised personal details. Supabase Auth users, passwords, sessions and tokens are not copied. Existing development administrators keep their accounts.
+- Live payment IDs, subscriptions, entitlements, jobs, consent events, audit history and private storage are not cloned. Existing development payment/review history remains attached to retained records.
+- A separate staging visibility registry mirrors eligible public dealers for marketplace browsing. It grants no payment entitlement and does not turn a copied dealer into a paid account.
+- The single development checklist and dealer preview packs are preserved, along with their required related records. Production is not given a second checklist table.
+- Listing media is copied as read-only `EXTERNAL` references, with deterministic `database-sync/<hash>` IDs and no Cloudinary asset ownership or upload-intent references. Signed originals retain their actual dimensions. Cleanup refuses this namespace before any provider request.
+- Public Supabase dealer logo URLs remain production read-only references; development deletion requires its own exact storage origin and ownership path. Verified Cloudinary logos carry a read-only URL fragment recognized by both account-cleanup paths, so staging cannot claim deletion ownership. Unsupported hosts or media accounts fail closed.
+
+## Review and application
+
+1. Inspect connection identity, source privileges, schema, migration compatibility and table counts.
+2. Prepare Replace, Merge or Reset. Preparation creates a frozen plan and encrypted development recovery snapshot; it does not apply marketplace changes.
+3. Review additions, updates, physical removals, preserved/skipped rows, archive/hide totals and blockers. The browser receives summaries only, never full rows, hashes or backup material.
+4. Within 30 minutes, type the exact confirmation: `REPLACE DEVELOPMENT`, `MERGE INTO DEVELOPMENT` or `RESET DEVELOPMENT`.
+5. Application rechecks the administrator, operation ownership, expiry, encryption integrity, destination identity, protected records and destination snapshot. A changed destination invalidates the plan. Prepare again; no silent merge with concurrent edits is allowed.
+6. The destination transaction and advisory lock serialize changes. Foreign-key references are examined before deletion, and protected records are checked again after application. Verification failures roll back the transaction.
+7. Review the applied entry, counts, protected administrator sign-in, checklist, preview packs, marketplace visibility and read-only images. Record actual results rather than treating a successful preparation as a completed sync.
+
+Preparation is rate-limited, and snapshots have row/size limits. A blocked or oversized plan requires investigation or a separately reviewed maintenance procedure, not bypassing guards. Keep staging email, payment and advertising side effects disabled as configured; copying data must not activate real customers, live tracking or billing.
+
+## Recovery and release
+
+Keep the verified encrypted pre-change snapshot and its matching key. A recovery operator must verify the intended development project, decrypt and inspect the backup privately, account for intervening changes, and restore only the approved development scope. Never use Reset as recovery and never target production with a restore.
+
+All changes go through `staging` first. Verify its deployment and user-facing behaviour, then obtain approval for a staging-to-main pull request. Do not push directly to `main`. Installing production reader permissions changes access configuration only; sync application writes are confined to development.

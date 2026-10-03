@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getPublicDealerWhere } from "@/lib/dealers/access";
-import { DEFAULT_SAMPLE_VISIBILITY, type SampleVisibility } from "./sample-visibility";
+import { DEFAULT_SAMPLE_VISIBILITY, getSampleVisibility, type SampleVisibility } from "./sample-visibility";
 
 /** Keep the advert's moderation state intact when dealer membership ends. */
 export function publicListingSellerWhere(
@@ -32,7 +32,7 @@ export const hasPublicListingSellerAccess = cache(
     if (!dealerId) return true;
     return Boolean(await db.dealerProfile.findFirst({
       where: {
-        AND: [{ id: dealerId }, getPublicDealerWhere()],
+        AND: [{ id: dealerId }, getPublicDealerWhere(new Date(), await getSampleVisibility())],
       },
       select: { id: true },
     }));
