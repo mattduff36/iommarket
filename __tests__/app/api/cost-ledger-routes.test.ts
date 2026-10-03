@@ -94,6 +94,9 @@ describe("canonical cost ledger API", () => {
     );
     expect(response.status).toBe(200);
     expect(assertCanonicalLedgerWriter).toHaveBeenCalled();
+    expect(getCostDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true, isOwner: true }),
+    );
     await expect(response.json()).resolves.toMatchObject({
       data: {
         enabled: true,

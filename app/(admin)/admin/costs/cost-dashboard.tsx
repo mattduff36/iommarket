@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { CostProviderRefresh } from "./cost-provider-refresh";
 import { CostUsagePanel } from "./cost-usage-panel";
+import { CostSourceAudit } from "./cost-source-audit";
 import {
   COST_EMPTY_HELP,
   COST_INVOICE_HELP,
@@ -44,8 +45,8 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
   return (
     <>
       <AdminPageHeader
-        title="Costs"
-        description="Review live project costs, invoiceable totals, provider sync health, and invoice requests."
+        title="iTrader cost audit"
+        description="See how unsettled project costs build up, what each category contributes, and the detail behind each charge."
         actions={
           <RequestInvoiceButton
             label={dashboard.requestButtonLabel}
@@ -58,13 +59,14 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-text-secondary">
-              Current live total
+              Current ledger total
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-text-primary">
               {dashboard.projectedTotalLabel}
             </p>
+            <p className="mt-2 text-sm text-text-secondary">All unsettled ledger periods</p>
           </CardContent>
         </Card>
         <Card>
@@ -103,15 +105,10 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
       ) : null}
 
       {dashboard.sections.length > 0 ? (
-        <CostUsagePanel sections={dashboard.sections} isOwner={dashboard.isOwner} />
+        <CostUsagePanel sections={dashboard.sections} isOwner={dashboard.isOwner} cursorAudit={dashboard.cursorAudit} />
       ) : null}
 
-      <div className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-low">
-        <h2 className="text-sm font-medium text-text-secondary">Projected total</h2>
-        <p className="mt-2 text-2xl font-bold tabular-nums text-text-primary">
-          {dashboard.projectedTotalLabel}
-        </p>
-      </div>
+      {dashboard.sections.length === 0 && dashboard.isOwner && dashboard.cursorAudit ? <CostSourceAudit audit={dashboard.cursorAudit} /> : null}
 
       {dashboard.accountsPreview?<p className="mb-6 text-sm text-text-secondary">Isolated preview: Accounts costs are shown for testing. Invoice requests, confirmations and manual entries affect only this preview. Notifications are captured without sending email; no live invoice is created.</p>:null}
 

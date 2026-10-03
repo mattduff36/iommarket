@@ -53,6 +53,8 @@ export interface CostSyncHealthDto {
 
 export interface CostDashboardDto {
   accountsPreview?: boolean;
+  /** Owner-only source audit. Values remain in their reported USD denomination. */
+  cursorAudit?: CursorAuditDto;
   enabled: boolean;
   startedAt: string | null;
   isOwner: boolean;
@@ -77,6 +79,32 @@ export interface CostDashboardDto {
   ledgerRevision: string | null;
   ledgerAsOf: string | null;
   manualCategories: Array<{ slug: string; label: string }>;
+}
+
+export interface CursorAuditDto {
+  status: "available" | "partial" | "unavailable";
+  reason: string | null;
+  currency: "USD";
+  rows: Array<{
+    day: string;
+    model: string;
+    funding: "included" | "on-demand";
+    eventCount: number;
+    nominalUsd: string;
+    nominalBasis: "provider-reported" | "rate-card-estimate" | "mixed" | "unavailable";
+    nominalMissingEvents: number;
+    providerChargeUsd: string;
+    clientUsd: string;
+    sourceQuality: "complete" | "partial" | "unknown";
+    displayDiverged: boolean;
+  }>;
+}
+
+export function cursorAuditForViewer(
+  audit: CursorAuditDto | undefined,
+  isOwner: boolean,
+): CursorAuditDto | undefined {
+  return isOwner ? audit : undefined;
 }
 
 export function toCostLineDto(input: {

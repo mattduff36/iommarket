@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
   const dashboard = await getCostDashboard({
     db: costDb,
     enabled: true,
-    isOwner: false,
+    // This endpoint is bearer-authenticated and consumed server-to-server;
+    // the receiving app removes this owner-only payload before serialization
+    // for any non-owner session.
+    isOwner: true,
   });
   return NextResponse.json({
     data: {

@@ -16,6 +16,7 @@ import { minorToSafeNumber, sumMinor, ZERO_MINOR } from "@/lib/costs/money";
 import { assertAccountsPreview, ACCOUNTS_PREVIEW_CATEGORIES, ACCOUNTS_PREVIEW_START } from "./accounts-preview";
 import { PREVIEW_ENTRY_WHERE, PREVIEW_REQUEST_WHERE } from "./accounts-projection";
 import type { AccountsSnapshot } from "./accounts-snapshot";
+import { buildCursorAudit } from "./cursor-audit";
 
 const STALE_SYNC_MS = 36 * 60 * 60 * 1000;
 
@@ -107,6 +108,25 @@ export async function getCostDashboard(input: {
     listManualCostCategories(input.accountsSnapshot?ACCOUNTS_PREVIEW_CATEGORIES:undefined),
   ]);
 
+  const cursorAudit = input.isOwner
+    ? input.accountsSnapshot
+      ? {
+          status: "unavailable" as const,
+          reason: "The Accounts preview snapshot contains aggregated GBP lines only; it has no verifiable model or funding breakdown.",
+          currency: "USD" as const,
+          rows: [],
+        }
+      : buildCursorAudit(await input.db.costEntry.findMany({
+          where: {
+            settlement: { is: null },
+            category: "CURSOR",
+            kind: "CHARGE",
+            reversedBy: { none: {} },
+          },
+          select: { sourceSnapshot: { select: { metadata: true } } },
+        }).then((rows) => rows.map((row) => row.sourceSnapshot)))
+    : undefined;
+
   const projected = sumMinor(entries.map((entry) => entry.markedGbpMinor));
   const invoiceable = pending
     ? ZERO_MINOR
@@ -169,5 +189,6 @@ export async function getCostDashboard(input: {
     ledgerRevision: input.accountsSnapshot?.revision ?? latestSync?.checksum ?? latestSync?.id ?? null,
     ledgerAsOf: syncCompletedAt?.toISOString() ?? null,
     manualCategories,
+    ...(cursorAudit ? { cursorAudit } : {}),
   };
 }

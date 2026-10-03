@@ -9,7 +9,7 @@ import { costDb } from "@/lib/costs/db";
 import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
 import { fetchRemoteCostDashboard } from "@/lib/costs/remote-ledger";
 import { DEFAULT_MANUAL_COST_CATEGORIES } from "@/lib/costs/manual-categories";
-import type { CostDashboardDto } from "@/lib/costs/dto";
+import { cursorAuditForViewer, type CostDashboardDto } from "@/lib/costs/dto";
 import { CostDashboardView } from "./cost-dashboard";
 import { syncAccountsPreview } from "@/lib/costs/accounts-projection";
 
@@ -83,6 +83,7 @@ export default async function AdminCostsPage() {
         dashboard={{
           ...dashboard,
           isOwner,
+          cursorAudit: cursorAuditForViewer(dashboard.cursorAudit, isOwner),
           affectsLiveLedger: true,
           manualCategories: dashboard.manualCategories?.length
             ? dashboard.manualCategories
