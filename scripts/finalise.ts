@@ -12,6 +12,7 @@ import { assertNoBlockingCursorActivity } from "./finalise/activity-guard";
 import { clearFinaliseFailureArtifact, writeFinaliseFailureArtifact } from "./finalise/failure";
 import {
   commitAllChanges,
+  assertCurrentBranchPushAllowed,
   getChangedFileStats,
   getCurrentBranch,
   getUnmergedFiles,
@@ -99,6 +100,7 @@ function main() {
   }
 
   const branch = getCurrentBranch(REPO_ROOT);
+  if (options.push) assertCurrentBranchPushAllowed(REPO_ROOT);
   const steps = getFinaliseVerifySteps(options.full);
 
   if (options.dryRun) {

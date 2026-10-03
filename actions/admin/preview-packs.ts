@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import {
   materializePreviewPack,
   previewPackExists,
@@ -26,6 +27,7 @@ function revalidatePreviewSurfaces() {
 
 export async function enablePreviewPack(input: { dealerKey: string }) {
   await requireRole("ADMIN");
+  if (!isStagingOnlyFeatureEnabled()) return { error: "Preview packs are unavailable in this environment." };
   const parsed = dealerKeySchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid dealer key." };
   try {
@@ -49,6 +51,7 @@ export async function enablePreviewPack(input: { dealerKey: string }) {
 
 export async function disablePreviewPack(input: { dealerKey: string }) {
   await requireRole("ADMIN");
+  if (!isStagingOnlyFeatureEnabled()) return { error: "Preview packs are unavailable in this environment." };
   const parsed = dealerKeySchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid dealer key." };
   try {

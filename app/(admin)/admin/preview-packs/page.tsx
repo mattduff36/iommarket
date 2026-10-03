@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import {
   listAvailablePreviewArchives,
   listablePreviewPackRows,
@@ -28,6 +30,7 @@ export default async function PreviewPacksPage({
 }: {
   searchParams: Promise<{ sort?: string; dir?: string }>;
 }) {
+  if (!isStagingOnlyFeatureEnabled()) notFound();
   const params = await searchParams;
   const sort = parseAdminSort(params, PREVIEW_PACK_TABLE_COLUMNS, PREVIEW_PACK_TABLE_SORT);
   const [archive, packs, sampleVisibility] = await Promise.all([

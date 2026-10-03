@@ -95,6 +95,12 @@ export function resolveAdvertisingDestination(
   if (requested === "live" && deployment !== "production") {
     return off(deployment, "live delivery is refused outside production");
   }
+  if (requested === "live") {
+    // Payment reporting currently depends on the return visit, and consent
+    // cannot yet be recovered for webhook delivery. Do not let credentials
+    // alone activate production conversion reporting.
+    return off(deployment, "live delivery awaits durable consent and payment outcome reporting");
+  }
   if (deployment === "unknown") return off(deployment, "unknown deployment cannot deliver advertising");
 
   const liveMeta = cleanMetaId(env.META_DATASET_ID);
@@ -111,14 +117,18 @@ export function resolveAdvertisingDestination(
   const meta = readMeta(env, requested);
   const ga4 = readGa4(env, requested);
   const googleAds = readGoogleAds(env, requested);
-  if (!meta && !ga4 && !googleAds) return off(deployment, "credentials missing");
+  // A configured conversion label is not a working Google Ads integration.
+  // No conversion event is emitted for it yet, so do not count it as delivery.
+  if (!meta && !ga4) {
+    return off(deployment, googleAds ? "Google Ads conversion delivery is not implemented" : "credentials missing");
+  }
   return {
     mode: requested,
     deployment,
     reason: "configured",
     meta,
     ga4,
-    googleAds,
+    googleAds: null,
   };
 }
 

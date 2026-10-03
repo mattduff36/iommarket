@@ -20,6 +20,7 @@ import {
 } from "@/lib/dealers/onboarding/session-cutoff";
 import { shouldBypassSupabaseSessionRefresh } from "@/lib/supabase/proxy-routing";
 import { applyIndexingHeader } from "@/lib/seo/indexing-policy";
+import { stagingAccessResponse } from "@/lib/deployment/staging-access";
 
 export function isPublicPath(pathname: string): boolean {
   if (
@@ -211,6 +212,8 @@ async function routeProxy(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const staging = await stagingAccessResponse(request);
+  if (staging) return applyIndexingHeader(staging, request.nextUrl.pathname);
   const response = await routeProxy(request);
   return applyIndexingHeader(response, request.nextUrl.pathname);
 }

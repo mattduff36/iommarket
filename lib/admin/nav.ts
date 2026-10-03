@@ -54,6 +54,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Analytics", href: "/admin/analytics", icon: "analytics", group: "insights" },
   { label: "Advertising", href: "/admin/advertising", icon: "analytics", group: "insights" },
   { label: "Monitoring", href: "/admin/monitoring", icon: "monitoring", group: "insights" },
+  { label: "Database", href: "/admin/database", icon: "settings", group: "insights" },
   { label: "Settings", href: "/admin/settings", icon: "settings", group: "insights" },
 ];
 

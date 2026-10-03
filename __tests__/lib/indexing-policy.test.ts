@@ -67,6 +67,7 @@ describe("search indexing policy", () => {
     setNodeEnv("production");
     const response = await proxy(new NextRequest("https://itrader.im/holding"));
     expect(response.headers.get("x-robots-tag")).toBe("noindex");
-    expect(response.headers.get("location")).toContain("/");
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 });

@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - staging
   pull_request:
     branches:
       - main
+      - staging
 
 permissions:
   contents: read
@@ -20,6 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require staging as the production PR source
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          PR_BASE: ${{ github.base_ref }}
+          PR_HEAD: ${{ github.head_ref }}
+        run: |
+          if [ "$PR_BASE" = "main" ] && [ "$PR_HEAD" != "staging" ]; then
+            echo "Production pull requests must come from staging."
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v4
 

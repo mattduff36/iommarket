@@ -5,6 +5,7 @@ import { AdminNavLink } from "@/components/admin/admin-nav-link";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
 import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { LiveAccountUpdates } from "@/components/account/live-account-updates";
 
 export default async function AdminLayout({
@@ -15,7 +16,12 @@ export default async function AdminLayout({
   const admin = await isAdmin();
   if (!admin) redirect("/");
   const checklistEnabled = isAdminChecklistEnabled();
-  const navigation = ADMIN_NAV.filter((item) => item.icon !== "checklist" || checklistEnabled);
+  const stagingFeaturesEnabled = isStagingOnlyFeatureEnabled();
+  const navigation = ADMIN_NAV.filter((item) =>
+    (item.icon !== "checklist" || checklistEnabled) &&
+    (item.icon !== "preview-packs" || stagingFeaturesEnabled) &&
+    (item.href !== "/admin/database" || stagingFeaturesEnabled),
+  );
 
   return (
     <div className="flex min-h-screen flex-col">

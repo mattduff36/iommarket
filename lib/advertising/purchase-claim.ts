@@ -11,7 +11,9 @@ export async function claimPurchaseDelivery(
   const env = options.env ?? process.env;
   const url = env.UPSTASH_REDIS_REST_URL?.trim();
   const token = env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  if (!url || !token) return claimAdvertisingEvent(`purchase:${transactionId}`);
+  // This claim is distinct from the provider delivery claim. Using the event ID
+  // here causes deliverAdvertisingEvents to discard every purchase as a duplicate.
+  if (!url || !token) return claimAdvertisingEvent(`purchase-claim:${transactionId}`);
   try {
     const endpoint = `${url.replace(/\/$/, "")}/set/${encodeURIComponent(`ad-purchase:${transactionId}`)}/1/NX/EX/${CLAIM_TTL_SECONDS}`;
     const response = await (options.fetchImpl ?? fetch)(endpoint, {

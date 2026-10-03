@@ -74,6 +74,27 @@ describe("advertising destination isolation", () => {
       META_CAPI_ACCESS_TOKEN: liveToken,
     }).mode).toBe("off");
   });
+
+  it("blocks live activation and does not claim Google Ads conversion delivery", () => {
+    const live = resolveAdvertisingDestination({
+      VERCEL_ENV: "production",
+      NODE_ENV: "production",
+      ADVERTISING_DELIVERY: "live",
+      META_DATASET_ID: "1111111111",
+      META_CAPI_ACCESS_TOKEN: liveToken,
+    });
+    expect(live.mode).toBe("off");
+    expect(live.reason).toMatch(/durable consent/i);
+    const googleOnly = resolveAdvertisingDestination({
+      VERCEL_ENV: "preview",
+      NODE_ENV: "production",
+      ADVERTISING_DELIVERY: "test",
+      GOOGLE_ADS_TEST_ID: "AW-123456789",
+      GOOGLE_ADS_TEST_CONVERSION_LABEL: "Label123",
+    });
+    expect(googleOnly.mode).toBe("off");
+    expect(googleOnly.reason).toMatch(/not implemented/i);
+  });
 });
 
 describe("advertising events", () => {
@@ -117,12 +138,78 @@ describe("advertising events", () => {
     expect(failed.delivered).toBe(false);
     expect(failed.reason).toBe("provider_error");
     expect(calls).toBe(2);
+    const retried = await deliverAdvertisingEvents([event], {
+      env,
+      fetchImpl: async () => new Response("ok", { status: 200 }),
+      sleep: async () => undefined,
+    });
+    expect(retried.delivered).toBe(true);
     const duplicate = await deliverAdvertisingEvents([event], {
       env,
       fetchImpl: async () => new Response("ok", { status: 200 }),
       sleep: async () => undefined,
     });
     expect(duplicate.reason).toBe("duplicate");
+  });
+
+  it("uses a separate purchase claim when Redis is absent", async () => {
+    resetAdvertisingDeliveryForTests();
+    expect(await claimPurchaseDelivery("payment_2", { env: {} })).toBe(true);
+    let calls = 0;
+    const result = await deliverAdvertisingEvents([
+      buildServicePurchaseEvent({ transactionId: "payment_2", amountPence: 499, currency: "gbp" })!,
+    ], {
+      env: {
+        VERCEL_ENV: "preview",
+        NODE_ENV: "production",
+        ADVERTISING_DELIVERY: "test",
+        GA4_TEST_MEASUREMENT_ID: "G-TEST1234",
+        GA4_TEST_API_SECRET: "ga4-test-secret",
+      },
+      fetchImpl: async () => {
+        calls += 1;
+        return new Response(null, { status: 204 });
+      },
+    });
+    expect(result.delivered).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it("retries only the failed provider after partial delivery", async () => {
+    resetAdvertisingDeliveryForTests();
+    const env = {
+      VERCEL_ENV: "preview",
+      NODE_ENV: "production",
+      ADVERTISING_DELIVERY: "test",
+      META_TEST_DATASET_ID: "2222222222",
+      META_TEST_CAPI_ACCESS_TOKEN: testToken,
+      GA4_TEST_MEASUREMENT_ID: "G-TEST1234",
+      GA4_TEST_API_SECRET: "ga4-test-secret",
+    };
+    const event = { eventName: "ViewContent" as const, eventId: "view-unique-event-1" };
+    const calls: string[] = [];
+    const first = await deliverAdvertisingEvents([event], {
+      env,
+      fetchImpl: async (url) => {
+        calls.push(String(url));
+        return String(url).includes("facebook.com")
+          ? new Response("ok", { status: 200 })
+          : new Response("error", { status: 500 });
+      },
+      sleep: async () => undefined,
+    });
+    expect(first.reason).toBe("provider_error");
+    const retried = await deliverAdvertisingEvents([event], {
+      env,
+      fetchImpl: async (url) => {
+        calls.push(String(url));
+        return new Response(null, { status: 204 });
+      },
+      sleep: async () => undefined,
+    });
+    expect(retried.delivered).toBe(true);
+    expect(calls.filter((url) => url.includes("facebook.com"))).toHaveLength(1);
+    expect(calls.filter((url) => url.includes("google-analytics.com"))).toHaveLength(3);
   });
 
   it("claims a purchase once and sends GA4 a transaction id", async () => {
@@ -151,7 +238,7 @@ describe("advertising events", () => {
       },
       fetchImpl: async (_url, init) => {
         body = String(init?.body ?? "");
-        return new Response("ok", { status: 204 });
+        return new Response(null, { status: 204 });
       },
       sleep: async () => undefined,
     });

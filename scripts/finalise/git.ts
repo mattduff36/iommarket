@@ -96,6 +96,29 @@ export function getCurrentBranch(repoRoot: string) {
   return runCommand(repoRoot, "git", ["branch", "--show-current"], { captureOutput: true }).stdout.trim();
 }
 
+export function assertPushTargetIsNotMain(branch: string, upstream: string | null) {
+  const target = upstream?.trim() || branch;
+  const targetBranch = target.replace(/^.*\//u, "");
+  if (branch === "main" || targetBranch === "main") {
+    throw new Error(
+      "Direct pushes to main are blocked. Push changes to staging and merge them through an approved pull request.",
+    );
+  }
+}
+
+export function assertCurrentBranchPushAllowed(repoRoot: string) {
+  const branch = getCurrentBranch(repoRoot);
+  if (!branch) throw new Error("Cannot push from a detached HEAD state");
+  const upstream = runCommand(repoRoot, "git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], {
+    captureOutput: true,
+    allowFailure: true,
+  });
+  assertPushTargetIsNotMain(
+    branch,
+    upstream.status === 0 && upstream.stdout.trim() ? upstream.stdout.trim() : null,
+  );
+}
+
 export function commitAllChanges(repoRoot: string, commitMessage: string) {
   if (!hasUncommittedChanges(repoRoot)) return false;
   runCommand(repoRoot, "git", ["add", "-A"]);
@@ -110,6 +133,10 @@ export function pushCurrentBranch(repoRoot: string) {
     captureOutput: true,
     allowFailure: true,
   });
+  assertPushTargetIsNotMain(
+    branch,
+    upstream.status === 0 && upstream.stdout.trim() ? upstream.stdout.trim() : null,
+  );
   if (upstream.status === 0 && upstream.stdout.trim().length > 0) {
     runCommand(repoRoot, "git", ["push"]);
     return branch;

@@ -5,6 +5,7 @@ const {
   logAdminActionMock,
   captureExceptionMock,
   revalidatePathMock,
+  stagingFeatureEnabledMock,
   mockDb,
 } = vi.hoisted(() => {
   const mockDb = {
@@ -24,6 +25,7 @@ const {
     logAdminActionMock: vi.fn(),
     captureExceptionMock: vi.fn(),
     revalidatePathMock: vi.fn(),
+    stagingFeatureEnabledMock: vi.fn(),
     mockDb,
   };
 });
@@ -48,6 +50,10 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
 
+vi.mock("@/lib/deployment/environment", () => ({
+  isStagingOnlyFeatureEnabled: stagingFeatureEnabledMock,
+}));
+
 import {
   loadChecklist,
   saveChecklist,
@@ -66,7 +72,7 @@ const NEXT_ROW_UPDATED_AT = new Date("2026-08-14T21:06:00.000Z");
 describe("loadChecklist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_CHECKLIST_ENABLED = "1";
+    stagingFeatureEnabledMock.mockReturnValue(true);
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -136,7 +142,7 @@ describe("loadChecklist", () => {
 describe("saveChecklist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_CHECKLIST_ENABLED = "1";
+    stagingFeatureEnabledMock.mockReturnValue(true);
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -239,7 +245,7 @@ describe("saveChecklist", () => {
 describe("updateChecklistCompletion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_CHECKLIST_ENABLED = "1";
+    stagingFeatureEnabledMock.mockReturnValue(true);
     requireRoleMock.mockResolvedValue({
       id: "cladminxxxxxxxxxxxxxxxxxx",
       role: "ADMIN",
@@ -316,7 +322,7 @@ describe("updateChecklistCompletion", () => {
 describe("disabled checklist actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_CHECKLIST_ENABLED = "0";
+    stagingFeatureEnabledMock.mockReturnValue(false);
     requireRoleMock.mockResolvedValue({ id: "cladminxxxxxxxxxxxxxxxxxx", role: "ADMIN" });
   });
 

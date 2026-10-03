@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { db } from "@/lib/db";
 import { invalidateSettingsCache, SETTING_KEYS } from "@/lib/config/site-settings";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
@@ -31,6 +32,7 @@ function revalidateMarketplaceSurfaces() {
 
 export async function getPreviewControls() {
   await requireRole("ADMIN");
+  if (!isStagingOnlyFeatureEnabled()) return { error: "Preview controls are unavailable in this environment." };
   const [packs, sampleVisibility] = await Promise.all([
     db.dealerPreviewPack.findMany({
       where: { dealerKey: { notIn: [...ARCHIVED_PREVIEW_DEALER_KEYS] } },
@@ -63,6 +65,7 @@ export async function setSampleListingVisibility(input: {
   visible: boolean;
 }) {
   await requireRole("ADMIN");
+  if (!isStagingOnlyFeatureEnabled()) return { error: "Preview controls are unavailable in this environment." };
   const parsed = sampleVisibilitySchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid sample visibility." };
   const key =

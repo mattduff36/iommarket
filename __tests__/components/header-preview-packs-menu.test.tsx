@@ -62,6 +62,7 @@ describe("header preview packs menu", () => {
           user: { email: "admin@mpdee.co.uk" },
           displayName: "Admin",
           role: "ADMIN",
+          stagingFeaturesEnabled: true,
           loading: false,
           handleSignOut: async () => undefined,
         }}

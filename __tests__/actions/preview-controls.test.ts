@@ -1,14 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { revalidatePath } from "next/cache";
 
-const { requireRoleMock, findManyMock, upsertMock } = vi.hoisted(() => ({
+const { requireRoleMock, findManyMock, upsertMock, stagingEnabledMock } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
   findManyMock: vi.fn(),
   upsertMock: vi.fn(),
+  stagingEnabledMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
   requireRole: requireRoleMock,
+}));
+
+vi.mock("@/lib/deployment/environment", () => ({
+  isStagingOnlyFeatureEnabled: stagingEnabledMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -33,6 +38,7 @@ describe("preview controls admin actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireRoleMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+    stagingEnabledMock.mockReturnValue(true);
     findManyMock.mockResolvedValue([
       {
         dealerKey: "athol-garage",
@@ -99,5 +105,13 @@ describe("preview controls admin actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/");
     expect(revalidatePath).toHaveBeenCalledWith("/search");
     expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("blocks direct reads and writes outside staging", async () => {
+    stagingEnabledMock.mockReturnValue(false);
+    await expect(getPreviewControls()).resolves.toEqual({ error: "Preview controls are unavailable in this environment." });
+    await expect(setSampleListingVisibility({ kind: "private", visible: false })).resolves.toEqual({ error: "Preview controls are unavailable in this environment." });
+    expect(findManyMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 });

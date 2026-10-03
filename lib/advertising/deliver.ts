@@ -3,9 +3,10 @@ import { resolveAdvertisingDestination } from "@/lib/advertising/config";
 import type { AdvertisingEvent } from "@/lib/advertising/outcomes";
 
 const sentEventIds = new Set<string>();
+const inFlightEventIds = new Set<string>();
 const MAX_SENT_IDS = 1000;
 
-export function claimAdvertisingEvent(eventId: string): boolean {
+function rememberSent(eventId: string): boolean {
   if (sentEventIds.has(eventId)) return false;
   sentEventIds.add(eventId);
   if (sentEventIds.size > MAX_SENT_IDS) {
@@ -15,8 +16,13 @@ export function claimAdvertisingEvent(eventId: string): boolean {
   return true;
 }
 
+export function claimAdvertisingEvent(eventId: string): boolean {
+  return rememberSent(eventId);
+}
+
 export function resetAdvertisingDeliveryForTests() {
   sentEventIds.clear();
+  inFlightEventIds.clear();
 }
 
 export interface DeliveryResult {
@@ -58,6 +64,20 @@ async function postWithRetry(
   return (await postOnce(url, body, fetchImpl)) === "ok";
 }
 
+async function deliverOnce(key: string, send: () => Promise<boolean>): Promise<"sent" | "duplicate" | "failed"> {
+  if (sentEventIds.has(key) || inFlightEventIds.has(key)) return "duplicate";
+  inFlightEventIds.add(key);
+  try {
+    if (!await send()) return "failed";
+    rememberSent(key);
+    return "sent";
+  } finally {
+    // A failed request remains retryable. A successful provider is recorded
+    // separately, so retrying another provider does not resend this one.
+    inFlightEventIds.delete(key);
+  }
+}
+
 function metaBody(event: AdvertisingEvent, sourceUrl: string | null) {
   return {
     data: [
@@ -93,29 +113,28 @@ export async function deliverAdvertisingEvents(
   if (destination.mode === "off") {
     return { delivered: false, reason: destination.reason, destination: "off" };
   }
-  const pending = events.filter((event) => claimAdvertisingEvent(event.eventId));
-  if (pending.length === 0) {
-    return { delivered: false, reason: "duplicate", destination: destination.mode };
-  }
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  let sent = false;
   try {
-    if (destination.meta) {
-      const url = `https://graph.facebook.com/v21.0/${destination.meta.datasetId}/events`;
-      for (const event of pending) {
-        const ok = await postWithRetry(
+    const meta = destination.meta;
+    if (meta) {
+      const url = `https://graph.facebook.com/v21.0/${meta.datasetId}/events`;
+      for (const event of events) {
+        const result = await deliverOnce(`meta:${event.eventId}`, () => postWithRetry(
           url,
-          { ...metaBody(event, options.sourceUrl ?? null), access_token: destination.meta.accessToken },
+          { ...metaBody(event, options.sourceUrl ?? null), access_token: meta.accessToken },
           fetchImpl,
           sleep,
-        );
-        if (!ok) return { delivered: false, reason: "provider_error", destination: destination.mode };
+        ));
+        if (result === "failed") return { delivered: false, reason: "provider_error", destination: destination.mode };
+        sent ||= result === "sent";
       }
     }
     if (destination.ga4) {
       const url = `https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(destination.ga4.measurementId)}&api_secret=${encodeURIComponent(destination.ga4.apiSecret)}`;
-      for (const event of pending) {
-        const ok = await postWithRetry(url, {
+      for (const event of events) {
+        const result = await deliverOnce(`ga4:${event.eventId}`, () => postWithRetry(url, {
           client_id: event.transactionId ?? event.eventId,
           events: [
             {
@@ -130,11 +149,12 @@ export async function deliverAdvertisingEvents(
               },
             },
           ],
-        }, fetchImpl, sleep);
-        if (!ok) return { delivered: false, reason: "provider_error", destination: destination.mode };
+        }, fetchImpl, sleep));
+        if (result === "failed") return { delivered: false, reason: "provider_error", destination: destination.mode };
+        sent ||= result === "sent";
       }
     }
-    return { delivered: true, reason: "sent", destination: destination.mode };
+    return { delivered: sent, reason: sent ? "sent" : "duplicate", destination: destination.mode };
   } catch {
     return { delivered: false, reason: "provider_error", destination: destination.mode };
   }

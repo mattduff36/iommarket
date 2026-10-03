@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { redirectMock, loadChecklistMock } = vi.hoisted(() => ({
+const { redirectMock, loadChecklistMock, stagingFeatureEnabledMock } = vi.hoisted(() => ({
   redirectMock: vi.fn(),
   loadChecklistMock: vi.fn(),
+  stagingFeatureEnabledMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -16,12 +17,16 @@ vi.mock("@/actions/admin/checklist", () => ({
   loadChecklist: loadChecklistMock,
 }));
 
+vi.mock("@/lib/deployment/environment", () => ({
+  isStagingOnlyFeatureEnabled: stagingFeatureEnabledMock,
+}));
+
 import AdminChecklistPage from "@/app/(admin)/admin/checklist/page";
 
 describe("admin checklist page feature gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_CHECKLIST_ENABLED = "0";
+    stagingFeatureEnabledMock.mockReturnValue(false);
   });
 
   it("redirects before loading the checklist when disabled", async () => {
@@ -30,8 +35,8 @@ describe("admin checklist page feature gate", () => {
     expect(loadChecklistMock).not.toHaveBeenCalled();
   });
 
-  it("loads normally when explicitly enabled", async () => {
-    process.env.ADMIN_CHECKLIST_ENABLED = "1";
+  it("loads normally when staging features are enabled", async () => {
+    stagingFeatureEnabledMock.mockReturnValue(true);
     loadChecklistMock.mockResolvedValue({ error: "Unavailable" });
 
     const page = await AdminChecklistPage();

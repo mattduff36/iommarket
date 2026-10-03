@@ -1,0 +1,11 @@
+#!/bin/sh
+# Git supplies: local-ref local-sha remote-ref remote-sha, one row per ref.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "Push blocked: main only accepts reviewed pull requests from staging." >&2
+    echo "Push this change to staging, then open a pull request from staging to main." >&2
+    exit 1
+  fi
+done
+
+exit 0

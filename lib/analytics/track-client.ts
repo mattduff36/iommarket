@@ -19,14 +19,15 @@ function forwardAdvertisingEvent(
   const eventName = marketplaceEventToAdvertising(name);
   if (!eventName) return;
   const fields = safeAdvertisingFields(properties);
-  const key = fields.contentId || fields.category || fields.context || "event";
   const path = /^\/[A-Za-z0-9/_-]{0,100}$/.test(window.location.pathname)
     ? window.location.pathname
     : undefined;
   enqueueAdvertisingEvent(
     {
       eventName,
-      eventId: `${eventName}:${key}`.slice(0, 80),
+      // Each actual action is a new event. Stable IDs for Search/Lead silently
+      // discarded subsequent valid actions for the rest of the browser session.
+      eventId: crypto.randomUUID(),
       ...fields,
       path,
     },

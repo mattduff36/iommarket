@@ -27,7 +27,7 @@ function getDealerTierIntent(value: unknown): "STARTER" | "PRO" | null {
   return null;
 }
 
-export function SignInForm() {
+export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = getSafeNextPath(searchParams.get("next"));
@@ -75,7 +75,7 @@ export function SignInForm() {
         return;
       }
 
-      if (next) {
+      if (next && !adminOnly) {
         router.push(next);
         router.refresh();
         return;
@@ -93,6 +93,12 @@ export function SignInForm() {
         }
       } catch {
         // fall through to default destination
+      }
+
+      if (adminOnly) {
+        await supabase.auth.signOut();
+        setError("This staging site is restricted to active development administrators.");
+        return;
       }
 
       const dealerTierIntent = getDealerTierIntent(
@@ -142,12 +148,12 @@ export function SignInForm() {
         >
           Forgot password?
         </Link>
-        <p className="text-center text-sm text-text-secondary">
+        {!adminOnly && <p className="text-center text-sm text-text-secondary">
           Need an account to save favourites, searches, or review dealers?{" "}
           <Link href={signUpHref} className="text-text-brand hover:underline">
             Create one
           </Link>
-        </p>
+        </p>}
       </div>
     </form>
   );

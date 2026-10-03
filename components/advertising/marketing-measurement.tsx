@@ -66,7 +66,9 @@ type MetaPixel = ((...args: unknown[]) => void) & {
 
 function installMetaPixel(pixelId: string) {
   const win = window as Window & { fbq?: MetaPixel };
-  if (!win.fbq) {
+  // Consent may have been denied on the first render, leaving a no-op fbq.
+  // Replace it with the real queue when consent is subsequently granted.
+  if (!win.fbq || !Array.isArray(win.fbq.queue)) {
     const fbq = function pixelQueue(...args: unknown[]) {
       if (fbq.callMethod) fbq.callMethod(...args);
       else fbq.queue.push(args);
@@ -99,6 +101,13 @@ export function MarketingMeasurement({ config }: { config: PublicAdvertisingConf
       if (!marketing) dropQueuedAdvertisingEvents();
       syncAttribution(marketing);
       if (!config.enabled || !marketing) {
+        const activeGtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
+        activeGtag?.("consent", "update", {
+          ad_storage: "denied",
+          analytics_storage: "denied",
+          ad_user_data: "denied",
+          ad_personalization: "denied",
+        });
         removeScript("itrader-meta-pixel");
         removeScript("itrader-ga4");
         clearCookie("_fbp");

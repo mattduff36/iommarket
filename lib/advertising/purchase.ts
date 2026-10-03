@@ -9,6 +9,7 @@ import { parseStoredAttribution } from "@/lib/advertising/attribution";
 import { ATTRIBUTION_COOKIE_NAME } from "@/lib/advertising/attribution-cookie";
 import { deliverAdvertisingEvents } from "@/lib/advertising/deliver";
 import { claimPurchaseDelivery } from "@/lib/advertising/purchase-claim";
+import { resolveAdvertisingDestination } from "@/lib/advertising/config";
 import {
   buildServicePurchaseEvent,
   selectServicePurchaseSource,
@@ -16,6 +17,8 @@ import {
 
 export async function reportVerifiedServicePurchase(paymentJobRef: string): Promise<void> {
   if (!/^\d{10,30}$/.test(paymentJobRef)) return;
+  // Disabled destinations must not consume an irreversible purchase claim.
+  if (resolveAdvertisingDestination().mode === "off") return;
   try {
     const jar = await cookies();
     if (!isMarketingAllowed(parseCookieConsent(jar.get(COOKIE_CONSENT_COOKIE_NAME)?.value))) return;
