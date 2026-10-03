@@ -29,12 +29,13 @@ export function signCloudinaryDeliveryPath(path: string, apiSecret: string) {
 
 export function signPrivateCloudinaryUrl(url: string) {
   const config = getCloudinaryConfig();
-  const marker = "/image/private/";
-  const index = url.indexOf(marker);
-  if (!config.apiSecret || index < 0) return url;
-  const path = url.slice(index + marker.length);
+  const prefix = `https://res.cloudinary.com/${config.cloudName}/image/private/`;
+  if (!config.apiSecret || !url.startsWith(prefix)) return url;
+  const path = url.slice(prefix.length);
+  // Read-only synced references are already signed and must stay byte-for-byte stable.
+  if (/^s--[A-Za-z0-9_-]+--\//.test(path)) return url;
   const signature = signCloudinaryDeliveryPath(path, config.apiSecret);
-  return `${url.slice(0, index + marker.length)}s--${signature}--/${path}`;
+  return `${prefix}s--${signature}--/${path}`;
 }
 
 export function signCloudinaryParams(
@@ -137,6 +138,8 @@ export async function deleteImage(
   publicId: string,
   deliveryType: string = IMAGE_CONSTRAINTS.deliveryType,
 ): Promise<void> {
+  // These are read-only production references, never Cloudinary-owned assets.
+  if (publicId.startsWith("database-sync/")) return;
   const config = requireCloudinaryConfig();
   const timestamp = Math.round(Date.now() / 1000);
   const params = {

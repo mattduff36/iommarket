@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { deleteImage } from "@/lib/upload/cloudinary";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isPreviewSystemAuthUserId } from "@/lib/preview-packs/safety";
+import { isDatabaseSyncReference } from "@/lib/images/database-sync-reference";
 
 export class PurgeUserError extends Error {
   constructor(message: string) {
@@ -60,7 +61,7 @@ function escapeRegExp(value: string) {
 }
 
 function cloudinaryPublicIdFromUrl(url: string | null | undefined) {
-  if (!url) return null;
+  if (!url || isDatabaseSyncReference(url)) return null;
   try {
     const parsed = new URL(url);
     if (!parsed.hostname.endsWith("res.cloudinary.com")) return null;
@@ -367,6 +368,7 @@ export async function deleteAuthUser(authUserId: string | null) {
   if (
     !authUserId ||
     authUserId.startsWith("deleted:") ||
+    authUserId.startsWith("database-sync:") ||
     isPreviewSystemAuthUserId(authUserId)
   ) {
     return;

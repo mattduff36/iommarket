@@ -94,7 +94,8 @@ export function buildListingPhotoUrl(
           ? buildSocialTransforms(photo, gravity)
         : [`c_fill`, `w_${width}`, `h_${height}`, gravity, `q_${quality}`, "f_auto"];
 
-  return `https://res.cloudinary.com/${cloudName}/image/private/${transforms.join(",")}/${versionSegment}${encodedPublicId}`;
+  const transformation = options.mode === "social" ? transforms.join("/") : transforms.join(",");
+  return `https://res.cloudinary.com/${cloudName}/image/private/${transformation}/${versionSegment}${encodedPublicId}`;
 }
 
 export function getListingPhotoSignaturePayload(
@@ -127,15 +128,14 @@ function buildSocialTransforms(photo: ListingPhotoSource, gravity: string) {
   });
 
   if (fitMode === "crop") {
-    return [`c_fill`, `w_${SOCIAL_WIDTH}`, `h_${SOCIAL_HEIGHT}`, gravity, "f_jpg", "q_auto"];
+    return [`c_fill,w_${SOCIAL_WIDTH},h_${SOCIAL_HEIGHT},${gravity},f_jpg,q_auto`];
   }
 
   return [
     `c_fill,w_${SOCIAL_WIDTH},h_${SOCIAL_HEIGHT},e_blur:800,q_30`,
     `l_private:${overlayPublicId(photo.publicId)},c_fit,w_${SOCIAL_WIDTH},h_${SOCIAL_HEIGHT}`,
     "fl_layer_apply",
-    "f_jpg",
-    "q_auto",
+    "f_jpg,q_auto",
   ];
 }
 
@@ -150,11 +150,21 @@ export function buildSocialImageUrl(photo: ListingPhotoSource) {
   });
 }
 
-export function buildCanonicalListingImageUrl(photo: Pick<ListingPhotoSource, "publicId" | "version" | "format" | "provider" | "url">) {
+export function getSocialImageDimensions(photo: ListingPhotoSource) {
+  if (photo.provider === "CLOUDINARY" && isTrustedListingPublicId(photo.publicId) && getCloudinaryCloudName()) {
+    return { width: SOCIAL_WIDTH, height: SOCIAL_HEIGHT };
+  }
+  // Untransformed external images keep their recorded dimensions, never the card size.
+  return hasValidPhotoDimensions(photo) && Number.isFinite(photo.width) && Number.isFinite(photo.height)
+    ? { width: photo.width!, height: photo.height! }
+    : {};
+}
+
+export function buildCanonicalListingImageUrl(photo: Pick<ListingPhotoSource, "publicId" | "version" | "format" | "provider" | "url">, env: NodeJS.ProcessEnv = process.env) {
   if (photo.provider !== "CLOUDINARY" || !isTrustedListingPublicId(photo.publicId)) {
     return photo.url;
   }
-  const cloudName = getCloudinaryCloudName();
+  const cloudName = env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
   if (!cloudName) return photo.url;
   const versionSegment = photo.version ? `v${encodeURIComponent(String(photo.version))}/` : "";
   const format = photo.format ? `.${encodeURIComponent(photo.format)}` : "";

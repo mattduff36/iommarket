@@ -4,6 +4,7 @@ import {
   buildSocialImageUrl,
   getListingPhotoSignaturePayload,
   isTrustedListingPublicId,
+  getSocialImageDimensions,
 } from "@/lib/images/cloudinary-url";
 import { createSignedListingUpload, signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
 import type { ListingPhotoSource } from "@/lib/images/photo";
@@ -56,6 +57,19 @@ describe("PHOTO-URL-001 listing photo URLs", () => {
     expect(url).toContain("e_blur:800");
     expect(url).toContain("f_jpg");
     expect(url).toContain("l_private:iommarket:listings:staging:user:photo-1");
+    expect(url).toContain("q_30/l_private:");
+    expect(url).toContain("h_630/fl_layer_apply/f_jpg,q_auto/");
+  });
+
+  it("keeps crop transformations together and does not invent dimensions for raw images", () => {
+    process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = "demo-cloud";
+    const wide = { ...photo, width: 1200, height: 630 };
+    expect(buildSocialImageUrl(wide)).toContain("/c_fill,w_1200,h_630,g_auto,f_jpg,q_auto/");
+    expect(getSocialImageDimensions(photo)).toEqual({ width: 1200, height: 630 });
+    expect(getSocialImageDimensions({ ...photo, provider: "EXTERNAL" })).toEqual({ width: 900, height: 1600 });
+    expect(getSocialImageDimensions({ ...photo, publicId: "untrusted", width: null })).toEqual({});
+    delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    expect(getSocialImageDimensions(photo)).toEqual({ width: 900, height: 1600 });
   });
 
   it("PHOTO-SOCIAL-001 and PHOTO-COMPAT-001 expose a private-layer social path that can be signed", () => {

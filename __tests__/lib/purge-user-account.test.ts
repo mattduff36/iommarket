@@ -20,12 +20,13 @@ import {
   purgeUserAccountRecords,
   PurgeUserError,
 } from "@/lib/privacy/purge-user-account";
+import { DATABASE_SYNC_REFERENCE_FRAGMENT } from "@/lib/images/database-sync-reference";
 
 const user = {
   email: "deleted.user@example.com",
   authUserId: "auth-1",
   avatarUrl: null,
-  dealerProfile: { id: "dealer-1", logoUrl: null },
+  dealerProfile: { id: "dealer-1", logoUrl: null as string | null },
   listings: [{ id: "listing-1", images: [{ publicId: "photo-1" }] }],
   listingImageUploadIntents: [{ publicId: "intent-1" }],
 };
@@ -86,6 +87,14 @@ describe("purgeUserAccountRecords", () => {
     expect(receiptDelete).toBeGreaterThan(preparePurge);
   });
 
+  it("does not claim a read-only synced Cloudinary logo as an owned asset", async () => {
+    user.dealerProfile.logoUrl = `https://res.cloudinary.com/owned/image/upload/dealer/logo.png${DATABASE_SYNC_REFERENCE_FRAGMENT}`;
+    const { tx } = createTx();
+    const result = await purgeUserAccountRecords(tx as never, "user-1");
+    expect(result.imagePublicIds).toEqual(["photo-1", "intent-1"]);
+    user.dealerProfile.logoUrl = null;
+  });
+
   it("removes early-access references before deleting the waitlist entry or account", async () => {
     const { tx, calls } = createTx();
     await purgeUserAccountRecords(tx as never, "user-1");
@@ -125,6 +134,11 @@ describe("deleteAuthUser", () => {
     await deleteAuthUser("auth-1");
 
     expect(deleteUserMock).toHaveBeenCalledWith("auth-1");
+  });
+
+  it("does not call Auth for a synthetic database-sync identity", async () => {
+    await deleteAuthUser("database-sync:copied-user");
+    expect(deleteUserMock).not.toHaveBeenCalled();
   });
 
   it("leaves the account unchanged when login removal fails", async () => {

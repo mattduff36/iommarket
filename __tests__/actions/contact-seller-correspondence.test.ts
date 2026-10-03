@@ -12,6 +12,7 @@ const {
   sendSellerContactEmailMock: vi.fn(),
   sendContactConfirmationEmailMock: vi.fn(),
   mockDb: {
+    siteSetting: { findMany: vi.fn().mockResolvedValue([]) },
     listing: { findUnique: vi.fn() },
     dealerProfile: { findFirst: vi.fn() },
     dealerCorrespondenceSettings: { findUnique: vi.fn() },

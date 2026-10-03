@@ -1,4 +1,5 @@
 import pg from "pg";
+import { SYNC_TABLES } from "./types";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
 import { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
 
@@ -15,11 +16,9 @@ export type DatabaseSyncInspection = {
   blockers: string[];
 };
 
-const COUNT_TABLES = [
-  "User", "Listing", "DealerProfile", "DealerPreviewPack", "SiteSetting",
-  "Payment", "Subscription", "PaymentWebhookInbox", "SampleCheckout",
-  "MonitoringIssue", "MonitoringEvent", "MonitoringAlertDelivery", "AdminAuditLog",
-] as const;
+export const SOURCE_READER_ROLE = "itrader_staging_reader";
+export const SYNC_READ_TABLES: readonly string[] = [...SYNC_TABLES, "DealerPreviewPack", "Subscription", "_prisma_migrations"];
+const COUNT_TABLES = SYNC_READ_TABLES;
 
 function parseDatabaseUrl(raw: string | undefined, ref: string, dedicatedSource = false): string | null {
   if (!raw?.trim()) return null;
@@ -28,12 +27,12 @@ function parseDatabaseUrl(raw: string | undefined, ref: string, dedicatedSource 
     if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") return null;
     const username = decodeURIComponent(url.username);
     if (url.hostname === `db.${ref}.supabase.co`) {
-      return username && (!dedicatedSource || username !== "postgres") ? raw : null;
+      return username && (!dedicatedSource || username === SOURCE_READER_ROLE) ? raw : null;
     }
     if (url.hostname.endsWith(".pooler.supabase.com")) {
       const suffix = `.${ref}`;
       const role = username.endsWith(suffix) ? username.slice(0, -suffix.length) : "";
-      return role && (!dedicatedSource || role !== "postgres") ? raw : null;
+      return role && (!dedicatedSource || role === SOURCE_READER_ROLE) ? raw : null;
     }
   } catch { /* Malformed URL is never a valid target. */ }
   return null;
@@ -55,7 +54,7 @@ export function inspectDatabaseSyncConfiguration(env: NodeJS.ProcessEnv = proces
   return { source, destination, blockers };
 }
 
-type TableRow = {
+export type TableRow = {
   schema_name: string;
   table_name: string;
   column_signature: string;
@@ -70,7 +69,9 @@ type TableRow = {
   can_select: boolean;
 };
 
-type RolePermissions = {
+export type RolePermissions = {
+  role_name: string;
+  role_memberships: boolean;
   superuser: boolean;
   bypass_rls: boolean;
   create_role: boolean;
@@ -83,7 +84,7 @@ type RolePermissions = {
 };
 
 export function isReadOnlySourceRole(role: RolePermissions, tables: TableRow[]): boolean {
-  return !role.superuser && !role.bypass_rls && !role.create_role &&
+  return role.role_name === SOURCE_READER_ROLE && role.role_memberships === false && !role.superuser && !role.bypass_rls && !role.create_role &&
     !role.create_db && !role.replication && !role.database_owner &&
     !role.database_create && !role.schema_create && !role.elevated_file_role &&
     tables.every((table) => !table.owner_member && !table.can_insert &&
@@ -103,14 +104,27 @@ export function inspectionPoolOptions(url: string, env: NodeJS.ProcessEnv = proc
   };
 }
 
-async function inspectConnection(url: string, requireSourceReadOnly: boolean, env: NodeJS.ProcessEnv) {
-  const pool = new pg.Pool(inspectionPoolOptions(url, env));
-  let client: pg.PoolClient | null = null;
-  try {
-    client = await pool.connect();
-    await client.query("BEGIN READ ONLY");
-    await client.query("SET LOCAL statement_timeout = '8000ms'");
-    const role = await client.query<RolePermissions>(`SELECT r.rolsuper AS superuser, r.rolbypassrls AS bypass_rls,
+export type SourcePolicy = {
+  table_name: string;
+  permissive: boolean;
+  role_specific: boolean;
+  applies: boolean;
+  expression: string | null;
+};
+
+/** Exact unconditional reader policy prevents silently partial RLS snapshots. */
+export function hasCompleteSourceReadPolicy(table: TableRow, policies: SourcePolicy[]): boolean {
+  if (!table.row_security) return true;
+  const applicable = policies.filter((policy) => policy.table_name === table.table_name && policy.applies);
+  return !applicable.some((policy) => !policy.permissive) && applicable.some((policy) =>
+    policy.permissive && policy.role_specific && policy.expression?.trim() === "true");
+}
+
+async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: boolean) {
+    const role = await client.query<RolePermissions>(`SELECT current_user AS role_name,
+        EXISTS (SELECT 1 FROM pg_roles other WHERE other.rolname <> current_user
+          AND pg_has_role(current_user, other.oid, 'MEMBER')) AS role_memberships,
+        r.rolsuper AS superuser, r.rolbypassrls AS bypass_rls,
         r.rolcreaterole AS create_role, r.rolcreatedb AS create_db, r.rolreplication AS replication,
         pg_has_role(current_user, d.datdba, 'MEMBER') AS database_owner,
         has_database_privilege(current_user, current_database(), 'CREATE') AS database_create,
@@ -127,11 +141,11 @@ async function inspectConnection(url: string, requireSourceReadOnly: boolean, en
           FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped), '') AS column_signature,
         c.relrowsecurity AS row_security,
         pg_has_role(current_user, c.relowner, 'MEMBER') AS owner_member,
-        has_table_privilege(current_user, c.oid, 'INSERT') AS can_insert,
-        has_table_privilege(current_user, c.oid, 'UPDATE') AS can_update,
+        (has_table_privilege(current_user, c.oid, 'INSERT') OR has_any_column_privilege(current_user, c.oid, 'INSERT')) AS can_insert,
+        (has_table_privilege(current_user, c.oid, 'UPDATE') OR has_any_column_privilege(current_user, c.oid, 'UPDATE')) AS can_update,
         has_table_privilege(current_user, c.oid, 'DELETE') AS can_delete,
         has_table_privilege(current_user, c.oid, 'TRUNCATE') AS can_truncate,
-        has_table_privilege(current_user, c.oid, 'REFERENCES') AS can_references,
+        (has_table_privilege(current_user, c.oid, 'REFERENCES') OR has_any_column_privilege(current_user, c.oid, 'REFERENCES')) AS can_references,
         has_table_privilege(current_user, c.oid, 'TRIGGER') AS can_trigger,
         has_table_privilege(current_user, c.oid, 'SELECT') AS can_select
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -140,11 +154,47 @@ async function inspectConnection(url: string, requireSourceReadOnly: boolean, en
     if (requireSourceReadOnly && !readOnlyRole) {
       throw new Error("Production source role has write, ownership, or elevated privileges.");
     }
-    const publicTables = tables.rows.filter((table) => table.schema_name === "public");
-    const missingSelect = publicTables.filter((table) => !table.can_select).length;
-    if (requireSourceReadOnly && missingSelect > 0) {
-      throw new Error(`Production source role lacks SELECT on ${missingSelect} public table(s).`);
+    const publicTables = tables.rows.filter((table) => table.schema_name === "public" && SYNC_READ_TABLES.includes(table.table_name));
+    if (publicTables.length !== SYNC_READ_TABLES.length) throw new Error("Database role cannot inspect every required sync table.");
+    if (requireSourceReadOnly && publicTables.some((table) => !table.can_select)) {
+      throw new Error("Production source role lacks SELECT on required sync tables.");
     }
+    if (requireSourceReadOnly) {
+      const policies = await client.query<SourcePolicy>(`SELECT c.relname AS table_name,
+        p.polpermissive AS permissive,
+        (SELECT oid FROM pg_roles WHERE rolname = current_user) = ANY(p.polroles) AS role_specific,
+        (0::oid = ANY(p.polroles) OR EXISTS (SELECT 1 FROM unnest(p.polroles) AS policy_role(oid)
+          WHERE CASE WHEN policy_role.oid = 0 THEN false
+            ELSE pg_has_role(current_user, policy_role.oid, 'MEMBER') END)) AS applies,
+        pg_get_expr(p.polqual, p.polrelid) AS expression
+        FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) AND p.polcmd IN ('r', '*')`, [SYNC_READ_TABLES]);
+      if (publicTables.some((table) => !hasCompleteSourceReadPolicy(table, policies.rows))) {
+        throw new Error("Production source role lacks an unconditional reader RLS policy or has a restrictive policy.");
+      }
+    }
+    return { tables: publicTables, readOnlyRole };
+}
+
+/** Call inside the same READ ONLY transaction used to read the source snapshot. */
+export async function validateSourceClient(client: pg.PoolClient) {
+  const transaction = await client.query<{ transaction_read_only: string }>("SHOW transaction_read_only");
+  if (transaction.rows[0]?.transaction_read_only !== "on") {
+    throw new Error("Production source role requires a read-only transaction.");
+  }
+  const functions = await client.query<{ count: string }>(`SELECT count(*)::text AS count
+    FROM pg_proc p WHERE p.prosecdef AND has_function_privilege(current_user, p.oid, 'EXECUTE')`);
+  if (functions.rows[0]?.count !== "0") {
+    throw new Error("Production source role can execute privileged functions; review EXECUTE grants before copying.");
+  }
+  return inspectPermissions(client, true);
+}
+
+/** Does not begin, commit, or release: caller owns the snapshot transaction. */
+export async function inspectClient(client: pg.PoolClient, requireSourceReadOnly: boolean) {
+    const { tables: publicTables, readOnlyRole } = requireSourceReadOnly
+      ? await validateSourceClient(client) : await inspectPermissions(client, false);
     const selectedCounts: Record<string, number> = {};
     for (const table of COUNT_TABLES) {
       if (!publicTables.some((row) => row.table_name === table)) continue;
@@ -152,9 +202,8 @@ async function inspectConnection(url: string, requireSourceReadOnly: boolean, en
       selectedCounts[table] = Number(result.rows[0]?.count ?? 0);
     }
     const migrations = await client.query<{ migration_name: string }>(
-      `SELECT migration_name FROM public._prisma_migrations WHERE rolled_back_at IS NULL ORDER BY migration_name`,
+      `SELECT migration_name FROM public._prisma_migrations WHERE rolled_back_at IS NULL AND finished_at IS NOT NULL ORDER BY migration_name`,
     );
-    await client.query("ROLLBACK");
     return {
       tables: publicTables,
       counts: selectedCounts,
@@ -162,10 +211,18 @@ async function inspectConnection(url: string, requireSourceReadOnly: boolean, en
       readOnlyRole,
       rowSecurityTables: publicTables.filter((table) => table.row_security).map((table) => table.table_name),
     };
-  } catch (error) {
-    await client?.query("ROLLBACK").catch(() => undefined);
-    throw error;
+}
+
+export async function inspectConnection(url: string, requireSourceReadOnly: boolean, env: NodeJS.ProcessEnv = process.env) {
+  const pool = new pg.Pool(inspectionPoolOptions(url, env));
+  let client: pg.PoolClient | null = null;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await client.query("SET LOCAL statement_timeout = '8000ms'");
+    return await inspectClient(client, requireSourceReadOnly);
   } finally {
+    await client?.query("ROLLBACK").catch(() => undefined);
     client?.release();
     await pool.end();
   }
@@ -198,9 +255,8 @@ export async function inspectDatabaseSync(env: NodeJS.ProcessEnv = process.env):
     base.schemaCompatible = sourceSignatures.size === destinationSignatures.size &&
       [...sourceSignatures].every(([name, signature]) => destinationSignatures.get(name) === signature);
     base.migrationsCompatible = source.migrations.join("\n") === destination.migrations.join("\n");
-    if (!base.schemaCompatible) base.blockers.push("Public table schemas differ. Apply and verify reviewed migrations before any copy.");
+    if (!base.schemaCompatible) base.blockers.push("Selected sync table schemas differ. Apply and verify reviewed migrations before any copy.");
     if (!base.migrationsCompatible) base.blockers.push("Applied Prisma migrations differ between production and development.");
-    if (source.rowSecurityTables.length) base.blockers.push("Production has row-level security on public tables; counts may be partial.");
     base.rows = COUNT_TABLES.map((table) => ({
       table,
       production: source.counts[table] ?? 0,

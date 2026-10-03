@@ -94,15 +94,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
     dealer = historicalAddress?.dealer ?? null;
   }
+  const sampleVisibility = await getSampleVisibility();
   if (
     !dealer ||
     (dealer.user.role !== "DEALER" && dealer.user.role !== "ADMIN") ||
     dealer.user.disabledAt ||
     dealer.user.deletedAt ||
     isHiddenSampleDealer({
+      dealerId: dealer.id,
       authUserId: dealer.user.authUserId,
       isAdminPreview: dealer.isAdminPreview,
-      sampleVisibility: await getSampleVisibility(),
+      sampleVisibility,
     })
   ) {
     return {};
@@ -115,6 +117,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       isAdminPreview: dealer.isAdminPreview,
       previewPackEnabled: dealer.previewPack?.enabled === true,
       hasEntitlement: Boolean(entitlement),
+      visibleInStagingSnapshot: sampleVisibility.visibleDealerIds?.includes(dealer.id),
     })
   ) {
     return {};
@@ -138,8 +141,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     path: buildDealerProfilePath(dealer.slug),
     index: indexable,
     follow: indexable,
-    image: logo
-      ? { url: logo, alt: `${dealer.name} logo` }
+    image: logo && indexable
+      ? { url: `${buildDealerProfilePath(dealer.slug)}/social-image`, width: 1200, height: 630, alt: `${dealer.name} on iTrader.im` }
       : defaultSocialImage(`${dealer.name} on iTrader.im`),
   });
 }
@@ -186,6 +189,7 @@ export default async function DealerProfilePage({ params }: Props) {
         historicalDealer.user.disabledAt ||
         historicalDealer.user.deletedAt ||
         isHiddenSampleDealer({
+          dealerId: historicalDealer.id,
           authUserId: historicalDealer.user.authUserId,
           isAdminPreview: historicalDealer.isAdminPreview,
           sampleVisibility,
@@ -204,6 +208,7 @@ export default async function DealerProfilePage({ params }: Props) {
           isAdminPreview: historicalDealer.isAdminPreview,
           previewPackEnabled: historicalDealer.previewPack?.enabled === true,
           hasEntitlement: Boolean(entitlement),
+          visibleInStagingSnapshot: sampleVisibility.visibleDealerIds?.includes(historicalDealer.id),
         })
       ) {
         notFound();
@@ -256,6 +261,7 @@ export default async function DealerProfilePage({ params }: Props) {
     dealer.user.disabledAt ||
     dealer.user.deletedAt ||
     isHiddenSampleDealer({
+      dealerId: dealer.id,
       authUserId: dealer.user.authUserId,
       isAdminPreview: dealer.isAdminPreview,
       sampleVisibility,
@@ -300,6 +306,7 @@ export default async function DealerProfilePage({ params }: Props) {
       isAdminPreview: dealer.isAdminPreview,
       previewPackEnabled: dealer.previewPack?.enabled === true,
       hasEntitlement: Boolean(entitlement),
+      visibleInStagingSnapshot: sampleVisibility.visibleDealerIds?.includes(dealer.id),
     })
   ) {
     notFound();

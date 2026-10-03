@@ -67,9 +67,10 @@ export function getMarketplaceDealerWhere(
 ): Prisma.DealerProfileWhereInput {
   const publicWhere = getPublicDealerWhere(now, sampleVisibility);
   if (viewer?.role !== "ADMIN") return publicWhere;
-  return {
-    OR: [publicWhere, getAdminPreviewDealerWhere()],
-  };
+  const visible = { OR: [publicWhere, getAdminPreviewDealerWhere()] };
+  return sampleVisibility.archivedDealerIds?.length
+    ? { AND: [visible, { id: { notIn: sampleVisibility.archivedDealerIds } }] }
+    : visible;
 }
 
 export async function getMarketplaceDealerWhereWithSettings(
@@ -84,11 +85,12 @@ export function canViewMarketplaceDealerProfile(input: {
   isAdminPreview: boolean;
   previewPackEnabled: boolean;
   hasEntitlement: boolean;
+  visibleInStagingSnapshot?: boolean;
 }) {
   if (input.isAdminPreview) {
     return input.viewer?.role === "ADMIN";
   }
-  if (input.hasEntitlement) return true;
+  if (input.hasEntitlement || input.visibleInStagingSnapshot) return true;
   return input.viewer?.role === "ADMIN";
 }
 
@@ -96,7 +98,7 @@ export function getPublicDealerWhere(
   now = new Date(),
   sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
 ): Prisma.DealerProfileWhereInput {
-  return applySampleDealerVisibility({
+  const entitlement: Prisma.DealerProfileWhereInput = {
     subscriptions: {
       some: {
         OR: [
@@ -110,7 +112,12 @@ export function getPublicDealerWhere(
           },
         ],
       },
-    },
+    }
+  };
+  return applySampleDealerVisibility({
+    ...(sampleVisibility.visibleDealerIds?.length
+      ? { OR: [entitlement, { id: { in: sampleVisibility.visibleDealerIds } }] }
+      : entitlement),
     user: {
       role: {
         in: DEALER_ACCOUNT_ROLES,
