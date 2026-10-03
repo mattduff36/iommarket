@@ -11,7 +11,7 @@ iTrader tracks public-site page views and marketplace events in GA4 only after a
 
 ## Read-only reports in `/admin/analytics`
 
-The dashboard uses the Google Analytics Data API to read users, page views, event counts, and device categories. Its service account requires the GA4 **Viewer** role on property `557226172`; it does not need edit access.
+The dashboard uses the Google Analytics Data API to read users, page views, the daily trend, the previous period of the same length, custom events, device categories, default channel groups, countries, and cities. Its service account requires the GA4 **Viewer** role on property `557226172`; it does not need edit access. City dots use a local coordinate lookup derived from the GeoNames cities15000 dataset (CC BY 4.0); the report request does not ask Google for latitude or longitude. Unmatched city names stay in the city list and are left off the map.
 
 1. In the Google Cloud project used for iTrader Analytics, enable the **Google Analytics Data API**.
 2. Create a service account and a JSON key. In GA4 Admin, add its service-account email under property access management with the **Viewer** role.

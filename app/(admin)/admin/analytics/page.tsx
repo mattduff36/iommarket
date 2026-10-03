@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
@@ -17,67 +16,49 @@ import {
   applySampleSavedSearchVisibility,
 } from "@/lib/listings/sample-related-visibility";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
-import { AdminDataCell } from "@/components/admin/admin-data-cell";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import {
-  AdminTable,
-  AdminTableEmpty,
-  adminNumericCellClass,
-} from "@/components/admin/admin-table";
+import { AnalyticsPanel } from "@/components/admin/analytics/analytics-panel";
+import { AnalyticsRangeControl } from "@/components/admin/analytics/analytics-range-control";
+import { CityRankList } from "@/components/admin/analytics/city-rank-list";
+import { CHART_LISTING_VIEWS, CHART_PAGEVIEWS, CHART_USERS } from "@/components/admin/analytics/chart-colors";
+import { ListingRankTable } from "@/components/admin/analytics/listing-rank-table";
+import { MetricSparkCard } from "@/components/admin/analytics/metric-spark-card";
+import { RankBars } from "@/components/admin/analytics/rank-bars";
+import { TrendChart } from "@/components/admin/analytics/trend-chart";
+import { VisitorMapLoader } from "@/components/admin/analytics/visitor-map-loader";
 import { analyticsRange, loadBusinessFunnel } from "@/lib/analytics/business-funnel";
+import { locateCities } from "@/lib/analytics/city-coordinates";
 import { MARKETPLACE_EVENTS } from "@/lib/analytics/events";
 import { loadGoogleAnalytics } from "@/lib/analytics/google-analytics";
+import { londonDate } from "@/lib/analytics/london-date";
+import { calendarDay, trendSeries } from "@/lib/analytics/trend-series";
 
 export const metadata: Metadata = { title: "Analytics | Admin" };
 
-function MetricCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4 sm:p-5">
-        <p className="text-xs font-medium text-text-secondary">{label}</p>
-        <p className="mt-2 text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">
-          {value}
-        </p>
-        {detail ? (
-          <p className="mt-1 text-xs text-text-tertiary">{detail}</p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
+function readableLabel(value: string) {
+  const label = value.replaceAll("_", " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export default async function AdminAnalyticsPage(
-  props: { searchParams?: Promise<{ range?: string }> } = {},
-) {
+function sellerName(listing: { dealer: { name: string } | null; user: { email: string } }) {
+  return listing.dealer?.name ?? listing.user.email;
+}
+
+export default async function AdminAnalyticsPage(props: {
+  searchParams?: Promise<{ range?: string }>;
+}) {
   await expireStaleLiveListings();
   const params = props.searchParams ? await props.searchParams : {};
   const range = analyticsRange(params.range);
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sampleVisibility = await getSampleVisibility();
   const liveWhere = applySampleListingVisibility(
     liveListingWhere(now),
     sampleVisibility,
   );
   const recentViewConditions = [
-    Prisma.sql`views."createdAt" >= ${sevenDaysAgo}`,
+    Prisma.sql`views."createdAt" >= ${range.since}`,
   ];
   const placeholderAuthPattern = `${PLACEHOLDER_AUTH_PREFIX}%`;
   if (!sampleVisibility.privateListings) {
@@ -118,8 +99,7 @@ export default async function AdminAnalyticsPage(
   );
 
   const [
-    totalViews30d,
-    totalViews7d,
+    previousListingViews,
     totalUsers,
     totalListingsLive,
     totalFavourites,
@@ -132,13 +112,7 @@ export default async function AdminAnalyticsPage(
   ] = await Promise.all([
     db.listingView.count({
       where: applySampleListingViewVisibility(
-        { createdAt: { gte: thirtyDaysAgo } },
-        sampleVisibility,
-      ),
-    }),
-    db.listingView.count({
-      where: applySampleListingViewVisibility(
-        { createdAt: { gte: sevenDaysAgo } },
+        { createdAt: { gte: range.previousSince, lt: range.since } },
         sampleVisibility,
       ),
     }),
@@ -179,7 +153,7 @@ export default async function AdminAnalyticsPage(
       LEFT JOIN "DealerProfile" AS viewer_dealer ON viewer_dealer."userId" = viewer."id"
       WHERE ${Prisma.join(recentViewConditions, " AND ")}
       GROUP BY DATE(views."createdAt")
-      ORDER BY day DESC
+      ORDER BY day ASC
     `),
     db.listing.count({ where: { ...liveWhere, dealerId: { not: null } } }),
     db.listing.count({ where: { ...liveWhere, dealerId: null } }),
@@ -207,7 +181,17 @@ export default async function AdminAnalyticsPage(
     }),
     loadGoogleAnalytics({ since: range.since, until: now }),
   ]);
-  const funnelSteps = [
+  const visitorsAvailable = acquisition.status === "available";
+  const trend = trendSeries({
+    startDate: londonDate(range.since),
+    endDate: londonDate(now),
+    visitors: visitorsAvailable ? acquisition.series : [],
+    listingViews: recentViews.flatMap((day) => {
+      const date = calendarDay(day.day);
+      return date ? [{ date, count: Number(day.count) }] : [];
+    }),
+  });
+  const activity = [
     ["Listing views", funnel.views],
     ["Accounts created", funnel.signups],
     ["Listings submitted", funnel.listingsSubmitted],
@@ -217,12 +201,18 @@ export default async function AdminAnalyticsPage(
     ["Favourites", funnel.favourites],
     ["Saved searches", funnel.savedSearches],
     ["Dealer subscriptions", funnel.dealerSubscriptions],
-  ] as const;
+  ].map(([name, count]) => ({ name: String(name), count: Number(count) }));
+  const locatedCities = visitorsAvailable ? locateCities(acquisition.cities) : [];
+  const mapPoints = locatedCities.flatMap((city) => (
+    city.mapped
+      ? [{ city: city.city, country: city.country, count: city.count, latitude: city.latitude, longitude: city.longitude }]
+      : []
+  ));
+  const sellerTotal = dealerListingCount + privateListingCount;
+  const dealerShare = sellerTotal > 0 ? (dealerListingCount / sellerTotal) * 100 : 0;
   const topByFavourites = topFavouriteGroups.flatMap((group) => {
     const listing = favouriteListingsById.get(group.listingId);
-    return listing
-      ? [{ ...listing, _count: { favouritedBy: group._count._all } }]
-      : [];
+    return listing ? [{ ...listing, favourites: group._count._all }] : [];
   });
 
   return (
@@ -231,81 +221,104 @@ export default async function AdminAnalyticsPage(
         title="Analytics"
         description="Track marketplace engagement, audience growth, and the listings attracting attention."
         meta={<span>Database totals are authoritative. Visitor analytics include only consented browsers.</span>}
+        actions={<AnalyticsRangeControl current={range.key} />}
       />
 
-      <section className="mb-8" aria-labelledby="funnel-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="funnel-heading" className="text-sm font-semibold text-text-primary">
-            Activity and conversion
-            <span className="ml-2 font-normal text-text-tertiary">{range.key}</span>
-          </h2>
-          <div className="flex gap-2 text-sm">
-            {(["7d", "30d", "90d"] as const).map((option) => (
-              <a
-                key={option}
-                href={`/admin/analytics?range=${option}`}
-                aria-current={range.key === option ? "page" : undefined}
-                className={range.key === option ? "font-semibold text-text-primary" : "text-text-secondary"}
-              >
-                {option}
-              </a>
-            ))}
-          </div>
-        </div>
-        <p className="mb-3 text-xs text-text-tertiary">
-          These are activity totals for the selected range, not one visitor cohort. Search and contact interactions appear as consented Google Analytics events below because those actions are not stored as marketplace records.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {funnelSteps.map(([label, value], index) => {
-            const previous = index > 0 ? funnelSteps[index - 1]?.[1] : undefined;
-            const rate = previous && previous > 0 ? Math.round((value / previous) * 100) : null;
-            return (
-              <MetricCard
-                key={label}
-                label={label}
-                value={value.toLocaleString()}
-                detail={rate === null ? undefined : `${rate}% of previous step`}
-              />
-            );
-          })}
-        </div>
-      </section>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {visitorsAvailable ? (
+          <MetricSparkCard
+            label="Users"
+            value={acquisition.users.toLocaleString("en-GB")}
+            current={acquisition.users}
+            previous={acquisition.previousUsers}
+            series={trend.map((point) => point.users)}
+            color={CHART_USERS}
+          />
+        ) : null}
+        {visitorsAvailable ? (
+          <MetricSparkCard
+            label="Pageviews"
+            value={acquisition.pageviews.toLocaleString("en-GB")}
+            current={acquisition.pageviews}
+            previous={acquisition.previousPageviews}
+            series={trend.map((point) => point.pageviews)}
+            color={CHART_PAGEVIEWS}
+          />
+        ) : null}
+        <MetricSparkCard
+          label="Listing views"
+          value={funnel.views.toLocaleString("en-GB")}
+          current={funnel.views}
+          previous={previousListingViews}
+          series={trend.map((point) => point.listingViews)}
+          color={CHART_LISTING_VIEWS}
+        />
+      </div>
 
-      <section className="mb-8" aria-labelledby="acquisition-heading">
-        <h2 id="acquisition-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Google Analytics (consented visitors)
-        </h2>
-        {acquisition.status === "available" ? (
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MetricCard label="Users" value={acquisition.users.toLocaleString()} />
-              <MetricCard label="Pageviews" value={(acquisition.pageviews ?? 0).toLocaleString()} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <h3 className="mb-2 text-xs font-semibold text-text-secondary">Custom events</h3>
-                <ul className="space-y-1 text-sm text-text-primary">
-                  {MARKETPLACE_EVENTS.map((eventName) => {
-                    const match = acquisition.events.find((event) => event.name === eventName);
-                    return <li key={eventName}>{eventName}: {(match?.count ?? 0).toLocaleString()}</li>;
-                  })}
-                </ul>
-              </div>
-              <div>
-                <h3 className="mb-2 text-xs font-semibold text-text-secondary">Devices</h3>
-                {acquisition.devices.length > 0 ? (
-                  <ul className="space-y-1 text-sm text-text-primary">
-                    {acquisition.devices.map((device) => (
-                      <li key={device.name}>{device.name}: {device.count.toLocaleString()}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-text-tertiary">No device breakdown in this range.</p>
-                )}
-              </div>
-            </div>
+      <AnalyticsPanel id="daily-trend-heading" title="Daily trend" detail={range.key} className="mb-6">
+        <TrendChart points={trend} includeVisitors={visitorsAvailable} />
+      </AnalyticsPanel>
+
+      {visitorsAvailable ? (
+        <div className="mb-6 space-y-6">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <AnalyticsPanel id="channels-heading" title="Traffic source">
+              <RankBars
+                items={acquisition.channels}
+                emptyLabel="No traffic source breakdown in this range."
+              />
+            </AnalyticsPanel>
+            <AnalyticsPanel id="devices-heading" title="Devices">
+              <RankBars
+                items={acquisition.devices.map((device) => ({ name: readableLabel(device.name), count: device.count }))}
+                color={CHART_PAGEVIEWS}
+                emptyLabel="No device breakdown in this range."
+              />
+            </AnalyticsPanel>
           </div>
-        ) : (
+
+          <section className="grid gap-3 lg:grid-cols-5" aria-labelledby="locations-heading">
+            <div className="lg:col-span-3">
+              <h2 id="locations-heading" className="mb-3 text-sm font-semibold text-text-primary">
+                Visitor locations
+                <span className="ml-2 font-normal text-text-tertiary">Consented users</span>
+              </h2>
+              {mapPoints.length > 0 ? (
+                <>
+                  <VisitorMapLoader points={mapPoints} />
+                  <p className="mt-2 text-xs text-text-tertiary">Dot size shows consented users in each city.</p>
+                </>
+              ) : (
+                <AdminEmptyState
+                  compact
+                  title="No cities could be placed on the map"
+                  description="Country totals are listed beside this note. A city is plotted only when its name matches the local location list."
+                />
+              )}
+            </div>
+            <div className="space-y-4 lg:col-span-2">
+              <AnalyticsPanel id="countries-heading" title="Countries">
+                <RankBars items={acquisition.countries} emptyLabel="No country breakdown in this range." />
+              </AnalyticsPanel>
+              <AnalyticsPanel id="cities-heading" title="Cities">
+                <CityRankList cities={locatedCities} />
+              </AnalyticsPanel>
+            </div>
+          </section>
+
+          <AnalyticsPanel id="events-heading" title="Custom events">
+            <RankBars
+              items={MARKETPLACE_EVENTS.map((eventName) => ({
+                name: readableLabel(eventName),
+                count: acquisition.events.find((event) => event.name === eventName)?.count ?? 0,
+              }))}
+              color={CHART_LISTING_VIEWS}
+              emptyLabel="No custom events in this range."
+            />
+          </AnalyticsPanel>
+        </div>
+      ) : (
+        <div className="mb-6">
           <AdminEmptyState
             compact
             title={acquisition.status === "not-configured"
@@ -319,128 +332,69 @@ export default async function AdminAnalyticsPage(
                 ? "Consented visitor reports will appear here after Google Analytics records activity in this date range."
                 : "Google Analytics could not return this report. The dashboard will continue to show marketplace database totals."}
           />
-        )}
-      </section>
+        </div>
+      )}
 
-      {/* Overview cards */}
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Views (30d)" value={totalViews30d.toLocaleString()} />
-        <MetricCard label="Views (7d)" value={totalViews7d.toLocaleString()} />
-        <MetricCard label="Users" value={totalUsers.toLocaleString()} />
-        <MetricCard label="Live listings" value={totalListingsLive.toLocaleString()} />
+      <AnalyticsPanel id="activity-heading" title="Activity" detail={range.key} className="mb-6">
+        <p className="mb-3 text-xs text-text-tertiary">
+          These are activity totals for the selected range, not one visitor cohort. Search and contact interactions appear as consented Google Analytics events because those actions are not stored as marketplace records.
+        </p>
+        <RankBars items={activity} emptyLabel="No marketplace activity in this range." />
+      </AnalyticsPanel>
+
+      <div className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricSparkCard label="Registered users" value={totalUsers.toLocaleString("en-GB")} />
+        <MetricSparkCard label="Live listings" value={totalListingsLive.toLocaleString("en-GB")} />
+        <MetricSparkCard label="Total favourites" value={totalFavourites.toLocaleString("en-GB")} />
+        <MetricSparkCard label="Saved searches" value={totalSavedSearches.toLocaleString("en-GB")} />
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-xs font-medium text-text-secondary">Live seller mix</p>
+            <p className="mt-2 text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">
+              {dealerListingCount.toLocaleString("en-GB")} / {privateListingCount.toLocaleString("en-GB")}
+            </p>
+            <p className="mt-1 text-xs text-text-tertiary">Dealer / private</p>
+            {sellerTotal > 0 ? (
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-premium-gold-500" aria-hidden="true">
+                <div className="h-full bg-neon-blue-500" style={{ width: `${dealerShare}%` }} />
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="mb-8 grid gap-3 sm:grid-cols-3">
-        <MetricCard label="Total favourites" value={totalFavourites.toLocaleString()} />
-        <MetricCard label="Saved searches" value={totalSavedSearches.toLocaleString()} />
-        <MetricCard
-          label="Live seller mix"
-          value={`${dealerListingCount} / ${privateListingCount}`}
-          detail="Dealer / private"
-        />
-      </div>
-
-      {/* Daily views */}
-      <section className="mb-8" aria-labelledby="daily-views-heading">
-        <h2 id="daily-views-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Daily views
-          <span className="ml-2 font-normal text-text-tertiary">Last 7 days</span>
-        </h2>
-        {recentViews.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-            {recentViews.map((day) => {
-              const date = new Date(day.day);
-              return (
-                <div key={day.day} className="rounded-lg border border-border bg-surface px-3 py-3 text-center shadow-low">
-                  <p className="text-xs text-text-tertiary">
-                    {date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })}
-                  </p>
-                  <p className="mt-1 text-lg font-bold tabular-nums text-text-primary">
-                    {Number(day.count).toLocaleString()}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <AdminEmptyState
-            compact
-            title="No view data yet"
-            description="Daily activity will appear after listings receive views."
-          />
-        )}
-      </section>
-
-      {/* Top by views */}
       <section aria-labelledby="top-views-heading">
         <h2 id="top-views-heading" className="mb-3 text-sm font-semibold text-text-primary">
           Top listings by views
         </h2>
-        <AdminTable>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Listing</TableHead>
-              <TableHead>Seller</TableHead>
-              <TableHead>Views</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {topByViews.map((listing, i) => (
-              <TableRow key={listing.id}>
-                <TableCell className="w-12 text-xs tabular-nums text-text-tertiary">{i + 1}</TableCell>
-                <TableCell>
-                  <AdminDataCell title={listing.title} />
-                </TableCell>
-                <TableCell className="text-text-secondary">{listing.dealer?.name ?? listing.user.email}</TableCell>
-                <TableCell className={adminNumericCellClass}>
-                  {listing.viewCount.toLocaleString()}
-                </TableCell>
-              </TableRow>
-            ))}
-            {topByViews.length === 0 ? (
-              <TableRow>
-                <AdminTableEmpty colSpan={4}>No live listings have view data yet.</AdminTableEmpty>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </AdminTable>
+        <ListingRankTable
+          label="Views"
+          empty="No live listings have view data yet."
+          barClassName="bg-neon-blue-500"
+          rows={topByViews.map((listing) => ({
+            id: listing.id,
+            title: listing.title,
+            seller: sellerName(listing),
+            value: listing.viewCount,
+          }))}
+        />
       </section>
 
-      {/* Top by favourites */}
       <section className="mt-8" aria-labelledby="top-favourites-heading">
         <h2 id="top-favourites-heading" className="mb-3 text-sm font-semibold text-text-primary">
           Top listings by favourites
         </h2>
-        <AdminTable>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Listing</TableHead>
-              <TableHead>Seller</TableHead>
-              <TableHead>Favourites</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {topByFavourites.map((listing, i) => (
-              <TableRow key={listing.id}>
-                <TableCell className="w-12 text-xs tabular-nums text-text-tertiary">{i + 1}</TableCell>
-                <TableCell>
-                  <AdminDataCell title={listing.title} />
-                </TableCell>
-                <TableCell className="text-text-secondary">{listing.dealer?.name ?? listing.user.email}</TableCell>
-                <TableCell className={adminNumericCellClass}>
-                  {listing._count.favouritedBy}
-                </TableCell>
-              </TableRow>
-            ))}
-            {topByFavourites.length === 0 ? (
-              <TableRow>
-                <AdminTableEmpty colSpan={4}>No live listings have favourites yet.</AdminTableEmpty>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </AdminTable>
+        <ListingRankTable
+          label="Favourites"
+          empty="No live listings have favourites yet."
+          barClassName="bg-premium-gold-500"
+          rows={topByFavourites.map((listing) => ({
+            id: listing.id,
+            title: listing.title,
+            seller: sellerName(listing),
+            value: listing.favourites,
+          }))}
+        />
       </section>
     </>
   );
