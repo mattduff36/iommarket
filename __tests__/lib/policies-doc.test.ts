@@ -114,7 +114,7 @@ describe("POL-DOC-001 canonical policy corpus", () => {
     expect(LEGAL_NAV_ITEMS).toHaveLength(8);
 
     const sitemap = readFileSync(
-      resolve(process.cwd(), "app", "sitemap.ts"),
+      resolve(process.cwd(), "app", "catalogue", "sitemap.ts"),
       "utf8",
     );
     for (const href of LEGAL_ROUTES) {

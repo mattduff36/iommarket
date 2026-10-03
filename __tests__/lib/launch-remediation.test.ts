@@ -181,7 +181,7 @@ describe("launch gate", () => {
     const sitemap = await proxy(new NextRequest("https://itrader.im/sitemap.xml"));
     expect(robots.status).toBe(200);
     expect(sitemap.status).toBe(200);
-    expect(readFileSync(resolve(process.cwd(), "app/sitemap.ts"), "utf8")).not.toContain(
+    expect(readFileSync(resolve(process.cwd(), "app/catalogue/sitemap.ts"), "utf8")).not.toContain(
       "expireStaleLiveListings",
     );
     const layout = readFileSync(resolve(process.cwd(), "app/layout.tsx"), "utf8");

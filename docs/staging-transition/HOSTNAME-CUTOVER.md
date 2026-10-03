@@ -14,3 +14,13 @@ Cutover order:
 6. Submit only production sitemap URLs and production indexing requests in the confirmed `itrader.im` Search Console property. Never submit staging or the retired preview hostname.
 
 The retired response is production-only so existing signed test renewal callbacks remain available on the old staging alias until production has deployed the new relay target. This cutover does not change database contents or enable live advertising. Database Replace/Merge remain separate unfinished work described in DATABASE-SYNC.md.
+
+## Cutover checks on 3 October 2026
+
+- `staging.itrader.im` is attached to the staging branch. Its exact Vercel Deployment Protection exception was added by the owner; generated deployment URLs retain project protection.
+- Anonymous requests reach the application's administrator gate. The gate and sign-in return HTTP 200 with noindex, protected pages redirect to the gate, and an anonymous API request returns 401. Robots publishes no sitemap and `/sitemap.xml` returns 404 with noindex.
+- The owner saved the development Supabase Site URL as `https://staging.itrader.im` and added `https://staging.itrader.im/auth/callback`. These values were inspected in the development project `syneonzucehwlghqmfbg`. Its Auth Hooks page has no configured hooks, so there is no old hook endpoint to migrate; email delivery itself has not been tested.
+- The root sitemap index uses native Next metadata partitions under `/catalogue/sitemap/{id}.xml`. Placing a separate index beside a root `app/sitemap.ts` caused a build conflict in the installed Next version; nesting the metadata file avoids that conflict without replacing native XML serialization.
+- The verified `itrader.im` domain property is visible in the owner's personal Google Search Console. Submission waits for production deployment and live sitemap verification.
+
+These observations do not by themselves confirm production promotion or old-host retirement. Record those outcomes after the merge and alias checks.

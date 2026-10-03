@@ -52,7 +52,8 @@ export function isPublicWhileGated(pathname: string): boolean {
 }
 
 export function classifyLaunchRoute(pathname: string): LaunchRouteClass {
-  if (pathname === "/robots.txt" || pathname === "/sitemap.xml") return "seo";
+  if (pathname === "/robots.txt" || pathname === "/sitemap.xml" ||
+      /^\/catalogue\/sitemap\/\d+\.xml$/.test(pathname)) return "seo";
   if (pathname === "/holding") return "holding";
   if (pathname === "/") return "homepage";
   if (isPublicWhileGated(pathname)) return "legal";

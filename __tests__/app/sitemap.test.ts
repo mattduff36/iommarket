@@ -34,7 +34,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-const { default: sitemap } = await import("@/app/sitemap");
+const { default: sitemap } = await import("@/app/catalogue/sitemap");
 
 describe("sitemap", () => {
   const originalLaunch = process.env.PRODUCTION_LAUNCH_ENABLED;
