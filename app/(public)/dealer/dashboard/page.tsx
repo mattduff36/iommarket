@@ -5,10 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
-import {
-  ensureAdminDealerProfile,
-  hasDealerDashboardAccess,
-} from "@/lib/dealers/access";
+import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { getCurrentDealerEntitlement, hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,7 +89,8 @@ interface Props {
 export default async function DealerDashboardPage({ searchParams }: Props) {
   await expireStaleLiveListings();
   const acceptedUser = await requireAcceptedUser("/dealer/dashboard");
-  const user = await ensureAdminDealerProfile(acceptedUser, db);
+  if (acceptedUser.role === "ADMIN") redirect("/admin");
+  const user = acceptedUser;
   if (!hasDealerDashboardAccess(user)) redirect("/dealer/subscribe");
   if (!(await hasOperationalDealerAccess(user))) redirect("/dealer/subscribe");
   const entitlement = await getCurrentDealerEntitlement(user);

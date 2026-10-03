@@ -36,6 +36,10 @@ export async function createSelfServiceDealerProfile(
 ) {
   const user = await requireAcceptedAuth();
 
+  if (user.role === "ADMIN") {
+    return { error: "Admin accounts cannot become dealers." };
+  }
+
   if (user.dealerProfile) {
     return { data: user.dealerProfile };
   }

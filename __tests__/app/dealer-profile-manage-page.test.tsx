@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const redirectMock = vi.fn((path: string) => {
@@ -69,18 +68,13 @@ describe("DealerProfileManagePage T9", () => {
     hasOperationalDealerAccessMock.mockResolvedValue(true);
   });
 
-  it("provisions a missing admin dealer profile and renders without billing entitlement", async () => {
+  it("sends admins to the admin area without creating a dealer profile", async () => {
     const { default: DealerProfileManagePage } = await import(
       "@/app/(public)/dealer/profile/page"
     );
 
-    render(await DealerProfileManagePage());
-
-    expect(ensureAdminDealerProfileMock).toHaveBeenCalled();
-    expect(redirectMock).not.toHaveBeenCalled();
-    expect(screen.getByTestId("dealer-profile-form")).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Manage Dealer Profile" }),
-    ).toBeTruthy();
+    await expect(DealerProfileManagePage()).rejects.toThrow("redirect:/admin");
+    expect(ensureAdminDealerProfileMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("dealer-profile-form")).toBeNull();
   });
 });

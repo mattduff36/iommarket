@@ -31,6 +31,14 @@ describe("getAccountNavItems", () => {
     expect(userItems.some((item) => item.href === "/dealer/profile")).toBe(false);
     expect(userItems.some((item) => item.href === "/admin")).toBe(false);
   });
+
+  it("keeps dealer tools off admin accounts", () => {
+    const adminItems = getAccountNavItems("ADMIN");
+
+    expect(adminItems.some((item) => item.href === "/dealer/profile")).toBe(false);
+    expect(adminItems.some((item) => item.href === "/dealer/dashboard")).toBe(false);
+    expect(adminItems.some((item) => item.href === "/admin")).toBe(true);
+  });
 });
 
 describe("getRoleLabel", () => {

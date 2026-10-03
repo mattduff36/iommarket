@@ -4,8 +4,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
-import { db } from "@/lib/db";
-import { ensureAdminDealerProfile } from "@/lib/dealers/access";
 import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { getEditableDraft } from "@/lib/listings/editable-draft";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -30,7 +28,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
   const acceptedUser = await requireAcceptedUser("/sell/dealer");
   if (acceptedUser.role === "ADMIN") redirect("/admin/listings");
   if (acceptedUser.role === "USER") redirect("/sell/private");
-  const user = await ensureAdminDealerProfile(acceptedUser, db);
+  const user = acceptedUser;
   const dealerProfile = user.dealerProfile;
   const params = searchParams ? await searchParams : {};
   const draftId = params.draft?.trim();

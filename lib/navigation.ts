@@ -48,7 +48,7 @@ const ACCOUNT_NAV_ITEMS: AccountNavItem[] = [
 function canViewItem(item: AccountNavItem, role: AuthRole): boolean {
   if (!item.visibility || item.visibility === "all") return true;
   if (item.visibility === "admin") return role === "ADMIN";
-  return role === "DEALER" || role === "ADMIN";
+  return role === "DEALER";
 }
 
 export function getSellLandingPath(role: AuthRole): string | null {

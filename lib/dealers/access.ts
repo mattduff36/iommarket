@@ -42,9 +42,7 @@ export function getAdminDealerWhere(): Prisma.DealerProfileWhereInput {
   return {
     isAdminPreview: false,
     user: {
-      role: {
-        in: DEALER_ACCOUNT_ROLES,
-      },
+      role: "DEALER",
     },
   };
 }
@@ -143,18 +141,6 @@ export async function provisionDealerProfile(
       ...defaults,
     },
   });
-}
-
-export async function ensureAdminDealerProfile<
-  T extends DealerProfileDefaultsSubject & {
-    role: UserRole;
-    dealerProfile: { id: string } | null;
-  },
->(user: T, tx: DealerProfileClient) {
-  if (user.role !== "ADMIN") return user;
-  if (user.dealerProfile) return user;
-  const dealerProfile = await provisionDealerProfile(tx, user);
-  return { ...user, dealerProfile };
 }
 
 function getDefaultDealerName(user: DealerProfileDefaultsSubject) {

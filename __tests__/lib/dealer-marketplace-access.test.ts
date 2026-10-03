@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   canViewMarketplaceDealerProfile,
   getMarketplaceDealerWhere,
@@ -89,33 +89,13 @@ describe("marketplace dealer access", () => {
   });
 });
 
-describe("ensureAdminDealerProfile", () => {
-  it("T9 provisions a missing admin dealer profile via upsert", async () => {
-    const { ensureAdminDealerProfile } = await import("@/lib/dealers/access");
-    const upsert = vi.fn().mockResolvedValue({
-      id: "dealer-admin",
-      slug: "dealer-admin-1",
-    });
-    const user = {
-      id: "admin-1",
-      name: "Admin",
-      email: "admin@example.com",
-      role: "ADMIN" as const,
-      dealerProfile: null,
-    };
+describe("getAdminDealerWhere", () => {
+  it("lists dealer accounts and leaves admin accounts out", async () => {
+    const { getAdminDealerWhere } = await import("@/lib/dealers/access");
 
-    const provisioned = await ensureAdminDealerProfile(user, {
-      dealerProfile: { upsert },
-    });
-
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: "admin-1" },
-      }),
-    );
-    expect(provisioned.dealerProfile).toEqual({
-      id: "dealer-admin",
-      slug: "dealer-admin-1",
+    expect(getAdminDealerWhere()).toEqual({
+      isAdminPreview: false,
+      user: { role: "DEALER" },
     });
   });
 });

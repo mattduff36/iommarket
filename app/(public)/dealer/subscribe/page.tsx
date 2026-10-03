@@ -56,6 +56,7 @@ export default async function DealerSubscribePage({ searchParams }: Props) {
     requireAcceptedUser(intendedSubscribePath),
     getMarketplacePricing(),
   ]);
+  if (user.role === "ADMIN") redirect("/admin");
 
   const dealerProfile = user.dealerProfile;
 

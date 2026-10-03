@@ -3,18 +3,15 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
-import { db } from "@/lib/db";
-import {
-  ensureAdminDealerProfile,
-  hasDealerDashboardAccess,
-} from "@/lib/dealers/access";
+import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
 import { Button } from "@/components/ui/button";
 import { DealerProfileForm } from "./dealer-profile-form";
 
 export default async function DealerProfileManagePage() {
   const acceptedUser = await requireAcceptedUser("/dealer/profile");
-  const user = await ensureAdminDealerProfile(acceptedUser, db);
+  if (acceptedUser.role === "ADMIN") redirect("/admin");
+  const user = acceptedUser;
   if (!hasDealerDashboardAccess(user)) redirect("/pricing");
   if (!(await hasOperationalDealerAccess(user))) redirect("/dealer/subscribe");
 

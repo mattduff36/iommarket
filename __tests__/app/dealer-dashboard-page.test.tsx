@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import * as React from "react";
-import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const redirectMock = vi.fn((path: string) => {
@@ -109,26 +107,12 @@ describe("DealerDashboardPage T9", () => {
     });
   });
 
-  it("provisions a missing admin dealer profile and renders without billing entitlement", async () => {
+  it("sends admins to the admin area without creating a dealer profile", async () => {
     const { default: DealerDashboardPage } = await import(
       "@/app/(public)/dealer/dashboard/page"
     );
 
-    render(await DealerDashboardPage({}));
-
-    expect(ensureAdminDealerProfileMock).toHaveBeenCalled();
-    expect(screen.getByText("Admin operational access")).toBeTruthy();
-    const subscription = screen.getByText("Subscription:");
-    const emailPreferences = screen.getByRole("heading", { name: "Email preferences" });
-    const listingsHeading = screen.getByRole("heading", { name: "Your Listings" });
-    expect(
-      subscription.compareDocumentPosition(emailPreferences) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      emailPreferences.compareDocumentPosition(listingsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(screen.queryByText("Active")).toBeNull();
-    expect(screen.queryByText("Free access")).toBeNull();
-    expect(screen.queryByText(/active listing slots used/i)).toBeNull();
+    await expect(DealerDashboardPage({})).rejects.toThrow("redirect:/admin");
+    expect(ensureAdminDealerProfileMock).not.toHaveBeenCalled();
   });
 });
