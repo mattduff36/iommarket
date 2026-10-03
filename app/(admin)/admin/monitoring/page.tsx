@@ -93,7 +93,7 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
     ...(constraints.length > 0 ? { AND: constraints } : {}),
   };
 
-  const [pageIssues, openCount, criticalOpenCount, recentEvents, previousEvents, recurringCount, failedDeliveries, health] = await Promise.all([
+  const [pageIssues, openCount, criticalOpenCount, recentEvents, previousEvents, recurringCount, failedDeliveries, unresolvedFailedAlerts, failedAlertBatch, health] = await Promise.all([
     db.monitoringIssue.findMany({
       where,
       orderBy: [{ lastSeenAt: "desc" }, { id: "desc" }],
@@ -127,6 +127,15 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
     db.monitoringAlertDelivery.count({
       where: { status: "FAILED", createdAt: { gte: dayAgo } },
     }),
+    db.monitoringAlertDelivery.count({
+      where: { status: "FAILED" },
+    }),
+    db.monitoringAlertDelivery.findMany({
+      where: { status: "FAILED" },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, lastError: true },
+      take: 20,
+    }),
     db.monitoringPipelineHealth.findUnique({ where: { id: "singleton" } }),
   ]);
   const hasNextPage = pageIssues.length > 20;
@@ -151,6 +160,9 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
         previousEvents={previousEvents}
         recurringCount={recurringCount}
         failedDeliveries={failedDeliveries}
+        unresolvedFailedAlerts={unresolvedFailedAlerts}
+        failedAlertIds={failedAlertBatch.map((delivery) => delivery.id)}
+        latestAlertError={failedAlertBatch[0]?.lastError ?? null}
       />
 
       <AdminFilterBar

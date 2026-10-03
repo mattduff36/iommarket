@@ -150,8 +150,7 @@ export async function revealMonitoringEventIdentity(eventId: string) {
   };
 }
 
-export async function retryMonitoringAlertDelivery(deliveryId: string) {
-  const admin = await requireRole("ADMIN");
+async function retryMonitoringAlertDeliveryForAdmin(deliveryId: string, adminId: string) {
   const parsed = z.string().cuid().safeParse(deliveryId);
   if (!parsed.success) return { error: "Delivery not found" };
   const delivery = await db.monitoringAlertDelivery.findUnique({
@@ -159,8 +158,8 @@ export async function retryMonitoringAlertDelivery(deliveryId: string) {
     select: { id: true, issueId: true, status: true },
   });
   if (!delivery) return { error: "Delivery not found" };
-  await db.monitoringAlertDelivery.update({
-    where: { id: delivery.id },
+  const reset = await db.monitoringAlertDelivery.updateMany({
+    where: { id: delivery.id, status: "FAILED" },
     data: {
       status: "PENDING",
       attempts: 0,
@@ -170,17 +169,101 @@ export async function retryMonitoringAlertDelivery(deliveryId: string) {
       lastError: null,
     },
   });
+  if (reset.count !== 1) {
+    return { error: "Delivery is no longer available to retry" };
+  }
   const { processMonitoringAlertOutbox } = await import("@/lib/monitoring/alert-outbox");
   const processed = await processMonitoringAlertOutbox({ deliveryId: delivery.id, limit: 1 });
   await logAdminAction({
-    adminId: admin.id,
+    adminId,
     action: "RETRY_MONITORING_ALERT",
     entityType: "MonitoringAlertDelivery",
     entityId: delivery.id,
     details: processed,
   });
+  revalidatePath("/admin/monitoring");
   if (delivery.issueId) revalidatePath(`/admin/monitoring/${delivery.issueId}`);
   return { data: processed };
+}
+
+export async function retryMonitoringAlertDelivery(deliveryId: string) {
+  const admin = await requireRole("ADMIN");
+  return retryMonitoringAlertDeliveryForAdmin(deliveryId, admin.id);
+}
+
+export async function retryFailedMonitoringAlerts() {
+  const admin = await requireRole("ADMIN");
+  const failed = await db.monitoringAlertDelivery.findMany({
+    where: { status: "FAILED" },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: 5,
+  });
+  let sent = 0;
+  let failedCount = 0;
+  for (const delivery of failed) {
+    const result = await retryMonitoringAlertDeliveryForAdmin(delivery.id, admin.id);
+    if ("error" in result && result.error) {
+      failedCount += 1;
+      continue;
+    }
+    sent += result.data?.sent ?? 0;
+    failedCount += result.data?.failed ?? 0;
+  }
+  await logAdminAction({
+    adminId: admin.id,
+    action: "RETRY_FAILED_MONITORING_ALERTS",
+    entityType: "MonitoringAlertDelivery",
+    details: { attempted: failed.length, sent, failed: failedCount },
+  });
+  revalidatePath("/admin/monitoring");
+  return { data: { attempted: failed.length, sent, failed: failedCount } };
+}
+
+const clearPipelineWarningSchema = z.object({
+  deliveryIds: z.array(z.string().cuid()).max(20),
+});
+
+export async function clearMonitoringPipelineWarning(input: { deliveryIds: string[] }) {
+  const admin = await requireRole("ADMIN");
+  const parsed = clearPipelineWarningSchema.safeParse(input);
+  if (!parsed.success) return { error: "Invalid failed alert selection" };
+  const deliveryIds = [...new Set(parsed.data.deliveryIds)];
+  const clearedCount = await db.$transaction(async (tx) => {
+    const cleared = deliveryIds.length > 0
+      ? await tx.monitoringAlertDelivery.updateMany({
+        where: { id: { in: deliveryIds }, status: "FAILED" },
+        data: {
+          status: "SKIPPED",
+          nextAttemptAt: null,
+          claimedAt: null,
+          claimExpiresAt: null,
+        },
+      })
+      : { count: 0 };
+    await tx.monitoringPipelineHealth.upsert({
+      where: { id: "singleton" },
+      create: {
+        id: "singleton",
+        consecutiveCaptureFailures: 0,
+        consecutiveAlertFailures: 0,
+      },
+      update: {
+        consecutiveCaptureFailures: 0,
+        consecutiveAlertFailures: 0,
+      },
+    });
+    await logAdminAction({
+      adminId: admin.id,
+      action: "CLEAR_MONITORING_PIPELINE_WARNING",
+      entityType: "MonitoringPipelineHealth",
+      entityId: "singleton",
+      details: { cleared: cleared.count, deliveryIds },
+    }, tx);
+    return cleared.count;
+  });
+  revalidatePath("/admin/monitoring");
+  return { data: { cleared: clearedCount } };
 }
 
 const generatePromptSchema = z.object({

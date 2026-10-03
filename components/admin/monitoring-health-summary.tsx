@@ -1,11 +1,15 @@
+import { MonitoringPipelineActions } from "@/components/admin/monitoring-pipeline-actions";
 import { isServerCaptureEnabled } from "@/lib/monitoring/flags";
+import { monitoringPipelineBanner } from "@/lib/monitoring/pipeline-banner";
 
 interface HealthSummary {
   lastCaptureAt: Date | null;
   lastCaptureFailureAt: Date | null;
+  lastCaptureFailure?: string | null;
   consecutiveCaptureFailures: number;
   lastAlertSuccessAt: Date | null;
   lastAlertFailureAt: Date | null;
+  lastAlertFailure?: string | null;
   consecutiveAlertFailures: number;
   suppressedAlertCount: number;
   vercelFallbackStatus: string | null;
@@ -23,6 +27,9 @@ export function MonitoringHealthSummary({
   previousEvents,
   recurringCount,
   failedDeliveries,
+  unresolvedFailedAlerts,
+  failedAlertIds,
+  latestAlertError,
 }: {
   health: HealthSummary | null;
   openCount: number;
@@ -31,28 +38,45 @@ export function MonitoringHealthSummary({
   previousEvents: number;
   recurringCount: number;
   failedDeliveries: number;
+  unresolvedFailedAlerts: number;
+  failedAlertIds: string[];
+  latestAlertError: string | null;
 }) {
   const captureEnabled = isServerCaptureEnabled();
-  const degraded = !captureEnabled
+  const banner = monitoringPipelineBanner({
+    captureEnabled,
+    consecutiveCaptureFailures: health?.consecutiveCaptureFailures ?? 0,
+    consecutiveAlertFailures: health?.consecutiveAlertFailures ?? 0,
+    unresolvedFailedAlerts,
+    latestAlertError: latestAlertError ?? health?.lastAlertFailure,
+    latestCaptureError: health?.lastCaptureFailure,
+  });
+  const canClear = unresolvedFailedAlerts > 0
     || (health?.consecutiveCaptureFailures ?? 0) > 0
-    || (health?.consecutiveAlertFailures ?? 0) > 0
-    || failedDeliveries > 0;
+    || (health?.consecutiveAlertFailures ?? 0) > 0;
 
   return (
     <section aria-label="Monitoring health" className="mb-6 space-y-3">
-      {degraded ? (
-        <p className="rounded-lg border border-text-energy/40 bg-text-energy/10 px-4 py-3 text-sm text-text-primary" role="status">
-          {!captureEnabled
-            ? "Server capture is disabled by MONITORING_CAPTURE_SERVER."
-            : "The monitoring pipeline needs attention. Check the latest capture or alert failure before relying on this queue."}
-        </p>
+      {banner ? (
+        <div className="rounded-lg border border-text-energy/40 bg-text-energy/10 px-4 py-3 text-sm text-text-primary" role="status">
+          <p>{banner}</p>
+          <MonitoringPipelineActions
+            canRetry={unresolvedFailedAlerts > 0}
+            canClear={canClear}
+            failedAlertIds={failedAlertIds}
+          />
+        </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <HealthCard label="Open issues" value={openCount} />
         <HealthCard label="Critical active" value={criticalCount} />
         <HealthCard label="Recurring in 24h" value={recurringCount} />
         <HealthCard label="Events in 24h" value={recentEvents} detail={`Previous 24h: ${previousEvents.toLocaleString()}`} />
-        <HealthCard label="Failed alerts in 24h" value={failedDeliveries} />
+        <HealthCard
+          label="Failed alerts in 24h"
+          value={failedDeliveries}
+          detail={unresolvedFailedAlerts > failedDeliveries ? `Unresolved: ${unresolvedFailedAlerts}` : undefined}
+        />
         <HealthCard label="Suppressed alerts" value={health?.suppressedAlertCount ?? 0} />
       </div>
       <div className="grid gap-3 text-sm text-text-secondary sm:grid-cols-2 xl:grid-cols-4">

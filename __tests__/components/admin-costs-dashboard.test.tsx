@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   COST_EMPTY_HELP,
   COST_NON_OWNER_HELP,
@@ -41,6 +41,10 @@ vi.mock("@/app/(admin)/admin/costs/cost-actions", () => ({
 }));
 
 import { CostDashboardView } from "@/app/(admin)/admin/costs/cost-dashboard";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function dashboard(overrides: Partial<CostDashboardDto> = {}): CostDashboardDto {
   return {
@@ -198,7 +202,9 @@ describe("admin costs dashboard T5", () => {
   });
 
   it("paginates long cost lists instead of rendering every line at once", async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-02T12:00:00.000Z"));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const lines = Array.from({ length: 12 }, (_, index) => ({
       id: `entry_${index + 1}`,
       section: "Development",

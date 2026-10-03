@@ -31,7 +31,12 @@ const {
     },
     monitoringAlertDelivery: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    monitoringPipelineHealth: {
+      upsert: vi.fn(),
     },
   },
 }));
@@ -129,13 +134,65 @@ describe("admin monitoring actions", () => {
       issueId: ISSUE_ID,
       status: "FAILED",
     });
-    mockDb.monitoringAlertDelivery.update.mockResolvedValue({});
+    mockDb.monitoringAlertDelivery.updateMany.mockResolvedValue({ count: 1 });
     const result = await retryMonitoringAlertDelivery(DELIVERY_ID);
 
-    expect(mockDb.monitoringAlertDelivery.update).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockDb.monitoringAlertDelivery.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: DELIVERY_ID, status: "FAILED" },
       data: expect.objectContaining({ status: "PENDING", attempts: 0 }),
     }));
     expect(processOutboxMock).toHaveBeenCalledWith({ deliveryId: DELIVERY_ID, limit: 1 });
     expect(result).toEqual({ data: { processed: 1, sent: 1, failed: 0 } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/monitoring");
+  });
+
+  it("does not retry a delivery that another worker already claimed", async () => {
+    mockDb.monitoringAlertDelivery.findUnique.mockResolvedValue({
+      id: DELIVERY_ID,
+      issueId: ISSUE_ID,
+      status: "FAILED",
+    });
+    mockDb.monitoringAlertDelivery.updateMany.mockResolvedValue({ count: 0 });
+    const { retryMonitoringAlertDelivery } = await import("@/actions/admin/monitoring");
+
+    await expect(retryMonitoringAlertDelivery(DELIVERY_ID)).resolves.toEqual({
+      error: "Delivery is no longer available to retry",
+    });
+    expect(processOutboxMock).not.toHaveBeenCalled();
+  });
+
+  it("retries unresolved failed alerts and can clear the pipeline warning", async () => {
+    mockDb.monitoringAlertDelivery.findMany.mockResolvedValue([{ id: DELIVERY_ID }]);
+    mockDb.monitoringAlertDelivery.findUnique.mockResolvedValue({
+      id: DELIVERY_ID,
+      issueId: ISSUE_ID,
+      status: "FAILED",
+    });
+    mockDb.monitoringAlertDelivery.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 1 });
+    mockDb.monitoringPipelineHealth.upsert.mockResolvedValue({ id: "singleton" });
+    const { retryFailedMonitoringAlerts, clearMonitoringPipelineWarning } = await import("@/actions/admin/monitoring");
+
+    await expect(retryFailedMonitoringAlerts()).resolves.toEqual({
+      data: { attempted: 1, sent: 1, failed: 0 },
+    });
+    await expect(clearMonitoringPipelineWarning({ deliveryIds: [DELIVERY_ID] })).resolves.toEqual({
+      data: { cleared: 1 },
+    });
+    expect(mockDb.monitoringAlertDelivery.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: { in: [DELIVERY_ID] }, status: "FAILED" },
+      data: expect.objectContaining({ status: "SKIPPED" }),
+    }));
+    expect(mockDb.monitoringAlertDelivery.updateMany.mock.calls.at(-1)?.[0]?.data).not.toHaveProperty("lastError");
+    expect(mockDb.monitoringPipelineHealth.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({
+        consecutiveAlertFailures: 0,
+        consecutiveCaptureFailures: 0,
+      }),
+    }));
+    expect(logAdminActionMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "CLEAR_MONITORING_PIPELINE_WARNING",
+    }), mockDb);
   });
 });
