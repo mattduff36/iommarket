@@ -115,8 +115,17 @@ export function getRippleTestFeaturedProduct(env: NodeJS.ProcessEnv = process.en
 
 export function isRippleStagingLinkCode(code: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!code) return false;
+  const normalizedCode = code.trim().toUpperCase();
   return ["RIPPLE_TEST_SUBSCRIPTION_URL", "RIPPLE_TEST_FEATURED_URL"]
-    .some((key) => getTestLinkCode(key, env) === code.trim().toUpperCase());
+    .some((key) => {
+      try {
+        return getTestLinkCode(key, env) === normalizedCode;
+      } catch {
+        // Classification runs while applying verified production webhooks.
+        // Invalid optional preview configuration must be treated as non-matching.
+        return false;
+      }
+    });
 }
 
 export function getTrimmedEnv(key: string): string | null {

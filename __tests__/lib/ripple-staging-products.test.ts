@@ -77,6 +77,23 @@ describe("isolated weekly staging subscription", () => {
     })).toThrow("RIPPLE_CLIENT_ID is not set");
   });
 
+  it("treats malformed optional preview links as non-matching during production routing", () => {
+    const featuredCode = "1234567890ABCDEF";
+    const production = {
+      ...env,
+      VERCEL_ENV: "production",
+      RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/other-client/pay/${featuredCode}`,
+    };
+
+    expect(isRippleStagingLinkCode(code, production)).toBe(true);
+    expect(isRippleStagingLinkCode(featuredCode, production)).toBe(false);
+    expect(isRippleStagingLinkCode(featuredCode, {
+      ...production,
+      RIPPLE_TEST_SUBSCRIPTION_URL: "not-a-url",
+      RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/test-client/pay/${featuredCode}`,
+    })).toBe(true);
+  });
+
   it("rejects reusing one test link for both product types", () => {
     expect(() => getRippleTestSubscriptionProduct({ ...env, RIPPLE_TEST_FEATURED_URL: env.RIPPLE_TEST_SUBSCRIPTION_URL })).toThrow("separate payment links");
   });
