@@ -1,4 +1,8 @@
-import { LISTING_PHOTO_FRAMES, LISTING_PHOTO_WIDTHS, type ListingPhotoFrame } from "@/lib/images/constraints";
+import { LISTING_PHOTO_FRAMES, type ListingPhotoFrame } from "@/lib/images/constraints";
+import {
+  LISTING_PHOTO_DELIVERY_WIDTHS,
+  isListingPhotoDeliveryWidth,
+} from "@/lib/images/delivery-widths";
 import { getListingPhotoFitMode } from "@/lib/images/fit-policy";
 import { hasValidFocalPoint, hasValidPhotoDimensions, type ListingPhotoSource } from "@/lib/images/photo";
 import { focalCoverCrop } from "@/lib/media/focal-crop";
@@ -8,9 +12,14 @@ export const SOCIAL_HEIGHT = 630;
 
 export type ImageKitDeliveryMode = "fill" | "fit" | "blur" | "social";
 
+/**
+ * Delivery widths pass through unchanged. Other values are a server-side
+ * backstop only: the media route rejects them before a transform is built.
+ */
 export function clampListingPhotoWidth(width: number) {
   const requested = Math.max(1, Math.round(width));
-  return LISTING_PHOTO_WIDTHS.reduce((closest, candidate) =>
+  if (isListingPhotoDeliveryWidth(requested)) return requested;
+  return LISTING_PHOTO_DELIVERY_WIDTHS.reduce((closest, candidate) =>
     Math.abs(candidate - requested) < Math.abs(closest - requested) ? candidate : closest,
   );
 }

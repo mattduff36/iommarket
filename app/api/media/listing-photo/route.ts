@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { loadAuthorizedListingPhoto, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
+import { listingPhotoDeliveryQuerySchema } from "@/lib/media/listing-photo-query";
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
@@ -8,20 +8,12 @@ import { toRateLimitDenial } from "@/lib/rate-limit-result";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const querySchema = z.object({
-  imageId: z.string().min(1).max(80),
-  source: z.enum(["listing", "revision"]).default("listing"),
-  mode: z.enum(["fill", "fit", "blur", "social"]),
-  frame: z.enum(["card", "gallery", "thumb", "admin", "preview", "social"]),
-  w: z.coerce.number().int().positive().max(2400),
-});
-
 function clientKey(request: NextRequest) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
 }
 
 export async function GET(request: NextRequest) {
-  const parsed = querySchema.safeParse({
+  const parsed = listingPhotoDeliveryQuerySchema.safeParse({
     imageId: request.nextUrl.searchParams.get("imageId"),
     source: request.nextUrl.searchParams.get("source") ?? undefined,
     mode: request.nextUrl.searchParams.get("mode"),

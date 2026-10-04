@@ -12,6 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
 import { cn } from "@/lib/cn";
+import {
+  LISTING_GALLERY_SIZES,
+  LISTING_GALLERY_THUMB_SIZES,
+  LISTING_LIGHTBOX_SIZES,
+  LISTING_LIGHTBOX_THUMB_SIZES,
+} from "@/lib/images/delivery-widths";
 import type { ListingPhotoSource } from "@/lib/images/photo";
 
 interface ListingImageGalleryProps {
@@ -161,7 +167,7 @@ export function ListingImageGallery({
                     frame="thumb"
                     alt={`${title} image ${index + 1}`}
                     fillContainer
-                    sizes="(max-width: 768px) 50vw, 16vw"
+                    sizes={LISTING_GALLERY_THUMB_SIZES}
                   />
                   <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {index + 1}
@@ -258,7 +264,7 @@ export function ListingImageGallery({
                           frame="thumb"
                           alt={`${title} thumbnail ${index + 1}`}
                           fillContainer
-                          sizes="112px"
+                          sizes={LISTING_LIGHTBOX_THUMB_SIZES}
                         />
                       </button>
                     );
@@ -353,7 +359,7 @@ function SwipeablePhotoStage({
                 variant="contain"
                 fillContainer
                 alt={index === activeIndex ? `${title} image ${index + 1}` : ""}
-                sizes="100vw"
+                sizes={LISTING_LIGHTBOX_SIZES}
                 priority={index === 0}
               />
             ) : (
@@ -370,7 +376,7 @@ function SwipeablePhotoStage({
                   alt={index === activeIndex ? title : ""}
                   fillContainer
                   priority={index === 0}
-                  sizes="(max-width: 768px) 100vw, 66vw"
+                  sizes={LISTING_GALLERY_SIZES}
                   imageClassName={cn(
                     "transition duration-300 motion-reduce:transition-none group-hover:scale-[1.015] motion-reduce:group-hover:scale-100",
                     isSold && "brightness-75",
