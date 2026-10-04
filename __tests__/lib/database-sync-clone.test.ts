@@ -67,7 +67,7 @@ describe("ARCH-CLONE-002 lossless codec and fingerprint", () => {
 });
 
 describe("ARCH-CLONE-003 locks, deadline and session pooler", () => {
-  it("locks every public table and auth before mutation and rejects transaction poolers", () => {
+  it("locks every public table and auth and rejects the wrong preview project", () => {
     const sql = lockCloneTablesSql(["Listing", "User"]);
     expect(sql).toContain('public."Listing"');
     expect(sql).toContain("auth.users");
@@ -75,7 +75,20 @@ describe("ARCH-CLONE-003 locks, deadline and session pooler", () => {
     expect(APPLY_DEADLINE_MS).toBeLessThan(300_000);
     expect(APPLY_STATEMENT_TIMEOUT).toBe("240s");
     expect(isTransactionPoolerUrl("postgres://postgres.syneonzucehwlghqmfbg@aws-1-eu-west-2.pooler.supabase.com:6543/postgres")).toBe(true);
-    expect(() => resolvePreviewSessionUrl({ NODE_ENV: "test", DATABASE_URL: "postgres://postgres.syneonzucehwlghqmfbg@aws-1-eu-west-2.pooler.supabase.com:6543/postgres" } as NodeJS.ProcessEnv)).toThrow("session connection");
+    expect(() => resolvePreviewSessionUrl({ NODE_ENV: "test", DATABASE_URL: "postgres://postgres.wrongref@aws-1-eu-west-2.pooler.supabase.com:6543/postgres" } as NodeJS.ProcessEnv)).toThrow("session connection");
+  });
+
+  it("prefers an IPv4 session pooler derived from a verified transaction URL", () => {
+    const resolved = new URL(resolvePreviewSessionUrl({
+      NODE_ENV: "test",
+      POSTGRES_URL_NON_POOLING: "postgres://postgres:example@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres",
+      POSTGRES_URL: "postgres://postgres.syneonzucehwlghqmfbg:example@aws-1-eu-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require",
+    } as NodeJS.ProcessEnv));
+
+    expect(resolved.hostname).toBe("aws-1-eu-west-2.pooler.supabase.com");
+    expect(resolved.port).toBe("5432");
+    expect(resolved.searchParams.has("pgbouncer")).toBe(false);
+    expect(resolved.searchParams.get("sslmode")).toBe("require");
   });
 });
 

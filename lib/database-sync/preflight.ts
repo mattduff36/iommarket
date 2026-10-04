@@ -2,6 +2,7 @@ import pg from "pg";
 import { requiredPublicRelations } from "./catalog";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
 import { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
+import { resolvePreviewSessionUrl } from "./session";
 
 export type DatabaseSyncInspection = {
   ready: boolean;
@@ -40,10 +41,14 @@ function parseDatabaseUrl(raw: string | undefined, ref: string, dedicatedSource 
 }
 
 function destinationUrl(env: NodeJS.ProcessEnv): string | null {
-  const urls = [env.POSTGRES_URL, env.POSTGRES_URL_NON_POOLING, env.DATABASE_URL]
+  const urls = [env.DATABASE_SYNC_SESSION_URL, env.POSTGRES_URL, env.POSTGRES_URL_NON_POOLING, env.DATABASE_URL]
     .filter((value): value is string => Boolean(value?.trim()));
   if (urls.length === 0 || !urls.every((url) => parseDatabaseUrl(url, PREVIEW_PROJECT_REF))) return null;
-  return urls[0];
+  try {
+    return resolvePreviewSessionUrl(env);
+  } catch {
+    return null;
+  }
 }
 
 export function inspectDatabaseSyncConfiguration(env: NodeJS.ProcessEnv = process.env) {

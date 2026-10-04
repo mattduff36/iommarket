@@ -4,7 +4,7 @@ This design powers the staging-only `/admin/database` page. Production stays rea
 
 ## Access
 
-Every page and action requires an active development administrator and the server-verified staging environment. Mutations require the exact `https://itrader.dev` Origin. Apply and restore use a preview session connection (`DATABASE_SYNC_SESSION_URL`, then a non-pooling preview URL). Transaction-pooler connections on port 6543 or `pgbouncer=true` are rejected before a connection is opened.
+Every page and action requires an active development administrator and the server-verified staging environment. Mutations require the exact `https://itrader.dev` Origin. Prepare, apply and restore use a preview session connection. An explicit `DATABASE_SYNC_SESSION_URL` takes priority; otherwise the application prefers an existing preview session-pooler URL, derives the shared Supabase session endpoint on port 5432 from a verified port-6543 transaction-pooler URL, and uses a direct preview URL only as a final fallback. Inspection uses this same endpoint so it cannot report readiness through a connection that plans cannot use.
 
 `DATABASE_SYNC_SOURCE_READONLY_URL` is staging-only and must be the `itrader_staging_reader` role on the production project. The reader needs SELECT, and an unconditional reader RLS policy, on every public table except `spatial_ref_sys`, plus `auth.users` and `auth.identities`. Its statement timeout is 240 seconds. It has no write, ownership, or elevated privileges.
 

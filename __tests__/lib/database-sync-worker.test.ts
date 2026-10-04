@@ -87,12 +87,14 @@ describe("database clone transaction boundaries", () => {
     expect(mocks.pool).not.toHaveBeenCalled();
   });
 
-  it("rejects a transaction pooler before connecting", async () => {
+  it("converts a verified preview transaction pooler to session mode", async () => {
     await expect(applyDatabaseSync(runId, "admin", {
       ...env,
       DATABASE_URL: "postgres://postgres.syneonzucehwlghqmfbg@aws-1-eu-west-2.pooler.supabase.com:6543/postgres",
-    })).rejects.toThrow("session connection");
-    expect(mocks.pool).not.toHaveBeenCalled();
+    })).resolves.toHaveProperty("status", "applied");
+    expect(mocks.pool).toHaveBeenCalledWith({
+      connectionString: "postgres://postgres.syneonzucehwlghqmfbg@aws-1-eu-west-2.pooler.supabase.com:5432/postgres",
+    });
   });
 
   it.each(["actor", "disabled", "expired", "blocked", "locked"])("rejects %s preview without mutations", async (scenario) => {

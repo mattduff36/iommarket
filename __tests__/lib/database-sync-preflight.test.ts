@@ -59,6 +59,19 @@ describe("database sync preflight", () => {
     }).blockers).toHaveLength(1);
   });
 
+  it("inspects through the same IPv4 session endpoint used by plans", () => {
+    const result = inspectDatabaseSyncConfiguration({
+      NODE_ENV: "test",
+      DATABASE_SYNC_SOURCE_READONLY_URL: productionRead,
+      POSTGRES_URL_NON_POOLING: "postgres://postgres:example@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres",
+      POSTGRES_URL: "postgres://postgres.syneonzucehwlghqmfbg:example@aws-1-eu-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true",
+    });
+
+    expect(result.blockers).toEqual([]);
+    expect(new URL(result.destination ?? "").hostname).toBe("aws-1-eu-west-2.pooler.supabase.com");
+    expect(new URL(result.destination ?? "").port).toBe("5432");
+  });
+
   it("strips URL TLS overrides while preserving verified CA settings", () => {
     const cert = "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----";
     const options = inspectionPoolOptions(`${productionPoolerRead}?sslmode=disable&pgbouncer=true&supa=base`, {

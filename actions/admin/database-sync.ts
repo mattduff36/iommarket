@@ -17,6 +17,12 @@ const confirmations = { merge: "MERGE INTO DEVELOPMENT", replace: "REPLACE DEVEL
 const disabled = "Database changes are available only on the staging deployment.";
 const failed = "The database operation could not be completed. Refresh the inspection and prepare a new plan.";
 
+function operationFailure(operation: "prepare" | "apply" | "restore", error: unknown): string {
+  if (error instanceof DatabaseSyncError) return error.message;
+  console.error("Database sync operation failed.", { operation });
+  return failed;
+}
+
 function publicRun(run: DatabaseSyncRun): PublicDatabaseSyncRun {
   return {
     id: run.id, mode: run.mode, status: run.status, createdAt: run.createdAt, expiresAt: run.expiresAt,
@@ -59,7 +65,7 @@ export async function prepareDatabaseSyncAction(input: unknown) {
   const parsed = modeSchema.safeParse(input);
   if (!parsed.success) return { error: "Choose Replace, Merge, or Reset." };
   try { return { data: publicRun(await prepareDatabaseSync(parsed.data, admin.id)) }; }
-  catch (error) { return { error: error instanceof DatabaseSyncError ? error.message : failed }; }
+  catch (error) { return { error: operationFailure("prepare", error) }; }
 }
 
 export async function applyDatabaseSyncAction(input: unknown) {
@@ -77,7 +83,7 @@ export async function applyDatabaseSyncAction(input: unknown) {
     revalidatePath("/admin/database");
     revalidatePath("/", "layout");
     return { data: publicRun(result) };
-  } catch (error) { return { error: error instanceof DatabaseSyncError ? error.message : failed }; }
+  } catch (error) { return { error: operationFailure("apply", error) }; }
 }
 
 export async function restoreDatabaseSyncAction(input: unknown) {
@@ -93,5 +99,5 @@ export async function restoreDatabaseSyncAction(input: unknown) {
     revalidatePath("/admin/database");
     revalidatePath("/", "layout");
     return { data: publicRun(result) };
-  } catch (error) { return { error: error instanceof DatabaseSyncError ? error.message : failed }; }
+  } catch (error) { return { error: operationFailure("restore", error) }; }
 }

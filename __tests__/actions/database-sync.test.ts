@@ -122,10 +122,30 @@ describe("database inspection action", () => {
   });
 
   it("does not return SQL details from worker failures", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     prepareMock.mockRejectedValue(new Error("postgres://credential SELECT secret FROM User"));
     const result = await prepareDatabaseSyncAction("replace");
     expect(result).toHaveProperty("error");
     expect(JSON.stringify(result)).not.toMatch(/credential|SELECT|postgres/);
+    expect(JSON.stringify(errorLog.mock.calls)).not.toMatch(/credential|SELECT|postgres/);
+    expect(errorLog).toHaveBeenCalledWith("Database sync operation failed.", {
+      operation: "prepare",
+    });
+    errorLog.mockRestore();
+  });
+
+  it("does not inspect untrusted error metadata", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const hostile = {};
+    Object.defineProperties(hostile, {
+      name: { get: () => { throw new Error("secret name"); } },
+      code: { get: () => { throw new Error("secret code"); } },
+    });
+    prepareMock.mockRejectedValue(hostile);
+
+    await expect(prepareDatabaseSyncAction("merge")).resolves.toHaveProperty("error");
+    expect(errorLog).toHaveBeenCalledWith("Database sync operation failed.", { operation: "prepare" });
+    errorLog.mockRestore();
   });
 
   it("shows deliberately safe worker errors", async () => {
