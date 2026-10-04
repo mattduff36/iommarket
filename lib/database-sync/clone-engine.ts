@@ -15,7 +15,8 @@ import { assertStoreReady, seal, unseal } from "./store";
 
 export const APPLY_DEADLINE_MS = 240_000;
 export const APPLY_STATEMENT_TIMEOUT = "240s";
-const PAGE = 200;
+export const CLONE_PAGE_SIZE = 2_000;
+const PAGE = CLONE_PAGE_SIZE;
 const SESSION_TABLES = ["sessions", "refresh_tokens", "mfa_factors", "mfa_challenges", "mfa_amr_claims", "one_time_tokens", "flow_state"];
 
 export type CloneManifest = {
@@ -51,6 +52,14 @@ type StoredRun = {
   backup_expires_at: Date | null;
   payload_pruned_at: Date | null;
 };
+
+type PrepareStage = "preview connection" | "preview checks" | "plan storage" | "production connection" | "source snapshot" | "plan finalization";
+
+function prepareFailure(stage: PrepareStage, error: unknown): DatabaseSyncError {
+  if (error instanceof DatabaseSyncError) return error;
+  console.error("Database sync prepare stage failed.", { stage });
+  return new DatabaseSyncError(`Plan preparation failed during ${stage}. No development data was changed.`);
+}
 
 export function lockCloneTablesSql(publicTables: readonly string[]): string {
   const names = [...publicTables.map((table) => `public.${quoteIdent(table)}`), "auth.users", "auth.identities"];
@@ -382,76 +391,86 @@ export async function prepareClone(mode: "merge" | "replace" | "reset", actorId:
   const catalog = loadCloneCatalog();
   const id = randomUUID();
   const deadline = Date.now() + APPLY_DEADLINE_MS;
-  return withSession(env, async (destination) => {
-    await destination.query("BEGIN");
-    try {
-      await destination.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
-      await requireActor(destination, actorId);
-      const recent = await destination.query<{ count: string }>("SELECT count(*) FROM staging_admin.database_sync_runs WHERE actor_id=$1 AND created_at > now()-interval '1 minute'", [actorId]);
-      if (Number(recent.rows[0]?.count) >= 3) throw new DatabaseSyncError("Please wait a minute before preparing another preview.");
-      const preserved = await admins(destination);
-      const order = planCloneOrder(catalog.map((table) => table.name), await foreignKeys(destination));
-      const instance = await destination.query<{ id: string }>(`SELECT instance_id::text AS id FROM auth.users WHERE instance_id IS NOT NULL LIMIT 1`);
-      const manifest: CloneManifest = {
-        v: 2, mode, fingerprint: await fingerprint(destination), blockers: [...order.blockers], tables: [],
-        insertOrder: order.insertOrder, deleteOrder: order.deleteOrder, deferredConstraints: order.deferredConstraints,
-        nullThenUpdate: order.nullThenUpdate, preservedAdminIds: preserved.map((admin) => admin.id),
-        preservedAuthIds: preserved.map((admin) => admin.authUserId), previewInstanceId: instance.rows[0]?.id ?? null,
-      };
-      await destination.query(
-        `INSERT INTO staging_admin.database_sync_runs(id, actor_id, mode, status, expires_at, encrypted_snapshot, summary, kind, schema_fingerprint)
-         VALUES ($1,$2,$3,'prepared',now()+interval '30 minutes',$4,$5::jsonb,'sync',$6)`,
-        [id, actorId, mode, seal({ ...manifest, tables: [] }, id, env), JSON.stringify({ counts: {}, blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 }), manifest.fingerprint],
-      );
-      let sourceBytes = 0;
-      if (mode !== "reset") {
-        const config = inspectDatabaseSyncConfiguration(env);
-        if (!config.source) throw new DatabaseSyncError("A dedicated production read-only connection is required.");
-        const sourcePool = new pg.Pool(inspectionPoolOptions(config.source, env));
-        const source = await sourcePool.connect();
-        try {
-          await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-          await source.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
-          if ((await fingerprint(source)) !== manifest.fingerprint) manifest.blockers.push("Source and destination schema or migrations differ. Review them before copying.");
-          const users = await source.query<AdminIdentity>(`SELECT id, email, "authUserId" FROM public."User"`);
-          for (const user of users.rows) {
-            const collision = adminIdentityCollision(preserved, user);
-            if (collision) manifest.blockers.push(collision);
-          }
-          const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM auth.users`);
-          const publicIdByAuth = new Map(users.rows.map((user) => [user.authUserId, user.id]));
-          for (const user of authUsers.rows) {
-            const collision = preservedAuthCollision(preserved, user.id, publicIdByAuth.get(user.id) ?? null);
-            if (collision) manifest.blockers.push(collision);
-          }
-          if (!manifest.previewInstanceId) manifest.blockers.push("The preview authentication instance could not be read.");
-          if (!manifest.blockers.length) {
-            for (const relation of cloneRelations(catalog)) {
-              const captured = await writeChunks(source, destination, relation, id, "source", env, deadline, manifest.previewInstanceId);
-              sourceBytes += captured.bytes;
-              manifest.tables.push(captured);
-              if (sourceBytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
+  let stage: PrepareStage = "preview connection";
+  try {
+    return await withSession(env, async (destination) => {
+      await destination.query("BEGIN");
+      try {
+        stage = "preview checks";
+        await destination.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
+        await requireActor(destination, actorId);
+        const recent = await destination.query<{ count: string }>("SELECT count(*) FROM staging_admin.database_sync_runs WHERE actor_id=$1 AND created_at > now()-interval '1 minute'", [actorId]);
+        if (Number(recent.rows[0]?.count) >= 3) throw new DatabaseSyncError("Please wait a minute before preparing another preview.");
+        const preserved = await admins(destination);
+        const order = planCloneOrder(catalog.map((table) => table.name), await foreignKeys(destination));
+        const instance = await destination.query<{ id: string }>(`SELECT instance_id::text AS id FROM auth.users WHERE instance_id IS NOT NULL LIMIT 1`);
+        const manifest: CloneManifest = {
+          v: 2, mode, fingerprint: await fingerprint(destination), blockers: [...order.blockers], tables: [],
+          insertOrder: order.insertOrder, deleteOrder: order.deleteOrder, deferredConstraints: order.deferredConstraints,
+          nullThenUpdate: order.nullThenUpdate, preservedAdminIds: preserved.map((admin) => admin.id),
+          preservedAuthIds: preserved.map((admin) => admin.authUserId), previewInstanceId: instance.rows[0]?.id ?? null,
+        };
+        stage = "plan storage";
+        await destination.query(
+          `INSERT INTO staging_admin.database_sync_runs(id, actor_id, mode, status, expires_at, encrypted_snapshot, summary, kind, schema_fingerprint)
+           VALUES ($1,$2,$3,'prepared',now()+interval '30 minutes',$4,$5::jsonb,'sync',$6)`,
+          [id, actorId, mode, seal({ ...manifest, tables: [] }, id, env), JSON.stringify({ counts: {}, blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 }), manifest.fingerprint],
+        );
+        let sourceBytes = 0;
+        if (mode !== "reset") {
+          const config = inspectDatabaseSyncConfiguration(env);
+          if (!config.source) throw new DatabaseSyncError("A dedicated production read-only connection is required.");
+          const sourcePool = new pg.Pool(inspectionPoolOptions(config.source, env));
+          stage = "production connection";
+          const source = await sourcePool.connect();
+          try {
+            stage = "source snapshot";
+            await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+            await source.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
+            if ((await fingerprint(source)) !== manifest.fingerprint) manifest.blockers.push("Source and destination schema or migrations differ. Review them before copying.");
+            const users = await source.query<AdminIdentity>(`SELECT id, email, "authUserId" FROM public."User"`);
+            for (const user of users.rows) {
+              const collision = adminIdentityCollision(preserved, user);
+              if (collision) manifest.blockers.push(collision);
             }
+            const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM auth.users`);
+            const publicIdByAuth = new Map(users.rows.map((user) => [user.authUserId, user.id]));
+            for (const user of authUsers.rows) {
+              const collision = preservedAuthCollision(preserved, user.id, publicIdByAuth.get(user.id) ?? null);
+              if (collision) manifest.blockers.push(collision);
+            }
+            if (!manifest.previewInstanceId) manifest.blockers.push("The preview authentication instance could not be read.");
+            if (!manifest.blockers.length) {
+              for (const relation of cloneRelations(catalog)) {
+                const captured = await writeChunks(source, destination, relation, id, "source", env, deadline, manifest.previewInstanceId);
+                sourceBytes += captured.bytes;
+                manifest.tables.push(captured);
+                if (sourceBytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
+              }
+            }
+            await source.query("COMMIT");
+          } finally {
+            await source.query("ROLLBACK").catch(() => undefined);
+            source.release();
+            await sourcePool.end();
           }
-          await source.query("COMMIT");
-        } finally {
-          await source.query("ROLLBACK").catch(() => undefined);
-          source.release();
-          await sourcePool.end();
         }
+        stage = "plan finalization";
+        const summary = { counts: Object.fromEntries(manifest.tables.map((table) => [table.name, { insert: table.rows, update: 0, delete: 0, preserve: 0, skip: 0 }])), blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 };
+        const inserted = await destination.query<StoredRun>(
+          `UPDATE staging_admin.database_sync_runs SET encrypted_snapshot=$2, summary=$3::jsonb, schema_fingerprint=$4 WHERE id=$1 RETURNING *`,
+          [id, seal(manifest, id, env), JSON.stringify(summary), manifest.fingerprint],
+        );
+        await destination.query("COMMIT");
+        return inserted.rows[0];
+      } catch (error) {
+        await destination.query("ROLLBACK");
+        throw error;
       }
-      const summary = { counts: Object.fromEntries(manifest.tables.map((table) => [table.name, { insert: table.rows, update: 0, delete: 0, preserve: 0, skip: 0 }])), blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 };
-      const inserted = await destination.query<StoredRun>(
-        `UPDATE staging_admin.database_sync_runs SET encrypted_snapshot=$2, summary=$3::jsonb, schema_fingerprint=$4 WHERE id=$1 RETURNING *`,
-        [id, seal(manifest, id, env), JSON.stringify(summary), manifest.fingerprint],
-      );
-      await destination.query("COMMIT");
-      return inserted.rows[0];
-    } catch (error) {
-      await destination.query("ROLLBACK");
-      throw error;
-    }
-  });
+    });
+  } catch (error) {
+    throw prepareFailure(stage, error);
+  }
 }
 
 export async function applyClone(runId: string, actorId: string, env: NodeJS.ProcessEnv) {

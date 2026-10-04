@@ -22,6 +22,20 @@ beforeEach(() => { vi.clearAllMocks(); mocks.prepare.mockResolvedValue({ data: p
 afterEach(cleanup);
 
 describe("database management panel", () => {
+  it("acknowledges a plan request while preparation is running", async () => {
+    let resolvePrepare!: (value: { data: PublicDatabaseSyncRun }) => void;
+    mocks.prepare.mockReturnValue(new Promise((resolve) => { resolvePrepare = resolve; }));
+    render(<DatabasePanel initialRuns={[]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Request received. Preparing the merge plan");
+    expect(screen.getByRole("button", { name: "Preparing merge plan…" })).toBeDisabled();
+    resolvePrepare({ data: plan });
+    await screen.findByRole("heading", { name: "Review: Merge production into development" });
+    expect(screen.getByRole("status")).toHaveTextContent("Plan prepared for merge production into development");
+  });
+
   it("previews counts before requiring the exact confirmation to apply", async () => {
     render(<DatabasePanel initialRuns={[]} />);
     fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
@@ -32,8 +46,13 @@ describe("database management panel", () => {
     const apply = screen.getByRole("button", { name: "Apply merge to development" });
     expect(apply).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Type MERGE INTO DEVELOPMENT to confirm"), { target: { value: "MERGE INTO DEVELOPMENT" } });
+    let resolveApply!: (value: { data: PublicDatabaseSyncRun }) => void;
+    mocks.apply.mockReturnValue(new Promise((resolve) => { resolveApply = resolve; }));
     fireEvent.click(apply);
     await waitFor(() => expect(mocks.apply).toHaveBeenCalledWith({ runId: plan.id, confirmation: "MERGE INTO DEVELOPMENT" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Confirmation received. Applying the merge plan");
+    expect(screen.getByRole("button", { name: "Applying merge…" })).toBeDisabled();
+    resolveApply({ data: { ...plan, status: "applied" } });
     await screen.findByText("Merge production into development completed. Production was not changed.");
   });
 
@@ -56,7 +75,8 @@ describe("database management panel", () => {
 
   it("offers restore only for a retained applied backup and requires the exact confirmation", async () => {
     const applied = { ...plan, status: "applied" as const, restoreAvailable: true, backupState: "retained" as const, backupExpiresAt: "2026-11-03T12:00:00Z" };
-    mocks.restore.mockResolvedValue({ data: { ...applied, id: "restored-run", kind: "restore" } });
+    let resolveRestore!: (value: { data: PublicDatabaseSyncRun }) => void;
+    mocks.restore.mockReturnValue(new Promise((resolve) => { resolveRestore = resolve; }));
     render(<DatabasePanel initialRuns={[applied, { ...plan, id: "prepared-run", status: "prepared" }]} />);
     expect(screen.getByText(/Backup expires/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Restore" })).toHaveLength(1);
@@ -65,5 +85,9 @@ describe("database management panel", () => {
     fireEvent.change(confirm, { target: { value: "RESTORE DEVELOPMENT" } });
     fireEvent.click(screen.getByRole("button", { name: "Restore this backup" }));
     await waitFor(() => expect(mocks.restore).toHaveBeenCalledWith({ runId: applied.id, confirmation: "RESTORE DEVELOPMENT" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Confirmation received. Restoring the selected development backup");
+    expect(screen.getByRole("button", { name: "Restoring backup…" })).toBeDisabled();
+    resolveRestore({ data: { ...applied, id: "restored-run", kind: "restore" } });
+    await screen.findByText("Development was restored from the selected backup. Production was not changed.");
   });
 });

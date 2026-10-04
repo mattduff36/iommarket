@@ -11,6 +11,11 @@ const modes = {
   reset: { title: "Reset development", confirmation: "RESET DEVELOPMENT", description: "Remove development marketplace rows while preserving staging administrator sign-in. This does not copy production data or restore a backup." },
 } as const;
 
+type PendingOperation =
+  | { kind: "prepare"; mode: keyof typeof modes }
+  | { kind: "apply"; mode: keyof typeof modes }
+  | { kind: "restore"; runId: string };
+
 function dateLabel(value: string | Date) {
   return new Date(value).toLocaleString("en-GB", { timeZone: "Europe/London" });
 }
@@ -30,23 +35,28 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
   const [restoreConfirmation, setRestoreConfirmation] = useState("");
   const [error, setError] = useState(historyError ?? "");
   const [notice, setNotice] = useState("");
+  const [operation, setOperation] = useState<PendingOperation | null>(null);
   const [pending, startTransition] = useTransition();
 
   function prepare(mode: keyof typeof modes) {
     setError(""); setNotice(""); setPlan(null); setConfirmation("");
+    setOperation({ kind: "prepare", mode });
     startTransition(async () => {
       try {
         const result = await prepareDatabaseSyncAction(mode);
         if ("error" in result) { setError(result.error ?? "Could not prepare the plan."); return; }
         setPlan(result.data);
         setRuns((current) => [result.data, ...current.filter((run) => run.id !== result.data.id)]);
+        setNotice(`Plan prepared for ${modes[result.data.mode].title.toLowerCase()}. Review the counts and blockers below.`);
       } catch { setError("Could not prepare the plan. Refresh the page and try again."); }
+      finally { setOperation(null); }
     });
   }
 
   function apply() {
     if (!plan) return;
     setError(""); setNotice("");
+    setOperation({ kind: "apply", mode: plan.mode });
     startTransition(async () => {
       try {
         const result = await applyDatabaseSyncAction({ runId: plan.id, confirmation });
@@ -55,11 +65,13 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         setNotice(`${modes[result.data.mode].title} completed. Production was not changed.`);
         setPlan(null); setConfirmation("");
       } catch { setError("The operation could not be confirmed. Refresh the history before trying again."); }
+      finally { setOperation(null); }
     });
   }
 
   function restore(runId: string) {
     setError(""); setNotice("");
+    setOperation({ kind: "restore", runId });
     startTransition(async () => {
       try {
         const result = await restoreDatabaseSyncAction({ runId, confirmation: restoreConfirmation });
@@ -68,11 +80,20 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         setNotice("Development was restored from the selected backup. Production was not changed.");
         setRestoreId(null); setRestoreConfirmation("");
       } catch { setError("The restore could not be confirmed. Refresh the history before trying again."); }
+      finally { setOperation(null); }
     });
   }
 
+  const progress = operation?.kind === "prepare"
+    ? `Request received. Preparing the ${operation.mode} plan by reading and encrypting a consistent snapshot. Keep this page open.`
+    : operation?.kind === "apply"
+      ? `Confirmation received. Applying the ${operation.mode} plan to development. Production remains read-only.`
+      : operation?.kind === "restore"
+        ? "Confirmation received. Restoring the selected development backup."
+        : "";
+
   return (
-    <div className="space-y-5" aria-busy={pending}>
+    <div className="space-y-5" aria-busy={pending || Boolean(operation)}>
       <section className="rounded-lg border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold text-text-primary">Manage development data</h2>
         <p className="mt-2 text-sm text-text-secondary">Production is a read-only source. A reviewed plan copies the current public schema and disabled authentication identities into development, then stores a private encrypted backup. The newest backup is kept. When a newer backup is saved, the previous one expires after 30 days. At most four older backups are kept, within a 500 MB ciphertext limit.</p>
@@ -82,13 +103,21 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
           <div key={mode} className="flex flex-col rounded-lg border border-border bg-surface p-5">
             <h3 className="font-semibold text-text-primary">{item.title}</h3>
             <p className="mt-2 flex-1 text-sm text-text-secondary">{item.description}</p>
-            <Button className="mt-4 border border-border" variant="ghost" disabled={pending} onClick={() => prepare(mode as keyof typeof modes)}>Preview {mode} plan</Button>
+            <Button
+              className="mt-4 border border-border"
+              variant="ghost"
+              disabled={pending || Boolean(operation)}
+              loading={operation?.kind === "prepare" && operation.mode === mode}
+              onClick={() => prepare(mode as keyof typeof modes)}
+            >
+              {operation?.kind === "prepare" && operation.mode === mode ? `Preparing ${mode} plan…` : `Preview ${mode} plan`}
+            </Button>
           </div>
         ))}
       </section>
       {error ? <p role="alert" className="rounded-md border border-neon-red-500/30 p-4 text-sm text-text-primary">{error}</p> : null}
       {notice ? <p role="status" className="rounded-md border border-border p-4 text-sm text-text-primary">{notice}</p> : null}
-      {pending ? <p role="status" className="text-sm text-text-secondary">Working on the database plan. Keep this page open until the result appears.</p> : null}
+      {progress ? <p role="status" className="text-sm text-text-secondary">{progress}</p> : null}
       {plan ? (
         <section aria-labelledby="sync-plan" className="rounded-lg border border-border bg-surface p-5">
           <h2 id="sync-plan" className="text-lg font-semibold text-text-primary">Review: {modes[plan.mode].title}</h2>
@@ -104,7 +133,13 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
           {plan.blockers.length ? <div role="alert" className="mt-4"><h3 className="font-semibold">Resolve these issues before applying</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul></div> : (
             <div className="mt-5 max-w-lg space-y-3">
               <Input label={`Type ${modes[plan.mode].confirmation} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={pending} autoComplete="off" />
-              <Button disabled={pending || confirmation !== modes[plan.mode].confirmation} onClick={apply}>Apply {plan.mode} to development</Button>
+              <Button
+                disabled={pending || Boolean(operation) || confirmation !== modes[plan.mode].confirmation}
+                loading={operation?.kind === "apply"}
+                onClick={apply}
+              >
+                {operation?.kind === "apply" ? `Applying ${plan.mode}…` : `Apply ${plan.mode} to development`}
+              </Button>
             </div>
           )}
         </section>
@@ -121,9 +156,15 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
               restoreId === run.id ? (
                 <div className="mt-3 max-w-lg space-y-3">
                   <Input label="Type RESTORE DEVELOPMENT to confirm" value={restoreConfirmation} onChange={(event) => setRestoreConfirmation(event.target.value)} disabled={pending} autoComplete="off" />
-                  <Button disabled={pending || restoreConfirmation !== "RESTORE DEVELOPMENT"} onClick={() => restore(run.id)}>Restore this backup</Button>
+                  <Button
+                    disabled={pending || Boolean(operation) || restoreConfirmation !== "RESTORE DEVELOPMENT"}
+                    loading={operation?.kind === "restore" && operation.runId === run.id}
+                    onClick={() => restore(run.id)}
+                  >
+                    {operation?.kind === "restore" && operation.runId === run.id ? "Restoring backup…" : "Restore this backup"}
+                  </Button>
                 </div>
-              ) : <Button className="mt-3 border border-border" variant="ghost" disabled={pending} onClick={() => { setRestoreId(run.id); setRestoreConfirmation(""); }}>Restore</Button>
+              ) : <Button className="mt-3 border border-border" variant="ghost" disabled={pending || Boolean(operation)} onClick={() => { setRestoreId(run.id); setRestoreConfirmation(""); }}>Restore</Button>
             ) : null}
           </li>
         ))}</ul> : <p className="mt-2 text-sm text-text-secondary">No operations recorded.</p>}

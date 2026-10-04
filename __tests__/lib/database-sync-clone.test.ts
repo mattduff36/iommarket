@@ -4,7 +4,7 @@ import { loadCloneCatalog, parsePrismaCatalog } from "@/lib/database-sync/catalo
 import { canonicalBytes, hashCanonical, parseCanonical, restoreValueExpression } from "@/lib/database-sync/codec";
 import { openChunk, sealChunk } from "@/lib/database-sync/chunks";
 import { hashSchemaLines } from "@/lib/database-sync/fingerprint";
-import { lockCloneTablesSql, APPLY_DEADLINE_MS, APPLY_STATEMENT_TIMEOUT } from "@/lib/database-sync/clone-engine";
+import { lockCloneTablesSql, APPLY_DEADLINE_MS, APPLY_STATEMENT_TIMEOUT, CLONE_PAGE_SIZE } from "@/lib/database-sync/clone-engine";
 import { externalEffectBlocked } from "@/lib/database-sync/effects";
 import { planCloneOrder } from "@/lib/database-sync/order";
 import { BACKUP_BUDGET_BYTES, BACKUP_TTL_MS, planBackupRetention, type BackupPoint } from "@/lib/database-sync/retention";
@@ -74,6 +74,7 @@ describe("ARCH-CLONE-003 locks, deadline and session pooler", () => {
     expect(sql).toContain("SHARE ROW EXCLUSIVE");
     expect(APPLY_DEADLINE_MS).toBeLessThan(300_000);
     expect(APPLY_STATEMENT_TIMEOUT).toBe("240s");
+    expect(CLONE_PAGE_SIZE).toBeGreaterThanOrEqual(2_000);
     expect(isTransactionPoolerUrl("postgres://postgres.syneonzucehwlghqmfbg@aws-1-eu-west-2.pooler.supabase.com:6543/postgres")).toBe(true);
     expect(() => resolvePreviewSessionUrl({ NODE_ENV: "test", DATABASE_URL: "postgres://postgres.wrongref@aws-1-eu-west-2.pooler.supabase.com:6543/postgres" } as NodeJS.ProcessEnv)).toThrow("session connection");
   });

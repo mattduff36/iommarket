@@ -32,10 +32,11 @@ let locked = true;
 let activeActor = true;
 let schemaLines: string[] = [];
 let failColumns = false;
+let failPrepareChecks = false;
 function statements() { return mocks.query.mock.calls.map(([sql]) => String(sql)); }
 beforeEach(() => {
   vi.clearAllMocks();
-  locked = true; activeActor = true; schemaLines = []; failColumns = false;
+  locked = true; activeActor = true; schemaLines = []; failColumns = false; failPrepareChecks = false;
   row = {
     id: runId, actor_id: "admin", mode: "replace", status: "prepared", created_at: new Date(), expires_at: new Date(Date.now() + 60_000),
     summary: { counts: {}, blockers: [] }, encrypted_snapshot: seal(manifest(), runId, env), kind: "sync", backup_bytes: "0",
@@ -48,6 +49,7 @@ beforeEach(() => {
     if (sql.startsWith("SELECT id FROM") || sql.startsWith("SELECT \"authUserId\"")) return { rows: activeActor ? [{ id: "admin", authUserId: "auth-admin" }] : [], rowCount: activeActor ? 1 : 0 };
     if (sql.includes("SELECT * FROM staging_admin.database_sync_runs")) return { rows: [row], rowCount: 1 };
     if (sql.includes("SELECT line FROM")) return { rows: schemaLines.map((line) => ({ line })), rowCount: schemaLines.length };
+    if (failPrepareChecks && sql.includes("FROM pg_constraint f") && sql.includes("child.relname")) throw new Error("simulated prepare failure");
     if (sql.includes("pg_attribute") && sql.includes("nspname=$1")) {
       if (failColumns) throw new Error("simulated SQL failure");
       return { rows: [], rowCount: 0 };
@@ -77,6 +79,17 @@ describe("database clone transaction boundaries", () => {
     expect(mocks.pool).toHaveBeenCalledTimes(1);
     expect(mocks.pool).toHaveBeenCalledWith({ connectionString: destination });
     expect(statements().some((sql) => /^(INSERT|UPDATE|DELETE) .*public\./i.test(sql))).toBe(false);
+  });
+
+  it("returns a safe preparation stage when an unexpected preview query fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    failPrepareChecks = true;
+    await expect(prepareDatabaseSync("reset", "admin", env)).rejects.toThrow(
+      "Plan preparation failed during preview checks. No development data was changed.",
+    );
+    expect(statements()).toContain("ROLLBACK");
+    expect(errorLog).toHaveBeenCalledWith("Database sync prepare stage failed.", { stage: "preview checks" });
+    errorLog.mockRestore();
   });
 
   it.each([
