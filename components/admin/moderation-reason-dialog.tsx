@@ -44,9 +44,7 @@ export function ModerationReasonDialog({
     reasons.find((reason) => reason.value === initialReasonCode) ?? reasons[0];
   const [reasonCode, setReasonCode] = useState(initialReason?.value ?? "");
   const selectedReason = reasons.find((reason) => reason.value === reasonCode);
-  const [moderationSubReason, setModerationSubReason] = useState(
-    initialReason?.subReasons[0]?.value ?? "",
-  );
+  const [moderationSubReason, setModerationSubReason] = useState("");
   const selectedSubReason = selectedReason?.subReasons.find(
     (reason) => reason.value === moderationSubReason,
   );
@@ -63,11 +61,8 @@ export function ModerationReasonDialog({
       <AdminActionSelect
         value={reasonCode}
         onChange={(event) => {
-          const next = reasons.find(
-            (reason) => reason.value === event.target.value,
-          );
           setReasonCode(event.target.value);
-          setModerationSubReason(next?.subReasons[0]?.value ?? "");
+          setModerationSubReason("");
         }}
         aria-label="Reason category"
       >
@@ -82,6 +77,9 @@ export function ModerationReasonDialog({
         onChange={(event) => setModerationSubReason(event.target.value)}
         aria-label="Specific moderation reason"
       >
+        <option value="" disabled>
+          Select a specific reason
+        </option>
         {selectedReason?.subReasons.map((reason) => (
           <option key={reason.value} value={reason.value}>
             {reason.label}
