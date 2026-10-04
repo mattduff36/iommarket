@@ -59,11 +59,11 @@ describe("isolated weekly staging subscription", () => {
 
   it("hides the optional featured test product when preview configuration is missing or invalid", () => {
     const featuredCode = "1234567890ABCDEF";
-    const previewEnv = {
+    const previewEnv: NodeJS.ProcessEnv = {
       ...env,
       RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/test-client/pay/${featuredCode}`,
     };
-    const missingClient = { ...previewEnv };
+    const missingClient: NodeJS.ProcessEnv = { ...previewEnv };
     delete missingClient.RIPPLE_CLIENT_ID;
 
     expect(getRippleTestFeaturedProduct(missingClient)).toBeNull();
@@ -73,13 +73,14 @@ describe("isolated weekly staging subscription", () => {
       RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/other-client/pay/${featuredCode}`,
     })).toBeNull();
     expect(() => getConfiguredRippleProductUrl(RIPPLE_CANONICAL_PRODUCTS.featured, {
+      NODE_ENV: "production",
       RIPPLE_FEATURED_PAYMENT_URL: `https://portal.startyourripple.co.uk/card/test-client/pay/${RIPPLE_CANONICAL_PRODUCTS.featured.code}`,
     })).toThrow("RIPPLE_CLIENT_ID is not set");
   });
 
   it("treats malformed optional preview links as non-matching during production routing", () => {
     const featuredCode = "1234567890ABCDEF";
-    const production = {
+    const production: NodeJS.ProcessEnv = {
       ...env,
       VERCEL_ENV: "production",
       RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/other-client/pay/${featuredCode}`,
