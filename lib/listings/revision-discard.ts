@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
+import { cleanupDeliveryForRemovedImage } from "@/lib/media/stored-image";
 
 type DbClient = Prisma.TransactionClient | typeof db;
 
@@ -16,7 +16,7 @@ export async function discardOpenRevisions(
     },
     include: {
       images: {
-        select: { publicId: true, provider: true },
+        select: { publicId: true, provider: true, imageKitFileId: true, imageKitFilePath: true },
       },
     },
   });
@@ -53,14 +53,14 @@ export async function discardOpenRevisions(
     for (const image of revision.images) {
       const key = `${image.provider}:${image.publicId}`;
       if (liveKeys.has(key)) continue;
-      if (
-        image.provider === "CLOUDINARY" &&
-        image.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)
-      ) {
+      const cleanup = cleanupDeliveryForRemovedImage(image);
+      if (cleanup) {
         await client.listingImageCleanupJob.create({
           data: {
-            publicId: image.publicId,
-            deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+            publicId: cleanup.publicId,
+            deliveryType: cleanup.deliveryType,
+            imageKitFileId: cleanup.imageKitFileId,
+            imageKitFilePath: cleanup.imageKitFilePath,
             reason: "revision-discarded",
           },
         });

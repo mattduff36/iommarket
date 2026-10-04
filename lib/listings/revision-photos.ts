@@ -1,7 +1,6 @@
 import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
-import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
+import { cleanupDeliveryForRemovedImage, imageRecordFromIntent } from "@/lib/media/stored-image";
 import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
 import {
   PhotoRevisionConflictError,
@@ -29,14 +28,17 @@ function normalizeFocal(value: number | null | undefined) {
 
 async function enqueueCleanupIfUnreferenced(
   client: DbClient,
-  input: { listingId: string; provider: ListingImageProvider; publicId: string; reason: string },
+  input: {
+    listingId: string;
+    provider: ListingImageProvider;
+    publicId: string;
+    imageKitFileId?: string | null;
+    imageKitFilePath?: string | null;
+    reason: string;
+  },
 ) {
-  if (
-    input.provider !== "CLOUDINARY" ||
-    !input.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)
-  ) {
-    return;
-  }
+  const cleanup = cleanupDeliveryForRemovedImage(input);
+  if (!cleanup) return;
 
   const [liveCount, openRevisionCount] = await Promise.all([
     client.listingImage.count({
@@ -58,8 +60,10 @@ async function enqueueCleanupIfUnreferenced(
 
   await client.listingImageCleanupJob.create({
     data: {
-      publicId: input.publicId,
-      deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+      publicId: cleanup.publicId,
+      deliveryType: cleanup.deliveryType,
+      imageKitFileId: cleanup.imageKitFileId,
+      imageKitFilePath: cleanup.imageKitFilePath,
       reason: input.reason,
     },
   });
@@ -93,6 +97,8 @@ export async function cloneLiveImagesToRevision(
       uploadIntentId: null,
       focalX: image.focalX,
       focalY: image.focalY,
+      imageKitFileId: image.imageKitFileId,
+      imageKitFilePath: image.imageKitFilePath,
     })),
   });
 }
@@ -266,26 +272,23 @@ export async function syncRevisionImagesForUser(input: {
           throw new Error("This upload is no longer available.");
         }
 
+        const stored = imageRecordFromIntent(item.intent);
         await tx.listingRevisionImage.create({
           data: {
             revisionId: revision.id,
-            url: buildCanonicalListingImageUrl({
-              publicId: item.intent.publicId,
-              version: item.intent.version,
-              format: item.intent.format,
-              provider: "CLOUDINARY",
-              url: "",
-            }),
-            publicId: item.intent.publicId,
+            url: stored.url,
+            publicId: stored.publicId,
             order: item.order,
-            provider: "CLOUDINARY",
-            assetId: item.intent.assetId,
+            provider: stored.provider,
+            assetId: stored.assetId,
             version: item.intent.version,
             width: item.intent.width,
             height: item.intent.height,
             format: item.intent.format,
             bytes: item.intent.bytes,
             uploadIntentId: item.intent.id,
+            imageKitFileId: stored.imageKitFileId,
+            imageKitFilePath: stored.imageKitFilePath,
             focalX: item.focalX,
             focalY: item.focalY,
           },
@@ -297,6 +300,8 @@ export async function syncRevisionImagesForUser(input: {
           listingId: input.listingId,
           provider: image.provider,
           publicId: image.publicId,
+          imageKitFileId: image.imageKitFileId,
+          imageKitFilePath: image.imageKitFilePath,
           reason: "revision-replaced-or-removed",
         });
       }
@@ -387,6 +392,8 @@ export async function applyRevisionImages(
         listingId,
         provider: image.provider,
         publicId: image.publicId,
+        imageKitFileId: image.imageKitFileId,
+        imageKitFilePath: image.imageKitFilePath,
         reason: "revision-applied-removed",
       });
     }
@@ -408,6 +415,8 @@ export async function applyRevisionImages(
           height: image.height,
           format: image.format,
           bytes: image.bytes,
+          imageKitFileId: image.imageKitFileId,
+          imageKitFilePath: image.imageKitFilePath,
         },
       });
       continue;
@@ -429,6 +438,8 @@ export async function applyRevisionImages(
         uploadIntentId: null,
         focalX: image.focalX,
         focalY: image.focalY,
+        imageKitFileId: image.imageKitFileId,
+        imageKitFilePath: image.imageKitFilePath,
       },
     });
   }
@@ -441,13 +452,15 @@ export async function cleanupRejectedRevisionOnlyImages(
 ) {
   const images = await client.listingRevisionImage.findMany({
     where: { revisionId },
-    select: { provider: true, publicId: true },
+    select: { provider: true, publicId: true, imageKitFileId: true, imageKitFilePath: true },
   });
   for (const image of images) {
     await enqueueCleanupIfUnreferenced(client, {
       listingId,
       provider: image.provider,
       publicId: image.publicId,
+      imageKitFileId: image.imageKitFileId,
+      imageKitFilePath: image.imageKitFilePath,
       reason: "revision-rejected",
     });
   }

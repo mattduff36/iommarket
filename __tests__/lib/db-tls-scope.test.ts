@@ -53,6 +53,12 @@ describe("database TLS scope", () => {
       }),
     ).toThrow(/SUPABASE_DB_CA_CERT is invalid/);
     expect(options.max).toBe(5);
+    expect(
+      buildDatabasePoolOptions("postgresql://iommarket@127.0.0.1:55432/iommarket_imagekit", {
+        NODE_ENV: "development",
+        SUPABASE_DB_CA_CERT: certificate,
+      }).ssl,
+    ).toBe(false);
 
     await import("@/lib/db");
 

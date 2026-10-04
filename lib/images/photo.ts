@@ -15,6 +15,8 @@ export const listingPhotoSelect = {
   uploadIntentId: true,
   focalX: true,
   focalY: true,
+  imageKitFileId: true,
+  imageKitFilePath: true,
 } as const;
 
 export interface ListingPhotoSource {
@@ -31,7 +33,10 @@ export interface ListingPhotoSource {
   bytes?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+  imageKitFileId?: string | null;
+  imageKitFilePath?: string | null;
   order?: number;
+  deliverySource?: "listing" | "revision";
 }
 
 export function toListingPhotoSource(
@@ -49,7 +54,10 @@ export function toListingPhotoSource(
     bytes?: number | null;
     focalX?: number | null;
     focalY?: number | null;
+    imageKitFileId?: string | null;
+    imageKitFilePath?: string | null;
     order?: number;
+    deliverySource?: "listing" | "revision";
   } | null | undefined,
 ): ListingPhotoSource | undefined {
   if (!image?.url) return undefined;
@@ -67,7 +75,10 @@ export function toListingPhotoSource(
     bytes: image.bytes,
     focalX: image.focalX,
     focalY: image.focalY,
+    imageKitFileId: image.imageKitFileId,
+    imageKitFilePath: image.imageKitFilePath,
     order: image.order,
+    deliverySource: image.deliverySource,
   };
 }
 

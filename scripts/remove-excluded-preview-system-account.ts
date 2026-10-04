@@ -135,7 +135,7 @@ export async function main(argv = process.argv.slice(2)) {
       const purged = await prisma.$transaction((tx) =>
         purgeUserAccountRecords(tx, user!.id, tables));
       await deleteAuthUser(purged.authUserId);
-      const mediaDeletion = await deleteAccountMedia(purged.imagePublicIds);
+      const mediaDeletion = await deleteAccountMedia(purged.imagePublicIds, purged.imageKitDisposables);
       imageCount = purged.imagePublicIds.length;
       listingIds = purged.listingIds;
       imagePublicIds = mediaDeletion.attemptedPublicIds;
