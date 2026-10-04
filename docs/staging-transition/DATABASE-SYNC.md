@@ -4,7 +4,7 @@ This design powers the staging-only `/admin/database` page. Code and local verif
 
 ## Access and configuration
 
-Every page/action requires a development administrator and the server-verified staging environment. Mutations require the exact `https://staging.itrader.im` Origin. Explicitly configured local development may use its exact localhost origin; missing or foreign origins are rejected. The production deployment cannot expose or run these tools.
+Every page/action requires a development administrator and the server-verified staging environment. Mutations require the exact `https://itrader.dev` Origin. Explicitly configured local development may use its exact localhost origin; missing or foreign origins are rejected. The production deployment cannot expose or run these tools.
 
 `DATABASE_SYNC_SOURCE_READONLY_URL` is configured only on staging and points to a dedicated `itrader_staging_reader` production role. The worker never derives it from the application's production connection. The destination is the existing verified development Supabase project. Both identities and source privileges are checked before preparing a snapshot.
 

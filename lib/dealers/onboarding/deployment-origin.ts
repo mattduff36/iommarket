@@ -1,3 +1,4 @@
+import { isStagingAppOrigin, STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 
 export class OnboardingOriginError extends Error {
@@ -48,8 +49,9 @@ function previewDeploymentOrigin(value: string) {
 
 export function resolveOnboardingOrigin(env: OnboardingOriginEnv = process.env) {
   if (env.VERCEL_ENV === "preview") {
-    // VERCEL_URL identifies this deployment. VERCEL_BRANCH_URL can move to a
-    // later deployment and would break the claim cookie, so it is not used.
+    // The verified staging hostname is stable. Other previews stay on VERCEL_URL
+    // because VERCEL_BRANCH_URL can move and would break the claim cookie.
+    if (isStagingAppOrigin(env.NEXT_PUBLIC_APP_URL)) return new URL(STAGING_ORIGIN);
     const deploymentUrl = env.VERCEL_URL?.trim();
     if (!deploymentUrl) {
       throw new OnboardingOriginError("Preview onboarding origin is not configured.");

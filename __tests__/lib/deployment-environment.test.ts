@@ -5,7 +5,7 @@ const staging: NodeJS.ProcessEnv = {
   NODE_ENV: "production",
   VERCEL_ENV: "preview",
   ITRADER_DEPLOYMENT_ROLE: "staging",
-  NEXT_PUBLIC_APP_URL: "https://staging.itrader.im",
+  NEXT_PUBLIC_APP_URL: "https://itrader.dev",
   NEXT_PUBLIC_SUPABASE_URL: "https://syneonzucehwlghqmfbg.supabase.co",
   DATABASE_URL: "postgres://postgres.syneonzucehwlghqmfbg:example@aws-1-eu-west-2.pooler.supabase.com:5432/postgres",
 };
@@ -13,7 +13,11 @@ const staging: NodeJS.ProcessEnv = {
 describe("staging-only deployment guard", () => {
   it("requires every hosted staging identity and data target", () => {
     expect(isStagingDeployment(staging)).toBe(true);
+    expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_APP_URL: "https://staging.itrader.im" })).toBe(false);
     expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_APP_URL: "https://preview.itrader.im" })).toBe(false);
+    expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_APP_URL: "https://itrader.dev/admin" })).toBe(false);
+    expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_APP_URL: "https://user:pass@itrader.dev" })).toBe(false);
+    expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_APP_URL: "https://itrader.dev/" })).toBe(true);
     expect(isStagingDeployment({ ...staging, VERCEL_ENV: "production" })).toBe(false);
     expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_APP_URL: "https://itrader.im" })).toBe(false);
     expect(isStagingDeployment({ ...staging, NEXT_PUBLIC_SUPABASE_URL: "https://snlqivvogfqesxpbjiei.supabase.co" })).toBe(false);
