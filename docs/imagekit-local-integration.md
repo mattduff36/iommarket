@@ -18,7 +18,8 @@ The private key stays in the worktree `.env.local`. Do not print, commit, or sen
 
 - The additive Prisma migration is `prisma/migrations/20261004150000_imagekit_provider_fields`. It is applied to the isolated local database and the development Supabase project only. Production has not been migrated.
 - `scripts/imagekit/backfill-dev.ts` is dry-run unless `--apply` is passed. It permits localhost by default. The development Supabase project additionally requires `IMAGEKIT_PREVIEW_BACKFILL_PROJECT=syneonzucehwlghqmfbg`; production and unknown databases are always refused.
-- Migrated originals and the two seeded ImageKit demo files are not writable from this app. Uploads and deletes are limited to `/iommarket-dev-disposable/` and to file ids recorded in the local manifest.
+- The seven exact dealer-logo matches are compiled into a server-only hashed lookup by `scripts/imagekit/generate-dealer-logo-map.ts`; Vercel does not depend on the external migration JSONL at runtime.
+- Migrated originals and the two seeded ImageKit demo files are not writable from this app. Uploads and deletes are limited to `/iommarket-dev-disposable/` and to file ids recorded by the database intent/cleanup workflow or the local test manifest.
 - `resources-pass2.jsonl` remains the 7,660-row inventory and was not overwritten. The final inventory is a separate file. Destination deletions stay at zero.
 - Payments, Resend, cost sync and retention mutation are disabled in this worktree env only.
 
@@ -64,6 +65,8 @@ Local checks on `http://localhost:4010`: the fixture card returned HTTP 200, the
 Reviews: source mapping passed for all 7,677 originals; architecture passed; security found no medium or higher issues; the sample-mode disposable exception and the revision, expiry, archived-listing, and admin-delete identity gaps were fixed. The final diff review passed at `d0df087`.
 
 The `staging` Vercel environment has branch-scoped ImageKit settings and can be rolled back without data changes by setting both `MEDIA_PROVIDER` and `NEXT_PUBLIC_MEDIA_PROVIDER` to `cloudinary`. Production cutover, production migration/backfill, capacity purchases, and ImageKit account security changes remain separate decisions.
+
+Hosted disposable uploads persist their file id and path in the database upload intent. Cleanup and account deletion use those database identities as the deletion allowlist and still verify the observed ImageKit path before deleting. The local manifest remains an additional safeguard for local test scripts, not a Vercel runtime dependency.
 
 ## Production boundary
 

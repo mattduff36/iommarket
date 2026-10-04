@@ -92,7 +92,11 @@ export async function POST(request: NextRequest) {
       bytes: stripped.bytesLength,
     });
     if ("error" in verified && verified.error) {
-      await deleteDisposableImageKitFile({ fileId: uploaded.fileId });
+      await deleteDisposableImageKitFile({
+        fileId: uploaded.fileId,
+        filePath: uploaded.filePath,
+        allowlist: [uploaded],
+      });
       return NextResponse.json({ error: verified.error }, { status: 400 });
     }
     return NextResponse.json({
@@ -111,7 +115,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (uploaded) {
-      await deleteDisposableImageKitFile({ fileId: uploaded.fileId }).catch(() => undefined);
+      await deleteDisposableImageKitFile({
+        fileId: uploaded.fileId,
+        filePath: uploaded.filePath,
+        allowlist: [uploaded],
+      }).catch(() => undefined);
     }
     const message = error instanceof Error ? error.message : "Could not upload the image.";
     return NextResponse.json({ error: message }, { status: 400 });

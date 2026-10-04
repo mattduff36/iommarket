@@ -67,14 +67,17 @@ export async function uploadDisposableImage(input: {
   if (!uploaded.filePath.startsWith(input.folder)) {
     throw new Error("ImageKit stored the upload outside the requested folder.");
   }
-  appendDevManifest(
-    {
-      fileId: uploaded.fileId,
-      filePath: uploaded.filePath,
-      purpose: input.purpose,
-      createdAt: new Date().toISOString(),
-    },
-    input.env,
-  );
+  const env = input.env ?? process.env;
+  if (env.IMAGEKIT_DEV_MANIFEST) {
+    appendDevManifest(
+      {
+        fileId: uploaded.fileId,
+        filePath: uploaded.filePath,
+        purpose: input.purpose,
+        createdAt: new Date().toISOString(),
+      },
+      env,
+    );
+  }
   return uploaded;
 }

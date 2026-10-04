@@ -420,7 +420,11 @@ export async function deleteAccountMedia(
       continue;
     }
     try {
-      await deleteDisposableImageKitFile({ fileId: target.fileId, filePath: target.filePath });
+      await deleteDisposableImageKitFile({
+        fileId: target.fileId,
+        filePath: target.filePath,
+        allowlist: [target],
+      });
     } catch {
       failedPublicIds.push(target.fileId);
     }

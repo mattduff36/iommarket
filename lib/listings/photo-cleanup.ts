@@ -134,7 +134,11 @@ export async function processListingImageCleanupJobs(limit = 20) {
         if (!job.imageKitFileId || job.imageKitFileId !== fileId || !job.imageKitFilePath) {
           throw new Error("Refusing ImageKit cleanup without an agreed file id and path.");
         }
-        await deleteDisposableImageKitFile({ fileId, filePath: job.imageKitFilePath });
+        await deleteDisposableImageKitFile({
+          fileId,
+          filePath: job.imageKitFilePath,
+          allowlist: [{ fileId, filePath: job.imageKitFilePath }],
+        });
         await db.listingImageCleanupJob.updateMany({
           where: {
             id: job.id,

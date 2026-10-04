@@ -4,9 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getPublicDealerWhere } from "@/lib/dealers/access";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { allowsSignedDealerLogo } from "@/lib/media/delivery-access";
-import { loadMigrationIndex } from "@/lib/media/migration-index";
-import { matchMediaReference } from "@/lib/media/match-reference";
-import { decideReferenceDelivery } from "@/lib/media/resolve-delivery";
+import { findMigratedDealerLogo } from "@/lib/media/migrated-dealer-logos";
 import { signedImageKitDeliveryUrl } from "@/lib/media/imagekit-api";
 import { imageKitDeliveryRelativePath, imageKitFillTransform } from "@/lib/media/imagekit-transforms";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
@@ -76,17 +74,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Image not available." }, { status: 404 });
   }
 
-  const mapPath = process.env.IMAGEKIT_MIGRATION_MAP;
-  if (!mapPath) return NextResponse.redirect(new URL("/media-unresolved.svg", request.url), 302);
-  const match = matchMediaReference({ provider: "EXTERNAL", url: parsed.toString() }, loadMigrationIndex(mapPath));
-  const decision = decideReferenceDelivery({ match });
-  if (decision.decision !== "imagekit" || !match.asset) {
+  const asset = findMigratedDealerLogo(parsed.toString());
+  if (!asset) {
     return NextResponse.redirect(new URL("/media-unresolved.svg", request.url), 302);
   }
   const url = signedImageKitDeliveryUrl({
     relativePath: imageKitDeliveryRelativePath(
-      match.asset.destinationPath,
-      match.asset.resourceType === "video" ? undefined : imageKitFillTransform({ width: 256, height: 256 }),
+      asset.destinationPath,
+      asset.resourceType === "video" ? undefined : imageKitFillTransform({ width: 256, height: 256 }),
     ),
   });
   return NextResponse.redirect(url, { status: 302, headers: { "Cache-Control": "private, max-age=60" } });

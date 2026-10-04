@@ -18,8 +18,9 @@ import { matchMediaReference } from "@/lib/media/match-reference";
 import { decideReferenceDelivery } from "@/lib/media/resolve-delivery";
 import { reconcileSourceSnapshot, sourceRecordFromInventory } from "@/lib/media/reconcile-source";
 import { stripListingImageMetadata } from "@/lib/media/strip-metadata";
-import { deleteDisposableImageKitFile } from "@/lib/media/disposable-media";
+import { deleteDisposableImageKitFile, uploadDisposableImage } from "@/lib/media/disposable-media";
 import { allowsSignedDealerLogo, blocksSignedListingDelivery } from "@/lib/media/delivery-access";
+import { MIGRATED_DEALER_LOGO_COUNT } from "@/lib/media/migrated-dealer-logos";
 
 const asset = {
   assetId: "asset-1",
@@ -124,6 +125,30 @@ describe("ImageKit signing and transforms", () => {
 
 describe("ImageKit deletion guard", () => {
   const observed = { fileId: "file-1", filePath: "/iommarket-dev-disposable/tests/run/file.jpg" };
+
+  it("supports hosted disposable uploads without a local manifest", async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({
+      fileId: observed.fileId,
+      filePath: observed.filePath,
+      isPrivateFile: true,
+      size: 3,
+      width: 1,
+      height: 1,
+      fileType: "image",
+    }), { status: 200 })) as typeof fetch;
+    await expect(uploadDisposableImage({
+      bytes: Buffer.from([1, 2, 3]),
+      fileName: "file.jpg",
+      folder: "/iommarket-dev-disposable/tests/run",
+      purpose: "dev-upload",
+      env: {
+        NODE_ENV: "test",
+        IMAGEKIT_PRIVATE_KEY: "test-private",
+        IMAGEKIT_URL_ENDPOINT: "https://ik.imagekit.io/itraderim",
+      },
+      fetchImpl,
+    })).resolves.toMatchObject(observed);
+  });
 
   it("refuses migrated, sample and unrecorded files", () => {
     const migrated = { ...observed, filePath: "/iommarket-migration/photo.jpg" };
@@ -352,6 +377,10 @@ describe("signed delivery access", () => {
 describe("MEDIA-MATCH-001 exact backfill", () => {
   const index = buildMigrationIndex([asset]);
 
+  it("ships the reviewed dealer-logo subset without the external migration map", () => {
+    expect(MIGRATED_DEALER_LOGO_COUNT).toBe(7);
+  });
+
   it("writes an exact match and refuses ambiguous or version-mismatched rows", () => {
     const exact = decideImageKitBackfill({
       match: matchMediaReference({ provider: "CLOUDINARY", assetId: "asset-1", version: "10" }, index),
@@ -381,6 +410,20 @@ describe("MEDIA-MATCH-001 exact backfill", () => {
       NODE_ENV: "test",
       IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "snlqivvogfqesxpbjiei",
     })).toThrow(/production database/);
+    expect(() => assertImageKitBackfillDatabase(
+      "postgresql://postgres.syneonzucehwlghqmfbg@db.snlqivvogfqesxpbjiei.supabase.co/postgres",
+      {
+        NODE_ENV: "test",
+        IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "syneonzucehwlghqmfbg",
+      },
+    )).toThrow(/production database/);
+    expect(() => assertImageKitBackfillDatabase(
+      "postgresql://user@unrelated.example/syneonzucehwlghqmfbg",
+      {
+        NODE_ENV: "test",
+        IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "syneonzucehwlghqmfbg",
+      },
+    )).toThrow(/explicitly confirmed preview/);
   });
 
   it("requires the server and public provider settings to match", () => {

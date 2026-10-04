@@ -58,6 +58,18 @@ function databaseHost(databaseUrl: string) {
   }
 }
 
+function supabaseProjectRef(databaseUrl: string) {
+  try {
+    const url = new URL(databaseUrl);
+    const direct = /^db\.([a-z0-9]+)\.supabase\.co$/i.exec(url.hostname)?.[1];
+    if (direct) return direct.toLowerCase();
+    const pooler = /^postgres\.([a-z0-9]+)$/i.exec(decodeURIComponent(url.username))?.[1];
+    return pooler?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function assertIsolatedLocalDatabase(databaseUrl: string) {
   const host = databaseHost(databaseUrl);
   if (host !== "127.0.0.1" && host !== "localhost") {
@@ -71,14 +83,15 @@ export function assertImageKitBackfillDatabase(
 ) {
   const host = databaseHost(databaseUrl);
   if (host === "127.0.0.1" || host === "localhost") return;
+  const projectRef = supabaseProjectRef(databaseUrl);
+  if (projectRef === PRODUCTION_DATABASE_PROJECT) {
+    throw new Error("Backfill refused for the production database.");
+  }
   if (
-    databaseUrl.includes(PREVIEW_DATABASE_PROJECT) &&
+    projectRef === PREVIEW_DATABASE_PROJECT &&
     env.IMAGEKIT_PREVIEW_BACKFILL_PROJECT === PREVIEW_DATABASE_PROJECT
   ) {
     return;
-  }
-  if (databaseUrl.includes(PRODUCTION_DATABASE_PROJECT)) {
-    throw new Error("Backfill refused for the production database.");
   }
   throw new Error("Backfill requires the isolated local database or the explicitly confirmed preview project.");
 }
