@@ -63,6 +63,7 @@ function supabaseProjectRef(databaseUrl: string) {
     const url = new URL(databaseUrl);
     const direct = /^db\.([a-z0-9]+)\.supabase\.co$/i.exec(url.hostname)?.[1];
     if (direct) return direct.toLowerCase();
+    if (!url.hostname.endsWith(".pooler.supabase.com")) return null;
     const pooler = /^postgres\.([a-z0-9]+)$/i.exec(decodeURIComponent(url.username))?.[1];
     return pooler?.toLowerCase() ?? null;
   } catch {

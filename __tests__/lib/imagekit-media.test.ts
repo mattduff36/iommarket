@@ -424,6 +424,13 @@ describe("MEDIA-MATCH-001 exact backfill", () => {
         IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "syneonzucehwlghqmfbg",
       },
     )).toThrow(/explicitly confirmed preview/);
+    expect(() => assertImageKitBackfillDatabase(
+      "postgresql://postgres.syneonzucehwlghqmfbg@unrelated.example/postgres",
+      {
+        NODE_ENV: "test",
+        IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "syneonzucehwlghqmfbg",
+      },
+    )).toThrow(/explicitly confirmed preview/);
   });
 
   it("requires the server and public provider settings to match", () => {
