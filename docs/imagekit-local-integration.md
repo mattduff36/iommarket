@@ -58,7 +58,9 @@ The final Cloudinary inventory has 7,677 originals: 7,660 from pass 2 plus 17 pr
 
 The ImageKit branch contains the current local `staging` commit `24cb68ba` plus this integration. Schema and backfill were applied only to `iommarket_imagekit` on `127.0.0.1:55432`. The local fixture backfill wrote 2 exact matches, refused the missing seed URL and the version mismatch, and a second run changed nothing. Stored file id and path are the runtime source of truth. Strict ImageKit mode shows the unmapped placeholder when those fields are empty. Cloudinary rollback still uses the preserved public id and URL. Disposable ImageKit uploads have no Cloudinary identity and are not promoted.
 
-Local checks: the fixture card returned HTTP 200, its signed delivery followed to HTTP 200, an unsigned ImageKit request returned 401, the version-mismatched row returned the unmapped placeholder, and the social image was a 1200×630 JPEG. `tsc --noEmit` passed. The full unit suite passed after rerunning three tests that failed only while the dev server and suite contended for the machine; the account-deletion expectation was updated for disposable ImageKit targets.
+Local checks on `http://localhost:4010`: the fixture card returned HTTP 200, the stored-identity photo redirected to ImageKit, an unsigned ImageKit request returned 401, the missing seed URL and the version mismatch returned the unmapped placeholder, and the social image was a 1200×630 JPEG. `tsc --noEmit` passed, lint reported 0 errors, and `npm run build` succeeded. The full unit suite passed 2,611 tests; three timeouts that appeared only while the dev server was running passed on their own.
+
+Reviews: source mapping passed for all 7,677 originals; architecture passed; security found no medium or higher issues; the sample-mode disposable exception and the revision, expiry, archived-listing, and admin-delete identity gaps were fixed. The final diff review passed at `d0df087`.
 
 Do not push or deploy this branch. Production cutover, capacity purchases, and ImageKit security changes remain separate decisions.
 
