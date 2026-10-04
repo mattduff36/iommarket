@@ -12,7 +12,7 @@ SELECT line FROM (
   WHERE a.attnum > 0 AND NOT a.attisdropped AND c.relkind = 'r'
     AND ((n.nspname = 'public' AND c.relname <> 'spatial_ref_sys') OR (n.nspname = 'auth' AND c.relname IN ('users', 'identities')))
   UNION ALL
-  SELECT 'constraint|' || n.nspname || '|' || c.relname || '|' || f.conname || '|' || f.contype || '|' ||
+  SELECT 'constraint|' || n.nspname || '|' || c.relname || '|' || f.conname || '|' || f.contype::text || '|' ||
          pg_get_constraintdef(f.oid) || '|' || f.condeferrable::text || '|' || f.condeferred::text
   FROM pg_constraint f
   JOIN pg_class c ON c.oid = f.conrelid

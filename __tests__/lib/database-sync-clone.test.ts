@@ -3,7 +3,7 @@ import { scrubAuthUser, scrubIdentity, adminIdentityCollision, authScrubViolatio
 import { loadCloneCatalog, parsePrismaCatalog } from "@/lib/database-sync/catalog";
 import { canonicalBytes, hashCanonical, parseCanonical, restoreValueExpression } from "@/lib/database-sync/codec";
 import { openChunk, sealChunk } from "@/lib/database-sync/chunks";
-import { hashSchemaLines } from "@/lib/database-sync/fingerprint";
+import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines } from "@/lib/database-sync/fingerprint";
 import { lockCloneTablesSql, APPLY_DEADLINE_MS, APPLY_STATEMENT_TIMEOUT, CLONE_PAGE_SIZE } from "@/lib/database-sync/clone-engine";
 import { externalEffectBlocked } from "@/lib/database-sync/effects";
 import { planCloneOrder } from "@/lib/database-sync/order";
@@ -57,6 +57,11 @@ describe("ARCH-CLONE-001 schema completeness", () => {
 });
 
 describe("ARCH-CLONE-002 lossless codec and fingerprint", () => {
+  it("casts PostgreSQL internal char fields before fingerprint concatenation", () => {
+    expect(SCHEMA_FINGERPRINT_SQL).toContain("f.contype::text");
+    expect(SCHEMA_FINGERPRINT_SQL).not.toContain("f.contype ||");
+  });
+
   it("round-trips featured and numeric text without JSON number coercion", () => {
     const bytes = canonicalBytes("Listing", [{ name: "featured", type: "boolean" }, { name: "markedGbpMinor", type: "bigint" }], [["true", "9007199254740993"]]);
     expect(parseCanonical(bytes).rows).toEqual([["true", "9007199254740993"]]);
