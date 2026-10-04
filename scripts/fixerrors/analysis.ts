@@ -1,5 +1,7 @@
+import { clusterRepairBlockReason, suggestClusterDisposition } from "./decision";
 import { extractSourceFilesForIssue } from "./source-extraction";
 import type {
+  CodeBaseline,
   ErrorClusterAction,
   ErrorClusterLane,
   ErrorPattern,
@@ -131,10 +133,31 @@ export function clusterErrorPatterns(patterns: ErrorPattern[]): ErrorRootCauseCl
     .sort((left, right) => right.occurrences - left.occurrences);
 }
 
+export function describeCodeBaseline(baseline: CodeBaseline | null): string[] {
+  if (!baseline) return ["Production and staging code refs were not compared."];
+  const lines = [
+    `- origin/main: \`${baseline.productionSha}\``,
+    `- origin/staging: \`${baseline.stagingSha}\``,
+  ];
+  for (const path of baseline.paths) {
+    if (!path.productionBlob || !path.stagingBlob) {
+      const missing = [
+        path.productionBlob ? null : "origin/main",
+        path.stagingBlob ? null : "origin/staging",
+      ].filter(Boolean).join(" and ");
+      lines.push(`- \`${path.file}\`: missing from ${missing}. Leave the issue acknowledged until the file exists in both refs.`);
+      continue;
+    }
+    lines.push(`- \`${path.file}\`: present in both refs${path.productionBlob === path.stagingBlob ? "" : "; staging differs from production"}.`);
+  }
+  return lines;
+}
+
 export function generateAnalysisReport(
   issues: SnapshotIssue[],
   patterns: ErrorPattern[],
   clusters: ErrorRootCauseCluster[],
+  baseline: CodeBaseline | null = null,
 ): string {
   const lines = [
     "# Monitoring Error Analysis Report",
@@ -147,18 +170,25 @@ export function generateAnalysisReport(
     "",
     "## Root Cause Clusters and TEE Routing",
     "",
-    "| Cluster | Root cause family | Lane | Action | Issues | Occurrences |",
-    "|---|---|---|---|---:|---:|",
+    "| Cluster | Root cause family | Lane | Action | Disposition | Issues | Occurrences |",
+    "|---|---|---|---|---|---:|---:|",
   ];
 
   for (const cluster of clusters) {
+    const blocked = clusterRepairBlockReason(cluster, baseline);
+    const disposition = blocked ? "needs-person" : suggestClusterDisposition(cluster);
     lines.push(
-      `| ${cluster.id} | ${cluster.rootCauseFamily} | ${cluster.lane.toUpperCase()} | ${cluster.action} | ${cluster.issueIds.length} | ${cluster.occurrences} |`,
+      `| ${cluster.id} | ${cluster.rootCauseFamily} | ${cluster.lane.toUpperCase()} | ${cluster.action} | ${disposition} | ${cluster.issueIds.length} | ${cluster.occurrences} |`,
     );
   }
 
   lines.push("");
+  lines.push("Dispositions are hints. A code fix, or a tooling change that makes monitoring less sensitive, can still resolve the issue after it is deployed to production.");
   lines.push("Clusters are routed independently; a CRITICAL cluster does not escalate unrelated clusters.");
+  lines.push("");
+  lines.push("## Production and staging code");
+  lines.push("");
+  lines.push(...describeCodeBaseline(baseline));
   lines.push("");
   lines.push("## OPEN Issues");
   lines.push("");

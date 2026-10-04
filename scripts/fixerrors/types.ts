@@ -1,6 +1,6 @@
 export const FIXERRORS_COMMAND_ID = "fixerrors" as const;
-export const FIXERRORS_SAFETY_CONTRACT = "fixerrors-open-issues-v1";
-export const FIXERRORS_SNAPSHOT_VERSION = 1;
+export const FIXERRORS_SAFETY_CONTRACT = "fixerrors-open-issues-v3";
+export const FIXERRORS_SNAPSHOT_VERSION = 2;
 export const ERROR_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 export const EVENTS_PER_ISSUE = 10;
 
@@ -67,6 +67,18 @@ export type ErrorRootCauseCluster = {
   occurrences: number;
 };
 
+export type CodePathBaseline = {
+  file: string;
+  productionBlob: string | null;
+  stagingBlob: string | null;
+};
+
+export type CodeBaseline = {
+  productionSha: string;
+  stagingSha: string;
+  paths: CodePathBaseline[];
+};
+
 export type SnapshotAnalysis = {
   status: "pending" | "completed";
   reportPath: "private/fixerrors/error-analysis.md";
@@ -75,6 +87,7 @@ export type SnapshotAnalysis = {
   clusterCount: number;
   clusterLanes: Record<string, number>;
   reportOnlyIssueIds: string[];
+  codeBaseline: CodeBaseline | null;
 };
 
 export type OpenIssueSnapshot = {
@@ -106,10 +119,11 @@ export type ResolveConfirmation = {
 export type ResolveDecision =
   | "resolved"
   | "would-resolve"
+  | "acknowledged"
+  | "would-acknowledge"
   | "skipped-stale"
   | "skipped-not-open"
-  | "skipped-missing"
-  | "report-only";
+  | "skipped-missing";
 
 export type ResolveIssueResult = {
   issueId: string;

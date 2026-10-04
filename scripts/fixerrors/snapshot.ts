@@ -239,11 +239,19 @@ export async function fetchOpenIssueSnapshot(
         clusterCount: 0,
         clusterLanes: {},
         reportOnlyIssueIds: [],
+        codeBaseline: null,
       },
     });
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
+  }
+}
+
+export function assertSnapshotTarget(snapshot: OpenIssueSnapshot, expectedTarget: string): void {
+  verifySnapshot(snapshot);
+  if (snapshot.databaseTargetFingerprint !== expectedTarget) {
+    throw new Error("Snapshot belongs to a different database target");
   }
 }
 
@@ -253,6 +261,7 @@ export function markSnapshotAnalysisCompleted(
   clusterLanes: Record<string, number>,
   clusterCount: number,
   reportOnlyIssueIds: string[],
+  codeBaseline: OpenIssueSnapshot["analysis"]["codeBaseline"] = null,
   now = new Date(),
 ): OpenIssueSnapshot {
   return sealSnapshot({
@@ -265,6 +274,7 @@ export function markSnapshotAnalysisCompleted(
       clusterCount,
       clusterLanes,
       reportOnlyIssueIds: [...new Set(reportOnlyIssueIds)].sort(),
+      codeBaseline,
     },
   });
 }
