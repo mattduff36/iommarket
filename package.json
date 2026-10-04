@@ -14,7 +14,10 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "prepare:maplibre-worker": "node scripts/prepare-maplibre-worker.mjs",
+    "predev": "npm run prepare:maplibre-worker",
     "dev": "next dev --webpack -p 4000",
+    "prebuild": "npm run prepare:maplibre-worker",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",

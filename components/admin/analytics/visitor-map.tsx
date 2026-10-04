@@ -6,6 +6,7 @@ import {
   Map as MapLibreMap,
   NavigationControl,
   Popup,
+  setWorkerUrl,
   type MapLayerMouseEvent,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/cn";
 
 const DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const LIGHT_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const WORKER_URL = "/vendor/maplibre-gl/maplibre-gl-worker.mjs";
 
 function popupContent(city: string, country: string, count: number) {
   const content = document.createElement("div");
@@ -71,6 +73,9 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
     if (!container) return;
     let ready = false;
     const theme = document.documentElement.getAttribute("data-theme");
+    // Turbopack cannot preserve MapLibre's worker-relative import.meta.url
+    // lookup. Use the same-origin copy prepared from the installed package.
+    setWorkerUrl(WORKER_URL);
     const map = new MapLibreMap({
       container,
       style: theme === "light" ? LIGHT_STYLE : DARK_STYLE,
