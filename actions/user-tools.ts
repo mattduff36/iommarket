@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { hasPublicListingSellerAccess } from "@/lib/listings/dealer-visibility";
-import { isAdminPreviewListing, isListingPubliclyVisible } from "@/lib/listings/visibility";
+import { isListingPubliclyVisible } from "@/lib/listings/visibility";
+import { isPreviewPackListing } from "@/lib/preview-packs/frontend-visibility";
 import { z } from "zod";
 
 const toggleFavouriteSchema = z.object({
@@ -40,12 +41,20 @@ export async function toggleFavourite(input: { listingId: string }) {
       status: true,
       expiresAt: true,
       dealerId: true,
-      user: { select: { disabledAt: true, deletedAt: true } },
+      previewPackId: true,
+      dealer: { select: { isAdminPreview: true } },
+      user: { select: { authUserId: true, email: true, disabledAt: true, deletedAt: true } },
     },
   });
   if (
     !listing ||
-    isAdminPreviewListing(listing.status) ||
+    isPreviewPackListing({
+      status: listing.status,
+      previewPackId: listing.previewPackId,
+      dealerIsAdminPreview: listing.dealer?.isAdminPreview === true,
+      ownerAuthUserId: listing.user.authUserId,
+      ownerEmail: listing.user.email,
+    }) ||
     !(await hasPublicListingSellerAccess(
       listing.dealerId,
       Boolean(listing.user?.disabledAt),

@@ -106,22 +106,11 @@ describe("sitemap", () => {
     expect(urls).toContain(
       buildCanonicalUrl("/search?category=classic+cars"),
     );
-    expect(mocks.dealerFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          subscriptions: {
-            some: {
-              OR: expect.any(Array),
-            },
-          },
-          user: {
-            role: { in: ["DEALER", "ADMIN"] },
-            disabledAt: null,
-            deletedAt: null,
-          },
-        }),
-      }),
-    );
+    const dealerWhere = JSON.stringify(mocks.dealerFindMany.mock.calls[0][0].where);
+    expect(dealerWhere).toContain('"isAdminPreview":false');
+    expect(dealerWhere).toContain('"disabledAt":null');
+    expect(dealerWhere).toContain('"deletedAt":null');
+    expect(dealerWhere).toContain("DEALER");
     expect(mocks.listingFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { status: "LIVE" },

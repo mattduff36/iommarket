@@ -87,9 +87,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       region: { select: { name: true } },
       userId: true,
       dealerId: true,
+      previewPackId: true,
       user: {
         select: {
           authUserId: true,
+          email: true,
           disabledAt: true,
           deletedAt: true,
         },
@@ -125,6 +127,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       listingUserId: listing.userId,
       viewer: currentUser,
       previewPackEnabled: listing.previewPack?.enabled ?? false,
+      previewPackId: listing.previewPackId,
+      dealerIsAdminPreview: listing.dealer?.isAdminPreview === true,
+      ownerAuthUserId: listing.user.authUserId,
+      ownerEmail: listing.user.email,
     })
   ) {
     return { title: "Listing unavailable", robots: { index: false, follow: false } };
@@ -237,6 +243,10 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
     listingUserId: listing.userId,
     viewer: currentUser,
     previewPackEnabled: listing.previewPack?.enabled ?? false,
+    previewPackId: listing.previewPackId,
+    dealerIsAdminPreview: listing.dealer?.isAdminPreview === true,
+    ownerAuthUserId: listing.user.authUserId,
+    ownerEmail: listing.user.email,
   });
   const isPreviewListing = isAdminPreviewListing(listing.status);
   const isFavourite = currentUser

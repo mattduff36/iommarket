@@ -5,6 +5,7 @@ import {
   isListingEditable,
   isListingPubliclyVisible,
 } from "@/lib/listings/visibility";
+import { verifiedStagingEnv } from "./verified-staging-env";
 
 describe("listing visibility ALR-VIS-001", () => {
   it("hides revoked dealer stock from buyers while retaining owner/admin inspection", () => {
@@ -38,7 +39,41 @@ describe("listing visibility ALR-VIS-001", () => {
     ).toBe(false);
   });
 
-  it("shows ADMIN_PREVIEW listings only to logged-in admins, including disabled packs", () => {
+  it("hides preview listings from everyone on production, including admins and dirty live rows", () => {
+    expect(
+      canViewListing({
+        status: "ADMIN_PREVIEW",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        viewer: { id: "admin", role: "ADMIN" },
+        previewPackEnabled: true,
+      }),
+    ).toBe(false);
+    expect(
+      canViewListing({
+        status: "LIVE",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        dealerAccess: true,
+        previewPackId: "pack-1",
+        dealerIsAdminPreview: true,
+        ownerAuthUserId: "preview-system:athol-garage",
+        viewer: { id: "admin", role: "ADMIN" },
+      }),
+    ).toBe(false);
+    expect(
+      canViewListing({
+        status: "LIVE",
+        expiresAt: null,
+        listingUserId: "preview-owner",
+        dealerAccess: true,
+        ownerEmail: "preview+athol-garage@preview.internal",
+        viewer: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("shows preview listings only to verified staging admins, including disabled packs", () => {
     expect(
       canViewListing({
         status: "ADMIN_PREVIEW",
@@ -46,6 +81,7 @@ describe("listing visibility ALR-VIS-001", () => {
         listingUserId: "preview-owner",
         viewer: null,
         previewPackEnabled: true,
+        env: verifiedStagingEnv,
       }),
     ).toBe(false);
     expect(
@@ -55,6 +91,7 @@ describe("listing visibility ALR-VIS-001", () => {
         listingUserId: "preview-owner",
         viewer: { id: "buyer", role: "USER" },
         previewPackEnabled: true,
+        env: verifiedStagingEnv,
       }),
     ).toBe(false);
     expect(
@@ -64,6 +101,7 @@ describe("listing visibility ALR-VIS-001", () => {
         listingUserId: "preview-owner",
         viewer: { id: "preview-owner", role: "DEALER" },
         previewPackEnabled: true,
+        env: verifiedStagingEnv,
       }),
     ).toBe(false);
     expect(
@@ -73,15 +111,18 @@ describe("listing visibility ALR-VIS-001", () => {
         listingUserId: "preview-owner",
         viewer: { id: "admin", role: "ADMIN" },
         previewPackEnabled: false,
+        env: verifiedStagingEnv,
       }),
     ).toBe(true);
     expect(
       canViewListing({
-        status: "ADMIN_PREVIEW",
+        status: "LIVE",
         expiresAt: null,
         listingUserId: "preview-owner",
+        dealerAccess: true,
+        previewPackId: "pack-1",
         viewer: { id: "admin", role: "ADMIN" },
-        previewPackEnabled: true,
+        env: verifiedStagingEnv,
       }),
     ).toBe(true);
   });

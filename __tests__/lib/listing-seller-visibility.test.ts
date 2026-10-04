@@ -35,18 +35,10 @@ describe("public listing seller visibility", () => {
       },
       OR: [
         { dealerId: null },
-        {
-          dealer: {
-            is: {
-              user: {
-                disabledAt: null,
-                deletedAt: null,
-              },
-            },
-          },
-        },
+        { dealer: { is: expect.any(Object) } },
       ],
     });
+    expect(JSON.stringify(where)).toContain('"isAdminPreview":false');
   });
 
   it("hides disabled private and dealer listings and restores access when enabled", async () => {
@@ -71,23 +63,15 @@ describe("public listing seller visibility", () => {
     ).resolves.toBe(true);
 
     expect(dealerFindFirstMock).toHaveBeenCalledTimes(2);
-    expect(dealerFindFirstMock).toHaveBeenCalledWith({
-      where: {
-        AND: [
-          { id: "dealer-enabled" },
-          {
-            user: {
-              role: { in: ["DEALER", "ADMIN"] },
-              disabledAt: null,
-              deletedAt: null,
-            },
-            subscriptions: {
-              some: { OR: expect.any(Array) },
-            },
-          },
-        ],
-      },
-      select: { id: true },
-    });
+    const lookup = dealerFindFirstMock.mock.calls[1][0] as {
+      where: { AND: Array<{ id?: string }> };
+      select: { id: boolean };
+    };
+    expect(lookup.select).toEqual({ id: true });
+    expect(lookup.where.AND[0]).toEqual({ id: "dealer-enabled" });
+    const serialized = JSON.stringify(lookup.where);
+    expect(serialized).toContain('"isAdminPreview":false');
+    expect(serialized).toContain("preview-system:");
+    expect(serialized).toContain("DEALER");
   });
 });

@@ -291,7 +291,20 @@ describe("dealer account lookup rules", () => {
   it("includes promoted dealer accounts in the admin dealer query", () => {
     expect(getAdminDealerWhere()).toEqual({
       isAdminPreview: false,
-      user: { role: "DEALER" },
+      user: {
+        role: "DEALER",
+        NOT: {
+          OR: [
+            { authUserId: { startsWith: "preview-system:" } },
+            {
+              email: {
+                endsWith: "@preview.internal",
+                mode: "insensitive",
+              },
+            },
+          ],
+        },
+      },
     });
   });
 

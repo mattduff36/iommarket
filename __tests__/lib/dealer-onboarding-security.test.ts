@@ -107,6 +107,13 @@ describe("onboarding deployment origin", () => {
     expect(new URL(buildOnboardingRedirectUrl(origin)).origin).toBe(origin);
   });
 
+  it("uses the stable staging hostname for auth links when that origin is configured", () => {
+    expect(resolveOnboardingOrigin({
+      ...previewEnv,
+      NEXT_PUBLIC_APP_URL: "https://itrader.dev",
+    }).origin).toBe("https://itrader.dev");
+  });
+
   it("keeps production on the canonical custom domain", () => {
     expect(
       resolveOnboardingOrigin({

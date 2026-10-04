@@ -102,4 +102,34 @@ describe("preview pack marketplace action gates", () => {
     expect(mockDb.favourite.create).not.toHaveBeenCalled();
     expect(mockDb.favourite.delete).not.toHaveBeenCalled();
   });
+
+  it("refuses contact, favourite, and report on live listings still linked to a preview pack", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      ...PREVIEW_LISTING,
+      status: "LIVE",
+      previewPackId: "pack-1",
+      dealerId: "preview-dealer",
+      dealer: { isAdminPreview: true },
+      user: {
+        email: "preview+athol-garage@preview.internal",
+        authUserId: "preview-system:athol-garage",
+        disabledAt: null,
+        deletedAt: null,
+      },
+    });
+
+    await expect(
+      contactSeller({
+        listingId: PREVIEW_LISTING.id,
+        name: "Buyer",
+        email: "buyer@example.com",
+        message: "Is this vehicle still available today?",
+        website: "",
+      }),
+    ).resolves.toEqual({ error: "Listing unavailable" });
+    await expect(
+      toggleFavourite({ listingId: PREVIEW_LISTING.id }),
+    ).resolves.toEqual({ error: "Listing unavailable" });
+    expect(mockDb.favourite.create).not.toHaveBeenCalled();
+  });
 });

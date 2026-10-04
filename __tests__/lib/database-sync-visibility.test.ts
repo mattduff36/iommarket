@@ -2,13 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDatabaseSyncVisibility, parseDatabaseSyncVisibility } from "@/lib/database-sync/visibility";
 import { applySampleListingVisibility, getSampleVisibility, isHiddenSampleDealer, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { canViewMarketplaceDealerProfile, getMarketplaceDealerWhere, getPublicDealerWhere } from "@/lib/dealers/access";
+import { excludePreviewPackDealersWhere, excludePreviewPackListingsWhere } from "@/lib/preview-packs/frontend-visibility";
+import { verifiedStagingEnv } from "./verified-staging-env";
 const mock = vi.hoisted(() => ({ getSetting: vi.fn(), getBoolSetting: vi.fn().mockResolvedValue(true) }));
 vi.mock("@/lib/config/site-settings", () => ({ ...mock, SETTING_KEYS: { SAMPLE_PRIVATE_LISTINGS_VISIBLE: "private", SAMPLE_DEALER_LISTINGS_VISIBLE: "dealer" } }));
 const registry = { archivedListingIds: ["old-listing"], archivedDealerIds: ["old-dealer"], visibleDealerIds: ["copied-dealer"] };
 const sample = { privateListings: true, dealerListings: true, ...registry };
 function staging() {
   vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("ITRADER_DEPLOYMENT_ROLE", "staging");
-  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://staging.itrader.im"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://syneonzucehwlghqmfbg.supabase.co");
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://itrader.dev"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://syneonzucehwlghqmfbg.supabase.co");
   for (const key of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_URL_NON_POOLING"]) vi.stubEnv(key, "postgres://postgres@db.syneonzucehwlghqmfbg.supabase.co/postgres");
 }
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
@@ -33,8 +35,13 @@ describe("staging archive visibility", () => {
   it("excludes archived listings and dealers outside all ordinary and administrator query branches", () => {
     expect(applySampleListingVisibility({ status: "LIVE" }, sample)).toEqual({ AND: [
       { status: "LIVE" }, { NOT: { id: { in: ["old-listing"] } } }, { NOT: { dealerId: { in: ["old-dealer"] } } },
+      excludePreviewPackListingsWhere(),
     ] });
-    expect(getMarketplaceDealerWhere({ role: "ADMIN" }, new Date(), sample)).toMatchObject({ AND: [
+    const now = new Date("2026-10-04T00:00:00.000Z");
+    expect(getMarketplaceDealerWhere({ role: "ADMIN" }, now, sample)).toEqual(
+      getPublicDealerWhere(now, sample),
+    );
+    expect(getMarketplaceDealerWhere({ role: "ADMIN" }, new Date(), sample, verifiedStagingEnv)).toMatchObject({ AND: [
       { OR: expect.any(Array) }, { id: { notIn: ["old-dealer"] } },
     ] });
     expect(isHiddenSampleListing({ listingId: "old-listing", authUserId: "actual-login", dealerId: null, isAdminPreview: false, sampleVisibility: sample })).toBe(true);
@@ -42,9 +49,14 @@ describe("staging archive visibility", () => {
     expect(isHiddenSampleDealer({ dealerId: "old-dealer", authUserId: "actual-login", isAdminPreview: true, sampleVisibility: sample })).toBe(true);
   });
   it("allows copied dealer appearance while retaining active-owner checks and no payment entitlement", () => {
-    expect(getPublicDealerWhere(new Date(), sample)).toMatchObject({ AND: [
-      { OR: [expect.objectContaining({ subscriptions: expect.any(Object) }), { id: { in: ["copied-dealer"] } }], user: { disabledAt: null, deletedAt: null } },
+    expect(getPublicDealerWhere(new Date(), sample)).toEqual({ AND: [
+      expect.objectContaining({
+        OR: [expect.objectContaining({ subscriptions: expect.any(Object) }), { id: { in: ["copied-dealer"] } }],
+        user: expect.objectContaining({ disabledAt: null, deletedAt: null }),
+        isAdminPreview: false,
+      }),
       { NOT: { id: { in: ["old-dealer"] } } },
+      excludePreviewPackDealersWhere(),
     ] });
     const input = { viewer: { role: "USER" }, isAdminPreview: false, previewPackEnabled: false, hasEntitlement: false };
     expect(canViewMarketplaceDealerProfile(input)).toBe(false);

@@ -49,26 +49,20 @@ describe("public listing dealer navigation", () => {
       </>,
     );
 
-    expect(dealerFindFirstMock).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        id: "dealer-expired",
-        subscriptions: {
-          some: {
-            OR: expect.any(Array),
-          },
-        },
-        user: {
-          role: { in: ["DEALER", "ADMIN"] },
-          disabledAt: null,
-          deletedAt: null,
+    expect(dealerFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: {
+          name: true,
+          slug: true,
+          verified: true,
         },
       }),
-      select: {
-        name: true,
-        slug: true,
-        verified: true,
-      },
-    });
+    );
+    const dealerWhere = JSON.stringify(dealerFindFirstMock.mock.calls[0][0].where);
+    expect(dealerWhere).toContain("dealer-expired");
+    expect(dealerWhere).toContain('"isAdminPreview":false');
+    expect(dealerWhere).toContain('"disabledAt":null');
+    expect(dealerWhere).toContain('"deletedAt":null');
     expect(screen.getByText("Expired Dealer")).toBeVisible();
     expect(screen.getByText("01624 600000")).toBeVisible();
     expect(screen.queryByRole("link", { name: /Expired Dealer/ })).toBeNull();

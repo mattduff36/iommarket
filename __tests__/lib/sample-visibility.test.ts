@@ -13,6 +13,12 @@ import {
   sampleDealerUserWhere,
   samplePrivateUserWhere,
 } from "@/lib/listings/sample-visibility";
+import {
+  excludePreviewPackDealersWhere,
+  excludePreviewPackListingsWhere,
+  excludePreviewPackUsersWhere,
+} from "@/lib/preview-packs/frontend-visibility";
+import { verifiedStagingEnv } from "./verified-staging-env";
 
 describe("sample listing identity", () => {
   it("keys off the seed auth prefix, not listing title or price", () => {
@@ -73,21 +79,31 @@ describe("sample listing identity", () => {
   });
 });
 
+const visibleSamples = { privateListings: true, dealerListings: true };
+
 describe("sample visibility filters", () => {
-  it("leaves queries unchanged when both sample switches are on", () => {
+  it("leaves queries unchanged on verified staging when both sample switches are on", () => {
     const listingWhere = { status: "LIVE" as const };
     expect(
-      applySampleListingVisibility(listingWhere, {
-        privateListings: true,
-        dealerListings: true,
-      }),
+      applySampleListingVisibility(listingWhere, visibleSamples, verifiedStagingEnv),
     ).toEqual(listingWhere);
     expect(
-      applySampleDealerVisibility({ slug: "manx-motors" }, {
-        privateListings: true,
-        dealerListings: true,
-      }),
+      applySampleDealerVisibility({ slug: "manx-motors" }, visibleSamples, verifiedStagingEnv),
     ).toEqual({ slug: "manx-motors" });
+    expect(
+      applySampleUserVisibility({ role: "USER" }, visibleSamples, verifiedStagingEnv),
+    ).toEqual({ role: "USER" });
+  });
+
+  it("excludes preview packs from production metrics even when sample switches are on", () => {
+    const listingWhere = { status: "LIVE" as const };
+    expect(applySampleListingVisibility(listingWhere, visibleSamples)).toEqual({
+      AND: [listingWhere, excludePreviewPackListingsWhere()],
+    });
+    expect(applySampleDealerVisibility({ slug: "manx-motors" }, visibleSamples)).toEqual({
+      AND: [{ slug: "manx-motors" }, excludePreviewPackDealersWhere()],
+    });
+    expect(applySampleUserVisibility({}, visibleSamples)).toEqual(excludePreviewPackUsersWhere());
   });
 
   it("excludes placeholder private and dealer listings independently", () => {
@@ -97,7 +113,11 @@ describe("sample visibility filters", () => {
         dealerListings: true,
       }),
     ).toEqual({
-      AND: [{ status: "LIVE" }, { NOT: samplePrivateListingWhere() }],
+      AND: [
+        { status: "LIVE" },
+        { NOT: samplePrivateListingWhere() },
+        excludePreviewPackListingsWhere(),
+      ],
     });
     expect(
       applySampleListingVisibility({ status: "LIVE" }, {
@@ -105,7 +125,11 @@ describe("sample visibility filters", () => {
         dealerListings: false,
       }),
     ).toEqual({
-      AND: [{ status: "LIVE" }, { NOT: sampleDealerListingWhere() }],
+      AND: [
+        { status: "LIVE" },
+        { NOT: sampleDealerListingWhere() },
+        excludePreviewPackListingsWhere(),
+      ],
     });
   });
 
@@ -116,7 +140,11 @@ describe("sample visibility filters", () => {
         dealerListings: true,
       }),
     ).toEqual({
-      AND: [{ role: "USER" }, { NOT: samplePrivateUserWhere() }],
+      AND: [
+        { role: "USER" },
+        { NOT: samplePrivateUserWhere() },
+        excludePreviewPackUsersWhere(),
+      ],
     });
     expect(
       applySampleUserVisibility({ role: "DEALER" }, {
@@ -124,7 +152,11 @@ describe("sample visibility filters", () => {
         dealerListings: false,
       }),
     ).toEqual({
-      AND: [{ role: "DEALER" }, { NOT: sampleDealerUserWhere() }],
+      AND: [
+        { role: "DEALER" },
+        { NOT: sampleDealerUserWhere() },
+        excludePreviewPackUsersWhere(),
+      ],
     });
   });
 });

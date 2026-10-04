@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   getDealerDirectoryQuery,
   getDealerSpotlightQuery,
+  getMarketplaceDealerSpotlightQuery,
   sortDealersAlphabetically,
   shuffleDealerSpotlights,
 } from "@/lib/dealers/spotlights";
+import { excludePreviewPackDealersWhere } from "@/lib/preview-packs/frontend-visibility";
+import { verifiedStagingEnv } from "./verified-staging-env";
 
 describe("getDealerSpotlightQuery", () => {
   it("returns every eligible dealer without a spotlight cap", () => {
@@ -15,15 +18,21 @@ describe("getDealerSpotlightQuery", () => {
 
     const query = getDealerSpotlightQuery(liveListingWhere);
 
+    expect(query.where).toEqual({
+      AND: [
+        expect.objectContaining({
+          isAdminPreview: false,
+          user: expect.objectContaining({
+            role: { in: ["DEALER", "ADMIN"] },
+            disabledAt: null,
+            deletedAt: null,
+          }),
+        }),
+        excludePreviewPackDealersWhere(),
+      ],
+      verified: true,
+    });
     expect(query).toMatchObject({
-      where: {
-        verified: true,
-        user: {
-          role: { in: ["DEALER", "ADMIN"] },
-          disabledAt: null,
-          deletedAt: null,
-        },
-      },
       select: {
         id: true,
         name: true,
@@ -49,28 +58,38 @@ describe("getDealerDirectoryQuery", () => {
       status: "LIVE",
     });
 
-    expect(query).toMatchObject({
-      where: {
-        subscriptions: {
-          some: {
-            OR: [
-              {
-                source: "PAYMENT",
-                status: "ACTIVE",
-              },
-              {
-                source: "ADMIN_GRANT",
-                status: "ACTIVE",
-              },
-            ],
+    expect(query.where).toEqual({
+      AND: [
+        expect.objectContaining({
+          isAdminPreview: false,
+          subscriptions: {
+            some: {
+              OR: [
+                {
+                  source: "PAYMENT",
+                  status: "ACTIVE",
+                  currentPeriodEnd: expect.any(Object),
+                },
+                {
+                  source: "ADMIN_GRANT",
+                  status: "ACTIVE",
+                  revokedAt: null,
+                  grantStartsAt: expect.any(Object),
+                  grantEndsAt: expect.any(Object),
+                },
+              ],
+            },
           },
-        },
-        user: {
-          role: { in: ["DEALER", "ADMIN"] },
-          disabledAt: null,
-          deletedAt: null,
-        },
-      },
+          user: expect.objectContaining({
+            role: { in: ["DEALER", "ADMIN"] },
+            disabledAt: null,
+            deletedAt: null,
+          }),
+        }),
+        excludePreviewPackDealersWhere(),
+      ],
+    });
+    expect(query).toMatchObject({
       select: {
         verified: true,
       },
@@ -78,6 +97,31 @@ describe("getDealerDirectoryQuery", () => {
     expect(query.where).not.toHaveProperty("verified");
     expect(query).not.toHaveProperty("take");
     expect(query).not.toHaveProperty("skip");
+  });
+});
+
+describe("getMarketplaceDealerSpotlightQuery", () => {
+  it("keeps preview dealers off production homepages and shows enabled packs to staging admins", () => {
+    const listings = { status: "LIVE" as const };
+    const production = JSON.stringify(
+      getMarketplaceDealerSpotlightQuery(listings, { role: "ADMIN" }).where,
+    );
+    expect(production).toContain('"isAdminPreview":false');
+    expect(production).not.toContain('"isAdminPreview":true');
+    const staging = getMarketplaceDealerSpotlightQuery(
+      listings,
+      { role: "ADMIN" },
+      undefined,
+      verifiedStagingEnv,
+    );
+    expect(staging.where).toMatchObject({
+      OR: expect.arrayContaining([
+        expect.objectContaining({
+          isAdminPreview: true,
+          previewPack: { enabled: true },
+        }),
+      ]),
+    });
   });
 });
 

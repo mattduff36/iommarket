@@ -3,6 +3,7 @@ import * as React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setNodeEnv } from "@/__tests__/lib/seo-test-env";
+import { stubProductionFrontend, stubVerifiedStaging } from "@/__tests__/lib/verified-staging-env";
 import { buildDealerProfilePath } from "@/lib/navigation-paths";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
@@ -123,6 +124,7 @@ function buildDealer(overrides: { verified: boolean }) {
 describe("DealerProfilePage", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllEnvs();
   });
 
   beforeEach(() => {
@@ -306,6 +308,7 @@ describe("DealerProfilePage", () => {
   });
 
   it("T13 noindexes unpaid admin-viewable dealer profiles and hides them from users", async () => {
+    stubVerifiedStaging();
     findUniqueMock.mockResolvedValue({
       id: "dealer-1",
       name: "Admin Motors",
@@ -367,7 +370,8 @@ describe("DealerProfilePage", () => {
     ).resolves.toEqual({});
   });
 
-  it("lets an admin open a disabled preview dealer profile and 404s the public", async () => {
+  it("lets a staging admin open a disabled preview dealer profile and 404s the public", async () => {
+    stubVerifiedStaging();
     findUniqueMock.mockResolvedValue({
       ...buildDealer({ verified: false }),
       name: "Preview Motors",
@@ -395,6 +399,41 @@ describe("DealerProfilePage", () => {
 
     cleanup();
     getCurrentUserMock.mockResolvedValue({ id: "user-1", role: "USER" });
+    await expect(
+      DealerProfilePage({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    ).rejects.toThrow("notFound");
+  });
+
+  it("hides preview dealer profiles from production admins", async () => {
+    stubProductionFrontend();
+    findUniqueMock.mockResolvedValue({
+      ...buildDealer({ verified: false }),
+      name: "Preview Motors",
+      slug: "preview-motors",
+      isAdminPreview: true,
+      previewPack: { enabled: true },
+      user: {
+        role: "DEALER",
+        authUserId: "preview-system:preview-motors",
+        disabledAt: null,
+        deletedAt: null,
+      },
+    });
+    getDealerEntitlementMock.mockResolvedValue({
+      subscriptionId: "sub-preview",
+      source: "PAYMENT",
+      tier: "STARTER",
+      endsAt: new Date("2026-12-01T00:00:00.000Z"),
+    });
+    getCurrentUserMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({ slug: "preview-motors" }),
+      }),
+    ).resolves.toEqual({});
     await expect(
       DealerProfilePage({
         params: Promise.resolve({ slug: "preview-motors" }),
@@ -484,17 +523,22 @@ describe("DealerProfilePage", () => {
     expect(screen.getByText("Thank you for your feedback.")).toBeTruthy();
     expect(findManyReviewsMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { dealerId: "dealer-1", status: "APPROVED" },
         select: expect.objectContaining({
           response: { select: { approvedBody: true } },
         }),
       }),
     );
-    expect(aggregateMock).toHaveBeenCalledWith({
-      where: { dealerId: "dealer-1", status: "APPROVED" },
-      _avg: { rating: true },
-      _count: { _all: true },
-    });
+    const reviewWhere = JSON.stringify(findManyReviewsMock.mock.calls[0][0].where);
+    expect(reviewWhere).toContain('"dealerId":"dealer-1"');
+    expect(reviewWhere).toContain('"status":"APPROVED"');
+    expect(reviewWhere).toContain('"isAdminPreview":false');
+    expect(aggregateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+    );
+    expect(JSON.stringify(aggregateMock.mock.calls[0][0].where)).toContain('"dealerId":"dealer-1"');
   });
 
   it("hides private-sample reviews when their visibility toggle is off", async () => {

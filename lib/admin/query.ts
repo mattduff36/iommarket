@@ -5,10 +5,7 @@ import {
   DEFAULT_SAMPLE_VISIBILITY,
   type SampleVisibility,
 } from "@/lib/listings/sample-visibility";
-import {
-  PREVIEW_AUTH_USER_ID_PREFIX,
-  PREVIEW_EMAIL_DOMAIN,
-} from "@/lib/preview-packs/safety";
+import { excludePreviewPackUsersWhere } from "@/lib/preview-packs/frontend-visibility";
 
 import { ADMIN_LISTING_STATUS_FILTERS, type AdminListingStatusFilter } from "./listing-status-filters";
 export { ADMIN_LISTING_STATUS_FILTERS, type AdminListingStatusFilter } from "./listing-status-filters";
@@ -50,18 +47,7 @@ export function adminTotalPages(total: number, pageSize: number) {
 }
 
 export function excludePreviewSystemUsersWhere(): Prisma.UserWhereInput {
-  return {
-    NOT: [
-      {
-        email: {
-          endsWith: `@${PREVIEW_EMAIL_DOMAIN}`,
-          mode: "insensitive",
-        },
-      },
-      { authUserId: { startsWith: PREVIEW_AUTH_USER_ID_PREFIX } },
-      { dealerProfile: { isAdminPreview: true } },
-    ],
-  };
+  return excludePreviewPackUsersWhere();
 }
 
 export function buildAdminUsersWhere(input: {
