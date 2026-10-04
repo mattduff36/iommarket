@@ -278,15 +278,15 @@ export default async function AdminAnalyticsPage(props: {
           </div>
 
           <section className="grid gap-3 lg:grid-cols-5" aria-labelledby="locations-heading">
-            <div className="lg:col-span-3">
-              <h2 id="locations-heading" className="mb-3 text-sm font-semibold text-text-primary">
+            <div className="flex h-full min-h-0 flex-col lg:col-span-3">
+              <h2 id="locations-heading" className="mb-3 shrink-0 text-sm font-semibold text-text-primary">
                 Visitor locations
                 <span className="ml-2 font-normal text-text-tertiary">Consented users</span>
               </h2>
               {mapPoints.length > 0 ? (
                 <>
                   <VisitorMapLoader points={mapPoints} />
-                  <p className="mt-2 text-xs text-text-tertiary">Dot size shows consented users in each city.</p>
+                  <p className="mt-2 shrink-0 text-xs text-text-tertiary">Dot size shows consented users in each city.</p>
                 </>
               ) : (
                 <AdminEmptyState
