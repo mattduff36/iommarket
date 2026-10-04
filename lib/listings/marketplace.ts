@@ -7,14 +7,15 @@ import {
   getSampleVisibility,
   type SampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import {
+  canExposePreviewPacksToViewer,
+  excludePreviewPackListingsWhere,
+  linkedPreviewPackListingWhere,
+} from "@/lib/preview-packs/frontend-visibility";
 
 export interface MarketplaceViewer {
   id?: string;
   role: string;
-}
-
-export function isMarketplaceAdmin(viewer?: MarketplaceViewer | null) {
-  return viewer?.role === "ADMIN";
 }
 
 export function adminPreviewListingWhere(input?: {
@@ -32,24 +33,34 @@ export function marketplaceListingWhere(input: {
   now?: Date;
   sampleVisibility?: SampleVisibility;
   includeDisabledPreviewPacks?: boolean;
+  env?: NodeJS.ProcessEnv;
 }): Prisma.ListingWhereInput {
+  const env = input.env ?? process.env;
   const statusWhere = input.includeSold
     ? liveOrSoldListingWhere(true, input.now)
     : liveListingWhere(input.now);
-  const publicWhere = { AND: [statusWhere, publicListingSellerWhere(input.now, input.sampleVisibility)] };
-  const visible = isMarketplaceAdmin(input.viewer)
+  const publicWhere = {
+    AND: [
+      statusWhere,
+      publicListingSellerWhere(input.now, input.sampleVisibility),
+      excludePreviewPackListingsWhere(),
+    ],
+  };
+  const visible = canExposePreviewPacksToViewer({ viewer: input.viewer, env })
     ? {
         OR: [
           publicWhere,
           adminPreviewListingWhere({
             includeDisabled: input.includeDisabledPreviewPacks,
           }),
+          linkedPreviewPackListingWhere(),
         ],
       }
     : publicWhere;
   return applySampleListingVisibility(
     visible,
     input.sampleVisibility ?? DEFAULT_SAMPLE_VISIBILITY,
+    env,
   );
 }
 

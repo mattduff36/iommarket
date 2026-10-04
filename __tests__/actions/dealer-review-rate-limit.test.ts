@@ -223,17 +223,16 @@ describe("dealer review workflow rate limits", () => {
     });
 
     expect(result).toEqual({ error: "Dealer not found" });
-    expect(dealerFindUniqueMock).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        id: dealerId,
-        user: expect.objectContaining({
-          role: { in: ["DEALER", "ADMIN"] },
-          disabledAt: null,
-          deletedAt: null,
-        }),
+    expect(dealerFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: { id: true, slug: true },
       }),
-      select: { id: true, slug: true },
-    });
+    );
+    const dealerLookup = JSON.stringify(dealerFindUniqueMock.mock.calls[0][0].where);
+    expect(dealerLookup).toContain(dealerId);
+    expect(dealerLookup).toContain('"disabledAt":null');
+    expect(dealerLookup).toContain('"deletedAt":null');
+    expect(dealerLookup).toContain('"isAdminPreview":false');
     expect(transactionMock).not.toHaveBeenCalled();
   });
 });

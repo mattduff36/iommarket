@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildAdminDealersWhere } from "@/lib/admin/dealer-query";
 import {
+  excludePreviewPackDealersWhere,
+  excludePreviewPackListingsWhere,
+  excludePreviewPackUsersWhere,
+} from "@/lib/preview-packs/frontend-visibility";
+import {
   sampleDealerProfileWhere,
   sampleDealerListingWhere,
   sampleDealerUserWhere,
@@ -49,32 +54,42 @@ describe("admin listing archive ALR-ADM-001", () => {
 
   it("keeps search and status filters independent so older rows remain reachable", () => {
     expect(buildAdminListingArchiveWhere({ status: "TAKEN_DOWN", query: "" })).toEqual({
-      status: "TAKEN_DOWN",
+      AND: [{ status: "TAKEN_DOWN" }, excludePreviewPackListingsWhere()],
     });
     expect(buildAdminListingArchiveWhere({ status: "ALL", query: "" })).toEqual({
-      status: { not: "ADMIN_PREVIEW" },
+      AND: [{ status: { not: "ADMIN_PREVIEW" } }, excludePreviewPackListingsWhere()],
     });
     expect(buildAdminListingArchiveWhere({ status: "ALL", query: "bmw" })).toEqual({
-      status: { not: "ADMIN_PREVIEW" },
-      OR: [
-        { title: { contains: "bmw", mode: "insensitive" } },
-        { user: { email: { contains: "bmw", mode: "insensitive" } } },
-      ],
-    });
-    expect(buildAdminListingArchiveWhere({ status: "PENDING", query: "bmw" })).toEqual({
       AND: [
         {
-          OR: [
-            { status: "PENDING" },
-            { revisions: { some: { status: "PENDING" } } },
-          ],
-        },
-        {
+          status: { not: "ADMIN_PREVIEW" },
           OR: [
             { title: { contains: "bmw", mode: "insensitive" } },
             { user: { email: { contains: "bmw", mode: "insensitive" } } },
           ],
         },
+        excludePreviewPackListingsWhere(),
+      ],
+    });
+    expect(buildAdminListingArchiveWhere({ status: "PENDING", query: "bmw" })).toEqual({
+      AND: [
+        {
+          AND: [
+            {
+              OR: [
+                { status: "PENDING" },
+                { revisions: { some: { status: "PENDING" } } },
+              ],
+            },
+            {
+              OR: [
+                { title: { contains: "bmw", mode: "insensitive" } },
+                { user: { email: { contains: "bmw", mode: "insensitive" } } },
+              ],
+            },
+          ],
+        },
+        excludePreviewPackListingsWhere(),
       ],
     });
   });
@@ -91,6 +106,7 @@ describe("admin listing archive ALR-ADM-001", () => {
         { status: { not: "ADMIN_PREVIEW" } },
         { NOT: samplePrivateListingWhere() },
         { NOT: sampleDealerListingWhere() },
+        excludePreviewPackListingsWhere(),
       ],
     });
     expect(
@@ -109,6 +125,7 @@ describe("admin listing archive ALR-ADM-001", () => {
           ],
         },
         { NOT: samplePrivateListingWhere() },
+        excludePreviewPackListingsWhere(),
       ],
     });
   });
@@ -285,11 +302,7 @@ describe("admin payment filters", () => {
 describe("admin users list", () => {
   it("excludes preview system accounts from the default users query", () => {
     expect(buildAdminUsersWhere({})).toEqual({
-      NOT: [
-        { email: { endsWith: "@preview.internal", mode: "insensitive" } },
-        { authUserId: { startsWith: "preview-system:" } },
-        { dealerProfile: { isAdminPreview: true } },
-      ],
+      AND: [excludePreviewPackUsersWhere(), excludePreviewPackUsersWhere()],
     });
   });
 
@@ -297,21 +310,21 @@ describe("admin users list", () => {
     expect(
       buildAdminUsersWhere({ query: "manx", role: "DEALER" }),
     ).toEqual({
-      NOT: [
-        { email: { endsWith: "@preview.internal", mode: "insensitive" } },
-        { authUserId: { startsWith: "preview-system:" } },
-        { dealerProfile: { isAdminPreview: true } },
+      AND: [
+        {
+          ...excludePreviewPackUsersWhere(),
+          OR: [
+            { email: { contains: "manx", mode: "insensitive" } },
+            { name: { contains: "manx", mode: "insensitive" } },
+          ],
+          role: "DEALER",
+        },
+        excludePreviewPackUsersWhere(),
       ],
-      OR: [
-        { email: { contains: "manx", mode: "insensitive" } },
-        { name: { contains: "manx", mode: "insensitive" } },
-      ],
-      role: "DEALER",
     });
   });
 
   it("hides disabled private and dealer sample accounts from the list", () => {
-    const base = buildAdminUsersWhere({});
     expect(
       buildAdminUsersWhere({}, {
         privateListings: false,
@@ -319,9 +332,10 @@ describe("admin users list", () => {
       }),
     ).toEqual({
       AND: [
-        base,
+        excludePreviewPackUsersWhere(),
         { NOT: samplePrivateUserWhere() },
         { NOT: sampleDealerUserWhere() },
+        excludePreviewPackUsersWhere(),
       ],
     });
   });
@@ -331,28 +345,36 @@ describe("admin dealers list", () => {
   it("honours an exact dealer id without dropping search or verification filters", () => {
     expect(
       buildAdminDealersWhere({ id: " dealer-1 ", query: "td", verified: false }),
-    ).toMatchObject({
-      id: "dealer-1",
-      isAdminPreview: false,
-      verified: false,
-      OR: [
-        { name: { contains: "td", mode: "insensitive" } },
-        { slug: { contains: "td", mode: "insensitive" } },
-        { user: { email: { contains: "td", mode: "insensitive" } } },
+    ).toEqual({
+      AND: [
+        expect.objectContaining({
+          id: "dealer-1",
+          isAdminPreview: false,
+          verified: false,
+          OR: [
+            { name: { contains: "td", mode: "insensitive" } },
+            { slug: { contains: "td", mode: "insensitive" } },
+            { user: { email: { contains: "td", mode: "insensitive" } } },
+          ],
+        }),
+        excludePreviewPackDealersWhere(),
       ],
     });
     expect(buildAdminDealersWhere({ id: "   " })).not.toHaveProperty("id");
   });
 
   it("hides sample dealer accounts when dealer samples are disabled", () => {
-    const base = buildAdminDealersWhere({});
     expect(
       buildAdminDealersWhere(
         {},
         { privateListings: true, dealerListings: false },
       ),
     ).toEqual({
-      AND: [base, { NOT: sampleDealerProfileWhere() }],
+      AND: [
+        expect.objectContaining({ isAdminPreview: false }),
+        { NOT: sampleDealerProfileWhere() },
+        excludePreviewPackDealersWhere(),
+      ],
     });
   });
 });

@@ -118,6 +118,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       previewPackEnabled: dealer.previewPack?.enabled === true,
       hasEntitlement: Boolean(entitlement),
       visibleInStagingSnapshot: sampleVisibility.visibleDealerIds?.includes(dealer.id),
+      authUserId: dealer.user.authUserId,
     })
   ) {
     return {};
@@ -209,6 +210,7 @@ export default async function DealerProfilePage({ params }: Props) {
           previewPackEnabled: historicalDealer.previewPack?.enabled === true,
           hasEntitlement: Boolean(entitlement),
           visibleInStagingSnapshot: sampleVisibility.visibleDealerIds?.includes(historicalDealer.id),
+          authUserId: historicalDealer.user.authUserId,
         })
       ) {
         notFound();
@@ -307,6 +309,7 @@ export default async function DealerProfilePage({ params }: Props) {
       previewPackEnabled: dealer.previewPack?.enabled === true,
       hasEntitlement: Boolean(entitlement),
       visibleInStagingSnapshot: sampleVisibility.visibleDealerIds?.includes(dealer.id),
+      authUserId: dealer.user.authUserId,
     })
   ) {
     notFound();

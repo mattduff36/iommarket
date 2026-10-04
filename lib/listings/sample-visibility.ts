@@ -1,6 +1,12 @@
 import { getDatabaseSyncVisibility, type DatabaseSyncVisibility } from "@/lib/database-sync/visibility";
 import type { Prisma } from "@prisma/client";
 import { getBoolSetting, SETTING_KEYS } from "@/lib/config/site-settings";
+import {
+  excludePreviewPackDealersWhere,
+  excludePreviewPackListingsWhere,
+  excludePreviewPackUsersWhere,
+  previewPacksVisibleOnFrontend,
+} from "@/lib/preview-packs/frontend-visibility";
 
 export const PLACEHOLDER_AUTH_PREFIX = "00000000-0000-0000-0000-";
 
@@ -72,36 +78,57 @@ export function sampleListingNotFilters(
 export function applySampleListingVisibility(
   where: Prisma.ListingWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.ListingWhereInput {
-  const hidden = sampleListingNotFilters(sample);
-  if (hidden.length === 0) return where;
-  return {
-    AND: [where, ...hidden.map((filter) => ({ NOT: filter }))],
-  };
+  return andWhere([
+    where,
+    ...sampleListingNotFilters(sample).map((filter) => ({ NOT: filter })),
+    ...productionPreviewFilters(excludePreviewPackListingsWhere(), env),
+  ]);
 }
 
 export function applySampleDealerVisibility(
   where: Prisma.DealerProfileWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.DealerProfileWhereInput {
   const hidden: Prisma.DealerProfileWhereInput[] = [];
-  if (!sample.dealerListings) hidden.push(sampleDealerProfileWhere());
-  if (sample.archivedDealerIds?.length) hidden.push({ id: { in: sample.archivedDealerIds } });
-  if (!hidden.length) return where;
-  return { AND: [where, ...hidden.map((filter) => ({ NOT: filter }))] };
+  if (!sample.dealerListings) hidden.push({ NOT: sampleDealerProfileWhere() });
+  if (sample.archivedDealerIds?.length) hidden.push({ NOT: { id: { in: sample.archivedDealerIds } } });
+  return andWhere([
+    where,
+    ...hidden,
+    ...productionPreviewFilters(excludePreviewPackDealersWhere(), env),
+  ]);
 }
 
 export function applySampleUserVisibility(
   where: Prisma.UserWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.UserWhereInput {
   const hidden: Prisma.UserWhereInput[] = [];
-  if (!sample.privateListings) hidden.push(samplePrivateUserWhere());
-  if (!sample.dealerListings) hidden.push(sampleDealerUserWhere());
-  if (hidden.length === 0) return where;
-  return {
-    AND: [where, ...hidden.map((filter) => ({ NOT: filter }))],
-  };
+  if (!sample.privateListings) hidden.push({ NOT: samplePrivateUserWhere() });
+  if (!sample.dealerListings) hidden.push({ NOT: sampleDealerUserWhere() });
+  return andWhere([
+    where,
+    ...hidden,
+    ...productionPreviewFilters(excludePreviewPackUsersWhere(), env),
+  ]);
+}
+
+function productionPreviewFilters<T extends object>(
+  exclusion: T,
+  env: NodeJS.ProcessEnv,
+): T[] {
+  return previewPacksVisibleOnFrontend(env) ? [] : [exclusion];
+}
+
+function andWhere<T extends object>(parts: T[]): T {
+  const present = parts.filter((part) => Object.keys(part).length > 0);
+  if (present.length === 0) return {} as T;
+  if (present.length === 1) return present[0];
+  return { AND: present } as T;
 }
 
 export function isHiddenSampleListing(input: {

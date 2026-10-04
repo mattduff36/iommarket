@@ -1,5 +1,9 @@
 import type { ListingStatus } from "@prisma/client";
 import { isListingEffectivelyExpired } from "@/lib/listings/expiry";
+import {
+  canExposePreviewPacksToViewer,
+  isPreviewPackListing,
+} from "@/lib/preview-packs/frontend-visibility";
 
 export const PUBLIC_LISTING_STATUSES: readonly ListingStatus[] = ["LIVE", "SOLD"];
 
@@ -25,9 +29,20 @@ export function canViewListing(input: {
   dealerAccess?: boolean;
   viewer?: { id: string; role: string } | null;
   previewPackEnabled?: boolean | null;
+  previewPackId?: string | null;
+  dealerIsAdminPreview?: boolean | null;
+  ownerAuthUserId?: string | null;
+  ownerEmail?: string | null;
+  env?: NodeJS.ProcessEnv;
 }) {
-  if (isAdminPreviewListing(input.status)) {
-    return input.viewer?.role === "ADMIN";
+  if (isPreviewPackListing({
+    status: input.status,
+    previewPackId: input.previewPackId,
+    dealerIsAdminPreview: input.dealerIsAdminPreview,
+    ownerAuthUserId: input.ownerAuthUserId,
+    ownerEmail: input.ownerEmail,
+  })) {
+    return canExposePreviewPacksToViewer({ viewer: input.viewer, env: input.env });
   }
   if (isListingPubliclyVisible(input)) return true;
   if (!input.viewer) return false;

@@ -64,11 +64,11 @@ import {
   updateDraftRevision,
 } from "@/lib/listings/revisions";
 import {
-  isAdminPreviewListing,
   isInPlaceEditable,
   isListingPubliclyVisible,
   usesPendingRevision,
 } from "@/lib/listings/visibility";
+import { isPreviewPackListing } from "@/lib/preview-packs/frontend-visibility";
 import {
   type ListingPhotoMutationItem,
   type SyncListingImagesInput,
@@ -1007,12 +1007,20 @@ export async function reportListing(input: ReportListingInput) {
       status: true,
       expiresAt: true,
       dealerId: true,
-      user: { select: { disabledAt: true, deletedAt: true } },
+      previewPackId: true,
+      dealer: { select: { isAdminPreview: true } },
+      user: { select: { authUserId: true, email: true, disabledAt: true, deletedAt: true } },
     },
   });
   if (
     !targetListing ||
-    isAdminPreviewListing(targetListing.status) ||
+    isPreviewPackListing({
+      status: targetListing.status,
+      previewPackId: targetListing.previewPackId,
+      dealerIsAdminPreview: targetListing.dealer?.isAdminPreview === true,
+      ownerAuthUserId: targetListing.user?.authUserId,
+      ownerEmail: targetListing.user?.email,
+    }) ||
     !(await hasPublicListingSellerAccess(
       targetListing.dealerId,
       Boolean(targetListing.user?.disabledAt),
@@ -1117,13 +1125,20 @@ export async function contactSeller(input: ContactSellerInput) {
     where: { id: parsed.data.listingId },
     include: {
       user: {
-        select: { email: true, disabledAt: true, deletedAt: true },
+        select: { email: true, authUserId: true, disabledAt: true, deletedAt: true },
       },
+      dealer: { select: { isAdminPreview: true } },
     },
   });
   if (
     !listing ||
-    isAdminPreviewListing(listing.status) ||
+    isPreviewPackListing({
+      status: listing.status,
+      previewPackId: listing.previewPackId,
+      dealerIsAdminPreview: listing.dealer?.isAdminPreview === true,
+      ownerAuthUserId: listing.user?.authUserId,
+      ownerEmail: listing.user?.email,
+    }) ||
     !(await hasPublicListingSellerAccess(
       listing.dealerId,
       Boolean(listing.user?.disabledAt),
