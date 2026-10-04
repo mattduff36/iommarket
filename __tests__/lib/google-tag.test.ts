@@ -78,6 +78,11 @@ describe("Google Analytics privacy filtering", () => {
       hostname: "itrader-git-feature.vercel.app",
       pathname: "/",
     })).toBeNull();
+    expect(safeAnalyticsPageView({
+      protocol: "https:",
+      hostname: "itrader.dev",
+      pathname: "/",
+    })).toBeNull();
   });
 });
 

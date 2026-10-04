@@ -31,7 +31,7 @@ describe('Accounts isolated preview boundary',()=>{
 
 function fixture(){
  type SourceRow={id:string;sourceKind:string;bucketKey:string;revision:number;[key:string]:unknown};
- type EntryInput={sourceSnapshotId:string;kind:string;markedGbpMinor:bigint;servicePeriodStart:Date;[key:string]:unknown};
+ type EntryInput={sourceSnapshotId:string;kind:string;markedGbpMinor:bigint;invoiceability:string;displayLabel:string;servicePeriodStart:Date;servicePeriodEnd:Date;[key:string]:unknown};
  type EntryRow=EntryInput & {id:string};
  type SourceInput=Omit<SourceRow,'id'>;
  const sources:SourceRow[]=[],entries:EntryRow[]=[];
@@ -45,6 +45,7 @@ describe('Accounts append-only projection',()=>{
   const f=fixture(),data=snapshot();
   await projectAccountsSnapshot(f.tx,data);await projectAccountsSnapshot(f.tx,data);
   expect(f.entries).toHaveLength(1);expect(f.entries[0].markedGbpMinor).toBe(123n);
+  expect(f.entries[0].invoiceability).toBe('PROVISIONAL');
   await projectAccountsSnapshot(f.tx,{...data,lines:[{...data.lines[0],id:'b'.repeat(64),revision:'b'.repeat(64),held:true,amountMinor:null}]});
   expect(f.entries).toHaveLength(2);expect(f.entries[1].markedGbpMinor).toBe(-123n);
   expect(f.entries[1].reversesEntryId).toBe(f.entries[0].id);
@@ -55,7 +56,21 @@ describe('Accounts append-only projection',()=>{
   const baseline=accountsBaselineSchema.parse({version:'reviewed-legacy-baseline-v1',project:'itrader',revision:hash,periodEndExclusive:true,currency:'GBP',accountingTreatment:'frozen-client-charges-not-provider-cash',lines:[{id:'c'.repeat(64),category:'OTHER',label:'Credit',periodStart:ACCOUNTS_PREVIEW_START,periodEnd:'2026-08-14T23:00:00.000Z',amountMinor:-9000,currency:'GBP',invoiceability:'INVOICEABLE'}]});
   await projectAccountsSnapshot(f.tx,snapshot(),baseline);await projectAccountsSnapshot(f.tx,snapshot(),baseline);
   expect(f.entries).toHaveLength(2);expect(f.entries[1].markedGbpMinor).toBe(-9000n);
+  expect(f.entries[1].invoiceability).toBe('INVOICEABLE');
+  expect(f.entries.filter(entry=>entry.kind==='CHARGE'&&entry.invoiceability==='INVOICEABLE').map(entry=>entry.markedGbpMinor)).toEqual([-9000n]);
   expect(f.entries[1].servicePeriodStart.toISOString()).toBe(ACCOUNTS_PREVIEW_START);
+  expect(f.entries[1].servicePeriodEnd.toISOString()).toBe('2026-08-14T23:00:00.000Z');
   expect(f.sources[1].bucketKey).toContain(':baseline:');
+ });
+ it('blocks an unreviewed infrastructure line and accepts a non-overlapping reviewed delta',async()=>{
+  const f=fixture();
+  const baseline=accountsBaselineSchema.parse({version:'reviewed-legacy-baseline-v1',project:'itrader',revision:hash,periodEndExclusive:true,currency:'GBP',accountingTreatment:'frozen-client-charges-not-provider-cash',lines:[{id:'c'.repeat(64),category:'OTHER',label:'Credit',periodStart:ACCOUNTS_PREVIEW_START,periodEnd:'2026-08-14T23:00:00.000Z',amountMinor:-9000,currency:'GBP',invoiceability:'INVOICEABLE'}]});
+  const hosting={...snapshot().lines[0],id:'d'.repeat(64),revision:'d'.repeat(64),category:'VERCEL_HOSTING' as const,label:'Hosting',amountMinor:50};
+  await expect(projectAccountsSnapshot(f.tx,{...snapshot(),lines:[snapshot().lines[0],hosting]},baseline)).rejects.toThrow(/reviewed cutover/);
+  await expect(projectAccountsSnapshot(f.tx,{...snapshot(),lines:[snapshot().lines[0],{...hosting,id:'c'.repeat(64)}]},baseline,{reviewedInfrastructureDeltaIds:['c'.repeat(64)]})).rejects.toThrow(/frozen baseline/);
+  const allowed=fixture();
+  await projectAccountsSnapshot(allowed.tx,{...snapshot(),lines:[snapshot().lines[0],hosting]},baseline,{reviewedInfrastructureDeltaIds:[hosting.id]});
+  expect(allowed.entries.find(entry=>entry.displayLabel==='Hosting')?.invoiceability).toBe('PROVISIONAL');
+  expect(allowed.entries.find(entry=>entry.displayLabel==='Hosting')?.markedGbpMinor).toBe(50n);
  });
 });

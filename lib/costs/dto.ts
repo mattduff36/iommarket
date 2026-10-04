@@ -79,6 +79,22 @@ export interface CostDashboardDto {
   ledgerRevision: string | null;
   ledgerAsOf: string | null;
   manualCategories: Array<{ slug: string; label: string }>;
+  comparison?: CostComparisonDto;
+}
+
+export interface CostComparisonDto {
+  available: boolean;
+  policyVersion: string | null;
+  usageValueLabel: string;
+  providerCostLabel: string;
+  clientChargeLabel: string;
+  outstandingLabel: string;
+  reconciliation: string;
+  sourceUpdatedAt: string | null;
+  held: number | null;
+  fxMissing: number | null;
+  unassigned: number | null;
+  gap: string | null;
 }
 
 export interface CursorAuditDto {

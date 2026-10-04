@@ -16,6 +16,7 @@ import { minorToSafeNumber, sumMinor, ZERO_MINOR } from "@/lib/costs/money";
 import { assertAccountsPreview, ACCOUNTS_PREVIEW_CATEGORIES, ACCOUNTS_PREVIEW_START } from "./accounts-preview";
 import { PREVIEW_ENTRY_WHERE, PREVIEW_REQUEST_WHERE } from "./accounts-projection";
 import type { AccountsSnapshot } from "./accounts-snapshot";
+import { summariseComparison, type AccountsComparison } from "./accounts-comparison";
 import { buildCursorAudit } from "./cursor-audit";
 
 const STALE_SYNC_MS = 36 * 60 * 60 * 1000;
@@ -50,6 +51,7 @@ export async function getCostDashboard(input: {
   enabled: boolean;
   isOwner: boolean;
   accountsSnapshot?: AccountsSnapshot;
+  comparison?: AccountsComparison | { available: false; gap: string };
 }): Promise<CostDashboardDto> {
   if (!input.enabled) {
     return {
@@ -189,6 +191,7 @@ export async function getCostDashboard(input: {
     ledgerRevision: input.accountsSnapshot?.revision ?? latestSync?.checksum ?? latestSync?.id ?? null,
     ledgerAsOf: syncCompletedAt?.toISOString() ?? null,
     manualCategories,
+    ...(input.comparison ? { comparison: summariseComparison(input.comparison) } : {}),
     ...(cursorAudit ? { cursorAudit } : {}),
   };
 }

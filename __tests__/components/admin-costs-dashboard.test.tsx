@@ -314,6 +314,36 @@ describe("admin costs dashboard T5", () => {
     expect(screen.queryByText(COST_NON_OWNER_HELP)).toBeNull();
   });
 
+  it("shows usage, provider cost, client charge and outstanding as separate comparison figures", () => {
+    render(
+      <CostDashboardView
+        dashboard={dashboard({
+          accountsPreview: true,
+          comparison: {
+            available: false,
+            policyVersion: null,
+            usageValueLabel: "Unavailable",
+            providerCostLabel: "Unavailable",
+            clientChargeLabel: "Unavailable",
+            outstandingLabel: "Unavailable",
+            reconciliation: "The Accounts comparison snapshot is unavailable.",
+            sourceUpdatedAt: null,
+            held: null,
+            fxMissing: null,
+            unassigned: null,
+            gap: "The Accounts comparison snapshot is unavailable.",
+          },
+        })}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Accounts comparison" })).not.toBeNull();
+    expect(screen.getByText("Usage value")).not.toBeNull();
+    expect(screen.getByText("Provider cost")).not.toBeNull();
+    expect(screen.getByText("Client charge")).not.toBeNull();
+    expect(screen.getByText("Outstanding")).not.toBeNull();
+    expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(4);
+  });
+
   it("does not show implementation details when costs are disabled", () => {
     render(<CostDashboardView dashboard={dashboard({ enabled: false, startedAt: null })} />);
     expect(screen.queryByText(/tracking is turned off|Ledger start:/i)).toBeNull();

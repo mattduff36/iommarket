@@ -10,6 +10,7 @@ import {
   applySampleListingViewVisibility,
   applySamplePaymentVisibility,
   applySampleSavedSearchVisibility,
+  applySampleSubscriptionVisibility,
 } from "@/lib/listings/sample-related-visibility";
 
 export interface BusinessFunnel {
@@ -70,7 +71,10 @@ export async function loadBusinessFunnel(input: {
       where: applySampleSavedSearchVisibility({ createdAt: created }, input.sampleVisibility),
     }),
     db.subscription.count({
-      where: { createdAt: created, status: { in: ["ACTIVE", "PAST_DUE"] } },
+      where: applySampleSubscriptionVisibility(
+        { createdAt: created, status: { in: ["ACTIVE", "PAST_DUE"] } },
+        input.sampleVisibility,
+      ),
     }),
   ]);
 

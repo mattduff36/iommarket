@@ -32,6 +32,7 @@ import { locateCities } from "@/lib/analytics/city-coordinates";
 import { MARKETPLACE_EVENTS } from "@/lib/analytics/events";
 import { loadGoogleAnalytics } from "@/lib/analytics/google-analytics";
 import { londonDate } from "@/lib/analytics/london-date";
+import { productionPreviewListingViewSql } from "@/lib/preview-packs/frontend-visibility";
 import { calendarDay, trendSeries } from "@/lib/analytics/trend-series";
 
 export const metadata: Metadata = { title: "Analytics | Admin" };
@@ -93,6 +94,8 @@ export default async function AdminAnalyticsPage(props: {
       )`,
     );
   }
+  const previewViewFilter = productionPreviewListingViewSql();
+  if (previewViewFilter) recentViewConditions.push(previewViewFilter);
   const visibleLiveFavouriteWhere = applySampleFavouriteVisibility(
     { listing: liveWhere },
     sampleVisibility,

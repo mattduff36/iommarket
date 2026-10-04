@@ -38,7 +38,7 @@ Apply `prisma/migrations/20261002150000_monitoring_hardening` before deploying t
 
 ## Fixing issues
 
-`npm run fixerrors` exports open issues and a decision manifest. Fast, standard, and guarded clusters can be fixed, reviewed, and locally committed by the operator-invoked workflow. Critical and report-only clusters pause. The workflow never pushes.
+`npm run fixerrors` reads the production database in `.env.production` by default. `--database=preview`, `--database=staging`, or `--database=development` selects another env file, and a non-production target is refused when its connection string is the production database. The export compares `origin/main` with `origin/staging` and will not auto-repair a file that is missing from either ref. Acknowledge the open issues, repair on a clean `staging` branch that is not behind `origin/staging`, then commit locally. Push only with `/fap` or `/ffap`, verify the preview, and merge through an approved `staging` to `main` pull request. Close a landed fix as pending release so it stays acknowledged. `--verify-release` resolves it only after that commit is in both `origin/staging` and `origin/main` and GitHub reports a successful completed Vercel deployment for the exact `origin/main` SHA. Recurrence after that deployment stays acknowledged. Issues that need a person stay acknowledged with a next step. Expected noise is muted for 30 days with a next step. Critical clusters still wait for approval. The workflow never pushes.
 
 ## Rollout
 

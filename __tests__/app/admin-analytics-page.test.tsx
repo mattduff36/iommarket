@@ -96,6 +96,8 @@ describe("AdminAnalyticsPage sample visibility", () => {
     };
     expect(rawQuery.strings.join(" ")).toContain('dealer."isAdminPreview" = FALSE');
     expect(rawQuery.strings.join(" ")).toContain('viewer_dealer."isAdminPreview" = FALSE');
+    expect(rawQuery.strings.join(" ")).toContain('listing."previewPackId" IS NULL');
+    expect(rawQuery.strings.join(" ")).toContain("listing.\"status\" <> 'ADMIN_PREVIEW'");
     expect(
       rawQuery.values.filter(
         (value) => value === `${PLACEHOLDER_AUTH_PREFIX}%`,
