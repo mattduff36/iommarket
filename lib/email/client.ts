@@ -56,6 +56,8 @@ export async function sendResendEmail(input: {
     .map((email) => email.trim())
     .filter((email) => email.length > 0 && !isSyntheticEmailRecipient(email));
   if (recipients.length === 0) return;
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ emails: recipients });
 
   const result = await resend.emails.send(
     {

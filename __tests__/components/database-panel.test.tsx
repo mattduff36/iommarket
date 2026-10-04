@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SYNC_TABLES, type SyncTableCounts } from "@/lib/database-sync/types";
 import type { PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
 
-const mocks = vi.hoisted(() => ({ prepare: vi.fn(), apply: vi.fn() }));
-vi.mock("@/actions/admin/database-sync", () => ({ prepareDatabaseSyncAction: mocks.prepare, applyDatabaseSyncAction: mocks.apply }));
+const mocks = vi.hoisted(() => ({ prepare: vi.fn(), apply: vi.fn(), restore: vi.fn() }));
+vi.mock("@/actions/admin/database-sync", () => ({ prepareDatabaseSyncAction: mocks.prepare, applyDatabaseSyncAction: mocks.apply, restoreDatabaseSyncAction: mocks.restore }));
 import { DatabasePanel } from "@/app/(admin)/admin/database/database-panel";
 
 const plan = {
@@ -14,7 +14,8 @@ const plan = {
   createdAt: "2026-10-03T12:00:00Z", expiresAt: "2026-10-03T12:15:00Z",
   counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { insert: 1, update: 0, delete: 0, preserve: 2, skip: 0 }])) as SyncTableCounts,
   blockers: [],
-  archivedListings: 302, archivedDealers: 13,
+  archivedListings: 0, archivedDealers: 0,
+  kind: "sync", restoreAvailable: false, backupExpiresAt: null, backupState: "none", restoredFromId: null,
 } as PublicDatabaseSyncRun;
 
 beforeEach(() => { vi.clearAllMocks(); mocks.prepare.mockResolvedValue({ data: plan }); mocks.apply.mockResolvedValue({ data: { ...plan, status: "applied" } }); });
@@ -27,7 +28,7 @@ describe("database management panel", () => {
     await screen.findByRole("heading", { name: "Review: Merge production into development" });
     expect(mocks.prepare).toHaveBeenCalledWith("merge");
     expect(screen.getByRole("table")).toHaveTextContent("Preserve");
-    expect(screen.getByText(/Archive and hide: 302 listings and 13 dealer profiles/)).toHaveTextContent("physical deletions only");
+    expect(screen.getByText(/Production values are copied as stored, including featured listings/)).toBeInTheDocument();
     const apply = screen.getByRole("button", { name: "Apply merge to development" });
     expect(apply).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Type MERGE INTO DEVELOPMENT to confirm"), { target: { value: "MERGE INTO DEVELOPMENT" } });
@@ -47,9 +48,22 @@ describe("database management panel", () => {
   it("explains Reset clearing and uses its own confirmation", async () => {
     mocks.prepare.mockResolvedValue({ data: { ...plan, mode: "reset" } });
     render(<DatabasePanel initialRuns={[]} />);
-    expect(screen.getByText(/Clear ordinary development marketplace data/)).toHaveTextContent("preserving administrators");
+    expect(screen.getByText(/Remove development marketplace rows/)).toHaveTextContent("staging administrator sign-in");
     fireEvent.click(screen.getByRole("button", { name: "Preview reset plan" }));
     await screen.findByLabelText("Type RESET DEVELOPMENT to confirm");
     expect(mocks.prepare).toHaveBeenCalledWith("reset");
+  });
+
+  it("offers restore only for a retained applied backup and requires the exact confirmation", async () => {
+    const applied = { ...plan, status: "applied" as const, restoreAvailable: true, backupState: "retained" as const, backupExpiresAt: "2026-11-03T12:00:00Z" };
+    mocks.restore.mockResolvedValue({ data: { ...applied, id: "restored-run", kind: "restore" } });
+    render(<DatabasePanel initialRuns={[applied, { ...plan, id: "prepared-run", status: "prepared" }]} />);
+    expect(screen.getByText(/Backup expires/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Restore" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    const confirm = await screen.findByLabelText("Type RESTORE DEVELOPMENT to confirm");
+    fireEvent.change(confirm, { target: { value: "RESTORE DEVELOPMENT" } });
+    fireEvent.click(screen.getByRole("button", { name: "Restore this backup" }));
+    await waitFor(() => expect(mocks.restore).toHaveBeenCalledWith({ runId: applied.id, confirmation: "RESTORE DEVELOPMENT" }));
   });
 });

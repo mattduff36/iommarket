@@ -34,6 +34,15 @@ function isDealerEvent(event: NormalizedProviderWebhookEvent) {
 export async function processProviderWebhookEvent(
   event: NormalizedProviderWebhookEvent
 ) {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    paymentReferences: [event.providerPaymentId, event.providerReference].filter((value): value is string => Boolean(value)),
+    emails: event.customerEmail ? [event.customerEmail] : [],
+    tables: [
+      ...(event.metadata.listingId ? [{ table: "Listing", rowKey: event.metadata.listingId }] : []),
+      ...(event.metadata.dealerId ? [{ table: "DealerProfile", rowKey: event.metadata.dealerId }] : []),
+    ],
+  });
   switch (event.type) {
     case "payment.received":
       if (isDealerEvent(event)) {

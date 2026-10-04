@@ -230,6 +230,8 @@ export async function anonymiseAccountAndComplete(
 }
 
 export async function processAccountDeletionJob(job: AccountDeletionJob) {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ tables: [{ table: "User", rowKey: job.userId }] });
   if (await hasActiveLegalHold("USER", job.userId)) {
     await failJob(job, "LEGAL_HOLD");
     return { status: "FAILED" as const, reason: "LEGAL_HOLD" };

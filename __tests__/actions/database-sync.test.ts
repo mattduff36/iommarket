@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
 import { SYNC_TABLES } from "@/lib/database-sync/types";
 
-const { requireRoleMock, stagingEnabledMock, inspectMock, prepareMock, applyMock, listMock, headersMock, SyncError } = vi.hoisted(() => ({
+const { requireRoleMock, stagingEnabledMock, inspectMock, prepareMock, applyMock, restoreMock, listMock, headersMock, SyncError } = vi.hoisted(() => ({
   requireRoleMock: vi.fn(),
   stagingEnabledMock: vi.fn(),
   inspectMock: vi.fn(),
-  prepareMock: vi.fn(), applyMock: vi.fn(), listMock: vi.fn(), headersMock: vi.fn(),
+  prepareMock: vi.fn(), applyMock: vi.fn(), restoreMock: vi.fn(), listMock: vi.fn(), headersMock: vi.fn(),
   SyncError: class extends Error {},
 }));
 
@@ -15,16 +15,17 @@ vi.mock("@/lib/auth", () => ({ requireRole: requireRoleMock }));
 vi.mock("@/lib/deployment/environment", () => ({ isStagingOnlyFeatureEnabled: stagingEnabledMock }));
 vi.mock("@/lib/database-sync/preflight", () => ({ inspectDatabaseSync: inspectMock }));
 vi.mock("next/headers", () => ({ headers: headersMock }));
-vi.mock("@/lib/database-sync/worker", () => ({ prepareDatabaseSync: prepareMock, applyDatabaseSync: applyMock, listDatabaseSyncRuns: listMock, DatabaseSyncError: SyncError }));
+vi.mock("@/lib/database-sync/worker", () => ({ prepareDatabaseSync: prepareMock, applyDatabaseSync: applyMock, restoreDatabaseSync: restoreMock, listDatabaseSyncRuns: listMock, DatabaseSyncError: SyncError }));
 
-const { loadDatabaseSyncPreflight, loadDatabaseSyncRuns, prepareDatabaseSyncAction, applyDatabaseSyncAction } = await import("@/actions/admin/database-sync");
+const { loadDatabaseSyncPreflight, loadDatabaseSyncRuns, prepareDatabaseSyncAction, applyDatabaseSyncAction, restoreDatabaseSyncAction } = await import("@/actions/admin/database-sync");
 
 const run = {
   id: "c3c64ad4-1d3e-4aeb-a02a-39a2c6c45a67", mode: "merge", status: "prepared",
   createdAt: "2026-10-03T12:00:00Z", expiresAt: "2026-10-03T12:15:00Z",
   counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { insert: 1, update: 0, delete: 0, preserve: 2, skip: 0 }])),
   blockers: [], postHash: "private-hash", backup: { email: "private@example.invalid" },
-  archivedListings: 302, archivedDealers: 13,
+  archivedListings: 0, archivedDealers: 0,
+  kind: "sync", restoreAvailable: true, backupExpiresAt: null, backupState: "newest", restoredFromId: null,
 };
 
 describe("database inspection action", () => {
@@ -130,5 +131,15 @@ describe("database inspection action", () => {
   it("shows deliberately safe worker errors", async () => {
     prepareMock.mockRejectedValue(new SyncError("Prepare a new preview."));
     expect(await prepareDatabaseSyncAction("replace")).toEqual({ error: "Prepare a new preview." });
+  });
+
+  it("lets any active administrator restore a retained backup after exact confirmation", async () => {
+    restoreMock.mockResolvedValue({ ...run, kind: "restore", status: "applied" });
+    expect(await restoreDatabaseSyncAction({ runId: run.id, confirmation: "restore development" })).toHaveProperty("error");
+    expect(restoreMock).not.toHaveBeenCalled();
+    const restored = await restoreDatabaseSyncAction({ runId: run.id, confirmation: "RESTORE DEVELOPMENT" });
+    expect(restoreMock).toHaveBeenCalledWith(run.id, "admin-1");
+    expect(restored).toHaveProperty("data.kind", "restore");
+    expect(JSON.stringify(restored)).not.toContain("private");
   });
 });

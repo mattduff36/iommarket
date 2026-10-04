@@ -148,6 +148,11 @@ export async function createListingCheckout(params: {
   customerName?: string;
   idempotencyKey?: string;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "Listing", rowKey: params.listingId }],
+    emails: params.customerEmail ? [params.customerEmail] : [],
+  });
   if ((params.checkoutType ?? "listing_payment") === "listing_support") {
     throw new Error("RIPPLE_LISTING_SUPPORT_URL");
   }
@@ -168,6 +173,11 @@ export async function createListingAndFeaturedCheckout(params: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "Listing", rowKey: params.listingId }],
+    emails: params.customerEmail ? [params.customerEmail] : [],
+  });
   return buildFixedCheckoutUrl("listing_and_featured", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
@@ -186,6 +196,11 @@ export async function createDealerSubscriptionCheckout(params: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "DealerProfile", rowKey: params.dealerId }],
+    emails: [params.customerEmail],
+  });
   return buildFixedCheckoutUrl("dealer_subscription", {
     targetId: params.dealerId,
     amountInPence: params.amountInPence,
@@ -205,6 +220,11 @@ export async function createFeaturedUpgradeCheckout(params: {
   customerName?: string;
   amountInPence?: number;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "Listing", rowKey: params.listingId }],
+    emails: params.customerEmail ? [params.customerEmail] : [],
+  });
   return buildFixedCheckoutUrl("featured_upgrade", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,

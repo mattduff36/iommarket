@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { assertImageKitBackfillDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
 import { imageKitDevUploadsEnabled, readMediaProviderMode } from "@/lib/media/config";
@@ -492,7 +493,7 @@ describe("MEDIA-ROLLBACK-001 stored ImageKit identity", () => {
       env: {
         MEDIA_PROVIDER: "imagekit",
         NEXT_PUBLIC_MEDIA_PROVIDER: "imagekit",
-        IMAGEKIT_MIGRATION_MAP: "D:/Websites/iommarket-imagekit-migration/reports/source-destination-map.jsonl",
+        IMAGEKIT_MIGRATION_MAP: fileURLToPath(new URL("./fixtures/imagekit-migration-map.jsonl", import.meta.url)),
         NODE_ENV: "test",
       },
     }).kind).toBe("unresolved");

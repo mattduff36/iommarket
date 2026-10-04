@@ -94,6 +94,8 @@ export async function deleteImageKitFile(input: {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }) {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ mediaIds: [input.fileId] });
   const env = input.env ?? process.env;
   const config = imageKitConfig(env);
   const response = await (input.fetchImpl ?? fetch)(
@@ -110,6 +112,8 @@ export async function purgeImageKitUrl(input: {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }) {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ mediaIds: [input.url] });
   const env = input.env ?? process.env;
   const config = imageKitConfig(env);
   const endpoint = parseImageKitEndpoint(env.IMAGEKIT_URL_ENDPOINT);

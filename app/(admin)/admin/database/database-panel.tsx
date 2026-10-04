@@ -1,24 +1,33 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { applyDatabaseSyncAction, prepareDatabaseSyncAction, type PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
+import { applyDatabaseSyncAction, prepareDatabaseSyncAction, restoreDatabaseSyncAction, type PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const modes = {
-  replace: { title: "Replace development", confirmation: "REPLACE DEVELOPMENT", description: "Copy approved production data into development and remove ordinary development-only records from the marketplace. Records needed by payment or review history are archived and hidden. Administrators, the checklist and dealer preview packs are preserved." },
-  merge: { title: "Merge production into development", confirmation: "MERGE INTO DEVELOPMENT", description: "Copy approved production records while retaining development-only data. The plan shows updates, preserved records and any conflicts before you apply it." },
-  reset: { title: "Reset development", confirmation: "RESET DEVELOPMENT", description: "Clear ordinary development marketplace data while preserving administrators, the checklist and dealer preview packs. Records needed by history are archived and hidden. This does not copy production data or restore a backup." },
+  replace: { title: "Replace development", confirmation: "REPLACE DEVELOPMENT", description: "Copy every current production table and column into development, including featured listings, users, payments and subscriptions. Staging administrator sign-in stays in place. Imported accounts cannot sign in." },
+  merge: { title: "Merge production into development", confirmation: "MERGE INTO DEVELOPMENT", description: "Copy every production record while keeping development-only rows. Matching primary keys are updated. A different row on the same unique identity blocks the plan." },
+  reset: { title: "Reset development", confirmation: "RESET DEVELOPMENT", description: "Remove development marketplace rows while preserving staging administrator sign-in. This does not copy production data or restore a backup." },
 } as const;
 
 function dateLabel(value: string | Date) {
   return new Date(value).toLocaleString("en-GB", { timeZone: "Europe/London" });
 }
 
+function backupLabel(run: PublicDatabaseSyncRun) {
+  if (run.backupState === "newest") return "Newest backup kept until a later backup replaces it.";
+  if (run.backupState === "retained" && run.backupExpiresAt) return `Backup expires ${dateLabel(run.backupExpiresAt)} (UK time).`;
+  if (run.backupState === "expired") return "Backup expired and was removed.";
+  return run.status === "applied" ? "No restorable backup." : "Prepared plans are not restorable.";
+}
+
 export function DatabasePanel({ initialRuns, historyError }: { initialRuns: PublicDatabaseSyncRun[]; historyError?: string }) {
   const [runs, setRuns] = useState(initialRuns);
   const [plan, setPlan] = useState<PublicDatabaseSyncRun | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [restoreId, setRestoreId] = useState<string | null>(null);
+  const [restoreConfirmation, setRestoreConfirmation] = useState("");
   const [error, setError] = useState(historyError ?? "");
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
@@ -49,11 +58,24 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
     });
   }
 
+  function restore(runId: string) {
+    setError(""); setNotice("");
+    startTransition(async () => {
+      try {
+        const result = await restoreDatabaseSyncAction({ runId, confirmation: restoreConfirmation });
+        if ("error" in result) { setError(result.error ?? "Could not restore the backup."); return; }
+        setRuns((current) => [result.data, ...current.filter((run) => run.id !== result.data.id)]);
+        setNotice("Development was restored from the selected backup. Production was not changed.");
+        setRestoreId(null); setRestoreConfirmation("");
+      } catch { setError("The restore could not be confirmed. Refresh the history before trying again."); }
+    });
+  }
+
   return (
     <div className="space-y-5" aria-busy={pending}>
       <section className="rounded-lg border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold text-text-primary">Manage development data</h2>
-        <p className="mt-2 text-sm text-text-secondary">Production is a read-only source. Review a frozen plan first; applying it changes development only and creates a recovery backup. Copied personal details are sanitised. Login accounts, payments and private storage are not cloned.</p>
+        <p className="mt-2 text-sm text-text-secondary">Production is a read-only source. A reviewed plan copies the current public schema and disabled authentication identities into development, then stores a private encrypted backup. The newest backup is kept. When a newer backup is saved, the previous one expires after 30 days. At most four older backups are kept, within a 500 MB ciphertext limit.</p>
       </section>
       <section className="grid gap-4 lg:grid-cols-3" aria-label="Database operations">
         {Object.entries(modes).map(([mode, item]) => (
@@ -71,7 +93,7 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         <section aria-labelledby="sync-plan" className="rounded-lg border border-border bg-surface p-5">
           <h2 id="sync-plan" className="text-lg font-semibold text-text-primary">Review: {modes[plan.mode].title}</h2>
           <p className="mt-2 text-sm text-text-secondary">Prepared {dateLabel(plan.createdAt)}. Expires {dateLabel(plan.expiresAt)} (UK time). Changed data or an expired plan requires a fresh preview.</p>
-          <p className="mt-3 rounded-md border border-border p-3 text-sm text-text-primary">Archive and hide: {plan.archivedListings.toLocaleString()} listings and {plan.archivedDealers.toLocaleString()} dealer profiles. Their payment and review history is retained. The Remove column below counts physical deletions only; archiving and hiding are reported separately here.</p>
+          <p className="mt-3 rounded-md border border-border p-3 text-sm text-text-primary">Production values are copied as stored, including featured listings. Staging administrator sign-in is preserved and imported accounts cannot authenticate.</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">Proposed record changes by table</caption>
@@ -89,7 +111,22 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
       ) : null}
       <section className="rounded-lg border border-border bg-surface p-5" aria-labelledby="sync-history">
         <h2 id="sync-history" className="text-lg font-semibold text-text-primary">Recent operations</h2>
-        {runs.length ? <ul className="mt-3 divide-y divide-border">{runs.map((run) => <li key={run.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{modes[run.mode].title} · {dateLabel(run.createdAt)}<span className="block text-text-secondary">Archive and hide: {run.archivedListings.toLocaleString()} listings, {run.archivedDealers.toLocaleString()} dealers</span></span><span className="font-medium">{run.status === "applied" ? "Applied" : "Prepared"}</span></li>)}</ul> : <p className="mt-2 text-sm text-text-secondary">No operations recorded.</p>}
+        {runs.length ? <ul className="mt-3 divide-y divide-border">{runs.map((run) => (
+          <li key={run.id} className="py-3 text-sm">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <span>{run.kind === "restore" ? "Restore development" : modes[run.mode].title} · {dateLabel(run.createdAt)}<span className="block text-text-secondary">{backupLabel(run)}</span></span>
+              <span className="font-medium">{run.status === "applied" ? "Applied" : "Prepared"}</span>
+            </div>
+            {run.restoreAvailable ? (
+              restoreId === run.id ? (
+                <div className="mt-3 max-w-lg space-y-3">
+                  <Input label="Type RESTORE DEVELOPMENT to confirm" value={restoreConfirmation} onChange={(event) => setRestoreConfirmation(event.target.value)} disabled={pending} autoComplete="off" />
+                  <Button disabled={pending || restoreConfirmation !== "RESTORE DEVELOPMENT"} onClick={() => restore(run.id)}>Restore this backup</Button>
+                </div>
+              ) : <Button className="mt-3 border border-border" variant="ghost" disabled={pending} onClick={() => { setRestoreId(run.id); setRestoreConfirmation(""); }}>Restore</Button>
+            ) : null}
+          </li>
+        ))}</ul> : <p className="mt-2 text-sm text-text-secondary">No operations recorded.</p>}
       </section>
     </div>
   );

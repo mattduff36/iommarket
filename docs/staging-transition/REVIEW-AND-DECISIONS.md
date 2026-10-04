@@ -62,7 +62,7 @@ Equal monitoring counts do not prove equal records. Application profiles and Aut
 
 The user selected separate Replace and Merge actions. Replace means a production snapshot for explicitly approved shared business tables, with protected development state restored; it cannot be a byte-for-byte clone of every schema while also preserving development-only records. Merge retains development-only records and requires reviewed handling for identity/unique-key conflicts. Both modes must report exact scope, inserts/updates/deletes and exclusions before writing.
 
-The old `scripts/prod-mirror` tool is hard-coded in the opposite direction, preview to production, and can truncate production. Do not reuse it by swapping credentials. Build a production-read-only, development-write-only maintenance path with identity checks and backups. See DATABASE-SYNC.md for the implementation and table policy.
+The old preview-to-production prod-mirror commands (restore, storage copy, waitlist copy, URL rewrite and verify) have been removed. Shared connection helpers and the `pmr-` backup producer remain for maintenance scripts. Database cloning now runs only from production read to development write through `/admin/database`. See DATABASE-SYNC.md.
 
 ## Other datasets requiring review
 

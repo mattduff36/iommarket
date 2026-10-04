@@ -35,6 +35,14 @@ export function verifySealed(value: unknown, encrypted: string, runId: string, e
 }
 
 export async function assertStoreReady(client: PoolClient) {
-  const result = await client.query<{ present: boolean }>("SELECT to_regclass('staging_admin.database_sync_runs') IS NOT NULL AS present");
+  const result = await client.query<{ present: boolean }>(`SELECT
+    to_regclass('staging_admin.database_sync_runs') IS NOT NULL
+    AND to_regclass('staging_admin.database_sync_chunks') IS NOT NULL
+    AND to_regclass('staging_admin.database_sync_provenance') IS NOT NULL
+    AND to_regclass('staging_admin.database_sync_state') IS NOT NULL AS present`);
   if (!result.rows[0]?.present) throw new DatabaseSyncError("Development sync storage has not been installed.");
+  const version = await client.query<{ store_version: number | null }>("SELECT store_version FROM staging_admin.database_sync_state WHERE id=1");
+  if (version.rows[0]?.store_version != null && version.rows[0].store_version !== 2) {
+    throw new DatabaseSyncError("Development sync storage is out of date. Nothing was changed.");
+  }
 }

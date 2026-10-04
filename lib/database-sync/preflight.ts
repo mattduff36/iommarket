@@ -1,5 +1,5 @@
 import pg from "pg";
-import { SYNC_TABLES } from "./types";
+import { requiredPublicRelations } from "./catalog";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
 import { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
 
@@ -17,8 +17,9 @@ export type DatabaseSyncInspection = {
 };
 
 export const SOURCE_READER_ROLE = "itrader_staging_reader";
-export const SYNC_READ_TABLES: readonly string[] = [...SYNC_TABLES, "DealerPreviewPack", "Subscription", "_prisma_migrations"];
+export const SYNC_READ_TABLES: readonly string[] = requiredPublicRelations().filter((table) => table !== "spatial_ref_sys");
 const COUNT_TABLES = SYNC_READ_TABLES;
+const AUTH_READ_TABLES = ["users", "identities"] as const;
 
 function parseDatabaseUrl(raw: string | undefined, ref: string, dedicatedSource = false): string | null {
   if (!raw?.trim()) return null;
@@ -155,8 +156,11 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
       throw new Error("Production source role has write, ownership, or elevated privileges.");
     }
     const publicTables = tables.rows.filter((table) => table.schema_name === "public" && SYNC_READ_TABLES.includes(table.table_name));
-    if (publicTables.length !== SYNC_READ_TABLES.length) throw new Error("Database role cannot inspect every required sync table.");
-    if (requireSourceReadOnly && publicTables.some((table) => !table.can_select)) {
+    const authTables = tables.rows.filter((table) => table.schema_name === "auth" && AUTH_READ_TABLES.includes(table.table_name as typeof AUTH_READ_TABLES[number]));
+    if (requireSourceReadOnly && (publicTables.length !== SYNC_READ_TABLES.length || authTables.length !== AUTH_READ_TABLES.length)) {
+      throw new Error("Database role cannot inspect every required sync table.");
+    }
+    if (requireSourceReadOnly && [...publicTables, ...authTables].some((table) => !table.can_select)) {
       throw new Error("Production source role lacks SELECT on required sync tables.");
     }
     if (requireSourceReadOnly) {
@@ -169,7 +173,7 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
         pg_get_expr(p.polqual, p.polrelid) AS expression
         FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) AND p.polcmd IN ('r', '*')`, [SYNC_READ_TABLES]);
+        WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) AND p.polcmd IN ('r', '*')`, [publicTables.map((table) => table.table_name)]);
       if (publicTables.some((table) => !hasCompleteSourceReadPolicy(table, policies.rows))) {
         throw new Error("Production source role lacks an unconditional reader RLS policy or has a restrictive policy.");
       }

@@ -140,6 +140,8 @@ export async function deleteImage(
 ): Promise<void> {
   // These are read-only production references, never Cloudinary-owned assets.
   if (publicId.startsWith("database-sync/")) return;
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ mediaIds: [publicId] });
   const config = requireCloudinaryConfig();
   const timestamp = Math.round(Date.now() / 1000);
   const params = {

@@ -7,23 +7,22 @@ import { inspectDatabaseSync } from "@/lib/database-sync/preflight";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prepareDatabaseSync, applyDatabaseSync, listDatabaseSyncRuns, DatabaseSyncError, type DatabaseSyncRun } from "@/lib/database-sync/worker";
-import { SYNC_TABLES, type SyncTableCounts } from "@/lib/database-sync/types";
+import { prepareDatabaseSync, applyDatabaseSync, restoreDatabaseSync, listDatabaseSyncRuns, DatabaseSyncError, type DatabaseSyncRun } from "@/lib/database-sync/worker";
 
-export type PublicDatabaseSyncRun = Pick<DatabaseSyncRun, "id" | "mode" | "status" | "createdAt" | "expiresAt" | "counts" | "blockers" | "archivedListings" | "archivedDealers">;
+export type PublicDatabaseSyncRun = Pick<DatabaseSyncRun, "id" | "mode" | "status" | "createdAt" | "expiresAt" | "counts" | "blockers" | "archivedListings" | "archivedDealers" | "kind" | "restoreAvailable" | "backupExpiresAt" | "backupState" | "restoredFromId">;
 
 const modeSchema = z.enum(["merge", "replace", "reset"]);
 const applySchema = z.object({ runId: z.string().uuid(), confirmation: z.string() });
-const confirmations = { merge: "MERGE INTO DEVELOPMENT", replace: "REPLACE DEVELOPMENT", reset: "RESET DEVELOPMENT" } as const;
+const confirmations = { merge: "MERGE INTO DEVELOPMENT", replace: "REPLACE DEVELOPMENT", reset: "RESET DEVELOPMENT", restore: "RESTORE DEVELOPMENT" } as const;
 const disabled = "Database changes are available only on the staging deployment.";
 const failed = "The database operation could not be completed. Refresh the inspection and prepare a new plan.";
 
 function publicRun(run: DatabaseSyncRun): PublicDatabaseSyncRun {
-  const counts = Object.fromEntries(SYNC_TABLES.map((table) => [table, {
-    insert: run.counts[table].insert, update: run.counts[table].update,
-    delete: run.counts[table].delete, preserve: run.counts[table].preserve, skip: run.counts[table].skip,
-  }])) as SyncTableCounts;
-  return { id: run.id, mode: run.mode, status: run.status, createdAt: run.createdAt, expiresAt: run.expiresAt, counts, blockers: run.blockers, archivedListings: run.archivedListings, archivedDealers: run.archivedDealers };
+  return {
+    id: run.id, mode: run.mode, status: run.status, createdAt: run.createdAt, expiresAt: run.expiresAt,
+    counts: run.counts, blockers: run.blockers, archivedListings: run.archivedListings, archivedDealers: run.archivedDealers,
+    kind: run.kind, restoreAvailable: run.restoreAvailable, backupExpiresAt: run.backupExpiresAt, backupState: run.backupState, restoredFromId: run.restoredFromId,
+  };
 }
 
 async function hasMutationOrigin() {
@@ -75,6 +74,22 @@ export async function applyDatabaseSyncAction(input: unknown) {
       return { error: "Type the confirmation exactly as shown for the prepared plan." };
     }
     const result = await applyDatabaseSync(run.id, admin.id);
+    revalidatePath("/admin/database");
+    revalidatePath("/", "layout");
+    return { data: publicRun(result) };
+  } catch (error) { return { error: error instanceof DatabaseSyncError ? error.message : failed }; }
+}
+
+export async function restoreDatabaseSyncAction(input: unknown) {
+  const admin = await requireRole("ADMIN");
+  if (!isStagingOnlyFeatureEnabled()) return { error: disabled };
+  if (!await hasMutationOrigin()) return { error: "Open this page on staging and try again." };
+  const parsed = applySchema.safeParse(input);
+  if (!parsed.success || parsed.data.confirmation !== confirmations.restore) return { error: "Type the confirmation exactly as shown for the backup." };
+  try {
+    const run = (await listDatabaseSyncRuns()).find((item) => item.id === parsed.data.runId);
+    if (!run?.restoreAvailable) return { error: "This backup has expired and was removed." };
+    const result = await restoreDatabaseSync(run.id, admin.id);
     revalidatePath("/admin/database");
     revalidatePath("/", "layout");
     return { data: publicRun(result) };
