@@ -103,8 +103,14 @@ export function getRippleTestSubscriptionProduct(env: NodeJS.ProcessEnv = proces
 
 export function getRippleTestFeaturedProduct(env: NodeJS.ProcessEnv = process.env): RippleProduct | null {
   if (!isRipplePreviewRuntime(env)) return null;
-  const code = getTestLinkCode("RIPPLE_TEST_FEATURED_URL", env);
-  return code ? { key: "featured-test", code, amountPence: 50, checkoutType: "featured_upgrade", envUrlKey: "RIPPLE_TEST_FEATURED_URL" } : null;
+  try {
+    const code = getTestLinkCode("RIPPLE_TEST_FEATURED_URL", env);
+    return code ? { key: "featured-test", code, amountPence: 50, checkoutType: "featured_upgrade", envUrlKey: "RIPPLE_TEST_FEATURED_URL" } : null;
+  } catch {
+    // Featured controls are optional; missing or stale preview configuration
+    // must not make production pages that render them fail.
+    return null;
+  }
 }
 
 export function isRippleStagingLinkCode(code: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {

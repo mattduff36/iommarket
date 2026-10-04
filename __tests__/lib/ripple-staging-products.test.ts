@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getConfiguredRippleTestSubscriptionProduct,
   getRippleTestSubscriptionProduct,
+  getRippleTestFeaturedProduct,
   getRippleProductByCheckoutType,
+  getConfiguredRippleProductUrl,
   isRippleStagingLinkCode,
   RIPPLE_CANONICAL_PRODUCTS,
 } from "@/lib/payments/ripple-config";
@@ -53,6 +55,26 @@ describe("isolated weekly staging subscription", () => {
     expect(getRippleProductByCheckoutType("featured_upgrade")).toEqual(RIPPLE_CANONICAL_PRODUCTS.featured);
     expect(getRippleProductByLinkCode(featuredCode)).toBeNull();
     expect(isRippleStagingLinkCode(featuredCode)).toBe(true);
+  });
+
+  it("hides the optional featured test product when preview configuration is missing or invalid", () => {
+    const featuredCode = "1234567890ABCDEF";
+    const previewEnv = {
+      ...env,
+      RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/test-client/pay/${featuredCode}`,
+    };
+    const missingClient = { ...previewEnv };
+    delete missingClient.RIPPLE_CLIENT_ID;
+
+    expect(getRippleTestFeaturedProduct(missingClient)).toBeNull();
+    expect(getRippleProductByCheckoutType("featured_upgrade", undefined)).toEqual(RIPPLE_CANONICAL_PRODUCTS.featured);
+    expect(getRippleTestFeaturedProduct({
+      ...previewEnv,
+      RIPPLE_TEST_FEATURED_URL: `https://portal.startyourripple.co.uk/card/other-client/pay/${featuredCode}`,
+    })).toBeNull();
+    expect(() => getConfiguredRippleProductUrl(RIPPLE_CANONICAL_PRODUCTS.featured, {
+      RIPPLE_FEATURED_PAYMENT_URL: `https://portal.startyourripple.co.uk/card/test-client/pay/${RIPPLE_CANONICAL_PRODUCTS.featured.code}`,
+    })).toThrow("RIPPLE_CLIENT_ID is not set");
   });
 
   it("rejects reusing one test link for both product types", () => {
