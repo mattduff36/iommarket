@@ -1,9 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
 import { getRippleClientId, isRipplePreviewRuntime, isRippleStagingLinkCode } from "@/lib/payments/ripple-config";
 import { RIPPLE_EVENT_TYPES, type RippleMinimizedPayload } from "@/lib/payments/ripple-contract";
 
-export const RIPPLE_STAGING_RECEIVER = "https://staging.itrader.im/api/webhooks/ripple-staging";
+export const RIPPLE_PRODUCTION_WEBHOOK = "https://itrader.im/api/webhooks/ripple";
+export const RIPPLE_STAGING_RECEIVER = `${STAGING_ORIGIN}/api/webhooks/ripple-staging`;
 export const RIPPLE_STAGING_MAX_BODY_BYTES = 16_384;
 const nullableText = z.string().max(2048).nullable();
 const relaySchema = z.object({

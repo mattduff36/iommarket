@@ -31,7 +31,7 @@ GitHub main protection now requires pull requests and a successful `validate` ch
 | --- | --- | --- |
 | Public marketplace | Public, existing account permissions | Administrator sign-in required before app access |
 | Search indexing | Eligible public content indexable | Noindex, including gate |
-| Dealer preview-pack management | No route/action access | Administrator-only with verified staging identity |
+| Dealer preview packs | No frontend, admin, media, or statistics visibility | Administrators can browse and manage them; public visitors cannot |
 | Checklist | No route/action access or writes | Canonical development checklist |
 | Database management | No access | Administrator-only preflight and separately guarded maintenance |
 | Monitoring ingestion | Production database only | Staging database only |
@@ -40,7 +40,7 @@ GitHub main protection now requires pull requests and a successful `validate` ch
 
 The access gate uses a verified Supabase identity and active ADMIN role from the development database. A legacy shared password, launch cookie, mere login, request hostname or branch name cannot grant access. Signed payment/auth machine hooks retain their independent authentication. Anonymous cron access is not exempted by the staging gate. Before a database refresh, all imported jobs and external side effects need an explicit policy.
 
-Preview-pack management is disabled in production without indiscriminately hiding legitimate published inventory linked to historical preview records. Those relationships require a separate data reconciliation before deletion. The checklist is a `SiteSetting` key (`admin_checklist`), not a dedicated table. Retain the production value recoverably until the staging checklist has been reconciled; removing the production copy requires an explicit backed-up data change.
+Dealer preview packs are a verified-staging feature. Production frontend and admin surfaces treat preview-pack dealers, synthetic preview users, `ADMIN_PREVIEW` listings, listings still linked by `previewPackId`, and their related activity as nonexistent, including for administrators. Management routes stay disabled in production. This boundary uses the verified staging runtime identity, not the git branch name, and it does not delete historical rows. The checklist is a `SiteSetting` key (`admin_checklist`), not a dedicated table. Retain the production value recoverably until the staging checklist has been reconciled; removing the production copy requires an explicit backed-up data change.
 
 ## Database observations
 

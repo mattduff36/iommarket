@@ -32,7 +32,7 @@ describe("retired preview hostname", () => {
     expect(response!.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(await response!.text()).toBe("");
   });
-  it.each(["itrader.im", "staging.itrader.im", "preview.itrader.im.example.com"])("does not retire %s", (host) => {
+  it.each(["itrader.im", "itrader.dev", "staging.itrader.im", "preview.itrader.im.example.com"])("does not retire %s", (host) => {
     expect(retiredPreviewResponse(new NextRequest(`https://${host}/`), { VERCEL_ENV: "production" })).toBeNull();
   });
 });

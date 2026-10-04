@@ -2,6 +2,7 @@
 
 import { requireRole } from "@/lib/auth";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
+import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
 import { inspectDatabaseSync } from "@/lib/database-sync/preflight";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -28,7 +29,7 @@ function publicRun(run: DatabaseSyncRun): PublicDatabaseSyncRun {
 async function hasMutationOrigin() {
   const origin = (await headers()).get("origin");
   if (!origin) return false;
-  if (process.env.VERCEL_ENV === "preview") return origin === "https://staging.itrader.im";
+  if (process.env.VERCEL_ENV === "preview") return origin === STAGING_ORIGIN;
   if (process.env.NODE_ENV !== "development" || process.env.VERCEL_ENV || process.env.ITRADER_LOCAL_STAGING_FEATURES !== "1") return false;
   try {
     const configured = new URL(process.env.NEXT_PUBLIC_APP_URL ?? "");

@@ -63,7 +63,7 @@ export type RippleProduct = (typeof RIPPLE_CANONICAL_PRODUCTS)[RippleProductKey]
   | RippleTestSubscriptionProduct
   | { key: "featured-test"; code: string; amountPence: 50; checkoutType: "featured_upgrade"; envUrlKey: "RIPPLE_TEST_FEATURED_URL" };
 
-const RIPPLE_PAYMENT_ORIGIN = "https://portal.startyourripple.co.uk";
+export const RIPPLE_PAYMENT_ORIGIN = "https://portal.startyourripple.co.uk";
 
 export function isRipplePreviewRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.VERCEL_ENV === "preview" ||

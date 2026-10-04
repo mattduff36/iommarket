@@ -6,7 +6,7 @@ describe("admin checklist feature gate", () => {
     NODE_ENV: "production" as const,
     VERCEL_ENV: "preview",
     ITRADER_DEPLOYMENT_ROLE: "staging",
-    NEXT_PUBLIC_APP_URL: "https://staging.itrader.im",
+    NEXT_PUBLIC_APP_URL: "https://itrader.dev",
     NEXT_PUBLIC_SUPABASE_URL: "https://syneonzucehwlghqmfbg.supabase.co",
     DATABASE_URL: "postgres://postgres.syneonzucehwlghqmfbg:example@aws-1-eu-west-2.pooler.supabase.com:5432/postgres",
   };

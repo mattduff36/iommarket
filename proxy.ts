@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isPaymentReturnPath } from "@/lib/payments/return-routes";
-import { CHECKOUT_ENVIRONMENT_COOKIE, stagingReturnDestination } from "@/lib/payments/staging-return-routing";
+import {
+  CHECKOUT_RETURN_COOKIE,
+  checkoutReturnClears,
+  decideStagingCheckoutHandoff,
+  stagingReturnDestination,
+} from "@/lib/payments/staging-return-routing";
 import { createServerClient } from "@supabase/ssr";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { classifyLaunchRoute } from "@/lib/launch/route-class";
@@ -92,8 +97,41 @@ function gatedApiResponse(): NextResponse {
  *    unlocks production without granting a Supabase identity.
  * 2. Refreshes Supabase sessions and guards private pages.
  */
+function handoffResponse(request: NextRequest) {
+  const decision = decideStagingCheckoutHandoff({
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    ticket: request.nextUrl.searchParams.get("ticket"),
+    requestHost: request.headers.get("host"),
+  });
+  if (decision.action === "ignore") return null;
+  if (decision.action === "reject") {
+    return NextResponse.json({ error: "Checkout handoff is invalid." }, {
+      status: 400,
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Referrer-Policy": "no-referrer",
+        "X-Robots-Tag": "noindex",
+      },
+    });
+  }
+  const response = NextResponse.redirect(decision.location);
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.cookies.set(decision.cookie.name, decision.cookie.value, decision.cookie.options);
+  return response;
+}
+
+function clearCheckoutRouting(response: NextResponse) {
+  for (const cookie of checkoutReturnClears()) {
+    response.cookies.set(cookie.name, cookie.value, cookie.options);
+  }
+}
+
 async function routeProxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const handoff = handoffResponse(request);
+  if (handoff) return handoff;
 
   // A provider return must remain readable even if the login or launch cookie expired.
   // Rendering exposes no account data; return reconciliation authenticates separately.
@@ -101,15 +139,12 @@ async function routeProxy(request: NextRequest) {
     const destination = stagingReturnDestination({
       url: request.nextUrl, method: request.method,
       requestHost: request.headers.get("host"),
-      cookie: request.cookies.get(CHECKOUT_ENVIRONMENT_COOKIE)?.value,
+      cookie: request.cookies.get(CHECKOUT_RETURN_COOKIE)?.value,
     });
     if (destination) {
       const response = NextResponse.redirect(destination);
       response.headers.set("Cache-Control", "no-store");
-      response.cookies.set(CHECKOUT_ENVIRONMENT_COOKIE, "", {
-        domain: ".itrader.im", path: "/pay", secure: true, httpOnly: true,
-        sameSite: "lax", maxAge: 0,
-      });
+      clearCheckoutRouting(response);
       return response;
     }
     return NextResponse.next();
