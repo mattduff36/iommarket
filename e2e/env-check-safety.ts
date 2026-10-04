@@ -38,10 +38,12 @@ export function assertEnvCheckSafety(params: {
   if (
     hostname === "itrader.im" ||
     hostname.endsWith(".itrader.im") ||
+    hostname === "itrader.dev" ||
+    hostname.endsWith(".itrader.dev") ||
     hostname === "vercel.app" ||
     hostname.endsWith(".vercel.app") ||
     blockedHostnames.some(matchesBlockedHost)
   ) {
-    throw new Error("Environment checks are blocked against the production domain.");
+    throw new Error("Environment checks are blocked against a hosted iTrader domain.");
   }
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
 import { SYNC_TABLES } from "@/lib/database-sync/types";
 
 const { requireRoleMock, stagingEnabledMock, inspectMock, prepareMock, applyMock, listMock, headersMock, SyncError } = vi.hoisted(() => ({
@@ -33,7 +34,7 @@ describe("database inspection action", () => {
     requireRoleMock.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
     stagingEnabledMock.mockReturnValue(true);
     inspectMock.mockResolvedValue({ ready: false, blockers: ["source missing"] });
-    headersMock.mockResolvedValue(new Headers({ origin: "https://staging.itrader.im" }));
+    headersMock.mockResolvedValue(new Headers({ origin: STAGING_ORIGIN }));
     process.env.VERCEL_ENV = "preview";
     prepareMock.mockResolvedValue(run);
     listMock.mockResolvedValue([run]);
@@ -72,7 +73,7 @@ describe("database inspection action", () => {
     expect(prepareMock).not.toHaveBeenCalled(); expect(applyMock).not.toHaveBeenCalled(); expect(listMock).not.toHaveBeenCalled();
   });
 
-  it.each([null, "null", "https://itrader.im", "https://staging.itrader.im.evil.example", "https://staging.itrader.im/"])("rejects mutation Origin %s", async (origin) => {
+  it.each([null, "null", "https://itrader.im", "https://staging.itrader.im", "https://itrader.dev.evil.example", "https://itrader.dev/"])("rejects mutation Origin %s", async (origin) => {
     headersMock.mockResolvedValue(new Headers(origin ? { origin } : {}));
     expect(await prepareDatabaseSyncAction("merge")).toHaveProperty("error");
     expect(await applyDatabaseSyncAction({ runId: run.id, confirmation: "MERGE INTO DEVELOPMENT" })).toHaveProperty("error");

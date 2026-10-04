@@ -56,19 +56,11 @@ describe("homepage sold visibility", () => {
 
     await HomePage();
 
-    expect(dbMock.listing.count).toHaveBeenCalledWith({
-      where: {
-        AND: expect.arrayContaining([
-          { status: "SOLD" },
-          {
-            user: {
-              disabledAt: null,
-              deletedAt: null,
-            },
-            OR: expect.any(Array),
-          },
-        ]),
-      },
-    });
+    const soldWhere = JSON.stringify(dbMock.listing.count.mock.calls[0][0].where);
+    expect(soldWhere).toContain('"status":"SOLD"');
+    expect(soldWhere).toContain('"disabledAt":null');
+    expect(soldWhere).toContain('"deletedAt":null');
+    expect(soldWhere).toContain('"previewPackId":null');
+    expect(soldWhere).toContain('"isAdminPreview":false');
   });
 });

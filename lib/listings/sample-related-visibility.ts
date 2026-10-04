@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { previewPacksVisibleOnFrontend } from "@/lib/preview-packs/frontend-visibility";
 import {
   applySampleDealerVisibility,
   applySampleListingVisibility,
@@ -11,15 +12,23 @@ function hidesAnySamples(sample: SampleVisibility) {
   return !sample.privateListings || !sample.dealerListings;
 }
 
+function keepsRelatedRows(
+  sampleScoped: boolean,
+  env: NodeJS.ProcessEnv,
+) {
+  return !sampleScoped && previewPacksVisibleOnFrontend(env);
+}
+
 export function applySamplePaymentVisibility(
   where: Prisma.PaymentWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.PaymentWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { listing: applySampleListingVisibility({}, sample) },
+      { listing: applySampleListingVisibility({}, sample, env) },
     ],
   };
 }
@@ -27,12 +36,13 @@ export function applySamplePaymentVisibility(
 export function applySampleReportVisibility(
   where: Prisma.ReportWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.ReportWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { listing: applySampleListingVisibility({}, sample) },
+      { listing: applySampleListingVisibility({}, sample, env) },
     ],
   };
 }
@@ -40,12 +50,13 @@ export function applySampleReportVisibility(
 export function applySampleListingImageVisibility(
   where: Prisma.ListingImageWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.ListingImageWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { listing: applySampleListingVisibility({}, sample) },
+      { listing: applySampleListingVisibility({}, sample, env) },
     ],
   };
 }
@@ -53,12 +64,13 @@ export function applySampleListingImageVisibility(
 export function applySampleSubscriptionVisibility(
   where: Prisma.SubscriptionWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.SubscriptionWhereInput {
-  if (sample.dealerListings) return where;
+  if (keepsRelatedRows(!sample.dealerListings, env)) return where;
   return {
     AND: [
       where,
-      { dealer: applySampleDealerVisibility({}, sample) },
+      { dealer: applySampleDealerVisibility({}, sample, env) },
     ],
   };
 }
@@ -66,16 +78,17 @@ export function applySampleSubscriptionVisibility(
 export function applySampleDealerReviewVisibility(
   where: Prisma.DealerReviewWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.DealerReviewWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { dealer: applySampleDealerVisibility({}, sample) },
+      { dealer: applySampleDealerVisibility({}, sample, env) },
       {
         OR: [
           { reviewerUserId: null },
-          { reviewer: applySampleUserVisibility({}, sample) },
+          { reviewer: applySampleUserVisibility({}, sample, env) },
         ],
       },
     ],
@@ -85,14 +98,15 @@ export function applySampleDealerReviewVisibility(
 export function applySampleReviewResponseRevisionVisibility(
   where: Prisma.DealerReviewResponseRevisionWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.DealerReviewResponseRevisionWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
       {
         response: {
-          review: applySampleDealerReviewVisibility({}, sample),
+          review: applySampleDealerReviewVisibility({}, sample, env),
         },
       },
     ],
@@ -102,12 +116,13 @@ export function applySampleReviewResponseRevisionVisibility(
 export function applySampleReviewDisputeVisibility(
   where: Prisma.DealerReviewDisputeWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.DealerReviewDisputeWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { review: applySampleDealerReviewVisibility({}, sample) },
+      { review: applySampleDealerReviewVisibility({}, sample, env) },
     ],
   };
 }
@@ -115,12 +130,13 @@ export function applySampleReviewDisputeVisibility(
 export function applySampleCancellationVisibility(
   where: Prisma.DealerCancellationRequestWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.DealerCancellationRequestWhereInput {
-  if (sample.dealerListings) return where;
+  if (keepsRelatedRows(!sample.dealerListings, env)) return where;
   return {
     AND: [
       where,
-      { dealer: applySampleDealerVisibility({}, sample) },
+      { dealer: applySampleDealerVisibility({}, sample, env) },
     ],
   };
 }
@@ -128,13 +144,14 @@ export function applySampleCancellationVisibility(
 export function applySampleFavouriteVisibility(
   where: Prisma.FavouriteWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.FavouriteWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { listing: applySampleListingVisibility({}, sample) },
-      { user: applySampleUserVisibility({}, sample) },
+      { listing: applySampleListingVisibility({}, sample, env) },
+      { user: applySampleUserVisibility({}, sample, env) },
     ],
   };
 }
@@ -142,16 +159,17 @@ export function applySampleFavouriteVisibility(
 export function applySampleListingViewVisibility(
   where: Prisma.ListingViewWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.ListingViewWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { listing: applySampleListingVisibility({}, sample) },
+      { listing: applySampleListingVisibility({}, sample, env) },
       {
         OR: [
           { viewerId: null },
-          { viewer: applySampleUserVisibility({}, sample) },
+          { viewer: applySampleUserVisibility({}, sample, env) },
         ],
       },
     ],
@@ -161,12 +179,13 @@ export function applySampleListingViewVisibility(
 export function applySampleSavedSearchVisibility(
   where: Prisma.SavedSearchWhereInput,
   sample: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ): Prisma.SavedSearchWhereInput {
-  if (!hidesAnySamples(sample)) return where;
+  if (keepsRelatedRows(hidesAnySamples(sample), env)) return where;
   return {
     AND: [
       where,
-      { user: applySampleUserVisibility({}, sample) },
+      { user: applySampleUserVisibility({}, sample, env) },
     ],
   };
 }

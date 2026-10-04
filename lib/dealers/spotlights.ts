@@ -1,9 +1,10 @@
 import type { Prisma } from "@prisma/client";
-import { getMarketplaceDealerWhere, getPublicDealerWhere } from "@/lib/dealers/access";
+import { getEnabledPreviewDealerWhere, getMarketplaceDealerWhere, getPublicDealerWhere } from "@/lib/dealers/access";
 import {
   DEFAULT_SAMPLE_VISIBILITY,
   type SampleVisibility,
 } from "@/lib/listings/sample-visibility";
+import { canExposePreviewPacksToViewer } from "@/lib/preview-packs/frontend-visibility";
 
 export interface DealerSpotlight {
   id: string;
@@ -48,10 +49,11 @@ export function getMarketplaceDealerDirectoryQuery(
   listingWhere: Prisma.ListingWhereInput,
   viewer?: { role: string } | null,
   sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ) {
   return getDealerCardQuery(
     listingWhere,
-    getMarketplaceDealerWhere(viewer, new Date(), sampleVisibility),
+    getMarketplaceDealerWhere(viewer, new Date(), sampleVisibility, env),
   );
 }
 
@@ -59,16 +61,17 @@ export function getMarketplaceDealerSpotlightQuery(
   listingWhere: Prisma.ListingWhereInput,
   viewer?: { role: string } | null,
   sampleVisibility: SampleVisibility = DEFAULT_SAMPLE_VISIBILITY,
+  env: NodeJS.ProcessEnv = process.env,
 ) {
   const publicSpotlight: Prisma.DealerProfileWhereInput = {
-    ...getPublicDealerWhere(new Date(), sampleVisibility),
+    ...getPublicDealerWhere(new Date(), sampleVisibility, env),
     verified: true,
   };
-  if (viewer?.role !== "ADMIN") {
+  if (!canExposePreviewPacksToViewer({ viewer, env })) {
     return getDealerCardQuery(listingWhere, publicSpotlight);
   }
   return getDealerCardQuery(listingWhere, {
-    OR: [publicSpotlight, { isAdminPreview: true, previewPack: { enabled: true } }],
+    OR: [publicSpotlight, getEnabledPreviewDealerWhere()],
   });
 }
 

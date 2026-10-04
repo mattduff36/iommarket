@@ -1,6 +1,6 @@
+import { isStagingAppOrigin } from "@/lib/deployment/staging-origin";
 import { PREVIEW_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
 
-const STAGING_ORIGIN = "https://staging.itrader.im";
 const STAGING_SUPABASE_ORIGIN = `https://${PREVIEW_PROJECT_REF}.supabase.co`;
 
 function isPreviewDatabaseUrl(raw: string): boolean {
@@ -19,7 +19,7 @@ function isPreviewDatabaseUrl(raw: string): boolean {
 export function isStagingDeployment(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.NODE_ENV !== "production" || env.VERCEL_ENV !== "preview") return false;
   if (env.ITRADER_DEPLOYMENT_ROLE !== "staging") return false;
-  if (env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") !== STAGING_ORIGIN) return false;
+  if (!isStagingAppOrigin(env.NEXT_PUBLIC_APP_URL)) return false;
   if (env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") !== STAGING_SUPABASE_ORIGIN) return false;
 
   const urls = [env.POSTGRES_URL, env.POSTGRES_URL_NON_POOLING, env.DATABASE_URL]

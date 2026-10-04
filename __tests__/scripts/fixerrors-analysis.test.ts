@@ -2,9 +2,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { clusterErrorPatterns, groupOpenIssues } from "@/scripts/fixerrors/analysis";
+import { clusterErrorPatterns, describeCodeBaseline, generateAnalysisReport, groupOpenIssues } from "@/scripts/fixerrors/analysis";
+import { buildFixerrorsDecisions, clusterRepairBlockReason } from "@/scripts/fixerrors/decision";
+import { compareRepairPaths } from "@/scripts/fixerrors/git-policy";
 import { extractSourceFilesForIssue } from "@/scripts/fixerrors/source-extraction";
-import type { SnapshotIssue } from "@/scripts/fixerrors/types";
+import type { ErrorRootCauseCluster, SnapshotIssue } from "@/scripts/fixerrors/types";
 
 function makeIssue(overrides: Partial<SnapshotIssue> = {}): SnapshotIssue {
   return {
@@ -100,6 +102,39 @@ describe("FXMON-ROUTING-002 cluster routing", () => {
       clusters.find((cluster) => cluster.rootCauseFamily === "external-network"),
     ).toMatchObject({ lane: "report-only", action: "report-only" });
   });
+
+  it("suggests mute for user input and follow-up for external or unknown issues", () => {
+    const clusters = clusterErrorPatterns(groupOpenIssues([
+      makeIssue({
+        id: "input",
+        fingerprint: "fp-input",
+        sampleMessage: "Invalid input for required field",
+        sampleAction: "saveDraft",
+        sampleRoute: null,
+        events: [],
+      }),
+      makeIssue({
+        id: "net",
+        fingerprint: "fp-net",
+        sampleMessage: "Failed to fetch third-party map tiles",
+        sampleAction: "loadMap",
+        sampleRoute: null,
+        events: [],
+      }),
+      makeIssue({
+        id: "mystery",
+        fingerprint: "fp-mystery",
+        sampleMessage: "Widget blew up",
+        sampleAction: "unknownWidget",
+        sampleRoute: "/not-a-real-monitoring-route",
+        events: [],
+      }),
+    ]));
+    const decisions = buildFixerrorsDecisions(clusters);
+    expect(decisions.find((decision) => decision.issueIds.includes("input"))?.action).toBe("mute-noise");
+    expect(decisions.find((decision) => decision.issueIds.includes("net"))?.action).toBe("needs-person");
+    expect(decisions.find((decision) => decision.issueIds.includes("mystery"))?.action).toBe("needs-person");
+  });
 });
 
 describe("FXMON-SCOPE-003 OPEN-only grouping", () => {
@@ -115,5 +150,73 @@ describe("FXMON-SCOPE-003 OPEN-only grouping", () => {
     const ids = patterns.flatMap((pattern) => pattern.issueIds);
     expect(ids).toEqual(expect.arrayContaining(["open-a", "open-b"]));
     expect(ids).not.toContain("resolved");
+  });
+});
+
+describe("production and staging code baselines", () => {
+  const file = "lib/monitoring/alerts.ts";
+  const cluster: ErrorRootCauseCluster = {
+    id: "cluster-1",
+    rootCauseFamily: "application",
+    lane: "fast",
+    action: "fix",
+    issueIds: ["issue-1"],
+    occurrences: 1,
+    patterns: [{
+      patternKey: "boom",
+      issueIds: ["issue-1"],
+      errorType: "Error",
+      component: "alerts",
+      normalizedMessage: "boom",
+      occurrences: 1,
+      sourceFiles: [{ file }],
+      affectedPages: [],
+      firstSeen: "2026-08-16T12:00:00.000Z",
+      lastSeen: "2026-08-16T12:00:00.000Z",
+    }],
+  };
+
+  it("blocks auto-repair unless the file exists in both refs", () => {
+    const missing = {
+      productionSha: "a".repeat(40),
+      stagingSha: "b".repeat(40),
+      paths: [{ file, productionBlob: "c".repeat(40), stagingBlob: null }],
+    };
+    expect(clusterRepairBlockReason(cluster, null)).toMatch(/not compared/);
+    expect(buildFixerrorsDecisions([cluster], missing)[0]).toMatchObject({
+      action: "needs-person",
+      blockReason: `${file} is not present in both origin/main and origin/staging`,
+    });
+    expect(generateAnalysisReport([], [], [cluster], missing)).toContain("| needs-person |");
+    const present = {
+      productionSha: "a".repeat(40),
+      stagingSha: "b".repeat(40),
+      paths: [{ file, productionBlob: "c".repeat(40), stagingBlob: "d".repeat(40) }],
+    };
+    expect(buildFixerrorsDecisions([cluster], present)[0]).toMatchObject({
+      action: "auto-repair",
+      blockReason: null,
+    });
+    expect(describeCodeBaseline(present).join("\n")).toContain("staging differs from production");
+    expect(generateAnalysisReport([], [], [cluster], present)).toContain(`origin/main: \`${"a".repeat(40)}\``);
+  });
+
+  it("records blob hashes from origin/main and origin/staging", () => {
+    const baseline = compareRepairPaths({
+      files: [file, "lib/missing.ts"],
+      productionSha: "a".repeat(40),
+      stagingSha: "b".repeat(40),
+      cwd: process.cwd(),
+      run: (args) => {
+        const spec = args[1] ?? "";
+        if (spec === `${"a".repeat(40)}:${file}`) return { status: 0, stdout: `${"c".repeat(40)}\n`, stderr: "" };
+        if (spec === `${"b".repeat(40)}:${file}`) return { status: 0, stdout: `${"d".repeat(40)}\n`, stderr: "" };
+        return { status: 1, stdout: "", stderr: "" };
+      },
+    });
+    expect(baseline.paths).toEqual([
+      { file: "lib/missing.ts", productionBlob: null, stagingBlob: null },
+      { file, productionBlob: "c".repeat(40), stagingBlob: "d".repeat(40) },
+    ]);
   });
 });

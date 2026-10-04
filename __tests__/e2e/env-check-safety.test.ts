@@ -32,11 +32,14 @@ describe("destructive environment-check safety", () => {
     "https://www.itrader.im",
     "https://itrader.im.",
     "https://preview.itrader.im.",
+    "https://itrader.dev",
+    "https://itrader.dev.",
+    "https://admin.itrader.dev",
     "https://iommarket.vercel.app",
     "https://iommarket-git-main.example.vercel.app.",
   ])("blocks the production domain variant %s", (baseUrl) => {
     expect(() => assertEnvCheckSafety({ ...enabled, baseUrl })).toThrow(
-      "blocked against the production domain",
+      "blocked against a hosted iTrader domain",
     );
   });
 
@@ -50,7 +53,7 @@ describe("destructive environment-check safety", () => {
           "iommarket.vercel.app",
         ],
       }),
-    ).toThrow("blocked against the production domain");
+    ).toThrow("blocked against a hosted iTrader domain");
   });
 
   it("allows an explicitly attested local target", () => {

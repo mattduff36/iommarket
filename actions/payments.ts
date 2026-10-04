@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { setHostedReturnContext } from "@/lib/payments/set-hosted-return-context";
+import { presentHostedCheckoutUrl } from "@/lib/payments/staging-return-routing";
 import { createSampleCheckout } from "@/lib/payments/sample-checkout";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { extractRippleLinkCode, isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
@@ -113,6 +114,9 @@ function toUserPaymentError(message: string) {
   }
   if (message.includes("RIPPLE_FEATURED_PAYMENT_URL")) {
     return "Featured upgrade checkout is not configured yet. Please contact support.";
+  }
+  if (message.includes("STAGING_CHECKOUT_HANDOFF")) {
+    return "Checkout could not be started. Please try again.";
   }
   if (message.includes("RIPPLE_LIVE_CHECKOUT_ENABLED")) {
     return "Card checkout is not enabled yet. Please try again after payments go live.";
@@ -387,7 +391,7 @@ export async function payForListing(input: PayForListingInput) {
     } else {
       await setHostedReturnContext(hostedContext);
     }
-    return { data: { checkoutUrl: boundSession.url } };
+    return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
   } catch (err) {
     if (!isMissingListingPaymentUrlError(err)) {
       await captureException({
@@ -489,7 +493,7 @@ export async function createDealerSubscription(input: {
       dealerId: parsed.data.dealerId, productCode,
       merchantReference: session.merchantReference, issuedAt: Date.now(),
     });
-    return { data: { checkoutUrl: session.url } };
+    return { data: { checkoutUrl: presentHostedCheckoutUrl(session.url) } };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -613,7 +617,7 @@ export async function upgradeFeatured(listingId: string) {
       paymentId: pending.payment.id, listingId: listing.id, productCode,
       merchantReference: boundSession.merchantReference, issuedAt: Date.now(),
     });
-    return { data: { checkoutUrl: boundSession.url } };
+    return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
   } catch (err) {
     await captureException({
       source: "SERVER",

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRippleStagingRelayRequest, forwardRippleWebhookToStaging, RIPPLE_STAGING_RECEIVER, shouldRelayRippleToStaging, verifyRippleStagingRelay } from "@/lib/payments/ripple-staging-relay";
+import { createRippleStagingRelayRequest, forwardRippleWebhookToStaging, RIPPLE_PRODUCTION_WEBHOOK, RIPPLE_STAGING_RECEIVER, shouldRelayRippleToStaging, verifyRippleStagingRelay } from "@/lib/payments/ripple-staging-relay";
 import { NextRequest } from "next/server";
 const { ingest, processInbox, findInbox } = vi.hoisted(() => ({ ingest: vi.fn(), processInbox: vi.fn(), findInbox: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: { paymentWebhookInbox: { findUnique: findInbox } } }));
@@ -58,7 +58,9 @@ describe("staging webhook authentication and destination", () => {
     expect(shouldRelayRippleToStaging("74A7510E33E94821")).toBe(false);
   });
   it("uses fixed HTTPS destination, forbids redirects and requires exact acknowledgement", async () => {
-    expect(RIPPLE_STAGING_RECEIVER).toBe("https://staging.itrader.im/api/webhooks/ripple-staging");
+    expect(RIPPLE_STAGING_RECEIVER).toBe("https://itrader.dev/api/webhooks/ripple-staging");
+    expect(RIPPLE_PRODUCTION_WEBHOOK).toBe("https://itrader.im/api/webhooks/ripple");
+    expect(RIPPLE_STAGING_RECEIVER).not.toBe(RIPPLE_PRODUCTION_WEBHOOK);
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ received: true, bodyHash: input.bodyHash }) });
     vi.stubGlobal("fetch", fetcher);
     await forwardRippleWebhookToStaging(input);

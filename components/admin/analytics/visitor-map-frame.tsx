@@ -18,7 +18,7 @@ export function VisitorMapFrame({
 
   return (
     <div
-      className="relative h-80 overflow-hidden rounded-lg border border-border bg-graphite-900 shadow-low"
+      className="visitor-map-frame relative min-h-80 flex-1 overflow-hidden rounded-lg border border-border bg-graphite-900 shadow-low"
       role="region"
       aria-label="Visitor locations"
       aria-busy={state === "loading"}
@@ -43,6 +43,52 @@ export function VisitorMapFrame({
         }
         .visitor-map-popup .maplibregl-popup-tip {
           border-top-color: var(--sem-bg-surfaceElevated);
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-group {
+          background: #1c1c1e;
+          border-radius: 8px;
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-group:not(:empty) {
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          box-shadow: none;
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-group button + button {
+          border-top-color: rgba(255, 255, 255, 0.14);
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-group button:hover {
+          background-color: rgba(255, 255, 255, 0.08);
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+          filter: invert(1);
+        }
+        .visitor-map-frame .maplibregl-ctrl-attrib:not(:hover):not(:focus-within) {
+          width: 29px;
+          height: 29px;
+          min-height: 29px;
+          padding: 0;
+          overflow: hidden;
+          border-radius: 8px;
+        }
+        .visitor-map-frame .maplibregl-ctrl-attrib:not(:hover):not(:focus-within) .maplibregl-ctrl-attrib-inner {
+          display: none;
+        }
+        .visitor-map-frame .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
+          display: block;
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-attrib {
+          background-color: #1c1c1e;
+          color: #c7c7cc;
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-attrib.maplibregl-compact,
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-attrib:not(:hover):not(:focus-within) {
+          border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
+          background-color: transparent;
+          filter: invert(1);
+        }
+        [data-theme="dark"] .visitor-map-frame .maplibregl-ctrl-attrib a {
+          color: #e8e8ed;
         }
       `}</style>
       {children}

@@ -63,7 +63,7 @@ export type RippleProduct = (typeof RIPPLE_CANONICAL_PRODUCTS)[RippleProductKey]
   | RippleTestSubscriptionProduct
   | { key: "featured-test"; code: string; amountPence: 50; checkoutType: "featured_upgrade"; envUrlKey: "RIPPLE_TEST_FEATURED_URL" };
 
-const RIPPLE_PAYMENT_ORIGIN = "https://portal.startyourripple.co.uk";
+export const RIPPLE_PAYMENT_ORIGIN = "https://portal.startyourripple.co.uk";
 
 export function isRipplePreviewRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.VERCEL_ENV === "preview" ||
@@ -103,14 +103,29 @@ export function getRippleTestSubscriptionProduct(env: NodeJS.ProcessEnv = proces
 
 export function getRippleTestFeaturedProduct(env: NodeJS.ProcessEnv = process.env): RippleProduct | null {
   if (!isRipplePreviewRuntime(env)) return null;
-  const code = getTestLinkCode("RIPPLE_TEST_FEATURED_URL", env);
-  return code ? { key: "featured-test", code, amountPence: 50, checkoutType: "featured_upgrade", envUrlKey: "RIPPLE_TEST_FEATURED_URL" } : null;
+  try {
+    const code = getTestLinkCode("RIPPLE_TEST_FEATURED_URL", env);
+    return code ? { key: "featured-test", code, amountPence: 50, checkoutType: "featured_upgrade", envUrlKey: "RIPPLE_TEST_FEATURED_URL" } : null;
+  } catch {
+    // Featured controls are optional; missing or stale preview configuration
+    // must not make production pages that render them fail.
+    return null;
+  }
 }
 
 export function isRippleStagingLinkCode(code: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!code) return false;
+  const normalizedCode = code.trim().toUpperCase();
   return ["RIPPLE_TEST_SUBSCRIPTION_URL", "RIPPLE_TEST_FEATURED_URL"]
-    .some((key) => getTestLinkCode(key, env) === code.trim().toUpperCase());
+    .some((key) => {
+      try {
+        return getTestLinkCode(key, env) === normalizedCode;
+      } catch {
+        // Classification runs while applying verified production webhooks.
+        // Invalid optional preview configuration must be treated as non-matching.
+        return false;
+      }
+    });
 }
 
 export function getTrimmedEnv(key: string): string | null {

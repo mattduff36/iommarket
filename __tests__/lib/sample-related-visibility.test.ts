@@ -9,6 +9,8 @@ import {
   applySampleListingVisibility,
   applySampleUserVisibility,
 } from "@/lib/listings/sample-visibility";
+import { excludePreviewPackDealersWhere } from "@/lib/preview-packs/frontend-visibility";
+import { verifiedStagingEnv } from "./verified-staging-env";
 
 const hidden = {
   privateListings: false,
@@ -36,6 +38,19 @@ describe("related sample data visibility", () => {
         { dealer: applySampleDealerVisibility({}, hidden) },
       ],
     });
+  });
+
+  it("excludes preview dealers from production subscription metrics when samples are visible", () => {
+    const visible = { privateListings: true, dealerListings: true };
+    expect(applySampleSubscriptionVisibility({ status: "ACTIVE" }, visible)).toEqual({
+      AND: [
+        { status: "ACTIVE" },
+        { dealer: excludePreviewPackDealersWhere() },
+      ],
+    });
+    expect(
+      applySampleSubscriptionVisibility({ status: "ACTIVE" }, visible, verifiedStagingEnv),
+    ).toEqual({ status: "ACTIVE" });
   });
 
   it("keeps anonymous real-dealer reviews while hiding sample accounts", () => {

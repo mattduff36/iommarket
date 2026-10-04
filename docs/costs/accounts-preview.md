@@ -34,12 +34,20 @@ Invoice requests freeze the selected signed pence in the preview database. Confi
 
 Preview configuration deliberately fails closed if copied to production. Production integration requires a separate reviewed design/configuration change, a final reconciliation, and owner approval; merging code alone is not a cutover.
 
+## Comparison views
+
+The preview also reads `GET /api/costs/projects/itrader/comparison?from=2026-08-13T23:00:00.000Z`. That response is `mpdee-project-cost-comparison-v1`. It keeps usage value, provider cost, client charge and outstanding balance separate. iTrader copies those figures and does not apply the Cursor 60/110 rates again. Provisional comparison lines are not invoiceable. A missing or invalid comparison is shown as a coverage gap; it does not replace the snapshot, the baseline, or manufacture a zero balance.
+
+Snapshot lines project as `PROVISIONAL` unless the line itself carries invoiceability. Held and unknown amounts still create no charge. Baseline rows keep their own invoiceability and exact exclusive period ends. A non-Cursor snapshot line is rejected while a baseline is present, unless the caller passes a reviewed infrastructure delta whose ids do not overlap the frozen baseline. Frozen client charges are never treated as provider expenses.
+
+iTrader remains the only writer. The comparison policy is `mpdee-comparison-policy-v1`: included Cursor at 50%, on-demand at 100%, infrastructure at face value, and the fixed £0.38/day allocation disabled. Stored Accounts policies are not changed by this reader.
+
 ## Verification
 
 Targeted tests cover deployment guards, snapshot validation, replay, disappearing/held lines, baseline credits and periods, signed request snapshots, rejected cross-namespace settlements, and the absence of automatic provider refresh. Existing action, email, dashboard and cron tests also pass. Run:
 
 ```text
-npx vitest run __tests__/lib/cost-accounts-preview.test.ts __tests__/lib/cost-accounts-preview-workflows.test.ts __tests__/components/admin-costs-provider-refresh.test.tsx
+npx vitest run __tests__/lib/cost-accounts-preview.test.ts __tests__/lib/cost-accounts-comparison.test.ts __tests__/lib/cost-accounts-preview-workflows.test.ts __tests__/components/admin-costs-dashboard.test.tsx __tests__/components/admin-costs-provider-refresh.test.tsx
 npm run typecheck
 npm run build
 ```
