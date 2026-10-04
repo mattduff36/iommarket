@@ -30,7 +30,7 @@ export function imageKitModeIsStrict(
 }
 
 export function imageKitDevUploadsEnabled(env: NodeJS.ProcessEnv = process.env) {
-  return env.IMAGEKIT_DEV_UPLOADS === "1" && readMediaProviderMode(env) !== "cloudinary";
+  return env.IMAGEKIT_DEV_UPLOADS === "1" && readMediaProviderMode(env) === "imagekit";
 }
 
 export function imageKitSignatureTtlSeconds(env: NodeJS.ProcessEnv = process.env) {

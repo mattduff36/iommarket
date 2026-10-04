@@ -20,6 +20,8 @@ const listingImageSelect = {
   bytes: true,
   focalX: true,
   focalY: true,
+  imageKitFileId: true,
+  imageKitFilePath: true,
   listing: {
     select: {
       id: true,
@@ -84,6 +86,8 @@ export const loadAuthorizedRevisionPhoto = cache(async (imageId: string): Promis
       bytes: true,
       focalX: true,
       focalY: true,
+      imageKitFileId: true,
+      imageKitFilePath: true,
       revision: {
         select: {
           listing: {

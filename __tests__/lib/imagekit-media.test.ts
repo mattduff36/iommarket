@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { assertIsolatedLocalDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
-import { readMediaProviderMode } from "@/lib/media/config";
+import { imageKitDevUploadsEnabled, readMediaProviderMode } from "@/lib/media/config";
 import { assertPairedMediaProvider } from "@/lib/media/provider-config";
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { assertDisposableImageKitDelete } from "@/lib/media/delete-guard";
@@ -54,6 +54,13 @@ describe("ImageKit provider selection", () => {
     expect(decideReferenceDelivery({ match, mode: "imagekit-sample" }).decision).toBe("imagekit");
     const other = matchMediaReference({ provider: "CLOUDINARY", publicId: "other", version: "1" }, index);
     expect(decideReferenceDelivery({ match: other, mode: "imagekit-sample" }).decision).toBe("cloudinary");
+    expect(decideReferenceDelivery({
+      match: other,
+      mode: "imagekit-sample",
+      disposablePath: "/iommarket-dev-disposable/user/intent/photo.jpg",
+    }).decision).toBe("unresolved");
+    expect(imageKitDevUploadsEnabled({ IMAGEKIT_DEV_UPLOADS: "1", MEDIA_PROVIDER: "imagekit-sample", NODE_ENV: "test" })).toBe(false);
+    expect(imageKitDevUploadsEnabled({ IMAGEKIT_DEV_UPLOADS: "1", MEDIA_PROVIDER: "imagekit", NODE_ENV: "test" })).toBe(true);
   });
 });
 

@@ -20,8 +20,8 @@ export function decideReferenceDelivery(input: {
     if (!isDisposableDestinationPath(input.disposablePath) || isProtectedDestinationPath(input.disposablePath)) {
       return { decision: "unresolved", reason: "Disposable media path failed its guard." };
     }
-    if (mode === "cloudinary") {
-      return { decision: "unresolved", reason: "ImageKit development uploads are inactive while Cloudinary is selected." };
+    if (mode !== "imagekit") {
+      return { decision: "unresolved", reason: "ImageKit development uploads are only delivered in strict ImageKit mode." };
     }
     return { decision: "imagekit", reason: "Development upload is restricted to the disposable folder." };
   }
