@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  LngLatBounds,
   Map as MapLibreMap,
   NavigationControl,
   Popup,
@@ -12,6 +11,7 @@ import {
 import "maplibre-gl/dist/maplibre-gl.css";
 import { VisitorMapFrame } from "@/components/admin/analytics/visitor-map-frame";
 import type { VisitorMapPoint } from "@/components/admin/analytics/visitor-map-point";
+import { ISLE_OF_MAN_CENTER, defaultVisitorMapBounds } from "@/components/admin/analytics/visitor-map-view";
 import { cn } from "@/lib/cn";
 
 const DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -52,16 +52,6 @@ function placeDots(map: MapLibreMap, points: VisitorMapPoint[]) {
       "circle-radius": ["interpolate", ["linear"], ["sqrt", ["get", "count"]], 1, 5, 12, 18],
     },
   });
-  if (points.length === 1) {
-    const only = points[0];
-    if (only) map.jumpTo({ center: [only.longitude, only.latitude], zoom: 4 });
-    return;
-  }
-  if (points.length > 1) {
-    const bounds = new LngLatBounds();
-    for (const point of points) bounds.extend([point.longitude, point.latitude]);
-    map.fitBounds(bounds, { padding: 48, maxZoom: 5, duration: 0 });
-  }
 }
 
 export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
@@ -79,8 +69,8 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
     const map = new MapLibreMap({
       container,
       style: theme === "light" ? LIGHT_STYLE : DARK_STYLE,
-      center: [-4.48, 54.15],
-      zoom: 1.3,
+      center: ISLE_OF_MAN_CENTER,
+      zoom: 4.2,
       cooperativeGestures: true,
       dragRotate: false,
       pitchWithRotate: false,
@@ -95,6 +85,8 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
 
     const onLoad = () => {
       ready = true;
+      const camera = map.cameraForBounds(defaultVisitorMapBounds(), { padding: 28 });
+      if (camera) map.jumpTo({ center: ISLE_OF_MAN_CENTER, zoom: camera.zoom });
       placeDots(map, points);
       map.on("mousemove", "visitor-dots", (event: MapLayerMouseEvent) => {
         const properties = event.features?.[0]?.properties;
@@ -134,7 +126,7 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
       <div
         ref={containerRef}
         className={cn(
-          "h-full w-full motion-reduce:transition-none",
+          "absolute inset-0 motion-reduce:transition-none",
           state === "ready" ? "opacity-100 transition-opacity duration-300" : "opacity-0",
         )}
       />

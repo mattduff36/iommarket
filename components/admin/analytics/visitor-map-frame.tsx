@@ -18,7 +18,7 @@ export function VisitorMapFrame({
 
   return (
     <div
-      className="relative h-80 overflow-hidden rounded-lg border border-border bg-graphite-900 shadow-low"
+      className="relative min-h-80 flex-1 overflow-hidden rounded-lg border border-border bg-graphite-900 shadow-low"
       role="region"
       aria-label="Visitor locations"
       aria-busy={state === "loading"}

@@ -60,6 +60,8 @@ describe("admin analytics visuals", () => {
 
     render(<VisitorMapFrame state="loading" />);
     expect(screen.getByText("Loading visitor map")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Visitor locations" })).toBeInTheDocument();
+    const mapRegion = screen.getByRole("region", { name: "Visitor locations" });
+    expect(mapRegion.className).toContain("min-h-80");
+    expect(mapRegion.className).toContain("flex-1");
   });
 });
