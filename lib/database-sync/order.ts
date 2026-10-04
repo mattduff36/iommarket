@@ -4,6 +4,8 @@ export type CloneForeignKey = {
   parent: string;
   childColumns: string[];
   nullable: boolean;
+  /** MATCH SIMPLE columns that can be cleared and restored without dropping the key. */
+  nullableColumns?: string[];
   deferrable: boolean;
 };
 
@@ -65,6 +67,7 @@ export function planCloneOrder(tables: string[], foreignKeys: readonly CloneFore
   const blockers: string[] = [];
   const deferred = new Set<string>();
   const nullable = new Map<string, Set<string>>();
+  const breakableColumns = (key: CloneForeignKey) => key.nullableColumns?.length ? key.nullableColumns : key.childColumns;
   const rememberNull = (table: string, columns: string[]) => {
     const current = nullable.get(table) ?? new Set<string>();
     for (const column of columns) current.add(column);
@@ -74,7 +77,7 @@ export function planCloneOrder(tables: string[], foreignKeys: readonly CloneFore
   for (const key of foreignKeys) {
     if (key.child !== key.parent) continue;
     if (key.deferrable) deferred.add(key.name);
-    else if (key.nullable) rememberNull(key.child, key.childColumns);
+    else if (key.nullable) rememberNull(key.child, breakableColumns(key));
     else blockers.push(`Cannot order ${key.child}: required self-reference ${key.name} is not deferrable.`);
   }
   for (let guard = 0; guard <= foreignKeys.length; guard += 1) {
@@ -87,7 +90,7 @@ export function planCloneOrder(tables: string[], foreignKeys: readonly CloneFore
     }
     const [key] = active.splice(index, 1);
     if (key.deferrable) deferred.add(key.name);
-    if (key.nullable) rememberNull(key.child, key.childColumns);
+    if (key.nullable) rememberNull(key.child, breakableColumns(key));
   }
   const insertOrder = topological(tables, active);
   if (!insertOrder) blockers.push("Foreign-key order could not be resolved.");

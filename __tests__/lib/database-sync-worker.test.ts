@@ -33,16 +33,29 @@ let activeActor = true;
 let schemaLines: string[] = [];
 let failColumns = false;
 let failPrepareChecks = false;
+let failRollback = false;
 function statements() { return mocks.query.mock.calls.map(([sql]) => String(sql)); }
 beforeEach(() => {
   vi.clearAllMocks();
-  locked = true; activeActor = true; schemaLines = []; failColumns = false; failPrepareChecks = false;
+  locked = true; activeActor = true; schemaLines = []; failColumns = false; failPrepareChecks = false; failRollback = false;
   row = {
     id: runId, actor_id: "admin", mode: "replace", status: "prepared", created_at: new Date(), expires_at: new Date(Date.now() + 60_000),
     summary: { counts: {}, blockers: [] }, encrypted_snapshot: seal(manifest(), runId, env), kind: "sync", backup_bytes: "0",
     backup_expires_at: null, payload_pruned_at: null,
   };
   mocks.query.mockReset().mockImplementation(async (sql: string, parameters?: unknown[]) => {
+    if (sql.trim() === "ROLLBACK") {
+      if (failRollback) {
+        failRollback = false;
+        throw new Error("rollback failed postgres://user:password@db.example/postgres");
+      }
+      return { rows: [], rowCount: 0 };
+    }
+    if (sql.includes("AS required(schema_name, table_name)")) {
+      const schemas = Array.isArray(parameters?.[0]) ? parameters[0] as string[] : [];
+      const names = Array.isArray(parameters?.[1]) ? parameters[1] as string[] : [];
+      return { rows: schemas.map((schema, index) => ({ schema, name: names[index] })), rowCount: schemas.length };
+    }
     if (sql.includes("to_regclass")) return { rows: [{ present: true }], rowCount: 1 };
     if (sql.includes("store_version")) return { rows: [], rowCount: 0 };
     if (sql.includes("pg_try_advisory")) return { rows: [{ locked }], rowCount: 1 };
@@ -85,10 +98,29 @@ describe("database clone transaction boundaries", () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     failPrepareChecks = true;
     await expect(prepareDatabaseSync("reset", "admin", env)).rejects.toThrow(
-      "Plan preparation failed during preview checks. No development data was changed.",
+      /Plan preparation failed during preview checks\. Reference [0-9a-f-]{36}\. No development data was changed\./,
     );
     expect(statements()).toContain("ROLLBACK");
-    expect(errorLog).toHaveBeenCalledWith("Database sync prepare stage failed.", { stage: "preview checks" });
+    expect(errorLog).toHaveBeenCalledWith("Database sync failure.", expect.objectContaining({
+      phase: "preview checks",
+      subphase: "destination.foreign-keys",
+      operation: "destination",
+      message: "simulated prepare failure",
+      commit: "unknown",
+    }));
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain("detail");
+    errorLog.mockRestore();
+  });
+
+  it("keeps the original preparation error when rollback fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    failPrepareChecks = true;
+    failRollback = true;
+    await expect(prepareDatabaseSync("reset", "admin", env)).rejects.toThrow(/preview checks/);
+    const logged = JSON.stringify(errorLog.mock.calls);
+    expect(logged).not.toContain("postgres://");
+    expect(logged).toContain("simulated prepare failure");
+    expect(logged).toContain("[redacted]");
     errorLog.mockRestore();
   });
 

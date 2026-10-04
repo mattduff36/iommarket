@@ -162,11 +162,14 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
     }
     const publicTables = tables.rows.filter((table) => table.schema_name === "public" && SYNC_READ_TABLES.includes(table.table_name));
     const authTables = tables.rows.filter((table) => table.schema_name === "auth" && AUTH_READ_TABLES.includes(table.table_name as typeof AUTH_READ_TABLES[number]));
-    if (requireSourceReadOnly && (publicTables.length !== SYNC_READ_TABLES.length || authTables.length !== AUTH_READ_TABLES.length)) {
-      throw new Error("Database role cannot inspect every required sync table.");
+    const missingPublic = SYNC_READ_TABLES.find((table) => !publicTables.some((row) => row.table_name === table));
+    const missingAuth = AUTH_READ_TABLES.find((table) => !authTables.some((row) => row.table_name === table));
+    if (requireSourceReadOnly && (missingPublic || missingAuth)) {
+      throw new Error(`Database role cannot inspect required sync table ${missingPublic ?? missingAuth}.`);
     }
-    if (requireSourceReadOnly && [...publicTables, ...authTables].some((table) => !table.can_select)) {
-      throw new Error("Production source role lacks SELECT on required sync tables.");
+    const unreadable = [...publicTables, ...authTables].find((table) => !table.can_select);
+    if (requireSourceReadOnly && unreadable) {
+      throw new Error(`Production source role lacks SELECT on ${unreadable.schema_name}.${unreadable.table_name}.`);
     }
     if (requireSourceReadOnly) {
       const policies = await client.query<SourcePolicy>(`SELECT c.relname AS table_name,
@@ -179,11 +182,26 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
         FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) AND p.polcmd IN ('r', '*')`, [publicTables.map((table) => table.table_name)]);
-      if (publicTables.some((table) => !hasCompleteSourceReadPolicy(table, policies.rows))) {
-        throw new Error("Production source role lacks an unconditional reader RLS policy or has a restrictive policy.");
+      const blockedPolicy = publicTables.find((table) => !hasCompleteSourceReadPolicy(table, policies.rows));
+      if (blockedPolicy) {
+        throw new Error(`Production source role lacks an unconditional reader RLS policy on ${blockedPolicy.table_name}.`);
       }
     }
     return { tables: publicTables, readOnlyRole };
+}
+
+export async function assertRequiredRelations(client: pg.PoolClient, relations: ReadonlyArray<{ schema: string; name: string }>, label: "source" | "destination") {
+  const result = await client.query<{ schema: string; name: string }>(
+    `SELECT n.nspname AS schema, c.relname AS name
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'r' AND (n.nspname, c.relname) IN (
+       SELECT schema_name, table_name FROM unnest($1::text[], $2::text[]) AS required(schema_name, table_name)
+     )`,
+    [relations.map((relation) => relation.schema), relations.map((relation) => relation.name)],
+  );
+  const present = new Set(result.rows.map((row) => `${row.schema}.${row.name}`));
+  const missing = relations.find((relation) => !present.has(`${relation.schema}.${relation.name}`));
+  if (missing) throw new Error(`Required ${label} table ${missing.schema}.${missing.name} is missing.`);
 }
 
 /** Call inside the same READ ONLY transaction used to read the source snapshot. */

@@ -125,9 +125,9 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
           <p className="mt-3 rounded-md border border-border p-3 text-sm text-text-primary">Production values are copied as stored, including featured listings. Staging administrator sign-in is preserved and imported accounts cannot authenticate.</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <caption className="sr-only">Proposed record changes by table</caption>
-              <thead><tr className="border-b border-border text-text-secondary"><th className="py-2">Table</th>{["Add", "Update", "Remove", "Preserve", "Skip"].map((label) => <th key={label} className="px-2 py-2 text-right">{label}</th>)}</tr></thead>
-              <tbody>{Object.entries(plan.counts).map(([table, counts]) => <tr key={table} className="border-b border-border/50"><th scope="row" className="py-2 font-medium">{table}</th>{(["insert", "update", "delete", "preserve", "skip"] as const).map((key) => <td key={key} className="px-2 py-2 text-right tabular-nums">{counts[key].toLocaleString()}</td>)}</tr>)}</tbody>
+              <caption className="mb-2 text-left text-sm text-text-secondary">Captured is the production snapshot size. Add, update, remove, preserve and skip are calculated for this plan.</caption>
+              <thead><tr className="border-b border-border text-text-secondary"><th className="py-2">Table</th><th className="px-2 py-2 text-right">Captured</th>{["Add", "Update", "Remove", "Preserve", "Skip"].map((label) => <th key={label} className="px-2 py-2 text-right">{label}</th>)}</tr></thead>
+              <tbody>{Object.entries(plan.counts).map(([table, counts]) => <tr key={table} className="border-b border-border/50"><th scope="row" className="py-2 font-medium">{table}</th><td className="px-2 py-2 text-right tabular-nums">{typeof counts.captured === "number" ? counts.captured.toLocaleString() : "—"}</td>{(["insert", "update", "delete", "preserve", "skip"] as const).map((key) => <td key={key} className="px-2 py-2 text-right tabular-nums">{counts[key].toLocaleString()}</td>)}</tr>)}</tbody>
             </table>
           </div>
           {plan.blockers.length ? <div role="alert" className="mt-4"><h3 className="font-semibold">Resolve these issues before applying</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul></div> : (

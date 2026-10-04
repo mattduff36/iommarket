@@ -12,7 +12,7 @@ import { DatabasePanel } from "@/app/(admin)/admin/database/database-panel";
 const plan = {
   id: "c3c64ad4-1d3e-4aeb-a02a-39a2c6c45a67", mode: "merge", status: "prepared",
   createdAt: "2026-10-03T12:00:00Z", expiresAt: "2026-10-03T12:15:00Z",
-  counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { insert: 1, update: 0, delete: 0, preserve: 2, skip: 0 }])) as SyncTableCounts,
+  counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { captured: 5, insert: 1, update: 2, delete: 0, preserve: 2, skip: 0 }])) as SyncTableCounts,
   blockers: [],
   archivedListings: 0, archivedDealers: 0,
   kind: "sync", restoreAvailable: false, backupExpiresAt: null, backupState: "none", restoredFromId: null,
@@ -41,6 +41,9 @@ describe("database management panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
     await screen.findByRole("heading", { name: "Review: Merge production into development" });
     expect(mocks.prepare).toHaveBeenCalledWith("merge");
+    expect(screen.getByRole("table")).toHaveTextContent("Captured is the production snapshot size");
+    expect(screen.getByRole("table")).toHaveTextContent("Captured");
+    expect(screen.getByRole("table")).toHaveTextContent("5");
     expect(screen.getByRole("table")).toHaveTextContent("Preserve");
     expect(screen.getByText(/Production values are copied as stored, including featured listings/)).toBeInTheDocument();
     const apply = screen.getByRole("button", { name: "Apply merge to development" });

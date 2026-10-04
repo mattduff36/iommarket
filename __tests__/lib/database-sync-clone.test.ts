@@ -170,6 +170,12 @@ describe("ARCH-CLONE-006 backup retention", () => {
     ]);
     expect(nullable.blockers).toEqual([]);
     expect(nullable.nullThenUpdate.length).toBeGreaterThan(0);
+    const composite = planCloneOrder(["Response", "Revision"], [
+      { name: "approved", child: "Response", parent: "Revision", childColumns: ["approvedRevisionId", "id"], nullable: true, nullableColumns: ["approvedRevisionId"], deferrable: false },
+      { name: "parent", child: "Revision", parent: "Response", childColumns: ["responseId"], nullable: false, deferrable: false },
+    ]);
+    expect(composite.blockers).toEqual([]);
+    expect(composite.nullThenUpdate).toContainEqual({ table: "Response", columns: ["approvedRevisionId"] });
     const required = planCloneOrder(["A", "B"], [
       { name: "a_b", child: "A", parent: "B", childColumns: ["bId"], nullable: false, deferrable: false },
       { name: "b_a", child: "B", parent: "A", childColumns: ["aId"], nullable: false, deferrable: false },

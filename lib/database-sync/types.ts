@@ -52,7 +52,7 @@ export type SyncOperation = {
   archive?: boolean;
 };
 
-export type SyncActionCounts = Record<SyncOperation["action"], number>;
+export type SyncActionCounts = Record<SyncOperation["action"], number> & { captured?: number };
 export type SyncTableCounts = Record<SyncTable, SyncActionCounts>;
 
 export type DatabaseSyncPlan = {

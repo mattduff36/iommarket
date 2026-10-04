@@ -3,11 +3,15 @@ import pg, { type PoolClient } from "pg";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { AUTH_TOKEN_COLUMNS, adminIdentityCollision, authScrubViolations, preservedAuthCollision, scrubAuthUser, scrubIdentity, type AdminIdentity } from "./auth-clone";
 import { loadCloneCatalog, type CatalogTable } from "./catalog";
+import { loadPhysicalColumns } from "./columns";
 import { canonicalBytes, hashCanonical, parseCanonical, quoteIdent, restoreValueExpression, selectExpression } from "./codec";
 import { chunkAad, openChunk, sealChunk } from "./chunks";
+import { closeWithoutReplacing, createSyncTrace, reportPrepareFailure, rollbackWithoutReplacing, type SyncTrace } from "./diagnostics";
 import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines } from "./fingerprint";
 import { planCloneOrder, type CloneForeignKey } from "./order";
-import { inspectDatabaseSyncConfiguration, inspectionPoolOptions } from "./preflight";
+import { classifySyncCounts, hasUniqueConflict, loadUniqueConstraints } from "./plan-counts";
+import { assertRequiredRelations, inspectDatabaseSyncConfiguration, inspectionPoolOptions, validateSourceClient } from "./preflight";
+import { guardSourceClient } from "./source-guard";
 import { BACKUP_BUDGET_BYTES, planBackupRetention, type BackupPoint } from "./retention";
 import { resolvePreviewSessionUrl } from "./session";
 import { DatabaseSyncError } from "./snapshot";
@@ -34,8 +38,12 @@ export type CloneManifest = {
   previewInstanceId: string | null;
 };
 
-type ColumnMeta = { name: string; dataType: string };
 type Relation = { schema: string; name: string; key: string; primaryKey: string };
+type StoredColumn = { name: string; type: string };
+export type IsolatedDatabaseSync = {
+  destination: PoolClient;
+  openSource?: () => Promise<{ client: PoolClient; close: () => Promise<void> }>;
+};
 type StoredRun = {
   id: string;
   actor_id: string;
@@ -53,12 +61,10 @@ type StoredRun = {
   payload_pruned_at: Date | null;
 };
 
-type PrepareStage = "preview connection" | "preview checks" | "plan storage" | "production connection" | "source snapshot" | "plan finalization";
-
-function prepareFailure(stage: PrepareStage, error: unknown): DatabaseSyncError {
-  if (error instanceof DatabaseSyncError) return error;
-  console.error("Database sync prepare stage failed.", { stage });
-  return new DatabaseSyncError(`Plan preparation failed during ${stage}. No development data was changed.`);
+function assertIsolatedTest(env: NodeJS.ProcessEnv) {
+  if (env.NODE_ENV !== "test" || env.VERCEL_ENV || env.DATABASE_SYNC_ISOLATED_TEST !== "1") {
+    throw new DatabaseSyncError("Database sync is available only on the verified staging database.");
+  }
 }
 
 export function lockCloneTablesSql(publicTables: readonly string[]): string {
@@ -86,22 +92,19 @@ function backupRelations(catalog: CatalogTable[]): Relation[] {
   ];
 }
 
-async function columns(client: PoolClient, schema: string, table: string): Promise<ColumnMeta[]> {
-  const result = await client.query<{ name: string; data_type: string }>(
-    `SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS data_type
-     FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
-     WHERE n.nspname=$1 AND c.relname=$2 AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum`,
-    [schema, table],
-  );
-  return result.rows.map((row) => ({ name: row.name, dataType: row.data_type }));
+function markTrace(trace: SyncTrace | undefined, operation: SyncTrace["operation"], subphase: string, table?: string) {
+  if (!trace) return;
+  trace.operation = operation;
+  trace.subphase = subphase;
+  trace.table = table;
 }
 
 async function foreignKeys(client: PoolClient): Promise<CloneForeignKey[]> {
-  const result = await client.query<{ name: string; child: string; parent: string; child_columns: string[]; nullable_columns: string[]; deferrable: boolean }>(
+  const result = await client.query<{ name: string; child: string; parent: string; child_columns: string[]; nullable_columns: string[]; match_type: string; deferrable: boolean }>(
     `SELECT f.conname AS name, child.relname AS child, parent.relname AS parent,
       ARRAY(SELECT a.attname::text FROM unnest(f.conkey) WITH ORDINALITY k(attnum, ord) JOIN pg_attribute a ON a.attrelid=f.conrelid AND a.attnum=k.attnum ORDER BY ord) AS child_columns,
       ARRAY(SELECT a.attname::text FROM unnest(f.conkey) k(attnum) JOIN pg_attribute a ON a.attrelid=f.conrelid AND a.attnum=k.attnum AND NOT a.attnotnull) AS nullable_columns,
-      f.condeferrable AS deferrable
+      f.confmatchtype AS match_type, f.condeferrable AS deferrable
      FROM pg_constraint f
      JOIN pg_class child ON child.oid=f.conrelid JOIN pg_namespace ns ON ns.oid=child.relnamespace
      JOIN pg_class parent ON parent.oid=f.confrelid
@@ -109,7 +112,7 @@ async function foreignKeys(client: PoolClient): Promise<CloneForeignKey[]> {
   );
   return result.rows.map((row) => ({
     name: row.name, child: row.child, parent: row.parent, childColumns: row.child_columns,
-    nullable: row.child_columns.length > 0 && row.nullable_columns.length === row.child_columns.length, deferrable: row.deferrable,
+    nullable: row.match_type !== "f" && row.nullable_columns.length > 0, nullableColumns: row.nullable_columns, deferrable: row.deferrable,
   }));
 }
 
@@ -133,33 +136,52 @@ function cell(value: unknown): string | null {
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
-async function writeChunks(reader: PoolClient, writer: PoolClient, relation: Relation, runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number, scrubInstanceId: string | null = null) {
-  const meta = await columns(reader, relation.schema, relation.name);
+async function writeChunks(
+  reader: PoolClient,
+  writer: PoolClient,
+  relation: Relation,
+  runId: string,
+  purpose: string,
+  env: NodeJS.ProcessEnv,
+  deadline: number,
+  scrubInstanceId: string | null = null,
+  trace?: SyncTrace,
+  onPage?: (page: { columns: StoredColumn[]; rows: Array<Array<string | null>> }) => Promise<void>,
+) {
+  const side = purpose === "source" ? "source" : "destination";
+  markTrace(trace, side, `${side}.table-page`, relation.key);
+  const meta = await loadPhysicalColumns(reader, relation.schema, relation.name);
   const hash = createHash("sha256");
   let rows = 0;
   let bytes = 0;
   let seq = 0;
   let cursor: string | null = null;
-  if (!meta.length) return { key: relation.key, schema: relation.schema, name: relation.name, primaryKey: relation.primaryKey, rows, sha256: hash.digest("hex"), bytes };
+  const captured = { key: relation.key, schema: relation.schema, name: relation.name, primaryKey: relation.primaryKey, rows, sha256: "", bytes };
+  if (!meta.length) return { ...captured, sha256: hash.digest("hex") };
   const select = meta.map((column) => selectExpression(column.name, column.dataType)).join(", ");
   const qualified = `${relation.schema}.${quoteIdent(relation.name)}`;
   const pk = `${quoteIdent(relation.primaryKey)}::text`;
   while (true) {
     assertCloneDeadline(deadline);
+    markTrace(trace, side, `${side}.table-page`, relation.key);
     const result: { rows: Array<Record<string, unknown>> } = await reader.query(
       `SELECT ${select} FROM ${qualified} ${cursor ? `WHERE ${pk} > $1` : ""} ORDER BY ${pk} LIMIT ${PAGE}`,
       cursor ? [cursor] : [],
     );
     if (!result.rows.length) break;
     const shaped = meta.map((column) => ({ name: column.name, type: column.dataType }));
+    markTrace(trace, side, `${side}.serialize`, relation.key);
     const matrix = result.rows.map((row) => meta.map((column) => row[column.name] == null ? null : String(row[column.name])));
     const payload = scrubInstanceId && (relation.key === "auth.users" || relation.key === "auth.identities")
       ? scrubMatrix(relation.key, shaped, matrix, scrubInstanceId) : matrix;
+    if (onPage) await onPage({ columns: shaped, rows: payload });
     const canonical = canonicalBytes(relation.key, shaped, payload);
     hash.update(canonical);
+    markTrace(trace, side, `${side}.seal`, relation.key);
     const sealed = await sealChunk(canonical, chunkAad(runId, purpose, relation.key, seq), env);
     bytes += sealed.bytes;
     if (bytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
+    markTrace(trace, "destination", "destination.chunk-store", relation.key);
     await writer.query(
       `INSERT INTO staging_admin.database_sync_chunks(run_id,purpose,table_name,seq,ciphertext,plaintext_sha256,row_count,byte_size) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [runId, purpose, relation.key, seq, sealed.ciphertext, hashCanonical(canonical), payload.length, sealed.bytes],
@@ -169,7 +191,7 @@ async function writeChunks(reader: PoolClient, writer: PoolClient, relation: Rel
     seq += 1;
     if (result.rows.length < PAGE) break;
   }
-  return { key: relation.key, schema: relation.schema, name: relation.name, primaryKey: relation.primaryKey, rows, sha256: hash.digest("hex"), bytes };
+  return { ...captured, rows, sha256: hash.digest("hex"), bytes };
 }
 
 async function readChunkRows(client: PoolClient, runId: string, purpose: string, table: string, env: NodeJS.ProcessEnv) {
@@ -187,18 +209,30 @@ async function readChunkRows(client: PoolClient, runId: string, purpose: string,
   return { columns, rows };
 }
 
-function insertSql(relation: Relation, columnList: Array<{ name: string; type: string }>, conflict: "insert" | "merge") {
-  const names = columnList.map((column) => quoteIdent(column.name)).join(",");
-  const values = columnList.map((column, index) => restoreValueExpression(column.type, index)).join(",");
-  const update = columnList.filter((column) => column.name !== relation.primaryKey).map((column) => `${quoteIdent(column.name)}=EXCLUDED.${quoteIdent(column.name)}`).join(",");
-  const base = `INSERT INTO ${relation.schema}.${quoteIdent(relation.name)} (${names}) SELECT ${values} FROM jsonb_array_elements($1::jsonb) elem`;
-  return conflict === "merge" && update ? `${base} ON CONFLICT (${quoteIdent(relation.primaryKey)}) DO UPDATE SET ${update}` : base;
+function insertSql(relation: Relation, writable: Array<{ name: string; type: string; index: number; identity: string }>, conflict: "insert" | "merge") {
+  const names = writable.map((column) => quoteIdent(column.name)).join(",");
+  const values = writable.map((column) => restoreValueExpression(column.type, column.index)).join(",");
+  const update = writable.filter((column) => column.name !== relation.primaryKey && column.identity === "").map((column) => `${quoteIdent(column.name)}=EXCLUDED.${quoteIdent(column.name)}`).join(",");
+  const override = writable.some((column) => column.identity === "a") ? " OVERRIDING SYSTEM VALUE" : "";
+  const base = `INSERT INTO ${relation.schema}.${quoteIdent(relation.name)} (${names})${override} SELECT ${values} FROM jsonb_array_elements($1::jsonb) elem`;
+  if (conflict !== "merge") return base;
+  const target = quoteIdent(relation.primaryKey);
+  return update ? `${base} ON CONFLICT (${target}) DO UPDATE SET ${update}` : `${base} ON CONFLICT (${target}) DO NOTHING`;
 }
 
-async function writeRows(client: PoolClient, relation: Relation, columnList: Array<{ name: string; type: string }>, rows: Array<Array<string | null>>, conflict: "insert" | "merge") {
+async function writeRows(client: PoolClient, relation: Relation, columnList: StoredColumn[], rows: Array<Array<string | null>>, conflict: "insert" | "merge") {
   if (!columnList.length || !rows.length) return;
+  const live = await loadPhysicalColumns(client, relation.schema, relation.name);
+  const byName = new Map(live.map((column) => [column.name, column]));
+  const writable = columnList.flatMap((column, index) => {
+    const current = byName.get(column.name);
+    if (current?.generated) return [];
+    return [{ name: column.name, type: column.type, index, identity: current?.identity ?? "" }];
+  });
+  if (!writable.length) return;
+  const sql = insertSql(relation, writable, conflict);
   for (let index = 0; index < rows.length; index += PAGE) {
-    await client.query(insertSql(relation, columnList, conflict), [JSON.stringify(rows.slice(index, index + PAGE))]);
+    await client.query(sql, [JSON.stringify(rows.slice(index, index + PAGE))]);
   }
 }
 
@@ -250,7 +284,7 @@ async function clearSessions(client: PoolClient, ids: string[], mode: "except" |
   for (const table of SESSION_TABLES) {
     const present = await client.query<{ present: boolean }>(`SELECT to_regclass($1) IS NOT NULL AS present`, [`auth.${table}`]);
     if (!present.rows[0]?.present) continue;
-    const meta = await columns(client, "auth", table);
+    const meta = await loadPhysicalColumns(client, "auth", table);
     if (!meta.some((column) => column.name === "user_id")) continue;
     await client.query(`DELETE FROM auth.${quoteIdent(table)} WHERE ${predicate}`, [ids]);
   }
@@ -317,6 +351,7 @@ async function replay(client: PoolClient, manifest: CloneManifest, runId: string
       await writeRows(client, relation, loaded.columns, firstPass, manifest.mode === "merge" ? "merge" : "insert");
     } catch (error) {
       if (typeof error === "object" && error && "code" in error && error.code === "23505") throw new DatabaseSyncError(`${relation.name} conflicts with a different development identity on a unique key.`);
+      if (typeof error === "object" && error && "code" in error && error.code === "23503") throw new DatabaseSyncError(`${relation.name} refers to a record that is not available in development.`);
       throw error;
     }
     if (blankIndexes.size) originals.set(relation.name, { columns: loaded.columns, rows });
@@ -367,13 +402,14 @@ async function withSession<T>(env: NodeJS.ProcessEnv, callback: (client: PoolCli
         WHERE status = 'prepared' AND expires_at <= now() AND payload_pruned_at IS NULL`);
       await client.query("COMMIT");
     } catch (error) {
-      await client.query("ROLLBACK");
+      await rollbackWithoutReplacing(client, createSyncTrace("preview connection"));
       throw error;
     }
     return await callback(client);
   } finally {
-    client.release();
-    await pool.end();
+    const trace = createSyncTrace("preview connection");
+    await closeWithoutReplacing(() => client.release(), trace);
+    await closeWithoutReplacing(() => pool.end(), trace);
   }
 }
 
@@ -387,95 +423,210 @@ async function beginLocked(client: PoolClient, actorId: string) {
   await requireActor(client, actorId);
 }
 
-export async function prepareClone(mode: "merge" | "replace" | "reset", actorId: string, env: NodeJS.ProcessEnv) {
-  const catalog = loadCloneCatalog();
-  const id = randomUUID();
-  const deadline = Date.now() + APPLY_DEADLINE_MS;
-  let stage: PrepareStage = "preview connection";
+function preservedKey(relation: Relation): "id" | "user_id" | null {
+  if (relation.name === "User" || relation.key === "auth.users") return "id";
+  if (relation.key === "auth.identities") return "user_id";
+  return null;
+}
+
+function preservedIds(relation: Relation, manifest: CloneManifest): string[] {
+  if (relation.name === "User") return manifest.preservedAdminIds;
+  if (relation.key === "auth.users" || relation.key === "auth.identities") return manifest.preservedAuthIds;
+  return [];
+}
+
+async function destinationKeys(client: PoolClient, relation: Relation, preserved: readonly string[]) {
+  const qualified = `${relation.schema}.${quoteIdent(relation.name)}`;
+  const keyColumn = quoteIdent(relation.primaryKey);
+  const policyName = preservedKey(relation);
+  const policyColumn = quoteIdent(policyName ?? relation.primaryKey);
+  const keys: string[] = [];
+  const preservedDestination: string[] = [];
+  let cursor: string | null = null;
+  while (true) {
+    const sql = cursor
+      ? `SELECT ${keyColumn}::text AS key, ${policyColumn}::text AS policy FROM ${qualified} WHERE ${keyColumn}::text > $1 ORDER BY ${keyColumn}::text LIMIT ${PAGE}`
+      : `SELECT ${keyColumn}::text AS key, ${policyColumn}::text AS policy FROM ${qualified} ORDER BY ${keyColumn}::text LIMIT ${PAGE}`;
+    const result: { rows: Array<{ key: string | null; policy: string | null }> } = await client.query(sql, cursor ? [cursor] : []);
+    if (!result.rows.length) break;
+    for (const row of result.rows) {
+      if (typeof row.key !== "string") continue;
+      keys.push(row.key);
+      if (policyName && typeof row.policy === "string" && preserved.includes(row.policy)) preservedDestination.push(row.key);
+    }
+    cursor = result.rows.at(-1)?.key ?? "";
+    if (result.rows.length < PAGE) break;
+  }
+  return { keys, preservedDestination };
+}
+
+async function openSource(env: NodeJS.ProcessEnv, trace: SyncTrace, isolated?: IsolatedDatabaseSync) {
+  if (isolated?.openSource) {
+    const opened = await isolated.openSource();
+    return { client: guardSourceClient(opened.client), close: opened.close };
+  }
+  const config = inspectDatabaseSyncConfiguration(env);
+  if (!config.source) throw new DatabaseSyncError("A dedicated production read-only connection is required.");
+  const sourcePool = new pg.Pool(inspectionPoolOptions(config.source, env));
+  markTrace(trace, "source", "source.connect");
+  trace.phase = "production connection";
   try {
-    return await withSession(env, async (destination) => {
-      await destination.query("BEGIN");
-      try {
-        stage = "preview checks";
-        await destination.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
-        await requireActor(destination, actorId);
-        const recent = await destination.query<{ count: string }>("SELECT count(*) FROM staging_admin.database_sync_runs WHERE actor_id=$1 AND created_at > now()-interval '1 minute'", [actorId]);
-        if (Number(recent.rows[0]?.count) >= 3) throw new DatabaseSyncError("Please wait a minute before preparing another preview.");
-        const preserved = await admins(destination);
-        const order = planCloneOrder(catalog.map((table) => table.name), await foreignKeys(destination));
-        const instance = await destination.query<{ id: string }>(`SELECT instance_id::text AS id FROM auth.users WHERE instance_id IS NOT NULL LIMIT 1`);
-        const manifest: CloneManifest = {
-          v: 2, mode, fingerprint: await fingerprint(destination), blockers: [...order.blockers], tables: [],
-          insertOrder: order.insertOrder, deleteOrder: order.deleteOrder, deferredConstraints: order.deferredConstraints,
-          nullThenUpdate: order.nullThenUpdate, preservedAdminIds: preserved.map((admin) => admin.id),
-          preservedAuthIds: preserved.map((admin) => admin.authUserId), previewInstanceId: instance.rows[0]?.id ?? null,
-        };
-        stage = "plan storage";
-        await destination.query(
-          `INSERT INTO staging_admin.database_sync_runs(id, actor_id, mode, status, expires_at, encrypted_snapshot, summary, kind, schema_fingerprint)
-           VALUES ($1,$2,$3,'prepared',now()+interval '30 minutes',$4,$5::jsonb,'sync',$6)`,
-          [id, actorId, mode, seal({ ...manifest, tables: [] }, id, env), JSON.stringify({ counts: {}, blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 }), manifest.fingerprint],
-        );
-        let sourceBytes = 0;
-        if (mode !== "reset") {
-          const config = inspectDatabaseSyncConfiguration(env);
-          if (!config.source) throw new DatabaseSyncError("A dedicated production read-only connection is required.");
-          const sourcePool = new pg.Pool(inspectionPoolOptions(config.source, env));
-          stage = "production connection";
-          const source = await sourcePool.connect();
-          try {
-            stage = "source snapshot";
-            await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-            await source.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
-            if ((await fingerprint(source)) !== manifest.fingerprint) manifest.blockers.push("Source and destination schema or migrations differ. Review them before copying.");
-            const users = await source.query<AdminIdentity>(`SELECT id, email, "authUserId" FROM public."User"`);
-            for (const user of users.rows) {
-              const collision = adminIdentityCollision(preserved, user);
-              if (collision) manifest.blockers.push(collision);
-            }
-            const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM auth.users`);
-            const publicIdByAuth = new Map(users.rows.map((user) => [user.authUserId, user.id]));
-            for (const user of authUsers.rows) {
-              const collision = preservedAuthCollision(preserved, user.id, publicIdByAuth.get(user.id) ?? null);
-              if (collision) manifest.blockers.push(collision);
-            }
-            if (!manifest.previewInstanceId) manifest.blockers.push("The preview authentication instance could not be read.");
-            if (!manifest.blockers.length) {
-              for (const relation of cloneRelations(catalog)) {
-                const captured = await writeChunks(source, destination, relation, id, "source", env, deadline, manifest.previewInstanceId);
-                sourceBytes += captured.bytes;
-                manifest.tables.push(captured);
-                if (sourceBytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
-              }
-            }
-            await source.query("COMMIT");
-          } finally {
-            await source.query("ROLLBACK").catch(() => undefined);
-            source.release();
-            await sourcePool.end();
-          }
-        }
-        stage = "plan finalization";
-        const summary = { counts: Object.fromEntries(manifest.tables.map((table) => [table.name, { insert: table.rows, update: 0, delete: 0, preserve: 0, skip: 0 }])), blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 };
-        const inserted = await destination.query<StoredRun>(
-          `UPDATE staging_admin.database_sync_runs SET encrypted_snapshot=$2, summary=$3::jsonb, schema_fingerprint=$4 WHERE id=$1 RETURNING *`,
-          [id, seal(manifest, id, env), JSON.stringify(summary), manifest.fingerprint],
-        );
-        await destination.query("COMMIT");
-        return inserted.rows[0];
-      } catch (error) {
-        await destination.query("ROLLBACK");
-        throw error;
-      }
-    });
+    const source = guardSourceClient(await sourcePool.connect());
+    return {
+      client: source,
+      close: async () => {
+        await closeWithoutReplacing(() => source.release(), trace);
+        await closeWithoutReplacing(() => sourcePool.end(), trace);
+      },
+    };
   } catch (error) {
-    throw prepareFailure(stage, error);
+    await closeWithoutReplacing(() => sourcePool.end(), trace);
+    throw error;
   }
 }
 
-export async function applyClone(runId: string, actorId: string, env: NodeJS.ProcessEnv) {
+async function prepareOnDestination(destination: PoolClient, mode: "merge" | "replace" | "reset", actorId: string, env: NodeJS.ProcessEnv, trace: SyncTrace, isolated?: IsolatedDatabaseSync) {
+  const catalog = loadCloneCatalog();
+  const relations = cloneRelations(catalog);
+  const id = randomUUID();
   const deadline = Date.now() + APPLY_DEADLINE_MS;
-  return withSession(env, async (client) => {
+  await destination.query("BEGIN");
+  try {
+    trace.phase = "preview checks";
+    markTrace(trace, "destination", "destination.actor");
+    await destination.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
+    await requireActor(destination, actorId);
+    const recent = await destination.query<{ count: string }>("SELECT count(*) FROM staging_admin.database_sync_runs WHERE actor_id=$1 AND created_at > now()-interval '1 minute'", [actorId]);
+    if (Number(recent.rows[0]?.count) >= 3) throw new DatabaseSyncError("Please wait a minute before preparing another preview.");
+    markTrace(trace, "destination", "destination.required-tables");
+    await assertRequiredRelations(destination, relations, "destination");
+    const preserved = await admins(destination);
+    markTrace(trace, "destination", "destination.foreign-keys");
+    const order = planCloneOrder(catalog.map((table) => table.name), await foreignKeys(destination));
+    const instance = await destination.query<{ id: string }>(`SELECT instance_id::text AS id FROM auth.users WHERE instance_id IS NOT NULL LIMIT 1`);
+    markTrace(trace, "destination", "destination.fingerprint");
+    const manifest: CloneManifest = {
+      v: 2, mode, fingerprint: await fingerprint(destination), blockers: [...order.blockers], tables: [],
+      insertOrder: order.insertOrder, deleteOrder: order.deleteOrder, deferredConstraints: order.deferredConstraints,
+      nullThenUpdate: order.nullThenUpdate, preservedAdminIds: preserved.map((admin) => admin.id),
+      preservedAuthIds: preserved.map((admin) => admin.authUserId), previewInstanceId: instance.rows[0]?.id ?? null,
+    };
+    trace.phase = "plan storage";
+    markTrace(trace, "destination", "destination.plan-insert");
+    await destination.query(
+      `INSERT INTO staging_admin.database_sync_runs(id, actor_id, mode, status, expires_at, encrypted_snapshot, summary, kind, schema_fingerprint)
+       VALUES ($1,$2,$3,'prepared',now()+interval '30 minutes',$4,$5::jsonb,'sync',$6)`,
+      [id, actorId, mode, seal({ ...manifest, tables: [] }, id, env), JSON.stringify({ counts: {}, blockers: manifest.blockers, archivedListings: 0, archivedDealers: 0 }), manifest.fingerprint],
+    );
+    const counts: Record<string, ReturnType<typeof classifySyncCounts>> = {};
+    if (mode !== "reset") {
+      const opened = await openSource(env, trace, isolated);
+      const source = opened.client;
+      try {
+        trace.phase = "source snapshot";
+        markTrace(trace, "source", "source.transaction");
+        await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+        await source.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
+        markTrace(trace, "source", "source.validate");
+        await assertRequiredRelations(source, relations, "source");
+        await validateSourceClient(source);
+        markTrace(trace, "source", "source.fingerprint");
+        if ((await fingerprint(source)) !== manifest.fingerprint) manifest.blockers.push("Source and destination schema or migrations differ. Review them before copying.");
+        markTrace(trace, "source", "source.public-users");
+        const users = await source.query<AdminIdentity>(`SELECT id, email, "authUserId" FROM public."User"`);
+        for (const user of users.rows) {
+          if (typeof user.id !== "string" || typeof user.email !== "string" || typeof user.authUserId !== "string") {
+            manifest.blockers.push("A production user is missing an email or account id.");
+            continue;
+          }
+          const collision = adminIdentityCollision(preserved, user);
+          if (collision) manifest.blockers.push(collision);
+        }
+        markTrace(trace, "source", "source.auth-users");
+        const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM auth.users`);
+        const publicIdByAuth = new Map(users.rows.map((user) => [user.authUserId, user.id]));
+        for (const user of authUsers.rows) {
+          const collision = preservedAuthCollision(preserved, user.id, publicIdByAuth.get(user.id) ?? null);
+          if (collision) manifest.blockers.push(collision);
+        }
+        if (!manifest.previewInstanceId) manifest.blockers.push("The preview authentication instance could not be read.");
+        if (!manifest.blockers.length) {
+          let sourceBytes = 0;
+          for (const relation of relations) {
+            const kept = preservedIds(relation, manifest);
+            const sourceKeys: string[] = [];
+            const skippedSourceKeys: string[] = [];
+            const constraints = await loadUniqueConstraints(destination, relation.schema, relation.name);
+            const captured = await writeChunks(source, destination, relation, id, "source", env, deadline, manifest.previewInstanceId, trace, async (page) => {
+              const keyIndex = page.columns.findIndex((column) => column.name === relation.primaryKey);
+              const policyIndex = page.columns.findIndex((column) => column.name === (preservedKey(relation) ?? relation.primaryKey));
+              for (const row of page.rows) {
+                const key = row[keyIndex];
+                if (typeof key !== "string") continue;
+                sourceKeys.push(key);
+                const policy = row[policyIndex];
+                if (typeof policy === "string" && kept.includes(policy)) skippedSourceKeys.push(key);
+              }
+              for (const constraint of constraints) {
+                if (await hasUniqueConflict(destination, relation, page.columns, page.rows, constraint)) {
+                  manifest.blockers.push(`${relation.name} conflicts with a different development row on unique key ${constraint.name}.`);
+                }
+              }
+            });
+            sourceBytes += captured.bytes;
+            manifest.tables.push(captured);
+            if (sourceBytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
+            markTrace(trace, "destination", "destination.count", relation.key);
+            const destinationSet = await destinationKeys(destination, relation, kept);
+            counts[relation.key] = classifySyncCounts({
+              mode: mode === "replace" ? "replace" : "merge",
+              sourceKeys,
+              destinationKeys: destinationSet.keys,
+              skippedSourceKeys,
+              preservedDestinationKeys: destinationSet.preservedDestination,
+            });
+          }
+        }
+        markTrace(trace, "source", "source.commit");
+        await source.query("COMMIT");
+      } finally {
+        await rollbackWithoutReplacing(source, trace);
+        await opened.close();
+      }
+    }
+    trace.phase = "plan finalization";
+    markTrace(trace, "destination", "destination.plan-finalize");
+    const finalized = { ...manifest, blockers: [...new Set(manifest.blockers)] };
+    const summary = { counts, blockers: finalized.blockers, archivedListings: 0, archivedDealers: 0 };
+    const inserted = await destination.query<StoredRun>(
+      `UPDATE staging_admin.database_sync_runs SET encrypted_snapshot=$2, summary=$3::jsonb, schema_fingerprint=$4 WHERE id=$1 RETURNING *`,
+      [id, seal(finalized, id, env), JSON.stringify(summary), manifest.fingerprint],
+    );
+    await destination.query("COMMIT");
+    return inserted.rows[0];
+  } catch (error) {
+    await rollbackWithoutReplacing(destination, trace);
+    throw error;
+  }
+}
+
+export async function prepareClone(mode: "merge" | "replace" | "reset", actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync) {
+  const trace = createSyncTrace("preview connection");
+  try {
+    if (isolated) {
+      assertIsolatedTest(env);
+      await assertStoreReady(isolated.destination);
+      return await prepareOnDestination(isolated.destination, mode, actorId, env, trace, isolated);
+    }
+    return await withSession(env, (destination) => prepareOnDestination(destination, mode, actorId, env, trace));
+  } catch (error) {
+    throw reportPrepareFailure(trace, error, env);
+  }
+}
+
+export async function applyClone(runId: string, actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync) {
+  const deadline = Date.now() + APPLY_DEADLINE_MS;
+  const run = async (client: PoolClient) => {
     try {
       await beginLocked(client, actorId);
       const stored = await client.query<StoredRun>(`SELECT * FROM staging_admin.database_sync_runs WHERE id=$1 FOR UPDATE`, [runId]);
@@ -496,16 +647,21 @@ export async function applyClone(runId: string, actorId: string, env: NodeJS.Pro
       await client.query("COMMIT");
       return saved.rows[0];
     } catch (error) {
-      await client.query("ROLLBACK");
+      await rollbackWithoutReplacing(client, createSyncTrace("apply"));
       throw error;
     }
-  });
+  };
+  if (isolated) {
+    assertIsolatedTest(env);
+    return run(isolated.destination);
+  }
+  return withSession(env, run);
 }
 
-export async function restoreClone(runId: string, actorId: string, env: NodeJS.ProcessEnv) {
+export async function restoreClone(runId: string, actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync) {
   const deadline = Date.now() + APPLY_DEADLINE_MS;
   const catalog = loadCloneCatalog();
-  return withSession(env, async (client) => {
+  const run = async (client: PoolClient) => {
     try {
       await beginLocked(client, actorId);
       const stored = await client.query<StoredRun>(`SELECT * FROM staging_admin.database_sync_runs WHERE id=$1 FOR UPDATE`, [runId]);
@@ -553,8 +709,13 @@ export async function restoreClone(runId: string, actorId: string, env: NodeJS.P
       await client.query("COMMIT");
       return saved.rows[0];
     } catch (error) {
-      await client.query("ROLLBACK");
+      await rollbackWithoutReplacing(client, createSyncTrace("restore"));
       throw error;
     }
-  });
+  };
+  if (isolated) {
+    assertIsolatedTest(env);
+    return run(isolated.destination);
+  }
+  return withSession(env, run);
 }
