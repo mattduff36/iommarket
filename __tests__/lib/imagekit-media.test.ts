@@ -310,6 +310,32 @@ describe("signed delivery access", () => {
     expect(allowsSignedDealerLogo({ ...logo, viewerIsAdmin: true })).toBe(true);
   });
 
+  it("does not sign a preview-pack dealer logo on production, even for an admin", () => {
+    expect(allowsSignedDealerLogo({
+      storedLogo: true,
+      authUserId: "preview-system:athol-garage",
+      email: "preview+athol-garage@preview.internal",
+      isAdminPreview: true,
+      sampleVisibility: hiddenSample,
+      ownerDisabled: false,
+      publiclyVisible: true,
+      viewerIsAdmin: true,
+    })).toBe(false);
+  });
+
+  it("blocks a live preview-pack listing image on production even when another check allows it", () => {
+    expect(blocksSignedListingDelivery({
+      authUserId: "preview-system:athol-garage",
+      dealerId: "preview-dealer",
+      isAdminPreview: true,
+      sampleVisibility: hiddenSample,
+      canView: true,
+      status: "LIVE",
+      previewPackId: "pack-1",
+      ownerEmail: "preview+athol-garage@preview.internal",
+    })).toBe(true);
+  });
+
   it("does not sign a hidden sample dealer logo for an admin", () => {
     expect(allowsSignedDealerLogo({
       storedLogo: true,

@@ -24,7 +24,8 @@ export async function GET(
       expiresAt: true,
       userId: true,
       dealerId: true,
-      user: { select: { authUserId: true, disabledAt: true, deletedAt: true } },
+      previewPackId: true,
+      user: { select: { authUserId: true, email: true, disabledAt: true, deletedAt: true } },
       dealer: { select: { isAdminPreview: true } },
       previewPack: { select: { enabled: true } },
       images: { orderBy: { order: "asc" }, take: 1, select: listingPhotoSelect },
@@ -45,6 +46,9 @@ export async function GET(
       dealerId: listing.dealerId,
       isAdminPreview: listing.dealer?.isAdminPreview === true,
       sampleVisibility,
+      status: listing.status,
+      previewPackId: listing.previewPackId,
+      ownerEmail: listing.user.email,
       canView: canViewListing({
         dealerAccess,
         status: listing.status,
@@ -52,6 +56,10 @@ export async function GET(
         listingUserId: listing.userId,
         viewer,
         previewPackEnabled: listing.previewPack?.enabled ?? false,
+        previewPackId: listing.previewPackId,
+        dealerIsAdminPreview: listing.dealer?.isAdminPreview === true,
+        ownerAuthUserId: listing.user.authUserId,
+        ownerEmail: listing.user.email,
       }),
     })
   ) {

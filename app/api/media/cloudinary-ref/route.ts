@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     select: {
       id: true,
       isAdminPreview: true,
-      user: { select: { authUserId: true, disabledAt: true, deletedAt: true } },
+      user: { select: { authUserId: true, email: true, disabledAt: true, deletedAt: true } },
     },
   });
   const viewer = await getCurrentUser();
@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
     !allowsSignedDealerLogo({
       storedLogo: true,
       authUserId: dealer.user.authUserId,
+      email: dealer.user.email,
       isAdminPreview: dealer.isAdminPreview,
       sampleVisibility,
       ownerDisabled: Boolean(dealer.user.disabledAt || dealer.user.deletedAt),

@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPublicListingSellerAccess } from "@/lib/listings/dealer-visibility";
 import { canViewListing } from "@/lib/listings/visibility";
+import {
+  isPreviewPackListing,
+  previewPacksVisibleOnFrontend,
+} from "@/lib/preview-packs/frontend-visibility";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { blocksSignedListingDelivery } from "@/lib/media/delivery-access";
 import type { ListingPhotoSource } from "@/lib/images/photo";
@@ -29,7 +33,8 @@ const listingImageSelect = {
       expiresAt: true,
       userId: true,
       dealerId: true,
-      user: { select: { authUserId: true, disabledAt: true, deletedAt: true } },
+      previewPackId: true,
+      user: { select: { authUserId: true, email: true, disabledAt: true, deletedAt: true } },
       dealer: { select: { isAdminPreview: true } },
       previewPack: { select: { enabled: true } },
     },
@@ -56,6 +61,9 @@ export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise
       dealerId: image.listing.dealerId,
       isAdminPreview: image.listing.dealer?.isAdminPreview === true,
       sampleVisibility,
+      status: image.listing.status,
+      previewPackId: image.listing.previewPackId,
+      ownerEmail: image.listing.user.email,
       canView: canViewListing({
         dealerAccess,
         status: image.listing.status,
@@ -63,6 +71,10 @@ export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise
         listingUserId: image.listing.userId,
         viewer,
         previewPackEnabled: image.listing.previewPack?.enabled ?? false,
+        previewPackId: image.listing.previewPackId,
+        dealerIsAdminPreview: image.listing.dealer?.isAdminPreview === true,
+        ownerAuthUserId: image.listing.user.authUserId,
+        ownerEmail: image.listing.user.email,
       }),
     })
   ) {
@@ -92,7 +104,13 @@ export const loadAuthorizedRevisionPhoto = cache(async (imageId: string): Promis
       revision: {
         select: {
           listing: {
-            select: { userId: true, status: true },
+            select: {
+              userId: true,
+              status: true,
+              previewPackId: true,
+              user: { select: { authUserId: true, email: true } },
+              dealer: { select: { isAdminPreview: true } },
+            },
           },
         },
       },
@@ -100,7 +118,20 @@ export const loadAuthorizedRevisionPhoto = cache(async (imageId: string): Promis
   });
   if (!image) return null;
   const viewer = await getCurrentUser();
-  const owner = image.revision.listing.userId;
+  const listing = image.revision.listing;
+  if (
+    isPreviewPackListing({
+      status: listing.status,
+      previewPackId: listing.previewPackId,
+      dealerIsAdminPreview: listing.dealer?.isAdminPreview === true,
+      ownerAuthUserId: listing.user.authUserId,
+      ownerEmail: listing.user.email,
+    })
+    && !previewPacksVisibleOnFrontend()
+  ) {
+    return null;
+  }
+  const owner = listing.userId;
   if (!viewer || (viewer.role !== "ADMIN" && viewer.id !== owner)) return null;
   return image;
 });
