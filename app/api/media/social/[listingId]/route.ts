@@ -40,6 +40,7 @@ export async function GET(
   const sampleVisibility = await getSampleVisibility();
   if (
     blocksSignedListingDelivery({
+      listingId: listing.id,
       authUserId: listing.user.authUserId,
       dealerId: listing.dealerId,
       isAdminPreview: listing.dealer?.isAdminPreview === true,

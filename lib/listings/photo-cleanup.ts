@@ -207,7 +207,7 @@ export async function expireAbandonedListingImageIntents(
       expiresAt: { lte: now },
       image: { is: null },
     },
-    select: { id: true, publicId: true, deliveryType: true },
+    select: { id: true, publicId: true, deliveryType: true, imageKitFileId: true, imageKitFilePath: true },
     orderBy: { expiresAt: "asc" },
     take: limit,
   });
@@ -231,6 +231,8 @@ export async function expireAbandonedListingImageIntents(
         data: {
           publicId: intent.publicId,
           deliveryType: intent.deliveryType,
+          imageKitFileId: intent.imageKitFileId,
+          imageKitFilePath: intent.imageKitFilePath,
           reason: "expired-intent",
         },
       });

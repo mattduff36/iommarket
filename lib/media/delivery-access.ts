@@ -5,6 +5,7 @@ import {
 } from "@/lib/listings/sample-visibility";
 
 export function blocksSignedListingDelivery(input: {
+  listingId?: string;
   authUserId: string;
   dealerId: string | null;
   isAdminPreview: boolean;

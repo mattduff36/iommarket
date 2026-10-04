@@ -273,6 +273,17 @@ describe("signed delivery access", () => {
     })).toBe(true);
   });
 
+  it("withholds an archived listing even when the viewer could otherwise open it", () => {
+    expect(blocksSignedListingDelivery({
+      listingId: "archived-listing",
+      authUserId: "real-user",
+      dealerId: null,
+      isAdminPreview: false,
+      sampleVisibility: { ...hiddenSample, archivedListingIds: ["archived-listing"] },
+      canView: true,
+    })).toBe(true);
+  });
+
   it("allows a visible listing the viewer is permitted to open", () => {
     expect(blocksSignedListingDelivery({
       authUserId: "real-user",

@@ -97,6 +97,8 @@ export async function cloneLiveImagesToRevision(
       uploadIntentId: null,
       focalX: image.focalX,
       focalY: image.focalY,
+      imageKitFileId: image.imageKitFileId,
+      imageKitFilePath: image.imageKitFilePath,
     })),
   });
 }
@@ -413,6 +415,8 @@ export async function applyRevisionImages(
           height: image.height,
           format: image.format,
           bytes: image.bytes,
+          imageKitFileId: image.imageKitFileId,
+          imageKitFilePath: image.imageKitFilePath,
         },
       });
       continue;
@@ -434,6 +438,8 @@ export async function applyRevisionImages(
         uploadIntentId: null,
         focalX: image.focalX,
         focalY: image.focalY,
+        imageKitFileId: image.imageKitFileId,
+        imageKitFilePath: image.imageKitFilePath,
       },
     });
   }

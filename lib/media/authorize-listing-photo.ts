@@ -51,6 +51,7 @@ export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise
   const sampleVisibility = await getSampleVisibility();
   if (
     blocksSignedListingDelivery({
+      listingId: image.listing.id,
       authUserId: image.listing.user.authUserId,
       dealerId: image.listing.dealerId,
       isAdminPreview: image.listing.dealer?.isAdminPreview === true,
