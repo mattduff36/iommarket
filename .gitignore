@@ -57,3 +57,6 @@ supabase/.temp/
 
 # Downloaded Unsplash references used only to generate extras
 public/seed-listing-photos/_refs/
+
+# Generated from the installed MapLibre package by predev/prebuild.
+public/vendor/maplibre-gl/*.mjs

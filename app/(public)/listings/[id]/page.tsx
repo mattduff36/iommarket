@@ -53,6 +53,7 @@ import {
 import { getSampleVisibility, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
+import { getSocialImageDimensions } from "@/lib/images/cloudinary-url";
 import { listingSocialMetadataUrl, structuredListingImageUrl } from "@/lib/media/serve-photo";
 import { isDisclosedWriteOff, writeOffFromAttributeValues } from "@/lib/listings/write-off-category";
 import { buildViewerHash } from "@/lib/privacy/viewer-hash";
@@ -107,6 +108,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
+      listingId: id,
       authUserId: listing.user.authUserId,
       dealerId: listing.dealerId,
       isAdminPreview: listing.dealer?.isAdminPreview === true,
@@ -156,7 +158,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     index: publiclyVisible,
     follow: listing.status !== "ADMIN_PREVIEW",
     image: socialImage
-      ? { url: socialImage, width: 1200, height: 630, alt: listing.title }
+      ? { url: socialImage, ...getSocialImageDimensions(primaryPhoto!), alt: listing.title }
       : defaultSocialImage(listing.title),
   });
 }
@@ -200,6 +202,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
   const sampleVisibility = await getSampleVisibility();
   if (
     isHiddenSampleListing({
+      listingId: listing.id,
       authUserId: listing.user.authUserId,
       dealerId: listing.dealerId,
       isAdminPreview: listing.dealer?.isAdminPreview === true,

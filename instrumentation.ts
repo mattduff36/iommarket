@@ -23,18 +23,6 @@ export const onRequestError: Instrumentation.onRequestError = async (
   request,
   context,
 ) => {
-  if (process.env.NEXT_RUNTIME === "edge") {
-    const message = error instanceof Error ? error.message : "Unknown edge error";
-    const path = request.path.split("?")[0]?.slice(0, 300) ?? "/";
-    console.error(JSON.stringify({
-      monitoringFallback: true,
-      kind: "edge-request-error",
-      message: message.slice(0, 300),
-      path,
-    }));
-    return;
-  }
-
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const imported = await import("./instrumentation-node");
     const handle = imported.handleNodeRequestError;
@@ -46,5 +34,17 @@ export const onRequestError: Instrumentation.onRequestError = async (
       return;
     }
     await handle(error, request, context);
+    return;
+  }
+
+  if (process.env.NEXT_RUNTIME === "edge") {
+    const message = error instanceof Error ? error.message : "Unknown edge error";
+    const path = request.path.split("?")[0]?.slice(0, 300) ?? "/";
+    console.error(JSON.stringify({
+      monitoringFallback: true,
+      kind: "edge-request-error",
+      message: message.slice(0, 300),
+      path,
+    }));
   }
 };

@@ -22,7 +22,7 @@ describe("POL-COOKIE-001 cookie consent", () => {
     expect(
       isAnalyticsAllowed({
         ...accepted,
-        version: "stale-version",
+        version: "2026-10-03.1",
       }),
     ).toBe(false);
   });

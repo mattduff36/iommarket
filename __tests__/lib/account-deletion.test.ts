@@ -106,6 +106,17 @@ describe("account deletion lease fencing POL-PRIV-001-A", () => {
       }),
     );
   });
+
+  it("cleans a synthetic copied profile without deleting production Auth or logo assets", async () => {
+    mockDb.accountDeletionJob.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.user.findUnique.mockResolvedValue({
+      id: "user-1", authUserId: "database-sync:source-user", avatarUrl: null,
+      dealerProfile: { id: "dealer-1", logoUrl: "https://res.cloudinary.com/owned/image/upload/dealer/logo.png#itrader-database-sync-readonly" },
+    });
+    await expect(processAccountDeletionJob(leasedJob())).resolves.toEqual({ status: "COMPLETED" });
+    expect(deleteUserMock).not.toHaveBeenCalled();
+    expect(deleteImageMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("account deletion atomic complete POL-PRIV-001-B", () => {

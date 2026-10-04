@@ -12,6 +12,13 @@ export function getFromEmail(): string {
   return process.env.RESEND_FROM_EMAIL?.trim() || "iTrader <no-reply@itrader.im>";
 }
 
+/** Reserved synthetic identities must never be passed to an email provider. */
+export function isSyntheticEmailRecipient(email: string): boolean {
+  const address = email.trim().toLowerCase();
+  const domain = address.slice(address.lastIndexOf("@") + 1);
+  return domain === "example.com" || domain === "invalid" || domain.endsWith(".invalid");
+}
+
 export function parseEmailRecipients(raw: string | undefined): string[] {
   if (!raw) return [];
   return raw
@@ -47,7 +54,7 @@ export async function sendResendEmail(input: {
   if (!resend) return;
   const recipients = (Array.isArray(input.to) ? input.to : [input.to])
     .map((email) => email.trim())
-    .filter((email) => email.length > 0 && !email.toLowerCase().endsWith("@example.com"));
+    .filter((email) => email.length > 0 && !isSyntheticEmailRecipient(email));
   if (recipients.length === 0) return;
 
   const result = await resend.emails.send(

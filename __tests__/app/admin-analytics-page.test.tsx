@@ -29,6 +29,22 @@ vi.mock("@/lib/listings/expiry", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/analytics/google-analytics", () => ({
+  loadGoogleAnalytics: vi.fn(async () => ({
+    status: "not-configured",
+    users: 0,
+    pageviews: 0,
+    previousUsers: 0,
+    previousPageviews: 0,
+    series: [],
+    events: [],
+    devices: [],
+    channels: [],
+    countries: [],
+    cities: [],
+  })),
+}));
+
 vi.mock("@/lib/listings/sample-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/listings/sample-visibility")>();
   return {
@@ -62,7 +78,7 @@ describe("AdminAnalyticsPage sample visibility", () => {
       "@/app/(admin)/admin/analytics/page"
     );
 
-    await AdminAnalyticsPage();
+    await AdminAnalyticsPage({});
 
     for (const [input] of dbMock.listingView.count.mock.calls) {
       expect(JSON.stringify(input.where)).toContain(PLACEHOLDER_AUTH_PREFIX);

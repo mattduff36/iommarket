@@ -198,6 +198,14 @@ describe("DealerProfilePage", () => {
     );
   });
 
+  it("uses a sized social card instead of advertising the raw dealer logo", async () => {
+    findUniqueMock.mockResolvedValue({ ...buildDealer({ verified: true }), logoUrl: "https://example.com/logo.png" });
+    const metadata = await generateMetadata({ params: Promise.resolve({ slug: "douglas-auto-exchange" }) });
+    expect(metadata.openGraph?.images).toEqual([
+      expect.objectContaining({ url: "/dealers/douglas-auto-exchange/social-image", width: 1200, height: 630 }),
+    ]);
+  });
+
   it("permanently redirects an eligible historical address to the current slug", async () => {
     findHistoricalSlugMock.mockResolvedValue({
       dealer: {

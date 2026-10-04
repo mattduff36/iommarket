@@ -54,5 +54,20 @@ export const afterEach = bindGlobal("afterEach");
 export const onTestFailed = bindGlobal("onTestFailed");
 export const onTestFinished = bindGlobal("onTestFinished");
 export const expect = importedExpect;
-export const vi = importedVi;
-export const vitest = importedVitest;
+
+// Windows can load this file and the Vitest runner as two module instances.
+// Forward to the runner globals so vi.mock registers on the instance that
+// actually loads the test, and fall back when this file is imported outside a run.
+function runnerExport<T extends object>(name: "vi" | "vitest", fallback: T): T {
+  return new Proxy(fallback, {
+    get(_target, property) {
+      const real = ((globalThis as unknown as Record<string, T | undefined>)[name] ?? fallback) as T;
+      // Return the runner function itself. Binding it changes the stack frame
+      // name, and vi.mock locates the calling test file from that frame.
+      return Reflect.get(real, property, real);
+    },
+  });
+}
+
+export const vi = runnerExport("vi", importedVi);
+export const vitest = runnerExport("vitest", importedVitest);
