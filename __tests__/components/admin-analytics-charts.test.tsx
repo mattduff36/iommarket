@@ -63,5 +63,7 @@ describe("admin analytics visuals", () => {
     const mapRegion = screen.getByRole("region", { name: "Visitor locations" });
     expect(mapRegion.className).toContain("min-h-80");
     expect(mapRegion.className).toContain("flex-1");
+    expect(mapRegion.querySelector("style")?.textContent).toContain("maplibregl-ctrl-group");
+    expect(mapRegion.querySelector("style")?.textContent).toContain("maplibregl-ctrl-attrib-inner");
   });
 });
