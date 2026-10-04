@@ -12,6 +12,7 @@ import { DEFAULT_MANUAL_COST_CATEGORIES } from "@/lib/costs/manual-categories";
 import { cursorAuditForViewer, type CostDashboardDto } from "@/lib/costs/dto";
 import { CostDashboardView } from "./cost-dashboard";
 import { syncAccountsPreview } from "@/lib/costs/accounts-projection";
+import { fetchAccountsComparison, localComparisonOrigin } from "@/lib/costs/accounts-comparison";
 
 export const metadata: Metadata = { title: "Costs | Admin" };
 
@@ -55,6 +56,12 @@ export default async function AdminCostsPage() {
     return <CostDashboardView dashboard={dashboard} />;
   }
 
+  if (localComparisonOrigin()) {
+    const comparison = await fetchAccountsComparison();
+    const dashboard = await getCostDashboard({ db: costDb, enabled, isOwner, comparison });
+    return <CostDashboardView dashboard={dashboard} />;
+  }
+
   if (access.mode === "unavailable") {
     return <CostDashboardView dashboard={unavailableDashboard(access.reason, isOwner)} />;
   }
@@ -62,7 +69,8 @@ export default async function AdminCostsPage() {
     let dashboard: CostDashboardDto;
     try{
       const accountsSnapshot=await syncAccountsPreview();
-      dashboard=await getCostDashboard({db:costDb,enabled,isOwner,accountsSnapshot});
+      const comparison=await fetchAccountsComparison();
+      dashboard=await getCostDashboard({db:costDb,enabled,isOwner,accountsSnapshot,comparison});
     }catch{dashboard=unavailableDashboard("The isolated Accounts preview could not be refreshed. Existing local records are retained; no live ledger was changed.",isOwner);}
     return <CostDashboardView dashboard={dashboard}/>;
   }

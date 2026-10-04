@@ -12,11 +12,18 @@ const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value))
 const projectionPrefix=`${ACCOUNTS_PREVIEW_PREFIX}line:`;
 
 /** Replace a complete scoped source view by appending changes, never rewriting frozen entries. */
-export async function projectAccountsSnapshot(tx:Prisma.TransactionClient,snapshot:AccountsSnapshot,baseline?:AccountsBaseline){
+export async function projectAccountsSnapshot(tx:Prisma.TransactionClient,snapshot:AccountsSnapshot,baseline?:AccountsBaseline,options?:{reviewedInfrastructureDeltaIds?:readonly string[]}){
   await projectLines(tx,snapshot.lines,snapshot.revision,projectionPrefix);
   if(baseline){
-    // A future native infrastructure source needs a reviewed cutover, never an overlapping import.
-    if(snapshot.lines.some(line=>line.category!=="CURSOR"))throw new Error("Infrastructure overlap requires a reviewed cutover.");
+    const nonCursor=snapshot.lines.filter(line=>line.category!=="CURSOR");
+    if(nonCursor.length){
+      // Infrastructure joins the preview only when every non-Cursor line was named and none reuse a frozen baseline id.
+      const reviewed=options?.reviewedInfrastructureDeltaIds;
+      const allowed=new Set(reviewed??[]);
+      if(!reviewed||nonCursor.some(line=>!allowed.has(line.id)))throw new Error("Infrastructure overlap requires a reviewed cutover.");
+      const baselineIds=new Set(baseline.lines.map(line=>line.id));
+      if(nonCursor.some(line=>baselineIds.has(line.id)))throw new Error("Infrastructure delta overlaps the frozen baseline.");
+    }
     await projectLines(tx,baseline.lines.map(line=>({...line,revision:digest(line),held:false})),baseline.revision,`${ACCOUNTS_PREVIEW_PREFIX}baseline:`,true);
   }
   const combined={...snapshot,revision:baseline?digest([snapshot.revision,baseline.revision]):snapshot.revision};
@@ -44,7 +51,8 @@ async function projectLines(tx:Prisma.TransactionClient,lines:ProjectionLine[],r
     sources.push({id:source.id,sourceKind:"ACCOUNTS_LEDGER",bucketKey:key,revision:(previous?.revision??0)+1,checksum,periodStart,periodEnd,classified:true,quarantined:false,metadata:jsonValue({sandbox:true,approvedSnapshot:false,accountsRevision:revision,line:line??null,retired:!line,frozenLegacyCharge:exactPeriods})});
     if(former)entries.push({id:randomUUID(),sourceKind:"ACCOUNTS_LEDGER",sourceSnapshotId:source.id,category:former.category,kind:"REVERSAL",invoiceability:former.invoiceability,reversesEntryId:former.id,fxRateSnapshotId:former.fxRateSnapshotId,nativeAmount:former.nativeAmount,nativeCurrency:former.nativeCurrency,markedGbpMinor:-former.markedGbpMinor,servicePeriodStart:periodStart,servicePeriodEnd:periodEnd,displayLabel:former.displayLabel});
     // Unknown/held amounts remain evidence; they are never invented as zero charges.
-    if(line&&!line.held&&line.amountMinor!==null)entries.push({id:randomUUID(),sourceKind:"ACCOUNTS_LEDGER",sourceSnapshotId:source.id,category:line.category,kind:"CHARGE",invoiceability:line.invoiceability??"INVOICEABLE",nativeAmount:penceDecimal(BigInt(line.amountMinor)),nativeCurrency:"GBP",markedGbpMinor:BigInt(line.amountMinor),servicePeriodStart:periodStart,servicePeriodEnd:periodEnd,displayLabel:line.label});
+    // Provisional, unknown and unapproved amounts stay non-invoiceable. Baseline rows keep their own invoiceability.
+    if(line&&!line.held&&line.amountMinor!==null)entries.push({id:randomUUID(),sourceKind:"ACCOUNTS_LEDGER",sourceSnapshotId:source.id,category:line.category,kind:"CHARGE",invoiceability:line.invoiceability??"PROVISIONAL",nativeAmount:penceDecimal(BigInt(line.amountMinor)),nativeCurrency:"GBP",markedGbpMinor:BigInt(line.amountMinor),servicePeriodStart:periodStart,servicePeriodEnd:periodEnd,displayLabel:line.label});
   }
   for(let offset=0;offset<sources.length;offset+=500)await tx.costSourceSnapshot.createMany({data:sources.slice(offset,offset+500)});
   for(let offset=0;offset<entries.length;offset+=500)await tx.costEntry.createMany({data:entries.slice(offset,offset+500)});

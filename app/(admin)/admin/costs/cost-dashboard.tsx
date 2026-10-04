@@ -112,6 +112,36 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
 
       {dashboard.accountsPreview?<p className="mb-6 text-sm text-text-secondary">Isolated preview: Accounts costs are shown for testing. Invoice requests, confirmations and manual entries affect only this preview. Notifications are captured without sending email; no live invoice is created.</p>:null}
 
+      {dashboard.comparison ? (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-text-primary">Accounts comparison</h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {([
+              ["Usage value", dashboard.comparison.usageValueLabel],
+              ["Provider cost", dashboard.comparison.providerCostLabel],
+              ["Client charge", dashboard.comparison.clientChargeLabel],
+              ["Outstanding", dashboard.comparison.outstandingLabel],
+            ] as const).map(([title, value]) => (
+              <Card key={title}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-text-secondary">{title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-text-primary">{value}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-text-secondary">
+            {dashboard.comparison.reconciliation}
+            {dashboard.comparison.policyVersion ? ` Policy ${dashboard.comparison.policyVersion}.` : ""}
+            {dashboard.comparison.sourceUpdatedAt ? ` Source updated ${dashboard.comparison.sourceUpdatedAt}.` : ""}
+            {dashboard.comparison.held !== null ? ` Held ${dashboard.comparison.held}, including unassigned ${dashboard.comparison.unassigned}. FX gaps ${dashboard.comparison.fxMissing}. These counts overlap and are not added together.` : ""}
+          </p>
+          {dashboard.comparison.gap ? <p className="mt-2 text-sm text-text-secondary">{dashboard.comparison.gap}</p> : null}
+        </section>
+      ) : null}
+
       {dashboard.requests.length > 0 ? (
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-text-primary mb-3">
