@@ -190,11 +190,21 @@ export async function syncListingImagesForUser({
       const retainedIds = new Set(
         input.photos.map((photo) => photo.imageId).filter((id): id is string => Boolean(id)),
       );
-      const removedPublicIds: Array<{ publicId: string; provider: ListingImageProvider }> = [];
+      const removedPublicIds: Array<{
+        publicId: string;
+        provider: ListingImageProvider;
+        imageKitFileId?: string | null;
+        imageKitFilePath?: string | null;
+      }> = [];
 
       for (const image of currentImages) {
         if (!retainedIds.has(image.id)) {
-          removedPublicIds.push({ publicId: image.publicId, provider: image.provider });
+          removedPublicIds.push({
+            publicId: image.publicId,
+            provider: image.provider,
+            imageKitFileId: image.imageKitFileId,
+            imageKitFilePath: image.imageKitFilePath,
+          });
         }
       }
 
@@ -301,6 +311,8 @@ export async function syncListingImagesForUser({
             format: item.intent.format,
             bytes: item.intent.bytes,
             uploadIntentId: item.intent.id,
+            imageKitFileId: stored.imageKitFileId,
+            imageKitFilePath: stored.imageKitFilePath,
             focalX: item.focalX,
             focalY: item.focalY,
           },
@@ -314,6 +326,8 @@ export async function syncListingImagesForUser({
             data: {
               publicId: cleanup.publicId,
               deliveryType: cleanup.deliveryType,
+              imageKitFileId: cleanup.imageKitFileId,
+              imageKitFilePath: cleanup.imageKitFilePath,
               reason: "replaced-or-removed",
             },
           });

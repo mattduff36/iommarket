@@ -1,4 +1,10 @@
-import { IMAGEKIT_PRIVATE_URL_PREFIX, readMediaProviderMode } from "@/lib/media/config";
+import {
+  IMAGEKIT_PRIVATE_URL_PREFIX,
+  IMAGEKIT_SAMPLE_PREFIX,
+  isDisposableDestinationPath,
+  isProtectedDestinationPath,
+  readMediaProviderMode,
+} from "@/lib/media/config";
 import { loadMigrationIndex } from "@/lib/media/migration-index";
 import { matchMediaReference } from "@/lib/media/match-reference";
 import { decideReferenceDelivery } from "@/lib/media/resolve-delivery";
@@ -36,8 +42,34 @@ export function signedDeliveryForPhoto(input: {
   env?: NodeJS.ProcessEnv;
 }) {
   const env = input.env ?? process.env;
+  const storedPath = input.photo.imageKitFilePath;
+  const mode = readMediaProviderMode(env);
+  if (storedPath && input.photo.imageKitFileId && mode !== "cloudinary") {
+    const sampleOnly = mode === "imagekit-sample" && !storedPath.startsWith(IMAGEKIT_SAMPLE_PREFIX);
+    const storedIsDeliverable = isDisposableDestinationPath(storedPath) || isProtectedDestinationPath(storedPath);
+    if (!sampleOnly && storedIsDeliverable && !storedPath.includes("..")) {
+      const transform = input.photo.format === "mp4"
+        ? undefined
+        : imageKitTransformForMode({
+            mode: input.mode,
+            frame: input.frame,
+            width: input.width,
+            photo: input.photo,
+          });
+      return {
+        kind: "redirect" as const,
+        url: signedImageKitDeliveryUrl({
+          relativePath: imageKitDeliveryRelativePath(storedPath, transform),
+          env,
+        }),
+      };
+    }
+  }
   const decision = resolvedPhotoTarget(input.photo, env);
   if (decision.decision === "passthrough") return { kind: "passthrough" as const, url: input.photo.url };
+  if (mode === "imagekit" && !storedPath && !disposablePathFromPhoto(input.photo)) {
+    return { kind: "unresolved" as const, reason: "ImageKit identity is not stored for this reference." };
+  }
   if (decision.decision === "unresolved") return { kind: "unresolved" as const, reason: decision.reason };
   if (decision.decision === "cloudinary") {
     const built = input.mode === "social"

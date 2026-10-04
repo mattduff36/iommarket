@@ -16,7 +16,7 @@ export async function discardOpenRevisions(
     },
     include: {
       images: {
-        select: { publicId: true, provider: true },
+        select: { publicId: true, provider: true, imageKitFileId: true, imageKitFilePath: true },
       },
     },
   });
@@ -59,6 +59,8 @@ export async function discardOpenRevisions(
           data: {
             publicId: cleanup.publicId,
             deliveryType: cleanup.deliveryType,
+            imageKitFileId: cleanup.imageKitFileId,
+            imageKitFilePath: cleanup.imageKitFilePath,
             reason: "revision-discarded",
           },
         });

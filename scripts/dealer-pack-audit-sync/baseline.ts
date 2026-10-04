@@ -19,7 +19,7 @@ export interface LivePackBaselineInput {
       id: string;
       publicId: string;
       order: number;
-      provider: "CLOUDINARY" | "EXTERNAL";
+      provider: "CLOUDINARY" | "EXTERNAL" | "IMAGEKIT";
     }>;
     revisions: Array<{ id: string; status: string; updatedAt: Date | string }>;
   }>;

@@ -510,6 +510,7 @@ model FreeListingClaim {
 enum ListingImageProvider {
   CLOUDINARY
   EXTERNAL
+  IMAGEKIT
 }
 
 enum ListingImageUploadIntentStatus {
@@ -540,8 +541,10 @@ model ListingImage {
   format         String?
   bytes          Int?
   uploadIntentId String?               @unique
-  focalX         Float?
-  focalY         Float?
+  focalX          Float?
+  focalY          Float?
+  imageKitFileId  String?
+  imageKitFilePath String?
 
   listing      Listing                   @relation(fields: [listingId], references: [id], onDelete: Cascade)
   uploadIntent ListingImageUploadIntent? @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)
@@ -564,8 +567,10 @@ model ListingImageUploadIntent {
   width        Int?
   height       Int?
   format       String?
-  bytes        Int?
-  deliveryType String                         @default("private")
+  bytes            Int?
+  imageKitFileId   String?
+  imageKitFilePath String?
+  deliveryType     String                         @default("private")
   createdAt    DateTime                       @default(now())
   updatedAt    DateTime                       @updatedAt
 
@@ -582,8 +587,10 @@ model ListingImageCleanupJob {
   id           String                       @id @default(cuid())
   publicId     String
   deliveryType String                       @default("private")
-  reason       String
-  status       ListingImageCleanupJobStatus @default(PENDING)
+  reason           String
+  imageKitFileId   String?
+  imageKitFilePath String?
+  status           ListingImageCleanupJobStatus @default(PENDING)
   attempts     Int                          @default(0)
   lastError    String?
   createdAt    DateTime                     @default(now())
@@ -662,8 +669,10 @@ model ListingRevisionImage {
   format         String?
   bytes          Int?
   uploadIntentId String?              @unique
-  focalX         Float?
-  focalY         Float?
+  focalX           Float?
+  focalY           Float?
+  imageKitFileId   String?
+  imageKitFilePath String?
 
   revision     ListingRevision            @relation(fields: [revisionId], references: [id], onDelete: Cascade)
   uploadIntent ListingImageUploadIntent?  @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)

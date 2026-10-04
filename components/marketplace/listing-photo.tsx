@@ -33,6 +33,21 @@ function usesProviderDelivery(photo: ListingPhotoSource) {
   );
 }
 
+function directProviderSrc(
+  photo: ListingPhotoSource,
+  frame: ListingPhotoFrame,
+  mode: "fill" | "fit" | "blur",
+) {
+  const params = new URLSearchParams({
+    imageId: photo.id ?? "",
+    source: photo.deliverySource ?? "listing",
+    mode,
+    frame,
+    w: String(LISTING_PHOTO_FRAMES[frame].width),
+  });
+  return `/api/media/listing-photo?${params.toString()}`;
+}
+
 function listingPhotoLoader(
   photo: ListingPhotoSource,
   frame: ListingPhotoFrame,
@@ -107,15 +122,15 @@ export function ListingPhoto({
     return (
       <div className={cn("relative overflow-hidden bg-black", frameClassName, className)}>
         <Image
-          src={imageSrc}
+          src={usesProviderDelivery(photo) ? directProviderSrc(photo, frame, "fit") : imageSrc}
           alt={alt}
           fill
           sizes={sizes}
           priority={priority}
           className={cn("object-contain", imageClassName)}
           style={{ objectPosition: "center" }}
-          loader={useCloudinary ? listingPhotoLoader(photo, frame, "fit") : undefined}
-          unoptimized={unoptimized || !useCloudinary}
+          loader={useCloudinary && !usesProviderDelivery(photo) ? listingPhotoLoader(photo, frame, "fit") : undefined}
+          unoptimized={unoptimized || usesProviderDelivery(photo) || !useCloudinary}
         />
       </div>
     );
@@ -126,39 +141,39 @@ export function ListingPhoto({
       {fitMode === "pad" ? (
         <>
           <Image
-            src={imageSrc}
+            src={usesProviderDelivery(photo) ? directProviderSrc(photo, frame, "blur") : imageSrc}
             alt=""
             fill
             sizes="320px"
             aria-hidden="true"
             className="scale-110 object-cover blur-xl"
             style={{ objectPosition: focalObjectPosition }}
-            loader={useCloudinary ? listingPhotoLoader(photo, frame, "blur") : undefined}
-            unoptimized={unoptimized || !useCloudinary}
+            loader={useCloudinary && !usesProviderDelivery(photo) ? listingPhotoLoader(photo, frame, "blur") : undefined}
+            unoptimized={unoptimized || usesProviderDelivery(photo) || !useCloudinary}
           />
           <Image
-            src={imageSrc}
+            src={usesProviderDelivery(photo) ? directProviderSrc(photo, frame, "fit") : imageSrc}
             alt={alt}
             fill
             sizes={sizes}
             priority={priority}
             className={cn("object-contain", imageClassName)}
             style={{ objectPosition: "center" }}
-            loader={useCloudinary ? listingPhotoLoader(photo, frame, "fit") : undefined}
-            unoptimized={unoptimized || !useCloudinary}
+            loader={useCloudinary && !usesProviderDelivery(photo) ? listingPhotoLoader(photo, frame, "fit") : undefined}
+            unoptimized={unoptimized || usesProviderDelivery(photo) || !useCloudinary}
           />
         </>
       ) : (
         <Image
-          src={imageSrc}
+          src={usesProviderDelivery(photo) ? directProviderSrc(photo, frame, "fill") : imageSrc}
           alt={alt}
           fill
           sizes={sizes}
           priority={priority}
           className={cn("object-cover", imageClassName)}
           style={{ objectPosition: focalObjectPosition }}
-          loader={useCloudinary ? listingPhotoLoader(photo, frame, "fill") : undefined}
-          unoptimized={unoptimized || !useCloudinary}
+          loader={useCloudinary && !usesProviderDelivery(photo) ? listingPhotoLoader(photo, frame, "fill") : undefined}
+          unoptimized={unoptimized || usesProviderDelivery(photo) || !useCloudinary}
         />
       )}
     </div>

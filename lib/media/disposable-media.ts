@@ -12,6 +12,7 @@ import { imageKitDeliveryRelativePath } from "@/lib/media/imagekit-transforms";
 
 export async function deleteDisposableImageKitFile(input: {
   fileId: string;
+  filePath?: string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
   allowlist?: readonly { fileId: string; filePath: string }[];
@@ -25,7 +26,7 @@ export async function deleteDisposableImageKitFile(input: {
   if (!observed) return { deleted: false, status: "missing" as const };
   const allowlist = input.allowlist ?? readDevManifest(env);
   assertDisposableImageKitDelete({
-    requested: { fileId: input.fileId, filePath: observed.filePath },
+    requested: { fileId: input.fileId, filePath: input.filePath ?? observed.filePath },
     observed: { fileId: observed.fileId, filePath: observed.filePath },
     allowlist,
   });

@@ -10,6 +10,8 @@ export interface VerifiedImageIntent {
   format: string | null;
   deliveryType: string;
   folder: string;
+  imageKitFileId?: string | null;
+  imageKitFilePath?: string | null;
 }
 
 export function imageRecordFromIntent(intent: VerifiedImageIntent): {
@@ -17,16 +19,22 @@ export function imageRecordFromIntent(intent: VerifiedImageIntent): {
   provider: ListingImageProvider;
   publicId: string;
   assetId: string | null;
+  imageKitFileId: string | null;
+  imageKitFilePath: string | null;
 } {
   if (intent.deliveryType === "imagekit") {
-    if (!intent.assetId || !intent.folder.startsWith(IMAGEKIT_DISPOSABLE_PREFIX)) {
+    const fileId = intent.imageKitFileId ?? intent.assetId;
+    const filePath = intent.imageKitFilePath ?? intent.folder;
+    if (!fileId || !filePath.startsWith(IMAGEKIT_DISPOSABLE_PREFIX)) {
       throw new Error("ImageKit upload is missing its private disposable file.");
     }
     return {
-      url: `${IMAGEKIT_PRIVATE_URL_PREFIX}${intent.folder}`,
-      provider: "EXTERNAL",
+      url: `${IMAGEKIT_PRIVATE_URL_PREFIX}${filePath}`,
+      provider: "IMAGEKIT",
       publicId: intent.publicId,
-      assetId: intent.assetId,
+      assetId: fileId,
+      imageKitFileId: fileId,
+      imageKitFilePath: filePath,
     };
   }
   return {
@@ -40,15 +48,35 @@ export function imageRecordFromIntent(intent: VerifiedImageIntent): {
     provider: "CLOUDINARY",
     publicId: intent.publicId,
     assetId: intent.assetId,
+    imageKitFileId: null,
+    imageKitFilePath: null,
   };
 }
 
-export function cleanupDeliveryForRemovedImage(image: { provider: ListingImageProvider; publicId: string }) {
-  if (image.provider === "EXTERNAL" && image.publicId.startsWith("imagekit-dev/")) {
-    return { publicId: image.publicId, deliveryType: "imagekit" };
+export function cleanupDeliveryForRemovedImage(image: {
+  provider: ListingImageProvider;
+  publicId: string;
+  imageKitFileId?: string | null;
+  imageKitFilePath?: string | null;
+}) {
+  if (
+    (image.provider === "IMAGEKIT" || image.provider === "EXTERNAL") &&
+    image.publicId.startsWith("imagekit-dev/")
+  ) {
+    return {
+      publicId: image.publicId,
+      deliveryType: "imagekit",
+      imageKitFileId: image.imageKitFileId ?? null,
+      imageKitFilePath: image.imageKitFilePath ?? null,
+    };
   }
   if (image.provider === "CLOUDINARY" && image.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)) {
-    return { publicId: image.publicId, deliveryType: IMAGE_CONSTRAINTS.deliveryType };
+    return {
+      publicId: image.publicId,
+      deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+      imageKitFileId: null,
+      imageKitFilePath: null,
+    };
   }
   return null;
 }

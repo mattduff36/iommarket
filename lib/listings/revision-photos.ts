@@ -28,7 +28,14 @@ function normalizeFocal(value: number | null | undefined) {
 
 async function enqueueCleanupIfUnreferenced(
   client: DbClient,
-  input: { listingId: string; provider: ListingImageProvider; publicId: string; reason: string },
+  input: {
+    listingId: string;
+    provider: ListingImageProvider;
+    publicId: string;
+    imageKitFileId?: string | null;
+    imageKitFilePath?: string | null;
+    reason: string;
+  },
 ) {
   const cleanup = cleanupDeliveryForRemovedImage(input);
   if (!cleanup) return;
@@ -55,6 +62,8 @@ async function enqueueCleanupIfUnreferenced(
     data: {
       publicId: cleanup.publicId,
       deliveryType: cleanup.deliveryType,
+      imageKitFileId: cleanup.imageKitFileId,
+      imageKitFilePath: cleanup.imageKitFilePath,
       reason: input.reason,
     },
   });
@@ -276,6 +285,8 @@ export async function syncRevisionImagesForUser(input: {
             format: item.intent.format,
             bytes: item.intent.bytes,
             uploadIntentId: item.intent.id,
+            imageKitFileId: stored.imageKitFileId,
+            imageKitFilePath: stored.imageKitFilePath,
             focalX: item.focalX,
             focalY: item.focalY,
           },
@@ -287,6 +298,8 @@ export async function syncRevisionImagesForUser(input: {
           listingId: input.listingId,
           provider: image.provider,
           publicId: image.publicId,
+          imageKitFileId: image.imageKitFileId,
+          imageKitFilePath: image.imageKitFilePath,
           reason: "revision-replaced-or-removed",
         });
       }
@@ -377,6 +390,8 @@ export async function applyRevisionImages(
         listingId,
         provider: image.provider,
         publicId: image.publicId,
+        imageKitFileId: image.imageKitFileId,
+        imageKitFilePath: image.imageKitFilePath,
         reason: "revision-applied-removed",
       });
     }
@@ -431,13 +446,15 @@ export async function cleanupRejectedRevisionOnlyImages(
 ) {
   const images = await client.listingRevisionImage.findMany({
     where: { revisionId },
-    select: { provider: true, publicId: true },
+    select: { provider: true, publicId: true, imageKitFileId: true, imageKitFilePath: true },
   });
   for (const image of images) {
     await enqueueCleanupIfUnreferenced(client, {
       listingId,
       provider: image.provider,
       publicId: image.publicId,
+      imageKitFileId: image.imageKitFileId,
+      imageKitFilePath: image.imageKitFilePath,
       reason: "revision-rejected",
     });
   }

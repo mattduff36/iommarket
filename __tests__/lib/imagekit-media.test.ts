@@ -1,6 +1,9 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { assertIsolatedLocalDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
 import { readMediaProviderMode } from "@/lib/media/config";
+import { assertPairedMediaProvider } from "@/lib/media/provider-config";
+import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { assertDisposableImageKitDelete } from "@/lib/media/delete-guard";
 import { focalCoverCrop } from "@/lib/media/focal-crop";
 import { signImageKitRelativePath } from "@/lib/media/imagekit-sign";
@@ -299,5 +302,104 @@ describe("signed delivery access", () => {
       publiclyVisible: false,
       viewerIsAdmin: true,
     })).toBe(false);
+  });
+});
+
+describe("MEDIA-MATCH-001 exact backfill", () => {
+  const index = buildMigrationIndex([asset]);
+
+  it("writes an exact match and refuses ambiguous or version-mismatched rows", () => {
+    const exact = decideImageKitBackfill({
+      match: matchMediaReference({ provider: "CLOUDINARY", assetId: "asset-1", version: "10" }, index),
+      reference: { provider: "CLOUDINARY", assetId: "asset-1", version: "10" },
+    });
+    expect(exact).toMatchObject({ action: "write", fileId: "file-1", filePath: "/iommarket-migration/photo.jpg" });
+    expect(decideImageKitBackfill({
+      match: matchMediaReference({ provider: "CLOUDINARY", publicId: asset.sourcePublicId }, index),
+      reference: { provider: "CLOUDINARY", publicId: asset.sourcePublicId },
+    }).action).toBe("refuse");
+    expect(decideImageKitBackfill({
+      match: matchMediaReference({ provider: "CLOUDINARY", assetId: "asset-1", version: "9" }, index),
+      reference: { provider: "CLOUDINARY", assetId: "asset-1", version: "9" },
+    }).action).toBe("refuse");
+    expect(() => assertIsolatedLocalDatabase("postgresql://user@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres")).toThrow(/isolated local database/);
+  });
+
+  it("requires the server and public provider settings to match", () => {
+    expect(assertPairedMediaProvider({})).toBe("cloudinary");
+    expect(() => assertPairedMediaProvider({
+      MEDIA_PROVIDER: "imagekit",
+      NEXT_PUBLIC_MEDIA_PROVIDER: "cloudinary",
+    })).toThrow(/do not match/);
+  });
+});
+
+describe("MEDIA-ROLLBACK-001 stored ImageKit identity", () => {
+  it("uses the database path in ImageKit mode and the Cloudinary identity when rolled back", () => {
+    const photo = {
+      id: "img-1",
+      url: "https://res.cloudinary.com/demo/image/private/v10/iommarket/listings/staging/user/photo.jpg",
+      publicId: asset.sourcePublicId,
+      provider: "CLOUDINARY" as const,
+      version: "10",
+      width: 1600,
+      height: 1000,
+      imageKitFileId: "file-1",
+      imageKitFilePath: "/iommarket-migration/photo.jpg",
+    };
+    const imageKit = signedDeliveryForPhoto({
+      photo,
+      mode: "fill",
+      frame: "card",
+      width: 640,
+      env: {
+        MEDIA_PROVIDER: "imagekit",
+        NEXT_PUBLIC_MEDIA_PROVIDER: "imagekit",
+        IMAGEKIT_PRIVATE_KEY: "test-key",
+        IMAGEKIT_URL_ENDPOINT: "https://ik.imagekit.io/itraderim",
+        NODE_ENV: "test",
+      },
+    });
+    expect(imageKit.kind).toBe("redirect");
+    expect(imageKit.kind === "redirect" ? imageKit.url : "").toContain("iommarket-migration/photo.jpg");
+    const rolledBack = signedDeliveryForPhoto({
+      photo,
+      mode: "fill",
+      frame: "card",
+      width: 640,
+      env: {
+        MEDIA_PROVIDER: "cloudinary",
+        NEXT_PUBLIC_MEDIA_PROVIDER: "cloudinary",
+        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "demo-cloud",
+        CLOUDINARY_API_SECRET: "test-secret",
+        NODE_ENV: "test",
+      },
+    });
+    expect(rolledBack.kind === "redirect" ? rolledBack.url : "").toContain("res.cloudinary.com");
+    expect(signedDeliveryForPhoto({
+      photo: { ...photo, imageKitFileId: null, imageKitFilePath: null },
+      mode: "fit",
+      frame: "card",
+      width: 640,
+      env: {
+        MEDIA_PROVIDER: "imagekit",
+        NEXT_PUBLIC_MEDIA_PROVIDER: "imagekit",
+        IMAGEKIT_MIGRATION_MAP: "D:/Websites/iommarket-imagekit-migration/reports/source-destination-map.jsonl",
+        NODE_ENV: "test",
+      },
+    }).kind).toBe("unresolved");
+    expect(signedDeliveryForPhoto({
+      photo: {
+        ...photo,
+        provider: "IMAGEKIT",
+        publicId: "imagekit-dev/file-1",
+        url: "imagekit-private:/iommarket-dev-disposable/user/intent/photo.jpg",
+        imageKitFilePath: "/iommarket-dev-disposable/user/intent/photo.jpg",
+      },
+      mode: "fit",
+      frame: "card",
+      width: 640,
+      env: { MEDIA_PROVIDER: "cloudinary", NEXT_PUBLIC_MEDIA_PROVIDER: "cloudinary", NODE_ENV: "test" },
+    }).kind).toBe("unresolved");
   });
 });

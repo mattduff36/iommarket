@@ -94,6 +94,8 @@ export async function verifyImageKitListingUpload(input: {
     format: input.format,
     bytes: input.bytes,
     deliveryType: "imagekit",
+    imageKitFileId: input.fileId,
+    imageKitFilePath: input.filePath,
     expiresAt: new Date(Date.now() + INTENT_TTL_MS),
   };
   const verified = await db.listingImageUploadIntent.updateMany({

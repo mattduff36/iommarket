@@ -19,7 +19,7 @@ export interface EditableDraft {
     url: string;
     publicId: string;
     order: number;
-    provider: "CLOUDINARY" | "EXTERNAL";
+    provider: "CLOUDINARY" | "EXTERNAL" | "IMAGEKIT";
     assetId: string | null;
     version: string | null;
     width: number | null;
