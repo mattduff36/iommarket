@@ -70,6 +70,8 @@ export async function adminDeleteImage(imageId: string) {
           listingId: true,
           publicId: true,
           provider: true,
+          imageKitFileId: true,
+          imageKitFilePath: true,
         },
       });
       if (!current) {
@@ -115,6 +117,8 @@ export async function adminDeleteImage(imageId: string) {
           data: {
             publicId: cleanup.publicId,
             deliveryType: cleanup.deliveryType,
+            imageKitFileId: cleanup.imageKitFileId,
+            imageKitFilePath: cleanup.imageKitFilePath,
             reason: "admin-deleted",
           },
         });
