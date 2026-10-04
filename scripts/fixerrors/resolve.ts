@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { insertAdminAudit, insertStatusEvent } from "./audit";
+import { identityUnchanged, selectIssuesForUpdate, type LiveMonitoringIssue } from "./live-issues";
+import { resolutionNote, sanitizeEvidence } from "./notes";
+import { assertSnapshotUsable } from "./snapshot";
 import {
   FIXERRORS_SAFETY_CONTRACT,
   type OpenIssueSnapshot,
@@ -7,17 +11,6 @@ import {
   type ResolveRunResult,
   type SnapshotIssue,
 } from "./types";
-import { assertSnapshotUsable } from "./snapshot";
-
-function newId(): string {
-  return `c${randomUUID().replace(/-/g, "").slice(0, 24)}`;
-}
-
-function sameInstant(left: string, right: unknown): boolean {
-  if (typeof right === "string") return left === right;
-  const rightDate = right instanceof Date ? right : new Date(String(right));
-  return new Date(left).toISOString() === rightDate.toISOString();
-}
 
 export function decideIssueResolution(
   snapshotIssue: SnapshotIssue | undefined,
@@ -28,32 +21,24 @@ export function decideIssueResolution(
     lastSeenAt: unknown;
     occurrences: number;
   } | undefined,
-  reportOnlyIssueIds: Set<string>,
 ): ResolveIssueResult {
   if (!snapshotIssue) {
     return { issueId: live?.id ?? "unknown", decision: "skipped-missing", reason: "Issue was not in the snapshot" };
   }
-  if (reportOnlyIssueIds.has(snapshotIssue.id)) {
-    return { issueId: snapshotIssue.id, decision: "report-only", reason: "No evidenced code defect" };
-  }
   if (!live) {
     return { issueId: snapshotIssue.id, decision: "skipped-missing", reason: "Issue no longer exists" };
   }
-  if (live.status !== "OPEN") {
+  if (live.status !== "OPEN" && live.status !== "ACKNOWLEDGED") {
     return { issueId: snapshotIssue.id, decision: "skipped-not-open", reason: `Status is ${live.status}` };
   }
-  if (
-    live.fingerprint !== snapshotIssue.fingerprint ||
-    live.occurrences !== snapshotIssue.occurrences ||
-    !sameInstant(snapshotIssue.lastSeenAt, live.lastSeenAt)
-  ) {
+  if (!identityUnchanged(snapshotIssue, live)) {
     return {
       issueId: snapshotIssue.id,
       decision: "skipped-stale",
       reason: "fingerprint, lastSeenAt, or occurrences changed after export",
     };
   }
-  return { issueId: snapshotIssue.id, decision: "would-resolve", reason: "Unchanged OPEN issue" };
+  return { issueId: snapshotIssue.id, decision: "would-resolve", reason: "Unchanged OPEN or ACKNOWLEDGED issue" };
 }
 
 export async function resolveSnapshotIssues(input: {
@@ -71,98 +56,35 @@ export async function resolveSnapshotIssues(input: {
   if (input.snapshot.safetyContract !== FIXERRORS_SAFETY_CONTRACT) {
     throw new Error("Safety contract mismatch");
   }
-  if (!input.evidence.trim()) {
-    throw new Error("Resolution requires per-issue evidence of a code fix");
-  }
+  const evidence = sanitizeEvidence(input.evidence);
 
   const runId = randomUUID();
   const requested = [...new Set(input.issueIds)];
   const snapshotById = new Map(input.snapshot.issues.map((issue) => [issue.id, issue]));
-  const reportOnly = new Set(input.snapshot.analysis.reportOnlyIssueIds);
-
-  if (requested.length === 0) {
-    return { runId, applied: false, results: [] };
-  }
+  if (requested.length === 0) return { runId, applied: false, results: [] };
 
   await input.client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
-    const liveResult = await input.client.query<{
-      id: string;
-      fingerprint: string;
-      status: string;
-      lastSeenAt: Date | string;
-      occurrences: number;
-    }>(
-      `SELECT id, fingerprint, status,
-              to_char("lastSeenAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
-              occurrences
-       FROM "MonitoringIssue"
-       WHERE id = ANY($1::text[])
-       FOR UPDATE`,
-      [requested],
-    );
-    const liveById = new Map(liveResult.rows.map((row) => [row.id, row]));
+    const liveById = await selectIssuesForUpdate(input.client, requested);
     const results = requested.map((issueId) =>
-      decideIssueResolution(snapshotById.get(issueId), liveById.get(issueId), reportOnly),
+      decideIssueResolution(snapshotById.get(issueId), liveById.get(issueId)),
     );
-
     if (!input.apply) {
       await input.client.query("ROLLBACK");
       return { runId, applied: false, results };
     }
 
-    const resolvable = results.filter((result) => result.decision === "would-resolve");
-    for (const result of resolvable) {
-      const snapshotIssue = snapshotById.get(result.issueId)!;
-      const update = await input.client.query(
-        `UPDATE "MonitoringIssue"
-         SET status = 'RESOLVED',
-             "resolvedAt" = $2,
-             "mutedUntil" = NULL,
-             "updatedAt" = $2
-         WHERE id = $1
-           AND status = 'OPEN'
-           AND fingerprint = $3
-           AND occurrences = $4
-           AND "lastSeenAt" = $5::timestamptz`,
-        [
-          result.issueId,
-          now,
-          snapshotIssue.fingerprint,
-          snapshotIssue.occurrences,
-          snapshotIssue.lastSeenAt,
-        ],
-      );
-      if ((update.rowCount ?? 0) !== 1) {
-        throw new Error(`Failed to resolve ${result.issueId}; transaction rolled back`);
-      }
-      await input.client.query(
-        `INSERT INTO "MonitoringIssueStatusEvent"
-          (id, "issueId", "fromStatus", "toStatus", "changedByUserId", notes, "createdAt")
-         VALUES ($1, $2, 'OPEN', 'RESOLVED', NULL, $3, $4)`,
-        [
-          newId(),
-          result.issueId,
-          `fixerrors run=${runId} evidence=${input.evidence}`,
-          now,
-        ],
-      );
-      await input.client.query(
-        `INSERT INTO "AdminAuditLog"
-          (id, "adminId", action, "entityType", "entityId", details, "createdAt")
-         VALUES ($1, $2, 'FIXERRORS_RESOLVE_MONITORING_ISSUE', 'MonitoringIssue', $3, $4::jsonb, $5)`,
-        [
-          newId(),
-          input.actorAdminId,
-          result.issueId,
-          JSON.stringify({
-            runId,
-            evidence: input.evidence,
-            snapshotId: input.snapshot.snapshotId,
-          }),
-          now,
-        ],
-      );
+    for (const result of results.filter((entry) => entry.decision === "would-resolve")) {
+      await applyResolution({
+        client: input.client,
+        snapshotIssue: snapshotById.get(result.issueId)!,
+        live: liveById.get(result.issueId)!,
+        evidence,
+        actorAdminId: input.actorAdminId,
+        runId,
+        snapshotId: input.snapshot.snapshotId,
+        now,
+      });
       result.decision = "resolved";
       result.reason = "Resolved from verified snapshot";
     }
@@ -173,6 +95,60 @@ export async function resolveSnapshotIssues(input: {
     await input.client.query("ROLLBACK");
     throw error;
   }
+}
+
+async function applyResolution(input: {
+  client: PgClientLike;
+  snapshotIssue: SnapshotIssue;
+  live: LiveMonitoringIssue;
+  evidence: string;
+  actorAdminId: string;
+  runId: string;
+  snapshotId: string;
+  now: Date;
+}): Promise<void> {
+  const update = await input.client.query(
+    `UPDATE "MonitoringIssue"
+     SET status = 'RESOLVED',
+         "resolvedAt" = $2,
+         "mutedUntil" = NULL,
+         "acknowledgedAt" = NULL,
+         "acknowledgedSeverity" = NULL,
+         "updatedAt" = $2
+     WHERE id = $1
+       AND status IN ('OPEN', 'ACKNOWLEDGED')
+       AND fingerprint = $3
+       AND occurrences = $4
+       AND "lastSeenAt" = $5::timestamptz`,
+    [
+      input.snapshotIssue.id,
+      input.now,
+      input.snapshotIssue.fingerprint,
+      input.snapshotIssue.occurrences,
+      input.snapshotIssue.lastSeenAt,
+    ],
+  );
+  if ((update.rowCount ?? 0) !== 1) {
+    throw new Error(`Failed to resolve ${input.snapshotIssue.id}; transaction rolled back`);
+  }
+  await insertStatusEvent(input.client, {
+    issueId: input.snapshotIssue.id,
+    fromStatus: input.live.status,
+    toStatus: "RESOLVED",
+    notes: resolutionNote(input.runId, input.evidence),
+    now: input.now,
+  });
+  await insertAdminAudit(input.client, {
+    adminId: input.actorAdminId,
+    action: "FIXERRORS_RESOLVE_MONITORING_ISSUE",
+    issueId: input.snapshotIssue.id,
+    details: {
+      runId: input.runId,
+      evidence: input.evidence,
+      snapshotId: input.snapshotId,
+    },
+    now: input.now,
+  });
 }
 
 export async function reopenResolvedByRun(input: {
@@ -211,51 +187,50 @@ export async function reopenResolvedByRun(input: {
       decision: input.apply ? "resolved" : "would-resolve",
       reason: input.apply ? "Reopened from fixerrors run" : "Would reopen from fixerrors run",
     }));
-
     if (!input.apply) {
       await input.client.query("ROLLBACK");
       return { runId: input.runId, applied: false, results };
     }
 
     for (const issueId of issueIds) {
-      const update = await input.client.query(
-        `UPDATE "MonitoringIssue"
-         SET status = 'OPEN', "resolvedAt" = NULL, "updatedAt" = $2
-         WHERE id = $1 AND status = 'RESOLVED'`,
-        [issueId, now],
-      );
-      if ((update.rowCount ?? 0) !== 1) continue;
-      await input.client.query(
-        `INSERT INTO "MonitoringIssueStatusEvent"
-          (id, "issueId", "fromStatus", "toStatus", "changedByUserId", notes, "createdAt")
-         VALUES ($1, $2, 'RESOLVED', 'OPEN', NULL, $3, $4)`,
-        [
-          newId(),
-          issueId,
-          `fixerrors reopen run=${input.runId}`,
-          now,
-        ],
-      );
-      await input.client.query(
-        `INSERT INTO "AdminAuditLog"
-          (id, "adminId", action, "entityType", "entityId", details, "createdAt")
-         VALUES ($1, $2, 'FIXERRORS_REOPEN_MONITORING_ISSUE', 'MonitoringIssue', $3, $4::jsonb, $5)`,
-        [
-          newId(),
-          input.actorAdminId,
-          issueId,
-          JSON.stringify({ runId: input.runId }),
-          now,
-        ],
-      );
+      await reopenIssue(input.client, issueId, input.runId, input.actorAdminId, now);
     }
-
     await input.client.query("COMMIT");
     return { runId: input.runId, applied: true, results };
   } catch (error) {
     await input.client.query("ROLLBACK");
     throw error;
   }
+}
+
+async function reopenIssue(
+  client: PgClientLike,
+  issueId: string,
+  runId: string,
+  actorAdminId: string,
+  now: Date,
+): Promise<void> {
+  const update = await client.query(
+    `UPDATE "MonitoringIssue"
+     SET status = 'OPEN', "resolvedAt" = NULL, "updatedAt" = $2
+     WHERE id = $1 AND status = 'RESOLVED'`,
+    [issueId, now],
+  );
+  if ((update.rowCount ?? 0) !== 1) return;
+  await insertStatusEvent(client, {
+    issueId,
+    fromStatus: "RESOLVED",
+    toStatus: "OPEN",
+    notes: `fixerrors reopen run=${runId}`,
+    now,
+  });
+  await insertAdminAudit(client, {
+    adminId: actorAdminId,
+    action: "FIXERRORS_REOPEN_MONITORING_ISSUE",
+    issueId,
+    details: { runId },
+    now,
+  });
 }
 
 export async function resolveActorAdminId(
