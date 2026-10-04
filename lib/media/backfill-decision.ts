@@ -47,19 +47,38 @@ export function decideImageKitBackfill(input: {
   };
 }
 
-const SHARED_DATABASE_MARKERS = ["syneonzucehwlghqmfbg", "snlqivvogfqesxpbjiei"] as const;
+const PREVIEW_DATABASE_PROJECT = "syneonzucehwlghqmfbg";
+const PRODUCTION_DATABASE_PROJECT = "snlqivvogfqesxpbjiei";
+
+function databaseHost(databaseUrl: string) {
+  try {
+    return new URL(databaseUrl).hostname;
+  } catch {
+    return "";
+  }
+}
 
 export function assertIsolatedLocalDatabase(databaseUrl: string) {
-  let host = "";
-  try {
-    host = new URL(databaseUrl).hostname;
-  } catch {
-    host = "";
-  }
+  const host = databaseHost(databaseUrl);
   if (host !== "127.0.0.1" && host !== "localhost") {
     throw new Error("Backfill requires the isolated local database.");
   }
-  if (SHARED_DATABASE_MARKERS.some((marker) => databaseUrl.includes(marker))) {
-    throw new Error("Backfill refused for a shared database.");
+}
+
+export function assertImageKitBackfillDatabase(
+  databaseUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const host = databaseHost(databaseUrl);
+  if (host === "127.0.0.1" || host === "localhost") return;
+  if (
+    databaseUrl.includes(PREVIEW_DATABASE_PROJECT) &&
+    env.IMAGEKIT_PREVIEW_BACKFILL_PROJECT === PREVIEW_DATABASE_PROJECT
+  ) {
+    return;
   }
+  if (databaseUrl.includes(PRODUCTION_DATABASE_PROJECT)) {
+    throw new Error("Backfill refused for the production database.");
+  }
+  throw new Error("Backfill requires the isolated local database or the explicitly confirmed preview project.");
 }

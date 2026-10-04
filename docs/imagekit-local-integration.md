@@ -1,6 +1,6 @@
-# Local ImageKit integration
+# ImageKit integration
 
-This worktree serves the final 7,677-original ImageKit snapshot through iTrader while Cloudinary stays the default provider everywhere else.
+This integration serves the final 7,677-original ImageKit snapshot through iTrader. Production remains on Cloudinary.
 
 ## Run
 
@@ -14,9 +14,10 @@ The private key stays in the worktree `.env.local`. Do not print, commit, or sen
 
 `instrumentation.ts` now imports the Node error handler only when `NEXT_RUNTIME` is `nodejs`, which is the split in the installed Next.js guide. A fresh Next 16.3.8 webpack dev server otherwise tries to bundle the database client into the edge instrumentation graph and fails before any page loads.
 
-## What was not changed
+## Environment boundaries
 
-- The shared development database was not migrated. The additive Prisma migration is `prisma/migrations/20261004150000_imagekit_provider_fields`. Apply and backfill it only against the isolated local database. `scripts/imagekit/backfill-dev.ts` is dry-run unless `--apply` is passed, and it refuses any host other than localhost.
+- The additive Prisma migration is `prisma/migrations/20261004150000_imagekit_provider_fields`. It is applied to the isolated local database and the development Supabase project only. Production has not been migrated.
+- `scripts/imagekit/backfill-dev.ts` is dry-run unless `--apply` is passed. It permits localhost by default. The development Supabase project additionally requires `IMAGEKIT_PREVIEW_BACKFILL_PROJECT=syneonzucehwlghqmfbg`; production and unknown databases are always refused.
 - Migrated originals and the two seeded ImageKit demo files are not writable from this app. Uploads and deletes are limited to `/iommarket-dev-disposable/` and to file ids recorded in the local manifest.
 - `resources-pass2.jsonl` remains the 7,660-row inventory and was not overwritten. The final inventory is a separate file. Destination deletions stay at zero.
 - Payments, Resend, cost sync and retention mutation are disabled in this worktree env only.
@@ -56,21 +57,14 @@ Disposable upload run `fbfb5619-c315-4b83-9bb1-388587a61d67` stripped JPG, PNG a
 
 The final Cloudinary inventory has 7,677 originals: 7,660 from pass 2 plus 17 private JPEGs found by the later scan. All 17 were downloaded, checksummed, and uploaded privately under `/iommarket-migration/`. Nothing was deleted. The canonical map has 7,677 one-to-one rows, 7,654 verified and 23 reused sample files. An independent mapping review passed with no duplicate paths, checksum mismatches, or ambiguous current destinations.
 
-The ImageKit branch contains the current local `staging` commit `24cb68ba` plus this integration. Schema and backfill were applied only to `iommarket_imagekit` on `127.0.0.1:55432`. The local fixture backfill wrote 2 exact matches, refused the missing seed URL and the version mismatch, and a second run changed nothing. Stored file id and path are the runtime source of truth. Strict ImageKit mode shows the unmapped placeholder when those fields are empty. Cloudinary rollback still uses the preserved public id and URL. Disposable ImageKit uploads have no Cloudinary identity and are not promoted.
+The integration is merged into local `staging`. The schema migration was applied to the development Supabase project after its project identity was verified. The reviewed backfill wrote 5,206 exact matches, left 297 non-Cloudinary references and 1,188 snapshot misses unchanged, and then reported 5,206 unchanged rows on a second dry run. Stored file id and path are the runtime source of truth. Strict ImageKit mode shows the unmapped placeholder when those fields are empty. Cloudinary rollback still uses the preserved public id and URL. Disposable ImageKit uploads have no Cloudinary identity and are not promoted.
 
 Local checks on `http://localhost:4010`: the fixture card returned HTTP 200, the stored-identity photo redirected to ImageKit, an unsigned ImageKit request returned 401, the missing seed URL and the version mismatch returned the unmapped placeholder, and the social image was a 1200×630 JPEG. `tsc --noEmit` passed, lint reported 0 errors, and `npm run build` succeeded. The full unit suite passed 2,611 tests; three timeouts that appeared only while the dev server was running passed on their own.
 
 Reviews: source mapping passed for all 7,677 originals; architecture passed; security found no medium or higher issues; the sample-mode disposable exception and the revision, expiry, archived-listing, and admin-delete identity gaps were fixed. The final diff review passed at `d0df087`.
 
-Do not push or deploy this branch. Production cutover, capacity purchases, and ImageKit security changes remain separate decisions.
+The `staging` Vercel environment has branch-scoped ImageKit settings and can be rolled back without data changes by setting both `MEDIA_PROVIDER` and `NEXT_PUBLIC_MEDIA_PROVIDER` to `cloudinary`. Production cutover, production migration/backfill, capacity purchases, and ImageKit account security changes remain separate decisions.
 
-## Prepared local merge
+## Production boundary
 
-Run this only after an explicit approval. It uses a new worktree so the dirty checkout at `D:\Websites\iommarket` stays untouched. Do not push.
-
-```
-git -C D:\Websites\iommarket worktree add D:\Websites\iommarket-imagekit-merge staging
-git -C D:\Websites\iommarket-imagekit-merge merge --no-ff codex/imagekit-integration
-```
-
-The ImageKit branch is local only. If the merge is not approved, remove the unused worktree with `git -C D:\Websites\iommarket worktree remove D:\Websites\iommarket-imagekit-merge` and do not merge.
+Do not apply the migration or backfill to production as part of staging work. Do not change production provider settings until the separate production cutover is approved.

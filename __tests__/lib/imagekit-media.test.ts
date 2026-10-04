@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { assertIsolatedLocalDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
+import { assertImageKitBackfillDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
 import { imageKitDevUploadsEnabled, readMediaProviderMode } from "@/lib/media/config";
 import { assertPairedMediaProvider } from "@/lib/media/provider-config";
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
@@ -366,7 +366,21 @@ describe("MEDIA-MATCH-001 exact backfill", () => {
       match: matchMediaReference({ provider: "CLOUDINARY", assetId: "asset-1", version: "9" }, index),
       reference: { provider: "CLOUDINARY", assetId: "asset-1", version: "9" },
     }).action).toBe("refuse");
-    expect(() => assertIsolatedLocalDatabase("postgresql://user@db.syneonzucehwlghqmfbg.supabase.co:5432/postgres")).toThrow(/isolated local database/);
+  });
+
+  it("requires an exact preview-project confirmation and always rejects production", () => {
+    const preview = "postgresql://postgres.syneonzucehwlghqmfbg@aws-0.pooler.supabase.com/postgres";
+    const production = "postgresql://postgres.snlqivvogfqesxpbjiei@aws-0.pooler.supabase.com/postgres";
+    expect(() => assertImageKitBackfillDatabase("postgresql://user@127.0.0.1:55432/iommarket_imagekit")).not.toThrow();
+    expect(() => assertImageKitBackfillDatabase(preview, { NODE_ENV: "test" })).toThrow(/explicitly confirmed preview/);
+    expect(() => assertImageKitBackfillDatabase(preview, {
+      NODE_ENV: "test",
+      IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "syneonzucehwlghqmfbg",
+    })).not.toThrow();
+    expect(() => assertImageKitBackfillDatabase(production, {
+      NODE_ENV: "test",
+      IMAGEKIT_PREVIEW_BACKFILL_PROJECT: "snlqivvogfqesxpbjiei",
+    })).toThrow(/production database/);
   });
 
   it("requires the server and public provider settings to match", () => {

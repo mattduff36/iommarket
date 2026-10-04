@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { db } from "@/lib/db";
-import { assertIsolatedLocalDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
+import { assertImageKitBackfillDatabase, decideImageKitBackfill } from "@/lib/media/backfill-decision";
 import { loadMigrationIndex } from "@/lib/media/migration-index";
 import { matchMediaReference } from "@/lib/media/match-reference";
 
@@ -31,7 +31,7 @@ function migrationMapPath() {
 
 async function main() {
   const url = databaseUrl();
-  assertIsolatedLocalDatabase(url);
+  assertImageKitBackfillDatabase(url);
   const apply = process.argv.includes("--apply");
   const mapPath = migrationMapPath();
   if (!mapPath) throw new Error("IMAGEKIT_MIGRATION_MAP is not configured.");
@@ -63,6 +63,13 @@ async function main() {
       return;
     }
     counts[decision.action] += 1;
+    audit.push(JSON.stringify({
+      table,
+      id: row.id,
+      action: decision.action,
+      fileId: decision.fileId,
+      filePath: decision.filePath,
+    }));
     if (!apply || decision.action !== "write") return;
     const data = { imageKitFileId: decision.fileId, imageKitFilePath: decision.filePath };
     if (table === "listingImage") await db.listingImage.update({ where: { id: row.id }, data });
