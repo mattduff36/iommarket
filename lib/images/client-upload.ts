@@ -4,16 +4,22 @@ import type { ListingPhotoSource } from "@/lib/images/photo";
 interface IssuedUpload {
   uploadIntentId: string;
   publicId: string;
-  upload: {
-    cloudName: string;
-    apiKey: string;
-    timestamp: number;
-    signature: string;
-    publicId: string;
-    type: string;
-    transformation: string;
-    uploadUrl: string;
-  };
+  upload:
+    | {
+        provider?: undefined;
+        cloudName: string;
+        apiKey: string;
+        timestamp: number;
+        signature: string;
+        publicId: string;
+        type: string;
+        transformation: string;
+        uploadUrl: string;
+      }
+    | {
+        provider: "imagekit";
+        uploadUrl: string;
+      };
 }
 
 interface FinalizedUpload {
@@ -55,6 +61,30 @@ export async function uploadListingImageFile(file: File): Promise<ListingPhotoSo
   }
 
   const { upload, uploadIntentId, publicId } = intentPayload.data;
+  if (upload.provider === "imagekit") {
+    const imageKitForm = new FormData();
+    imageKitForm.append("file", file);
+    imageKitForm.append("uploadIntentId", uploadIntentId);
+    const imageKitResponse = await fetch(upload.uploadUrl, { method: "POST", body: imageKitForm });
+    const imageKitPayload = (await imageKitResponse.json().catch(() => null)) as
+      | { data?: FinalizedUpload & { provider?: string; url?: string }; error?: string }
+      | null;
+    if (!imageKitResponse.ok || !imageKitPayload?.data) {
+      throw new Error(imageKitPayload?.error ?? "ImageKit upload failed.");
+    }
+    return {
+      uploadIntentId: imageKitPayload.data.uploadIntentId,
+      url: imageKitPayload.data.url ?? "",
+      publicId: imageKitPayload.data.publicId,
+      provider: "EXTERNAL",
+      assetId: imageKitPayload.data.assetId,
+      version: imageKitPayload.data.version,
+      width: imageKitPayload.data.width,
+      height: imageKitPayload.data.height,
+      format: imageKitPayload.data.format,
+      bytes: imageKitPayload.data.bytes,
+    };
+  }
   const formData = new FormData();
   formData.append("file", file);
   formData.append("api_key", upload.apiKey);

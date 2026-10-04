@@ -32,6 +32,7 @@ export interface ListingPhotoSource {
   focalX?: number | null;
   focalY?: number | null;
   order?: number;
+  deliverySource?: "listing" | "revision";
 }
 
 export function toListingPhotoSource(
@@ -50,6 +51,7 @@ export function toListingPhotoSource(
     focalX?: number | null;
     focalY?: number | null;
     order?: number;
+    deliverySource?: "listing" | "revision";
   } | null | undefined,
 ): ListingPhotoSource | undefined {
   if (!image?.url) return undefined;
@@ -68,6 +70,7 @@ export function toListingPhotoSource(
     focalX: image.focalX,
     focalY: image.focalY,
     order: image.order,
+    deliverySource: image.deliverySource,
   };
 }
 

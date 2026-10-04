@@ -35,14 +35,16 @@ export const onRequestError: Instrumentation.onRequestError = async (
     return;
   }
 
-  const imported = await import("./instrumentation-node");
-  const handle = imported.handleNodeRequestError;
-  if (typeof handle !== "function") {
-    console.error(JSON.stringify({
-      monitoringFallback: true,
-      kind: "instrumentation-handler-missing",
-    }));
-    return;
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const imported = await import("./instrumentation-node");
+    const handle = imported.handleNodeRequestError;
+    if (typeof handle !== "function") {
+      console.error(JSON.stringify({
+        monitoringFallback: true,
+        kind: "instrumentation-handler-missing",
+      }));
+      return;
+    }
+    await handle(error, request, context);
   }
-  await handle(error, request, context);
 };

@@ -53,8 +53,7 @@ import {
 import { getSampleVisibility, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { moderationReasonLabelForHistory } from "@/lib/listings/moderation-reasons";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
-import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
-import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
+import { listingSocialMetadataUrl, structuredListingImageUrl } from "@/lib/media/serve-photo";
 import { isDisclosedWriteOff, writeOffFromAttributeValues } from "@/lib/listings/write-off-category";
 import { buildViewerHash } from "@/lib/privacy/viewer-hash";
 import { buildCanonicalUrl } from "@/lib/seo/structured-data";
@@ -130,7 +129,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   const primaryPhoto = toListingPhotoSource(listing.images[0]);
   const socialImage = primaryPhoto
-    ? signPrivateCloudinaryUrl(buildSocialImageUrl(primaryPhoto))
+    ? listingSocialMetadataUrl(id, primaryPhoto)
     : null;
   let priceLabel: string | null = null;
   try {
@@ -455,7 +454,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
             imagePublicIds: pendingRevision.images.map((image) => image.publicId),
           }}
           proposedPhotos={pendingRevision.images
-            .map((image) => toListingPhotoSource(image))
+            .map((image) => toListingPhotoSource({ ...image, deliverySource: "revision" }))
             .filter((image): image is NonNullable<typeof image> => Boolean(image))}
         />
       ) : null}
@@ -808,15 +807,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               .map((image, index) => {
                 const photo = toListingPhotoSource(image);
                 if (!photo) return null;
-                return index === 0
-                  ? signPrivateCloudinaryUrl(buildSocialImageUrl(photo))
-                  : signPrivateCloudinaryUrl(
-                      buildListingPhotoUrl(photo, {
-                        width: 1200,
-                        mode: "fit",
-                        frame: "gallery",
-                      }),
-                    );
+                return structuredListingImageUrl({ photo, primary: index === 0 });
               })
               .filter((url): url is string => Boolean(url)),
             price,

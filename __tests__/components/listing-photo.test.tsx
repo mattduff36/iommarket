@@ -121,4 +121,36 @@ describe("PHOTO-RENDER-001 PHOTO-COMPAT-001 listing photo renderer", () => {
     render(<ListingPhoto photo={external} frame="admin" alt="Sample listing" sizes="200px" />);
     expect(screen.getByAltText("Sample listing").getAttribute("src")).toBe(external.url);
   });
+
+  it("asks the server to sign ImageKit delivery instead of building a Cloudinary URL", () => {
+    const previous = process.env.NEXT_PUBLIC_MEDIA_PROVIDER;
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
+    render(
+      <ListingPhoto
+        photo={{ ...landscape, id: "img-1" }}
+        frame="card"
+        alt="Mapped listing"
+        sizes="200px"
+      />,
+    );
+    expect(screen.getByAltText("Mapped listing").getAttribute("src")).toContain("/api/media/listing-photo?");
+    expect(screen.getByAltText("Mapped listing").getAttribute("src")).not.toContain("res.cloudinary.com");
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = previous;
+  });
+
+  it("rolls delivery back to Cloudinary when the public provider is cloudinary", () => {
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "cloudinary";
+    process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = "demo-cloud";
+    render(
+      <ListingPhoto
+        photo={{ ...landscape, id: "img-1", focalX: 0.25, focalY: 0.75 }}
+        frame="card"
+        alt="Rollback listing"
+        sizes="200px"
+      />,
+    );
+    const src = screen.getByAltText("Rollback listing").getAttribute("src") ?? "";
+    expect(src).toContain("c_fill");
+    expect(src).not.toContain("/api/media/listing-photo");
+  });
 });

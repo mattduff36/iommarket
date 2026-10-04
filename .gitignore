@@ -53,6 +53,7 @@ supabase/.temp/
 
 # Local one-off artifacts (preview enrichment snapshots, leftover manifests)
 .local/
+/tmp/
 
 # Downloaded Unsplash references used only to generate extras
 public/seed-listing-photos/_refs/

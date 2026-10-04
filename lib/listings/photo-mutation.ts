@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
-import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
+import { cleanupDeliveryForRemovedImage, imageRecordFromIntent } from "@/lib/media/stored-image";
 import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
 export class PhotoRevisionConflictError extends Error {
   photoRevision: number;
@@ -271,13 +270,7 @@ export async function syncListingImagesForUser({
           continue;
         }
 
-        const canonicalUrl = buildCanonicalListingImageUrl({
-          publicId: item.intent.publicId,
-          version: item.intent.version,
-          format: item.intent.format,
-          provider: "CLOUDINARY",
-          url: "",
-        });
+        const stored = imageRecordFromIntent(item.intent);
 
         const consumed = await tx.listingImageUploadIntent.updateMany({
           where: {
@@ -297,11 +290,11 @@ export async function syncListingImagesForUser({
         await tx.listingImage.create({
           data: {
             listingId,
-            url: canonicalUrl,
-            publicId: item.intent.publicId,
+            url: stored.url,
+            publicId: stored.publicId,
             order: item.order,
-            provider: "CLOUDINARY",
-            assetId: item.intent.assetId,
+            provider: stored.provider,
+            assetId: stored.assetId,
             version: item.intent.version,
             width: item.intent.width,
             height: item.intent.height,
@@ -315,11 +308,12 @@ export async function syncListingImagesForUser({
       }
 
       for (const removed of removedPublicIds) {
-        if (removed.provider === "CLOUDINARY" && removed.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)) {
+        const cleanup = cleanupDeliveryForRemovedImage(removed);
+        if (cleanup) {
           await tx.listingImageCleanupJob.create({
             data: {
-              publicId: removed.publicId,
-              deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+              publicId: cleanup.publicId,
+              deliveryType: cleanup.deliveryType,
               reason: "replaced-or-removed",
             },
           });

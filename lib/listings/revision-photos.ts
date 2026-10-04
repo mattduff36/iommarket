@@ -1,7 +1,6 @@
 import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
-import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
+import { cleanupDeliveryForRemovedImage, imageRecordFromIntent } from "@/lib/media/stored-image";
 import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
 import {
   PhotoRevisionConflictError,
@@ -31,12 +30,8 @@ async function enqueueCleanupIfUnreferenced(
   client: DbClient,
   input: { listingId: string; provider: ListingImageProvider; publicId: string; reason: string },
 ) {
-  if (
-    input.provider !== "CLOUDINARY" ||
-    !input.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)
-  ) {
-    return;
-  }
+  const cleanup = cleanupDeliveryForRemovedImage(input);
+  if (!cleanup) return;
 
   const [liveCount, openRevisionCount] = await Promise.all([
     client.listingImage.count({
@@ -58,8 +53,8 @@ async function enqueueCleanupIfUnreferenced(
 
   await client.listingImageCleanupJob.create({
     data: {
-      publicId: input.publicId,
-      deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+      publicId: cleanup.publicId,
+      deliveryType: cleanup.deliveryType,
       reason: input.reason,
     },
   });
@@ -266,20 +261,15 @@ export async function syncRevisionImagesForUser(input: {
           throw new Error("This upload is no longer available.");
         }
 
+        const stored = imageRecordFromIntent(item.intent);
         await tx.listingRevisionImage.create({
           data: {
             revisionId: revision.id,
-            url: buildCanonicalListingImageUrl({
-              publicId: item.intent.publicId,
-              version: item.intent.version,
-              format: item.intent.format,
-              provider: "CLOUDINARY",
-              url: "",
-            }),
-            publicId: item.intent.publicId,
+            url: stored.url,
+            publicId: stored.publicId,
             order: item.order,
-            provider: "CLOUDINARY",
-            assetId: item.intent.assetId,
+            provider: stored.provider,
+            assetId: stored.assetId,
             version: item.intent.version,
             width: item.intent.width,
             height: item.intent.height,

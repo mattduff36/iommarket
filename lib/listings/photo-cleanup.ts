@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { deleteImage } from "@/lib/upload/cloudinary";
+import { fileIdFromImageKitDevPublicId } from "@/lib/media/delete-guard";
+import { deleteDisposableImageKitFile } from "@/lib/media/disposable-media";
 
 export async function enqueueListingImageCleanup({
   publicId,
@@ -115,6 +117,31 @@ export async function processListingImageCleanupJobs(limit = 20) {
     processed += 1;
 
     try {
+      if (job.deliveryType === "imagekit") {
+        const fileId = fileIdFromImageKitDevPublicId(job.publicId);
+        if (!fileId) throw new Error(`Refusing unsafe ImageKit cleanup target: ${job.publicId}`);
+        if (await cleanupTargetIsReferenced(job.publicId)) {
+          await db.listingImageCleanupJob.updateMany({
+            where: {
+              id: job.id,
+              attempts: job.attempts + 1,
+              lastError: CLEANUP_PROCESSING_MARKER,
+            },
+            data: { status: "COMPLETED", completedAt: new Date(), lastError: null },
+          });
+          continue;
+        }
+        await deleteDisposableImageKitFile({ fileId });
+        await db.listingImageCleanupJob.updateMany({
+          where: {
+            id: job.id,
+            attempts: job.attempts + 1,
+            lastError: CLEANUP_PROCESSING_MARKER,
+          },
+          data: { status: "COMPLETED", completedAt: new Date(), lastError: null },
+        });
+        continue;
+      }
       assertSafeCleanupTarget(job);
       if (await cleanupTargetIsReferenced(job.publicId)) {
         await db.listingImageCleanupJob.updateMany({
