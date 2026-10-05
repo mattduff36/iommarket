@@ -1,15 +1,18 @@
-export const DATABASE_SYNC_SCOPE = "marketplace-exclusions-v1";
+export const DATABASE_SYNC_SCOPE = "marketplace-exclusions-v2";
 export const EXCLUDED_SYNC_TABLES = [
   "DealerPreviewPack", "WaitlistUser", "WaitlistEarlyAccessCampaign", "WaitlistEarlyAccessRecipient",
   "MonitoringIssue", "MonitoringIssueStatusEvent", "MonitoringEvent", "MonitoringAlertDelivery", "MonitoringPipelineHealth",
   "DealerPromotionCampaign", "DealerOnboardingInvite", "DealerOnboardingInviteEvent",
+  "CostLedgerConfig", "FxRateSnapshot", "CostSourceSnapshot", "CostEntry", "CostSyncLock", "CostSyncRun",
+  "InvoiceRequest", "InvoiceRequestLine", "CostSettlement", "CostWorkflowEvent", "CostEmailOutbox",
+  "CostUsageEvent", "CostIngestBatch", "CostAllowanceObservation", "CostClientPolicy",
 ] as const;
 
 export function excludedSyncTable(name: string): boolean {
-  return /^(?:DealerPreviewPack|Waitlist|Monitoring|DealerPromotionCampaign|DealerOnboardingInvite)/.test(name);
+  return /^(?:DealerPreviewPack|Waitlist|Monitoring|DealerPromotionCampaign|DealerOnboardingInvite|Cost|FxRateSnapshot|InvoiceRequest)/.test(name);
 }
 
-export const SYNC_SCOPE_DESCRIPTION = "Preview packs and their linked accounts/listings, waitlists, monitoring, promotional campaigns and linked records are excluded. Administrator accounts are never imported or overwritten. Existing staging versions remain unchanged.";
+export const SYNC_SCOPE_DESCRIPTION = "Preview packs and their linked accounts/listings, waitlists, monitoring, promotional campaigns, the project cost ledger and linked records are excluded. Administrator accounts are never imported or overwritten. Existing staging versions remain unchanged.";
 export const SCOPED_MERGE_ONLY = "Only scoped Merge is available. Full-database Replace, Reset and Restore are disabled because they could change excluded staging data. Encrypted backups are retained.";
 
 export type ScopeRow = { id: string; values: Record<string, string | null> };
