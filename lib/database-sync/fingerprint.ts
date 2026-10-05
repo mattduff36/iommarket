@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { loadCloneCatalog } from "./catalog";
+import { excludedSyncTable } from "./scope-policy";
 
 export const SCHEMA_FINGERPRINT_SQL = `
 SELECT line FROM (
@@ -46,7 +48,11 @@ export function compatibilityLine(line: string): string {
 }
 
 function normalized(lines: readonly string[], kind: "schema" | "migration" | "all"): string[] {
+  const enumTypes = new Set(loadCloneCatalog().flatMap((table) => table.columns.map((column) => column.typeName)));
   const selected = lines.filter((line) => {
+    const parts = line.split("|");
+    if ((parts[0] === "column" || parts[0] === "constraint") && parts[1] === "public" && excludedSyncTable(parts[2] ?? "")) return false;
+    if (parts[0] === "enum" && parts[1] === "public" && !enumTypes.has(parts[2] ?? "")) return false;
     const migration = line.startsWith("migration|");
     if (kind === "migration") return migration;
     if (kind === "schema") return !migration;

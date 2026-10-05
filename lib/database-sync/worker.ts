@@ -69,7 +69,7 @@ function publicRun(row: StoredRun): DatabaseSyncRun {
     archivedDealers: summary.archivedDealers ?? 0,
     reconciled: summary.reconciled ?? [],
     kind: row.kind === "restore" ? "restore" : "sync",
-    restoreAvailable: backupState === "newest" || backupState === "retained",
+    restoreAvailable: false, // Full-database restoration is outside the current exclusion policy.
     backupExpiresAt: row.backup_expires_at ? new Date(row.backup_expires_at).toISOString() : null,
     backupState,
     restoredFromId: row.restored_from_id ?? null,

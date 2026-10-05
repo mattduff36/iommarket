@@ -1,6 +1,7 @@
 "use server";
 
 import { requireRole } from "@/lib/auth";
+import { SCOPED_MERGE_ONLY } from "@/lib/database-sync/scope-policy";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
 import { inspectDatabaseSync } from "@/lib/database-sync/preflight";
@@ -94,7 +95,7 @@ export async function restoreDatabaseSyncAction(input: unknown) {
   if (!parsed.success || parsed.data.confirmation !== confirmations.restore) return { error: "Type the confirmation exactly as shown for the backup." };
   try {
     const run = (await listDatabaseSyncRuns()).find((item) => item.id === parsed.data.runId);
-    if (!run?.restoreAvailable) return { error: "This backup has expired and was removed." };
+    if (!run?.restoreAvailable) return { error: SCOPED_MERGE_ONLY };
     const result = await restoreDatabaseSync(run.id, admin.id);
     revalidatePath("/admin/database");
     revalidatePath("/", "layout");

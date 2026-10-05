@@ -18,6 +18,8 @@ import { BACKUP_BUDGET_BYTES, planBackupRetention, type BackupPoint } from "./re
 import { resolvePreviewSessionUrl } from "./session";
 import { DatabaseSyncError } from "./snapshot";
 import { assertStoreReady, seal, unseal } from "./store";
+import { DATABASE_SYNC_SCOPE, SCOPED_MERGE_ONLY, SYNC_SCOPE_DESCRIPTION, type ScopeExclusions } from "./scope-policy";
+import { readDatabaseScope, protectDestinationScope, filterIdentityScope, assertScopedPayload } from "./scope";
 
 export const APPLY_DEADLINE_MS = 240_000;
 export const APPLY_STATEMENT_TIMEOUT = "240s";
@@ -27,6 +29,7 @@ const SESSION_TABLES = ["sessions", "refresh_tokens", "mfa_factors", "mfa_challe
 
 export type CloneManifest = {
   v: 2;
+  scopeVersion?: string;
   mode: "merge" | "replace" | "reset";
   fingerprint: string;
   blockers: string[];
@@ -156,6 +159,7 @@ async function writeChunks(
   trace?: SyncTrace,
   onPage?: (page: { columns: StoredColumn[]; rows: Array<Array<string | null>> }) => Promise<void>,
   rewrite?: (columns: StoredColumn[], rows: Array<Array<string | null>>) => Array<Array<string | null>>,
+  excluded: ScopeExclusions = {},
 ) {
   const side = purpose === "source" ? "source" : "destination";
   markTrace(trace, side, `${side}.table-page`, relation.key);
@@ -175,9 +179,12 @@ async function writeChunks(
   while (true) {
     assertCloneDeadline(deadline);
     markTrace(trace, side, `${side}.table-page`, relation.key);
+    const parameters: unknown[] = cursor ? [cursor] : [];
+    const predicates = cursor ? [`${pk} > $1`] : [];
+    const omitted = excluded[relation.key] ?? [];
+    if (omitted.length) { parameters.push(omitted); predicates.push(`NOT (${pk} = ANY($${parameters.length}::text[]))`); }
     const result: { rows: Array<Record<string, unknown>> } = await reader.query(
-      `SELECT ${select} FROM ${qualified} ${cursor ? `WHERE ${pk} > $1` : ""} ORDER BY ${pk} LIMIT ${PAGE}`,
-      cursor ? [cursor] : [],
+      `SELECT ${select} FROM ${qualified} ${predicates.length ? `WHERE ${predicates.join(" AND ")}` : ""} ORDER BY ${pk} LIMIT ${PAGE}`, parameters,
     );
     if (!result.rows.length) break;
     const shaped = meta.map((column) => ({ name: column.name, type: column.dataType }));
@@ -258,11 +265,11 @@ function scrubMatrix(table: string, columnList: Array<{ name: string; type: stri
   });
 }
 
-async function captureRelations(client: PoolClient, list: Relation[], runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number) {
+async function captureRelations(client: PoolClient, list: Relation[], runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number, excluded: ScopeExclusions = {}) {
   let bytes = 0;
   const tables = [];
   for (const relation of list) {
-    const captured = await writeChunks(client, client, relation, runId, purpose, env, deadline);
+    const captured = await writeChunks(client, client, relation, runId, purpose, env, deadline, null, undefined, undefined, undefined, excluded);
     bytes += captured.bytes;
     tables.push(captured);
     if (bytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
@@ -520,7 +527,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
     markTrace(trace, "destination", "destination.fingerprint");
     const destinationLines = await schemaLines(destination);
     const manifest: CloneManifest = {
-      v: 2, mode, fingerprint: hashSchemaLines(destinationLines), blockers: [...order.blockers], tables: [],
+      v: 2, scopeVersion: DATABASE_SYNC_SCOPE, mode, fingerprint: hashSchemaLines(destinationLines), blockers: [...order.blockers], tables: [],
       insertOrder: order.insertOrder, deleteOrder: order.deleteOrder, deferredConstraints: order.deferredConstraints,
       nullThenUpdate: order.nullThenUpdate, preservedAdminIds: preserved.map((admin) => admin.id),
       preservedAuthIds: preserved.map((admin) => admin.authUserId), previewInstanceId: instance.rows[0]?.id ?? null,
@@ -546,9 +553,13 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
         await validateSourceClient(source, env);
         markTrace(trace, "source", "source.fingerprint");
         manifest.blockers.push(...schemaCompatibility(await schemaLines(source), destinationLines).blockers);
+        markTrace(trace, "source", "source.scope-exclusions");
+        const destinationScope = await readDatabaseScope(destination, catalog, env);
+        const sourceScope = protectDestinationScope(await readDatabaseScope(source, catalog, env, true), destinationScope);
         markTrace(trace, "source", "source.public-users");
         const users = await source.query<AdminIdentity>(`SELECT id, email, "authUserId" FROM public."User"`);
         for (const user of users.rows) {
+          if (sourceScope.excluded.User?.includes(user.id)) continue;
           if (typeof user.id !== "string" || typeof user.email !== "string" || typeof user.authUserId !== "string") {
             manifest.blockers.push("A production user is missing an email or account id.");
             continue;
@@ -560,16 +571,17 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
         const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM ${sourceAuthTable("users", env)}`);
         const publicIdByAuth = new Map(users.rows.map((user) => [user.authUserId, user.id]));
         for (const user of authUsers.rows) {
+          if (sourceScope.excluded["auth.users"]?.includes(user.id)) continue;
           const collision = preservedAuthCollision(preserved, user.id, publicIdByAuth.get(user.id) ?? null);
           if (collision) manifest.blockers.push(collision);
         }
         if (!manifest.previewInstanceId) manifest.blockers.push("The preview authentication instance could not be read.");
         if (!manifest.blockers.length) {
           const reconciliation: IdentityReconciliation = mode === "merge"
-            ? reconcileIdentities(await readIdentitySnapshot(source, destination))
+            ? reconcileIdentities(filterIdentityScope(await readIdentitySnapshot(source, destination), sourceScope, destinationScope))
             : { links: [], blockers: [], notes: [] };
           manifest.identityLinks = reconciliation.links;
-          manifest.reconciled = reconciliation.notes;
+          manifest.reconciled = [SYNC_SCOPE_DESCRIPTION, "The two explicitly excluded user IDs and their dependent source records are skipped without identity reconciliation.", ...reconciliation.notes];
           manifest.blockers.push(...reconciliation.blockers);
           const linkIndex = indexIdentityLinks(reconciliation.links);
           const parents = foreignKeyParents(relationsKeys);
@@ -597,7 +609,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
                   manifest.blockers.push(`${relation.name} conflicts with a different development row on unique key ${constraint.name}.`);
                 }
               }
-            }, rewrite);
+            }, rewrite, sourceScope.excluded);
             sourceBytes += captured.bytes;
             manifest.tables.push(captured);
             if (sourceBytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
@@ -610,6 +622,10 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
               skippedSourceKeys,
               preservedDestinationKeys: destinationSet.preservedDestination,
             });
+            const sourceRows = relation.key === "auth.users" ? authUsers.rows
+              : relation.key === "auth.identities" ? sourceScope.identities : sourceScope.rows[relation.name] ?? [];
+            const omitted = new Set(sourceScope.excluded[relation.key] ?? []);
+            counts[relation.key].skip += sourceRows.filter((row) => omitted.has(row.id)).length;
           }
         }
         markTrace(trace, "source", "source.commit");
@@ -637,6 +653,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
 
 export async function prepareClone(mode: "merge" | "replace" | "reset", actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync) {
   const trace = createSyncTrace("preview connection");
+  if (mode !== "merge") throw new DatabaseSyncError(SCOPED_MERGE_ONLY);
   try {
     if (isolated) {
       assertIsolatedTest(env);
@@ -660,11 +677,17 @@ export async function applyClone(runId: string, actorId: string, env: NodeJS.Pro
       if (row.status === "applied") { await client.query("COMMIT"); return row; }
       if (row.expires_at.getTime() <= Date.now()) throw new DatabaseSyncError("This preview has expired. Prepare a new preview.");
       const manifest = unseal<CloneManifest>(row.encrypted_snapshot, runId, env);
+      if (manifest.scopeVersion !== DATABASE_SYNC_SCOPE || manifest.mode !== "merge") throw new DatabaseSyncError("This plan predates the current exclusions. Prepare a fresh scoped Merge preview.");
       if (manifest.blockers.length) throw new DatabaseSyncError("Resolve all preview blockers before applying this sync.");
       await client.query(lockCloneTablesSql(loadCloneCatalog().map((table) => table.name)));
       await requireActor(client, actorId);
       if ((await fingerprint(client)) !== manifest.fingerprint) throw new DatabaseSyncError("Schema changed after this preview. Prepare a new preview. Nothing was changed.");
-      const backup = await captureRelations(client, backupRelations(loadCloneCatalog()), runId, "backup", env, deadline);
+      const currentScope = await readDatabaseScope(client, loadCloneCatalog(), env);
+      for (const relation of cloneRelations(loadCloneCatalog())) {
+        const payload = await readChunkRows(client, runId, "source", relation.key, env);
+        assertScopedPayload(relation.key, relation.primaryKey, payload.columns, payload.rows, currentScope);
+      }
+      const backup = await captureRelations(client, backupRelations(loadCloneCatalog()), runId, "backup", env, deadline, currentScope.excluded);
       await enforceRetention(client, runId, backup.bytes);
       await replay(client, manifest, runId, "source", env, deadline, true);
       await client.query(`DELETE FROM staging_admin.database_sync_chunks WHERE run_id=$1 AND purpose='source'`, [runId]);
@@ -683,64 +706,7 @@ export async function applyClone(runId: string, actorId: string, env: NodeJS.Pro
   return withSession(env, run);
 }
 
-export async function restoreClone(runId: string, actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync) {
-  const deadline = Date.now() + APPLY_DEADLINE_MS;
-  const catalog = loadCloneCatalog();
-  const run = async (client: PoolClient) => {
-    try {
-      await beginLocked(client, actorId);
-      const stored = await client.query<StoredRun>(`SELECT * FROM staging_admin.database_sync_runs WHERE id=$1 FOR UPDATE`, [runId]);
-      const selected = stored.rows[0];
-      if (!selected || selected.status !== "applied" || selected.payload_pruned_at || Number(selected.backup_bytes ?? 0) <= 0) {
-        throw new DatabaseSyncError("This backup has expired and was removed.");
-      }
-      if (selected.backup_expires_at && selected.backup_expires_at.getTime() <= Date.now()) throw new DatabaseSyncError("This backup has expired and was removed.");
-      const manifest = unseal<CloneManifest>(selected.encrypted_snapshot, runId, env);
-      await client.query(lockCloneTablesSql(catalog.map((table) => table.name)));
-      await requireActor(client, actorId);
-      if ((await fingerprint(client)) !== manifest.fingerprint) throw new DatabaseSyncError("Schema changed after this backup. Nothing was changed.");
-      const actor = await client.query<{ authUserId: string }>(`SELECT "authUserId" FROM public."User" WHERE id=$1`, [actorId]);
-      const users = await readChunkRows(client, runId, "backup", "User", env);
-      const auth = await readChunkRows(client, runId, "backup", "auth.users", env);
-      const userId = users.columns.findIndex((column) => column.name === "id");
-      const authId = auth.columns.findIndex((column) => column.name === "id");
-      if (!users.rows.some((row) => row[userId] === actorId) || !auth.rows.some((row) => row[authId] === actor.rows[0]?.authUserId)) {
-        throw new DatabaseSyncError("This restore would remove your administrator access.");
-      }
-      const newId = randomUUID();
-      const summary = { counts: {}, blockers: [], archivedListings: 0, archivedDealers: 0 };
-      const replayManifest: CloneManifest = { ...manifest, mode: "replace", preservedAdminIds: [], preservedAuthIds: [] };
-      await client.query(
-        `INSERT INTO staging_admin.database_sync_runs(id, actor_id, mode, status, expires_at, encrypted_snapshot, summary, kind, restored_from_id, schema_fingerprint, backup_bytes)
-         VALUES ($1,$2,'replace','prepared',now(),$3,$4::jsonb,'restore',$5,$6,0)`,
-        [newId, actorId, seal(replayManifest, newId, env), JSON.stringify(summary), runId, manifest.fingerprint],
-      );
-      const backup = await captureRelations(client, backupRelations(catalog), newId, "backup", env, deadline);
-      await replay(client, replayManifest, runId, "backup", env, deadline, false);
-      const provenance = await readChunkRows(client, runId, "backup", "staging_admin.database_sync_provenance", env);
-      const state = await readChunkRows(client, runId, "backup", "staging_admin.database_sync_state", env);
-      await client.query(`DELETE FROM staging_admin.database_sync_provenance`);
-      await writeRows(client, { schema: "staging_admin", name: "database_sync_provenance", key: "staging_admin.database_sync_provenance", primaryKey: "id" }, provenance.columns, provenance.rows, "insert");
-      if (state.rows.length) {
-        await writeRows(client, { schema: "staging_admin", name: "database_sync_state", key: "staging_admin.database_sync_state", primaryKey: "id" }, state.columns, state.rows, "merge");
-      } else {
-        await client.query(`INSERT INTO staging_admin.database_sync_state(id, active_generation_id, schema_fingerprint, store_version) VALUES (1, NULL, $1, 2) ON CONFLICT (id) DO UPDATE SET active_generation_id=NULL, schema_fingerprint=EXCLUDED.schema_fingerprint, store_version=2`, [manifest.fingerprint]);
-      }
-      await enforceRetention(client, newId, backup.bytes);
-      const saved = await client.query<StoredRun>(
-        `UPDATE staging_admin.database_sync_runs SET status='applied', applied_at=now(), backup_bytes=$2, backup_expires_at=NULL WHERE id=$1 RETURNING *`,
-        [newId, backup.bytes],
-      );
-      await client.query("COMMIT");
-      return saved.rows[0];
-    } catch (error) {
-      await rollbackWithoutReplacing(client, createSyncTrace("restore"));
-      throw error;
-    }
-  };
-  if (isolated) {
-    assertIsolatedTest(env);
-    return run(isolated.destination);
-  }
-  return withSession(env, run);
+export async function restoreClone(runId: string, actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync): Promise<never> {
+  void runId; void actorId; void env; void isolated;
+  throw new DatabaseSyncError(SCOPED_MERGE_ONLY);
 }

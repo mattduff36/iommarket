@@ -4,10 +4,11 @@ import { useState, useTransition } from "react";
 import { applyDatabaseSyncAction, prepareDatabaseSyncAction, restoreDatabaseSyncAction, type PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SCOPED_MERGE_ONLY, SYNC_SCOPE_DESCRIPTION } from "@/lib/database-sync/scope-policy";
 
 const modes = {
   replace: { title: "Replace development", confirmation: "REPLACE DEVELOPMENT", description: "Copy every current production table and column into development, including featured listings, users, payments and subscriptions. Staging administrator sign-in stays in place. Imported accounts cannot sign in." },
-  merge: { title: "Merge production into development", confirmation: "MERGE INTO DEVELOPMENT", description: "Copy every production record while keeping development-only rows. Matching primary keys are updated. A different row on the same unique identity blocks the plan." },
+  merge: { title: "Merge production into development", confirmation: "MERGE INTO DEVELOPMENT", description: "Copy in-scope production records while keeping development-only and excluded rows. Matching identities are updated. Only conflicts in included records can block this plan." },
   reset: { title: "Reset development", confirmation: "RESET DEVELOPMENT", description: "Remove development marketplace rows while preserving staging administrator sign-in. This does not copy production data or restore a backup." },
 } as const;
 
@@ -96,10 +97,11 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
     <div className="space-y-5" aria-busy={pending || Boolean(operation)}>
       <section className="rounded-lg border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold text-text-primary">Manage development data</h2>
-        <p className="mt-2 text-sm text-text-secondary">Production is a read-only source. A reviewed plan copies the current public schema and disabled authentication identities into development, then stores a private encrypted backup. The newest backup is kept. When a newer backup is saved, the previous one expires after 30 days. At most four older backups are kept, within a 500 MB ciphertext limit.</p>
+        <p className="mt-2 text-sm text-text-secondary">Production is a read-only source. A reviewed plan copies only included marketplace records and disabled authentication identities into development, with a private encrypted backup of included staging data taken before application. The newest backup is kept. When a newer backup is saved, the previous one expires after 30 days. At most four older backups are kept, within a 500 MB ciphertext limit.</p>
       </section>
-      <section className="grid gap-4 lg:grid-cols-3" aria-label="Database operations">
-        {Object.entries(modes).map(([mode, item]) => (
+      <p className="rounded-md border border-border p-4 text-sm text-text-secondary">{SYNC_SCOPE_DESCRIPTION} The two explicitly excluded user accounts are also ignored. {SCOPED_MERGE_ONLY}</p>
+      <section className="grid gap-4" aria-label="Database operations">
+        {Object.entries(modes).filter(([mode]) => mode === "merge").map(([mode, item]) => (
           <div key={mode} className="flex flex-col rounded-lg border border-border bg-surface p-5">
             <h3 className="font-semibold text-text-primary">{item.title}</h3>
             <p className="mt-2 flex-1 text-sm text-text-secondary">{item.description}</p>
@@ -122,15 +124,15 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         <section aria-labelledby="sync-plan" className="rounded-lg border border-border bg-surface p-5">
           <h2 id="sync-plan" className="text-lg font-semibold text-text-primary">Review: {modes[plan.mode].title}</h2>
           <p className="mt-2 text-sm text-text-secondary">Prepared {dateLabel(plan.createdAt)}. Expires {dateLabel(plan.expiresAt)} (UK time). Changed data or an expired plan requires a fresh preview.</p>
-          <p className="mt-3 rounded-md border border-border p-3 text-sm text-text-primary">Production values are copied as stored, including featured listings. Staging administrator sign-in is preserved and imported accounts cannot authenticate.</p>
+          <p className="mt-3 rounded-md border border-border p-3 text-sm text-text-primary">Included production values are copied as stored, including featured listings. Excluded records and staging administrator sign-in stay untouched. Imported accounts cannot authenticate.</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <caption className="mb-2 text-left text-sm text-text-secondary">Captured is the production snapshot size. Add, update, remove, preserve and skip are calculated for this plan.</caption>
+              <caption className="mb-2 text-left text-sm text-text-secondary">Captured is the included production snapshot size. Skip also counts excluded source records. Preserve includes existing staging records that will not be changed.</caption>
               <thead><tr className="border-b border-border text-text-secondary"><th className="py-2">Table</th><th className="px-2 py-2 text-right">Captured</th>{["Add", "Update", "Remove", "Preserve", "Skip"].map((label) => <th key={label} className="px-2 py-2 text-right">{label}</th>)}</tr></thead>
               <tbody>{Object.entries(plan.counts).map(([table, counts]) => <tr key={table} className="border-b border-border/50"><th scope="row" className="py-2 font-medium">{table}</th><td className="px-2 py-2 text-right tabular-nums">{typeof counts.captured === "number" ? counts.captured.toLocaleString() : "—"}</td>{(["insert", "update", "delete", "preserve", "skip"] as const).map((key) => <td key={key} className="px-2 py-2 text-right tabular-nums">{counts[key].toLocaleString()}</td>)}</tr>)}</tbody>
             </table>
           </div>
-          {plan.reconciled?.length ? <div className="mt-4"><h3 className="font-semibold text-text-primary">Identity reconciliation</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.reconciled.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+          {plan.reconciled?.length ? <div className="mt-4"><h3 className="font-semibold text-text-primary">Scope and identity reconciliation</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.reconciled.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
           {plan.blockers.length ? <div role="alert" className="mt-4"><h3 className="font-semibold">Resolve these issues before applying</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul></div> : (
             <div className="mt-5 max-w-lg space-y-3">
               <Input label={`Type ${modes[plan.mode].confirmation} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={pending} autoComplete="off" />

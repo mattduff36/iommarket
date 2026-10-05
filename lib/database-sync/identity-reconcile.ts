@@ -345,11 +345,11 @@ function naturalRows(rows: Array<Record<string, unknown>>, key: string, fields: 
 async function loadSide(client: Queryable) {
   const users = await rowsOf(client, `SELECT id, email, "authUserId", role::text AS role, "disabledAt" IS NOT NULL AS disabled, "deletedAt" IS NOT NULL AS deleted FROM public."User"`);
   const dealers = await rowsOf(client, `SELECT id, "userId", slug, "isAdminPreview" AS preview FROM public."DealerProfile"`);
-  const packs = await rowsOf(client, `SELECT id, "dealerKey", "dealerProfileId" FROM public."DealerPreviewPack"`);
+  const packs: Array<Record<string, unknown>> = []; // Explicitly excluded from database sync.
   const policies = await rowsOf(client, `SELECT id, "userId", "acceptanceType"::text AS "acceptanceType", "bundleVersion", md5("policyVersions"::text) AS payload, source::text AS source FROM public."PolicyAcceptance"`);
-  const waitlist = await rowsOf(client, `SELECT id, key, status::text AS status, "recipientTotal"::text AS "recipientTotal", "sentCount"::text AS "sentCount", "failedCount"::text AS "failedCount", "skippedCount"::text AS "skippedCount", md5("bodyText") AS body FROM public."WaitlistEarlyAccessCampaign"`);
-  const issues = await rowsOf(client, `SELECT id, fingerprint, status::text AS status, severity::text AS severity, source::text AS source, occurrences::text AS occurrences FROM public."MonitoringIssue"`);
-  const promotions = await rowsOf(client, `SELECT id, key, timezone, "startsAt"::text AS "startsAt", "endsAt"::text AS "endsAt", tier::text AS tier FROM public."DealerPromotionCampaign"`);
+  const waitlist: Array<Record<string, unknown>> = []; // Explicitly excluded from database sync.
+  const issues: Array<Record<string, unknown>> = []; // Explicitly excluded from database sync.
+  const promotions: Array<Record<string, unknown>> = []; // Explicitly excluded from database sync.
   return { users, dealers, packs, policies, waitlist, issues, promotions };
 }
 

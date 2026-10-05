@@ -1,5 +1,6 @@
 import pg from "pg";
-import { requiredPublicRelations } from "./catalog";
+import { requiredPublicRelations, loadCloneCatalog } from "./catalog";
+import { readDatabaseScope } from "./scope";
 import { assertPrivateAuthSource, authSourceMode, sourceAuthTable, AUTH_EXPORT_SCHEMA } from "./auth-source";
 import { SCHEMA_FINGERPRINT_SQL, schemaCompatibility } from "./fingerprint";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
@@ -245,14 +246,18 @@ export async function inspectClient(client: pg.PoolClient, requireSourceReadOnly
     const { tables: publicTables, authTables, readOnlyRole } = requireSourceReadOnly
       ? await validateSourceClient(client, env) : await inspectPermissions(client, false, env);
     const selectedCounts: Record<string, number> = {};
+    const catalog = loadCloneCatalog();
+    const scope = await readDatabaseScope(client, catalog, env, requireSourceReadOnly);
     for (const table of COUNT_TABLES) {
       if (!publicTables.some((row) => row.table_name === table)) continue;
-      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM public.${quoteIdentifier(table)}`);
+      const omitted = scope.excluded[table] ?? [];
+      const primaryKey = catalog.find((item) => item.name === table)?.primaryKey ?? "id";
+      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM public.${quoteIdentifier(table)} WHERE NOT (${quoteIdentifier(primaryKey)}::text = ANY($1::text[]))`, [omitted]);
       selectedCounts[table] = Number(result.rows[0]?.count ?? 0);
     }
     for (const table of AUTH_READ_TABLES) {
       const qualified = requireSourceReadOnly ? sourceAuthTable(table, env) : `auth.${table}`;
-      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${qualified}`);
+      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${qualified} WHERE NOT (id::text = ANY($1::text[]))`, [scope.excluded[`auth.${table}`] ?? []]);
       selectedCounts[`auth.${table}`] = Number(result.rows[0]?.count ?? 0);
     }
     const schemaLines = await client.query<{ line: string }>(SCHEMA_FINGERPRINT_SQL);

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { excludedSyncTable } from "./scope-policy";
 
 const SCALAR_TYPES = new Set(["String", "Boolean", "Int", "BigInt", "Float", "Decimal", "DateTime", "Json", "Bytes"]);
 
@@ -37,7 +38,7 @@ export function loadPrismaSchema(cwd = process.cwd()): string {
 }
 
 export function loadCloneCatalog(cwd = process.cwd()): CatalogTable[] {
-  return parsePrismaCatalog(loadPrismaSchema(cwd));
+  return parsePrismaCatalog(loadPrismaSchema(cwd)).filter((table) => !excludedSyncTable(table.name));
 }
 
 export function requiredPublicRelations(catalog: CatalogTable[] = loadCloneCatalog()): string[] {

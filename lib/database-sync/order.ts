@@ -75,7 +75,7 @@ export function planCloneOrder(tables: string[], foreignKeys: readonly CloneFore
   };
   const active = foreignKeys.filter((key) => tables.includes(key.child) && tables.includes(key.parent) && key.child !== key.parent);
   for (const key of foreignKeys) {
-    if (key.child !== key.parent) continue;
+    if (key.child !== key.parent || !tables.includes(key.child)) continue;
     if (key.deferrable) deferred.add(key.name);
     else if (key.nullable) rememberNull(key.child, breakableColumns(key));
     else blockers.push(`Cannot order ${key.child}: required self-reference ${key.name} is not deferrable.`);
