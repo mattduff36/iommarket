@@ -24,7 +24,7 @@ const run = {
   createdAt: "2026-10-03T12:00:00Z", expiresAt: "2026-10-03T12:15:00Z",
   counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { insert: 1, update: 0, delete: 0, preserve: 2, skip: 0 }])),
   blockers: [], postHash: "private-hash", backup: { email: "private@example.invalid" },
-  archivedListings: 0, archivedDealers: 0,
+  archivedListings: 0, archivedDealers: 0, reconciled: [],
   kind: "sync", restoreAvailable: true, backupExpiresAt: null, backupState: "newest", restoredFromId: null,
 };
 

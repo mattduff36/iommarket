@@ -14,7 +14,7 @@ const plan = {
   createdAt: "2026-10-03T12:00:00Z", expiresAt: "2026-10-03T12:15:00Z",
   counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { captured: 5, insert: 1, update: 2, delete: 0, preserve: 2, skip: 0 }])) as SyncTableCounts,
   blockers: [],
-  archivedListings: 0, archivedDealers: 0,
+  archivedListings: 0, archivedDealers: 0, reconciled: [],
   kind: "sync", restoreAvailable: false, backupExpiresAt: null, backupState: "none", restoredFromId: null,
 } as PublicDatabaseSyncRun;
 
