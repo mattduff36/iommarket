@@ -130,6 +130,7 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
               <tbody>{Object.entries(plan.counts).map(([table, counts]) => <tr key={table} className="border-b border-border/50"><th scope="row" className="py-2 font-medium">{table}</th><td className="px-2 py-2 text-right tabular-nums">{typeof counts.captured === "number" ? counts.captured.toLocaleString() : "—"}</td>{(["insert", "update", "delete", "preserve", "skip"] as const).map((key) => <td key={key} className="px-2 py-2 text-right tabular-nums">{counts[key].toLocaleString()}</td>)}</tr>)}</tbody>
             </table>
           </div>
+          {plan.reconciled?.length ? <div className="mt-4"><h3 className="font-semibold text-text-primary">Identity reconciliation</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.reconciled.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
           {plan.blockers.length ? <div role="alert" className="mt-4"><h3 className="font-semibold">Resolve these issues before applying</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-text-secondary">{plan.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul></div> : (
             <div className="mt-5 max-w-lg space-y-3">
               <Input label={`Type ${modes[plan.mode].confirmation} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={pending} autoComplete="off" />

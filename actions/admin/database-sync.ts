@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prepareDatabaseSync, applyDatabaseSync, restoreDatabaseSync, listDatabaseSyncRuns, DatabaseSyncError, type DatabaseSyncRun } from "@/lib/database-sync/worker";
 
-export type PublicDatabaseSyncRun = Pick<DatabaseSyncRun, "id" | "mode" | "status" | "createdAt" | "expiresAt" | "counts" | "blockers" | "archivedListings" | "archivedDealers" | "kind" | "restoreAvailable" | "backupExpiresAt" | "backupState" | "restoredFromId">;
+export type PublicDatabaseSyncRun = Pick<DatabaseSyncRun, "id" | "mode" | "status" | "createdAt" | "expiresAt" | "counts" | "blockers" | "archivedListings" | "archivedDealers" | "reconciled" | "kind" | "restoreAvailable" | "backupExpiresAt" | "backupState" | "restoredFromId">;
 
 const modeSchema = z.enum(["merge", "replace", "reset"]);
 const applySchema = z.object({ runId: z.string().uuid(), confirmation: z.string() });
@@ -26,7 +26,7 @@ function operationFailure(operation: "prepare" | "apply" | "restore", error: unk
 function publicRun(run: DatabaseSyncRun): PublicDatabaseSyncRun {
   return {
     id: run.id, mode: run.mode, status: run.status, createdAt: run.createdAt, expiresAt: run.expiresAt,
-    counts: run.counts, blockers: run.blockers, archivedListings: run.archivedListings, archivedDealers: run.archivedDealers,
+    counts: run.counts, blockers: run.blockers, archivedListings: run.archivedListings, archivedDealers: run.archivedDealers, reconciled: run.reconciled,
     kind: run.kind, restoreAvailable: run.restoreAvailable, backupExpiresAt: run.backupExpiresAt, backupState: run.backupState, restoredFromId: run.restoredFromId,
   };
 }

@@ -9,6 +9,7 @@ import { canonicalBytes, hashCanonical, parseCanonical, quoteIdent, restoreValue
 import { chunkAad, openChunk, sealChunk } from "./chunks";
 import { closeWithoutReplacing, createSyncTrace, reportPrepareFailure, rollbackWithoutReplacing, type SyncTrace } from "./diagnostics";
 import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines, schemaCompatibility } from "./fingerprint";
+import { foreignKeyParents, indexIdentityLinks, readIdentitySnapshot, reconcileIdentities, remapRows, type IdentityLink, type IdentityReconciliation } from "./identity-reconcile";
 import { planCloneOrder, type CloneForeignKey } from "./order";
 import { classifySyncCounts, hasUniqueConflict, loadUniqueConstraints } from "./plan-counts";
 import { assertRequiredRelations, inspectDatabaseSyncConfiguration, inspectionPoolOptions, validateSourceClient } from "./preflight";
@@ -37,6 +38,8 @@ export type CloneManifest = {
   preservedAdminIds: string[];
   preservedAuthIds: string[];
   previewInstanceId: string | null;
+  identityLinks?: IdentityLink[];
+  reconciled?: string[];
 };
 
 type Relation = { schema: string; name: string; key: string; primaryKey: string };
@@ -152,6 +155,7 @@ async function writeChunks(
   scrubInstanceId: string | null = null,
   trace?: SyncTrace,
   onPage?: (page: { columns: StoredColumn[]; rows: Array<Array<string | null>> }) => Promise<void>,
+  rewrite?: (columns: StoredColumn[], rows: Array<Array<string | null>>) => Array<Array<string | null>>,
 ) {
   const side = purpose === "source" ? "source" : "destination";
   markTrace(trace, side, `${side}.table-page`, relation.key);
@@ -179,8 +183,9 @@ async function writeChunks(
     const shaped = meta.map((column) => ({ name: column.name, type: column.dataType }));
     markTrace(trace, side, `${side}.serialize`, relation.key);
     const matrix = result.rows.map((row) => meta.map((column) => row[column.name] == null ? null : String(row[column.name])));
-    const payload = scrubInstanceId && (relation.key === "auth.users" || relation.key === "auth.identities")
+    const scrubbed = scrubInstanceId && (relation.key === "auth.users" || relation.key === "auth.identities")
       ? scrubMatrix(relation.key, shaped, matrix, scrubInstanceId) : matrix;
+    const payload = rewrite ? rewrite(shaped, scrubbed) : scrubbed;
     if (onPage) await onPage({ columns: shaped, rows: payload });
     const canonical = canonicalBytes(relation.key, shaped, payload);
     hash.update(canonical);
@@ -509,7 +514,8 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
     await assertRequiredRelations(destination, relations, "destination");
     const preserved = await admins(destination);
     markTrace(trace, "destination", "destination.foreign-keys");
-    const order = planCloneOrder(catalog.map((table) => table.name), await foreignKeys(destination));
+    const relationsKeys = await foreignKeys(destination);
+    const order = planCloneOrder(catalog.map((table) => table.name), relationsKeys);
     const instance = await destination.query<{ id: string }>(`SELECT instance_id::text AS id FROM auth.users WHERE instance_id IS NOT NULL LIMIT 1`);
     markTrace(trace, "destination", "destination.fingerprint");
     const destinationLines = await schemaLines(destination);
@@ -559,12 +565,23 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
         }
         if (!manifest.previewInstanceId) manifest.blockers.push("The preview authentication instance could not be read.");
         if (!manifest.blockers.length) {
+          const reconciliation: IdentityReconciliation = mode === "merge"
+            ? reconcileIdentities(await readIdentitySnapshot(source, destination))
+            : { links: [], blockers: [], notes: [] };
+          manifest.identityLinks = reconciliation.links;
+          manifest.reconciled = reconciliation.notes;
+          manifest.blockers.push(...reconciliation.blockers);
+          const linkIndex = indexIdentityLinks(reconciliation.links);
+          const parents = foreignKeyParents(relationsKeys);
           let sourceBytes = 0;
           for (const relation of relations) {
             const kept = preservedIds(relation, manifest);
             const sourceKeys: string[] = [];
             const skippedSourceKeys: string[] = [];
             const constraints = await loadUniqueConstraints(destination, relation.schema, relation.name);
+            const rewrite = mode === "merge" && relation.schema === "public"
+              ? (columns: StoredColumn[], rows: Array<Array<string | null>>) => remapRows(relation.name, relation.primaryKey, columns, rows, linkIndex, parents)
+              : undefined;
             const captured = await writeChunks(source, destination, relation, id, "source", env, deadline, manifest.previewInstanceId, trace, async (page) => {
               const keyIndex = page.columns.findIndex((column) => column.name === relation.primaryKey);
               const policyIndex = page.columns.findIndex((column) => column.name === (preservedKey(relation) ?? relation.primaryKey));
@@ -580,7 +597,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
                   manifest.blockers.push(`${relation.name} conflicts with a different development row on unique key ${constraint.name}.`);
                 }
               }
-            });
+            }, rewrite);
             sourceBytes += captured.bytes;
             manifest.tables.push(captured);
             if (sourceBytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
@@ -605,7 +622,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
     trace.phase = "plan finalization";
     markTrace(trace, "destination", "destination.plan-finalize");
     const finalized = { ...manifest, blockers: [...new Set(manifest.blockers)] };
-    const summary = { counts, blockers: finalized.blockers, archivedListings: 0, archivedDealers: 0 };
+    const summary = { counts, blockers: finalized.blockers, archivedListings: 0, archivedDealers: 0, reconciled: finalized.reconciled ?? [] };
     const inserted = await destination.query<StoredRun>(
       `UPDATE staging_admin.database_sync_runs SET encrypted_snapshot=$2, summary=$3::jsonb, schema_fingerprint=$4 WHERE id=$1 RETURNING *`,
       [id, seal(finalized, id, env), JSON.stringify(summary), manifest.fingerprint],

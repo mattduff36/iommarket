@@ -18,6 +18,7 @@ export type DatabaseSyncRun = {
   blockers: string[];
   archivedListings: number;
   archivedDealers: number;
+  reconciled: string[];
   kind: "sync" | "restore";
   restoreAvailable: boolean;
   backupExpiresAt: string | null;
@@ -47,7 +48,7 @@ function assertStaging(env: NodeJS.ProcessEnv) {
 
 function publicRun(row: StoredRun): DatabaseSyncRun {
   const summary = row.summary && typeof row.summary === "object"
-    ? row.summary as { counts?: Record<string, SyncActionCounts>; blockers?: string[]; archivedListings?: number; archivedDealers?: number }
+    ? row.summary as { counts?: Record<string, SyncActionCounts>; blockers?: string[]; archivedListings?: number; archivedDealers?: number; reconciled?: string[] }
     : {};
   const expiresAt = row.backup_expires_at ? new Date(row.backup_expires_at).getTime() : null;
   const pruned = Boolean(row.payload_pruned_at);
@@ -66,6 +67,7 @@ function publicRun(row: StoredRun): DatabaseSyncRun {
     blockers: summary.blockers ?? [],
     archivedListings: summary.archivedListings ?? 0,
     archivedDealers: summary.archivedDealers ?? 0,
+    reconciled: summary.reconciled ?? [],
     kind: row.kind === "restore" ? "restore" : "sync",
     restoreAvailable: backupState === "newest" || backupState === "retained",
     backupExpiresAt: row.backup_expires_at ? new Date(row.backup_expires_at).toISOString() : null,

@@ -1,5 +1,27 @@
 # Database merge repair handover
 
+## CURRENT: equivalent identities mapped — four decisions still block apply — 2026-10-05T02:43Z
+
+Plan `44069610-3dd4-4b37-9bba-fa2e4b58ec48`, prepared 02:26 UK, got past the schema check and stored unique-key conflicts. No merge was applied. A later read-only comparison used administrative `postgres` on both direct hosts, with `transaction_read_only=on`. It did not change hosted data and did not decrypt the frozen plan.
+
+Rows are treated as the same record only when every identity key agrees:
+
+- 34 `User` rows: the exact email and auth subject point at one development user. All 34 are active `DEALER` on both sides and neither side is an administrator. Email alone is not enough.
+- 34 `DealerProfile` rows: that linked user and the slug point at the same development dealer. Both sides are admin-preview dealers, with the same tier and verified flag.
+- 34 `DealerPreviewPack` rows: that linked dealer and `dealerKey` point at the same development pack. Enabled matches on all 34. Review state matches on 7 and differs on 27. A later apply would copy the production review state onto that same pack. Development-only packs stay.
+- 2 `PolicyAcceptance` rows: same user id, acceptance type, bundle version, and recorded consent. This does not create consent.
+
+Merge rewrites those primary keys and the foreign keys that reference them, then updates the development row. Development-only rows stay. Unique constraints are unchanged. Replace does not use this mapping. The 02:26 plan is stale.
+
+A fresh preview still cannot be applied. These collisions are not the same identity:
+
+- `User cmusfwkh5000006pjpp1gnslj` already exists in development, but its production email belongs to development user `cmus3bgau000004jjx43oid1l` and the auth subjects differ.
+- `WaitlistEarlyAccessCampaign cmuq7y1r9000004id6zlbqqcv` matches `cmuq10j250000e8zjq11d8zrn` on its natural key, but status, recipient total, and sent count differ.
+- `MonitoringIssue cmttaih7a000104l54k8crelh` matches `cmunh5ebd000104l8i9fj9wxn` on its fingerprint, but status, severity, and occurrences differ.
+- `DealerPromotionCampaign cmuek69j6000004jvzyytrzva` matches `cmudwoq7o000c04jhehdkgjto` on its natural key, but the start and end differ.
+
+Focused test: `npx vitest run __tests__/lib/database-sync-identity.test.ts` — 6 passed. It covers refusing an email-only user merge and rewriting dealer foreign keys to the linked development ids. The same live snapshot produces the 34/34/34/2 links and the four blockers above, with no email address in the plan text. Deployment id will be recorded after the staging deploy of this commit.
+
 ## CURRENT: schema blocker identified — checksum bytes, not a live schema drift — 2026-10-05T02:21Z
 
 The manual Merge preview on `dpl_85xTFxFLtk3DsLwtUMsGXeACmGjC` prepared at 02:05 UK and stored only `Source and destination schema or migrations differ. Review them before copying.` No merge was applied.
@@ -15,7 +37,9 @@ Columns, defaults, primary/unique/foreign keys, enums, indexes, triggers, and ro
 
 Code correction: `schemaCompatibility()` is now used by both inspection and preparation. It still requires column, default, constraint, enum, and migration-name equality, and it reports the differing lines. It does not compare checksum bytes. The stored plan/backup hash still uses the unchanged fingerprint SQL, so existing backup hashes were not rewritten. The 02:05 plan still contains the old blocker; prepare a fresh preview after the staging deploy. A real column or migration-name difference still blocks.
 
-Targeted tests: `npx vitest run __tests__/lib/database-sync-clone.test.ts __tests__/lib/database-sync-worker.test.ts` — 2 files, 27 passed. The same live fingerprint lines are compatible under the new comparison. Deployment id will be recorded after the staging deploy of this commit. No Merge, Replace, Reset, or Restore was applied.
+Targeted tests: `npx vitest run __tests__/lib/database-sync-clone.test.ts __tests__/lib/database-sync-worker.test.ts` — 2 files, 27 passed. The same live fingerprint lines are compatible under the new comparison.
+
+Preview deployment `dpl_HkYQxaRBqgievSbaMRCJyUBKYXNd` is READY. Commit `305c9cc6be38a1ced31659b475059bdd0bdcd7d6`, branch `staging`, source git, ready at 2026-10-05T01:23:39.965Z. `itrader.dev` points to that deployment. `DATABASE_SYNC_AUTH_SOURCE_MODE` was not changed. No Merge, Replace, Reset, or Restore was applied. The 02:05 plan still contains the old blocker; prepare a fresh preview.
 
 ## CURRENT: deployed and configured for a manual staging test — 2026-10-05T01:01:01Z
 
