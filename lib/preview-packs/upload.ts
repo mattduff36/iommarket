@@ -1,3 +1,5 @@
+import { readMediaUploadProvider } from "@/lib/media/upload-provider";
+import { cleanupDeliveryForRemovedImage } from "@/lib/media/stored-image";
 import { readFile } from "fs/promises";
 import type { PrismaClient } from "@prisma/client";
 import {
@@ -34,7 +36,10 @@ export interface PreviewUploadedImage {
   url: string;
   publicId: string;
   order: number;
-  provider: "CLOUDINARY";
+  provider: "CLOUDINARY" | "IMAGEKIT";
+  imageKitFileId?: string;
+  imageKitFilePath?: string;
+  cleanupReceiptId?: string;
   assetId: string | null;
   version: string | null;
   width: number | null;
@@ -259,31 +264,16 @@ async function uploadFreshSource(
   },
   publicId: string,
 ) {
-  const signed = createSignedListingUpload({ publicId, overwrite: false });
-  if (input.source.localPath) {
-    const bytes = await readFile(input.source.localPath);
-    const contentType = detectSafeRasterContentType(bytes);
-    return uploadBytes({
-      signed,
-      bytes,
-      contentType,
-      fallbackUrl: input.source.url,
-      publicId,
-      order: input.order,
-    });
+  const downloaded = input.source.localPath
+    ? await readFile(input.source.localPath).then((bytes) => ({ bytes, contentType: detectSafeRasterContentType(bytes) }))
+    : await (input.downloadImpl ?? downloadSafeRemoteImage)({ url: input.source.url });
+  if (readMediaUploadProvider() === "imagekit") {
+    const { uploadManagedImport } = await import("@/lib/media/managed-import");
+    return uploadManagedImport({ publicId, bytes: downloaded.bytes, contentType: downloaded.contentType ?? "", order: input.order });
   }
-
-  const downloaded = await (input.downloadImpl ?? downloadSafeRemoteImage)({
-    url: input.source.url,
-  });
-  return uploadBytes({
-    signed,
-    bytes: downloaded.bytes,
-    contentType: downloaded.contentType ?? "application/octet-stream",
-    fallbackUrl: input.source.url,
-    publicId,
-    order: input.order,
-  });
+  const signed = createSignedListingUpload({ publicId, overwrite: false });
+  return uploadBytes({ signed, bytes: downloaded.bytes, contentType: downloaded.contentType ?? "application/octet-stream",
+    fallbackUrl: input.source.url, publicId, order: input.order });
 }
 
 export async function uploadPreviewPackImages(input: {
@@ -332,6 +322,11 @@ export async function cleanupPreviewUploadedImages(
   images: PreviewUploadedImage[],
   destroy: typeof deleteImage = deleteImage,
 ) {
+  const managed = images.filter((image) => image.provider === "IMAGEKIT");
+  if (managed.length) {
+    const { db } = await import("@/lib/db");
+    await enqueuePreviewUploadedImageCleanup(db, managed, "managed-import-failed");
+  }
   const owned = images
     .map((image) => image.ownership)
     .filter((asset): asset is OwnedCloudinaryAsset => asset !== null);
@@ -349,6 +344,15 @@ export async function enqueuePreviewUploadedImageCleanup(
   images: PreviewUploadedImage[],
   reason: string,
 ) {
+  const managed = images.filter((image) => image.provider === "IMAGEKIT");
+  if (managed.length) {
+    const receipts = managed.map((image) => {
+      const cleanup = cleanupDeliveryForRemovedImage(image);
+      if (!cleanup) throw new Error("Imported image has no complete cleanup identity.");
+      return { ...cleanup, reason };
+    });
+    await prisma.listingImageCleanupJob.createMany({ data: receipts });
+  }
   const owned = images
     .map((image) => image.ownership)
     .filter((asset): asset is OwnedCloudinaryAsset => asset !== null);

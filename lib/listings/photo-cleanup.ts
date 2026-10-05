@@ -1,3 +1,7 @@
+import { MANAGED_IMPORT_ABANDONED_REASON, MANAGED_IMPORT_GRACE_MS } from "@/lib/media/managed-import";
+import { MEDIA_RETENTION_HOLD } from "@/lib/media/retention-receipts";
+import { processManagedCleanupReceipt, MANAGED_ABANDONED_REASON, MANAGED_ABANDONED_DELAY_MS } from "@/lib/media/managed-cleanup";
+import { MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
 import { db } from "@/lib/db";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 import { deleteImage } from "@/lib/upload/cloudinary";
@@ -37,8 +41,17 @@ const CLEANUP_PUBLIC_ID_PREFIXES = [
 function cleanupClaimWhere(now: Date) {
   return {
     status: { in: ["PENDING" as const, "FAILED" as const] },
+    deliveryType: { not: MEDIA_RETENTION_HOLD },
     attempts: { lt: 5 },
     AND: [
+      { OR: [{ reason: { not: MANAGED_IMPORT_ABANDONED_REASON } }, { createdAt: { lte: new Date(now.getTime() - MANAGED_IMPORT_GRACE_MS) } }] },
+      { OR: [{ reason: { not: MANAGED_ABANDONED_REASON } }, { createdAt: { lte: new Date(now.getTime() - MANAGED_ABANDONED_DELAY_MS) } }] },
+      { OR: [{ lastError: null }, { lastError: { not: "MANAGED_CLEANUP_DEFERRED" } }, { updatedAt: { lte: new Date(now.getTime() - 5 * 60_000) } }] },
+      // Preserve migrated originals and Cloudinary rollback copies until an explicitly approved retention transition.
+      { OR: [{ imageKitFilePath: null }, { AND: [
+        { imageKitFilePath: { not: { startsWith: "/iommarket-migration/" } } },
+        { imageKitFilePath: { not: { startsWith: "/iommarket-migration-sample/" } } },
+      ] }] },
       {
         OR: [
           { lastError: null },
@@ -117,6 +130,16 @@ export async function processListingImageCleanupJobs(limit = 20) {
     processed += 1;
 
     try {
+      if (job.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE) {
+        const outcome = await processManagedCleanupReceipt(job, now);
+        await db.listingImageCleanupJob.updateMany({
+          where: { id: job.id, attempts: job.attempts + 1, lastError: CLEANUP_PROCESSING_MARKER },
+          data: outcome.status === "deferred"
+            ? { status: "PENDING", attempts: job.attempts, lastError: "MANAGED_CLEANUP_DEFERRED" }
+            : { status: "COMPLETED", completedAt: new Date(), lastError: null },
+        });
+        continue;
+      }
       if (job.deliveryType === "imagekit") {
         const fileId = fileIdFromImageKitDevPublicId(job.publicId);
         if (!fileId) throw new Error(`Refusing unsafe ImageKit cleanup target: ${job.publicId}`);
@@ -180,7 +203,7 @@ export async function processListingImageCleanupJobs(limit = 20) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Cleanup failed";
-      const alreadyGone = /not found/i.test(message);
+      const alreadyGone = job.deliveryType === IMAGE_CONSTRAINTS.deliveryType && /not found/i.test(message);
       await db.listingImageCleanupJob.updateMany({
         where: {
           id: job.id,
@@ -210,6 +233,7 @@ export async function expireAbandonedListingImageIntents(
       status: { in: ["ISSUED", "VERIFIED"] },
       expiresAt: { lte: now },
       image: { is: null },
+      revisionImage: { is: null },
     },
     select: { id: true, publicId: true, deliveryType: true, imageKitFileId: true, imageKitFilePath: true },
     orderBy: { expiresAt: "asc" },
@@ -225,6 +249,7 @@ export async function expireAbandonedListingImageIntents(
           status: { in: ["ISSUED", "VERIFIED"] },
           expiresAt: { lte: now },
           image: { is: null },
+      revisionImage: { is: null },
         },
         data: { status: "EXPIRED" },
       });

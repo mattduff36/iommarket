@@ -1,3 +1,4 @@
+import { loadAuthorizedUploadPhoto } from "@/lib/media/authorize-upload-photo";
 import { NextRequest, NextResponse } from "next/server";
 import { loadAuthorizedListingPhoto, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
 import { listingPhotoDeliveryQuerySchema } from "@/lib/media/listing-photo-query";
@@ -38,7 +39,9 @@ export async function GET(request: NextRequest) {
 
   const photo = parsed.data.source === "revision"
     ? await loadAuthorizedRevisionPhoto(parsed.data.imageId)
-    : await loadAuthorizedListingPhoto(parsed.data.imageId);
+    : parsed.data.source === "upload"
+      ? await loadAuthorizedUploadPhoto(parsed.data.imageId)
+      : await loadAuthorizedListingPhoto(parsed.data.imageId);
   if (!photo) {
     return NextResponse.json({ error: "Image not available." }, { status: 404 });
   }

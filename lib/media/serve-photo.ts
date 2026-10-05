@@ -1,3 +1,4 @@
+import { isManagedListingPath, managedMediaPublicId } from "@/lib/media/managed-policy";
 import {
   IMAGEKIT_PRIVATE_URL_PREFIX,
   IMAGEKIT_SAMPLE_PREFIX,
@@ -44,6 +45,20 @@ export function signedDeliveryForPhoto(input: {
   const env = input.env ?? process.env;
   const storedPath = input.photo.imageKitFilePath;
   const mode = readMediaProviderMode(env);
+  const managedReference = input.photo.publicId.startsWith("imagekit/") || storedPath?.startsWith("/iommarket-media/");
+  if (managedReference) {
+    if (!storedPath || !input.photo.imageKitFileId || !isManagedListingPath(storedPath) ||
+      managedMediaPublicId(storedPath) !== input.photo.publicId ||
+      !/^[A-Za-z0-9_-]{1,100}$/.test(input.photo.imageKitFileId)) {
+      return { kind: "unresolved" as const, reason: "Managed image identity is invalid or unverified." };
+    }
+    // Per-record capability survives rollback of the preferred legacy provider.
+    return { kind: "redirect" as const, url: signedImageKitDeliveryUrl({
+      relativePath: imageKitDeliveryRelativePath(storedPath, imageKitTransformForMode({
+        mode: input.mode, frame: input.frame, width: input.width, photo: input.photo,
+      })), env,
+    }) };
+  }
   if (storedPath && input.photo.imageKitFileId && mode !== "cloudinary") {
     const sampleOnly = mode === "imagekit-sample" && !storedPath.startsWith(IMAGEKIT_SAMPLE_PREFIX);
     const storedIsDeliverable = isDisposableDestinationPath(storedPath) || isProtectedDestinationPath(storedPath);
@@ -113,7 +128,7 @@ export function appMediaUrl(path: string, env: NodeJS.ProcessEnv = process.env) 
 }
 
 export function listingSocialMetadataUrl(listingId: string, photo: ListingPhotoSource, env: NodeJS.ProcessEnv = process.env) {
-  if (readMediaProviderMode(env) === "cloudinary") {
+  if (readMediaProviderMode(env) === "cloudinary" && !photo.publicId.startsWith("imagekit/") && !photo.imageKitFilePath?.startsWith("/iommarket-media/")) {
     return signPrivateCloudinaryUrl(buildSocialImageUrl(photo));
   }
   return appMediaUrl(`/api/media/social/${encodeURIComponent(listingId)}`, env);
@@ -125,7 +140,7 @@ export function structuredListingImageUrl(input: {
   env?: NodeJS.ProcessEnv;
 }) {
   const env = input.env ?? process.env;
-  if (readMediaProviderMode(env) === "cloudinary" || !input.photo.id) {
+  if ((readMediaProviderMode(env) === "cloudinary" && !input.photo.publicId.startsWith("imagekit/") && !input.photo.imageKitFilePath?.startsWith("/iommarket-media/")) || !input.photo.id) {
     return signPrivateCloudinaryUrl(
       input.primary
         ? buildSocialImageUrl(input.photo)

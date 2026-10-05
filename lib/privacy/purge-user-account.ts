@@ -1,3 +1,5 @@
+import { parseManagedMediaPath, managedMediaPublicId, MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
+import { MEDIA_RETENTION_HOLD, legacyProfileRetentionReceipt } from "@/lib/media/retention-receipts";
 import type { Prisma } from "@prisma/client";
 import { deleteDisposableImageKitFile } from "@/lib/media/disposable-media";
 import { isDisposableDestinationPath, isProtectedDestinationPath } from "@/lib/media/config";
@@ -29,6 +31,7 @@ const ACCOUNT_TABLES = [
   "Payment",
   "Report",
   "Listing",
+  "ListingRevisionImage",
   "MonitoringEvent",
   "MonitoringIssue",
   "MonitoringAlertDelivery",
@@ -328,10 +331,34 @@ export async function purgeUserAccountRecords(
   const listings = [...user.listings, ...dealerListings];
   const listingIds = listings.map((listing) => listing.id);
   const imageKitDisposables: Array<{ fileId: string; filePath: string }> = [];
+  const retentionReceipts: Prisma.ListingImageCleanupJobCreateManyInput[] = [];
+  const revisionImages = tableExists(tables, "ListingRevisionImage") && listingIds.length
+    ? await tx.listingRevisionImage.findMany({
+        where: { revision: { listingId: { in: listingIds } } },
+        select: { publicId: true, imageKitFileId: true, imageKitFilePath: true },
+      }) : [];
   const imagePublicIds = [
     ...listings.flatMap((listing) => listing.images),
     ...user.listingImageUploadIntents,
+    ...revisionImages,
   ].flatMap((image) => {
+    if (image.imageKitFilePath?.startsWith("/iommarket-media/")) {
+      const parsed = parseManagedMediaPath(image.imageKitFilePath);
+      if (!parsed || managedMediaPublicId(image.imageKitFilePath) !== image.publicId) {
+        if (image.publicId.startsWith("database-sync/")) return [];
+        throw new PurgeUserError("Managed media needs a complete ownership record before this account can be purged.");
+      }
+      retentionReceipts.push({ publicId: image.publicId, deliveryType: MANAGED_IMAGEKIT_DELIVERY_TYPE,
+        imageKitFileId: image.imageKitFileId ?? null, imageKitFilePath: image.imageKitFilePath,
+        reason: parsed.kind === "quarantine" ? "managed-upload-abandoned" : "account-purge-managed" });
+      return [];
+    }
+    if (image.imageKitFilePath && isProtectedDestinationPath(image.imageKitFilePath)) {
+      retentionReceipts.push({ publicId: image.publicId, deliveryType: MEDIA_RETENTION_HOLD,
+        imageKitFileId: image.imageKitFileId ?? null, imageKitFilePath: image.imageKitFilePath, reason: "account-purge-migrated-retention" });
+      return [];
+    }
+    if (image.publicId.startsWith("imagekit/")) throw new PurgeUserError("Managed media identity is missing.");
     if (
       image.publicId.startsWith("imagekit-dev/") &&
       image.imageKitFileId &&
@@ -343,10 +370,13 @@ export async function purgeUserAccountRecords(
       return [];
     }
     return [image.publicId];
-  }).concat([
-    cloudinaryPublicIdFromUrl(user.avatarUrl),
-    cloudinaryPublicIdFromUrl(user.dealerProfile?.logoUrl),
-  ].filter((publicId): publicId is string => Boolean(publicId)));
+  }).concat([user.avatarUrl, user.dealerProfile?.logoUrl].flatMap((url) => {
+    const receipt = legacyProfileRetentionReceipt(url);
+    if (receipt) { retentionReceipts.push(receipt); return []; }
+    const publicId = cloudinaryPublicIdFromUrl(url);
+    return publicId ? [publicId] : [];
+  }));
+  if (retentionReceipts.length) await tx.listingImageCleanupJob.createMany({ data: retentionReceipts });
 
   await deleteOwnedCommerce(tx, userId, dealerId, user.email, tables);
   if (dealerId && tableExists(tables, "DealerReviewResponse")) {
@@ -406,7 +436,7 @@ export async function deleteAccountMedia(
 ) {
   const failedPublicIds: string[] = [];
   for (const publicId of new Set(publicIds)) {
-    if (publicId.startsWith("imagekit-dev/")) continue;
+    if (publicId.startsWith("imagekit-dev/") || publicId.startsWith("imagekit/")) continue;
     try {
       await deleteImage(publicId);
     } catch {

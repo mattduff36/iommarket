@@ -1,3 +1,4 @@
+import { mediaEnvironmentIssues } from "@/lib/media/environment-contract";
 import { COST_LEDGER_STARTED_AT_ISO } from "@/lib/costs/config";
 import type { RuntimeEnv } from "@/lib/runtime-env";
 import {
@@ -32,6 +33,7 @@ export const LAUNCH_SENSITIVE_KEYS = [
   "UPSTASH_REDIS_REST_URL",
   "UPSTASH_REDIS_REST_TOKEN",
   "CLOUDINARY_API_SECRET",
+  "IMAGEKIT_PRIVATE_KEY",
   "RIPPLE_WEBHOOK_SECRET",
   "RIPPLE_REFERENCE_SECRET",
   "RIPPLE_REFERENCE_SECRET_PREVIOUS",
@@ -139,14 +141,13 @@ export function classifyLaunchEnvironment(env: RuntimeEnv): {
     "UPSTASH_REDIS_REST_TOKEN",
     "RIPPLE_REFERENCE_SECRET",
     "RIPPLE_WEBHOOK_SECRET",
-    "CLOUDINARY_API_SECRET",
   ] as const) {
     const value = present(env[key]);
     if (!value) issues.push({ key, code: "missing" });
     else if (!secretIsStrong(value)) issues.push({ key, code: "invalid" });
   }
 
-  for (const key of ["UPSTASH_REDIS_REST_URL", "RIPPLE_CLIENT_ID", "CLOUDINARY_API_KEY"] as const) {
+  for (const key of ["UPSTASH_REDIS_REST_URL", "RIPPLE_CLIENT_ID"] as const) {
     if (!present(env[key])) issues.push({ key, code: "missing" });
   }
 
@@ -159,11 +160,7 @@ export function classifyLaunchEnvironment(env: RuntimeEnv): {
   if (!certificate) issues.push({ key: "SUPABASE_DB_CA_CERT", code: "missing" });
   else if (!certificateIsValid(certificate)) issues.push({ key: "SUPABASE_DB_CA_CERT", code: "invalid" });
 
-  const cloudName = present(env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
-  if (!cloudName) issues.push({ key: "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", code: "missing" });
-  else if (cloudName !== EXPECTED_PRODUCTION_CLOUDINARY_CLOUD_NAME) {
-    issues.push({ key: "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", code: "invalid" });
-  }
+  issues.push(...mediaEnvironmentIssues(env));
 
   if (env.RIPPLE_LIVE_CHECKOUT_ENABLED !== "1") {
     issues.push({ key: "RIPPLE_LIVE_CHECKOUT_ENABLED", code: "invalid" });

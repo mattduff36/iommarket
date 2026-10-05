@@ -1,3 +1,5 @@
+import { readUploadJson } from "@/lib/media/upload-request";
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { issueListingImageUploadIntent } from "@/lib/listings/photo-upload";
@@ -11,6 +13,10 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const inputSchema = z.union([
+  z.object({ fileName: z.string().min(1).max(255), fileSize: z.number().int().positive().max(10 * 1024 * 1024), fileType: z.string().max(100) }).strict(),
+  z.object({}).strict(),
+]);
 
 function hasTrustedOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -50,8 +56,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: ADMIN_OWNED_LISTING_ERROR }, { status: 403 });
   }
 
+  let body: unknown;
+  try { body = await readUploadJson(request, true); }
+  catch { return NextResponse.json({ error: "Invalid upload metadata." }, { status: 400 }); }
+  const parsed = inputSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid upload metadata." }, { status: 400 });
   try {
-    const issued = await issueListingImageUploadIntent(user.id);
+    const issued = await issueListingImageUploadIntent(user.id, "fileName" in parsed.data ? { fileName: String(parsed.data.fileName), fileSize: Number(parsed.data.fileSize), fileType: String(parsed.data.fileType) } : undefined);
     return NextResponse.json(
       {
         data: {

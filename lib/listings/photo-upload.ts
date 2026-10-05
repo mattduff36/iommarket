@@ -1,3 +1,6 @@
+import { readMediaUploadProvider } from "@/lib/media/upload-provider";
+import { issueManagedImageKitUploadIntent, type ManagedUploadInput } from "@/lib/media/managed-upload";
+import { MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
 import { IMAGE_CONSTRAINTS, isAllowedListingImageFormat, validateListingImageBounds } from "@/lib/images/constraints";
 import { isTrustedListingPublicId } from "@/lib/images/cloudinary-url";
 import { db } from "@/lib/db";
@@ -15,8 +18,15 @@ export function createListingUploadPublicId(userId: string, intentId: string) {
   return `${IMAGE_CONSTRAINTS.folder}/staging/${userId}/${intentId}`;
 }
 
-export async function issueListingImageUploadIntent(userId: string) {
-  if (imageKitDevUploadsEnabled()) return issueImageKitListingUploadIntent(userId);
+export async function issueListingImageUploadIntent(userId: string, input?: ManagedUploadInput) {
+  if (readMediaUploadProvider() === "imagekit") {
+    if (process.env.IMAGEKIT_UPLOADS_ENABLED === "1") {
+      if (!input) throw new Error("Image metadata is required to start this upload.");
+      return issueManagedImageKitUploadIntent(userId, input);
+    }
+    if (imageKitDevUploadsEnabled()) return issueImageKitListingUploadIntent(userId);
+    throw new Error("ImageKit uploads are not enabled for this environment. No Cloudinary upload was issued.");
+  }
   const expiresAt = new Date(Date.now() + INTENT_TTL_MS);
   const intent = await db.listingImageUploadIntent.create({
     data: {
@@ -78,8 +88,19 @@ export async function verifyImageKitListingUpload(input: {
   if (!intent || intent.userId !== input.userId || intent.deliveryType !== "imagekit") {
     return { error: "Upload not found." };
   }
-  if (intent.status === "VERIFIED") return { data: intent };
+  if (intent.status === "VERIFIED") {
+    return intent.imageKitFileId === input.fileId && intent.imageKitFilePath === input.filePath
+      ? { data: intent }
+      : { error: "This upload was already verified with a different file." };
+  }
   if (intent.status !== "ISSUED") return { error: "This upload can no longer be verified." };
+  if (intent.expiresAt.getTime() <= Date.now()) return { error: "This upload expired. Please try again." };
+  if (!["jpg", "png", "webp"].includes(input.format)) return { error: "ImageKit uploads must be JPG, PNG, or WebP." };
+  const boundsError = validateListingImageBounds(input);
+  if (boundsError) return { error: boundsError };
+  if (input.filePath.includes("..") || /[\\?#%]/.test(input.filePath)) {
+    return { error: "The uploaded file path is invalid." };
+  }
   if (!input.filePath.startsWith(`${intent.folder}/`) && input.filePath !== intent.folder) {
     return { error: "The uploaded file does not match this request." };
   }
@@ -125,8 +146,8 @@ export async function finalizeListingImageUploadIntent({
   if (!intent || intent.userId !== userId) {
     return { error: "Upload not found." };
   }
-  if (intent.deliveryType === "imagekit") {
-    return { error: "This upload must be verified by the ImageKit development uploader." };
+  if (intent.deliveryType === "imagekit" || intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE) {
+    return { error: "This upload must be verified by the ImageKit uploader." };
   }
   if (intent.status === "VERIFIED") {
     return { data: intent };

@@ -31,7 +31,7 @@ type DeliveryMode = "fill" | "fit" | "blur";
 
 function usesProviderDelivery(photo: ListingPhotoSource) {
   const mode = process.env.NEXT_PUBLIC_MEDIA_PROVIDER;
-  return Boolean(photo.id) && (
+  return Boolean(photo.id || photo.uploadIntentId) && (
     mode === "imagekit" ||
     mode === "imagekit-sample" ||
     photo.publicId.startsWith("imagekit-dev/") ||

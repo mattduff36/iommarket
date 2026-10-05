@@ -1,3 +1,5 @@
+import { isImageKitDevelopmentEnvironment } from "@/lib/media/environment-boundary";
+
 export const MEDIA_PROVIDER_MODES = ["cloudinary", "imagekit-sample", "imagekit"] as const;
 
 export type MediaProviderMode = (typeof MEDIA_PROVIDER_MODES)[number];
@@ -30,7 +32,8 @@ export function imageKitModeIsStrict(
 }
 
 export function imageKitDevUploadsEnabled(env: NodeJS.ProcessEnv = process.env) {
-  return env.IMAGEKIT_DEV_UPLOADS === "1" && readMediaProviderMode(env) === "imagekit";
+  return env.IMAGEKIT_DEV_UPLOADS === "1" && readMediaProviderMode(env) === "imagekit" &&
+    isImageKitDevelopmentEnvironment(env);
 }
 
 export function imageKitSignatureTtlSeconds(env: NodeJS.ProcessEnv = process.env) {

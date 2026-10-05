@@ -1,3 +1,4 @@
+import { uploadDirectImageKitPhoto, type DirectImageKitUpload } from "@/lib/images/imagekit-client-upload";
 import { IMAGE_CONSTRAINTS, isAllowedListingImageFormat } from "@/lib/images/constraints";
 import type { ListingPhotoSource } from "@/lib/images/photo";
 
@@ -18,8 +19,10 @@ interface IssuedUpload {
       }
     | {
         provider: "imagekit";
+        strategy?: undefined;
         uploadUrl: string;
-      };
+      }
+    | DirectImageKitUpload;
 }
 
 interface FinalizedUpload {
@@ -51,7 +54,7 @@ export async function uploadListingImageFile(file: File): Promise<ListingPhotoSo
   const intentResponse = await fetch("/api/listing-images/intent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size }),
   });
   const intentPayload = (await intentResponse.json().catch(() => null)) as
     | { data?: IssuedUpload; error?: string }
@@ -61,6 +64,9 @@ export async function uploadListingImageFile(file: File): Promise<ListingPhotoSo
   }
 
   const { upload, uploadIntentId, publicId } = intentPayload.data;
+  if (upload.provider === "imagekit" && upload.strategy === "direct-v2") {
+    return uploadDirectImageKitPhoto(file, uploadIntentId, upload);
+  }
   if (upload.provider === "imagekit") {
     const imageKitForm = new FormData();
     imageKitForm.append("file", file);

@@ -1,3 +1,4 @@
+import { legacyProfileRetentionReceipt } from "@/lib/media/retention-receipts";
 import type { AccountDeletionJob, AccountDeletionPhase, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getPolicyFlags } from "@/lib/policy/flags";
@@ -71,6 +72,11 @@ function cloudinaryPublicIdFromUrl(url: string | null | undefined) {
 
 async function deleteProfileMedia(urls: Array<string | null | undefined>) {
   for (const url of urls) {
+    const receipt = legacyProfileRetentionReceipt(url);
+    if (receipt) {
+      await db.listingImageCleanupJob.create({ data: receipt });
+      continue;
+    }
     const publicId = cloudinaryPublicIdFromUrl(url);
     if (!publicId) continue;
     try {

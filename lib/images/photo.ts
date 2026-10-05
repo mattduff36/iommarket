@@ -36,7 +36,7 @@ export interface ListingPhotoSource {
   imageKitFileId?: string | null;
   imageKitFilePath?: string | null;
   order?: number;
-  deliverySource?: "listing" | "revision";
+  deliverySource?: "listing" | "revision" | "upload";
 }
 
 export function toListingPhotoSource(
@@ -57,7 +57,7 @@ export function toListingPhotoSource(
     imageKitFileId?: string | null;
     imageKitFilePath?: string | null;
     order?: number;
-    deliverySource?: "listing" | "revision";
+    deliverySource?: "listing" | "revision" | "upload";
   } | null | undefined,
 ): ListingPhotoSource | undefined {
   if (!image?.url) return undefined;

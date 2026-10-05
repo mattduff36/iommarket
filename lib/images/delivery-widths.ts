@@ -64,14 +64,14 @@ export function isListingPhotoDeliveryWidth(width: number): width is ListingPhot
 }
 
 export function listingPhotoDeliveryUrl(
-  photo: Pick<ListingPhotoSource, "id" | "deliverySource">,
+  photo: Pick<ListingPhotoSource, "id" | "deliverySource" | "uploadIntentId">,
   frame: ListingPhotoFrame,
   mode: "fill" | "fit" | "blur",
   width: number,
 ) {
   const params = new URLSearchParams({
-    imageId: photo.id ?? "",
-    source: photo.deliverySource ?? "listing",
+    imageId: photo.id ?? photo.uploadIntentId ?? "",
+    source: photo.deliverySource ?? (photo.id ? "listing" : "upload"),
     mode,
     frame,
     w: String(width),

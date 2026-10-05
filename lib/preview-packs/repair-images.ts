@@ -1,3 +1,5 @@
+import { cleanupDeliveryForRemovedImage } from "@/lib/media/stored-image";
+import { claimManagedImportsForAttachment } from "@/lib/media/managed-import";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
@@ -236,7 +238,7 @@ export async function swapPreviewListingImages(input: {
       select: {
         images: {
           orderBy: { order: "asc" },
-          select: { publicId: true, order: true },
+          select: { publicId: true, order: true, provider: true, imageKitFileId: true, imageKitFilePath: true },
         },
         revisions: {
           where: { status: { in: ["DRAFT", "PENDING"] } },
@@ -268,13 +270,16 @@ export async function swapPreviewListingImages(input: {
     }
     await tx.listingImage.deleteMany({ where: { listingId: input.listingId } });
     if (input.uploaded.length > 0) {
+      await claimManagedImportsForAttachment(tx, input.uploaded);
       await tx.listingImage.createMany({
         data: input.uploaded.map((image) => ({
           listingId: input.listingId,
           url: image.url,
           publicId: image.publicId,
           order: image.order,
-          provider: "CLOUDINARY",
+          provider: image.provider,
+          imageKitFileId: image.imageKitFileId ?? null,
+          imageKitFilePath: image.imageKitFilePath ?? null,
           assetId: image.assetId,
           version: image.version,
           width: image.width,
@@ -286,11 +291,10 @@ export async function swapPreviewListingImages(input: {
     }
     if (stale.length > 0) {
       await tx.listingImageCleanupJob.createMany({
-        data: stale.map((publicId) => ({
-          publicId,
-          deliveryType: "private",
-          reason: input.reason,
-        })),
+        data: current.images.filter((image) => stale.includes(image.publicId)).flatMap((image) => {
+          const cleanup = cleanupDeliveryForRemovedImage({ ...image, provider: image.provider ?? "CLOUDINARY" });
+          return cleanup ? [{ ...cleanup, reason: input.reason }] : [];
+        }),
       });
     }
     return { applied: true, enqueuedCleanup: stale };

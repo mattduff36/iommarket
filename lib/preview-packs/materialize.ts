@@ -1,3 +1,4 @@
+import { claimManagedImportsForAttachment } from "@/lib/media/managed-import";
 import { existsSync } from "fs";
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -223,13 +224,16 @@ export async function insertPreviewListing(
       })),
   });
   if (input.images.length > 0) {
+    await claimManagedImportsForAttachment(tx, input.images);
     await tx.listingImage.createMany({
       data: input.images.map((image) => ({
         listingId: created.id,
         url: image.url,
         publicId: image.publicId,
         order: image.order,
-        provider: "CLOUDINARY",
+        provider: image.provider,
+        imageKitFileId: image.imageKitFileId ?? null,
+        imageKitFilePath: image.imageKitFilePath ?? null,
         assetId: image.assetId,
         version: image.version,
         width: image.width,
@@ -302,13 +306,16 @@ export async function attachPreviewImages(input: {
       data: { photoRevision: { increment: 1 } },
     });
     if (claimed.count !== 1) return false;
+    await claimManagedImportsForAttachment(tx, input.images);
     await tx.listingImage.createMany({
       data: input.images.map((image) => ({
         listingId: input.listingId,
         url: image.url,
         publicId: image.publicId,
         order: image.order,
-        provider: "CLOUDINARY",
+        provider: image.provider,
+        imageKitFileId: image.imageKitFileId ?? null,
+        imageKitFilePath: image.imageKitFilePath ?? null,
         assetId: image.assetId,
         version: image.version,
         width: image.width,

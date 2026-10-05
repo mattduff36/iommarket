@@ -1,3 +1,4 @@
+import { readMediaUploadProvider } from "@/lib/media/upload-provider";
 import { createHash } from "node:crypto";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 
@@ -190,6 +191,9 @@ export function createSignedListingUpload({
   timestamp?: number;
   overwrite?: boolean;
 }) {
+  if (readMediaUploadProvider() !== "cloudinary") {
+    throw new Error("This legacy Cloudinary uploader is disabled because ImageKit is the selected write provider.");
+  }
   const config = requireCloudinaryConfig();
   const params = {
     image_metadata: "false",
