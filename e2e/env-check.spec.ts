@@ -417,7 +417,7 @@ test.describe("[Payment Webhook] Signature verification", () => {
     expect(res.status()).toBe(400);
   });
 
-  test("16 · POST with valid Ripple HMAC signature returns 200", async ({ request }) => {
+  test("16 · POST with valid Ripple HMAC is accepted for inbox processing", async ({ request }) => {
     const webhookSecret = process.env.RIPPLE_WEBHOOK_SECRET;
     if (!webhookSecret) {
       test.skip(true, "RIPPLE_WEBHOOK_SECRET not set");
@@ -436,7 +436,8 @@ test.describe("[Payment Webhook] Signature verification", () => {
       },
       data: SAMPLE_PAYLOAD,
     });
-    // 200 = webhook accepted and processed (event type may be ignored gracefully)
+    // HTTP 200 proves authenticated transport acceptance only. This fixture is
+    // not linked to a checkout and does not prove payment fulfillment.
     expect(res.status()).toBe(200);
   });
 });

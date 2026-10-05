@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { scrubAuthUser, scrubIdentity, adminIdentityCollision, authScrubViolations, preservedAuthCollision } from "@/lib/database-sync/auth-clone";
-import { loadCloneCatalog, parsePrismaCatalog } from "@/lib/database-sync/catalog";
+import { loadCloneCatalog, loadPrismaSchema, parsePrismaCatalog } from "@/lib/database-sync/catalog";
+import { excludedSyncTable } from "@/lib/database-sync/scope-policy";
 import { canonicalBytes, hashCanonical, parseCanonical, restoreValueExpression } from "@/lib/database-sync/codec";
 import { openChunk, sealChunk } from "@/lib/database-sync/chunks";
 import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines, schemaCompatibility } from "@/lib/database-sync/fingerprint";
@@ -48,7 +49,9 @@ describe("ARCH-CLONE-001 schema completeness", () => {
 
   it("fails if the live schema drops Listing.featured, Payment or Subscription", () => {
     const catalog = loadCloneCatalog();
-    expect(catalog.length).toBeGreaterThan(70);
+    const included = parsePrismaCatalog(loadPrismaSchema()).filter((table) => !excludedSyncTable(table.name));
+    expect(catalog.map((table) => table.name)).toEqual(included.map((table) => table.name));
+    expect(catalog.length).toBeGreaterThan(40);
     expect(catalog.find((table) => table.name === "Listing")?.columns.map((column) => column.name)).toContain("featured");
     expect(catalog.some((table) => table.name === "Payment")).toBe(true);
     expect(catalog.some((table) => table.name === "Subscription")).toBe(true);

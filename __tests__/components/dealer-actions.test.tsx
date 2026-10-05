@@ -45,6 +45,14 @@ describe("DealerActions", () => {
 
     expect(screen.queryByText(/paid subscription/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Actions for TD Car Centre" }));
+    expect(screen.getByRole("menuitem", { name: "Edit dealer profile" })).toHaveAttribute(
+      "href",
+      "/admin/users/user-1/profile",
+    );
+    expect(screen.getByRole("menuitem", { name: "Edit dealer profile" })).toHaveAttribute(
+      "href",
+      "/admin/users/user-1/profile",
+    );
     expect(screen.getByRole("menuitem", { name: "Unverify dealer" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Change package" })).not.toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Downgrade to user" })).toBeInTheDocument();

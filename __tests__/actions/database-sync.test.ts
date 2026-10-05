@@ -126,11 +126,12 @@ describe("database inspection action", () => {
     prepareMock.mockRejectedValue(new Error("postgres://credential SELECT secret FROM User"));
     const result = await prepareDatabaseSyncAction("replace");
     expect(result).toHaveProperty("error");
-    expect(JSON.stringify(result)).not.toMatch(/credential|SELECT|postgres/);
-    expect(JSON.stringify(errorLog.mock.calls)).not.toMatch(/credential|SELECT|postgres/);
-    expect(errorLog).toHaveBeenCalledWith("Database sync operation failed.", {
-      operation: "prepare",
-    });
+    expect(JSON.stringify(result)).not.toMatch(/credential|SELECT|postgres/i);
+    expect(JSON.stringify(errorLog.mock.calls)).not.toMatch(/credential|SELECT|postgres/i);
+    expect(errorLog).toHaveBeenCalledWith("Database sync failure.", expect.objectContaining({
+      phase: "prepare",
+      message: expect.stringContaining("[redacted"),
+    }));
     errorLog.mockRestore();
   });
 
@@ -144,7 +145,11 @@ describe("database inspection action", () => {
     prepareMock.mockRejectedValue(hostile);
 
     await expect(prepareDatabaseSyncAction("merge")).resolves.toHaveProperty("error");
-    expect(errorLog).toHaveBeenCalledWith("Database sync operation failed.", { operation: "prepare" });
+    expect(errorLog).toHaveBeenCalledWith("Database sync failure.", expect.objectContaining({
+      phase: "prepare",
+      message: "Unexpected failure",
+    }));
+    expect(JSON.stringify(errorLog.mock.calls)).not.toMatch(/secret name|secret code/);
     errorLog.mockRestore();
   });
 

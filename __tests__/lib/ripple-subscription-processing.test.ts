@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import { installRippleTestEnv } from "./ripple-test-env";
+import { createRippleReference } from "@/lib/payments/ripple-reference";
 
 const {
   subscriptionFindFirst,
@@ -13,6 +14,7 @@ const {
   dealerProfileUpdate,
   subscriptionChargeCreate,
   subscriptionChargeFindUnique,
+  subscriptionChargeUpdate,
   transactionMock,
   db,
 } = vi.hoisted(() => {
@@ -25,6 +27,7 @@ const {
   const dealerProfileUpdate = vi.fn();
   const subscriptionChargeCreate = vi.fn();
   const subscriptionChargeFindUnique = vi.fn();
+  const subscriptionChargeUpdate = vi.fn();
   const transactionMock = vi.fn();
   const db: Record<string, unknown> = {
     subscription: {
@@ -42,6 +45,28 @@ const {
       create: subscriptionChargeCreate,
       createMany: subscriptionChargeCreate,
       findUnique: subscriptionChargeFindUnique,
+      update: subscriptionChargeUpdate,
+      updateMany: vi.fn(),
+    },
+    payment: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    paymentWebhookInbox: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    paymentCheckoutAttempt: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+    providerPaymentClaim: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
+    },
+    paymentReconciliation: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
     },
     user: {
       findMany: userFindMany,
@@ -53,6 +78,7 @@ const {
     },
   };
   db.$transaction = transactionMock;
+  db.$queryRaw = vi.fn();
   return {
     subscriptionFindFirst,
     subscriptionCreate,
@@ -63,6 +89,7 @@ const {
     dealerProfileUpdate,
     subscriptionChargeCreate,
     subscriptionChargeFindUnique,
+    subscriptionChargeUpdate,
     transactionMock,
     db,
   };
@@ -117,14 +144,72 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     installRippleTestEnv();
     vi.clearAllMocks();
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
+    (
+      db.paymentWebhookInbox as { findFirst: ReturnType<typeof vi.fn> }
+    ).findFirst.mockReset().mockResolvedValue(null);
+    subscriptionFindFirst.mockResolvedValue(null);
     subscriptionFindMany.mockResolvedValue([]);
-    subscriptionChargeCreate.mockResolvedValue({ count: 1 });
-    subscriptionChargeFindUnique.mockResolvedValue(null);
+    (
+      db.providerPaymentClaim as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockReset().mockResolvedValue(null);
+    (
+      db.paymentReconciliation as { findFirst: ReturnType<typeof vi.fn> }
+    ).findFirst.mockReset().mockResolvedValue(null);
+    let insertedCharge: Record<string, unknown> | null = null;
+    subscriptionChargeCreate.mockReset();
+    subscriptionChargeFindUnique.mockReset();
+    subscriptionChargeCreate.mockImplementation(({ data }) => {
+      insertedCharge = data[0];
+      return Promise.resolve({ count: 1 });
+    });
+    subscriptionChargeFindUnique.mockImplementation(() =>
+      Promise.resolve(
+        insertedCharge ? { id: "charge-1", ...insertedCharge } : null,
+      ),
+    );
     subscriptionCreate.mockResolvedValue({
       id: "sub-1",
       dealerId: "dealer-1",
       status: "ACTIVE",
     });
+    const paymentCheckoutAttempt = db.paymentCheckoutAttempt as {
+      findUnique: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+    };
+    paymentCheckoutAttempt.findUnique.mockReset().mockResolvedValue(null);
+    paymentCheckoutAttempt.findMany.mockImplementation(({ where }) => {
+      const candidate = {
+        id: "attempt-1",
+        userId: "user-1",
+        dealerId: "dealer-1",
+        paymentId: null,
+        listingId: null,
+        kind: "DEALER_SUBSCRIPTION",
+        status: "OPEN",
+        merchantReference: createRippleReference({
+          purpose: "dealer_subscription",
+          targetId: "dealer-1",
+          linkCode: where.productCode,
+          tier: where.tier,
+        }),
+        productCode: where.productCode,
+        tier: where.tier,
+        amountPence: where.amountPence,
+        currency: "gbp",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+      };
+      paymentCheckoutAttempt.findUnique.mockImplementation(({ where: unique }) =>
+        Promise.resolve(unique.id === candidate.id ? candidate : null),
+      );
+      return Promise.resolve([candidate]);
+    });
+    (db.dealerProfile as { findUnique: ReturnType<typeof vi.fn> }).findUnique
+      .mockResolvedValue({
+        id: "dealer-1",
+        userId: "user-1",
+        user: { role: "USER", email: "dealer@example.com" },
+      });
   });
 
   it.each(["payment.received", "payment.succeeded"] as const)("grants seven days for a weekly test %s on preview", async (type) => {
@@ -218,46 +303,31 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     expect(userFindMany).not.toHaveBeenCalled();
   });
 
-  it("rolls back a later fingerprint that reuses a payment reference RIP-CHARGE-001", async () => {
+  it("PAY-SUB-IDEM-007 treats a later fingerprint for an existing charge as a no-op", async () => {
     const existing = {
       id: "sub-1",
       dealerId: "dealer-1",
       providerSubscriptionId: "synthetic-1",
       providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
       status: "ACTIVE",
-      currentPeriodEnd: new Date("2026-10-15T10:15:27.000Z"),
+      currentPeriodEnd: new Date("2026-11-15T10:15:27.000Z"),
       lastProviderEventAt: new Date("2026-09-15T10:15:27.000Z"),
       lastProviderEventType: "payment.succeeded",
       lastProviderEventFingerprint: "older-fingerprint",
     };
-    subscriptionFindMany
-      .mockResolvedValueOnce([{ dealerId: "dealer-1" }])
-      .mockResolvedValueOnce([
-        {
-          ...existing,
-          currentPeriodEnd: new Date("2026-11-15T10:15:27.000Z"),
-        },
-      ]);
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
     subscriptionFindFirst.mockResolvedValue(existing);
-    subscriptionUpdate.mockResolvedValue({
-      ...existing,
-      currentPeriodEnd: new Date("2026-11-15T10:15:27.000Z"),
-      lastProviderEventFingerprint: "later-fingerprint",
-    });
-    subscriptionChargeCreate.mockResolvedValueOnce({ count: 0 });
-    subscriptionChargeFindUnique.mockResolvedValueOnce({
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "charge-1",
       subscriptionId: "sub-1",
       amount: 4999,
       currency: "gbp",
     });
-    let rolledBack = false;
-    transactionMock.mockImplementationOnce(async (fn: (tx: unknown) => unknown) => {
-      try {
-        return await fn(db);
-      } catch (error) {
-        rolledBack = true;
-        throw error;
-      }
+    (
+      db.providerPaymentClaim as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue({
+      attemptId: null,
+      subscriptionChargeId: "charge-1",
     });
 
     await expect(
@@ -269,10 +339,47 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
       ),
     ).resolves.toBeUndefined();
 
-    expect(subscriptionChargeCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ skipDuplicates: true }),
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).not.toHaveBeenCalled();
+  });
+
+  it("records and fulfils an out-of-order verified charge without regressing lifecycle metadata", async () => {
+    const existing = {
+      id: "sub-1",
+      dealerId: "dealer-1",
+      providerSubscriptionId: "provider-sub-1",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "INCOMPLETE",
+      currentPeriodEnd: null,
+      lastProviderEventAt: new Date("2026-09-16T10:15:27.000Z"),
+      lastProviderEventType: "subscription.created",
+      lastProviderEventFingerprint: "newer-created-event",
+    };
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(existing);
+    subscriptionUpdate.mockResolvedValue({
+      ...existing,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-10-15T10:15:27.000Z"),
+    });
+
+    await processProviderWebhookEvent(renewalEvent());
+
+    expect(subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-1" },
+      data: expect.objectContaining({
+        status: "ACTIVE",
+        currentPeriodEnd: new Date("2026-10-15T10:15:27.000Z"),
+      }),
+    });
+    expect(subscriptionUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          lastProviderEventFingerprint: "renewal-fingerprint",
+        }),
+      }),
     );
-    expect(rolledBack).toBe(true);
+    expect(subscriptionChargeCreate).toHaveBeenCalled();
   });
 
   it("rejects a cross-subscription charge collision RIP-CHARGE-002", async () => {
@@ -360,5 +467,412 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
       where: { id: "user-1" },
       data: { role: "DEALER" },
     });
+  });
+
+  it("PAY-SUB-ATTEMPT-001 refuses an initial activation without a checkout attempt", async () => {
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(null);
+    (
+      db.paymentCheckoutAttempt as { findMany: ReturnType<typeof vi.fn> }
+    ).findMany.mockResolvedValueOnce([]);
+
+    await expect(processProviderWebhookEvent(renewalEvent())).rejects.toThrow(
+      "Initial subscription payment has no unique persisted checkout attempt",
+    );
+
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-SUB-ATTEMPT-002 permits a genuine entitled renewal without a new attempt", async () => {
+    const existing = {
+      id: "sub-1",
+      dealerId: "dealer-1",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      providerSubscriptionId: "provider-sub-1",
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-10-15T10:15:27.000Z"),
+      lastProviderEventAt: new Date("2026-09-15T10:15:27.000Z"),
+      lastProviderEventType: "payment.succeeded",
+      lastProviderEventFingerprint: "older-fingerprint",
+    };
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(existing);
+    subscriptionUpdate.mockResolvedValue(existing);
+
+    await expect(
+      processProviderWebhookEvent(
+        renewalEvent({
+          eventTimestamp: new Date("2026-10-10T10:15:27.000Z"),
+          fingerprint: "new-renewal-fingerprint",
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(subscriptionUpdate).toHaveBeenCalled();
+    expect(subscriptionChargeCreate).toHaveBeenCalled();
+    expect(
+      (db.paymentCheckoutAttempt as { findMany: ReturnType<typeof vi.fn> })
+        .findMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("PAY-SUB-ATTEMPT-003 rejects a signed attempt whose contract differs", async () => {
+    const reference = createRippleReference({
+      purpose: "dealer_subscription",
+      targetId: "dealer-1",
+      linkCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "STARTER",
+    });
+    (
+      db.paymentCheckoutAttempt as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue({
+      id: "attempt-1",
+      userId: "user-1",
+      dealerId: "dealer-1",
+      paymentId: null,
+      listingId: null,
+      kind: "DEALER_SUBSCRIPTION",
+      status: "OPEN",
+      merchantReference: reference,
+      productCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "PRO",
+      amountPence: 4999,
+      currency: "gbp",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    });
+
+    await expect(
+      processProviderWebhookEvent(
+        renewalEvent({
+          providerReference: reference,
+          metadata: {
+            checkoutType: "dealer_subscription",
+            listingId: null,
+            dealerId: "dealer-1",
+            tier: "PRO",
+          },
+        }),
+      ),
+    ).rejects.toThrow("Subscription checkout attempt does not match payment");
+
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-SUB-ATTEMPT-004 records the claim and reconciliation with fulfillment", async () => {
+    const reference = createRippleReference({
+      purpose: "dealer_subscription",
+      targetId: "dealer-1",
+      linkCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "PRO",
+    });
+    (
+      db.paymentCheckoutAttempt as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue({
+      id: "attempt-1",
+      userId: "user-1",
+      dealerId: "dealer-1",
+      paymentId: null,
+      listingId: null,
+      kind: "DEALER_SUBSCRIPTION",
+      status: "OPEN",
+      merchantReference: reference,
+      productCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "PRO",
+      amountPence: 4999,
+      currency: "gbp",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    });
+
+    await processProviderWebhookEvent(
+      renewalEvent({
+        providerReference: reference,
+        metadata: {
+          checkoutType: "dealer_subscription",
+          listingId: null,
+          dealerId: "dealer-1",
+          tier: "PRO",
+        },
+      }),
+    );
+
+    expect(
+      (db.providerPaymentClaim as { create: ReturnType<typeof vi.fn> }).create,
+    ).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        attemptId: "attempt-1",
+        subscriptionChargeId: "charge-1",
+        providerPaymentId: "pay-renew-1",
+        source: "VERIFIED_WEBHOOK",
+      }),
+    });
+    expect(
+      (db.paymentReconciliation as { create: ReturnType<typeof vi.fn> }).create,
+    ).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        attemptId: "attempt-1",
+        providerPaymentId: "pay-renew-1",
+        evidenceType: "VERIFIED_WEBHOOK",
+      }),
+    });
+    expect(
+      (db.paymentCheckoutAttempt as { update: ReturnType<typeof vi.fn> }).update,
+    ).toHaveBeenCalledWith({
+      where: { id: "attempt-1" },
+      data: expect.objectContaining({ status: "CONFIRMED" }),
+    });
+  });
+
+  it("PAY-SUB-ATTEMPT-005 rejects an unknown supplied merchant reference", async () => {
+    const reference = createRippleReference({
+      purpose: "dealer_subscription",
+      targetId: "dealer-1",
+      linkCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "PRO",
+    });
+
+    await expect(
+      processProviderWebhookEvent(
+        renewalEvent({
+          providerReference: reference,
+          metadata: {
+            checkoutType: "dealer_subscription",
+            listingId: null,
+            dealerId: "dealer-1",
+            tier: "PRO",
+          },
+        }),
+      ),
+    ).rejects.toThrow("Subscription payment reference has no checkout attempt");
+
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-SUB-ATTEMPT-006 accepts an exact confirmed-attempt retry idempotently", async () => {
+    const reference = createRippleReference({
+      purpose: "dealer_subscription",
+      targetId: "dealer-1",
+      linkCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "PRO",
+    });
+    const attempt = {
+      id: "attempt-1",
+      userId: "user-1",
+      dealerId: "dealer-1",
+      paymentId: null,
+      listingId: null,
+      kind: "DEALER_SUBSCRIPTION",
+      status: "CONFIRMED",
+      merchantReference: reference,
+      productCode: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      tier: "PRO",
+      amountPence: 4999,
+      currency: "gbp",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    };
+    const existing = {
+      id: "sub-1",
+      dealerId: "dealer-1",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      providerSubscriptionId: "provider-sub-1",
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-10-15T10:15:27.000Z"),
+      lastProviderEventAt: new Date("2026-09-15T10:15:27.000Z"),
+      lastProviderEventType: "payment.received",
+      lastProviderEventFingerprint: "received-fingerprint",
+    };
+    (
+      db.paymentCheckoutAttempt as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue(attempt);
+    subscriptionFindFirst.mockResolvedValue(existing);
+    subscriptionUpdate.mockResolvedValue(existing);
+    subscriptionChargeCreate.mockResolvedValue({ count: 0 });
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "charge-1",
+      subscriptionId: "sub-1",
+      amount: 4999,
+      currency: "gbp",
+    });
+    (
+      db.providerPaymentClaim as {
+        findUnique: ReturnType<typeof vi.fn>;
+      }
+    ).findUnique.mockResolvedValue({
+      attemptId: "attempt-1",
+      subscriptionChargeId: "charge-1",
+      subscriptionCharge: { subscriptionId: "sub-1" },
+    });
+    (
+      db.paymentReconciliation as {
+        findFirst: ReturnType<typeof vi.fn>;
+      }
+    ).findFirst.mockResolvedValue({
+      id: "reconciliation-1",
+      evidenceType: "VERIFIED_WEBHOOK",
+      evidenceId: "success-fingerprint",
+      providerPaymentId: "pay-renew-1",
+    });
+
+    await expect(
+      processProviderWebhookEvent(
+        renewalEvent({
+          providerReference: reference,
+          eventTimestamp: new Date("2026-10-10T10:15:27.000Z"),
+          fingerprint: "success-fingerprint",
+          metadata: {
+            checkoutType: "dealer_subscription",
+            listingId: null,
+            dealerId: "dealer-1",
+            tier: "PRO",
+          },
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(
+      (db.providerPaymentClaim as { create: ReturnType<typeof vi.fn> }).create,
+    ).not.toHaveBeenCalled();
+    expect(
+      (db.paymentReconciliation as { create: ReturnType<typeof vi.fn> }).create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("PAY-REV-001 marks the exact refunded subscription charge", async () => {
+    subscriptionChargeFindUnique.mockReset().mockResolvedValue({
+      id: "charge-1",
+      subscriptionId: "sub-1",
+      refundedAt: null,
+    });
+    subscriptionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      status: "ACTIVE",
+    });
+    subscriptionUpdate.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      status: "ACTIVE",
+    });
+
+    await processProviderWebhookEvent(
+      renewalEvent({
+        type: "payment.refunded",
+        fingerprint: "refund-fingerprint",
+        metadata: {
+          checkoutType: "dealer_subscription",
+          listingId: null,
+          dealerId: "dealer-1",
+          tier: "PRO",
+        },
+      }),
+    );
+
+    expect(
+      (
+        db.subscriptionCharge as {
+          updateMany: ReturnType<typeof vi.fn>;
+        }
+      ).updateMany,
+    ).toHaveBeenCalledWith({
+      where: { id: "charge-1", refundedAt: null },
+      data: {
+        refundedAt: new Date("2026-09-15T10:15:27.000Z"),
+        refundEventId: "refund-fingerprint",
+      },
+    });
+  });
+
+  it("PAY-REV-002 keeps an early subscription refund retryable", async () => {
+    subscriptionChargeFindUnique.mockReset().mockResolvedValue(null);
+
+    await expect(
+      processProviderWebhookEvent(
+        renewalEvent({
+          type: "payment.refunded",
+          fingerprint: "refund-before-charge",
+        }),
+      ),
+    ).rejects.toThrow("Subscription refund is waiting for its charge");
+
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(dealerProfileUpdate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-REV-003 does not entitle a payment that already has a refund receipt", async () => {
+    const refundedAt = new Date("2026-09-15T11:00:00.000Z");
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(null);
+    (
+      db.paymentWebhookInbox as { findFirst: ReturnType<typeof vi.fn> }
+    ).findFirst.mockResolvedValue({
+      id: "inbox-refund-1",
+      eventTimestamp: refundedAt,
+    });
+
+    await processProviderWebhookEvent(renewalEvent());
+
+    expect(subscriptionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        status: "INCOMPLETE",
+        dealerId: "dealer-1",
+      }),
+    });
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(dealerProfileUpdate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          paymentReference: "pay-renew-1",
+          refundedAt,
+          refundEventId: "renewal-fingerprint",
+        }),
+      ],
+      skipDuplicates: true,
+    });
+    expect(
+      (db.paymentCheckoutAttempt as { update: ReturnType<typeof vi.fn> }).update,
+    ).toHaveBeenCalledWith({
+      where: { id: "attempt-1" },
+      data: expect.objectContaining({ status: "FAILED" }),
+    });
+
+    subscriptionChargeFindUnique.mockImplementation(() =>
+      Promise.resolve({
+        id: "charge-1",
+        subscriptionId: "sub-1",
+        amount: 4999,
+        currency: "gbp",
+        refundedAt,
+      }),
+    );
+    subscriptionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "INCOMPLETE",
+      currentPeriodEnd: null,
+      source: "PAYMENT",
+    });
+
+    await processProviderWebhookEvent(
+      renewalEvent({
+        type: "payment.refunded",
+        fingerprint: "refund-after-charge",
+      }),
+    );
+
+    expect(subscriptionUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "ACTIVE" }),
+      }),
+    );
+    expect(dealerProfileUpdate).not.toHaveBeenCalled();
   });
 });

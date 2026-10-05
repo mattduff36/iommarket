@@ -1,5 +1,19 @@
 # Auth export repair: local verification passed
 
+## CURRENT: deployed and configured for a manual staging test — 2026-10-05T01:01:01Z
+
+This supersedes the 2026-10-05T00:47:53.322Z claim that the export was not installed and that private-views was not enabled. The hosted merge itself has not been run.
+
+The reviewed file `docs/staging-transition/PRODUCTION-AUTH-EXPORT.sql` is installed on production project `snlqivvogfqesxpbjiei` through the direct host `db.snlqivvogfqesxpbjiei.supabase.co` as the existing non-superuser `postgres` role. TLS matched that host. PostgreSQL is 17.6 and was not in recovery. The private schema `itrader_sync_export` and masked views `auth_users` and `auth_identities` exist, owned by `postgres`. `itrader_staging_reader` has non-grantable `USAGE` on that schema and non-grantable `SELECT` on both views. It still has no `USAGE` on schema `auth`, no write access, and no `BYPASSRLS`. API roles `anon`, `authenticated`, and `service_role` have no access. Auth table ACLs, RLS, policy count, and role attributes were unchanged. There were no grant warnings.
+
+One earlier execution in this session installed those objects and then rolled them back because the Data API probe used a rejected legacy anon key. The reviewed rollback removed that attempt. The second execution remains and was rechecked read-only after deployment.
+
+The live Data API rejection, after installation, says the exposed schemas are `public` and `graphql_public`. `itrader_sync_export` is not exposed. Absence of database-level `pgrst` settings was not treated as proof.
+
+`DATABASE_SYNC_AUTH_SOURCE_MODE=private-views` is set for Vercel project `prj_TFAfJkG9P0osjQpsH2gaNrSPWbCr`, target Preview, git branch `staging` only (env id `3zGxAiKATPeQ3ST0`). Production does not have this variable. The source reader URL and encryption key were not changed.
+
+Deployment `dpl_85xTFxFLtk3DsLwtUMsGXeACmGjC` is READY. It was created from GitHub commit `47256d4fe3d32b53450cc76bd8394b4a99ffddff` on branch `staging`, preview target, and became ready at 2026-10-05T01:01:01.316Z. `itrader.dev` points to it. The deployment build and runtime environment both include `DATABASE_SYNC_AUTH_SOURCE_MODE`. No shared-development Merge, Replace, Reset, or Restore was applied. The next action is a signed-in manual Refresh inspection and Preview merge plan on `https://itrader.dev/admin/database`.
+
 Updated 5 October 2026, after reconnecting Desktop Commander and retrieving the completed test runs.
 
 ## Current state and authorization boundary
@@ -90,3 +104,12 @@ The owner requested immediate deployment without another verification cycle. The
 The remote tool blocked creation of the production-export provisioning runner before it executed. No production SQL or grants ran, and the private export is NOT installed. This denial was not retried through another tool. The staging code rollout is proceeding independently. DATABASE_SYNC_AUTH_SOURCE_MODE remains its existing default (direct); private-views is not enabled before its required production objects exist. The auth-schema access blocker therefore remains.
 
 No data Merge, Replace, Reset or Restore is authorized or performed by this deployment. No additional integration tests or signed-in Merge preview were run. Deployment result will be appended after Vercel completes.
+
+
+## Live staging deployment outcome - 2026-10-05T00:47:53.322Z
+
+Commit 47256d4fe3d32b53450cc76bd8394b4a99ffddff is pushed to staging. Vercel deployment dpl_FpAXJr3TyJctG5R42QzmuZ715zGX is READY and aliased to itrader.dev. Only the 12 scoped repair/test/documentation files were committed. Main remains e3f77faae74ca787936853426798ea546ef89bff. Concurrent admin-profile and ImageKit working-tree edits remain uncommitted.
+
+The production-export setup was blocked by the tool before its runner file was created or executed. No production connection or SQL mutation was attempted by this rollout. No private-view environment switch was made, so the existing default direct Auth mode remains and the known missing-auth-USAGE blocker persists. This is a completed application-code deployment, not a working hosted Merge claim. No additional local test cycle, signed-in plan preparation, or shared-development Apply was performed.
+
+Pending activation requires permitted execution of the reviewed production private-schema/two-view setup and setting DATABASE_SYNC_AUTH_SOURCE_MODE=private-views for staging only. Do not bypass the tool denial or apply a shared-development data merge without explicit approval.

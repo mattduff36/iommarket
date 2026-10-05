@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ transaction: vi.fn(), apply: vi.fn(), submit: vi.fn(), notify: vi.fn(), featured: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  transaction: vi.fn(),
+  reconcile: vi.fn(),
+  notify: vi.fn(),
+  observe: vi.fn(),
+}));
   vi.mock("@/lib/db", () => ({ db: { $transaction: mocks.transaction } }));
-vi.mock("@/lib/payments/webhook-payments", () => ({ createOrUpdateListingPayment: mocks.apply, submitPaidListingForReview: mocks.submit }));
 vi.mock("@/lib/email/listing-notifications", () => ({ dispatchListingNotifications: mocks.notify }));
 vi.mock("@/lib/monitoring", () => ({ captureBusinessEvent: vi.fn() }));
-vi.mock("@/lib/payments/featured-entitlement", () => ({ applyPaidFeaturedEntitlement: mocks.featured }));
+vi.mock("@/lib/payments/reconcile-payment", () => ({
+  reconcileListingPaymentInTransaction: mocks.reconcile,
+}));
+vi.mock("@/lib/payments/checkout-attempts", () => ({
+  recordHostedReturnObservation: mocks.observe,
+}));
 import { reconcileHostedReturn, type HostedReturnContext } from "@/lib/payments/reconcile-hosted-return";
 import { createRippleReference } from "@/lib/payments/ripple-reference";
 import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
@@ -32,15 +41,17 @@ describe("authenticated hosted return reconciliation", () => {
     inbox = { id: "inbox-1", status: "FAILED", lastErrorCode: "MISSING_REFERENCE", attemptCount: 1, eventType: "payment.received", clientId: parsed.event.clientId, paymentReference: job, merchantReference: null, linkCode: parsed.event.linkCode, amountPence: 499, currency: "gbp", recurring: false, linkType: "one-off", customerEmailNorm: "buyer@example.com", eventTimestamp: parsed.event.eventTimestamp, createdAt: new Date(now), minimizedPayload: parsed.minimized };
     tx = { payment: { findUnique: vi.fn().mockImplementation(({ where }) => Promise.resolve(where.id ? payment : null)), count: vi.fn().mockResolvedValue(1), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, paymentWebhookInbox: { findMany: vi.fn().mockImplementation(() => Promise.resolve([inbox])), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, subscriptionCharge: { findUnique: vi.fn().mockResolvedValue(null) } };
     mocks.transaction.mockImplementation((callback) => callback(tx));
-    mocks.apply.mockResolvedValue({ applied: true, payment: { id: context.paymentId, listingId: context.listingId } });
-    mocks.submit.mockResolvedValue([]);
+    mocks.reconcile.mockResolvedValue({ notifications: [] });
+    mocks.observe.mockResolvedValue(null);
   });
-  it("uses a verified receipt and signed checkout context in one serializable transaction", async () => {
-    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId });
-    expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
-    expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({ providerPaymentId: job, providerReference: context.merchantReference }), "SUCCEEDED", tx);
+  it("does not convert a failed inbox receipt into paid state from browser context", async () => {
+    expect(await reconcileHostedReturn(context, job)).toEqual({
+      status: "review",
+    });
+    expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function));
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
-  it("matches a featured payment and applies the upgrade without submitting a listing", async () => {
+  it("records Featured return evidence without applying the upgrade", async () => {
     const product = RIPPLE_CANONICAL_PRODUCTS.featured;
     context = { ...context, kind: "featured_upgrade", productCode: product.code };
     context.merchantReference = createRippleReference({ purpose: "featured_upgrade", targetId: context.listingId, linkCode: product.code });
@@ -50,15 +61,15 @@ describe("authenticated hosted return reconciliation", () => {
     inbox.linkCode = product.code;
     inbox.amountPence = 500;
     inbox.minimizedPayload = { ...(inbox.minimizedPayload as object), link_code: product.code, amount: 5 };
-    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId, checkoutType: "featured_upgrade" });
-    expect(mocks.featured).toHaveBeenCalledWith(context.listingId, tx);
-    expect(mocks.submit).not.toHaveBeenCalled();
-    expect(tx.payment.count).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ type: "FEATURED" }) }));
+    expect(await reconcileHostedReturn(context, job)).toEqual({
+      status: "review",
+    });
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
   it("waits for webhook arrival without writing paid state", async () => {
     tx.paymentWebhookInbox.findMany.mockResolvedValue([]);
     expect(await reconcileHostedReturn(context, job)).toEqual({ status: "waiting" });
-    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
   it.each(["PENDING", "PROCESSING"])("waits for %s webhook processing", async (status) => {
     inbox.status = status;
@@ -81,28 +92,28 @@ describe("authenticated hosted return reconciliation", () => {
     if (condition === "duplicate") tx.payment.findUnique.mockImplementation(({ where }) => Promise.resolve(where.id ? payment : { id: "another-payment" }));
     if (condition === "subscription") tx.subscriptionCharge.findUnique.mockResolvedValue({ id: "charge" });
     expect(await reconcileHostedReturn(context, job)).toEqual({ status: "review" });
-    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
   it("returns idempotent confirmation only for the same owned payment", async () => {
     payment.status = "SUCCEEDED";
     payment.providerPaymentId = job;
     tx.payment.findUnique.mockResolvedValue(payment);
     expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId });
-    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
-  it("retries an inbox claim race without writing paid state", async () => {
+  it("does not claim a failed inbox row", async () => {
     tx.paymentWebhookInbox.updateMany.mockResolvedValue({ count: 0 });
-    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "waiting" });
-    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "review" });
+    expect(tx.paymentWebhookInbox.updateMany).not.toHaveBeenCalled();
   });
-  it("aborts transaction when pending payment reservation changes", async () => {
-    tx.payment.updateMany.mockResolvedValue({ count: 0 });
-    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "waiting" });
-    expect(mocks.apply).not.toHaveBeenCalled();
+  it("does not reserve a provider ID from a browser return", async () => {
+    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "review" });
+    expect(tx.payment.updateMany).not.toHaveBeenCalled();
   });
-  it("keeps confirmed state when post-commit notification fails", async () => {
-    mocks.submit.mockResolvedValue([{ kind: "test" }]);
+  it("does not dispatch fulfillment notifications from browser evidence", async () => {
+    mocks.reconcile.mockResolvedValue({ notifications: [{ kind: "test" }] });
     mocks.notify.mockRejectedValue(new Error("email service unavailable"));
-    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "confirmed", listingId: context.listingId });
+    expect(await reconcileHostedReturn(context, job)).toEqual({ status: "review" });
+    expect(mocks.notify).not.toHaveBeenCalled();
   });
 });

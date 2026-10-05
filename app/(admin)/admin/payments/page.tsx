@@ -9,6 +9,7 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  TableHead,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
 import {
@@ -28,7 +29,10 @@ import {
   adminDateCellClass,
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
-import { RefundButton } from "./payment-actions";
+import {
+  ReconcileRippleButton,
+  RefundButton,
+} from "./payment-actions";
 import { CancelSubButton, RefundSubPaymentButton } from "./subscription-actions";
 import { UnmatchedInboxTab } from "./unmatched-inbox-tab";
 import {
@@ -114,6 +118,13 @@ function PaymentTabs({
       <AdminFilterChip href={hrefForTab("unmatched")} active={activeTab === "unmatched"} activeTone="warning">
         Unmatched inbox
       </AdminFilterChip>
+      <AdminFilterChip
+        href={hrefForTab("reconciliation")}
+        active={activeTab === "reconciliation"}
+        activeTone="warning"
+      >
+        Needs reconciliation
+      </AdminFilterChip>
     </AdminFilterBar>
   );
 }
@@ -185,6 +196,129 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         />
         <PaymentTabs activeTab={tab} hrefForTab={hrefForTab} />
         <UnmatchedInboxTab rows={unmatched} />
+      </>
+    );
+  }
+
+  if (tab === "reconciliation") {
+    const attempts = await db.paymentCheckoutAttempt.findMany({
+      where: { status: { in: ["OPEN", "RETURNED", "REVIEW"] } },
+      orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE,
+      include: {
+        payment: {
+          include: {
+            listing: {
+              select: {
+                title: true,
+                featured: true,
+                user: { select: { email: true } },
+              },
+            },
+          },
+        },
+        observations: {
+          orderBy: { observedAt: "desc" },
+          take: 2,
+        },
+      },
+    });
+    const merchantReferences = attempts.map(
+      (attempt) => attempt.merchantReference,
+    );
+    const inboxRows = merchantReferences.length
+      ? await db.paymentWebhookInbox.findMany({
+          where: { merchantReference: { in: merchantReferences } },
+          select: { merchantReference: true, status: true },
+        })
+      : [];
+    const inboxStatus = new Map(
+      inboxRows.map((row) => [row.merchantReference, row.status]),
+    );
+
+    return (
+      <>
+        <AdminPageHeader
+          title="Payments & subscriptions"
+          description="Review charged or abandoned checkouts without counting unverified activity as revenue."
+          meta={
+            <span>
+              Generated {new Date().toLocaleString("en-GB")} ·{" "}
+              <Link href="/admin/payments?tab=reconciliation">Refresh</Link>
+            </span>
+          }
+        />
+        <PaymentTabs activeTab={tab} hrefForTab={hrefForTab} />
+        <AdminTable minWidth="wide">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Opened</TableHead>
+              <TableHead>Listing / product</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead>Merchant reference</TableHead>
+              <TableHead>Observed provider reference</TableHead>
+              <TableHead>Inbox</TableHead>
+              <TableHead>Entitlement</TableHead>
+              <TableHead>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {attempts.map((attempt) => (
+              <TableRow key={attempt.id}>
+                <TableCell className={adminDateCellClass}>
+                  {formatAdminDate(attempt.createdAt)}
+                </TableCell>
+                <TableCell>
+                  <AdminDataCell
+                    title={attempt.payment?.listing.title ?? attempt.productCode}
+                    subtitle={attempt.payment?.listing.user.email}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Badge variant="warning">{attempt.status}</Badge>
+                </TableCell>
+                <TableCell className={adminNumericCellClass}>
+                  {formatAdminPounds(attempt.amountPence, 2)}
+                </TableCell>
+                <TableCell className="max-w-40 truncate font-mono text-xs text-text-tertiary">
+                  {attempt.merchantReference}
+                </TableCell>
+                <TableCell className="max-w-40 truncate font-mono text-xs text-text-tertiary">
+                  {attempt.observations[0]?.providerPaymentId ?? "None"}
+                </TableCell>
+                <TableCell className="text-xs text-text-secondary">
+                  {inboxStatus.get(attempt.merchantReference) ?? "No receipt"}
+                </TableCell>
+                <TableCell className="text-xs text-text-secondary">
+                  {attempt.payment?.featuredAppliedAt
+                    ? "Applied"
+                    : attempt.payment?.listing.featured
+                      ? "Featured by another source"
+                      : "Not applied"}
+                </TableCell>
+                <TableCell className={adminActionsCellClass}>
+                  {attempt.payment?.status === "PENDING" &&
+                  attempt.payment.paymentProvider === "RIPPLE" &&
+                  attempt.payment.type === "FEATURED" ? (
+                    <ReconcileRippleButton paymentId={attempt.payment.id} />
+                  ) : (
+                    <span className="text-xs text-text-tertiary">
+                      Review only
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+            {attempts.length === 0 ? (
+              <TableRow>
+                <AdminTableEmpty colSpan={9}>
+                  No checkout attempts need reconciliation.
+                </AdminTableEmpty>
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </AdminTable>
       </>
     );
   }
@@ -386,6 +520,13 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
       take: PAGE_SIZE,
       include: {
         listing: { select: { title: true, user: { select: { email: true } } } },
+        checkoutAttempt: {
+          select: {
+            status: true,
+            returnedAt: true,
+            alertedAt: true,
+          },
+        },
       },
     }),
     db.payment.count({ where: visiblePayWhere }),
@@ -476,6 +617,11 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                 <Badge variant={PAYMENT_STATUS_VARIANT[payment.status] ?? "neutral"}>
                   {payment.status}
                 </Badge>
+                {payment.checkoutAttempt ? (
+                  <span className="mt-1 block text-[11px] text-text-tertiary">
+                    Reconciliation: {payment.checkoutAttempt.status}
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell data-column="reference" className="max-w-[160px] truncate font-mono text-xs text-text-tertiary">
                 {getPaymentDisplayId(payment)}
@@ -490,12 +636,20 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                 {formatAdminDate(payment.refundedAt)}
               </TableCell>
               <TableCell data-column="actions" className={adminActionsCellClass}>
-                <RefundButton
-                  paymentId={payment.id}
-                  status={payment.status}
-                  enabled={capabilities.supportsInAppRefunds}
-                  providerPortalUrl={providerPortalUrl}
-                />
+                <div className="flex flex-wrap items-start gap-1">
+                  <RefundButton
+                    paymentId={payment.id}
+                    status={payment.status}
+                    enabled={capabilities.supportsInAppRefunds}
+                    providerPortalUrl={providerPortalUrl}
+                  />
+                  {payment.status === "PENDING" &&
+                  payment.paymentProvider === "RIPPLE" &&
+                  payment.type === "FEATURED" &&
+                  payment.checkoutAttempt ? (
+                    <ReconcileRippleButton paymentId={payment.id} />
+                  ) : null}
+                </div>
               </TableCell>
             </TableRow>
           ))}

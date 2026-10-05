@@ -33,6 +33,7 @@ interface PreparedCapture {
   requestMethod?: string;
   requestPath?: string;
   requestId?: string;
+  dedupeKey?: string;
   userId?: string;
   userEmail?: string;
   ipHash?: string;
@@ -77,6 +78,7 @@ export function sanitizeMonitoringContext(input: MonitoringContext): MonitoringC
     requestMethod: sanitizeOptional(input.requestMethod),
     requestPath: sanitizeRequestPath(input.requestPath),
     requestId: sanitizeOptional(input.requestId),
+    dedupeKey: sanitizeOptional(input.dedupeKey),
     userId: sanitizeOptional(input.userId),
     userEmail: sanitizeOptional(input.userEmail),
     ipHash: sanitizeOptional(input.ipHash),
@@ -88,6 +90,23 @@ export function sanitizeMonitoringContext(input: MonitoringContext): MonitoringC
 async function persistCapture(
   prepared: PreparedCapture
 ): Promise<CapturedMonitoringEvent> {
+  if (prepared.dedupeKey) {
+    const priorEvent = await db.monitoringEvent.findUnique({
+      where: { dedupeKey: prepared.dedupeKey },
+      select: {
+        id: true,
+        issue: { select: { id: true, fingerprint: true } },
+      },
+    });
+    if (priorEvent) {
+      return {
+        issueId: priorEvent.issue.id,
+        eventId: priorEvent.id,
+        fingerprint: priorEvent.issue.fingerprint,
+        createdIssue: false,
+      };
+    }
+  }
   const now = new Date();
   const fingerprint = createMonitoringFingerprint({
     source: prepared.source,
@@ -177,6 +196,7 @@ async function persistCapture(
       requestMethod: prepared.requestMethod,
       requestPath: prepared.requestPath,
       requestId: prepared.requestId,
+      dedupeKey: prepared.dedupeKey,
       userId: prepared.userId,
       userEmail: prepared.userEmail,
       ipHash: prepared.ipHash,
@@ -233,6 +253,7 @@ export async function captureException(
       requestMethod: context.requestMethod,
       requestPath: context.requestPath,
       requestId: context.requestId,
+      dedupeKey: context.dedupeKey,
       userId: context.userId,
       userEmail: context.userEmail,
       ipHash: context.ipHash,
@@ -272,6 +293,7 @@ export async function captureBusinessEvent(
       requestMethod: context.requestMethod,
       requestPath: context.requestPath,
       requestId: context.requestId,
+      dedupeKey: context.dedupeKey,
       userId: context.userId,
       userEmail: context.userEmail,
       ipHash: context.ipHash,

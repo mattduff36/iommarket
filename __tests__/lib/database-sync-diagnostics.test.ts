@@ -44,6 +44,18 @@ describe("database sync diagnostics", () => {
     expect(JSON.stringify(errorLog.mock.calls)).not.toContain("customer row");
     errorLog.mockRestore();
   });
+
+  it("redacts SQL text and ignores hostile error metadata", () => {
+    const hostile = {};
+    Object.defineProperties(hostile, {
+      name: { get: () => { throw new Error("secret name"); } },
+      message: { get: () => "postgres://credential SELECT secret FROM User" },
+      code: { get: () => { throw new Error("secret code"); } },
+    });
+    const sanitized = sanitizeSyncError(hostile);
+    expect(sanitized).toEqual({ name: "Error", message: "[redacted] [redacted-sql]", code: undefined });
+    expect(JSON.stringify(sanitized)).not.toMatch(/credential|SELECT|postgres/i);
+  });
 });
 
 describe("merge plan counts", () => {

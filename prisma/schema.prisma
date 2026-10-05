@@ -47,87 +47,89 @@ enum DealerReviewDisputeStatus {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  authUserId     String    @unique
-  email          String    @unique
-  name           String?
-  phone          String?
-  bio            String?
-  avatarUrl      String?
-  role           UserRole  @default(USER)
-  regionId       String?
-  disabledAt     DateTime?
-  disabledReason String?
-  disabledReasonCode UserDisableReason?
-  deletedAt      DateTime?
-  deletionReason String?
+  id                  String             @id @default(cuid())
+  authUserId          String             @unique
+  email               String             @unique
+  name                String?
+  phone               String?
+  bio                 String?
+  avatarUrl           String?
+  role                UserRole           @default(USER)
+  regionId            String?
+  disabledAt          DateTime?
+  disabledReason      String?
+  disabledReasonCode  UserDisableReason?
+  deletedAt           DateTime?
+  deletionReason      String?
   deletionRequestedAt DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
-  region              Region?              @relation(fields: [regionId], references: [id])
-  listings            Listing[]
-  dealerProfile       DealerProfile?
-  reports             Report[]
-  favourites          Favourite[]
-  savedSearches       SavedSearch[]
-  listingViews        ListingView[]
-  dealerReviews       DealerReview[]
-  listingStatusEvents ListingStatusEvent[]
-  listingRevisionsDecided ListingRevision[] @relation("ListingRevisionDecidedBy")
-  dealerReviewModerationEvents DealerReviewModerationEvent[]
+  region                         Region?                               @relation(fields: [regionId], references: [id])
+  listings                       Listing[]
+  dealerProfile                  DealerProfile?
+  reports                        Report[]
+  favourites                     Favourite[]
+  savedSearches                  SavedSearch[]
+  listingViews                   ListingView[]
+  dealerReviews                  DealerReview[]
+  listingStatusEvents            ListingStatusEvent[]
+  listingRevisionsDecided        ListingRevision[]                     @relation("ListingRevisionDecidedBy")
+  dealerReviewModerationEvents   DealerReviewModerationEvent[]
   dealerResponseRevisionsDecided DealerReviewResponseRevision[]        @relation("DealerResponseRevisionDecidedBy")
   dealerResponseModerationEvents DealerReviewResponseModerationEvent[]
   dealerReviewDisputesOpened     DealerReviewDispute[]                 @relation("DealerReviewDisputeOpenedBy")
   dealerReviewDisputesDecided    DealerReviewDispute[]                 @relation("DealerReviewDisputeDecidedBy")
   dealerReviewDisputeEvents      DealerReviewDisputeEvent[]
-  monitoringIssueStatusEvents MonitoringIssueStatusEvent[]
-  freeListingClaim   FreeListingClaim?
-  listingImageUploadIntents ListingImageUploadIntent[]
-  policyAcceptances PolicyAcceptance[]
-  sampleCheckouts SampleCheckout[]
-  cancellationRequestsRequested DealerCancellationRequest[] @relation("CancellationRequestedBy")
-  cancellationRequestsProcessed DealerCancellationRequest[] @relation("CancellationProcessedBy")
-  cancellationRequestEvents DealerCancellationRequestEvent[]
-  accountDeletionJob AccountDeletionJob?
-  promotionCampaignsCreated DealerPromotionCampaign[] @relation("PromotionCampaignCreatedBy")
-  onboardingInvites DealerOnboardingInvite[] @relation("OnboardingInviteSubject")
-  onboardingInvitesCreated DealerOnboardingInvite[] @relation("OnboardingInviteCreatedBy")
-  onboardingInviteEvents DealerOnboardingInviteEvent[]
-  dealerUpgradeOffers DealerUpgradeOffer[] @relation("DealerUpgradeOfferSubject")
-  dealerUpgradeOffersCreated DealerUpgradeOffer[] @relation("DealerUpgradeOfferCreatedBy")
-  dealerUpgradeOffersCancelled DealerUpgradeOffer[] @relation("DealerUpgradeOfferCancelledBy")
-  dealerUpgradeAcceptances DealerUpgradeAcceptance[]
-  earlyAccessTestRecipients WaitlistEarlyAccessRecipient[] @relation("EarlyAccessTestAdmin")
+  monitoringIssueStatusEvents    MonitoringIssueStatusEvent[]
+  freeListingClaim               FreeListingClaim?
+  listingImageUploadIntents      ListingImageUploadIntent[]
+  policyAcceptances              PolicyAcceptance[]
+  sampleCheckouts                SampleCheckout[]
+  paymentCheckoutAttempts        PaymentCheckoutAttempt[]
+  cancellationRequestsRequested  DealerCancellationRequest[]           @relation("CancellationRequestedBy")
+  cancellationRequestsProcessed  DealerCancellationRequest[]           @relation("CancellationProcessedBy")
+  cancellationRequestEvents      DealerCancellationRequestEvent[]
+  accountDeletionJob             AccountDeletionJob?
+  promotionCampaignsCreated      DealerPromotionCampaign[]             @relation("PromotionCampaignCreatedBy")
+  onboardingInvites              DealerOnboardingInvite[]              @relation("OnboardingInviteSubject")
+  onboardingInvitesCreated       DealerOnboardingInvite[]              @relation("OnboardingInviteCreatedBy")
+  onboardingInviteEvents         DealerOnboardingInviteEvent[]
+  dealerUpgradeOffers            DealerUpgradeOffer[]                  @relation("DealerUpgradeOfferSubject")
+  dealerUpgradeOffersCreated     DealerUpgradeOffer[]                  @relation("DealerUpgradeOfferCreatedBy")
+  dealerUpgradeOffersCancelled   DealerUpgradeOffer[]                  @relation("DealerUpgradeOfferCancelledBy")
+  dealerUpgradeAcceptances       DealerUpgradeAcceptance[]
+  earlyAccessTestRecipients      WaitlistEarlyAccessRecipient[]        @relation("EarlyAccessTestAdmin")
 
   @@index([authUserId])
   @@index([email])
 }
 
 model DealerProfile {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  name      String
-  slug      String   @unique
-  bio       String?
-  website   String?
-  phone     String?
-  logoUrl   String?
-  verified  Boolean  @default(false)
-  tier      DealerTier @default(STARTER)
-  isAdminPreview Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String     @id @default(cuid())
+  userId         String     @unique
+  name           String
+  slug           String     @unique
+  bio            String?
+  website        String?
+  phone          String?
+  logoUrl        String?
+  verified       Boolean    @default(false)
+  tier           DealerTier @default(STARTER)
+  isAdminPreview Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listings      Listing[]
-  subscriptions Subscription[]
-  reviews       DealerReview[]
-  cancellationRequests DealerCancellationRequest[]
-  previewPack   DealerPreviewPack?
-  onboardingInvites DealerOnboardingInvite[]
-  correspondenceSettings DealerCorrespondenceSettings?
-  historicalSlugs      DealerProfileSlugHistory[]
+  user                    User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listings                Listing[]
+  subscriptions           Subscription[]
+  paymentCheckoutAttempts PaymentCheckoutAttempt[]
+  reviews                 DealerReview[]
+  cancellationRequests    DealerCancellationRequest[]
+  previewPack             DealerPreviewPack?
+  onboardingInvites       DealerOnboardingInvite[]
+  correspondenceSettings  DealerCorrespondenceSettings?
+  historicalSlugs         DealerProfileSlugHistory[]
 
   @@index([slug])
 }
@@ -152,17 +154,17 @@ enum DealerEmailCategory {
 }
 
 model DealerCorrespondenceSettings {
-  id                      String                @id @default(cuid())
-  dealerId                String                @unique
-  verifiedEmail           String?
-  verifiedAt              DateTime?
-  pendingEmail            String?
-  verificationTokenHash   String?               @unique
-  verificationExpiresAt   DateTime?
-  categories              DealerEmailCategory[] @default([])
-  copyAssignedToPrimary   Boolean               @default(false)
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
+  id                    String                @id @default(cuid())
+  dealerId              String                @unique
+  verifiedEmail         String?
+  verifiedAt            DateTime?
+  pendingEmail          String?
+  verificationTokenHash String?               @unique
+  verificationExpiresAt DateTime?
+  categories            DealerEmailCategory[] @default([])
+  copyAssignedToPrimary Boolean               @default(false)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   dealer DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 }
@@ -179,8 +181,8 @@ model Region {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
-  users    User[]
-  listings Listing[]
+  users            User[]
+  listings         Listing[]
   listingRevisions ListingRevision[]
 
   @@index([slug])
@@ -216,13 +218,13 @@ model AttributeDefinition {
   categoryId String
   name       String
   slug       String
-  dataType   String  // text, number, select, boolean
+  dataType   String // text, number, select, boolean
   required   Boolean @default(false)
   options    String? // JSON-encoded options for select type
   sortOrder  Int     @default(0)
 
-  category Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  values   ListingAttributeValue[]
+  category       Category                        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  values         ListingAttributeValue[]
   revisionValues ListingRevisionAttributeValue[]
 
   @@unique([categoryId, slug])
@@ -391,53 +393,55 @@ enum ListingStatusEventSource {
 }
 
 model Listing {
-  id          String        @id @default(cuid())
-  userId      String
-  dealerId    String?
-  categoryId  String
-  regionId    String
-  title       String
-  description String
-  price       Int           // stored in pence
-  status      ListingStatus @default(DRAFT)
-  featured    Boolean       @default(false)
-  slug        String?
-  viewCount   Int           @default(0)
-  expiresAt   DateTime?
-  soldAt      DateTime?
-  trustDeclarationAccepted   Boolean  @default(false)
+  id                         String             @id @default(cuid())
+  userId                     String
+  dealerId                   String?
+  categoryId                 String
+  regionId                   String
+  title                      String
+  description                String
+  price                      Int // stored in pence
+  status                     ListingStatus      @default(DRAFT)
+  featured                   Boolean            @default(false)
+  slug                       String?
+  viewCount                  Int                @default(0)
+  expiresAt                  DateTime?
+  soldAt                     DateTime?
+  trustDeclarationAccepted   Boolean            @default(false)
   trustDeclarationAcceptedAt DateTime?
-  photoRevision              Int      @default(0)
-  lastPhotoMutationId        String?  @unique
+  photoRevision              Int                @default(0)
+  lastPhotoMutationId        String?            @unique
   lastPhotoMutationHash      String?
-  lifecycleRevision          Int      @default(0)
-  retentionPurgedAt DateTime?
-  previewPackId String?
-  reviewState          PreviewReviewState @default(NONE)
-  reviewReasons        String[]           @default([])
-  reviewSourceIdentity String?
-  reviewSourceUrl      String?
-  approvedAt  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  lifecycleRevision          Int                @default(0)
+  retentionPurgedAt          DateTime?
+  previewPackId              String?
+  reviewState                PreviewReviewState @default(NONE)
+  reviewReasons              String[]           @default([])
+  reviewSourceIdentity       String?
+  reviewSourceUrl            String?
+  approvedAt                 DateTime?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
 
-  user     User           @relation(fields: [userId], references: [id])
-  dealer   DealerProfile? @relation(fields: [dealerId], references: [id])
-  category Category       @relation(fields: [categoryId], references: [id])
-  region   Region         @relation(fields: [regionId], references: [id])
+  user        User               @relation(fields: [userId], references: [id])
+  dealer      DealerProfile?     @relation(fields: [dealerId], references: [id])
+  category    Category           @relation(fields: [categoryId], references: [id])
+  region      Region             @relation(fields: [regionId], references: [id])
   previewPack DealerPreviewPack? @relation(fields: [previewPackId], references: [id], onDelete: SetNull)
 
-  images             ListingImage[]
-  imageUploadIntents ListingImageUploadIntent[]
-  attributeValues    ListingAttributeValue[]
-  payments        Payment[]
-  reports         Report[]
-  favouritedBy    Favourite[]
-  views           ListingView[]
-  statusEvents    ListingStatusEvent[]
-  revisions       ListingRevision[]
-  freeListingClaim FreeListingClaim?
+  images                  ListingImage[]
+  imageUploadIntents      ListingImageUploadIntent[]
+  attributeValues         ListingAttributeValue[]
+  payments                Payment[]
+  paymentCheckoutAttempts PaymentCheckoutAttempt[]
+  reports                 Report[]
+  favouritedBy            Favourite[]
+  views                   ListingView[]
+  statusEvents            ListingStatusEvent[]
+  revisions               ListingRevision[]
+  freeListingClaim        FreeListingClaim?
 
+  @@unique([previewPackId, reviewSourceIdentity])
   @@index([categoryId, regionId, status])
   @@index([status])
   @@index([price])
@@ -447,23 +451,22 @@ model Listing {
   @@index([previewPackId])
   @@index([reviewState])
   @@index([reviewSourceIdentity])
-  @@unique([previewPackId, reviewSourceIdentity])
   @@index([createdAt])
   @@index([approvedAt])
 }
 
 model DealerPreviewPack {
-  id              String   @id @default(cuid())
-  dealerKey       String   @unique
-  displayName     String
-  sourceRunId     String
-  enabled         Boolean  @default(false)
+  id                String             @id @default(cuid())
+  dealerKey         String             @unique
+  displayName       String
+  sourceRunId       String
+  enabled           Boolean            @default(false)
   reviewState       PreviewReviewState @default(NONE)
   reviewReasons     String[]           @default([])
   reviewSourceRunId String?
-  dealerProfileId String   @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  dealerProfileId   String             @unique
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   dealerProfile DealerProfile @relation(fields: [dealerProfileId], references: [id], onDelete: Cascade)
   listings      Listing[]
@@ -473,19 +476,19 @@ model DealerPreviewPack {
 }
 
 model ListingStatusEvent {
-  id              String                   @id @default(cuid())
-  listingId       String
-  fromStatus      ListingStatus?
-  toStatus        ListingStatus
-  changedByUserId String?
-  source          ListingStatusEventSource
-  action          ListingLifecycleAction?
-  reasonCode      ListingModerationReason?
+  id                        String                   @id @default(cuid())
+  listingId                 String
+  fromStatus                ListingStatus?
+  toStatus                  ListingStatus
+  changedByUserId           String?
+  source                    ListingStatusEventSource
+  action                    ListingLifecycleAction?
+  reasonCode                ListingModerationReason?
   moderationSubReason       String?
   moderationTaxonomyVersion String?
-  reportId        String?
-  notes           String?
-  createdAt       DateTime                 @default(now())
+  reportId                  String?
+  notes                     String?
+  createdAt                 DateTime                 @default(now())
 
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   changedBy User?   @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
@@ -528,22 +531,22 @@ enum ListingImageCleanupJobStatus {
 }
 
 model ListingImage {
-  id             String                @id @default(cuid())
-  listingId      String
-  url            String
-  publicId       String
-  order          Int                   @default(0)
-  provider       ListingImageProvider  @default(CLOUDINARY)
-  assetId        String?
-  version        String?
-  width          Int?
-  height         Int?
-  format         String?
-  bytes          Int?
-  uploadIntentId String?               @unique
-  focalX          Float?
-  focalY          Float?
-  imageKitFileId  String?
+  id               String               @id @default(cuid())
+  listingId        String
+  url              String
+  publicId         String
+  order            Int                  @default(0)
+  provider         ListingImageProvider @default(CLOUDINARY)
+  assetId          String?
+  version          String?
+  width            Int?
+  height           Int?
+  format           String?
+  bytes            Int?
+  uploadIntentId   String?              @unique
+  focalX           Float?
+  focalY           Float?
+  imageKitFileId   String?
   imageKitFilePath String?
 
   listing      Listing                   @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -555,28 +558,28 @@ model ListingImage {
 }
 
 model ListingImageUploadIntent {
-  id           String                         @id @default(cuid())
-  userId       String
-  listingId    String?
-  publicId     String                         @unique
-  folder       String
-  status       ListingImageUploadIntentStatus @default(ISSUED)
-  expiresAt    DateTime
-  assetId      String?
-  version      String?
-  width        Int?
-  height       Int?
-  format       String?
+  id               String                         @id @default(cuid())
+  userId           String
+  listingId        String?
+  publicId         String                         @unique
+  folder           String
+  status           ListingImageUploadIntentStatus @default(ISSUED)
+  expiresAt        DateTime
+  assetId          String?
+  version          String?
+  width            Int?
+  height           Int?
+  format           String?
   bytes            Int?
   imageKitFileId   String?
   imageKitFilePath String?
   deliveryType     String                         @default("private")
-  createdAt    DateTime                       @default(now())
-  updatedAt    DateTime                       @updatedAt
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
-  image   ListingImage?
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing       Listing?              @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  image         ListingImage?
   revisionImage ListingRevisionImage?
 
   @@index([userId, status])
@@ -584,18 +587,18 @@ model ListingImageUploadIntent {
 }
 
 model ListingImageCleanupJob {
-  id           String                       @id @default(cuid())
-  publicId     String
-  deliveryType String                       @default("private")
+  id               String                       @id @default(cuid())
+  publicId         String
+  deliveryType     String                       @default("private")
   reason           String
   imageKitFileId   String?
   imageKitFilePath String?
   status           ListingImageCleanupJobStatus @default(PENDING)
-  attempts     Int                          @default(0)
-  lastError    String?
-  createdAt    DateTime                     @default(now())
-  updatedAt    DateTime                     @updatedAt
-  completedAt  DateTime?
+  attempts         Int                          @default(0)
+  lastError        String?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  completedAt      DateTime?
 
   @@index([status, createdAt])
 }
@@ -622,17 +625,17 @@ enum ListingRevisionStatus {
 }
 
 model ListingRevision {
-  id                         String                 @id @default(cuid())
+  id                         String                   @id @default(cuid())
   listingId                  String
   title                      String
   description                String
   price                      Int
   categoryId                 String
   regionId                   String
-  trustDeclarationAccepted   Boolean                @default(false)
+  trustDeclarationAccepted   Boolean                  @default(false)
   trustDeclarationAcceptedAt DateTime?
-  status                     ListingRevisionStatus  @default(DRAFT)
-  version                    Int                    @default(0)
+  status                     ListingRevisionStatus    @default(DRAFT)
+  version                    Int                      @default(0)
   reasonCode                 ListingModerationReason?
   moderationSubReason        String?
   moderationTaxonomyVersion  String?
@@ -640,14 +643,14 @@ model ListingRevision {
   submittedAt                DateTime?
   decidedAt                  DateTime?
   decidedByUserId            String?
-  createdAt                  DateTime               @default(now())
-  updatedAt                  DateTime               @updatedAt
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
 
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  category  Category @relation(fields: [categoryId], references: [id])
-  region    Region   @relation(fields: [regionId], references: [id])
-  decidedBy User?    @relation("ListingRevisionDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
-  images    ListingRevisionImage[]
+  listing         Listing                         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  category        Category                        @relation(fields: [categoryId], references: [id])
+  region          Region                          @relation(fields: [regionId], references: [id])
+  decidedBy       User?                           @relation("ListingRevisionDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  images          ListingRevisionImage[]
   attributeValues ListingRevisionAttributeValue[]
 
   @@index([listingId, status])
@@ -656,26 +659,26 @@ model ListingRevision {
 }
 
 model ListingRevisionImage {
-  id             String               @id @default(cuid())
-  revisionId     String
-  url            String
-  publicId       String
-  order          Int                  @default(0)
-  provider       ListingImageProvider @default(CLOUDINARY)
-  assetId        String?
-  version        String?
-  width          Int?
-  height         Int?
-  format         String?
-  bytes          Int?
-  uploadIntentId String?              @unique
+  id               String               @id @default(cuid())
+  revisionId       String
+  url              String
+  publicId         String
+  order            Int                  @default(0)
+  provider         ListingImageProvider @default(CLOUDINARY)
+  assetId          String?
+  version          String?
+  width            Int?
+  height           Int?
+  format           String?
+  bytes            Int?
+  uploadIntentId   String?              @unique
   focalX           Float?
   focalY           Float?
   imageKitFileId   String?
   imageKitFilePath String?
 
-  revision     ListingRevision            @relation(fields: [revisionId], references: [id], onDelete: Cascade)
-  uploadIntent ListingImageUploadIntent?  @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)
+  revision     ListingRevision           @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  uploadIntent ListingImageUploadIntent? @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)
 
   @@unique([revisionId, order])
   @@unique([revisionId, provider, publicId])
@@ -709,21 +712,21 @@ enum PaymentStatus {
 
 // Preview simulator only. No real provider credentials or card data are stored.
 model SampleCheckout {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   userId       String
   kind         String
   targetId     String
   description  String
   amountPence  Int
-  currency     String   @default("gbp")
+  currency     String      @default("gbp")
   tier         DealerTier?
-  status       String   @default("PENDING")
-  attemptCount Int      @default(0)
+  status       String      @default("PENDING")
+  attemptCount Int         @default(0)
   returnUrl    String
   expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, targetId, kind, createdAt])
 }
@@ -741,34 +744,63 @@ enum PaymentProvider {
   ADMIN
 }
 
+enum PaymentCheckoutKind {
+  LISTING_PAYMENT
+  LISTING_AND_FEATURED
+  FEATURED_UPGRADE
+  DEALER_SUBSCRIPTION
+}
+
+enum PaymentCheckoutAttemptStatus {
+  OPEN
+  RETURNED
+  CONFIRMED
+  FAILED
+  REVIEW
+  EXPIRED
+}
+
+enum PaymentReconciliationEvidenceType {
+  VERIFIED_WEBHOOK
+  ADMIN_PROVIDER_ATTESTATION
+}
+
+enum ProviderPaymentClaimSource {
+  VERIFIED_WEBHOOK
+  ADMIN_PROVIDER_ATTESTATION
+  LEGACY_RECORDED
+}
+
 enum SubscriptionSource {
   PAYMENT
   ADMIN_GRANT
 }
 
 model Payment {
-  id                             String          @id @default(cuid())
-  listingId                      String
-  paymentProvider                PaymentProvider @default(STRIPE)
-  providerPaymentId              String?         @unique
-  providerReference              String?         @unique
-  stripePaymentId                String?         @unique
-  amount                         Int             // in pence
-  currency                       String          @default("gbp")
-  type                           PaymentType     @default(LISTING)
-  includesFeatured               Boolean         @default(false)
-  featuredAppliedAt              DateTime?
-  status                         PaymentStatus   @default(PENDING)
-  idempotencyKey                 String?         @unique
-  refundReason                   RefundReason?
-  refundedAt                     DateTime?
-  lastProviderEventAt            DateTime?
-  lastProviderEventType          String?
-  lastProviderEventFingerprint   String?
-  createdAt                      DateTime        @default(now())
-  updatedAt                      DateTime        @updatedAt
+  id                           String          @id @default(cuid())
+  listingId                    String
+  paymentProvider              PaymentProvider @default(STRIPE)
+  providerPaymentId            String?         @unique
+  providerReference            String?         @unique
+  stripePaymentId              String?         @unique
+  amount                       Int // in pence
+  currency                     String          @default("gbp")
+  type                         PaymentType     @default(LISTING)
+  includesFeatured             Boolean         @default(false)
+  featuredAppliedAt            DateTime?
+  status                       PaymentStatus   @default(PENDING)
+  idempotencyKey               String?         @unique
+  refundReason                 RefundReason?
+  refundedAt                   DateTime?
+  lastProviderEventAt          DateTime?
+  lastProviderEventType        String?
+  lastProviderEventFingerprint String?
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @updatedAt
 
-  listing Listing @relation(fields: [listingId], references: [id])
+  listing         Listing                 @relation(fields: [listingId], references: [id])
+  checkoutAttempt PaymentCheckoutAttempt?
+  providerClaim   ProviderPaymentClaim?
 
   @@index([listingId])
   @@index([paymentProvider])
@@ -801,33 +833,33 @@ enum WebhookInboxStatus {
 }
 
 model Subscription {
-  id                             String                         @id @default(cuid())
-  dealerId                       String
-  paymentProvider                PaymentProvider                @default(STRIPE)
-  source                         SubscriptionSource             @default(PAYMENT)
-  providerSubscriptionId         String?                        @unique
-  providerPlanId                 String?
-  stripeSubscriptionId           String?                        @unique
-  stripePriceId                  String?
-  status                         SubscriptionStatus             @default(INCOMPLETE)
-  currentPeriodEnd               DateTime?
-  grantStartsAt                  DateTime?
-  grantEndsAt                    DateTime?
-  grantedByAdminId               String?
-  revokedAt                      DateTime?
-  promotionCampaignId            String?
-  cancelAtPeriodEnd              Boolean                        @default(false)
-  providerLifecycle              SubscriptionProviderLifecycle  @default(NONE)
-  customerEmailNorm              String?
-  lastProviderEventAt            DateTime?
-  lastProviderEventType          String?
-  lastProviderEventFingerprint   String?
-  createdAt                      DateTime                       @default(now())
-  updatedAt                      DateTime                       @updatedAt
+  id                           String                        @id @default(cuid())
+  dealerId                     String
+  paymentProvider              PaymentProvider               @default(STRIPE)
+  source                       SubscriptionSource            @default(PAYMENT)
+  providerSubscriptionId       String?                       @unique
+  providerPlanId               String?
+  stripeSubscriptionId         String?                       @unique
+  stripePriceId                String?
+  status                       SubscriptionStatus            @default(INCOMPLETE)
+  currentPeriodEnd             DateTime?
+  grantStartsAt                DateTime?
+  grantEndsAt                  DateTime?
+  grantedByAdminId             String?
+  revokedAt                    DateTime?
+  promotionCampaignId          String?
+  cancelAtPeriodEnd            Boolean                       @default(false)
+  providerLifecycle            SubscriptionProviderLifecycle @default(NONE)
+  customerEmailNorm            String?
+  lastProviderEventAt          DateTime?
+  lastProviderEventType        String?
+  lastProviderEventFingerprint String?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
-  dealer  DealerProfile         @relation(fields: [dealerId], references: [id], onDelete: Cascade)
-  promotionCampaign DealerPromotionCampaign? @relation(fields: [promotionCampaignId], references: [id], onDelete: Restrict)
-  charges SubscriptionCharge[]
+  dealer               DealerProfile               @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  promotionCampaign    DealerPromotionCampaign?    @relation(fields: [promotionCampaignId], references: [id], onDelete: Restrict)
+  charges              SubscriptionCharge[]
   cancellationRequests DealerCancellationRequest[]
 
   @@index([dealerId])
@@ -840,15 +872,18 @@ model Subscription {
 }
 
 model SubscriptionCharge {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   subscriptionId   String
-  paymentReference String   @unique
+  paymentReference String    @unique
   amount           Int
-  currency         String   @default("gbp")
+  currency         String    @default("gbp")
   eventTimestamp   DateTime
-  createdAt        DateTime @default(now())
+  refundedAt       DateTime?
+  refundEventId    String?
+  createdAt        DateTime  @default(now())
 
-  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscription  Subscription          @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  providerClaim ProviderPaymentClaim?
 
   @@index([subscriptionId])
 }
@@ -881,6 +916,93 @@ model PaymentWebhookInbox {
   @@index([paymentReference])
 }
 
+model PaymentCheckoutAttempt {
+  id                String                       @id @default(cuid())
+  userId            String
+  listingId         String?
+  dealerId          String?
+  paymentId         String?                      @unique
+  kind              PaymentCheckoutKind
+  status            PaymentCheckoutAttemptStatus @default(OPEN)
+  merchantReference String                       @unique
+  productCode       String
+  tier              DealerTier?
+  amountPence       Int
+  currency          String                       @default("gbp")
+  environment       String
+  expiresAt         DateTime
+  returnedAt        DateTime?
+  confirmedAt       DateTime?
+  failedAt          DateTime?
+  alertedAt         DateTime?
+  alertLeaseUntil   DateTime?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  user            User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing         Listing?                     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  dealer          DealerProfile?               @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  payment         Payment?                     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  observations    PaymentCheckoutObservation[]
+  reconciliations PaymentReconciliation[]
+  providerClaims  ProviderPaymentClaim[]
+
+  @@index([status, createdAt])
+  @@index([userId, status])
+  @@index([listingId, status])
+  @@index([dealerId, status])
+}
+
+model PaymentCheckoutObservation {
+  id                String   @id @default(cuid())
+  attemptId         String
+  providerPaymentId String
+  observedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  attempt PaymentCheckoutAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, providerPaymentId])
+  @@index([providerPaymentId])
+}
+
+model ProviderPaymentClaim {
+  id                   String                     @id @default(cuid())
+  paymentProvider      PaymentProvider
+  providerPaymentId    String
+  attemptId            String?
+  paymentId            String?                    @unique
+  subscriptionChargeId String?                    @unique
+  source               ProviderPaymentClaimSource
+  claimedAt            DateTime                   @default(now())
+
+  attempt            PaymentCheckoutAttempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+  payment            Payment?                @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  subscriptionCharge SubscriptionCharge?     @relation(fields: [subscriptionChargeId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentProvider, providerPaymentId])
+  @@index([attemptId])
+}
+
+model PaymentReconciliation {
+  id                String                            @id @default(cuid())
+  attemptId         String
+  evidenceType      PaymentReconciliationEvidenceType
+  evidenceId        String
+  providerPaymentId String
+  providerEventAt   DateTime
+  adminId           String?
+  notes             String?
+  evidenceSnapshot  Json
+  createdAt         DateTime                          @default(now())
+
+  attempt PaymentCheckoutAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, evidenceType, evidenceId])
+  @@index([providerPaymentId])
+  @@index([createdAt])
+}
+
 // ---------------------------------------------------------------------------
 // Moderation
 // ---------------------------------------------------------------------------
@@ -893,17 +1015,17 @@ enum ReportStatus {
 }
 
 model Report {
-  id            String           @id @default(cuid())
+  id            String            @id @default(cuid())
   listingId     String
   reporterId    String?
   reporterEmail String
   reason        String
   reasonCode    ReportReasonCode?
-  status        ReportStatus     @default(OPEN)
+  status        ReportStatus      @default(OPEN)
   adminNotes    String?
   closedAt      DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   listing      Listing              @relation(fields: [listingId], references: [id])
   reporter     User?                @relation(fields: [reporterId], references: [id])
@@ -930,8 +1052,8 @@ model DealerReview {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  dealer   DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Cascade)
-  reviewer User?         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  dealer           DealerProfile                 @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  reviewer         User?                         @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
   moderationEvents DealerReviewModerationEvent[]
   response         DealerReviewResponse?
   disputes         DealerReviewDispute[]
@@ -943,7 +1065,7 @@ model DealerReview {
 }
 
 model DealerReviewModerationEvent {
-  id              String                         @id @default(cuid())
+  id              String                        @id @default(cuid())
   reviewId        String
   fromStatus      DealerReviewStatus?
   toStatus        DealerReviewStatus
@@ -951,7 +1073,7 @@ model DealerReviewModerationEvent {
   adminNotes      String?
   changedByUserId String?
   reviewVersion   Int                           @default(0)
-  createdAt       DateTime                       @default(now())
+  createdAt       DateTime                      @default(now())
 
   review    DealerReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   changedBy User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
@@ -1096,12 +1218,12 @@ model SavedSearch {
 }
 
 model ListingView {
-  id         String   @id @default(cuid())
-  listingId  String
-  viewerId   String?
-  viewerHash String
-  viewerHashVersion Int @default(1)
-  createdAt  DateTime @default(now())
+  id                String   @id @default(cuid())
+  listingId         String
+  viewerId          String?
+  viewerHash        String
+  viewerHashVersion Int      @default(1)
+  createdAt         DateTime @default(now())
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   viewer  User?   @relation(fields: [viewerId], references: [id], onDelete: SetNull)
@@ -1111,18 +1233,18 @@ model ListingView {
 }
 
 model WaitlistUser {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  interests        Json
-  source           String    @default("coming_soon_page")
-  deletedAt        DateTime?
-  deletedByAdminId String?
-  deletionReason   String?
-  marketingConsentAt DateTime?
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  interests              Json
+  source                 String    @default("coming_soon_page")
+  deletedAt              DateTime?
+  deletedByAdminId       String?
+  deletionReason         String?
+  marketingConsentAt     DateTime?
   marketingPolicyVersion String?
-  marketingWithdrawnAt DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  marketingWithdrawnAt   DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   earlyAccessRecipients WaitlistEarlyAccessRecipient[]
 
@@ -1170,13 +1292,13 @@ model WaitlistEarlyAccessCampaign {
 }
 
 model WaitlistEarlyAccessRecipient {
-  id                  String                           @id @default(cuid())
+  id                  String                            @id @default(cuid())
   campaignId          String
   waitlistUserId      String?
   testAdminUserId     String?
   nonce               String
   deliveryStatus      WaitlistEarlyAccessDeliveryStatus @default(PENDING)
-  attemptCount        Int                              @default(0)
+  attemptCount        Int                               @default(0)
   lastError           String?
   resendMessageId     String?
   sentAt              DateTime?
@@ -1184,8 +1306,8 @@ model WaitlistEarlyAccessRecipient {
   nextAttemptAt       DateTime?
   claimedAt           DateTime?
   claimLeaseExpiresAt DateTime?
-  createdAt           DateTime                         @default(now())
-  updatedAt           DateTime                         @updatedAt
+  createdAt           DateTime                          @default(now())
+  updatedAt           DateTime                          @updatedAt
 
   campaign     WaitlistEarlyAccessCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   waitlistUser WaitlistUser?               @relation(fields: [waitlistUserId], references: [id], onDelete: Restrict)
@@ -1242,34 +1364,34 @@ enum MonitoringAlertKind {
 }
 
 model MonitoringIssue {
-  id               String                @id @default(cuid())
-  fingerprint      String                @unique
-  title            String
-  status           MonitoringIssueStatus @default(OPEN)
-  severity         MonitoringSeverity    @default(MEDIUM)
-  source           MonitoringSource
-  firstSeenAt      DateTime              @default(now())
-  lastSeenAt       DateTime              @default(now())
-  occurrences      Int                   @default(1)
-  sampleMessage    String
-  sampleRoute      String?
-  sampleAction     String?
-  sampleComponent  String?
-  mutedUntil       DateTime?
-  resolvedAt       DateTime?
-  acknowledgedAt   DateTime?
-  acknowledgedSeverity MonitoringSeverity?
-  suppressedAlertCount Int               @default(0)
-  assigneeAdminId  String?
-  lastAlertedAt    DateTime?
-  lastGeneratedPrompt String?
+  id                    String                @id @default(cuid())
+  fingerprint           String                @unique
+  title                 String
+  status                MonitoringIssueStatus @default(OPEN)
+  severity              MonitoringSeverity    @default(MEDIUM)
+  source                MonitoringSource
+  firstSeenAt           DateTime              @default(now())
+  lastSeenAt            DateTime              @default(now())
+  occurrences           Int                   @default(1)
+  sampleMessage         String
+  sampleRoute           String?
+  sampleAction          String?
+  sampleComponent       String?
+  mutedUntil            DateTime?
+  resolvedAt            DateTime?
+  acknowledgedAt        DateTime?
+  acknowledgedSeverity  MonitoringSeverity?
+  suppressedAlertCount  Int                   @default(0)
+  assigneeAdminId       String?
+  lastAlertedAt         DateTime?
+  lastGeneratedPrompt   String?
   lastPromptGeneratedAt DateTime?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
-  events           MonitoringEvent[]
-  alertDeliveries  MonitoringAlertDelivery[]
-  statusEvents     MonitoringIssueStatusEvent[]
+  events          MonitoringEvent[]
+  alertDeliveries MonitoringAlertDelivery[]
+  statusEvents    MonitoringIssueStatusEvent[]
 
   @@index([status, severity, lastSeenAt])
   @@index([source, lastSeenAt])
@@ -1277,13 +1399,13 @@ model MonitoringIssue {
 }
 
 model MonitoringIssueStatusEvent {
-  id              String                @id @default(cuid())
+  id              String                 @id @default(cuid())
   issueId         String
   fromStatus      MonitoringIssueStatus?
   toStatus        MonitoringIssueStatus
   changedByUserId String?
   notes           String?
-  createdAt       DateTime              @default(now())
+  createdAt       DateTime               @default(now())
 
   issue     MonitoringIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
   changedBy User?           @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
@@ -1292,28 +1414,29 @@ model MonitoringIssueStatusEvent {
 }
 
 model MonitoringEvent {
-  id             String             @id @default(cuid())
-  issueId        String
-  source         MonitoringSource
-  severity       MonitoringSeverity
-  environment    String
-  message        String
-  stack          String?
-  route          String?
-  action         String?
-  component      String?
-  requestMethod  String?
-  requestPath    String?
-  requestId      String?
-  userId         String?
-  userEmail      String?
-  ipHash         String?
-  tags           Json?
-  extra          Json?
-  occurredAt     DateTime           @default(now())
-  createdAt      DateTime           @default(now())
+  id            String             @id @default(cuid())
+  issueId       String
+  source        MonitoringSource
+  severity      MonitoringSeverity
+  environment   String
+  message       String
+  stack         String?
+  route         String?
+  action        String?
+  component     String?
+  requestMethod String?
+  requestPath   String?
+  requestId     String?
+  dedupeKey     String?            @unique
+  userId        String?
+  userEmail     String?
+  ipHash        String?
+  tags          Json?
+  extra         Json?
+  occurredAt    DateTime           @default(now())
+  createdAt     DateTime           @default(now())
 
-  issue          MonitoringIssue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  issue           MonitoringIssue           @relation(fields: [issueId], references: [id], onDelete: Cascade)
   alertDeliveries MonitoringAlertDelivery[]
 
   @@index([issueId, occurredAt])
@@ -1322,25 +1445,25 @@ model MonitoringEvent {
 }
 
 model MonitoringAlertDelivery {
-  id          String                @id @default(cuid())
-  issueId      String?
-  eventId      String?
-  channel      MonitoringAlertChannel
-  kind         MonitoringAlertKind   @default(IMMEDIATE)
-  target       String
-  status       MonitoringAlertStatus @default(PENDING)
-  attempts     Int                   @default(0)
-  lastError    String?
-  payload      Json?
-  nextAttemptAt DateTime?
-  claimedAt    DateTime?
+  id             String                 @id @default(cuid())
+  issueId        String?
+  eventId        String?
+  channel        MonitoringAlertChannel
+  kind           MonitoringAlertKind    @default(IMMEDIATE)
+  target         String
+  status         MonitoringAlertStatus  @default(PENDING)
+  attempts       Int                    @default(0)
+  lastError      String?
+  payload        Json?
+  nextAttemptAt  DateTime?
+  claimedAt      DateTime?
   claimExpiresAt DateTime?
-  sentAt       DateTime?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  sentAt         DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
-  issue        MonitoringIssue?      @relation(fields: [issueId], references: [id], onDelete: SetNull)
-  event        MonitoringEvent?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  issue MonitoringIssue? @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  event MonitoringEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([status, nextAttemptAt])
@@ -1469,15 +1592,15 @@ model DealerUpgradeOffer {
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
-  user           User @relation("DealerUpgradeOfferSubject", fields: [userId], references: [id], onDelete: Restrict)
-  createdByAdmin User @relation("DealerUpgradeOfferCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
-  cancelledByAdmin User? @relation("DealerUpgradeOfferCancelledBy", fields: [cancelledByAdminId], references: [id], onDelete: Restrict)
-  acceptance DealerUpgradeAcceptance?
+  user             User                     @relation("DealerUpgradeOfferSubject", fields: [userId], references: [id], onDelete: Restrict)
+  createdByAdmin   User                     @relation("DealerUpgradeOfferCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  cancelledByAdmin User?                    @relation("DealerUpgradeOfferCancelledBy", fields: [cancelledByAdminId], references: [id], onDelete: Restrict)
+  acceptance       DealerUpgradeAcceptance?
 
+  @@unique([id, userId])
   @@index([userId, status])
   @@index([createdByAdminId])
   @@index([cancelledByAdminId])
-  @@unique([id, userId])
 }
 
 model DealerUpgradeAcceptance {
@@ -1494,8 +1617,8 @@ model DealerUpgradeAcceptance {
   offer DealerUpgradeOffer @relation(fields: [offerId, userId], references: [id, userId], onDelete: Restrict)
   user  User               @relation(fields: [userId], references: [id], onDelete: Restrict)
 
-  @@index([userId, acceptedAt])
   @@unique([offerId, userId])
+  @@index([userId, acceptedAt])
 }
 
 enum DealerOnboardingInviteStatus {
@@ -1528,32 +1651,32 @@ model DealerPromotionCampaign {
 }
 
 model DealerOnboardingInvite {
-  id                  String                       @id @default(cuid())
-  campaignId          String
-  userId              String
-  dealerId            String
-  targetAuthUserId    String
-  originalEmail       String
-  recipientEmailNorm  String
-  tokenHash           String                       @unique
-  expiresAt           DateTime
-  status              DealerOnboardingInviteStatus
-  campaignStartsAt    DateTime
-  campaignEndsAt      DateTime
-  campaignTier        DealerTier
-  sentAt              DateTime?
-  claimedAt           DateTime?
-  finalizingAt        DateTime?
-  completedAt         DateTime?
-  revokedAt           DateTime?
-  sendAttemptCount    Int                          @default(0)
-  lastError           String?
-  leaseToken          String?
-  leaseExpiresAt      DateTime?
-  resendMessageId     String?
-  createdByAdminId    String
-  createdAt           DateTime                     @default(now())
-  updatedAt           DateTime                     @updatedAt
+  id                 String                       @id @default(cuid())
+  campaignId         String
+  userId             String
+  dealerId           String
+  targetAuthUserId   String
+  originalEmail      String
+  recipientEmailNorm String
+  tokenHash          String                       @unique
+  expiresAt          DateTime
+  status             DealerOnboardingInviteStatus
+  campaignStartsAt   DateTime
+  campaignEndsAt     DateTime
+  campaignTier       DealerTier
+  sentAt             DateTime?
+  claimedAt          DateTime?
+  finalizingAt       DateTime?
+  completedAt        DateTime?
+  revokedAt          DateTime?
+  sendAttemptCount   Int                          @default(0)
+  lastError          String?
+  leaseToken         String?
+  leaseExpiresAt     DateTime?
+  resendMessageId    String?
+  createdByAdminId   String
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
 
   campaign       DealerPromotionCampaign       @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   user           User                          @relation("OnboardingInviteSubject", fields: [userId], references: [id], onDelete: Restrict)
@@ -1622,25 +1745,25 @@ model DealerCancellationRequest {
   notes              String?
   lastError          String?
 
-  dealer        DealerProfile @relation(fields: [dealerId], references: [id], onDelete: Restrict)
-  subscription  Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
-  requestedBy   User          @relation("CancellationRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  processedBy   User?         @relation("CancellationProcessedBy", fields: [processedByAdminId], references: [id], onDelete: Restrict)
-  events        DealerCancellationRequestEvent[]
+  dealer       DealerProfile                    @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  subscription Subscription                     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  requestedBy  User                             @relation("CancellationRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  processedBy  User?                            @relation("CancellationProcessedBy", fields: [processedByAdminId], references: [id], onDelete: Restrict)
+  events       DealerCancellationRequestEvent[]
 
   @@index([dealerId, status])
   @@index([subscriptionId, status])
 }
 
 model DealerCancellationRequestEvent {
-  id          String                    @id @default(cuid())
+  id          String                     @id @default(cuid())
   requestId   String
   fromStatus  CancellationRequestStatus?
   toStatus    CancellationRequestStatus
   actorUserId String?
   source      String
   metadata    Json?
-  createdAt   DateTime                  @default(now())
+  createdAt   DateTime                   @default(now())
 
   request DealerCancellationRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
   actor   User?                     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
@@ -1976,21 +2099,21 @@ model CostIngestBatch {
 }
 
 model CostAllowanceObservation {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   providerAccountRef   String
   observedAt           DateTime  @db.Timestamptz(3)
   cycleStart           DateTime? @db.Timestamptz(3)
   cycleEnd             DateTime? @db.Timestamptz(3)
   poolLabel            String?
-  reportedAllowanceUsd Decimal? @db.Decimal(20, 8)
-  remainingUsd         Decimal? @db.Decimal(20, 8)
-  accountNominalUsd    Decimal? @db.Decimal(20, 8)
-  accountOnDemandUsd   Decimal? @db.Decimal(20, 8)
+  reportedAllowanceUsd Decimal?  @db.Decimal(20, 8)
+  remainingUsd         Decimal?  @db.Decimal(20, 8)
+  accountNominalUsd    Decimal?  @db.Decimal(20, 8)
+  accountOnDemandUsd   Decimal?  @db.Decimal(20, 8)
   quality              String
-  expectationUsd       Decimal  @db.Decimal(20, 8)
+  expectationUsd       Decimal   @db.Decimal(20, 8)
   expectationCrossed   Boolean
   confirmedOnDemand    Boolean
-  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([providerAccountRef, observedAt])
 }

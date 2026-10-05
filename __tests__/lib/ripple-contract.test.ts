@@ -35,6 +35,7 @@ describe("RIP-CONTRACT-001 Ripple webhook contract", () => {
 
     for (const eventName of [
       "payment.failed",
+      "payment.refunded",
       "subscription.created",
       "subscription.cancelled",
       "subscription.paused",
@@ -47,6 +48,9 @@ describe("RIP-CONTRACT-001 Ripple webhook contract", () => {
         })
       );
       expect(parsed.event.rawType).toBe(eventName);
+      if (eventName === "payment.refunded") {
+        expect(parsed.event.type).toBe("payment.refunded");
+      }
     }
   });
 

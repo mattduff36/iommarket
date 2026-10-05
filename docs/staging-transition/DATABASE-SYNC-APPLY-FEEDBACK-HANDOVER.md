@@ -34,3 +34,7 @@ Logs: D:\Websites\iommarket-dbmerge-auth-export\.apply-feedback-checks-179116843
 No full test suite, browser automation, full database-merge regression, hosted Apply/Replace/Reset/Restore, migration or production configuration change was run. A real hosted Apply remains the owner's manual next step after the new staging deployment is READY. Existing plans may have expired, so prepare a fresh preview.
 
 Deploy only these scoped changes to staging. Record the resulting deployment ID locally, not in a recursive docs-only deployment. Main/production and concurrent work remain unchanged.
+
+## Deployment receipt — confirmed live
+
+Commit `3bb8dd576849b534d3e520f23a7defd5cf2083da` was pushed to staging with only the eight scoped files. Vercel deployment `dpl_GLBcUFMbNPDhvrLB54WpK42qA5wd` is READY, and resolving `itrader.dev` returns this exact deployment and SHA. The normal staging build completed. Main remains `e3f77faae74ca787936853426798ea546ef89bff`. The two repair backup stashes remain present. No listener remained on disposable test port 55438. No hosted data merge or schema/permission change was run by this task. This receipt is local/uncommitted to avoid a documentation-only redeployment.

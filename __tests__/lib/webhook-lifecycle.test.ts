@@ -5,17 +5,21 @@ const {
   paymentUpdate,
   subscriptionFindFirst,
   subscriptionUpdate,
+  subscriptionChargeFindUnique,
+  subscriptionChargeUpdateMany,
   captureBusinessEvent,
 } = vi.hoisted(() => ({
   paymentFindMany: vi.fn(),
   paymentUpdate: vi.fn(),
   subscriptionFindFirst: vi.fn(),
   subscriptionUpdate: vi.fn(),
+  subscriptionChargeFindUnique: vi.fn(),
+  subscriptionChargeUpdateMany: vi.fn(),
   captureBusinessEvent: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  db: {
+vi.mock("@/lib/db", () => {
+  const client = {
     payment: {
       findMany: paymentFindMany,
       update: paymentUpdate,
@@ -25,12 +29,25 @@ vi.mock("@/lib/db", () => ({
       findUnique: vi.fn().mockResolvedValue(null),
       update: subscriptionUpdate,
     },
+    subscriptionCharge: {
+      findUnique: subscriptionChargeFindUnique,
+      updateMany: subscriptionChargeUpdateMany,
+    },
     dealerCancellationRequest: {
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
     },
-  },
-}));
+    $queryRaw: vi.fn().mockResolvedValue([]),
+  };
+  return {
+    db: {
+      ...client,
+      $transaction: vi.fn(
+        async (operation: (tx: typeof client) => unknown) => operation(client),
+      ),
+    },
+  };
+});
 
 vi.mock("@/lib/listings/status-events", () => ({
   transitionListingStatus: vi.fn(),
@@ -82,12 +99,17 @@ function baseEvent(
 describe("payment webhook reconciliation ALR-PAY-001", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    subscriptionChargeFindUnique.mockResolvedValue(null);
   });
 
   it("marks matching payments refunded with a retained reason", async () => {
     paymentFindMany.mockResolvedValue([
       {
         id: "local-pay",
+        providerPaymentId: "pay_1",
+        providerReference: "ref_1",
+        status: "SUCCEEDED",
+        refundedAt: null,
         refundReason: "FRAUD",
       },
     ]);
@@ -116,9 +138,13 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
     );
   });
 
-  it("schedules entitlement end for unmatched subscription refunds", async () => {
+  it("schedules entitlement end from the exact charge even without checkout metadata", async () => {
     paymentFindMany.mockResolvedValue([]);
-    subscriptionFindFirst.mockResolvedValue({ id: "sub-1" });
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "charge-1",
+      subscriptionId: "sub-1",
+      refundedAt: null,
+    });
 
     await processProviderWebhookEvent(
       baseEvent({
@@ -126,15 +152,22 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
         providerSubscriptionId: "prov-sub",
         currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
         metadata: {
-          checkoutType: "dealer_subscription",
+          checkoutType: null,
           listingId: null,
-          dealerId: "dealer-1",
-          tier: "STARTER",
+          dealerId: null,
+          tier: null,
         },
       }),
     );
 
     expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(subscriptionChargeUpdateMany).toHaveBeenCalledWith({
+      where: { id: "charge-1", refundedAt: null },
+      data: {
+        refundedAt: new Date("2026-08-15T10:00:00.000Z"),
+        refundEventId: "evt-1",
+      },
+    });
     expect(subscriptionUpdate).toHaveBeenCalledWith({
       where: { id: "sub-1" },
       data: {

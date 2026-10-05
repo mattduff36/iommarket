@@ -24,6 +24,7 @@ const {
   isDemoDealerSubscriptionCheckoutConfiguredMock,
   revalidatePathMock,
   setCookieMock,
+  persistCheckoutAttemptMock,
   mockDb,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
@@ -43,6 +44,7 @@ const {
   isDemoDealerSubscriptionCheckoutConfiguredMock: vi.fn(),
   revalidatePathMock: vi.fn(),
   setCookieMock: vi.fn(),
+  persistCheckoutAttemptMock: vi.fn(),
   mockDb: {
     listing: {
       findUnique: vi.fn(),
@@ -103,6 +105,9 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ set: setCookieMock }) }
 vi.mock("@/lib/payments/webhook-processing", () => ({
   processProviderWebhookEvent: processProviderWebhookEventMock,
 }));
+vi.mock("@/lib/payments/checkout-attempts", () => ({
+  persistCheckoutAttempt: persistCheckoutAttemptMock,
+}));
 
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: checkRateLimitMock,
@@ -148,6 +153,13 @@ describe("payForListing", () => {
       id: "user_123",
       email: "seller@example.com",
     });
+    persistCheckoutAttemptMock.mockImplementation((input) =>
+      Promise.resolve({
+        id: "attempt-1",
+        status: "OPEN",
+        ...input,
+      }),
+    );
     checkRateLimitMock.mockReturnValue({ allowed: true });
     makeRateLimitKeyMock.mockReturnValue("checkout-listing:user_123");
     isPrivateListingFreeForUserMock.mockResolvedValue(true);
@@ -779,7 +791,10 @@ describe("createDealerSubscription", () => {
         acceptedDealerTerms: true,
       }),
     ).resolves.toEqual({
-      data: { checkoutUrl: "https://portal.startyourripple.co.uk/card/client/pay/C5D44F6F18094B94" },
+      data: {
+        checkoutUrl:
+          "https://portal.startyourripple.co.uk/card/client/pay/C5D44F6F18094B94?reference=signed-subscription-reference",
+      },
     });
 
     expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(

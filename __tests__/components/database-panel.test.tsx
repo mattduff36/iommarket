@@ -96,7 +96,9 @@ describe("database panel Apply feedback and disabled layout", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply merge to development" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("connection ended");
     expect(screen.getByRole("button", { name: "Apply merge to development" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
+    const refresh = screen.getByRole("button", { name: "Refresh history" });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("saved operation is Applied"));
     expect(mocks.apply).toHaveBeenCalledTimes(1);
     expect(mocks.history).toHaveBeenCalledTimes(1);

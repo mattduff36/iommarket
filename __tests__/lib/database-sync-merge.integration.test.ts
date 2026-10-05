@@ -267,7 +267,7 @@ export default defineConfig({
     rmSync(DATA, { recursive: true, force: true });
   }, 60_000);
 
-  it("prepares, stores and applies a nonempty merge, then restores the backup", async () => {
+  it("prepares, stores and applies a nonempty merge, and refuses restore over excluded data", async () => {
     await seedMinimal();
     await insertUser(sourceOwner, "user-update", UPDATE_AUTH, "update@example.com", "New Name", "USER");
     await insertUser(destination, "user-update", UPDATE_AUTH, "update@example.com", "Old Name", "USER");
@@ -276,7 +276,7 @@ export default defineConfig({
     await sourceOwner.query(`INSERT INTO public."User"(id, "authUserId", email, name, role, "updatedAt")
       SELECT 'user-' || lpad(i::text, 4, '0'), '00000000-0000-4000-8000-' || lpad(to_hex(i), 12, '0'),
         'user' || lpad(i::text, 4, '0') || '@example.com', 'User ' || i, 'USER'::"UserRole", '2026-10-04 12:00:00'
-      FROM generate_series(2, 1999) AS i`);
+      FROM generate_series(2, 2000) AS i`);
     await insertAuth(sourceOwner, SOURCE_INSTANCE, UPDATE_AUTH, "update@example.com", "source-secret", "source-token");
     await insertAuth(destination, DEST_INSTANCE, UPDATE_AUTH, "update@example.com", "dest-update-secret", "dest-update-token");
     await insertAuth(sourceOwner, SOURCE_INSTANCE, IMPORTED_AUTH, "user0001@example.com", "source-secret", "source-token");
@@ -288,10 +288,10 @@ export default defineConfig({
     const prepared = await prepareClone("merge", "admin", env, isolated()) as PlanRow;
     const plan = summaryOf(prepared);
     expect(plan.blockers).toEqual([]);
-    expect(plan.counts.User).toEqual({ captured: 2001, insert: 1999, update: 1, delete: 0, preserve: 2, skip: 1 });
+    expect(plan.counts.User).toEqual({ captured: 2001, insert: 2000, update: 1, delete: 0, preserve: 2, skip: 1 });
     expect(plan.counts.Category).toEqual({ captured: 0, insert: 0, update: 0, delete: 0, preserve: 0, skip: 0 });
     expect(plan.counts.Region).toEqual({ captured: 1, insert: 1, update: 0, delete: 0, preserve: 0, skip: 0 });
-    expect(plan.counts["auth.users"]).toMatchObject({ captured: 3, insert: 1, update: 1, delete: 0, preserve: 2, skip: 1 });
+    expect(plan.counts["auth.users"]).toMatchObject({ captured: 2, insert: 1, update: 1, delete: 0, preserve: 2, skip: 1 });
     const chunks = await destination.query<{ chunks: string; rows: string }>(
       `SELECT count(*)::text AS chunks, COALESCE(sum(row_count),0)::text AS rows
        FROM staging_admin.database_sync_chunks WHERE run_id=$1 AND purpose='source' AND table_name='User'`,
@@ -319,7 +319,7 @@ export default defineConfig({
       { id: "user-dev-only", name: "Development Only" },
       { id: "user-update", name: "New Name" },
     ]);
-    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2002");
+    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2003");
     const imported = await destination.query<{ password: string; token: string; banned: boolean; instance: string; confirmed: boolean; secret: boolean }>(
       `SELECT encrypted_password AS password, confirmation_token AS token,
         banned_until = 'infinity'::timestamptz AS banned, instance_id::text AS instance,
@@ -334,27 +334,26 @@ export default defineConfig({
     const sessions = await destination.query<{ user_id: string }>(`SELECT user_id::text AS user_id FROM auth.sessions ORDER BY user_id`);
     expect(sessions.rows.map((row) => row.user_id)).toEqual([ADMIN_AUTH]);
     expect((await sourceOwner.query<{ name: string }>(`SELECT name FROM public."User" WHERE id='admin'`)).rows[0]?.name).toBe("Production Admin");
-    expect((await sourceOwner.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2001");
+    expect((await sourceOwner.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2002");
 
     const repeated = await applyClone(prepared.id, "admin", env, isolated()) as PlanRow;
     expect(repeated.status).toBe("applied");
-    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2002");
+    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2003");
     sourceSql = [];
     const second = await prepareClone("merge", "admin", env, isolated()) as PlanRow;
-    expect(summaryOf(second).counts.User).toMatchObject({ captured: 2001, insert: 0, update: 2000, skip: 1, preserve: 2, delete: 0 });
+    expect(summaryOf(second).counts.User).toMatchObject({ captured: 2001, insert: 0, update: 2001, skip: 1, preserve: 2, delete: 0 });
     assertSourceSql(sourceSql);
     await applyClone(second.id, "admin", env, isolated());
     expect((await destination.query<{ seq: number }>(`SELECT probe_seq AS seq FROM public."Region" WHERE id='region-1'`)).rows[0]?.seq).toBe(7);
     expect((await destination.query<{ name: string }>(`SELECT name FROM public."User" WHERE id='admin'`)).rows[0]?.name).toBe("Staging Admin");
-    expect((await sourceOwner.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2001");
+    expect((await sourceOwner.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2002");
 
     await destination.query(`UPDATE public."User" SET name='Mutated' WHERE id='user-update'`);
-    const restored = await restoreClone(prepared.id, "admin", env, isolated()) as PlanRow;
-    expect(restored.status).toBe("applied");
-    expect((await destination.query<{ name: string }>(`SELECT name FROM public."User" WHERE id='user-update'`)).rows[0]?.name).toBe("Old Name");
-    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User" WHERE id='user-0001'`)).rows[0]?.count).toBe("0");
-    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("3");
-    expect((await sourceOwner.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2001");
+    await expect(restoreClone(prepared.id, "admin", env, isolated())).rejects.toThrow(/Only scoped Merge is available/);
+    expect((await destination.query<{ name: string }>(`SELECT name FROM public."User" WHERE id='user-update'`)).rows[0]?.name).toBe("Mutated");
+    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User" WHERE id='user-0001'`)).rows[0]?.count).toBe("1");
+    expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2003");
+    expect((await sourceOwner.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."User"`)).rows[0]?.count).toBe("2002");
   }, 240_000);
 
   it("blocks a unique conflict without copying the conflicting development row", async () => {
@@ -423,7 +422,7 @@ export default defineConfig({
     await destination.query(`CREATE TRIGGER sync_test_fail BEFORE INSERT ON public."Region" FOR EACH ROW EXECUTE FUNCTION public.sync_test_fail()`);
     try {
       const triggered = await prepareClone("merge", "admin", env, isolated()) as PlanRow;
-      await expect(applyClone(triggered.id, "admin", env, isolated())).rejects.toThrow(/injected merge failure/);
+      await expect(applyClone(triggered.id, "admin", env, isolated())).rejects.toThrow(/Merge failed during apply\.write-rows \(Region\)/);
       expect((await destination.query<{ status: string }>(`SELECT status FROM staging_admin.database_sync_runs WHERE id=$1`, [triggered.id])).rows[0]?.status).toBe("prepared");
       expect((await destination.query<{ count: string }>(`SELECT count(*)::text AS count FROM public."Region" WHERE id='boom-region'`)).rows[0]?.count).toBe("0");
     } finally {

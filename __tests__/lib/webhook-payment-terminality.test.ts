@@ -2,12 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 
-const { transaction, update } = vi.hoisted(() => ({
-  transaction: vi.fn(),
+const { reconcile, update } = vi.hoisted(() => ({
+  reconcile: vi.fn(),
   update: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({ db: { $transaction: transaction } }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    paymentCheckoutAttempt: {
+      findUnique: vi.fn().mockResolvedValue({ id: "attempt-1" }),
+    },
+  },
+}));
+vi.mock("@/lib/payments/reconcile-payment", () => ({
+  reconcileListingPayment: reconcile,
+}));
 vi.mock("@/lib/email/listing-notifications", () => ({ dispatchListingNotifications: vi.fn() }));
 vi.mock("@/lib/monitoring", () => ({ captureBusinessEvent: vi.fn(), captureException: vi.fn() }));
 
@@ -29,6 +38,7 @@ function event(): NormalizedProviderWebhookEvent {
 describe("terminal Ripple payment protections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    reconcile.mockResolvedValue({ notifications: [] });
   });
 
   it.each([
@@ -40,8 +50,10 @@ describe("terminal Ripple payment protections", () => {
       refundedAt: terminal.refundedAt, providerPaymentId: "provider-payment-old",
       providerReference: "signed-bundle-reference", paymentProvider: "RIPPLE",
     };
-    const tx = { payment: { findMany: vi.fn().mockResolvedValue([existing]), update } };
-    transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
+    reconcile.mockResolvedValueOnce({
+      payment: existing,
+      notifications: [],
+    });
 
     const { handleOneOffPaymentReceived } = await import("@/lib/payments/webhook-payments");
     await expect(handleOneOffPaymentReceived(event())).resolves.toBeUndefined();
@@ -55,8 +67,7 @@ describe("terminal Ripple payment protections", () => {
       providerPaymentId: "provider-payment-old", providerReference: "signed-bundle-reference",
       paymentProvider: "RIPPLE",
     };
-    const tx = { payment: { findMany: vi.fn().mockResolvedValue([existing]), update } };
-    transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
+    reconcile.mockRejectedValueOnce(new Error("subscription charge collision"));
 
     const { handleOneOffPaymentReceived } = await import("@/lib/payments/webhook-payments");
     await expect(handleOneOffPaymentReceived(event())).rejects.toThrow("subscription charge collision");

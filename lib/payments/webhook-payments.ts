@@ -9,6 +9,7 @@ import { assertRippleAmountMatchesProduct } from "@/lib/payments/ripple-config";
 import { resolveRippleProduct } from "@/lib/payments/ripple-mapping";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import { decideProviderEventApplication } from "@/lib/payments/webhook-ordering";
+import { reconcileListingPayment } from "@/lib/payments/reconcile-payment";
 import { hasCurrentBundleAcceptance } from "@/lib/policy/acceptance";
 import { getPolicyFlags } from "@/lib/policy/flags";
 
@@ -352,31 +353,40 @@ export async function handleOneOffPaymentReceived(
   if (!event.metadata.listingId || !event.providerReference) {
     throw new Error("Listing payment missing reference");
   }
+  if (!event.providerPaymentId) {
+    throw new Error("Listing payment missing provider payment ID");
+  }
   assertRippleAmountMatchesProduct(product, event.amount);
 
-  const notifications = await db.$transaction(async (tx) => {
-    const result = await createOrUpdateListingPayment(event, "SUCCEEDED", tx);
-    if (!result?.applied) return [];
-
-    if (event.metadata.checkoutType === "featured_upgrade") {
-      const { applyPaidFeaturedEntitlement } = await import(
-        "@/lib/payments/featured-entitlement"
-      );
-      await applyPaidFeaturedEntitlement(result.payment.listingId, tx);
-      return [];
-    }
-
-    if (
-      event.metadata.checkoutType === "listing_payment" ||
-      event.metadata.checkoutType === "listing_and_featured"
-    ) {
-      return submitPaidListingForReview(result.payment.listingId, event, tx);
-    }
-    return [];
+  const attempt = await db.paymentCheckoutAttempt.findUnique({
+    where: { merchantReference: event.providerReference },
+    select: { id: true },
   });
-  if (notifications.length > 0) {
+  if (!attempt) {
+    throw new Error("Listing payment has no persisted checkout attempt");
+  }
+
+  const reconciled = await reconcileListingPayment({
+    merchantReference: event.providerReference,
+    providerPaymentId: event.providerPaymentId,
+    providerEventAt: event.eventTimestamp ?? new Date(),
+    event,
+    evidence: {
+      type: "VERIFIED_WEBHOOK",
+      evidenceId: event.fingerprint ?? event.id,
+      snapshot: {
+        eventType: event.type,
+        clientId: event.clientId ?? "",
+        linkCode: event.linkCode ?? "",
+        amountPence: event.amount ?? 0,
+        currency: event.currency ?? "",
+        merchantReference: event.providerReference,
+      },
+    },
+  });
+  if (reconciled.notifications?.length) {
     try {
-      await dispatchListingNotifications(notifications);
+      await dispatchListingNotifications(reconciled.notifications);
     } catch (error) {
       await captureBusinessEvent({
         source: "BUSINESS",
@@ -407,13 +417,23 @@ export async function handleFailedOneOffPayment(
 export async function handleRefundedPayment(
   event: NormalizedProviderWebhookEvent
 ) {
+  if (!event.providerPaymentId) return null;
   const existing = await findPaymentByProviderEvent(event);
   if (!existing) return null;
+  if (
+    existing.providerPaymentId !== event.providerPaymentId ||
+    (event.providerReference &&
+      existing.providerReference &&
+      existing.providerReference !== event.providerReference)
+  ) {
+    throw new Error("subscription charge collision");
+  }
+  if (existing.status === "REFUNDED" || existing.refundedAt) return existing;
   return db.payment.update({
     where: { id: existing.id },
     data: {
       status: "REFUNDED",
-      refundedAt: new Date(),
+      refundedAt: event.eventTimestamp ?? new Date(),
       refundReason: existing.refundReason ?? null,
     },
   });

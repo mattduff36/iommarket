@@ -4,6 +4,7 @@ import { seal } from "@/lib/database-sync/store";
 import { hashSchemaLines } from "@/lib/database-sync/fingerprint";
 import { applyDatabaseSync, prepareDatabaseSync } from "@/lib/database-sync/worker";
 import type { CloneManifest } from "@/lib/database-sync/clone-engine";
+import { DATABASE_SYNC_SCOPE, SCOPED_MERGE_ONLY } from "@/lib/database-sync/scope-policy";
 
 const mocks = vi.hoisted(() => ({ pool: vi.fn(), query: vi.fn(), release: vi.fn(), end: vi.fn() }));
 vi.mock("pg", () => ({ default: { Pool: class {
@@ -24,7 +25,7 @@ const env: NodeJS.ProcessEnv = {
   DATABASE_URL: destination, DATABASE_SYNC_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
 };
 const manifest = (blockers: string[] = []): CloneManifest => ({
-  v: 2, mode: "replace", fingerprint: hashSchemaLines([]), blockers, tables: [], insertOrder: [], deleteOrder: [],
+  v: 2, scopeVersion: DATABASE_SYNC_SCOPE, mode: "merge", fingerprint: hashSchemaLines([]), blockers, tables: [], insertOrder: [], deleteOrder: [],
   deferredConstraints: [], nullThenUpdate: [], preservedAdminIds: ["admin"], preservedAuthIds: ["auth-admin"], previewInstanceId: null,
 });
 let row: Record<string, unknown>;
@@ -39,7 +40,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   locked = true; activeActor = true; schemaLines = []; failColumns = false; failPrepareChecks = false; failRollback = false;
   row = {
-    id: runId, actor_id: "admin", mode: "replace", status: "prepared", created_at: new Date(), expires_at: new Date(Date.now() + 60_000),
+    id: runId, actor_id: "admin", mode: "merge", status: "prepared", created_at: new Date(), expires_at: new Date(Date.now() + 60_000),
     summary: { counts: {}, blockers: [] }, encrypted_snapshot: seal(manifest(), runId, env), kind: "sync", backup_bytes: "0",
     backup_expires_at: null, payload_pruned_at: null,
   };
@@ -85,19 +86,16 @@ beforeEach(() => {
 });
 
 describe("database clone transaction boundaries", () => {
-  it("prepares Reset without a production connection", async () => {
-    const run = await prepareDatabaseSync("reset", "admin", env);
-    expect(run.mode).toBe("reset");
-    expect(run.status).toBe("prepared");
-    expect(mocks.pool).toHaveBeenCalledTimes(1);
-    expect(mocks.pool).toHaveBeenCalledWith({ connectionString: destination });
+  it("rejects Reset before opening a connection", async () => {
+    await expect(prepareDatabaseSync("reset", "admin", env)).rejects.toThrow(SCOPED_MERGE_ONLY);
+    expect(mocks.pool).not.toHaveBeenCalled();
     expect(statements().some((sql) => /^(INSERT|UPDATE|DELETE) .*public\./i.test(sql))).toBe(false);
   });
 
   it("returns a safe preparation stage when an unexpected preview query fails", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     failPrepareChecks = true;
-    await expect(prepareDatabaseSync("reset", "admin", env)).rejects.toThrow(
+    await expect(prepareDatabaseSync("merge", "admin", env)).rejects.toThrow(
       /Plan preparation failed during preview checks\. Reference [0-9a-f-]{36}\. No development data was changed\./,
     );
     expect(statements()).toContain("ROLLBACK");
@@ -116,7 +114,7 @@ describe("database clone transaction boundaries", () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     failPrepareChecks = true;
     failRollback = true;
-    await expect(prepareDatabaseSync("reset", "admin", env)).rejects.toThrow(/preview checks/);
+    await expect(prepareDatabaseSync("merge", "admin", env)).rejects.toThrow(/preview checks/);
     const logged = JSON.stringify(errorLog.mock.calls);
     expect(logged).not.toContain("postgres://");
     expect(logged).toContain("simulated prepare failure");
@@ -168,7 +166,7 @@ describe("database clone transaction boundaries", () => {
 
   it("rolls back a later failure without marking the plan applied", async () => {
     failColumns = true;
-    await expect(applyDatabaseSync(runId, "admin", env)).rejects.toThrow("simulated SQL failure");
+    await expect(applyDatabaseSync(runId, "admin", env)).rejects.toThrow(/Merge failed during destination\.table-page \(User\)/);
     expect(statements()).toContain("ROLLBACK");
     expect(statements().filter((sql) => sql === "COMMIT")).toHaveLength(1);
     expect(statements().some((sql) => sql.startsWith("UPDATE staging_admin.database_sync_runs SET status='applied'"))).toBe(false);

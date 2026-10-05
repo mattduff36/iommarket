@@ -5,6 +5,7 @@ import { getRippleProductByLinkCode } from "@/lib/payments/ripple-mapping";
 import { normalizeRippleEmail, parseRippleReference } from "@/lib/payments/ripple-reference";
 import type { HostedReturnContext } from "@/lib/payments/hosted-return-context";
 import type { HostedReturnResult } from "@/lib/payments/reconcile-hosted-return";
+import { recordHostedReturnObservation } from "@/lib/payments/checkout-attempts";
 
 // Subscription webhooks grant access independently. A return URL only reads the
 // verified charge, and can never create a subscription or change entitlement.
@@ -21,6 +22,12 @@ export async function reconcileHostedSubscriptionReturn(
     if (claims?.purpose !== "dealer_subscription" || claims.targetId !== context.dealerId ||
         !("tier" in product) || claims.tier !== product.tier) return { status: "review" };
   } catch { return { status: "review" }; }
+  const observation = await recordHostedReturnObservation({
+    merchantReference: context.merchantReference,
+    userId: context.userId,
+    providerPaymentId: paymentJobRef,
+  });
+  if (observation?.conflicts) return { status: "review" };
 
   return db.$transaction(async (tx) => {
     const dealer = await tx.dealerProfile.findUnique({ where: { id: context.dealerId }, select: { userId: true } });

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseSyncInspection } from "@/lib/database-sync/preflight";
 
@@ -47,7 +47,7 @@ describe("database inspection", () => {
 
     expect(await screen.findByText("7")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Inspection refreshed");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Inspection refreshed"));
     expect(mocks.inspect).toHaveBeenCalledOnce();
   });
 

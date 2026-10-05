@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -20,11 +21,13 @@ import {
   refundSubscriptionPaymentSchema,
   cancelSubscriptionSchema,
   attachUnmatchedListingSchema,
+  reconcileRipplePaymentSchema,
   type SearchPaymentsInput,
   type RefundPaymentInput,
   type RefundSubscriptionPaymentInput,
   type CancelSubscriptionInput,
   type AttachUnmatchedListingInput,
+  type ReconcileRipplePaymentInput,
 } from "@/lib/validations/admin";
 import {
   AttachUnmatchedListingError,
@@ -33,6 +36,10 @@ import {
 import type { Prisma } from "@prisma/client";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { applySamplePaymentVisibility } from "@/lib/listings/sample-related-visibility";
+import {
+  PaymentReconciliationError,
+  reconcileListingPayment,
+} from "@/lib/payments/reconcile-payment";
 
 export async function searchPayments(input: SearchPaymentsInput) {
   await requireRole("ADMIN");
@@ -167,13 +174,23 @@ export async function adminRefundSubscriptionPayment(
 
     await refundProviderPayment(latestPaid.paymentIntentId);
 
-    await db.subscription.update({
-      where: { id: sub.id },
-      data: {
-        status: parsed.data.reason === "FRAUD" ? "CANCELLED" : sub.status,
-        cancelAtPeriodEnd: true,
-      },
-    });
+    await db.$transaction([
+      db.subscriptionCharge.updateMany({
+        where: {
+          subscriptionId: sub.id,
+          paymentReference: latestPaid.paymentIntentId,
+          refundedAt: null,
+        },
+        data: { refundedAt: new Date() },
+      }),
+      db.subscription.update({
+        where: { id: sub.id },
+        data: {
+          status: parsed.data.reason === "FRAUD" ? "CANCELLED" : sub.status,
+          cancelAtPeriodEnd: true,
+        },
+      }),
+    ]);
 
     await logAdminAction({
       adminId: admin.id,
@@ -354,5 +371,67 @@ export async function adminAttachUnmatchedListing(
     const message =
       err instanceof Error ? err.message : "Failed to attach unmatched payment";
     return { error: message };
+  }
+}
+
+export async function adminReconcileRipplePayment(
+  input: ReconcileRipplePaymentInput,
+) {
+  const admin = await requireRole("ADMIN");
+  const parsed = reconcileRipplePaymentSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const evidenceSeed = JSON.stringify({
+    paymentId: parsed.data.paymentId,
+    providerPaymentId: parsed.data.providerPaymentId,
+    providerEventAt: parsed.data.providerEventAt.toISOString(),
+    adminId: admin.id,
+    notes: parsed.data.notes,
+  });
+  const evidenceId = `admin:${crypto
+    .createHash("sha256")
+    .update(evidenceSeed)
+    .digest("hex")}`;
+
+  try {
+    const result = await reconcileListingPayment({
+      paymentId: parsed.data.paymentId,
+      providerPaymentId: parsed.data.providerPaymentId,
+      providerEventAt: parsed.data.providerEventAt,
+      evidence: {
+        type: "ADMIN_PROVIDER_ATTESTATION",
+        evidenceId,
+        adminId: admin.id,
+        notes: parsed.data.notes,
+        snapshot: {
+          source: "RIPPLE_PORTAL",
+          confirmedAmountCurrencyProduct:
+            parsed.data.confirmedAmountCurrencyProduct,
+          confirmedCurrentlyPaidAndNotRefunded:
+            parsed.data.confirmedCurrentlyPaidAndNotRefunded,
+        },
+      },
+    });
+
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/revenue");
+    revalidatePath(`/listings/${result.listingId}`);
+    return { data: result };
+  } catch (error) {
+    await captureException({
+      source: "SERVER",
+      error,
+      action: "adminReconcileRipplePayment",
+      route: "/admin/payments",
+      requestPath: "/admin/payments",
+      userId: admin.id,
+      tags: { paymentId: parsed.data.paymentId },
+    });
+    return {
+      error:
+        error instanceof PaymentReconciliationError
+          ? error.message
+          : "Failed to reconcile Ripple payment",
+    };
   }
 }

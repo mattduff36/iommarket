@@ -7,7 +7,6 @@ import {
   deleteUserSchema,
   setUserRegionSchema,
   createDealerProfileSchema,
-  updateDealerProfileSchema,
   createRegionSchema,
   updateRegionSchema,
   searchPaymentsSchema,
@@ -180,16 +179,6 @@ describe("createDealerProfileSchema", () => {
       slug: "test-dealer",
     });
     expect(result.success).toBe(false);
-  });
-});
-
-describe("updateDealerProfileSchema", () => {
-  it("accepts partial update", () => {
-    const result = updateDealerProfileSchema.safeParse({
-      dealerId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-      verified: true,
-    });
-    expect(result.success).toBe(true);
   });
 });
 

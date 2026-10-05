@@ -1,5 +1,13 @@
 # Database merge repair handover
 
+## CURRENT: closeout — preview passed, no hosted merge applied — 2026-10-05T02:25Z
+
+The owner's manual scoped Merge preview passed and displayed `MERGE INTO DEVELOPMENT`. The earlier unique-key blockers in this file are historical. The approved exclusions stay in place, including both user IDs `cmusfwkh5000006pjpp1gnslj` and `cmus3bgau000004jjx43oid1l`. Those identities were not merged.
+
+No migration changes required on production `snlqivvogfqesxpbjiei` or development `syneonzucehwlghqmfbg`. Both already have finished records for all 51 local Prisma migrations. Production keeps the private Auth export and does not have staging sync storage. Development keeps `staging_admin` sync storage and does not have the Auth export schema. `DATABASE_SYNC_AUTH_SOURCE_MODE=private-views` remains Preview/staging only.
+
+Live site: preview deployment `dpl_GhLYxaK7swVVnFzJweQPePsthEaR`, commit `b2e22f6182aaca73a45b2887c7881a433591ec96`, READY at 2026-10-05T02:14:35.604Z, `itrader.dev`. Replace, Reset, and Restore remain disabled. The hosted Merge itself has not been applied.
+
 ## CURRENT: equivalent identities mapped — four decisions still block apply — 2026-10-05T02:43Z
 
 Plan `44069610-3dd4-4b37-9bba-fa2e4b58ec48`, prepared 02:26 UK, got past the schema check and stored unique-key conflicts. No merge was applied. A later read-only comparison used administrative `postgres` on both direct hosts, with `transaction_read_only=on`. It did not change hosted data and did not decrypt the frozen plan.
@@ -20,7 +28,9 @@ A fresh preview still cannot be applied. These collisions are not the same ident
 - `MonitoringIssue cmttaih7a000104l54k8crelh` matches `cmunh5ebd000104l8i9fj9wxn` on its fingerprint, but status, severity, and occurrences differ.
 - `DealerPromotionCampaign cmuek69j6000004jvzyytrzva` matches `cmudwoq7o000c04jhehdkgjto` on its natural key, but the start and end differ.
 
-Focused test: `npx vitest run __tests__/lib/database-sync-identity.test.ts` — 6 passed. It covers refusing an email-only user merge and rewriting dealer foreign keys to the linked development ids. The same live snapshot produces the 34/34/34/2 links and the four blockers above, with no email address in the plan text. Deployment id will be recorded after the staging deploy of this commit.
+Focused test: `npx vitest run __tests__/lib/database-sync-identity.test.ts` — 6 passed. It covers refusing an email-only user merge and rewriting dealer foreign keys to the linked development ids. The same live snapshot produces the 34/34/34/2 links and the four blockers above, with no email address in the plan text.
+
+Preview deployment `dpl_BsR4RcCwUky77xvZg9qCVRVDseEh` is READY. Commit `c35ded64f1abf96c17ce48695cbe9dd21e9ab5c3` includes `d53ba5f724d69b711225bfd18b70aef169125fc3`, branch `staging`, source git, ready at 2026-10-05T01:47:00.975Z. `itrader.dev` points to that deployment. An earlier build of `d53ba5f` failed typecheck on the plan fixture and was not aliased. No Merge, Replace, Reset, or Restore was applied.
 
 ## CURRENT: schema blocker identified — checksum bytes, not a live schema drift — 2026-10-05T02:21Z
 

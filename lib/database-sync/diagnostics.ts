@@ -21,6 +21,16 @@ export type SanitizedSyncError = {
 
 const SECRET_TEXT = /postgres(?:ql)?:\/\/\S+|password=[^\s&'"]+|authorization:\s*\S+|bearer\s+\S+/gi;
 const LONG_SECRET = /\b(?:[A-Za-z0-9+/]{40,}={0,2}|[a-f0-9]{32,})\b/gi;
+const SQL_TEXT = /\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE)\b\s+\S[\s\S]*/gi;
+
+function readErrorField(error: object, key: "name" | "message" | "code"): string | undefined {
+  try {
+    const value = (error as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function createSyncTrace(phase: string): SyncTrace {
   return {
@@ -38,16 +48,17 @@ export function deployCommit(env: NodeJS.ProcessEnv): string {
 }
 
 export function sanitizeSyncError(error: unknown): SanitizedSyncError {
-  const record = error && typeof error === "object" ? error as { name?: unknown; message?: unknown; code?: unknown } : undefined;
-  const code = typeof record?.code === "string" && /^(?:[0-9A-Z]{5}|[A-Z][A-Z0-9_]{1,48})$/.test(record.code)
-    ? record.code
-    : undefined;
-  const raw = typeof record?.message === "string" ? record.message : "Unexpected failure";
+  const record = error && typeof error === "object" ? error : undefined;
+  const codeText = record ? readErrorField(record, "code") : undefined;
+  const code = codeText && /^(?:[0-9A-Z]{5}|[A-Z][A-Z0-9_]{1,48})$/.test(codeText) ? codeText : undefined;
+  const raw = record ? readErrorField(record, "message") ?? "Unexpected failure" : "Unexpected failure";
   const message = raw.replace(SECRET_TEXT, "[redacted]").replace(LONG_SECRET, "[redacted]")
+    .replace(SQL_TEXT, "[redacted-sql]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
     .replace(/'[^']*'/g, "'[redacted-value]'").replace(/\s+/g, " ").slice(0, 300);
+  const name = record ? readErrorField(record, "name") : undefined;
   return {
-    name: typeof record?.name === "string" ? record.name.slice(0, 80) : "Error",
+    name: name ? name.slice(0, 80) : "Error",
     message,
     code,
   };

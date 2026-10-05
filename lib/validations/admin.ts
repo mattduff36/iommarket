@@ -105,18 +105,6 @@ export const createDealerProfileSchema = z.object({
 });
 export type CreateDealerProfileInput = z.infer<typeof createDealerProfileSchema>;
 
-export const updateDealerProfileSchema = z.object({
-  dealerId: z.string().cuid(),
-  name: z.string().min(2).max(100).optional(),
-  slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/, "Slug must be lowercase letters, numbers, and hyphens").optional(),
-  bio: z.string().max(2000).optional(),
-  website: z.string().url().max(500).optional().or(z.literal("")),
-  phone: z.string().max(30).optional(),
-  logoUrl: z.string().url().max(500).optional().or(z.literal("")),
-  verified: z.boolean().optional(),
-});
-export type UpdateDealerProfileInput = z.infer<typeof updateDealerProfileSchema>;
-
 // ---------------------------------------------------------------------------
 // Regions
 // ---------------------------------------------------------------------------
@@ -157,6 +145,31 @@ export const attachUnmatchedListingSchema = z.object({
 });
 export type AttachUnmatchedListingInput = z.infer<
   typeof attachUnmatchedListingSchema
+>;
+
+export const reconcileRipplePaymentSchema = z
+  .object({
+    paymentId: z.string().cuid(),
+    providerPaymentId: z
+      .string()
+      .trim()
+      .regex(/^\d{1,64}$/, "Enter the numeric Ripple payment job reference"),
+    providerEventAt: z.coerce.date(),
+    confirmedAmountCurrencyProduct: z.literal(true),
+    confirmedCurrentlyPaidAndNotRefunded: z.literal(true),
+    notes: z.string().trim().min(3).max(2000),
+  })
+  .superRefine((value, context) => {
+    if (value.providerEventAt.getTime() > Date.now() + 5 * 60_000) {
+      context.addIssue({
+        code: "custom",
+        path: ["providerEventAt"],
+        message: "Payment time cannot be in the future",
+      });
+    }
+  });
+export type ReconcileRipplePaymentInput = z.infer<
+  typeof reconcileRipplePaymentSchema
 >;
 
 export const refundPaymentSchema = z

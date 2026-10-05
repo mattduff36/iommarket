@@ -1,5 +1,23 @@
 # Database sync exclusions - integrated for staging rollout
 
+## CURRENT: owner preview passed — ready for a manual merge — 2026-10-05T02:25Z
+
+The owner's manual scoped Merge preview passed and offered `MERGE INTO DEVELOPMENT`. No hosted Merge, Replace, Reset, or Restore has been applied.
+
+Permanent exclusions remain: preview packs and linked preview accounts/listings, waitlist tables, monitoring tables, promotional campaigns and related onboarding records, dependent rows required for referential integrity, administrator accounts, and user IDs `cmusfwkh5000006pjpp1gnslj` and `cmus3bgau000004jjx43oid1l` regardless of role. Existing staging records stay. Full-database Replace, Reset, and Restore stay disabled. Encrypted backup retention is not automatic scoped restoration.
+
+No migration changes required. Read-only checks on PostgreSQL 17.6 as `postgres`, `transaction_read_only=on`, direct hosts verified:
+
+- Production `snlqivvogfqesxpbjiei`: all 51 local Prisma migrations have a finished record. `itrader_sync_export.auth_users` and `auth_identities` are present. `staging_admin` sync storage is absent. The private Auth export was not replayed.
+- Development `syneonzucehwlghqmfbg`: all 51 local Prisma migrations have a finished record. `staging_admin` sync tables are present. `itrader_sync_export` is absent.
+- Both databases also retain an older rolled-back row for `20260317153000_dealer_reviews` beside its finished row. That history was not rewritten.
+
+`DATABASE_SYNC_AUTH_SOURCE_MODE=private-views` remains Preview on git branch `staging` only. Production does not have that variable. The reader URL and encryption key were not changed.
+
+Live staging is preview deployment `dpl_GhLYxaK7swVVnFzJweQPePsthEaR`, commit `b2e22f6182aaca73a45b2887c7881a433591ec96`, READY at 2026-10-05T02:14:35.604Z, aliased to `itrader.dev`. No further deployment was created. Unrelated ImageKit and admin-profile work and all stashes were left uncommitted.
+
+Unverified: the owner has not yet applied Merge on the shared development database.
+
 ## Current owner-approved scope
 
 Exclude preview packs, linked preview accounts/listings and dependent rows, all Waitlist tables, Monitoring tables, DealerPromotionCampaign, DealerOnboardingInvite and related events. Exclude User IDs cmusfwkh5000006pjpp1gnslj and cmus3bgau000004jjx43oid1l regardless of role. Administrator accounts are excluded. Existing staging records and linked Auth sessions are preserved.
