@@ -10,6 +10,7 @@ const {
   dealerProfileUpdate,
   subscriptionChargeFindUnique,
   subscriptionChargeUpdateMany,
+  executeRaw,
   captureBusinessEvent,
 } = vi.hoisted(() => ({
   paymentFindMany: vi.fn(),
@@ -21,6 +22,7 @@ const {
   dealerProfileUpdate: vi.fn(),
   subscriptionChargeFindUnique: vi.fn(),
   subscriptionChargeUpdateMany: vi.fn(),
+  executeRaw: vi.fn(),
   captureBusinessEvent: vi.fn(),
 }));
 
@@ -48,6 +50,7 @@ vi.mock("@/lib/db", () => {
       findUnique: vi.fn().mockResolvedValue(null),
     },
     $queryRaw: vi.fn().mockResolvedValue([]),
+    $executeRaw: executeRaw,
   };
   return {
     db: {
@@ -195,6 +198,12 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
     );
 
     expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      subscriptionChargeUpdateMany.mock.invocationCallOrder[0],
+    );
+    const [statement, key] = executeRaw.mock.calls[0] as [TemplateStringsArray, string];
+    expect(statement.join("")).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(key).toBe("pay_1");
     expect(subscriptionChargeUpdateMany).toHaveBeenCalledWith({
       where: { id: "charge-1", refundedAt: null },
       data: {

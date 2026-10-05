@@ -18,6 +18,7 @@ const {
   mockDb: {
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
     subscription: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -50,6 +51,15 @@ const subscriptionId = "clxxxxxxxxxxxxxxxxxxxxxxxxx";
 const latestChargeId = "claaaaaaaaaaaaaaaaaaaaaaa";
 const olderChargeId = "clbbbbbbbbbbbbbbbbbbbbbbb";
 const operationId = "11111111-1111-4111-8111-111111111111";
+
+function advisoryLockKeys(executeRaw: { mock: { calls: unknown[][] } }) {
+  return executeRaw.mock.calls.map((call) => {
+    const statement = Array.isArray(call[0]) ? call[0].join("") : "";
+    expect(statement).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(statement).toContain(", 0)");
+    return call[1];
+  });
+}
 
 function refundRequest(
   reason: "DUPLICATE" | "REQUESTED_BY_CUSTOMER" | "FRAUD" | "SERVICE_NOT_PROVIDED" | "OTHER" = "REQUESTED_BY_CUSTOMER",
@@ -112,6 +122,13 @@ describe("adminRefundSubscriptionPayment", () => {
     });
 
     expect(refundProviderPaymentMock).not.toHaveBeenCalled();
+    expect(mockDb.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }),
+    );
+    expect(advisoryLockKeys(mockDb.$executeRaw)).toEqual(["pay-1", "pay-1"]);
     expect(mockDb.subscription.update).toHaveBeenCalledWith({
       where: { id: subscriptionId },
       data: { status: "CANCELLED", currentPeriodEnd: null, cancelAtPeriodEnd: false },
@@ -234,7 +251,9 @@ describe("adminRefundSubscriptionPayment", () => {
 
     expect(refundProviderPaymentMock).toHaveBeenCalledTimes(1);
     expect(refundProviderPaymentMock).toHaveBeenCalledWith("pay-1");
-    expect(mockDb.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockDb.$queryRaw).not.toHaveBeenCalled();
+    expect(advisoryLockKeys(mockDb.$executeRaw)).toEqual(["pay-1", "pay-1"]);
+    expect(mockDb.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       refundProviderPaymentMock.mock.invocationCallOrder[0],
     );
     expect(refundProviderPaymentMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -306,6 +325,7 @@ describe("adminRefundSubscriptionPayment", () => {
     });
 
     expect(refundProviderPaymentMock).not.toHaveBeenCalled();
+    expect(advisoryLockKeys(mockDb.$executeRaw)).toEqual(["pay-later", "pay-later"]);
     expect(mockDb.subscriptionCharge.updateMany).toHaveBeenCalledTimes(1);
     expect(mockDb.subscriptionCharge.updateMany).toHaveBeenCalledWith({
       where: { id: latestChargeId, refundedAt: null },

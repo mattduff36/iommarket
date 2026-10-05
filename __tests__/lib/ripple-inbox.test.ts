@@ -9,6 +9,7 @@ const {
   inboxUpdateMany,
   inboxCreate,
   inboxQueryRaw,
+  inboxExecuteRaw,
   inboxTransaction,
   processProviderWebhookEvent,
 } = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const {
   inboxUpdateMany: vi.fn(),
   inboxCreate: vi.fn(),
   inboxQueryRaw: vi.fn(),
+  inboxExecuteRaw: vi.fn(),
   inboxTransaction: vi.fn(),
   processProviderWebhookEvent: vi.fn(),
 }));
@@ -30,6 +32,7 @@ vi.mock("@/lib/db", () => ({
       create: inboxCreate,
     },
     $queryRaw: inboxQueryRaw,
+    $executeRaw: inboxExecuteRaw,
     $transaction: inboxTransaction,
   },
 }));
@@ -114,7 +117,7 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
           findUnique: inboxFindUnique,
           create: inboxCreate,
         },
-        $queryRaw: inboxQueryRaw,
+        $executeRaw: inboxExecuteRaw,
       }),
     );
   });
@@ -151,9 +154,9 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
   it("PAY-REV-004 locks the provider payment before storing a refund receipt", async () => {
     const order: string[] = [];
     inboxFindUnique.mockResolvedValue(null);
-    inboxQueryRaw.mockImplementation(async () => {
+    inboxExecuteRaw.mockImplementation(async () => {
       order.push("lock");
-      return [];
+      return 0;
     });
     inboxCreate.mockImplementation(async () => {
       order.push("create");
@@ -173,6 +176,10 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
 
     expect(order).toEqual(["lock", "create"]);
     expect(inboxTransaction).toHaveBeenCalledOnce();
+    const [statement, key] = inboxExecuteRaw.mock.calls[0] as [TemplateStringsArray, string];
+    expect(statement.join("")).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(key).toBe("pay-1");
+    expect(inboxQueryRaw).not.toHaveBeenCalled();
   });
 
   it("uses original verified relay identity so a re-signed retry reuses the inbox", async () => {

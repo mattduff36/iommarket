@@ -370,7 +370,7 @@ export async function lockProviderPayment(
   client: PaymentDb,
   providerPaymentId: string,
 ) {
-  await client.$queryRaw`
+  await client.$executeRaw`
     SELECT pg_advisory_xact_lock(hashtextextended(${providerPaymentId}, 0))
   `;
 }

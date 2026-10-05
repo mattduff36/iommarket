@@ -84,6 +84,7 @@ const {
   };
   db.$transaction = transactionMock;
   db.$queryRaw = vi.fn();
+  db.$executeRaw = vi.fn();
   return {
     subscriptionFindFirst,
     subscriptionFindUnique,
@@ -108,6 +109,7 @@ vi.mock("@/lib/monitoring", () => ({
 
 import { captureBusinessEvent } from "@/lib/monitoring";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
+import { lockProviderPayment } from "@/lib/payments/webhook-subscriptions";
 
 function renewalEvent(
   overrides: Partial<NormalizedProviderWebhookEvent> = {}
@@ -146,11 +148,23 @@ function renewalEvent(
 }
 
 describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
+  it("locks a provider payment with $executeRaw", async () => {
+    await lockProviderPayment(db as never, "pay-lock-1");
+
+    const executeRaw = db.$executeRaw as ReturnType<typeof vi.fn>;
+    const [statement, key] = executeRaw.mock.calls[0] as [TemplateStringsArray, string];
+    expect(statement.join("")).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(statement.join("")).toContain(", 0)");
+    expect(key).toBe("pay-lock-1");
+    expect(db.$queryRaw).not.toHaveBeenCalled();
+  });
+
   afterEach(() => vi.unstubAllEnvs());
   beforeEach(() => {
     installRippleTestEnv();
     vi.clearAllMocks();
     (db.$queryRaw as ReturnType<typeof vi.fn>).mockReset();
+    (db.$executeRaw as ReturnType<typeof vi.fn>).mockReset();
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
     (
       db.paymentWebhookInbox as { findFirst: ReturnType<typeof vi.fn> }
@@ -922,9 +936,9 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
 
   it("PAY-REV-005 cancels activated coverage when the parsed refund has no period end", async () => {
     const order: string[] = [];
-    (db.$queryRaw as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+    (db.$executeRaw as ReturnType<typeof vi.fn>).mockImplementation(async () => {
       order.push("lock");
-      return [];
+      return 0;
     });
     subscriptionChargeFindUnique.mockImplementation(async () => {
       order.push("charge");
@@ -983,6 +997,13 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
 
     expect(order.indexOf("lock")).toBeGreaterThanOrEqual(0);
     expect(order.indexOf("lock")).toBeLessThan(order.indexOf("charge"));
+    const [statement, key] = (db.$executeRaw as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      TemplateStringsArray,
+      string,
+    ];
+    expect(statement.join("")).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(key).toBe("pay-renew-1");
+    expect(db.$queryRaw).not.toHaveBeenCalled();
     const refundedAt = new Date("2030-12-20T00:00:00.000Z");
     expect(
       (db.subscriptionCharge as { updateMany: ReturnType<typeof vi.fn> }).updateMany,
