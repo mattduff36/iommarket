@@ -5,7 +5,7 @@ import { setHostedReturnContext } from "@/lib/payments/set-hosted-return-context
 import { presentHostedCheckoutUrl } from "@/lib/payments/staging-return-routing";
 import { createSampleCheckout } from "@/lib/payments/sample-checkout";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
-import { extractRippleLinkCode, isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
+import { isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
@@ -45,6 +45,7 @@ import { captureException } from "@/lib/monitoring";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { persistPendingListingPayment } from "@/lib/payments/pending-listing-payment";
+import { persistCheckoutAttempt } from "@/lib/payments/checkout-attempts";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { rateLimitActionError } from "@/lib/rate-limit-result";
 
@@ -374,7 +375,25 @@ export async function payForListing(input: PayForListingInput) {
     if (!pendingPayment.payment.providerReference) {
       throw new Error("Persisted payment reference is missing");
     }
-    const boundSession = bindCheckoutToPersistedReference(session, pendingPayment.payment.providerReference);
+    const checkoutProduct = getRippleProductByCheckoutType(
+      includeFeatured ? "listing_and_featured" : "listing_payment",
+    );
+    const productCode = checkoutProduct.code;
+    const attempt = await persistCheckoutAttempt({
+      userId: user.id,
+      listingId: listing.id,
+      paymentId: pendingPayment.payment.id,
+      kind: includeFeatured ? "LISTING_AND_FEATURED" : "LISTING_PAYMENT",
+      merchantReference: pendingPayment.payment.providerReference,
+      productCode,
+      amountPence: includeFeatured
+        ? combinedPricePence
+        : pricing.privateListingPence,
+    });
+    const boundSession = bindCheckoutToPersistedReference(
+      session,
+      attempt.merchantReference,
+    );
 
     const hostedContext = {
       userId: user.id,
@@ -385,8 +404,6 @@ export async function payForListing(input: PayForListingInput) {
       issuedAt: Date.now(),
     };
     if (includeFeatured) {
-      const productCode = extractRippleLinkCode(session.url);
-      if (!productCode) throw new Error("Invalid combined listing checkout link");
       await setHostedReturnContext({ ...hostedContext, kind: "listing_and_featured", productCode });
     } else {
       await setHostedReturnContext(hostedContext);
@@ -486,14 +503,30 @@ export async function createDealerSubscription(input: {
       }),
     });
 
-    const productCode = extractRippleLinkCode(session.url);
-    if (!productCode) throw new Error("Invalid subscription checkout link");
+    const product = getRippleProductByCheckoutType(
+      "dealer_subscription",
+      parsed.data.tier,
+    );
+    const productCode = product.code;
+    const attempt = await persistCheckoutAttempt({
+      userId: user.id,
+      dealerId: parsed.data.dealerId,
+      kind: "DEALER_SUBSCRIPTION",
+      merchantReference: session.merchantReference,
+      productCode,
+      tier: parsed.data.tier,
+      amountPence: product.amountPence,
+    });
+    const boundSession = bindCheckoutToPersistedReference(
+      session,
+      attempt.merchantReference,
+    );
     await setHostedReturnContext({
       kind: "dealer_subscription", userId: user.id, email: user.email.trim().toLowerCase(),
       dealerId: parsed.data.dealerId, productCode,
-      merchantReference: session.merchantReference, issuedAt: Date.now(),
+      merchantReference: boundSession.merchantReference, issuedAt: Date.now(),
     });
-    return { data: { checkoutUrl: presentHostedCheckoutUrl(session.url) } };
+    return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
   } catch (err) {
     await captureException({
       source: "SERVER",
@@ -602,16 +635,27 @@ export async function upgradeFeatured(listingId: string) {
       amountInPence: pricing.featuredUpgradePence,
     });
 
-    const productCode = extractRippleLinkCode(session.url);
-    if (!productCode) throw new Error("Invalid featured checkout link");
     const product = getRippleProductByCheckoutType("featured_upgrade");
+    const productCode = product.code;
     const pending = await persistPendingListingPayment({
       listingId: listing.id, type: "FEATURED", merchantReference: session.merchantReference,
       amountPence: product.amountPence, allowNewAfterSucceeded: true,
     });
     if (pending.alreadyPaid) return { error: "This featured upgrade has already been paid. Refresh your listing." };
     if (!pending.payment.providerReference) throw new Error("Persisted payment reference is missing");
-    const boundSession = bindCheckoutToPersistedReference(session, pending.payment.providerReference);
+    const attempt = await persistCheckoutAttempt({
+      userId: user.id,
+      listingId: listing.id,
+      paymentId: pending.payment.id,
+      kind: "FEATURED_UPGRADE",
+      merchantReference: pending.payment.providerReference,
+      productCode,
+      amountPence: product.amountPence,
+    });
+    const boundSession = bindCheckoutToPersistedReference(
+      session,
+      attempt.merchantReference,
+    );
     await setHostedReturnContext({
       kind: "featured_upgrade", userId: user.id, email: user.email.trim().toLowerCase(),
       paymentId: pending.payment.id, listingId: listing.id, productCode,

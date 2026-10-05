@@ -78,6 +78,7 @@ describe("deleteUser", () => {
       email: "deleted.user@example.com",
       authUserId: "auth-1",
       imagePublicIds: ["photo-1"],
+      imageKitDisposables: [],
     });
     mockDb.user.findUnique.mockResolvedValue({
       id: userId,
@@ -102,7 +103,7 @@ describe("deleteUser", () => {
       expect.objectContaining({ action: "DELETE_USER", entityId: userId }),
       expect.any(Object),
     );
-    expect(deleteMediaMock).toHaveBeenCalledWith(["photo-1"]);
+    expect(deleteMediaMock).toHaveBeenCalledWith(["photo-1"], []);
     expect("update" in mockDb.user).toBe(false);
   });
 

@@ -2,54 +2,122 @@
 import * as React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SYNC_TABLES, type SyncTableCounts } from "@/lib/database-sync/types";
 import type { PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
 
-const mocks = vi.hoisted(() => ({ prepare: vi.fn(), apply: vi.fn() }));
-vi.mock("@/actions/admin/database-sync", () => ({ prepareDatabaseSyncAction: mocks.prepare, applyDatabaseSyncAction: mocks.apply }));
+const mocks = vi.hoisted(() => ({ prepare: vi.fn(), apply: vi.fn(), history: vi.fn() }));
+vi.mock("@/actions/admin/database-sync", () => ({ prepareDatabaseSyncAction: mocks.prepare, applyDatabaseSyncAction: mocks.apply, loadDatabaseSyncRuns: mocks.history }));
 import { DatabasePanel } from "@/app/(admin)/admin/database/database-panel";
 
-const plan = {
+const plan: PublicDatabaseSyncRun = {
   id: "c3c64ad4-1d3e-4aeb-a02a-39a2c6c45a67", mode: "merge", status: "prepared",
-  createdAt: "2026-10-03T12:00:00Z", expiresAt: "2026-10-03T12:15:00Z",
-  counts: Object.fromEntries(SYNC_TABLES.map((table) => [table, { insert: 1, update: 0, delete: 0, preserve: 2, skip: 0 }])) as SyncTableCounts,
-  blockers: [],
-  archivedListings: 302, archivedDealers: 13,
-} as PublicDatabaseSyncRun;
-
-beforeEach(() => { vi.clearAllMocks(); mocks.prepare.mockResolvedValue({ data: plan }); mocks.apply.mockResolvedValue({ data: { ...plan, status: "applied" } }); });
+  createdAt: "2026-10-05T03:00:00Z", expiresAt: "2026-10-05T03:30:00Z",
+  counts: { User: { captured: 5, insert: 1, update: 2, delete: 0, preserve: 2, skip: 0 } },
+  blockers: [], archivedListings: 0, archivedDealers: 0, reconciled: [],
+  kind: "sync", restoreAvailable: false, backupExpiresAt: null, backupState: "none", restoredFromId: null,
+};
+const applied: PublicDatabaseSyncRun = { ...plan, status: "applied", backupState: "newest" };
+const scroll = vi.fn();
+beforeEach(() => {
+  vi.clearAllMocks();
+  Element.prototype.scrollIntoView = scroll;
+  mocks.prepare.mockResolvedValue({ data: plan });
+  mocks.apply.mockResolvedValue({ data: applied });
+  mocks.history.mockResolvedValue({ data: [applied] });
+});
 afterEach(cleanup);
 
-describe("database management panel", () => {
-  it("previews counts before requiring the exact confirmation to apply", async () => {
-    render(<DatabasePanel initialRuns={[]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
-    await screen.findByRole("heading", { name: "Review: Merge production into development" });
-    expect(mocks.prepare).toHaveBeenCalledWith("merge");
-    expect(screen.getByRole("table")).toHaveTextContent("Preserve");
-    expect(screen.getByText(/Archive and hide: 302 listings and 13 dealer profiles/)).toHaveTextContent("physical deletions only");
-    const apply = screen.getByRole("button", { name: "Apply merge to development" });
-    expect(apply).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Type MERGE INTO DEVELOPMENT to confirm"), { target: { value: "MERGE INTO DEVELOPMENT" } });
-    fireEvent.click(apply);
-    await waitFor(() => expect(mocks.apply).toHaveBeenCalledWith({ runId: plan.id, confirmation: "MERGE INTO DEVELOPMENT" }));
-    await screen.findByText("Merge production into development completed. Production was not changed.");
-  });
+async function openPlan() {
+  fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
+  await screen.findByRole("heading", { name: "Review: Merge production into development" });
+  fireEvent.change(screen.getByLabelText("Type MERGE INTO DEVELOPMENT to confirm"), { target: { value: "MERGE INTO DEVELOPMENT" } });
+}
 
-  it("shows blockers without offering Apply", async () => {
-    mocks.prepare.mockResolvedValue({ data: { ...plan, blockers: ["A reference conflict must be resolved."] } });
-    render(<DatabasePanel initialRuns={[]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
-    await screen.findByText("A reference conflict must be resolved.");
-    expect(screen.queryByRole("button", { name: "Apply merge to development" })).not.toBeInTheDocument();
-  });
-
-  it("explains Reset clearing and uses its own confirmation", async () => {
-    mocks.prepare.mockResolvedValue({ data: { ...plan, mode: "reset" } });
-    render(<DatabasePanel initialRuns={[]} />);
-    expect(screen.getByText(/Clear ordinary development marketplace data/)).toHaveTextContent("preserving administrators");
+describe("database panel Apply feedback and disabled layout", () => {
+  it("restores all three cards, while Replace, Reset and Restore stay disabled", () => {
+    render(<DatabasePanel initialRuns={[applied]} />);
+    expect(screen.getByLabelText("Database operations")).toHaveClass("lg:grid-cols-3");
+    expect(screen.getByRole("heading", { name: "Replace development" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Reset development" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview replace plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preview reset plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Restore" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preview merge plan" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Preview reset plan" }));
-    await screen.findByLabelText("Type RESET DEVELOPMENT to confirm");
-    expect(mocks.prepare).toHaveBeenCalledWith("reset");
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  it("focuses and scrolls to immediate preparation acknowledgement", async () => {
+    let resolve!: (value: { data: PublicDatabaseSyncRun }) => void;
+    mocks.prepare.mockReturnValue(new Promise((done) => { resolve = done; }));
+    render(<DatabasePanel initialRuns={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Request received. Preparing the merge plan");
+    expect(status).toHaveFocus();
+    expect(scroll).toHaveBeenCalled();
+    resolve({ data: plan });
+    await screen.findByRole("heading", { name: "Review: Merge production into development" });
+  });
+
+  it("keeps Apply busy, prevents duplicate submission, then confirms saved success", async () => {
+    let resolve!: (value: { data: PublicDatabaseSyncRun }) => void;
+    mocks.apply.mockReturnValue(new Promise((done) => { resolve = done; }));
+    render(<DatabasePanel initialRuns={[]} />);
+    await openPlan();
+    const button = screen.getByRole("button", { name: "Apply merge to development" });
+    fireEvent.click(button); fireEvent.click(button);
+    await waitFor(() => expect(mocks.apply).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("status")).toHaveTextContent("Confirmation received. Applying the merge plan");
+    expect(screen.getByRole("button", { name: "Applying merge…" })).toBeDisabled();
+    resolve({ data: applied });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("completed successfully"));
+    expect(screen.getByRole("status")).toHaveFocus();
+    expect(screen.getByText("Applied")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Review: Merge production into development" })).not.toBeInTheDocument();
+  });
+
+  it("makes a returned server failure visible and retains Prepared instead of implying success", async () => {
+    mocks.apply.mockResolvedValue({ error: "The transaction was rolled back. Reference fixture-reference." });
+    render(<DatabasePanel initialRuns={[]} />);
+    await openPlan();
+    fireEvent.click(screen.getByRole("button", { name: "Apply merge to development" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("rolled back");
+    expect(alert).toHaveTextContent("fixture-reference");
+    expect(alert).toHaveFocus();
+    expect(screen.getByText("Prepared")).toBeInTheDocument();
+    expect(screen.queryByText("Applied")).not.toBeInTheDocument();
+  });
+
+  it("checks saved history after a lost response without submitting another merge", async () => {
+    mocks.apply.mockRejectedValue(new Error("Network response lost"));
+    render(<DatabasePanel initialRuns={[]} />);
+    await openPlan();
+    fireEvent.click(screen.getByRole("button", { name: "Apply merge to development" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("connection ended");
+    expect(screen.getByRole("button", { name: "Apply merge to development" })).toBeDisabled();
+    const refresh = screen.getByRole("button", { name: "Refresh history" });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("saved operation is Applied"));
+    expect(mocks.apply).toHaveBeenCalledTimes(1);
+    expect(mocks.history).toHaveBeenCalledTimes(1);
+  });
+
+  it("never treats a Prepared response as completed", async () => {
+    mocks.apply.mockResolvedValue({ data: plan });
+    render(<DatabasePanel initialRuns={[]} />);
+    await openPlan();
+    fireEvent.click(screen.getByRole("button", { name: "Apply merge to development" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("did not confirm completion");
+    expect(screen.queryByText("Applied")).not.toBeInTheDocument();
+  });
+
+  it("still displays blockers without an Apply button", async () => {
+    mocks.prepare.mockResolvedValue({ data: { ...plan, blockers: ["A required reference is missing."] } });
+    render(<DatabasePanel initialRuns={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview merge plan" }));
+    await screen.findByText("A required reference is missing.");
+    expect(screen.queryByRole("button", { name: "Apply merge to development" })).not.toBeInTheDocument();
   });
 });

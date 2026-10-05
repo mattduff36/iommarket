@@ -4,33 +4,63 @@ const {
   paymentFindMany,
   paymentUpdate,
   subscriptionFindFirst,
+  subscriptionFindUnique,
+  subscriptionFindMany,
   subscriptionUpdate,
+  dealerProfileUpdate,
+  subscriptionChargeFindUnique,
+  subscriptionChargeUpdateMany,
+  executeRaw,
   captureBusinessEvent,
 } = vi.hoisted(() => ({
   paymentFindMany: vi.fn(),
   paymentUpdate: vi.fn(),
   subscriptionFindFirst: vi.fn(),
+  subscriptionFindUnique: vi.fn(),
+  subscriptionFindMany: vi.fn(),
   subscriptionUpdate: vi.fn(),
+  dealerProfileUpdate: vi.fn(),
+  subscriptionChargeFindUnique: vi.fn(),
+  subscriptionChargeUpdateMany: vi.fn(),
+  executeRaw: vi.fn(),
   captureBusinessEvent: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  db: {
+vi.mock("@/lib/db", () => {
+  const client = {
     payment: {
       findMany: paymentFindMany,
       update: paymentUpdate,
     },
     subscription: {
       findFirst: subscriptionFindFirst,
-      findUnique: vi.fn().mockResolvedValue(null),
+      findUnique: subscriptionFindUnique,
+      findMany: subscriptionFindMany,
       update: subscriptionUpdate,
+    },
+    dealerProfile: {
+      update: dealerProfileUpdate,
+    },
+    subscriptionCharge: {
+      findUnique: subscriptionChargeFindUnique,
+      updateMany: subscriptionChargeUpdateMany,
     },
     dealerCancellationRequest: {
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
     },
-  },
-}));
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    $executeRaw: executeRaw,
+  };
+  return {
+    db: {
+      ...client,
+      $transaction: vi.fn(
+        async (operation: (tx: typeof client) => unknown) => operation(client),
+      ),
+    },
+  };
+});
 
 vi.mock("@/lib/listings/status-events", () => ({
   transitionListingStatus: vi.fn(),
@@ -82,12 +112,19 @@ function baseEvent(
 describe("payment webhook reconciliation ALR-PAY-001", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    subscriptionChargeFindUnique.mockResolvedValue(null);
+    subscriptionFindUnique.mockResolvedValue(null);
+    subscriptionFindMany.mockResolvedValue([]);
   });
 
   it("marks matching payments refunded with a retained reason", async () => {
     paymentFindMany.mockResolvedValue([
       {
         id: "local-pay",
+        providerPaymentId: "pay_1",
+        providerReference: "ref_1",
+        status: "SUCCEEDED",
+        refundedAt: null,
         refundReason: "FRAUD",
       },
     ]);
@@ -116,30 +153,70 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
     );
   });
 
-  it("schedules entitlement end for unmatched subscription refunds", async () => {
+  it("ends entitlement after a parsed refund with no provider period end", async () => {
     paymentFindMany.mockResolvedValue([]);
-    subscriptionFindFirst.mockResolvedValue({ id: "sub-1" });
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "charge-1",
+      subscriptionId: "sub-1",
+      refundedAt: null,
+      eventTimestamp: new Date("2026-08-15T10:00:00.000Z"),
+      amount: 4999,
+      currency: "gbp",
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: "C5D44F6F18094B94",
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-09-15T10:00:00.000Z"),
+      charges: [
+        {
+          id: "charge-1",
+          eventTimestamp: new Date("2026-08-15T10:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+      ],
+    });
 
     await processProviderWebhookEvent(
       baseEvent({
         type: "payment.refunded",
+        amount: 4999,
+        currency: "gbp",
         providerSubscriptionId: "prov-sub",
         currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
         metadata: {
-          checkoutType: "dealer_subscription",
+          checkoutType: null,
           listingId: null,
-          dealerId: "dealer-1",
-          tier: "STARTER",
+          dealerId: null,
+          tier: null,
         },
       }),
     );
 
     expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      subscriptionChargeUpdateMany.mock.invocationCallOrder[0],
+    );
+    const [statement, key] = executeRaw.mock.calls[0] as [TemplateStringsArray, string];
+    expect(statement.join("")).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(key).toBe("pay_1");
+    expect(subscriptionChargeUpdateMany).toHaveBeenCalledWith({
+      where: { id: "charge-1", refundedAt: null },
+      data: {
+        refundedAt: new Date("2026-08-15T10:00:00.000Z"),
+        refundEventId: "evt-1",
+      },
+    });
     expect(subscriptionUpdate).toHaveBeenCalledWith({
       where: { id: "sub-1" },
       data: {
-        cancelAtPeriodEnd: true,
-        currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+        status: "CANCELLED",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
       },
     });
   });

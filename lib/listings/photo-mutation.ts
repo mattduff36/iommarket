@@ -1,8 +1,8 @@
+import { MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
 import { createHash } from "node:crypto";
 import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
-import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
+import { cleanupDeliveryForRemovedImage, imageRecordFromIntent } from "@/lib/media/stored-image";
 import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
 export class PhotoRevisionConflictError extends Error {
   photoRevision: number;
@@ -191,11 +191,21 @@ export async function syncListingImagesForUser({
       const retainedIds = new Set(
         input.photos.map((photo) => photo.imageId).filter((id): id is string => Boolean(id)),
       );
-      const removedPublicIds: Array<{ publicId: string; provider: ListingImageProvider }> = [];
+      const removedPublicIds: Array<{
+        publicId: string;
+        provider: ListingImageProvider;
+        imageKitFileId?: string | null;
+        imageKitFilePath?: string | null;
+      }> = [];
 
       for (const image of currentImages) {
         if (!retainedIds.has(image.id)) {
-          removedPublicIds.push({ publicId: image.publicId, provider: image.provider });
+          removedPublicIds.push({
+            publicId: image.publicId,
+            provider: image.provider,
+            imageKitFileId: image.imageKitFileId,
+            imageKitFilePath: image.imageKitFilePath,
+          });
         }
       }
 
@@ -223,6 +233,9 @@ export async function syncListingImagesForUser({
           }
           if (intent.status !== "VERIFIED") {
             throw new Error("Wait until each photo has finished uploading before saving.");
+          }
+          if (intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE && intent.expiresAt.getTime() <= Date.now()) {
+            throw new Error("This image upload expired. Upload it again before saving.");
           }
           if (!intent.assetId || !intent.version || !intent.width || !intent.height || !intent.format) {
             throw new Error("A verified upload is missing authoritative image metadata.");
@@ -271,19 +284,14 @@ export async function syncListingImagesForUser({
           continue;
         }
 
-        const canonicalUrl = buildCanonicalListingImageUrl({
-          publicId: item.intent.publicId,
-          version: item.intent.version,
-          format: item.intent.format,
-          provider: "CLOUDINARY",
-          url: "",
-        });
+        const stored = imageRecordFromIntent(item.intent);
 
         const consumed = await tx.listingImageUploadIntent.updateMany({
           where: {
             id: item.intent.id,
             status: "VERIFIED",
             userId: listing.userId,
+            ...(item.intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE ? { expiresAt: { gt: new Date() } } : {}),
           },
           data: {
             status: "CONSUMED",
@@ -297,17 +305,19 @@ export async function syncListingImagesForUser({
         await tx.listingImage.create({
           data: {
             listingId,
-            url: canonicalUrl,
-            publicId: item.intent.publicId,
+            url: stored.url,
+            publicId: stored.publicId,
             order: item.order,
-            provider: "CLOUDINARY",
-            assetId: item.intent.assetId,
+            provider: stored.provider,
+            assetId: stored.assetId,
             version: item.intent.version,
             width: item.intent.width,
             height: item.intent.height,
             format: item.intent.format,
             bytes: item.intent.bytes,
             uploadIntentId: item.intent.id,
+            imageKitFileId: stored.imageKitFileId,
+            imageKitFilePath: stored.imageKitFilePath,
             focalX: item.focalX,
             focalY: item.focalY,
           },
@@ -315,11 +325,14 @@ export async function syncListingImagesForUser({
       }
 
       for (const removed of removedPublicIds) {
-        if (removed.provider === "CLOUDINARY" && removed.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)) {
+        const cleanup = cleanupDeliveryForRemovedImage(removed);
+        if (cleanup) {
           await tx.listingImageCleanupJob.create({
             data: {
-              publicId: removed.publicId,
-              deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+              publicId: cleanup.publicId,
+              deliveryType: cleanup.deliveryType,
+              imageKitFileId: cleanup.imageKitFileId,
+              imageKitFilePath: cleanup.imageKitFilePath,
               reason: "replaced-or-removed",
             },
           });

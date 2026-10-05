@@ -12,8 +12,13 @@ export const IMAGE_CONSTRAINTS = {
 
 export const LISTING_PHOTO_FIT_THRESHOLD = 0.8;
 
+/** Cloudinary rollback renditions. ImageKit delivery uses lib/images/delivery-widths.ts. */
 export const LISTING_PHOTO_WIDTHS = [160, 320, 480, 640, 800, 960, 1200, 1600] as const;
 
+/**
+ * width and height are aspect-ratio parts for layout, except `social`, which is
+ * the fixed 1200×630 share canvas. Do not use these numbers as pixel widths.
+ */
 export const LISTING_PHOTO_FRAMES = {
   card: { width: 4, height: 3, aspectClass: "aspect-[4/3]" },
   gallery: { width: 16, height: 10, aspectClass: "aspect-[16/10]" },

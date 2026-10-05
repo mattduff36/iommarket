@@ -8,9 +8,7 @@ import { getAdminDealerWhere } from "@/lib/dealers/access";
 import { grantAdminDealerAccess } from "@/lib/dealers/entitlement";
 import {
   createDealerProfileSchema,
-  updateDealerProfileSchema,
   type CreateDealerProfileInput,
-  type UpdateDealerProfileInput,
 } from "@/lib/validations/admin";
 import type { Prisma } from "@prisma/client";
 import { reportHandledException } from "@/lib/monitoring";
@@ -142,41 +140,6 @@ export async function createDealerProfile(input: CreateDealerProfileInput) {
       route: "/admin/dealers",
     });
     const message = err instanceof Error ? err.message : "Failed to create dealer profile";
-    return { error: message };
-  }
-}
-
-export async function updateDealerProfile(input: UpdateDealerProfileInput) {
-  const admin = await requireRole("ADMIN");
-
-  const parsed = updateDealerProfileSchema.safeParse(input);
-  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
-
-  const { dealerId, ...data } = parsed.data;
-
-  try {
-    const profile = await db.dealerProfile.update({
-      where: { id: dealerId },
-      data,
-    });
-
-    await logAdminAction({
-      adminId: admin.id,
-      action: "UPDATE_DEALER_PROFILE",
-      entityType: "DealerProfile",
-      entityId: dealerId,
-      details: data,
-    });
-
-    revalidatePath("/admin/dealers");
-    return { data: profile };
-  } catch (err) {
-    await reportHandledException({
-      error: err,
-      action: "updateDealerProfile",
-      route: "/admin/dealers",
-    });
-    const message = err instanceof Error ? err.message : "Failed to update dealer profile";
     return { error: message };
   }
 }

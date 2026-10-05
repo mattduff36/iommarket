@@ -56,6 +56,10 @@ export function buildDatabasePoolOptions(
   env: RuntimeEnv = process.env,
 ): PoolConfig {
   const connectionString = sanitiseConnectionString(rawUrl);
+  const host = connectionHost(connectionString);
+  if (host === "127.0.0.1" || host === "localhost") {
+    return { connectionString, ssl: false, max: DATABASE_POOL_MAX };
+  }
   const certificate = readDatabaseCaCertificate(env);
   if (databaseTlsMustBeVerified(connectionString, env) && !certificate) {
     throw new Error("SUPABASE_DB_CA_CERT is required for verified database TLS");

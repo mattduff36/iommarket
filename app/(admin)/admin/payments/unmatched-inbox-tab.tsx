@@ -13,8 +13,6 @@ import {
   adminDateCellClass,
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
-import { AttachInboxForm } from "./attach-inbox-form";
-import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 
 export type UnmatchedInboxRow = {
   id: string;
@@ -38,10 +36,9 @@ export function UnmatchedInboxTab({
   return (
     <>
       <p className="mb-4 text-sm text-text-secondary">
-        Check the exact transaction reference in Ripple first. Only attach a
-        currently paid, unrefunded listing fee to the seller-confirmed listing.
-        A received webhook does not prove the payment has not since been refunded.
-        Do not guess from email or amount.
+        These receipts cannot be attached directly because they do not contain
+        a trustworthy signed checkout reference. Use the reconciliation queue
+        only when a persisted checkout attempt identifies the payment.
       </p>
       <AdminTable minWidth="wide">
         <TableHeader>
@@ -51,7 +48,7 @@ export function UnmatchedInboxTab({
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Error</TableHead>
             <TableHead>Provider pay ref</TableHead>
-            <TableHead className={adminActionsCellClass}>Attach</TableHead>
+            <TableHead className={adminActionsCellClass}>Recovery</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -79,16 +76,9 @@ export function UnmatchedInboxTab({
                 {row.paymentReference ?? "-"}
               </TableCell>
               <TableCell className={adminActionsCellClass}>
-                {row.status === "FAILED" && row.eventType === "payment.received" &&
-                row.linkCode === RIPPLE_CANONICAL_PRODUCTS.listing.code &&
-                row.amountPence === RIPPLE_CANONICAL_PRODUCTS.listing.amountPence &&
-                row.currency?.toLowerCase() === "gbp" && row.paymentReference ? (
-                  <AttachInboxForm inboxId={row.id} />
-                ) : (
-                  <span className="text-xs text-text-secondary">
-                    Not eligible for listing-fee attachment
-                  </span>
-                )}
+                <span className="text-xs text-text-secondary">
+                  Use reconciliation queue
+                </span>
               </TableCell>
             </TableRow>
           ))}

@@ -223,6 +223,7 @@ export async function main(argv = process.argv.slice(2)) {
 
     const authUserIds: Array<string | null> = [];
     const imagePublicIds: string[] = [];
+    const imageKitDisposables: Array<{ fileId: string; filePath: string }> = [];
     const removedListingIds: string[] = [];
     if (records.users.length > 0) {
       const tables = await loadPublicTables(prisma);
@@ -232,11 +233,12 @@ export async function main(argv = process.argv.slice(2)) {
         );
         authUserIds.push(purged.authUserId);
         imagePublicIds.push(...purged.imagePublicIds);
+        imageKitDisposables.push(...purged.imageKitDisposables);
         removedListingIds.push(...purged.listingIds);
       }
     }
     for (const authUserId of authUserIds) await deleteAuthUser(authUserId);
-    const media = await deleteAccountMedia(imagePublicIds);
+    const media = await deleteAccountMedia(imagePublicIds, imageKitDisposables);
 
     const remaining = await findRexRecords(prisma);
     if (

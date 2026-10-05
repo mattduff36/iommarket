@@ -28,9 +28,9 @@ describe("planDatabaseSync", () => {
       name: null, phone: null, bio: null, avatarUrl: null, role: "DEALER", disabledAt: null,
     });
     const insertedDealer = plan.operations.find((op) => op.action === "insert" && op.table === "DealerProfile")!.after!;
-    expect(insertedDealer).toMatchObject({ userId: "u1", verified: true, tier: "STARTER", isAdminPreview: false });
+    expect(insertedDealer).toMatchObject({ userId: "u1", verified: true, tier: "PRO", isAdminPreview: false });
     const insertedListing = plan.operations.find((op) => op.action === "insert" && op.table === "Listing")!.after!;
-    expect(insertedListing).toMatchObject({ status: "LIVE", featured: false, viewCount: 0, trustDeclarationAccepted: false, lifecycleRevision: 0, previewPackId: null, reviewState: "NONE" });
+    expect(insertedListing).toMatchObject({ status: "LIVE", featured: true, viewCount: 45, trustDeclarationAccepted: true, lifecycleRevision: 7, reviewState: "NEEDS_REVIEW" });
     const insertedImage = plan.operations.find((op) => op.action === "insert" && op.table === "ListingImage")!.after!;
     expect(insertedImage).toMatchObject({ listingId: "l1", uploadIntentId: null });
     expect(JSON.stringify(plan)).not.toContain("private@example.com");
@@ -89,7 +89,7 @@ describe("planDatabaseSync", () => {
     expect(replace.operations.some((op) => op.action === "preserve" && op.table === "Region" && op.key === "dev-region")).toBe(true);
   });
 
-  it("imports a genuine listing linked to a preview pack after clearing only the pack reference", () => {
+  it("imports a genuine listing without clearing its preview pack reference", () => {
     const source = dataset({
       Region: [region], Category: [category],
       User: [{ ...user, role: "USER", phone: "never-export-this" }],
@@ -98,7 +98,7 @@ describe("planDatabaseSync", () => {
     const plan = planDatabaseSync({ mode: "merge", source, destination: dataset() });
     expect(plan.blockers).toEqual([]);
     expect(plan.operations.find((op) => op.action === "insert" && op.table === "Listing")?.after)
-      .toMatchObject({ status: "LIVE", previewPackId: null });
+      .toMatchObject({ status: "LIVE", previewPackId: "historic-pack", featured: true });
     expect(JSON.stringify(plan)).not.toContain("never-export-this");
   });
 

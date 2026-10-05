@@ -28,3 +28,11 @@ export function isPaidSubscriptionRecord(subscription: {
 }) {
   return subscription.source === "PAYMENT";
 }
+
+export function recognisedSubscriptionChargeWhere() {
+  return { refundedAt: null } as const;
+}
+
+export function isRecognisedSubscriptionCharge(charge: { refundedAt: Date | null }) {
+  return charge.refundedAt === null;
+}

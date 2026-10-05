@@ -17,6 +17,8 @@ const {
   policyAcceptanceFindUnique,
   transitionListingStatus,
   captureBusinessEvent,
+  reconcilePayment,
+  paymentCheckoutAttemptFindUnique,
   transactionMock,
   db,
 } = vi.hoisted(() => {
@@ -31,6 +33,8 @@ const {
   const listingImageCount = vi.fn();
   const listingAttributeValueFindFirst = vi.fn();
   const policyAcceptanceFindUnique = vi.fn();
+  const reconcilePayment = vi.fn();
+  const paymentCheckoutAttemptFindUnique = vi.fn();
   const transactionMock = vi.fn();
   const db: {
     payment: {
@@ -45,6 +49,7 @@ const {
     listingAttributeValue: { findFirst: typeof listingAttributeValueFindFirst };
     listingRevisionAttributeValue: { findFirst: ReturnType<typeof vi.fn> };
     policyAcceptance: { findUnique: typeof policyAcceptanceFindUnique };
+    paymentCheckoutAttempt: { findUnique: typeof paymentCheckoutAttemptFindUnique };
     $transaction: (fn: (tx: unknown) => unknown) => Promise<unknown>;
   } = {
     payment: {
@@ -73,6 +78,9 @@ const {
     policyAcceptance: {
       findUnique: policyAcceptanceFindUnique,
     },
+    paymentCheckoutAttempt: {
+      findUnique: paymentCheckoutAttemptFindUnique,
+    },
     $transaction: transactionMock,
   };
   return {
@@ -89,6 +97,8 @@ const {
     policyAcceptanceFindUnique,
     transitionListingStatus: vi.fn(),
     captureBusinessEvent: vi.fn(),
+    reconcilePayment,
+    paymentCheckoutAttemptFindUnique,
     transactionMock,
     db,
   };
@@ -109,8 +119,16 @@ vi.mock("@/lib/email/listing-notifications", () => ({
 vi.mock("@/lib/monitoring", () => ({
   captureBusinessEvent,
 }));
+vi.mock("@/lib/payments/reconcile-payment", () => ({
+  reconcileListingPayment: reconcilePayment,
+}));
 
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
+import {
+  createOrUpdateListingPayment,
+  submitPaidListingForReview,
+} from "@/lib/payments/webhook-payments";
+import { applyPaidFeaturedEntitlement } from "@/lib/payments/featured-entitlement";
 
 function listingEvent(
   overrides: Partial<NormalizedProviderWebhookEvent> = {}
@@ -155,6 +173,7 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
     paymentFindMany.mockResolvedValue([]);
     paymentFindFirst.mockResolvedValue(null);
+    paymentCheckoutAttemptFindUnique.mockResolvedValue({ id: "attempt-1" });
     paymentCreate.mockResolvedValue({ id: "local-pay", listingId: "listing-1" });
     listingFindFirst.mockResolvedValue(null);
     listingFindUnique.mockResolvedValue({
@@ -193,6 +212,31 @@ describe("RIP-IDEM-001 / RIP-PRICE-001 listing fulfillment", () => {
         reasonCode: null,
       },
     });
+    reconcilePayment.mockImplementation(
+      async ({ event }: { event: NormalizedProviderWebhookEvent }) => {
+        const notifications = await transactionMock(async (tx: typeof db) => {
+          const result = await createOrUpdateListingPayment(
+            event,
+            "SUCCEEDED",
+            tx as never,
+          );
+          if (!result?.applied) return [];
+          if (event.metadata.checkoutType === "featured_upgrade") {
+            await applyPaidFeaturedEntitlement(
+              result.payment.listingId,
+              tx as never,
+            );
+            return [];
+          }
+          return submitPaidListingForReview(
+            result.payment.listingId,
+            event,
+            tx as never,
+          );
+        });
+        return { notifications };
+      },
+    );
   });
 
   it("creates a listing payment once and submits the draft", async () => {

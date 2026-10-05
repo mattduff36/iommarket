@@ -108,11 +108,25 @@ export function getPaymentProviderPortalUrl(): string | null {
   return process.env.RIPPLE_DASHBOARD_URL?.trim() || null;
 }
 
+/**
+ * In-app refunds stay disabled until this is removed.
+ *
+ * adminRefundSubscriptionPayment writes the operation onto refundEventId
+ * before any provider call. A later request that finds that claim and no
+ * refundedAt skips the provider and still records the local refund. That
+ * covers a crash after the claim commits, and an overlap that sets
+ * refundedAt while the provider call is still running, after which a
+ * provider failure can no longer clear the claim.
+ */
+export const IN_APP_REFUND_PREREQUISITES: readonly string[] = [
+  "claim-without-refunded-at-skips-provider-and-records-locally",
+];
+
 export function getPaymentProviderCapabilities(): PaymentProviderCapabilities {
   return {
     supportsHostedCheckout: true,
     supportsEmbeddedCheckout: false,
-    supportsInAppRefunds: false,
+    supportsInAppRefunds: IN_APP_REFUND_PREREQUISITES.length === 0,
     supportsInAppSubscriptionCancellation: false,
     preferredCheckoutSurface: "HOSTED",
   };
@@ -148,6 +162,11 @@ export async function createListingCheckout(params: {
   customerName?: string;
   idempotencyKey?: string;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "Listing", rowKey: params.listingId }],
+    emails: params.customerEmail ? [params.customerEmail] : [],
+  });
   if ((params.checkoutType ?? "listing_payment") === "listing_support") {
     throw new Error("RIPPLE_LISTING_SUPPORT_URL");
   }
@@ -168,6 +187,11 @@ export async function createListingAndFeaturedCheckout(params: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "Listing", rowKey: params.listingId }],
+    emails: params.customerEmail ? [params.customerEmail] : [],
+  });
   return buildFixedCheckoutUrl("listing_and_featured", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
@@ -186,6 +210,11 @@ export async function createDealerSubscriptionCheckout(params: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "DealerProfile", rowKey: params.dealerId }],
+    emails: [params.customerEmail],
+  });
   return buildFixedCheckoutUrl("dealer_subscription", {
     targetId: params.dealerId,
     amountInPence: params.amountInPence,
@@ -205,6 +234,11 @@ export async function createFeaturedUpgradeCheckout(params: {
   customerName?: string;
   amountInPence?: number;
 }): Promise<ProviderCheckoutResult> {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [{ table: "Listing", rowKey: params.listingId }],
+    emails: params.customerEmail ? [params.customerEmail] : [],
+  });
   return buildFixedCheckoutUrl("featured_upgrade", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,

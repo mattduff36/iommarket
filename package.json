@@ -16,7 +16,7 @@
   "scripts": {
     "prepare:maplibre-worker": "node scripts/prepare-maplibre-worker.mjs",
     "predev": "npm run prepare:maplibre-worker",
-    "dev": "next dev --webpack -p 4000",
+    "dev": "next dev --webpack -p 4010",
     "prebuild": "npm run prepare:maplibre-worker",
     "build": "prisma generate && next build",
     "start": "next start",
@@ -61,7 +61,7 @@
     "finalise:full:push": "tsx scripts/finalise.ts --full --push",
     "finalise:repair": "tsx scripts/finalise-repair.ts",
     "fixerrors": "npx tsx scripts/fixerrors.ts",
-    "prod-mirror": "npx tsx scripts/prod-mirror.ts",
+    "maintenance:backup": "npx tsx scripts/prod-mirror.ts",
     "env:production:pull": "tsx scripts/production-env.ts pull",
     "env:production:check": "tsx scripts/production-env.ts check",
     "cursor:usage": "node --no-warnings --env-file-if-exists=.env.local --experimental-sqlite scripts/cursor-usage/collect.mjs --bounded",
@@ -106,6 +106,7 @@
     "recharts": "^3.10.1",
     "rehype-sanitize": "^6.0.0",
     "resend": "^6.20.0",
+    "sharp": "^0.35.5",
     "standardwebhooks": "^1.0.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.6"

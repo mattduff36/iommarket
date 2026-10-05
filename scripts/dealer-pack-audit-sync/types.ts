@@ -8,7 +8,7 @@ export interface PackImageBaseline {
   id: string;
   publicId: string;
   order: number;
-  provider: "CLOUDINARY" | "EXTERNAL";
+  provider: "CLOUDINARY" | "EXTERNAL" | "IMAGEKIT";
 }
 
 export interface PackListingBaseline {

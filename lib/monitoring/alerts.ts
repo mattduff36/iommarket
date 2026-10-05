@@ -60,6 +60,13 @@ export async function dispatchMonitoringAlerts(input: {
   reopened?: boolean;
   previousLastSeenAt?: Date | null;
 }) {
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({
+    tables: [
+      { table: "MonitoringIssue", rowKey: input.issueId },
+      { table: "MonitoringEvent", rowKey: input.eventId },
+    ],
+  });
   try {
     const [issue, event, minSeverity, cooldownMinutes, emailRecipients, webhookUrl] = await Promise.all([
       db.monitoringIssue.findUnique({ where: { id: input.issueId } }),

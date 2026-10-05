@@ -24,6 +24,7 @@ const {
   isDemoDealerSubscriptionCheckoutConfiguredMock,
   revalidatePathMock,
   setCookieMock,
+  persistCheckoutAttemptMock,
   mockDb,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
@@ -43,6 +44,7 @@ const {
   isDemoDealerSubscriptionCheckoutConfiguredMock: vi.fn(),
   revalidatePathMock: vi.fn(),
   setCookieMock: vi.fn(),
+  persistCheckoutAttemptMock: vi.fn(),
   mockDb: {
     listing: {
       findUnique: vi.fn(),
@@ -56,6 +58,7 @@ const {
     },
     subscription: {
       findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     payment: {
       findFirst: vi.fn(),
@@ -103,6 +106,9 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ set: setCookieMock }) }
 vi.mock("@/lib/payments/webhook-processing", () => ({
   processProviderWebhookEvent: processProviderWebhookEventMock,
 }));
+vi.mock("@/lib/payments/checkout-attempts", () => ({
+  persistCheckoutAttempt: persistCheckoutAttemptMock,
+}));
 
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: checkRateLimitMock,
@@ -139,6 +145,7 @@ import {
 describe("payForListing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDb.subscription.findMany.mockResolvedValue([]);
     vi.stubEnv("RIPPLE_REFERENCE_SECRET", "test-checkout-context-secret-at-least-32-characters");
 
     delete process.env.RIPPLE_LISTING_SUPPORT_URL;
@@ -148,6 +155,13 @@ describe("payForListing", () => {
       id: "user_123",
       email: "seller@example.com",
     });
+    persistCheckoutAttemptMock.mockImplementation((input) =>
+      Promise.resolve({
+        id: "attempt-1",
+        status: "OPEN",
+        ...input,
+      }),
+    );
     checkRateLimitMock.mockReturnValue({ allowed: true });
     makeRateLimitKeyMock.mockReturnValue("checkout-listing:user_123");
     isPrivateListingFreeForUserMock.mockResolvedValue(true);
@@ -578,11 +592,14 @@ describe("payForListing", () => {
       title: "Taken down listing",
       dealer: { tier: "STARTER" },
     });
-    mockDb.subscription.findFirst.mockResolvedValue({
-      id: "sub-paid",
-      source: "PAYMENT",
-      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
-    });
+    mockDb.subscription.findMany.mockResolvedValue([
+      {
+        id: "sub-paid",
+        source: "PAYMENT",
+        providerPlanId: "8181FAC1359E413E",
+        currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+      },
+    ]);
     mockDb.payment.findFirst.mockResolvedValue(null);
     mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
 
@@ -615,11 +632,14 @@ describe("payForListing", () => {
       title: "Demoted listing",
       dealer: { tier: "STARTER" },
     });
-    mockDb.subscription.findFirst.mockResolvedValue({
-      id: "sub-paid",
-      source: "PAYMENT",
-      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
-    });
+    mockDb.subscription.findMany.mockResolvedValue([
+      {
+        id: "sub-paid",
+        source: "PAYMENT",
+        providerPlanId: "8181FAC1359E413E",
+        currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+      },
+    ]);
     mockDb.payment.findFirst.mockResolvedValue(null);
     mockDb.freeListingClaim.findUnique.mockResolvedValue(null);
 
@@ -779,7 +799,10 @@ describe("createDealerSubscription", () => {
         acceptedDealerTerms: true,
       }),
     ).resolves.toEqual({
-      data: { checkoutUrl: "https://portal.startyourripple.co.uk/card/client/pay/C5D44F6F18094B94" },
+      data: {
+        checkoutUrl:
+          "https://portal.startyourripple.co.uk/card/client/pay/C5D44F6F18094B94?reference=signed-subscription-reference",
+      },
     });
 
     expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(

@@ -253,8 +253,6 @@ function remapRow(
   if (table === "DealerProfile") {
     row.userId = mapRef(mappings, "User", value(row, "userId"), context, blockers);
     if (!row.userId) return null;
-    row.isAdminPreview = false;
-    row.tier = "STARTER";
   }
   if (table === "Listing") {
     const userId = mapRef(mappings, "User", value(row, "userId"), context, blockers);
@@ -266,20 +264,6 @@ function remapRow(
     row.dealerId = dealerId;
     row.categoryId = categoryId;
     row.regionId = regionId;
-    row.previewPackId = null;
-    row.featured = false;
-    row.viewCount = 0;
-    row.trustDeclarationAccepted = false;
-    row.trustDeclarationAcceptedAt = null;
-    row.photoRevision = 0;
-    row.lastPhotoMutationId = null;
-    row.lastPhotoMutationHash = null;
-    row.lifecycleRevision = 0;
-    row.retentionPurgedAt = null;
-    row.reviewState = "NONE";
-    row.reviewReasons = [];
-    row.reviewSourceIdentity = null;
-    row.reviewSourceUrl = null;
   }
   if (table === "ListingImage") {
     const listingId = mapRef(mappings, "Listing", value(row, "listingId"), context, blockers);

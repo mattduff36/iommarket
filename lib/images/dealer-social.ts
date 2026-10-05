@@ -1,3 +1,5 @@
+import { readMediaProviderMode } from "@/lib/media/config";
+import { dealerLogoDeliveryUrl, isExactlyMappedDealerLogo } from "@/lib/media/dealer-logo-delivery";
 import { createElement } from "react";
 import { ImageResponse } from "next/og";
 import { downloadSafeRemoteImage } from "@/lib/images/safe-remote-image";
@@ -14,6 +16,7 @@ export function isAllowedDealerLogoUrl(value: string): boolean {
     if (url.origin === PRODUCTION_PUBLIC_ASSET_ORIGIN || (storage && url.origin === new URL(storage).origin)) {
       return url.pathname.startsWith("/storage/v1/object/public/user-avatars/");
     }
+    if (readMediaProviderMode() !== "cloudinary" && isExactlyMappedDealerLogo(value)) return true;
     const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     return Boolean(cloud && url.hostname === "res.cloudinary.com" &&
       (url.pathname.startsWith(`/${cloud}/image/upload/`) ||
@@ -25,9 +28,8 @@ export function isAllowedDealerLogoUrl(value: string): boolean {
 
 export async function renderDealerSocialImage(name: string, logoUrl: string): Promise<ArrayBuffer> {
   if (!isAllowedDealerLogoUrl(logoUrl)) throw new Error("Dealer logo is not an approved image source.");
-  const deliveryUrl = new URL(logoUrl);
-  deliveryUrl.hash = "";
-  const downloaded = await downloadSafeRemoteImage({ url: deliveryUrl.toString(), maxBytes: 5 * 1024 * 1024, timeoutMs: 5_000 });
+  const deliveryUrl = dealerLogoDeliveryUrl(logoUrl);
+  const downloaded = await downloadSafeRemoteImage({ url: deliveryUrl, maxBytes: 5 * 1024 * 1024, timeoutMs: 5_000 });
   const image = `data:${downloaded.contentType};base64,${downloaded.bytes.toString("base64")}`;
   const response = new ImageResponse(
     createElement("div", { style: {

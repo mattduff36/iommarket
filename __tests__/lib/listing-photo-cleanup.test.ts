@@ -187,7 +187,9 @@ describe("PHOTO-ORPHAN-001 listing photo cleanup", () => {
     await processListingImageCleanupJobs();
 
     const where = cleanupFindMany.mock.calls[0]?.[0]?.where;
-    const holdFilter = where.AND[1].OR;
+    const holdFilter = where.AND.find((filter: { OR?: Array<{ reason?: { not?: { startsWith?: string } } }> }) =>
+      filter.OR?.some((item) => item.reason?.not?.startsWith === "dealer-pack-production-sync:")
+    )?.OR;
     expect(holdFilter).toContainEqual({
       reason: { not: { startsWith: "dealer-pack-production-sync:" } },
     });

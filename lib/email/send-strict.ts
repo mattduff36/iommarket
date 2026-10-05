@@ -10,6 +10,8 @@ export async function sendStrictResendEmail(input: {
   replyTo?: string;
 }): Promise<{ id: string }> {
   if (isSyntheticEmailRecipient(input.to)) throw new Error("Email delivery is disabled for synthetic development identities.");
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ emails: [input.to] });
   const resend = getResendClient();
   if (!resend) {
     throw new Error("Email delivery is not configured.");

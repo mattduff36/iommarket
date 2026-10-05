@@ -8,12 +8,18 @@ const {
   inboxFindMany,
   inboxUpdateMany,
   inboxCreate,
+  inboxQueryRaw,
+  inboxExecuteRaw,
+  inboxTransaction,
   processProviderWebhookEvent,
 } = vi.hoisted(() => ({
   inboxFindUnique: vi.fn(),
   inboxFindMany: vi.fn(),
   inboxUpdateMany: vi.fn(),
   inboxCreate: vi.fn(),
+  inboxQueryRaw: vi.fn(),
+  inboxExecuteRaw: vi.fn(),
+  inboxTransaction: vi.fn(),
   processProviderWebhookEvent: vi.fn(),
 }));
 
@@ -25,6 +31,9 @@ vi.mock("@/lib/db", () => ({
       updateMany: inboxUpdateMany,
       create: inboxCreate,
     },
+    $queryRaw: inboxQueryRaw,
+    $executeRaw: inboxExecuteRaw,
+    $transaction: inboxTransaction,
   },
 }));
 
@@ -102,6 +111,15 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     installRippleTestEnv();
     vi.clearAllMocks();
     inboxUpdateMany.mockResolvedValue({ count: 1 });
+    inboxTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        paymentWebhookInbox: {
+          findUnique: inboxFindUnique,
+          create: inboxCreate,
+        },
+        $executeRaw: inboxExecuteRaw,
+      }),
+    );
   });
 
   it("persists a minimized PENDING row before business processing", async () => {
@@ -131,6 +149,37 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     expect(created).not.toHaveProperty("signature");
     expect(created).not.toHaveProperty("rawSignature");
     expect(processProviderWebhookEvent).toHaveBeenCalledOnce();
+  });
+
+  it("PAY-REV-004 locks the provider payment before storing a refund receipt", async () => {
+    const order: string[] = [];
+    inboxFindUnique.mockResolvedValue(null);
+    inboxExecuteRaw.mockImplementation(async () => {
+      order.push("lock");
+      return 0;
+    });
+    inboxCreate.mockImplementation(async () => {
+      order.push("create");
+      return { id: "inbox-refund", status: "PENDING" };
+    });
+
+    await persistRippleWebhookInbox({
+      rawBody: "refund",
+      event: {
+        ...listingEvent(),
+        type: "payment.refunded",
+        rawType: "payment.refunded",
+      },
+      minimized,
+      customerEmailNorm: null,
+    });
+
+    expect(order).toEqual(["lock", "create"]);
+    expect(inboxTransaction).toHaveBeenCalledOnce();
+    const [statement, key] = inboxExecuteRaw.mock.calls[0] as [TemplateStringsArray, string];
+    expect(statement.join("")).toContain("pg_advisory_xact_lock(hashtextextended(");
+    expect(key).toBe("pay-1");
+    expect(inboxQueryRaw).not.toHaveBeenCalled();
   });
 
   it("uses original verified relay identity so a re-signed retry reuses the inbox", async () => {

@@ -53,6 +53,7 @@ const {
     },
     subscription: {
       findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     freeListingClaim: {
       findUnique: vi.fn(),
@@ -134,6 +135,7 @@ vi.mock("@/lib/listings/photo-cleanup", () => ({
 describe("submitListingForReview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDb.subscription.findMany.mockResolvedValue([]);
     requireAuthMock.mockResolvedValue({
       id: "user_123",
       email: "seller@example.com",
@@ -578,11 +580,14 @@ describe("submitListingForReview", () => {
       images: [{ id: "image_1" }, { id: "image_2" }],
       dealer: { tier: "STARTER" },
     });
-    mockDb.subscription.findFirst.mockResolvedValue({
-      id: "sub-paid",
-      source: "PAYMENT",
-      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
-    });
+    mockDb.subscription.findMany.mockResolvedValue([
+      {
+        id: "sub-paid",
+        source: "PAYMENT",
+        providerPlanId: "8181FAC1359E413E",
+        currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+      },
+    ]);
     mockDb.freeListingClaim.findUnique.mockResolvedValue({
       id: "claim_1",
       userId: "user_123",
@@ -633,11 +638,14 @@ describe("submitListingForReview", () => {
       images: [{ id: "image_1" }, { id: "image_2" }],
       dealer: { tier: "STARTER" },
     });
-    mockDb.subscription.findFirst.mockResolvedValue({
-      id: "sub-paid",
-      source: "PAYMENT",
-      currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
-    });
+    mockDb.subscription.findMany.mockResolvedValue([
+      {
+        id: "sub-paid",
+        source: "PAYMENT",
+        providerPlanId: "8181FAC1359E413E",
+        currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+      },
+    ]);
     getOpenRevisionMock.mockResolvedValue({
       id: "revision_1",
       status: "DRAFT",

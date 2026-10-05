@@ -10,6 +10,7 @@ import {
 import { FavouriteToggle } from "@/components/marketplace/favourite-toggle";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
 import { PreviewReviewImagePlaceholder } from "@/components/preview/preview-review-image-placeholder";
+import { LISTING_CARD_SIZES } from "@/lib/images/delivery-widths";
 import { toListingPhotoSource, type ListingPhotoSource } from "@/lib/images/photo";
 import { NEEDS_MANUAL_REVIEW_BADGE } from "@/lib/preview-packs/review-labels";
 
@@ -105,8 +106,7 @@ const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
               fillContainer
               alt={imageAlt ?? title}
               sizes={
-                imageSizes ??
-                "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                imageSizes ?? LISTING_CARD_SIZES
               }
               imageClassName={`transition-transform duration-fast group-hover:scale-[1.02]${sold ? " brightness-75" : ""}`}
             />

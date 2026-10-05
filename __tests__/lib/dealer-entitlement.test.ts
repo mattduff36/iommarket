@@ -4,12 +4,14 @@ const { mockDb } = vi.hoisted(() => ({
   mockDb: {
     subscription: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 
+import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 import {
   getAdminGrantState,
   getCurrentDealerEntitlement,
@@ -26,16 +28,16 @@ const NOW = new Date("2026-07-20T20:00:00.000Z");
 describe("dealer entitlement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDb.subscription.findMany.mockResolvedValue([]);
   });
 
   it("accepts a current admin grant for a dealer role and profile", async () => {
-    mockDb.subscription.findFirst
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: "grant-1",
-        source: "ADMIN_GRANT",
-        grantEndsAt: new Date("2026-08-19T20:00:00.000Z"),
-      });
+    mockDb.subscription.findMany.mockResolvedValueOnce([]);
+    mockDb.subscription.findFirst.mockResolvedValueOnce({
+      id: "grant-1",
+      source: "ADMIN_GRANT",
+      grantEndsAt: new Date("2026-08-19T20:00:00.000Z"),
+    });
 
     const entitlement = await getCurrentDealerEntitlement(
       {
@@ -51,12 +53,12 @@ describe("dealer entitlement", () => {
       tier: "STARTER",
       endsAt: new Date("2026-08-19T20:00:00.000Z"),
     });
-    expect(mockDb.subscription.findFirst).toHaveBeenNthCalledWith(1, {
+    expect(mockDb.subscription.findMany).toHaveBeenCalledWith({
       where: {
         dealerId: "dealer-1",
         ...getPaidSubscriptionEntitlementWhere(NOW),
       },
-      select: { id: true, source: true, currentPeriodEnd: true },
+      select: { id: true, source: true, currentPeriodEnd: true, providerPlanId: true },
     });
     expect(mockDb.subscription.findFirst).toHaveBeenLastCalledWith({
       where: {
@@ -217,26 +219,60 @@ describe("dealer entitlement", () => {
   });
 
   it("gives active paid access precedence over a grant", async () => {
-    mockDb.subscription.findFirst
-      .mockResolvedValueOnce({
-        id: "paid-1",
+    mockDb.subscription.findMany.mockResolvedValueOnce([
+      {
+        id: "paid-starter",
         source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.starter.code,
         currentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
-      })
-      .mockResolvedValueOnce({
-        id: "grant-1",
-        source: "ADMIN_GRANT",
-        grantEndsAt: new Date("2027-01-01T00:00:00.000Z"),
-      });
+      },
+      {
+        id: "paid-pro",
+        source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+        currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+      },
+    ]);
 
     await expect(
-      getDealerEntitlement("dealer-1", "PRO", NOW)
+      getDealerEntitlement("dealer-1", "STARTER", NOW)
     ).resolves.toEqual({
-      subscriptionId: "paid-1",
+      subscriptionId: "paid-pro",
       source: "PAYMENT",
       tier: "PRO",
+      endsAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+  });
+
+  it("does not treat a Pro profile label as paid Pro access", async () => {
+    mockDb.subscription.findMany.mockResolvedValueOnce([
+      {
+        id: "paid-starter",
+        source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.starter.code,
+        currentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
+      },
+    ]);
+
+    await expect(getDealerEntitlement("dealer-1", "PRO", NOW)).resolves.toEqual({
+      subscriptionId: "paid-starter",
+      source: "PAYMENT",
+      tier: "STARTER",
       endsAt: new Date("2026-08-01T00:00:00.000Z"),
     });
+  });
+
+  it("does not grant paid access from the profile tier when the plan cannot be resolved", async () => {
+    mockDb.subscription.findMany.mockResolvedValueOnce([
+      {
+        id: "paid-unknown",
+        source: "PAYMENT",
+        providerPlanId: "not-a-product",
+        currentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
+      },
+    ]);
+
+    await expect(getDealerEntitlement("dealer-1", "PRO", NOW)).resolves.toBeNull();
   });
 });
 

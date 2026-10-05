@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -23,13 +24,14 @@ import {
   getPaymentDisplayId,
   getProviderLabel,
   getSubscriptionDisplayId,
-  isPaidSubscriptionRecord,
+  recognisedSubscriptionChargeWhere,
 } from "@/lib/payments/records";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import {
   applySamplePaymentVisibility,
   applySampleSubscriptionVisibility,
 } from "@/lib/listings/sample-related-visibility";
+import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 
 export const metadata: Metadata = { title: "Revenue" };
 
@@ -65,9 +67,25 @@ function MetricCard({ label, value }: { label: string; value: string | number })
 
 export default async function AdminRevenuePage() {
   const sampleVisibility = await getSampleVisibility();
-  const [payments, subscriptions, totals] = await Promise.all([
+  const visibleSubscriptionWhere = applySampleSubscriptionVisibility(
+    {},
+    sampleVisibility,
+  );
+  const [
+    payments,
+    subscriptions,
+    paymentTotals,
+    chargeTotals,
+    attempts,
+    attemptTotals,
+    activePaidSubscriptions,
+  ] =
+    await Promise.all([
     db.payment.findMany({
-      where: applySamplePaymentVisibility({}, sampleVisibility),
+      where: applySamplePaymentVisibility(
+        { status: "SUCCEEDED", refundedAt: null },
+        sampleVisibility,
+      ),
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
@@ -75,7 +93,7 @@ export default async function AdminRevenuePage() {
       },
     }),
     db.subscription.findMany({
-      where: applySampleSubscriptionVisibility({}, sampleVisibility),
+      where: visibleSubscriptionWhere,
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
@@ -84,39 +102,129 @@ export default async function AdminRevenuePage() {
     }),
     db.payment.aggregate({
       where: applySamplePaymentVisibility(
-        { status: "SUCCEEDED" },
+        { status: "SUCCEEDED", refundedAt: null },
         sampleVisibility,
       ),
       _sum: { amount: true },
       _count: true,
     }),
+    db.subscriptionCharge.aggregate({
+      where: {
+        ...recognisedSubscriptionChargeWhere(),
+        subscription: { is: visibleSubscriptionWhere },
+      },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    db.paymentCheckoutAttempt.findMany({
+      where: { status: { in: ["OPEN", "RETURNED", "REVIEW"] } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        payment: {
+          select: {
+            amount: true,
+            listing: { select: { title: true } },
+          },
+        },
+        _count: { select: { observations: true } },
+      },
+    }),
+    db.paymentCheckoutAttempt.aggregate({
+      where: { status: { in: ["OPEN", "RETURNED", "REVIEW"] } },
+      _sum: { amountPence: true },
+      _count: true,
+    }),
+    db.subscription.count({
+      where: {
+        ...visibleSubscriptionWhere,
+        ...getPaidSubscriptionEntitlementWhere(),
+      },
+    }),
   ]);
 
-  const totalRevenue = (totals._sum.amount ?? 0) / 100;
-  const activePaidSubscriptions = subscriptions.filter(
-    (subscription) =>
-      isPaidSubscriptionRecord(subscription) &&
-      subscription.status === "ACTIVE",
-  ).length;
-
+  const totalRevenue =
+    ((paymentTotals._sum.amount ?? 0) + (chargeTotals._sum.amount ?? 0)) / 100;
   return (
     <>
       <AdminPageHeader
         title="Revenue"
-        description="Review marketplace payments, provider references, and dealer subscription access."
-        meta={<span>Showing the 50 most recent records in each feed</span>}
+        description="Recognized revenue includes only provider-verified payments and charges."
+        meta={
+          <span>
+            Generated {new Date().toLocaleString("en-GB")} ·{" "}
+            <Link href="/admin/revenue">Refresh</Link>
+          </span>
+        }
       />
 
-      <div className="mb-8 grid gap-3 sm:grid-cols-3">
+      <div className="mb-8 grid gap-3 sm:grid-cols-4">
         <MetricCard label="Total revenue" value={`£${totalRevenue.toLocaleString()}`} />
-        <MetricCard label="Successful payments" value={totals._count} />
+        <MetricCard
+          label="Recognized charges"
+          value={paymentTotals._count + chargeTotals._count}
+        />
         <MetricCard label="Active paid subscriptions" value={activePaidSubscriptions} />
+        <MetricCard
+          label="Unresolved checkouts"
+          value={`${attemptTotals._count} (£${((attemptTotals._sum.amountPence ?? 0) / 100).toFixed(2)})`}
+        />
       </div>
 
-      {/* Payments */}
+      {attempts.length > 0 ? (
+        <section
+          className="mb-8"
+          aria-labelledby="unresolved-checkouts-heading"
+        >
+          <h2
+            id="unresolved-checkouts-heading"
+            className="mb-1 text-sm font-semibold text-text-primary"
+          >
+            Unresolved checkout activity
+          </h2>
+          <p className="mb-3 text-xs text-text-secondary">
+            These attempts are not recognized revenue until verified
+            reconciliation completes.
+          </p>
+          <AdminTable minWidth="wide">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Listing / product</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>State</TableHead>
+                <TableHead>Browser return</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {attempts.map((attempt) => (
+                <TableRow key={attempt.id}>
+                  <TableCell className={adminDateCellClass}>
+                    {attempt.createdAt.toLocaleDateString("en-GB")}
+                  </TableCell>
+                  <TableCell>
+                    {attempt.payment?.listing.title ?? attempt.productCode}
+                  </TableCell>
+                  <TableCell className={adminNumericCellClass}>
+                    £{(attempt.amountPence / 100).toFixed(2)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="warning">{attempt.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-text-tertiary">
+                    {attempt._count.observations > 0 ? "Observed" : "None"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </AdminTable>
+        </section>
+      ) : null}
+
+      {/* Recognized payments */}
       <section aria-labelledby="recent-payments-heading">
         <h2 id="recent-payments-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Recent payments
+          Recognized listing payments
         </h2>
         <AdminTable minWidth="wide">
           <TableHeader>
@@ -158,7 +266,7 @@ export default async function AdminRevenuePage() {
             ))}
             {payments.length === 0 ? (
               <TableRow>
-                <AdminTableEmpty colSpan={6}>No payments have been recorded yet.</AdminTableEmpty>
+                <AdminTableEmpty colSpan={6}>No verified payments have been recognized yet.</AdminTableEmpty>
               </TableRow>
             ) : null}
           </TableBody>

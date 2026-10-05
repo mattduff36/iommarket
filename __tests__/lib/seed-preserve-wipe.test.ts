@@ -6,7 +6,11 @@ import {
   isPlaceholderAuthUserId,
   isPreservedAuthUserId,
 } from "../../prisma/seed/preserve";
-import { assertWipePlanBoundaries, getWipePlan } from "../../prisma/seed/wipe";
+import {
+  assertWipePlanBoundaries,
+  getWipePlan,
+  wipeMarketplace,
+} from "../../prisma/seed/wipe";
 
 describe("SEED-PRESERVE-001", () => {
   it("treats placeholder auth IDs as wipeable and real UUIDs as preserved", () => {
@@ -83,5 +87,34 @@ describe("SEED-WIPE-001", () => {
     expect(plan.order.some((table) => plan.denylist.includes(table as never))).toBe(
       false,
     );
+  });
+
+  it("deletes payment reconciliation state before marketplace principals", async () => {
+    const calls: string[] = [];
+    const tx = new Proxy(
+      {},
+      {
+        get(_target, model) {
+          return {
+            deleteMany: async () => {
+              calls.push(String(model));
+            },
+          };
+        },
+      },
+    );
+
+    await wipeMarketplace(tx as never, []);
+
+    for (const table of [
+      "paymentReconciliation",
+      "providerPaymentClaim",
+      "paymentCheckoutObservation",
+      "paymentCheckoutAttempt",
+    ]) {
+      expect(calls).toContain(table);
+      expect(calls.indexOf(table)).toBeLessThan(calls.indexOf("payment"));
+      expect(calls.indexOf(table)).toBeLessThan(calls.indexOf("user"));
+    }
   });
 });

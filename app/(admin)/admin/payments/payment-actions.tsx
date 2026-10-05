@@ -6,7 +6,10 @@ import {
   AdminActionBar,
   AdminActionButton,
 } from "@/components/admin/admin-action-controls";
-import { adminRefundPayment } from "@/actions/admin/payments";
+import {
+  adminReconcileRipplePayment,
+  adminRefundPayment,
+} from "@/actions/admin/payments";
 
 interface RefundButtonProps {
   paymentId: string;
@@ -114,6 +117,121 @@ export function RefundButton({
         </AdminActionBar>
       )}
       {error && <p className="text-xs text-text-error">{error}</p>}
+    </div>
+  );
+}
+
+export function ReconcileRippleButton({
+  paymentId,
+}: {
+  paymentId: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [providerPaymentId, setProviderPaymentId] = useState("");
+  const [providerEventAt, setProviderEventAt] = useState("");
+  const [notes, setNotes] = useState("");
+  const [contractConfirmed, setContractConfirmed] = useState(false);
+  const [paidConfirmed, setPaidConfirmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const result = await adminReconcileRipplePayment({
+        paymentId,
+        providerPaymentId,
+        providerEventAt: new Date(providerEventAt),
+        confirmedAmountCurrencyProduct: contractConfirmed as true,
+        confirmedCurrentlyPaidAndNotRefunded: paidConfirmed as true,
+        notes,
+      });
+      if (result.error) {
+        setError(
+          typeof result.error === "string"
+            ? result.error
+            : "Check every recovery field.",
+        );
+        return;
+      }
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  if (!open) {
+    return (
+      <AdminActionButton onClick={() => setOpen(true)} tone="warning">
+        Reconcile
+      </AdminActionButton>
+    );
+  }
+
+  return (
+    <div className="w-80 space-y-2 rounded-lg border border-warning/30 bg-surface p-3">
+      <p className="text-xs text-text-secondary">
+        Enter evidence copied from Ripple. The browser return reference alone
+        is not proof of payment.
+      </p>
+      <input
+        aria-label="Ripple payment job reference"
+        value={providerPaymentId}
+        onChange={(event) => setProviderPaymentId(event.target.value)}
+        placeholder="Payment job reference"
+        inputMode="numeric"
+        className="h-8 w-full rounded-md border border-border bg-surface px-2 text-xs"
+      />
+      <input
+        aria-label="Ripple payment time"
+        type="datetime-local"
+        value={providerEventAt}
+        onChange={(event) => setProviderEventAt(event.target.value)}
+        className="h-8 w-full rounded-md border border-border bg-surface px-2 text-xs"
+      />
+      <textarea
+        aria-label="Reconciliation notes"
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+        placeholder="Portal evidence and reason for manual recovery"
+        className="min-h-16 w-full rounded-md border border-border bg-surface p-2 text-xs"
+      />
+      <label className="flex gap-2 text-xs text-text-secondary">
+        <input
+          type="checkbox"
+          checked={contractConfirmed}
+          onChange={(event) => setContractConfirmed(event.target.checked)}
+        />
+        Amount, GBP currency, product, listing and merchant reference match.
+      </label>
+      <label className="flex gap-2 text-xs text-text-secondary">
+        <input
+          type="checkbox"
+          checked={paidConfirmed}
+          onChange={(event) => setPaidConfirmed(event.target.checked)}
+        />
+        Ripple currently shows paid and not refunded.
+      </label>
+      <AdminActionBar>
+        <AdminActionButton
+          onClick={submit}
+          disabled={
+            isPending ||
+            !providerPaymentId ||
+            !providerEventAt ||
+            !notes.trim() ||
+            !contractConfirmed ||
+            !paidConfirmed
+          }
+          tone="warning"
+        >
+          Confirm recovery
+        </AdminActionButton>
+        <AdminActionButton onClick={() => setOpen(false)} disabled={isPending}>
+          Cancel
+        </AdminActionButton>
+      </AdminActionBar>
+      {error ? <p className="text-xs text-text-error">{error}</p> : null}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
-import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
+import { cleanupDeliveryForRemovedImage } from "@/lib/media/stored-image";
 import { reportHandledException } from "@/lib/monitoring";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { applySampleListingImageVisibility } from "@/lib/listings/sample-related-visibility";
@@ -70,6 +70,8 @@ export async function adminDeleteImage(imageId: string) {
           listingId: true,
           publicId: true,
           provider: true,
+          imageKitFileId: true,
+          imageKitFilePath: true,
         },
       });
       if (!current) {
@@ -109,14 +111,14 @@ export async function adminDeleteImage(imageId: string) {
         );
       }
 
-      if (
-        current.provider === "CLOUDINARY" &&
-        current.publicId.startsWith(`${IMAGE_CONSTRAINTS.folder}/`)
-      ) {
+      const cleanup = cleanupDeliveryForRemovedImage(current);
+      if (cleanup) {
         await tx.listingImageCleanupJob.create({
           data: {
-            publicId: current.publicId,
-            deliveryType: IMAGE_CONSTRAINTS.deliveryType,
+            publicId: cleanup.publicId,
+            deliveryType: cleanup.deliveryType,
+            imageKitFileId: cleanup.imageKitFileId,
+            imageKitFilePath: cleanup.imageKitFilePath,
             reason: "admin-deleted",
           },
         });

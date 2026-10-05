@@ -19,6 +19,7 @@ export const RIPPLE_EVENT_TYPES = [
   "payment.received",
   "payment.success",
   "payment.failed",
+  "payment.refunded",
   "subscription.created",
   "subscription.cancelled",
   "subscription.paused",
@@ -98,6 +99,8 @@ function mapRippleEventType(rawType: string): ProviderWebhookEventType {
       return "payment.succeeded";
     case "payment.failed":
       return "payment.failed";
+    case "payment.refunded":
+      return "payment.refunded";
     case "subscription.created":
       return "subscription.created";
     case "subscription.cancelled":

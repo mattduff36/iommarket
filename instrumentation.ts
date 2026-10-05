@@ -1,4 +1,5 @@
 import type { Instrumentation } from "next";
+import { assertPairedMediaProvider } from "@/lib/media/provider-config";
 import { assertPolicyFlagsValid } from "@/lib/policy/flags";
 
 /**
@@ -16,6 +17,7 @@ import { assertPolicyFlagsValid } from "@/lib/policy/flags";
  */
 export function register() {
   assertPolicyFlagsValid();
+  assertPairedMediaProvider();
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (

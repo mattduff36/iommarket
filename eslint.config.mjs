@@ -27,5 +27,8 @@ export default defineConfig([
     "coverage/**",
     "next-env.d.ts",
     "private/**",
+    ".local/**",
+    "public/vendor/**",
+    "tmp/**",
   ]),
 ]);

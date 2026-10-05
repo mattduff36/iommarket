@@ -1,3 +1,4 @@
+import { readMediaUploadProvider } from "@/lib/media/upload-provider";
 import { createHash } from "node:crypto";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
 
@@ -140,6 +141,8 @@ export async function deleteImage(
 ): Promise<void> {
   // These are read-only production references, never Cloudinary-owned assets.
   if (publicId.startsWith("database-sync/")) return;
+  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+  await assertExternalEffectAllowed({ mediaIds: [publicId] });
   const config = requireCloudinaryConfig();
   const timestamp = Math.round(Date.now() / 1000);
   const params = {
@@ -188,6 +191,9 @@ export function createSignedListingUpload({
   timestamp?: number;
   overwrite?: boolean;
 }) {
+  if (readMediaUploadProvider() !== "cloudinary") {
+    throw new Error("This legacy Cloudinary uploader is disabled because ImageKit is the selected write provider.");
+  }
   const config = requireCloudinaryConfig();
   const params = {
     image_metadata: "false",

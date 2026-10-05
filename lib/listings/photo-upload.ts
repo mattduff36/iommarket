@@ -1,6 +1,12 @@
+import { readMediaUploadProvider } from "@/lib/media/upload-provider";
+import { issueManagedImageKitUploadIntent, type ManagedUploadInput } from "@/lib/media/managed-upload";
+import { MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
 import { IMAGE_CONSTRAINTS, isAllowedListingImageFormat, validateListingImageBounds } from "@/lib/images/constraints";
 import { isTrustedListingPublicId } from "@/lib/images/cloudinary-url";
 import { db } from "@/lib/db";
+import { imageKitDevUploadsEnabled } from "@/lib/media/config";
+import { disposableFolderForUser } from "@/lib/media/disposable-media";
+import { imageKitDevPublicId } from "@/lib/media/delete-guard";
 import {
   createSignedListingUpload,
   getCloudinaryResource,
@@ -12,7 +18,15 @@ export function createListingUploadPublicId(userId: string, intentId: string) {
   return `${IMAGE_CONSTRAINTS.folder}/staging/${userId}/${intentId}`;
 }
 
-export async function issueListingImageUploadIntent(userId: string) {
+export async function issueListingImageUploadIntent(userId: string, input?: ManagedUploadInput) {
+  if (readMediaUploadProvider() === "imagekit") {
+    if (process.env.IMAGEKIT_UPLOADS_ENABLED === "1") {
+      if (!input) throw new Error("Image metadata is required to start this upload.");
+      return issueManagedImageKitUploadIntent(userId, input);
+    }
+    if (imageKitDevUploadsEnabled()) return issueImageKitListingUploadIntent(userId);
+    throw new Error("ImageKit uploads are not enabled for this environment. No Cloudinary upload was issued.");
+  }
   const expiresAt = new Date(Date.now() + INTENT_TTL_MS);
   const intent = await db.listingImageUploadIntent.create({
     data: {
@@ -35,6 +49,84 @@ export async function issueListingImageUploadIntent(userId: string) {
   };
 }
 
+async function issueImageKitListingUploadIntent(userId: string) {
+  const expiresAt = new Date(Date.now() + INTENT_TTL_MS);
+  const intent = await db.listingImageUploadIntent.create({
+    data: {
+      userId,
+      publicId: `imagekit-dev/pending-${crypto.randomUUID()}`,
+      folder: "/iommarket-dev-disposable/pending",
+      deliveryType: "imagekit",
+      expiresAt,
+    },
+  });
+  const folder = disposableFolderForUser(userId, intent.id);
+  const updated = await db.listingImageUploadIntent.update({
+    where: { id: intent.id },
+    data: { publicId: `imagekit-dev/pending-${intent.id}`, folder },
+  });
+  return {
+    intent: updated,
+    upload: {
+      provider: "imagekit" as const,
+      uploadUrl: "/api/listing-images/imagekit-upload",
+    },
+  };
+}
+
+export async function verifyImageKitListingUpload(input: {
+  userId: string;
+  intentId: string;
+  fileId: string;
+  filePath: string;
+  width: number;
+  height: number;
+  format: string;
+  bytes: number;
+}) {
+  const intent = await db.listingImageUploadIntent.findUnique({ where: { id: input.intentId } });
+  if (!intent || intent.userId !== input.userId || intent.deliveryType !== "imagekit") {
+    return { error: "Upload not found." };
+  }
+  if (intent.status === "VERIFIED") {
+    return intent.imageKitFileId === input.fileId && intent.imageKitFilePath === input.filePath
+      ? { data: intent }
+      : { error: "This upload was already verified with a different file." };
+  }
+  if (intent.status !== "ISSUED") return { error: "This upload can no longer be verified." };
+  if (intent.expiresAt.getTime() <= Date.now()) return { error: "This upload expired. Please try again." };
+  if (!["jpg", "png", "webp"].includes(input.format)) return { error: "ImageKit uploads must be JPG, PNG, or WebP." };
+  const boundsError = validateListingImageBounds(input);
+  if (boundsError) return { error: boundsError };
+  if (input.filePath.includes("..") || /[\\?#%]/.test(input.filePath)) {
+    return { error: "The uploaded file path is invalid." };
+  }
+  if (!input.filePath.startsWith(`${intent.folder}/`) && input.filePath !== intent.folder) {
+    return { error: "The uploaded file does not match this request." };
+  }
+  const verifiedData = {
+    status: "VERIFIED" as const,
+    publicId: imageKitDevPublicId(input.fileId),
+    assetId: input.fileId,
+    folder: input.filePath,
+    version: "1",
+    width: input.width,
+    height: input.height,
+    format: input.format,
+    bytes: input.bytes,
+    deliveryType: "imagekit",
+    imageKitFileId: input.fileId,
+    imageKitFilePath: input.filePath,
+    expiresAt: new Date(Date.now() + INTENT_TTL_MS),
+  };
+  const verified = await db.listingImageUploadIntent.updateMany({
+    where: { id: intent.id, status: "ISSUED", userId: input.userId },
+    data: verifiedData,
+  });
+  if (verified.count !== 1) return { error: "This upload can no longer be verified." };
+  return { data: { ...intent, ...verifiedData } };
+}
+
 export async function finalizeListingImageUploadIntent({
   userId,
   intentId,
@@ -53,6 +145,9 @@ export async function finalizeListingImageUploadIntent({
   });
   if (!intent || intent.userId !== userId) {
     return { error: "Upload not found." };
+  }
+  if (intent.deliveryType === "imagekit" || intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE) {
+    return { error: "This upload must be verified by the ImageKit uploader." };
   }
   if (intent.status === "VERIFIED") {
     return { data: intent };

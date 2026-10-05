@@ -18,7 +18,11 @@ export function DealerLogo({
   imageClassName,
 }: DealerLogoProps) {
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
-  const hasUsableLogo = Boolean(logoUrl && failedLogoUrl !== logoUrl);
+  const providerMode = process.env.NEXT_PUBLIC_MEDIA_PROVIDER;
+  const displayUrl = logoUrl && (providerMode === "imagekit" || providerMode === "imagekit-sample") && logoUrl.includes("://res.cloudinary.com/")
+    ? `/api/media/cloudinary-ref?url=${encodeURIComponent(logoUrl)}`
+    : logoUrl;
+  const hasUsableLogo = Boolean(displayUrl && failedLogoUrl !== displayUrl);
 
   return (
     <div
@@ -27,24 +31,24 @@ export function DealerLogo({
         className,
       )}
     >
-      {hasUsableLogo && logoUrl ? (
-        isOptimizedDealerLogoUrl(logoUrl) ? (
+      {hasUsableLogo && displayUrl ? (
+        isOptimizedDealerLogoUrl(displayUrl) ? (
           <Image
-            src={logoUrl}
+            src={displayUrl}
             alt={`${dealerName} logo`}
             fill
             sizes="(max-width: 640px) 96px, 128px"
             className={cn("object-contain p-1.5", imageClassName)}
-            onError={() => setFailedLogoUrl(logoUrl)}
+            onError={() => setFailedLogoUrl(displayUrl)}
           />
         ) : (
           // Legacy external logos cannot be optimized safely without permitting arbitrary hosts.
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={logoUrl}
+            src={displayUrl}
             alt={`${dealerName} logo`}
             className={cn("h-full w-full object-contain p-1.5", imageClassName)}
-            onError={() => setFailedLogoUrl(logoUrl)}
+            onError={() => setFailedLogoUrl(displayUrl)}
           />
         )
       ) : (

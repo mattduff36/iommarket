@@ -7,7 +7,6 @@ import {
   deleteUserSchema,
   setUserRegionSchema,
   createDealerProfileSchema,
-  updateDealerProfileSchema,
   createRegionSchema,
   updateRegionSchema,
   searchPaymentsSchema,
@@ -183,16 +182,6 @@ describe("createDealerProfileSchema", () => {
   });
 });
 
-describe("updateDealerProfileSchema", () => {
-  it("accepts partial update", () => {
-    const result = updateDealerProfileSchema.safeParse({
-      dealerId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-      verified: true,
-    });
-    expect(result.success).toBe(true);
-  });
-});
-
 describe("createRegionSchema", () => {
   it("accepts valid region", () => {
     const result = createRegionSchema.safeParse({
@@ -266,6 +255,8 @@ describe("refundSubscriptionPaymentSchema", () => {
   it("accepts valid cuid", () => {
     const result = refundSubscriptionPaymentSchema.safeParse({
       subscriptionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      chargeId: "claaaaaaaaaaaaaaaaaaaaaaa",
+      operationId: "11111111-1111-4111-8111-111111111111",
       reason: "REQUESTED_BY_CUSTOMER",
     });
     expect(result.success).toBe(true);

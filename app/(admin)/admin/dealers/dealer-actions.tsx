@@ -74,6 +74,12 @@ export function DealerActions({
 
   const actions = compactAdminRowActions([
     {
+      kind: "link",
+      id: "edit-profile",
+      label: "Edit dealer profile",
+      href: `/admin/users/${userId}/profile`,
+    },
+    {
       kind: "command",
       id: "verify",
       label: verified ? "Unverify dealer" : "Verify dealer",

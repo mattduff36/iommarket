@@ -655,7 +655,7 @@ export async function deleteUser(input: DeleteUserInput) {
     await db.$transaction((tx) => assertUserCanBePurged(tx, userId, tables));
     await deleteAuthUser(user.authUserId);
     loginRemoved = true;
-    const imagePublicIds = await db.$transaction(async (tx) => {
+    const purgedMedia = await db.$transaction(async (tx) => {
       const purged = await purgeUserAccountRecords(tx, userId, tables);
       await logAdminAction(
         {
@@ -670,10 +670,10 @@ export async function deleteUser(input: DeleteUserInput) {
         },
         tx,
       );
-      return purged.imagePublicIds;
+      return purged;
     }, { timeout: 30_000 });
     profileRemoved = true;
-    await deleteAccountMedia(imagePublicIds);
+    await deleteAccountMedia(purgedMedia.imagePublicIds, purgedMedia.imageKitDisposables);
 
     revalidatePath("/admin/users");
     revalidatePath(`/admin/users/${userId}`);

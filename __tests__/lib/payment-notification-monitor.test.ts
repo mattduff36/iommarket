@@ -2,14 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
 
-const { transactionMock, dispatchMock, captureMock } = vi.hoisted(() => ({
-  transactionMock: vi.fn(),
+const { dispatchMock, captureMock, reconcileMock } = vi.hoisted(() => ({
   dispatchMock: vi.fn(),
   captureMock: vi.fn(),
+  reconcileMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
-  db: { $transaction: transactionMock },
+  db: {
+    paymentCheckoutAttempt: {
+      findUnique: vi.fn().mockResolvedValue({ id: "attempt-1" }),
+    },
+  },
+}));
+vi.mock("@/lib/payments/reconcile-payment", () => ({
+  reconcileListingPayment: reconcileMock,
 }));
 vi.mock("@/lib/email/listing-notifications", () => ({
   dispatchListingNotifications: dispatchMock,
@@ -55,7 +62,9 @@ function listingPaymentEvent(): NormalizedProviderWebhookEvent {
 describe("payment notification monitoring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    transactionMock.mockResolvedValue([{ listingId: "listing-1" }]);
+    reconcileMock.mockResolvedValue({
+      notifications: [{ listingId: "listing-1" }],
+    });
     captureMock.mockResolvedValue(null);
   });
 

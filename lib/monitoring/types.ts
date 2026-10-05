@@ -11,6 +11,7 @@ export interface MonitoringContext {
   requestMethod?: string;
   requestPath?: string;
   requestId?: string;
+  dedupeKey?: string;
   userId?: string;
   userEmail?: string;
   ipHash?: string;

@@ -12,6 +12,7 @@ import {
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableHeader,
@@ -146,12 +147,17 @@ export default async function AdminUserDetailPage({ params }: Props) {
           </>
         }
         actions={
-          <Link
-            href="/admin/users"
-            className="text-sm font-medium text-text-secondary hover:text-text-primary"
-          >
-            &larr; All users
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asChild size="sm">
+              <Link href={`/admin/users/${user.id}/profile`}>Edit profile</Link>
+            </Button>
+            <Link
+              href="/admin/users"
+              className="text-sm font-medium text-text-secondary hover:text-text-primary"
+            >
+              &larr; All users
+            </Link>
+          </div>
         }
       />
 
@@ -218,8 +224,20 @@ export default async function AdminUserDetailPage({ params }: Props) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div className="flex gap-2">
+            <span className="text-text-secondary w-32">Name:</span>
+            <span className="text-text-primary">{user.name ?? "Not set"}</span>
+          </div>
+          <div className="flex gap-2">
             <span className="text-text-secondary w-32">Email:</span>
             <span className="text-text-primary">{user.email}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-text-secondary w-32">Phone:</span>
+            <span className="text-text-primary">{user.phone ?? "Not set"}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-text-secondary w-32">Bio:</span>
+            <span className="text-text-primary">{user.bio ?? "Not set"}</span>
           </div>
           <div className="flex gap-2">
             <span className="text-text-secondary w-32">Auth User ID:</span>
@@ -309,20 +327,24 @@ export default async function AdminUserDetailPage({ params }: Props) {
                   : ""}
               </span>
             </div>
-            {user.dealerProfile.phone && (
-              <div className="flex gap-2">
-                <span className="text-text-secondary w-32">Phone:</span>
-                <span className="text-text-primary">{user.dealerProfile.phone}</span>
-              </div>
-            )}
-            {user.dealerProfile.website && (
-              <div className="flex gap-2">
-                <span className="text-text-secondary w-32">Website:</span>
+            <div className="flex gap-2">
+              <span className="text-text-secondary w-32">Phone:</span>
+              <span className="text-text-primary">{user.dealerProfile.phone ?? "Not set"}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-text-secondary w-32">Bio:</span>
+              <span className="text-text-primary">{user.dealerProfile.bio ?? "Not set"}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-text-secondary w-32">Website:</span>
+              {user.dealerProfile.website ? (
                 <a href={user.dealerProfile.website} target="_blank" rel="noopener noreferrer" className="text-neon-blue-400 hover:underline">
                   {user.dealerProfile.website}
                 </a>
-              </div>
-            )}
+              ) : (
+                <span className="text-text-primary">Not set</span>
+              )}
+            </div>
             {user.dealerProfile.subscriptions.length > 0 && (
               <div className="mt-4">
                 <p className="text-sm font-medium text-text-primary mb-2">Subscriptions</p>

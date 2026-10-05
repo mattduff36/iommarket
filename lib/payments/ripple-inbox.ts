@@ -9,6 +9,7 @@ import {
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import { hashRippleWebhookBody } from "@/lib/payments/ripple-signature";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
+import { lockProviderPayment } from "@/lib/payments/webhook-subscriptions";
 
 import { forwardRippleWebhookToStaging, shouldRelayRippleToStaging } from "@/lib/payments/ripple-staging-relay";
 
@@ -45,44 +46,60 @@ export async function persistRippleWebhookInbox(input: {
   customerEmailNorm: string | null;
 }) {
   const bodyHash = input.verifiedBodyHash ?? hashRippleWebhookBody(input.rawBody);
-  const existing = await db.paymentWebhookInbox.findUnique({
-    where: { bodyHash },
-  });
-  if (existing) return existing;
+  const providerPaymentId = input.event.providerPaymentId;
+  const locksProviderPayment =
+    input.event.type === "payment.refunded" && Boolean(providerPaymentId);
 
-  try {
-    return await db.paymentWebhookInbox.create({
-      data: {
-        bodyHash,
-        eventType: input.event.rawType,
-        eventTimestamp: input.event.eventTimestamp ?? new Date(),
-        clientId: input.event.clientId ?? "unknown",
-        paymentReference: input.event.providerPaymentId,
-        merchantReference: input.event.providerReference,
-        linkCode: input.event.linkCode,
-        packageName: input.event.packageName,
-        customerEmailNorm: input.customerEmailNorm,
-        amountPence: input.event.amount,
-        currency: input.event.currency,
-        recurring: input.event.recurring,
-        linkType: input.event.linkType,
-        minimizedPayload: input.minimized as unknown as Prisma.InputJsonValue,
-        status: "PENDING",
-        attemptCount: 0,
-      },
+  const createInbox = async (
+    client: Prisma.TransactionClient | typeof db,
+  ) => {
+    const existing = await client.paymentWebhookInbox.findUnique({
+      where: { bodyHash },
     });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      const duplicate = await db.paymentWebhookInbox.findUnique({
-        where: { bodyHash },
+    if (existing) return existing;
+
+    try {
+      return await client.paymentWebhookInbox.create({
+        data: {
+          bodyHash,
+          eventType: input.event.rawType,
+          eventTimestamp: input.event.eventTimestamp ?? new Date(),
+          clientId: input.event.clientId ?? "unknown",
+          paymentReference: input.event.providerPaymentId,
+          merchantReference: input.event.providerReference,
+          linkCode: input.event.linkCode,
+          packageName: input.event.packageName,
+          customerEmailNorm: input.customerEmailNorm,
+          amountPence: input.event.amount,
+          currency: input.event.currency,
+          recurring: input.event.recurring,
+          linkType: input.event.linkType,
+          minimizedPayload: input.minimized as unknown as Prisma.InputJsonValue,
+          status: "PENDING",
+          attemptCount: 0,
+        },
       });
-      if (duplicate) return duplicate;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const duplicate = await client.paymentWebhookInbox.findUnique({
+          where: { bodyHash },
+        });
+        if (duplicate) return duplicate;
+      }
+      throw error;
     }
-    throw error;
+  };
+
+  if (locksProviderPayment && providerPaymentId) {
+    return db.$transaction(async (tx) => {
+      await lockProviderPayment(tx, providerPaymentId);
+      return createInbox(tx);
+    });
   }
+  return createInbox(db);
 }
 
 export async function processRippleInboxRecord(inboxId: string) {

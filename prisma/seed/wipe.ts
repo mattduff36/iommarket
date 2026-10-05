@@ -71,6 +71,10 @@ export async function wipeMarketplace(
   await tx.savedSearch.deleteMany();
   await tx.listingView.deleteMany();
   await tx.report.deleteMany();
+  await tx.paymentReconciliation.deleteMany();
+  await tx.providerPaymentClaim.deleteMany();
+  await tx.paymentCheckoutObservation.deleteMany();
+  await tx.paymentCheckoutAttempt.deleteMany();
   await tx.payment.deleteMany();
   await tx.listingImage.deleteMany();
   await tx.listingAttributeValue.deleteMany();

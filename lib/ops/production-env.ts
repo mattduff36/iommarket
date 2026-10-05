@@ -127,6 +127,8 @@ export function validateVercelProductionEnvMetadata(
 ): void {
   for (const key of PRODUCTION_SENSITIVE_KEYS) {
     const matches = envs.filter((env) => env.key === key);
+    // Credentials for a retired provider may be absent. Any present credential remains sensitive.
+    if ((key === "CLOUDINARY_API_SECRET" || key === "IMAGEKIT_PRIVATE_KEY") && matches.length === 0) continue;
     if (
       matches.length !== 1 ||
       matches[0]?.type !== "sensitive" ||
@@ -136,6 +138,10 @@ export function validateVercelProductionEnvMetadata(
         `Vercel production metadata is invalid for ${key}.`,
       );
     }
+  }
+
+  if (!envs.some((env) => ["CLOUDINARY_API_SECRET", "IMAGEKIT_PRIVATE_KEY"].includes(env.key) && env.type === "sensitive" && env.target.includes("production"))) {
+    throw new ProductionEnvError("Vercel production metadata is missing a sensitive media provider credential.");
   }
 
   for (const key of PRODUCTION_FORBIDDEN_KEYS) {

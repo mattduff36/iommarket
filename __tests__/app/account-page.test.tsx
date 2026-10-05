@@ -60,9 +60,13 @@ vi.mock("@/lib/config/marketplace-pricing", () => ({
   }),
 }));
 
-vi.mock("@/lib/payments/ripple-config", () => ({
-  isRipplePreviewRuntime: () => false,
-}));
+vi.mock("@/lib/payments/ripple-config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/payments/ripple-config")>();
+  return {
+    ...actual,
+    isRipplePreviewRuntime: () => false,
+  };
+});
 
 vi.mock("@/lib/payments/sample-checkout-config", () => ({
   isSampleCheckoutEnabled: () => false,

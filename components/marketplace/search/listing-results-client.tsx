@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { BrandedSpinner } from "@/components/ui/branded-spinner";
 import { cn } from "@/lib/cn";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
+import { LISTING_CARD_LIST_SIZES } from "@/lib/images/delivery-widths";
 import type { ListingPhotoSource } from "@/lib/images/photo";
 import { SEARCH_SORT_OPTIONS, parseSearchSort } from "@/lib/search/search-order";
 
@@ -194,6 +195,7 @@ export function ListingResultsClient({
               badge={listing.badge ?? (listing.featured ? "Featured" : undefined)}
               writeOffCategory={listing.writeOffCategory}
               href={`/listings/${listing.id}`}
+              imageSizes={viewMode === "list" ? LISTING_CARD_LIST_SIZES : undefined}
               listingId={listing.id}
               showFavourite={enableFavourites && listing.showFavourite !== false}
               initialIsFavourite={Boolean(listing.isFavourite)}

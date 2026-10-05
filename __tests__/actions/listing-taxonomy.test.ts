@@ -8,7 +8,7 @@ const { requireAcceptedAuthMock, checkRateLimitMock, mockDb } = vi.hoisted(() =>
     region: { findUnique: vi.fn() },
     listing: { create: vi.fn(), count: vi.fn() },
     listingStatusEvent: { create: vi.fn() },
-    subscription: { findFirst: vi.fn() },
+    subscription: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),
   },
 }));

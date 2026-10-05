@@ -1,4 +1,8 @@
+import { parseManagedMediaPath, managedMediaPublicId, MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
+import { MEDIA_RETENTION_HOLD, legacyProfileRetentionReceipt } from "@/lib/media/retention-receipts";
 import type { Prisma } from "@prisma/client";
+import { deleteDisposableImageKitFile } from "@/lib/media/disposable-media";
+import { isDisposableDestinationPath, isProtectedDestinationPath } from "@/lib/media/config";
 import { deleteImage } from "@/lib/upload/cloudinary";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isPreviewSystemAuthUserId } from "@/lib/preview-packs/safety";
@@ -27,6 +31,7 @@ const ACCOUNT_TABLES = [
   "Payment",
   "Report",
   "Listing",
+  "ListingRevisionImage",
   "MonitoringEvent",
   "MonitoringIssue",
   "MonitoringAlertDelivery",
@@ -54,6 +59,7 @@ export interface PurgedUserAccount {
   authUserId: string | null;
   listingIds: string[];
   imagePublicIds: string[];
+  imageKitDisposables: Array<{ fileId: string; filePath: string }>;
 }
 
 function escapeRegExp(value: string) {
@@ -309,8 +315,8 @@ export async function purgeUserAccountRecords(
       authUserId: true,
       avatarUrl: true,
       dealerProfile: { select: { id: true, logoUrl: true } },
-      listings: { select: { id: true, images: { select: { publicId: true } } } },
-      listingImageUploadIntents: { select: { publicId: true } },
+      listings: { select: { id: true, images: { select: { publicId: true, imageKitFileId: true, imageKitFilePath: true } } } },
+      listingImageUploadIntents: { select: { publicId: true, imageKitFileId: true, imageKitFilePath: true } },
     },
   });
   if (!user) throw new PurgeUserError("User not found");
@@ -319,17 +325,58 @@ export async function purgeUserAccountRecords(
   const dealerListings = dealerId
     ? await tx.listing.findMany({
         where: { dealerId, NOT: { userId } },
-        select: { id: true, images: { select: { publicId: true } } },
+        select: { id: true, images: { select: { publicId: true, imageKitFileId: true, imageKitFilePath: true } } },
       })
     : [];
   const listings = [...user.listings, ...dealerListings];
   const listingIds = listings.map((listing) => listing.id);
+  const imageKitDisposables: Array<{ fileId: string; filePath: string }> = [];
+  const retentionReceipts: Prisma.ListingImageCleanupJobCreateManyInput[] = [];
+  const revisionImages = tableExists(tables, "ListingRevisionImage") && listingIds.length
+    ? await tx.listingRevisionImage.findMany({
+        where: { revision: { listingId: { in: listingIds } } },
+        select: { publicId: true, imageKitFileId: true, imageKitFilePath: true },
+      }) : [];
   const imagePublicIds = [
-    ...listings.flatMap((listing) => listing.images.map((image) => image.publicId)),
-    ...user.listingImageUploadIntents.map((intent) => intent.publicId),
-    cloudinaryPublicIdFromUrl(user.avatarUrl),
-    cloudinaryPublicIdFromUrl(user.dealerProfile?.logoUrl),
-  ].filter((publicId): publicId is string => Boolean(publicId));
+    ...listings.flatMap((listing) => listing.images),
+    ...user.listingImageUploadIntents,
+    ...revisionImages,
+  ].flatMap((image) => {
+    if (image.imageKitFilePath?.startsWith("/iommarket-media/")) {
+      const parsed = parseManagedMediaPath(image.imageKitFilePath);
+      if (!parsed || managedMediaPublicId(image.imageKitFilePath) !== image.publicId) {
+        if (image.publicId.startsWith("database-sync/")) return [];
+        throw new PurgeUserError("Managed media needs a complete ownership record before this account can be purged.");
+      }
+      retentionReceipts.push({ publicId: image.publicId, deliveryType: MANAGED_IMAGEKIT_DELIVERY_TYPE,
+        imageKitFileId: image.imageKitFileId ?? null, imageKitFilePath: image.imageKitFilePath,
+        reason: parsed.kind === "quarantine" ? "managed-upload-abandoned" : "account-purge-managed" });
+      return [];
+    }
+    if (image.imageKitFilePath && isProtectedDestinationPath(image.imageKitFilePath)) {
+      retentionReceipts.push({ publicId: image.publicId, deliveryType: MEDIA_RETENTION_HOLD,
+        imageKitFileId: image.imageKitFileId ?? null, imageKitFilePath: image.imageKitFilePath, reason: "account-purge-migrated-retention" });
+      return [];
+    }
+    if (image.publicId.startsWith("imagekit/")) throw new PurgeUserError("Managed media identity is missing.");
+    if (
+      image.publicId.startsWith("imagekit-dev/") &&
+      image.imageKitFileId &&
+      image.imageKitFilePath &&
+      isDisposableDestinationPath(image.imageKitFilePath) &&
+      !isProtectedDestinationPath(image.imageKitFilePath)
+    ) {
+      imageKitDisposables.push({ fileId: image.imageKitFileId, filePath: image.imageKitFilePath });
+      return [];
+    }
+    return [image.publicId];
+  }).concat([user.avatarUrl, user.dealerProfile?.logoUrl].flatMap((url) => {
+    const receipt = legacyProfileRetentionReceipt(url);
+    if (receipt) { retentionReceipts.push(receipt); return []; }
+    const publicId = cloudinaryPublicIdFromUrl(url);
+    return publicId ? [publicId] : [];
+  }));
+  if (retentionReceipts.length) await tx.listingImageCleanupJob.createMany({ data: retentionReceipts });
 
   await deleteOwnedCommerce(tx, userId, dealerId, user.email, tables);
   if (dealerId && tableExists(tables, "DealerReviewResponse")) {
@@ -361,6 +408,7 @@ export async function purgeUserAccountRecords(
     authUserId: user.authUserId,
     listingIds,
     imagePublicIds,
+    imageKitDisposables,
   };
 }
 
@@ -382,14 +430,33 @@ export async function deleteAuthUser(authUserId: string | null) {
   }
 }
 
-export async function deleteAccountMedia(publicIds: string[]) {
+export async function deleteAccountMedia(
+  publicIds: string[],
+  disposables: Array<{ fileId: string; filePath: string }> = [],
+) {
   const failedPublicIds: string[] = [];
   for (const publicId of new Set(publicIds)) {
+    if (publicId.startsWith("imagekit-dev/") || publicId.startsWith("imagekit/")) continue;
     try {
       await deleteImage(publicId);
     } catch {
       // The profile row is already gone. A leftover image should not restore the account.
       failedPublicIds.push(publicId);
+    }
+  }
+  for (const target of disposables) {
+    if (!isDisposableDestinationPath(target.filePath) || isProtectedDestinationPath(target.filePath)) {
+      failedPublicIds.push(target.fileId);
+      continue;
+    }
+    try {
+      await deleteDisposableImageKitFile({
+        fileId: target.fileId,
+        filePath: target.filePath,
+        allowlist: [target],
+      });
+    } catch {
+      failedPublicIds.push(target.fileId);
     }
   }
   return {

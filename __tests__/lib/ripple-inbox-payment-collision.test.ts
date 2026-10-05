@@ -11,16 +11,23 @@ const mocks = vi.hoisted(() => ({
   paymentCreate: vi.fn(),
   transaction: vi.fn(),
   capture: vi.fn(),
+  reconcile: vi.fn(),
   event: null as NormalizedProviderWebhookEvent | null,
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
     paymentWebhookInbox: { findUnique: mocks.inboxFindUnique, updateMany: mocks.inboxUpdateMany },
+    paymentCheckoutAttempt: {
+      findUnique: vi.fn().mockResolvedValue({ id: "attempt-1" }),
+    },
     $transaction: mocks.transaction,
   },
 }));
 vi.mock("@/lib/monitoring", () => ({ captureBusinessEvent: mocks.capture, captureException: vi.fn() }));
+vi.mock("@/lib/payments/reconcile-payment", () => ({
+  reconcileListingPayment: mocks.reconcile,
+}));
 vi.mock("@/lib/payments/ripple-contract", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/payments/ripple-contract")>()),
   eventFromMinimizedPayload: () => mocks.event,
@@ -31,6 +38,9 @@ import { processRippleInboxRecord } from "@/lib/payments/ripple-inbox";
 describe("Ripple inbox quarantines listing charge collisions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.reconcile.mockRejectedValue(
+      new Error("subscription charge collision"),
+    );
     const product = RIPPLE_CANONICAL_PRODUCTS.listingAndFeatured;
     mocks.event = {
       id: "evt-duplicate-charge", type: "payment.received", rawType: "payment.received",

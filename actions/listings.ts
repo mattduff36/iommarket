@@ -8,6 +8,7 @@ import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import {
   hasDealerAccountAccess,
   hasMismatchedDealerListing,
+  getCurrentDealerEntitlement,
   hasOperationalDealerAccess,
   listingDealerMatchesActor,
 } from "@/lib/dealers/entitlement";
@@ -154,7 +155,12 @@ export async function createListing(input: CreateListingInput) {
       return { error: "Active dealer access is required to post listings." };
     }
 
-    const listingCap = getDealerListingCap(user.dealerProfile.tier);
+    const entitlement = await getCurrentDealerEntitlement(user);
+    const listingTier = entitlement?.tier;
+    if (!listingTier) {
+      return { error: "Active dealer access is required to post listings." };
+    }
+    const listingCap = getDealerListingCap(listingTier);
     const activeListingCount = await db.listing.count({
       where: {
         dealerId: user.dealerProfile.id,
@@ -165,7 +171,7 @@ export async function createListing(input: CreateListingInput) {
     });
     if (activeListingCount >= listingCap) {
       return {
-        error: `Your ${user.dealerProfile.tier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
+        error: `Your ${listingTier === "PRO" ? "Pro" : "Starter"} plan allows up to ${listingCap} active listings. Upgrade to list more vehicles.`,
       };
     }
   }

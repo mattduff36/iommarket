@@ -1,0 +1,3 @@
+-- Replaced by prisma/migrations/20261004150000_imagekit_provider_fields.
+-- Do not apply this file. Schema changes belong to that Prisma migration and
+-- are applied only to the isolated local PostgreSQL database.

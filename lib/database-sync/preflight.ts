@@ -1,7 +1,11 @@
 import pg from "pg";
-import { SYNC_TABLES } from "./types";
+import { requiredPublicRelations, loadCloneCatalog } from "./catalog";
+import { readDatabaseScope } from "./scope";
+import { assertPrivateAuthSource, authSourceMode, sourceAuthTable, AUTH_EXPORT_SCHEMA } from "./auth-source";
+import { SCHEMA_FINGERPRINT_SQL, schemaCompatibility } from "./fingerprint";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
 import { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
+import { resolvePreviewSessionUrl } from "./session";
 
 export type DatabaseSyncInspection = {
   ready: boolean;
@@ -17,8 +21,9 @@ export type DatabaseSyncInspection = {
 };
 
 export const SOURCE_READER_ROLE = "itrader_staging_reader";
-export const SYNC_READ_TABLES: readonly string[] = [...SYNC_TABLES, "DealerPreviewPack", "Subscription", "_prisma_migrations"];
+export const SYNC_READ_TABLES: readonly string[] = requiredPublicRelations().filter((table) => table !== "spatial_ref_sys");
 const COUNT_TABLES = SYNC_READ_TABLES;
+const AUTH_READ_TABLES = ["users", "identities"] as const;
 
 function parseDatabaseUrl(raw: string | undefined, ref: string, dedicatedSource = false): string | null {
   if (!raw?.trim()) return null;
@@ -39,10 +44,14 @@ function parseDatabaseUrl(raw: string | undefined, ref: string, dedicatedSource 
 }
 
 function destinationUrl(env: NodeJS.ProcessEnv): string | null {
-  const urls = [env.POSTGRES_URL, env.POSTGRES_URL_NON_POOLING, env.DATABASE_URL]
+  const urls = [env.DATABASE_SYNC_SESSION_URL, env.POSTGRES_URL, env.POSTGRES_URL_NON_POOLING, env.DATABASE_URL]
     .filter((value): value is string => Boolean(value?.trim()));
   if (urls.length === 0 || !urls.every((url) => parseDatabaseUrl(url, PREVIEW_PROJECT_REF))) return null;
-  return urls[0];
+  try {
+    return resolvePreviewSessionUrl(env);
+  } catch {
+    return null;
+  }
 }
 
 export function inspectDatabaseSyncConfiguration(env: NodeJS.ProcessEnv = process.env) {
@@ -120,7 +129,8 @@ export function hasCompleteSourceReadPolicy(table: TableRow, policies: SourcePol
     policy.permissive && policy.role_specific && policy.expression?.trim() === "true");
 }
 
-async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: boolean) {
+async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: boolean, env: NodeJS.ProcessEnv = process.env) {
+    const privateAuth = requireSourceReadOnly && authSourceMode(env) === "private-views";
     const role = await client.query<RolePermissions>(`SELECT current_user AS role_name,
         EXISTS (SELECT 1 FROM pg_roles other WHERE other.rolname <> current_user
           AND pg_has_role(current_user, other.oid, 'MEMBER')) AS role_memberships,
@@ -128,7 +138,7 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
         r.rolcreaterole AS create_role, r.rolcreatedb AS create_db, r.rolreplication AS replication,
         pg_has_role(current_user, d.datdba, 'MEMBER') AS database_owner,
         has_database_privilege(current_user, current_database(), 'CREATE') AS database_create,
-        EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname IN ('public', 'auth', 'storage')
+        EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname IN ('public', 'auth', 'storage', 'itrader_sync_export')
           AND has_schema_privilege(current_user, n.oid, 'CREATE')) AS schema_create,
         (pg_has_role(current_user, 'pg_write_server_files', 'MEMBER') OR
           pg_has_role(current_user, 'pg_execute_server_program', 'MEMBER')) AS elevated_file_role
@@ -149,17 +159,28 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
         has_table_privilege(current_user, c.oid, 'TRIGGER') AS can_trigger,
         has_table_privilege(current_user, c.oid, 'SELECT') AS can_select
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname IN ('public', 'auth', 'storage') AND c.relkind IN ('r', 'p') ORDER BY n.nspname, c.relname`);
+      WHERE n.nspname IN ('public', 'auth', 'storage', 'itrader_sync_export') AND c.relkind IN ('r', 'p', 'v', 'm') ORDER BY n.nspname, c.relname`);
     const readOnlyRole = isReadOnlySourceRole(permissions, tables.rows);
     if (requireSourceReadOnly && !readOnlyRole) {
       throw new Error("Production source role has write, ownership, or elevated privileges.");
     }
     const publicTables = tables.rows.filter((table) => table.schema_name === "public" && SYNC_READ_TABLES.includes(table.table_name));
-    if (publicTables.length !== SYNC_READ_TABLES.length) throw new Error("Database role cannot inspect every required sync table.");
-    if (requireSourceReadOnly && publicTables.some((table) => !table.can_select)) {
-      throw new Error("Production source role lacks SELECT on required sync tables.");
+    const authTables = tables.rows.filter((table) => table.schema_name === "auth" && AUTH_READ_TABLES.includes(table.table_name as typeof AUTH_READ_TABLES[number]));
+    const missingPublic = SYNC_READ_TABLES.find((table) => !publicTables.some((row) => row.table_name === table));
+    const missingAuth = AUTH_READ_TABLES.find((table) => !authTables.some((row) => row.table_name === table));
+    if (requireSourceReadOnly && (missingPublic || missingAuth)) {
+      throw new Error(`Database role cannot inspect required sync table ${missingPublic ?? missingAuth}.`);
     }
+    const unreadable = [...publicTables, ...(privateAuth ? [] : authTables)].find((table) => !table.can_select);
+    if (requireSourceReadOnly && unreadable) {
+      throw new Error(`Production source role lacks SELECT on ${unreadable.schema_name}.${unreadable.table_name}.`);
+    }
+    if (requireSourceReadOnly) await assertSourceSchemaUsage(client, env);
+    if (privateAuth) await assertPrivateAuthSource(client);
     if (requireSourceReadOnly) {
+      const policyGroups = privateAuth ? [["public", publicTables] as const]
+        : [["public", publicTables] as const, ["auth", authTables] as const];
+      for (const [schema, selectedTables] of policyGroups) {
       const policies = await client.query<SourcePolicy>(`SELECT c.relname AS table_name,
         p.polpermissive AS permissive,
         (SELECT oid FROM pg_roles WHERE rolname = current_user) = ANY(p.polroles) AS role_specific,
@@ -169,16 +190,45 @@ async function inspectPermissions(client: pg.PoolClient, requireSourceReadOnly: 
         pg_get_expr(p.polqual, p.polrelid) AS expression
         FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) AND p.polcmd IN ('r', '*')`, [SYNC_READ_TABLES]);
-      if (publicTables.some((table) => !hasCompleteSourceReadPolicy(table, policies.rows))) {
-        throw new Error("Production source role lacks an unconditional reader RLS policy or has a restrictive policy.");
+        WHERE n.nspname = $2 AND c.relname = ANY($1::text[]) AND p.polcmd IN ('r', '*')`, [selectedTables.map((table) => table.table_name), schema]);
+      const blockedPolicy = selectedTables.find((table) => !hasCompleteSourceReadPolicy(table, policies.rows));
+      if (blockedPolicy) {
+        throw new Error(`Production source role lacks an unconditional reader RLS policy on ${blockedPolicy.table_name}.`);
       }
     }
-    return { tables: publicTables, readOnlyRole };
+    }
+    return { tables: publicTables, authTables, readOnlyRole };
+}
+
+async function assertSourceSchemaUsage(client: pg.PoolClient, env: NodeJS.ProcessEnv) {
+  const requiredSchemas = ["public", authSourceMode(env) === "private-views" ? AUTH_EXPORT_SCHEMA : "auth"];
+  const granted = await client.query<{ schema_name: string }>(
+    `SELECT n.nspname AS schema_name
+     FROM pg_namespace n
+     WHERE n.nspname = ANY($1::text[])
+       AND has_schema_privilege(current_user, n.oid, 'USAGE')`,
+    [requiredSchemas],
+  );
+  const missing = requiredSchemas.find((schema) => !granted.rows.some((row) => row.schema_name === schema));
+  if (missing) throw new Error(`Production source role lacks USAGE on schema ${missing}.`);
+}
+
+export async function assertRequiredRelations(client: pg.PoolClient, relations: ReadonlyArray<{ schema: string; name: string }>, label: "source" | "destination") {
+  const result = await client.query<{ schema: string; name: string }>(
+    `SELECT n.nspname AS schema, c.relname AS name
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'r' AND (n.nspname, c.relname) IN (
+       SELECT schema_name, table_name FROM unnest($1::text[], $2::text[]) AS required(schema_name, table_name)
+     )`,
+    [relations.map((relation) => relation.schema), relations.map((relation) => relation.name)],
+  );
+  const present = new Set(result.rows.map((row) => `${row.schema}.${row.name}`));
+  const missing = relations.find((relation) => !present.has(`${relation.schema}.${relation.name}`));
+  if (missing) throw new Error(`Required ${label} table ${missing.schema}.${missing.name} is missing.`);
 }
 
 /** Call inside the same READ ONLY transaction used to read the source snapshot. */
-export async function validateSourceClient(client: pg.PoolClient) {
+export async function validateSourceClient(client: pg.PoolClient, env: NodeJS.ProcessEnv = process.env) {
   const transaction = await client.query<{ transaction_read_only: string }>("SHOW transaction_read_only");
   if (transaction.rows[0]?.transaction_read_only !== "on") {
     throw new Error("Production source role requires a read-only transaction.");
@@ -188,26 +238,34 @@ export async function validateSourceClient(client: pg.PoolClient) {
   if (functions.rows[0]?.count !== "0") {
     throw new Error("Production source role can execute privileged functions; review EXECUTE grants before copying.");
   }
-  return inspectPermissions(client, true);
+  return inspectPermissions(client, true, env);
 }
 
 /** Does not begin, commit, or release: caller owns the snapshot transaction. */
-export async function inspectClient(client: pg.PoolClient, requireSourceReadOnly: boolean) {
-    const { tables: publicTables, readOnlyRole } = requireSourceReadOnly
-      ? await validateSourceClient(client) : await inspectPermissions(client, false);
+export async function inspectClient(client: pg.PoolClient, requireSourceReadOnly: boolean, env: NodeJS.ProcessEnv = process.env) {
+    const { tables: publicTables, authTables, readOnlyRole } = requireSourceReadOnly
+      ? await validateSourceClient(client, env) : await inspectPermissions(client, false, env);
     const selectedCounts: Record<string, number> = {};
+    const catalog = loadCloneCatalog();
+    const scope = await readDatabaseScope(client, catalog, env, requireSourceReadOnly);
     for (const table of COUNT_TABLES) {
       if (!publicTables.some((row) => row.table_name === table)) continue;
-      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM public.${quoteIdentifier(table)}`);
+      const omitted = scope.excluded[table] ?? [];
+      const primaryKey = catalog.find((item) => item.name === table)?.primaryKey ?? "id";
+      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM public.${quoteIdentifier(table)} WHERE NOT (${quoteIdentifier(primaryKey)}::text = ANY($1::text[]))`, [omitted]);
       selectedCounts[table] = Number(result.rows[0]?.count ?? 0);
     }
-    const migrations = await client.query<{ migration_name: string }>(
-      `SELECT migration_name FROM public._prisma_migrations WHERE rolled_back_at IS NULL AND finished_at IS NOT NULL ORDER BY migration_name`,
-    );
+    for (const table of AUTH_READ_TABLES) {
+      const qualified = requireSourceReadOnly ? sourceAuthTable(table, env) : `auth.${table}`;
+      const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${qualified} WHERE NOT (id::text = ANY($1::text[]))`, [scope.excluded[`auth.${table}`] ?? []]);
+      selectedCounts[`auth.${table}`] = Number(result.rows[0]?.count ?? 0);
+    }
+    const schemaLines = await client.query<{ line: string }>(SCHEMA_FINGERPRINT_SQL);
     return {
       tables: publicTables,
+      authTables,
       counts: selectedCounts,
-      migrations: migrations.rows.map((row) => row.migration_name),
+      schemaLines: schemaLines.rows.map((row) => row.line),
       readOnlyRole,
       rowSecurityTables: publicTables.filter((table) => table.row_security).map((table) => table.table_name),
     };
@@ -220,7 +278,7 @@ export async function inspectConnection(url: string, requireSourceReadOnly: bool
     client = await pool.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     await client.query("SET LOCAL statement_timeout = '8000ms'");
-    return await inspectClient(client, requireSourceReadOnly);
+    return await inspectClient(client, requireSourceReadOnly, env);
   } finally {
     await client?.query("ROLLBACK").catch(() => undefined);
     client?.release();
@@ -250,14 +308,11 @@ export async function inspectDatabaseSync(env: NodeJS.ProcessEnv = process.env):
     const destination = await inspectConnection(config.destination, false, env);
     base.sourceTables = source.tables.length;
     base.destinationTables = destination.tables.length;
-    const sourceSignatures = new Map(source.tables.map((table) => [table.table_name, table.column_signature]));
-    const destinationSignatures = new Map(destination.tables.map((table) => [table.table_name, table.column_signature]));
-    base.schemaCompatible = sourceSignatures.size === destinationSignatures.size &&
-      [...sourceSignatures].every(([name, signature]) => destinationSignatures.get(name) === signature);
-    base.migrationsCompatible = source.migrations.join("\n") === destination.migrations.join("\n");
-    if (!base.schemaCompatible) base.blockers.push("Selected sync table schemas differ. Apply and verify reviewed migrations before any copy.");
-    if (!base.migrationsCompatible) base.blockers.push("Applied Prisma migrations differ between production and development.");
-    base.rows = COUNT_TABLES.map((table) => ({
+    const compatibility = schemaCompatibility(source.schemaLines, destination.schemaLines);
+    base.schemaCompatible = compatibility.schemaCompatible;
+    base.migrationsCompatible = compatibility.migrationsCompatible;
+    base.blockers.push(...compatibility.blockers);
+    base.rows = [...COUNT_TABLES, ...AUTH_READ_TABLES.map((table) => `auth.${table}`)].map((table) => ({
       table,
       production: source.counts[table] ?? 0,
       development: destination.counts[table] ?? 0,

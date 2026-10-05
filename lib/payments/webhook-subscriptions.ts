@@ -1,6 +1,6 @@
 import {
   Prisma,
-  type DealerTier,
+  type PaymentCheckoutAttempt,
   type Subscription,
   type SubscriptionProviderLifecycle,
   type SubscriptionStatus,
@@ -18,16 +18,20 @@ import {
   getRippleClientId,
 } from "@/lib/payments/ripple-config";
 import type { RippleProduct } from "@/lib/payments/ripple-config";
-import {
-  getDealerTierFromRippleProduct,
-  resolveRippleProduct,
-} from "@/lib/payments/ripple-mapping";
+import { resolveRippleProduct } from "@/lib/payments/ripple-mapping";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import {
   listSyntheticSubscriptionIds,
   normalizeRippleEmail,
+  parseRippleReference,
 } from "@/lib/payments/ripple-reference";
+import {
+  applyRecordedChargeRefund,
+  classifySubscriptionRefund,
+  recomputeDealerTier,
+} from "@/lib/payments/subscription-refund";
 import { decideProviderEventApplication } from "@/lib/payments/webhook-ordering";
+import { runPaymentSerializable } from "@/lib/payments/transaction";
 
 interface ResolvedDealerSubscription {
   dealerId: string;
@@ -66,7 +70,7 @@ class SubscriptionChargeCollisionError extends Error {
 async function runPaymentTransaction<T>(
   fn: (client: PaymentDb) => Promise<T>
 ): Promise<T> {
-  return db.$transaction(async (tx) => fn(tx));
+  return runPaymentSerializable((tx) => fn(tx));
 }
 
 function requireDealerProduct(
@@ -179,6 +183,166 @@ async function findSubscription(
   });
 }
 
+async function resolveSubscriptionAttempt(
+  event: NormalizedProviderWebhookEvent,
+  resolved: ResolvedDealerSubscription,
+  existing: Subscription | null,
+  client: PaymentDb,
+): Promise<{
+  attempt: PaymentCheckoutAttempt | null;
+  alreadyConfirmed: boolean;
+}> {
+  const eligibleStatuses = ["OPEN", "RETURNED", "REVIEW"] as const;
+  let attempt: PaymentCheckoutAttempt | null = null;
+  if (event.providerReference) {
+    attempt = await client.paymentCheckoutAttempt.findUnique({
+      where: { merchantReference: event.providerReference },
+    });
+    if (!attempt) {
+      throw new Error("Subscription payment reference has no checkout attempt");
+    }
+  } else {
+    if (
+      existing &&
+      isPaidSubscriptionEntitled(
+        existing,
+        event.eventTimestamp ?? new Date(),
+      )
+    ) {
+      return { attempt: null, alreadyConfirmed: false };
+    }
+    const candidates = await client.paymentCheckoutAttempt.findMany({
+      where: {
+        dealerId: resolved.dealerId,
+        kind: "DEALER_SUBSCRIPTION",
+        productCode: resolved.product.code,
+        tier: resolved.product.tier,
+        amountPence: resolved.product.amountPence,
+        currency: "gbp",
+        status: { in: [...eligibleStatuses] },
+      },
+      take: 2,
+      orderBy: { createdAt: "desc" },
+    });
+    if (candidates.length === 1) attempt = candidates[0];
+    if (candidates.length !== 1) {
+      throw new Error(
+        "Initial subscription payment has no unique persisted checkout attempt",
+      );
+    }
+  }
+
+  if (!attempt) return { attempt: null, alreadyConfirmed: false };
+  if (attempt.status === "FAILED" && event.providerPaymentId && existing) {
+    const refundedCharge = await client.subscriptionCharge.findUnique({
+      where: { paymentReference: event.providerPaymentId },
+      select: {
+        subscriptionId: true,
+        refundedAt: true,
+        amount: true,
+        currency: true,
+      },
+    });
+    if (
+      refundedCharge?.refundedAt &&
+      refundedCharge.subscriptionId === existing.id &&
+      refundedCharge.amount === event.amount &&
+      refundedCharge.currency.toLowerCase() ===
+        (event.currency ?? "gbp").toLowerCase()
+    ) {
+      return { attempt, alreadyConfirmed: true };
+    }
+  }
+  await client.$queryRaw`
+    SELECT "id"
+    FROM "PaymentCheckoutAttempt"
+    WHERE "id" = ${attempt.id}
+    FOR UPDATE
+  `;
+  attempt = await client.paymentCheckoutAttempt.findUnique({
+    where: { id: attempt.id },
+  });
+  if (!attempt) {
+    throw new Error("Subscription payment reference has no checkout attempt");
+  }
+  const dealer = await client.dealerProfile.findUnique({
+    where: { id: resolved.dealerId },
+    select: { userId: true },
+  });
+  let claims;
+  try {
+    claims = parseRippleReference(
+      attempt.merchantReference,
+      resolved.product.code,
+    );
+  } catch {
+    throw new Error("Invalid subscription checkout attempt reference");
+  }
+  if (
+    !dealer ||
+    attempt.kind !== "DEALER_SUBSCRIPTION" ||
+    attempt.dealerId !== resolved.dealerId ||
+    attempt.userId !== dealer.userId ||
+    attempt.productCode !== resolved.product.code ||
+    attempt.tier !== resolved.product.tier ||
+    attempt.amountPence !== resolved.product.amountPence ||
+    attempt.currency !== "gbp" ||
+    ![...eligibleStatuses, "CONFIRMED"].includes(attempt.status) ||
+    !claims ||
+    claims.purpose !== "dealer_subscription" ||
+    claims.targetId !== resolved.dealerId ||
+    claims.tier !== resolved.product.tier ||
+    (event.providerReference &&
+      event.providerReference !== attempt.merchantReference) ||
+    event.amount !== attempt.amountPence ||
+    event.currency?.toLowerCase() !== attempt.currency ||
+    (event.eventTimestamp &&
+      (event.eventTimestamp.getTime() < attempt.createdAt.getTime() - 5_000 ||
+        event.eventTimestamp.getTime() >
+          attempt.expiresAt.getTime() + 5 * 60_000))
+  ) {
+    throw new Error("Subscription checkout attempt does not match payment");
+  }
+  if (attempt.status === "CONFIRMED") {
+    if (!event.providerPaymentId || !existing) {
+      throw new Error("Confirmed subscription checkout cannot be replayed");
+    }
+    const [claim, reconciliation] = await Promise.all([
+      client.providerPaymentClaim.findUnique({
+        where: {
+          paymentProvider_providerPaymentId: {
+            paymentProvider: "RIPPLE",
+            providerPaymentId: event.providerPaymentId,
+          },
+        },
+        select: {
+          attemptId: true,
+          subscriptionCharge: { select: { subscriptionId: true } },
+        },
+      }),
+      client.paymentReconciliation.findFirst({
+        where: {
+          attemptId: attempt.id,
+          evidenceType: "VERIFIED_WEBHOOK",
+          providerPaymentId: event.providerPaymentId,
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (
+      claim?.attemptId !== attempt.id ||
+      claim.subscriptionCharge?.subscriptionId !== existing.id ||
+      !reconciliation
+    ) {
+      throw new Error("Confirmed subscription checkout cannot be replayed");
+    }
+  }
+  return {
+    attempt,
+    alreadyConfirmed: attempt.status === "CONFIRMED",
+  };
+}
+
 function eventMeta(event: NormalizedProviderWebhookEvent) {
   return {
     lastProviderEventAt: event.eventTimestamp ?? new Date(),
@@ -202,14 +366,58 @@ function shouldApply(
   });
 }
 
+export async function lockProviderPayment(
+  client: PaymentDb,
+  providerPaymentId: string,
+) {
+  await client.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtextextended(${providerPaymentId}, 0))
+  `;
+}
+
+async function findSubscriptionRefundReceipt(providerPaymentId: string) {
+  // This read is deliberately outside the serializable transaction. Its
+  // snapshot can hide a refund row that committed while that transaction
+  // waited for the provider-payment lock. The inbox insert takes the same
+  // lock, so a separate read-committed read sees every refund committed
+  // before entitlement is decided.
+  return db.paymentWebhookInbox.findFirst({
+    where: {
+      paymentReference: providerPaymentId,
+      eventType: "payment.refunded",
+    },
+    orderBy: { eventTimestamp: "asc" },
+    select: { id: true, eventTimestamp: true, amountPence: true, currency: true },
+  });
+}
+
+function isSubscriptionRefundEvent(event: NormalizedProviderWebhookEvent) {
+  if (event.metadata.checkoutType === "dealer_subscription") return true;
+  if (event.recurring === true || event.linkType === "recurring") return true;
+  return (
+    resolveRippleProduct({
+      linkCode: event.linkCode,
+      packageName: event.packageName,
+    })?.checkoutType === "dealer_subscription"
+  );
+}
+
 async function recordCharge(
   subscriptionId: string,
   event: NormalizedProviderWebhookEvent,
-  client: PaymentDb = db
+  attempt: PaymentCheckoutAttempt | null,
+  client: PaymentDb = db,
+  options?: { refundedAt?: Date },
 ) {
   if (!event.providerPaymentId || event.amount === null) {
     throw new Error("Recurring payment is missing payment_reference or amount");
   }
+  const listingPayment = await client.payment.findUnique({
+    where: { providerPaymentId: event.providerPaymentId },
+    select: { id: true },
+  });
+  if (listingPayment) throw new SubscriptionChargeCollisionError();
+
   const claimed = await client.subscriptionCharge.createMany({
     data: [
       {
@@ -218,63 +426,161 @@ async function recordCharge(
         amount: event.amount,
         currency: event.currency ?? "gbp",
         eventTimestamp: event.eventTimestamp ?? new Date(),
+        ...(options?.refundedAt
+          ? {
+              refundedAt: options.refundedAt,
+              refundEventId: event.fingerprint ?? event.id,
+            }
+          : {}),
       },
     ],
     skipDuplicates: true,
   });
-  if (claimed.count === 1) return true;
-
-  const existing = await client.subscriptionCharge.findUnique({
+  const charge = await client.subscriptionCharge.findUnique({
     where: { paymentReference: event.providerPaymentId },
     select: {
+      id: true,
       subscriptionId: true,
       amount: true,
       currency: true,
     },
   });
+  if (!charge) throw new SubscriptionChargeCollisionError();
+
   if (
-    existing?.subscriptionId === subscriptionId &&
-    existing.amount === event.amount &&
-    existing.currency.toLowerCase() === (event.currency ?? "gbp").toLowerCase()
+    charge.subscriptionId !== subscriptionId ||
+    charge.amount !== event.amount ||
+    charge.currency.toLowerCase() !== (event.currency ?? "gbp").toLowerCase()
   ) {
-    return false;
+    throw new SubscriptionChargeCollisionError();
   }
-  throw new SubscriptionChargeCollisionError();
+
+  const existingClaim = await client.providerPaymentClaim.findUnique({
+    where: {
+      paymentProvider_providerPaymentId: {
+        paymentProvider: "RIPPLE",
+        providerPaymentId: event.providerPaymentId,
+      },
+    },
+  });
+  if (
+    existingClaim &&
+    (existingClaim.subscriptionChargeId !== charge.id ||
+      (attempt && existingClaim.attemptId !== attempt.id))
+  ) {
+    throw new SubscriptionChargeCollisionError();
+  }
+  if (!existingClaim) {
+    try {
+      await client.providerPaymentClaim.create({
+        data: {
+          paymentProvider: "RIPPLE",
+          providerPaymentId: event.providerPaymentId,
+          attemptId: attempt?.id,
+          subscriptionChargeId: charge.id,
+          source: "VERIFIED_WEBHOOK",
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new SubscriptionChargeCollisionError();
+      }
+      throw error;
+    }
+  }
+
+  if (attempt) {
+    const prior = await client.paymentReconciliation.findFirst({
+      where: { attemptId: attempt.id },
+    });
+    if (
+      prior &&
+      (prior.evidenceType !== "VERIFIED_WEBHOOK" ||
+        prior.providerPaymentId !== event.providerPaymentId)
+    ) {
+      throw new SubscriptionChargeCollisionError();
+    }
+    const evidenceId = event.fingerprint ?? event.id;
+    const existingEvidence = await client.paymentReconciliation.findFirst({
+      where: {
+        attemptId: attempt.id,
+        evidenceType: "VERIFIED_WEBHOOK",
+        evidenceId,
+      },
+    });
+    if (!existingEvidence) {
+      await client.paymentReconciliation.create({
+        data: {
+          attemptId: attempt.id,
+          evidenceType: "VERIFIED_WEBHOOK",
+          evidenceId,
+          providerPaymentId: event.providerPaymentId,
+          providerEventAt: event.eventTimestamp ?? new Date(),
+          evidenceSnapshot: {
+            eventType: event.type,
+            linkCode: event.linkCode ?? "",
+            amountPence: event.amount,
+            currency: event.currency ?? "",
+            merchantReference: event.providerReference ?? "",
+          },
+        },
+      });
+    }
+    await client.paymentCheckoutAttempt.update({
+      where: { id: attempt.id },
+      data: options?.refundedAt
+        ? { status: "FAILED", failedAt: new Date() }
+        : { status: "CONFIRMED", confirmedAt: new Date() },
+    });
+  }
+
+  return claimed.count === 1;
 }
 
-async function recomputeDealerTier(
-  dealerId: string,
-  now = new Date(),
-  client: PaymentDb = db
+async function isExistingChargeReplay(
+  subscriptionId: string,
+  event: NormalizedProviderWebhookEvent,
+  attempt: PaymentCheckoutAttempt | null,
+  client: PaymentDb,
 ) {
-  const subscriptions = await client.subscription.findMany({
-    where: { dealerId, source: "PAYMENT" },
-  });
-  const entitledTiers = subscriptions
-    .filter((subscription) => isPaidSubscriptionEntitled(subscription, now))
-    .map((subscription) =>
-      getDealerTierFromRippleProduct(
-        resolveRippleProduct({
-          linkCode: subscription.providerPlanId,
-          packageName: subscription.providerPlanId,
-        })
-      )
-    )
-    .filter((tier): tier is DealerTier => Boolean(tier));
-
-  if (entitledTiers.includes("PRO")) {
-    await client.dealerProfile.update({
-      where: { id: dealerId },
-      data: { tier: "PRO" },
-    });
-    return;
+  if (!event.providerPaymentId || event.amount === null) {
+    throw new Error("Recurring payment is missing payment_reference or amount");
   }
-  if (entitledTiers.includes("STARTER")) {
-    await client.dealerProfile.update({
-      where: { id: dealerId },
-      data: { tier: "STARTER" },
-    });
+  const [charge, claim] = await Promise.all([
+    client.subscriptionCharge.findUnique({
+      where: { paymentReference: event.providerPaymentId },
+      select: {
+        id: true,
+        subscriptionId: true,
+        amount: true,
+        currency: true,
+      },
+    }),
+    client.providerPaymentClaim.findUnique({
+      where: {
+        paymentProvider_providerPaymentId: {
+          paymentProvider: "RIPPLE",
+          providerPaymentId: event.providerPaymentId,
+        },
+      },
+    }),
+  ]);
+  if (!charge && !claim) return false;
+  if (
+    !charge ||
+    !claim ||
+    charge.subscriptionId !== subscriptionId ||
+    charge.amount !== event.amount ||
+    charge.currency.toLowerCase() !== (event.currency ?? "gbp").toLowerCase() ||
+    claim.subscriptionChargeId !== charge.id ||
+    (attempt && claim.attemptId !== attempt.id)
+  ) {
+    throw new SubscriptionChargeCollisionError();
   }
+  return true;
 }
 
 async function ensureDealerRole(
@@ -304,7 +610,8 @@ async function upsertSubscription(
   resolved: ResolvedDealerSubscription,
   event: NormalizedProviderWebhookEvent,
   data: SubscriptionMutation,
-  client: PaymentDb = db
+  client: PaymentDb = db,
+  options: { applyPaidEntitlement?: boolean } = {},
 ): Promise<SubscriptionWrite | null> {
   const existing = await findSubscription(resolved, client);
   const decision = shouldApply(existing, event);
@@ -325,7 +632,25 @@ async function upsertSubscription(
         eventType: event.rawType,
       }),
     });
-    return existing ? { subscription: existing, applied: false } : null;
+    if (!existing || !options.applyPaidEntitlement) {
+      return existing ? { subscription: existing, applied: false } : null;
+    }
+    const subscription = await client.subscription.update({
+      where: { id: existing.id },
+      data: {
+        status: data.status,
+        currentPeriodEnd: data.currentPeriodEnd,
+        paymentProvider: "RIPPLE",
+        source: "PAYMENT",
+        providerPlanId: resolved.product.code,
+        customerEmailNorm: resolved.emailNorm,
+      },
+    });
+    await ensureDealerRole(resolved.dealerId, client, {
+      explicitGrant: existing.status === "INCOMPLETE",
+    });
+    await recomputeDealerTier(resolved.dealerId, new Date(), client);
+    return { subscription, applied: true };
   }
 
   const providerSubscriptionId =
@@ -374,18 +699,100 @@ async function upsertSubscription(
   return { subscription, applied: true };
 }
 
-export async function handleRecurringPaymentReceived(
-  event: NormalizedProviderWebhookEvent
+async function recordRefundedSubscriptionCharge(
+  resolved: ResolvedDealerSubscription,
+  event: NormalizedProviderWebhookEvent,
+  existing: Subscription | null,
+  attempt: PaymentCheckoutAttempt | null,
+  refundedAt: Date,
+  client: PaymentDb,
 ) {
+  const providerSubscriptionId =
+    existing?.providerSubscriptionId ??
+    (resolved.emailNorm
+      ? listSyntheticSubscriptionIds({
+          clientId: getRippleClientId(),
+          linkCode: resolved.product.code,
+          email: resolved.emailNorm,
+        })[0]
+      : null);
+  const subscription =
+    existing ??
+    (await client.subscription.create({
+      data: {
+        dealerId: resolved.dealerId,
+        paymentProvider: "RIPPLE",
+        source: "PAYMENT",
+        providerSubscriptionId,
+        providerPlanId: resolved.product.code,
+        customerEmailNorm: resolved.emailNorm,
+        status: "INCOMPLETE",
+        cancelAtPeriodEnd: false,
+      },
+    }));
+  if (!(await recordCharge(subscription.id, event, attempt, client, { refundedAt }))) {
+    throw new DuplicateSubscriptionChargeError();
+  }
+}
+
+async function applyRecurringPayment(event: NormalizedProviderWebhookEvent) {
   const product = requireDealerProduct(event);
   assertRippleAmountMatchesProduct(product, event.amount);
   try {
     await runPaymentTransaction(async (client) => {
+      if (event.providerPaymentId) {
+        await lockProviderPayment(client, event.providerPaymentId);
+      }
       const resolved = await resolveDealer(event, product, client);
       const existing = await findSubscription(resolved, client);
+      const { attempt, alreadyConfirmed } = await resolveSubscriptionAttempt(
+        event,
+        resolved,
+        existing,
+        client,
+      );
+      if (alreadyConfirmed) return;
+      if (
+        existing &&
+        (await isExistingChargeReplay(existing.id, event, attempt, client))
+      ) {
+        return;
+      }
+      const refundReceipt = event.providerPaymentId
+        ? await findSubscriptionRefundReceipt(event.providerPaymentId)
+        : null;
+      if (refundReceipt) {
+        const classification = classifySubscriptionRefund({
+          chargeAmount: event.amount ?? Number.NaN,
+          chargeCurrency: event.currency ?? "",
+          refundAmount: refundReceipt.amountPence,
+          refundCurrency: refundReceipt.currency,
+        });
+        if (classification.kind === "full") {
+          await recordRefundedSubscriptionCharge(
+            resolved,
+            event,
+            existing,
+            attempt,
+            refundReceipt.eventTimestamp,
+            client,
+          );
+          return;
+        }
+        await captureBusinessEvent({
+          source: "WEBHOOK",
+          severity: "HIGH",
+          title: "Subscription refund was not applied",
+          message: "A refund received before its charge does not match the full payment.",
+          action: "applyRecurringPayment",
+          route: "/api/webhooks/payments",
+          requestPath: "/api/webhooks/payments",
+          tags: { refundClassification: classification.kind },
+        });
+      }
       const periodEnd = laterDate(
         existing?.currentPeriodEnd,
-        addRippleBillingPeriod(event.eventTimestamp ?? new Date(), product)
+        addRippleBillingPeriod(event.eventTimestamp ?? new Date(), product),
       );
       const result = await upsertSubscription(
         resolved,
@@ -396,11 +803,12 @@ export async function handleRecurringPaymentReceived(
           providerLifecycle: "ACTIVE",
           currentPeriodEnd: periodEnd,
         },
-        client
+        client,
+        { applyPaidEntitlement: true },
       );
       if (
         result?.applied &&
-        !(await recordCharge(result.subscription.id, event, client))
+        !(await recordCharge(result.subscription.id, event, attempt, client))
       ) {
         throw new DuplicateSubscriptionChargeError();
       }
@@ -411,41 +819,16 @@ export async function handleRecurringPaymentReceived(
   }
 }
 
-export async function handleRecurringPaymentSuccess(
-  event: NormalizedProviderWebhookEvent
+export async function handleRecurringPaymentReceived(
+  event: NormalizedProviderWebhookEvent,
 ) {
-  const product = requireDealerProduct(event);
-  assertRippleAmountMatchesProduct(product, event.amount);
-  try {
-    await runPaymentTransaction(async (client) => {
-      const resolved = await resolveDealer(event, product, client);
-      const existing = await findSubscription(resolved, client);
-      const nextPeriodEnd = laterDate(
-        existing?.currentPeriodEnd,
-        addRippleBillingPeriod(event.eventTimestamp ?? new Date(), product)
-      );
-      const result = await upsertSubscription(
-        resolved,
-        event,
-        {
-          status: "ACTIVE",
-          cancelAtPeriodEnd: false,
-          providerLifecycle: "ACTIVE",
-          currentPeriodEnd: nextPeriodEnd,
-        },
-        client
-      );
-      if (
-        result?.applied &&
-        !(await recordCharge(result.subscription.id, event, client))
-      ) {
-        throw new DuplicateSubscriptionChargeError();
-      }
-    });
-  } catch (error) {
-    if (error instanceof DuplicateSubscriptionChargeError) return;
-    throw error;
-  }
+  await applyRecurringPayment(event);
+}
+
+export async function handleRecurringPaymentSuccess(
+  event: NormalizedProviderWebhookEvent,
+) {
+  await applyRecurringPayment(event);
 }
 
 export async function handleRecurringPaymentFailed(
@@ -585,62 +968,58 @@ export async function handleSubscriptionResumed(
 export async function handleSubscriptionRefundSchedule(
   event: NormalizedProviderWebhookEvent
 ) {
-  if (event.metadata.checkoutType !== "dealer_subscription") return null;
-  const product = resolveRippleProduct({
-    linkCode: event.linkCode,
-    packageName: event.packageName,
+  if (!event.providerPaymentId) return null;
+  const providerPaymentId = event.providerPaymentId;
+
+  return runPaymentTransaction(async (client) => {
+    await lockProviderPayment(client, providerPaymentId);
+    const charge = await client.subscriptionCharge.findUnique({
+      where: { paymentReference: providerPaymentId },
+      select: {
+        id: true,
+        subscriptionId: true,
+        refundedAt: true,
+        eventTimestamp: true,
+        amount: true,
+        currency: true,
+      },
+    });
+    if (!charge) {
+      if (isSubscriptionRefundEvent(event)) {
+        throw new Error("Subscription refund is waiting for its charge");
+      }
+      return null;
+    }
+
+    if (!charge.refundedAt) {
+      const classification = classifySubscriptionRefund({
+        chargeAmount: charge.amount,
+        chargeCurrency: charge.currency,
+        refundAmount: event.amount,
+        refundCurrency: event.currency,
+      });
+      if (classification.kind !== "full") {
+        await captureBusinessEvent({
+          source: "WEBHOOK",
+          severity: "HIGH",
+          title: "Subscription refund was not applied",
+          message: "The Ripple refund amount does not match the full stored charge.",
+          action: "handleSubscriptionRefundSchedule",
+          route: "/api/webhooks/payments",
+          requestPath: "/api/webhooks/payments",
+          tags: { refundClassification: classification.kind },
+        });
+        return { id: charge.subscriptionId, refundClassification: classification.kind };
+      }
+    }
+
+    return applyRecordedChargeRefund(client, {
+      chargeId: charge.id,
+      subscriptionId: charge.subscriptionId,
+      refundedAt: charge.refundedAt ?? event.eventTimestamp ?? new Date(),
+      refundEventId: event.fingerprint ?? event.id ?? providerPaymentId,
+      now: new Date(),
+      recordCharge: !charge.refundedAt,
+    });
   });
-  if (product && product.checkoutType === "dealer_subscription") {
-    const resolved = await resolveDealer(event, product);
-    const existing = await findSubscription(resolved);
-    if (!existing) return null;
-    return db.subscription.update({
-      where: { id: existing.id },
-      data: {
-        cancelAtPeriodEnd: true,
-        ...(event.currentPeriodEnd
-          ? { currentPeriodEnd: event.currentPeriodEnd }
-          : {}),
-      },
-    });
-  }
-
-  if (event.providerSubscriptionId) {
-    const existing = await db.subscription.findFirst({
-      where: { providerSubscriptionId: event.providerSubscriptionId },
-    });
-    if (!existing) return null;
-    return db.subscription.update({
-      where: { id: existing.id },
-      data: {
-        cancelAtPeriodEnd: true,
-        ...(event.currentPeriodEnd
-          ? { currentPeriodEnd: event.currentPeriodEnd }
-          : {}),
-      },
-    });
-  }
-
-  if (event.metadata.dealerId) {
-    const existing = await db.subscription.findFirst({
-      where: {
-        dealerId: event.metadata.dealerId,
-        source: "PAYMENT",
-        status: { in: ["ACTIVE", "PAST_DUE", "INCOMPLETE"] },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (!existing) return null;
-    return db.subscription.update({
-      where: { id: existing.id },
-      data: {
-        cancelAtPeriodEnd: true,
-        ...(event.currentPeriodEnd
-          ? { currentPeriodEnd: event.currentPeriodEnd }
-          : {}),
-      },
-    });
-  }
-
-  return null;
 }
