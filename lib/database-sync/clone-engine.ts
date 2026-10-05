@@ -5,9 +5,10 @@ import { AUTH_TOKEN_COLUMNS, adminIdentityCollision, authScrubViolations, preser
 import { loadCloneCatalog, type CatalogTable } from "./catalog";
 import { loadPhysicalColumns } from "./columns";
 import { sourceAuthTable } from "./auth-source";
-import { canonicalBytes, hashCanonical, parseCanonical, quoteIdent, restoreValueExpression, selectExpression } from "./codec";
+import { canonicalBytes, hashCanonical, parseCanonical, quoteIdent, selectExpression } from "./codec";
+import { cloneInsertSql } from "./merge-write";
 import { chunkAad, openChunk, sealChunk } from "./chunks";
-import { closeWithoutReplacing, createSyncTrace, reportPrepareFailure, rollbackWithoutReplacing, type SyncTrace } from "./diagnostics";
+import { closeWithoutReplacing, createSyncTrace, reportPrepareFailure, reportApplyFailure, rollbackWithoutReplacing, type SyncTrace } from "./diagnostics";
 import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines, schemaCompatibility } from "./fingerprint";
 import { foreignKeyParents, indexIdentityLinks, readIdentitySnapshot, reconcileIdentities, remapRows, type IdentityLink, type IdentityReconciliation } from "./identity-reconcile";
 import { planCloneOrder, type CloneForeignKey } from "./order";
@@ -228,17 +229,6 @@ async function readChunkRows(client: PoolClient, runId: string, purpose: string,
   return { columns, rows };
 }
 
-function insertSql(relation: Relation, writable: Array<{ name: string; type: string; index: number; identity: string }>, conflict: "insert" | "merge") {
-  const names = writable.map((column) => quoteIdent(column.name)).join(",");
-  const values = writable.map((column) => restoreValueExpression(column.type, column.index)).join(",");
-  const update = writable.filter((column) => column.name !== relation.primaryKey && column.identity === "").map((column) => `${quoteIdent(column.name)}=EXCLUDED.${quoteIdent(column.name)}`).join(",");
-  const override = writable.some((column) => column.identity === "a") ? " OVERRIDING SYSTEM VALUE" : "";
-  const base = `INSERT INTO ${relation.schema}.${quoteIdent(relation.name)} (${names})${override} SELECT ${values} FROM jsonb_array_elements($1::jsonb) elem`;
-  if (conflict !== "merge") return base;
-  const target = quoteIdent(relation.primaryKey);
-  return update ? `${base} ON CONFLICT (${target}) DO UPDATE SET ${update}` : `${base} ON CONFLICT (${target}) DO NOTHING`;
-}
-
 async function writeRows(client: PoolClient, relation: Relation, columnList: StoredColumn[], rows: Array<Array<string | null>>, conflict: "insert" | "merge") {
   if (!columnList.length || !rows.length) return;
   const live = await loadPhysicalColumns(client, relation.schema, relation.name);
@@ -249,7 +239,7 @@ async function writeRows(client: PoolClient, relation: Relation, columnList: Sto
     return [{ name: column.name, type: column.type, index, identity: current?.identity ?? "" }];
   });
   if (!writable.length) return;
-  const sql = insertSql(relation, writable, conflict);
+  const sql = cloneInsertSql(relation, writable, conflict);
   for (let index = 0; index < rows.length; index += PAGE) {
     await client.query(sql, [JSON.stringify(rows.slice(index, index + PAGE))]);
   }
@@ -265,11 +255,11 @@ function scrubMatrix(table: string, columnList: Array<{ name: string; type: stri
   });
 }
 
-async function captureRelations(client: PoolClient, list: Relation[], runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number, excluded: ScopeExclusions = {}) {
+async function captureRelations(client: PoolClient, list: Relation[], runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number, excluded: ScopeExclusions = {}, trace?: SyncTrace) {
   let bytes = 0;
   const tables = [];
   for (const relation of list) {
-    const captured = await writeChunks(client, client, relation, runId, purpose, env, deadline, null, undefined, undefined, undefined, excluded);
+    const captured = await writeChunks(client, client, relation, runId, purpose, env, deadline, null, trace, undefined, undefined, excluded);
     bytes += captured.bytes;
     tables.push(captured);
     if (bytes > BACKUP_BUDGET_BYTES) throw new DatabaseSyncError("The newest backup exceeds the 500 MB ciphertext limit. Nothing was changed.");
@@ -325,7 +315,7 @@ async function verifyImportedAuth(client: PoolClient, ids: string[], mode: "exce
   if (leftover.rows[0]?.count !== "0") throw new DatabaseSyncError("Imported authentication records were not made non-login.");
 }
 
-async function replay(client: PoolClient, manifest: CloneManifest, runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number, scrub: boolean) {
+async function replay(client: PoolClient, manifest: CloneManifest, runId: string, purpose: string, env: NodeJS.ProcessEnv, deadline: number, scrub: boolean, trace?: SyncTrace) {
   const catalog = cloneRelations(loadCloneCatalog());
   const byKey = new Map(catalog.map((relation) => [relation.key, relation]));
   if (manifest.mode !== "merge") {
@@ -367,6 +357,7 @@ async function replay(client: PoolClient, manifest: CloneManifest, runId: string
     const blankIndexes = new Set(manifest.nullThenUpdate.filter((step) => step.table === relation.name).flatMap((step) => step.columns.map((column) => loaded.columns.findIndex((item) => item.name === column))).filter((index) => index >= 0));
     const firstPass = rows.map((row) => row.map((value, index) => blankIndexes.has(index) ? null : value));
     try {
+      markTrace(trace, "destination", "apply.write-rows", key);
       await writeRows(client, relation, loaded.columns, firstPass, manifest.mode === "merge" ? "merge" : "insert");
     } catch (error) {
       if (typeof error === "object" && error && "code" in error && error.code === "23505") throw new DatabaseSyncError(`${relation.name} conflicts with a different development identity on a unique key.`);
@@ -380,10 +371,12 @@ async function replay(client: PoolClient, manifest: CloneManifest, runId: string
     }
   }
   for (const [table, payload] of originals) {
+    markTrace(trace, "destination", "apply.restore-references", table);
     const relation = byKey.get(table);
     if (relation) await writeRows(client, relation, payload.columns, payload.rows, "merge");
   }
   if (!scrub) return;
+  markTrace(trace, "destination", "apply.authentication-and-provenance");
   if (manifest.mode === "merge") {
     await clearSessions(client, importedAuthIds, "only");
     await client.query(`INSERT INTO staging_admin.database_sync_provenance(generation_id, table_name, row_key)
@@ -667,36 +660,48 @@ export async function prepareClone(mode: "merge" | "replace" | "reset", actorId:
 }
 
 export async function applyClone(runId: string, actorId: string, env: NodeJS.ProcessEnv, isolated?: IsolatedDatabaseSync) {
+  const trace = createSyncTrace("apply");
+  let commitAttempted = false;
   const deadline = Date.now() + APPLY_DEADLINE_MS;
   const run = async (client: PoolClient) => {
     try {
+      markTrace(trace, "destination", "apply.lock");
       await beginLocked(client, actorId);
+      markTrace(trace, "destination", "apply.load-plan");
       const stored = await client.query<StoredRun>(`SELECT * FROM staging_admin.database_sync_runs WHERE id=$1 FOR UPDATE`, [runId]);
       const row = stored.rows[0];
       if (!row || row.actor_id !== actorId) throw new DatabaseSyncError("Prepare a sync preview with your own administrator account.");
-      if (row.status === "applied") { await client.query("COMMIT"); return row; }
+      if (row.status === "applied") { commitAttempted = true; await client.query("COMMIT"); return row; }
       if (row.expires_at.getTime() <= Date.now()) throw new DatabaseSyncError("This preview has expired. Prepare a new preview.");
       const manifest = unseal<CloneManifest>(row.encrypted_snapshot, runId, env);
       if (manifest.scopeVersion !== DATABASE_SYNC_SCOPE || manifest.mode !== "merge") throw new DatabaseSyncError("This plan predates the current exclusions. Prepare a fresh scoped Merge preview.");
       if (manifest.blockers.length) throw new DatabaseSyncError("Resolve all preview blockers before applying this sync.");
+      markTrace(trace, "destination", "apply.lock-tables");
       await client.query(lockCloneTablesSql(loadCloneCatalog().map((table) => table.name)));
       await requireActor(client, actorId);
       if ((await fingerprint(client)) !== manifest.fingerprint) throw new DatabaseSyncError("Schema changed after this preview. Prepare a new preview. Nothing was changed.");
+      markTrace(trace, "destination", "apply.check-exclusions");
       const currentScope = await readDatabaseScope(client, loadCloneCatalog(), env);
       for (const relation of cloneRelations(loadCloneCatalog())) {
         const payload = await readChunkRows(client, runId, "source", relation.key, env);
         assertScopedPayload(relation.key, relation.primaryKey, payload.columns, payload.rows, currentScope);
       }
-      const backup = await captureRelations(client, backupRelations(loadCloneCatalog()), runId, "backup", env, deadline, currentScope.excluded);
+      markTrace(trace, "destination", "apply.backup");
+      const backup = await captureRelations(client, backupRelations(loadCloneCatalog()), runId, "backup", env, deadline, currentScope.excluded, trace);
+      markTrace(trace, "destination", "apply.backup-retention");
       await enforceRetention(client, runId, backup.bytes);
-      await replay(client, manifest, runId, "source", env, deadline, true);
+      await replay(client, manifest, runId, "source", env, deadline, true, trace);
+      markTrace(trace, "destination", "apply.finalize");
       await client.query(`DELETE FROM staging_admin.database_sync_chunks WHERE run_id=$1 AND purpose='source'`, [runId]);
       const saved = await client.query<StoredRun>(`UPDATE staging_admin.database_sync_runs SET status='applied', applied_at=now(), backup_bytes=$2, backup_expires_at=NULL WHERE id=$1 RETURNING *`, [runId, backup.bytes]);
+      markTrace(trace, "destination", "apply.commit");
+      commitAttempted = true;
       await client.query("COMMIT");
+      console.info("Database sync applied.", { runId, referenceId: trace.referenceId, elapsedMs: Date.now() - trace.startedAt });
       return saved.rows[0];
     } catch (error) {
-      await rollbackWithoutReplacing(client, createSyncTrace("apply"));
-      throw error;
+      const rolledBack = await rollbackWithoutReplacing(client, trace, env);
+      throw reportApplyFailure(trace, error, rolledBack && !commitAttempted, env);
     }
   };
   if (isolated) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { requireRole } from "@/lib/auth";
+import { createSyncTrace, logSyncFailure } from "@/lib/database-sync/diagnostics";
 import { SCOPED_MERGE_ONLY } from "@/lib/database-sync/scope-policy";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
@@ -20,8 +21,9 @@ const failed = "The database operation could not be completed. Refresh the inspe
 
 function operationFailure(operation: "prepare" | "apply" | "restore", error: unknown): string {
   if (error instanceof DatabaseSyncError) return error.message;
-  console.error("Database sync operation failed.", { operation });
-  return failed;
+  const trace = createSyncTrace(operation);
+  logSyncFailure(trace, error);
+  return `${failed} Reference ${trace.referenceId}.`;
 }
 
 function publicRun(run: DatabaseSyncRun): PublicDatabaseSyncRun {
@@ -81,8 +83,15 @@ export async function applyDatabaseSyncAction(input: unknown) {
       return { error: "Type the confirmation exactly as shown for the prepared plan." };
     }
     const result = await applyDatabaseSync(run.id, admin.id);
-    revalidatePath("/admin/database");
-    revalidatePath("/", "layout");
+    if (result.status !== "applied") return { error: "The server did not confirm an applied merge. Refresh history before trying again." };
+    // A committed transaction remains successful even if UI cache refresh fails.
+    try {
+      revalidatePath("/admin/database");
+      revalidatePath("/", "layout");
+    } catch (error) {
+      logSyncFailure(createSyncTrace("apply.refresh-after-commit"), error);
+      return { data: publicRun(result), warning: "The merge completed, but automatic page refresh failed. Refresh the page to see the updated data." };
+    }
     return { data: publicRun(result) };
   } catch (error) { return { error: operationFailure("apply", error) }; }
 }

@@ -43,7 +43,9 @@ export function sanitizeSyncError(error: unknown): SanitizedSyncError {
     ? record.code
     : undefined;
   const raw = typeof record?.message === "string" ? record.message : "Unexpected failure";
-  const message = raw.replace(SECRET_TEXT, "[redacted]").replace(LONG_SECRET, "[redacted]").replace(/\s+/g, " ").slice(0, 300);
+  const message = raw.replace(SECRET_TEXT, "[redacted]").replace(LONG_SECRET, "[redacted]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
+    .replace(/'[^']*'/g, "'[redacted-value]'").replace(/\s+/g, " ").slice(0, 300);
   return {
     name: typeof record?.name === "string" ? record.name.slice(0, 80) : "Error",
     message,
@@ -86,9 +88,11 @@ export function reportPrepareFailure(trace: SyncTrace, error: unknown, env: Node
 export async function rollbackWithoutReplacing(client: PoolClient, trace: SyncTrace, env: NodeJS.ProcessEnv = process.env) {
   try {
     await client.query("ROLLBACK");
+    return true;
   } catch (error) {
     const cleanup = { ...trace, operation: "cleanup" as const, subphase: `${trace.subphase}.rollback` };
     logSyncFailure(cleanup, error, env);
+    return false;
   }
 }
 
@@ -98,4 +102,18 @@ export async function closeWithoutReplacing(work: () => Promise<void> | void, tr
   } catch (error) {
     logSyncFailure({ ...trace, operation: "cleanup", subphase: `${trace.subphase}.close` }, error, env);
   }
+}
+
+/** Preserve the failure and distinguish a confirmed rollback from an unknown commit outcome. */
+export function reportApplyFailure(trace: SyncTrace, error: unknown, rolledBack: boolean, env: NodeJS.ProcessEnv = process.env): DatabaseSyncError {
+  logSyncFailure(trace, error, env);
+  const reason = error instanceof DatabaseSyncError
+    ? error.message
+    : `Merge failed during ${trace.subphase}${trace.table ? ` (${trace.table})` : ""}.`;
+  const outcome = rolledBack
+    ? "The transaction was rolled back. No merge changes were committed."
+    : "The final database outcome could not be confirmed. Check operation history before retrying.";
+  const wrapped = new DatabaseSyncError(`${reason} ${outcome} Reference ${trace.referenceId}.`);
+  wrapped.cause = error;
+  return wrapped;
 }

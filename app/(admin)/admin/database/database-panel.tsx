@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { applyDatabaseSyncAction, prepareDatabaseSyncAction, restoreDatabaseSyncAction, type PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { applyDatabaseSyncAction, prepareDatabaseSyncAction, loadDatabaseSyncRuns, type PublicDatabaseSyncRun } from "@/actions/admin/database-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SCOPED_MERGE_ONLY, SYNC_SCOPE_DESCRIPTION } from "@/lib/database-sync/scope-policy";
@@ -15,7 +15,7 @@ const modes = {
 type PendingOperation =
   | { kind: "prepare"; mode: keyof typeof modes }
   | { kind: "apply"; mode: keyof typeof modes }
-  | { kind: "restore"; runId: string };
+  | { kind: "history" };
 
 function dateLabel(value: string | Date) {
   return new Date(value).toLocaleString("en-GB", { timeZone: "Europe/London" });
@@ -32,14 +32,17 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
   const [runs, setRuns] = useState(initialRuns);
   const [plan, setPlan] = useState<PublicDatabaseSyncRun | null>(null);
   const [confirmation, setConfirmation] = useState("");
-  const [restoreId, setRestoreId] = useState<string | null>(null);
-  const [restoreConfirmation, setRestoreConfirmation] = useState("");
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  const operationLock = useRef(false);
+  const [uncertainRunId, setUncertainRunId] = useState<string | null>(null);
   const [error, setError] = useState(historyError ?? "");
   const [notice, setNotice] = useState("");
   const [operation, setOperation] = useState<PendingOperation | null>(null);
   const [pending, startTransition] = useTransition();
 
   function prepare(mode: keyof typeof modes) {
+    if (operationLock.current || mode !== "merge" || uncertainRunId) return;
+    operationLock.current = true;
     setError(""); setNotice(""); setPlan(null); setConfirmation("");
     setOperation({ kind: "prepare", mode });
     startTransition(async () => {
@@ -50,38 +53,57 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         setRuns((current) => [result.data, ...current.filter((run) => run.id !== result.data.id)]);
         setNotice(`Plan prepared for ${modes[result.data.mode].title.toLowerCase()}. Review the counts and blockers below.`);
       } catch { setError("Could not prepare the plan. Refresh the page and try again."); }
-      finally { setOperation(null); }
+      finally { operationLock.current = false; setOperation(null); }
     });
   }
 
   function apply() {
-    if (!plan) return;
+    if (!plan || operationLock.current || uncertainRunId) return;
+    operationLock.current = true;
     setError(""); setNotice("");
     setOperation({ kind: "apply", mode: plan.mode });
     startTransition(async () => {
       try {
         const result = await applyDatabaseSyncAction({ runId: plan.id, confirmation });
         if ("error" in result) { setError(result.error ?? "Could not apply the plan."); return; }
+        if (result.data.status !== "applied") {
+          setUncertainRunId(plan.id);
+          setError("The server did not confirm completion. Check saved operation status before trying again.");
+          return;
+        }
         setRuns((current) => [result.data, ...current.filter((run) => run.id !== result.data.id)]);
-        setNotice(`${modes[result.data.mode].title} completed. Production was not changed.`);
+        const warning = "warning" in result && typeof result.warning === "string" ? ` ${result.warning}` : "";
+        setNotice(`${modes[result.data.mode].title} completed successfully. Production was not changed.${warning}`);
         setPlan(null); setConfirmation("");
-      } catch { setError("The operation could not be confirmed. Refresh the history before trying again."); }
-      finally { setOperation(null); }
+      } catch {
+        setUncertainRunId(plan.id);
+        setError("The connection ended before completion could be confirmed. Use Refresh history to check the saved outcome before trying again.");
+      }
+      finally { operationLock.current = false; setOperation(null); }
     });
   }
 
-  function restore(runId: string) {
-    setError(""); setNotice("");
-    setOperation({ kind: "restore", runId });
+  function refreshHistory() {
+    if (operationLock.current) return;
+    operationLock.current = true;
+    setOperation({ kind: "history" });
     startTransition(async () => {
       try {
-        const result = await restoreDatabaseSyncAction({ runId, confirmation: restoreConfirmation });
-        if ("error" in result) { setError(result.error ?? "Could not restore the backup."); return; }
-        setRuns((current) => [result.data, ...current.filter((run) => run.id !== result.data.id)]);
-        setNotice("Development was restored from the selected backup. Production was not changed.");
-        setRestoreId(null); setRestoreConfirmation("");
-      } catch { setError("The restore could not be confirmed. Refresh the history before trying again."); }
-      finally { setOperation(null); }
+        const result = await loadDatabaseSyncRuns();
+        if ("error" in result) { setError(result.error ?? "Could not load operation history."); return; }
+        setRuns(result.data);
+        const current = result.data.find((run) => run.id === (uncertainRunId ?? plan?.id));
+        if (current?.status === "applied") {
+          setError(""); setUncertainRunId(null); setPlan(null); setConfirmation("");
+          setNotice("Merge completed successfully. The saved operation is Applied. Production was not changed.");
+        } else if (uncertainRunId) {
+          setNotice("");
+          setError("Completion is not confirmed. The saved operation is still prepared or unavailable. Do not submit another merge while the earlier request may still be running. Refresh history again before retrying.");
+        } else {
+          setNotice("Operation history refreshed from the database.");
+        }
+      } catch { setError("Operation history could not be loaded. No new merge was submitted."); }
+      finally { operationLock.current = false; setOperation(null); }
     });
   }
 
@@ -89,9 +111,15 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
     ? `Request received. Preparing the ${operation.mode} plan by reading and encrypting a consistent snapshot. Keep this page open.`
     : operation?.kind === "apply"
       ? `Confirmation received. Applying the ${operation.mode} plan to development. Production remains read-only.`
-      : operation?.kind === "restore"
-        ? "Confirmation received. Restoring the selected development backup."
+      : operation?.kind === "history"
+        ? "Checking saved operation status. No new merge is being submitted."
         : "";
+
+  useEffect(() => {
+    if (!error && !notice && !progress) return;
+    feedbackRef.current?.focus({ preventScroll: true });
+    feedbackRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [error, notice, progress]);
 
   return (
     <div className="space-y-5" aria-busy={pending || Boolean(operation)}>
@@ -100,26 +128,33 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         <p className="mt-2 text-sm text-text-secondary">Production is a read-only source. A reviewed plan copies only included marketplace records and disabled authentication identities into development, with a private encrypted backup of included staging data taken before application. The newest backup is kept. When a newer backup is saved, the previous one expires after 30 days. At most four older backups are kept, within a 500 MB ciphertext limit.</p>
       </section>
       <p className="rounded-md border border-border p-4 text-sm text-text-secondary">{SYNC_SCOPE_DESCRIPTION} The two explicitly excluded user accounts are also ignored. {SCOPED_MERGE_ONLY}</p>
-      <section className="grid gap-4" aria-label="Database operations">
-        {Object.entries(modes).filter(([mode]) => mode === "merge").map(([mode, item]) => (
+      <section className="grid gap-4 lg:grid-cols-3" aria-label="Database operations">
+        {Object.entries(modes).map(([mode, item]) => (
           <div key={mode} className="flex flex-col rounded-lg border border-border bg-surface p-5">
             <h3 className="font-semibold text-text-primary">{item.title}</h3>
             <p className="mt-2 flex-1 text-sm text-text-secondary">{item.description}</p>
             <Button
               className="mt-4 border border-border"
               variant="ghost"
-              disabled={pending || Boolean(operation)}
+              type="button"
+              disabled={mode !== "merge" || pending || Boolean(operation) || Boolean(uncertainRunId)}
+              title={mode !== "merge" ? SCOPED_MERGE_ONLY : undefined}
               loading={operation?.kind === "prepare" && operation.mode === mode}
               onClick={() => prepare(mode as keyof typeof modes)}
             >
               {operation?.kind === "prepare" && operation.mode === mode ? `Preparing ${mode} plan…` : `Preview ${mode} plan`}
             </Button>
+            {mode !== "merge" ? <p className="mt-2 text-xs text-text-secondary">Unavailable while the current exclusions are active.</p> : null}
           </div>
         ))}
       </section>
-      {error ? <p role="alert" className="rounded-md border border-neon-red-500/30 p-4 text-sm text-text-primary">{error}</p> : null}
-      {notice ? <p role="status" className="rounded-md border border-border p-4 text-sm text-text-primary">{notice}</p> : null}
-      {progress ? <p role="status" className="text-sm text-text-secondary">{progress}</p> : null}
+      {(error || notice || progress) ? (
+        <div ref={feedbackRef} tabIndex={-1} role={error ? "alert" : "status"} aria-atomic="true"
+          className={`scroll-mt-24 rounded-md border p-4 text-sm text-text-primary focus:outline-none ${error ? "border-neon-red-500/50" : "border-border bg-surface"}`}>
+          {progress || error || notice}
+          {uncertainRunId ? <Button type="button" className="mt-3 block border border-border" variant="ghost" disabled={pending || Boolean(operation)} onClick={refreshHistory}>Check saved operation status</Button> : null}
+        </div>
+      ) : null}
       {plan ? (
         <section aria-labelledby="sync-plan" className="rounded-lg border border-border bg-surface p-5">
           <h2 id="sync-plan" className="text-lg font-semibold text-text-primary">Review: {modes[plan.mode].title}</h2>
@@ -137,7 +172,8 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
             <div className="mt-5 max-w-lg space-y-3">
               <Input label={`Type ${modes[plan.mode].confirmation} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={pending} autoComplete="off" />
               <Button
-                disabled={pending || Boolean(operation) || confirmation !== modes[plan.mode].confirmation}
+                type="button"
+                disabled={pending || Boolean(operation) || Boolean(uncertainRunId) || confirmation !== modes[plan.mode].confirmation}
                 loading={operation?.kind === "apply"}
                 onClick={apply}
               >
@@ -148,27 +184,18 @@ export function DatabasePanel({ initialRuns, historyError }: { initialRuns: Publ
         </section>
       ) : null}
       <section className="rounded-lg border border-border bg-surface p-5" aria-labelledby="sync-history">
-        <h2 id="sync-history" className="text-lg font-semibold text-text-primary">Recent operations</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="sync-history" className="text-lg font-semibold text-text-primary">Recent operations</h2>
+          <Button type="button" variant="ghost" className="border border-border" disabled={pending || Boolean(operation)} onClick={refreshHistory}>Refresh history</Button>
+        </div>
+        <p className="mt-2 text-sm text-text-secondary">Restore is unavailable while the exclusions are active. Saved backups are retained.</p>
         {runs.length ? <ul className="mt-3 divide-y divide-border">{runs.map((run) => (
           <li key={run.id} className="py-3 text-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <span>{run.kind === "restore" ? "Restore development" : modes[run.mode].title} · {dateLabel(run.createdAt)}<span className="block text-text-secondary">{backupLabel(run)}</span></span>
               <span className="font-medium">{run.status === "applied" ? "Applied" : "Prepared"}</span>
             </div>
-            {run.restoreAvailable ? (
-              restoreId === run.id ? (
-                <div className="mt-3 max-w-lg space-y-3">
-                  <Input label="Type RESTORE DEVELOPMENT to confirm" value={restoreConfirmation} onChange={(event) => setRestoreConfirmation(event.target.value)} disabled={pending} autoComplete="off" />
-                  <Button
-                    disabled={pending || Boolean(operation) || restoreConfirmation !== "RESTORE DEVELOPMENT"}
-                    loading={operation?.kind === "restore" && operation.runId === run.id}
-                    onClick={() => restore(run.id)}
-                  >
-                    {operation?.kind === "restore" && operation.runId === run.id ? "Restoring backup…" : "Restore this backup"}
-                  </Button>
-                </div>
-              ) : <Button className="mt-3 border border-border" variant="ghost" disabled={pending || Boolean(operation)} onClick={() => { setRestoreId(run.id); setRestoreConfirmation(""); }}>Restore</Button>
-            ) : null}
+            <Button type="button" className="mt-3 border border-border" variant="ghost" disabled title={SCOPED_MERGE_ONLY}>Restore</Button>
           </li>
         ))}</ul> : <p className="mt-2 text-sm text-text-secondary">No operations recorded.</p>}
       </section>
