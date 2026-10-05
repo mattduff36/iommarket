@@ -255,6 +255,8 @@ describe("refundSubscriptionPaymentSchema", () => {
   it("accepts valid cuid", () => {
     const result = refundSubscriptionPaymentSchema.safeParse({
       subscriptionId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      chargeId: "claaaaaaaaaaaaaaaaaaaaaaa",
+      operationId: "11111111-1111-4111-8111-111111111111",
       reason: "REQUESTED_BY_CUSTOMER",
     });
     expect(result.success).toBe(true);

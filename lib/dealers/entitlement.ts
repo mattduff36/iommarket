@@ -5,6 +5,10 @@ import type {
   SubscriptionSource,
   SubscriptionStatus,
 } from "@prisma/client";
+import {
+  getDealerTierFromRippleProduct,
+  resolveRippleProduct,
+} from "@/lib/payments/ripple-mapping";
 
 interface DealerSubscriptionRecord {
   id: string;
@@ -157,13 +161,13 @@ export async function getDealerEntitlement(
   tier: DealerTier,
   now = new Date()
 ): Promise<DealerEntitlement | null> {
-  const [paidSubscription, adminGrant] = await Promise.all([
-    db.subscription.findFirst({
+  const [paidSubscriptions, adminGrant] = await Promise.all([
+    db.subscription.findMany({
       where: {
         dealerId,
         ...getPaidSubscriptionEntitlementWhere(now),
       },
-      select: { id: true, source: true, currentPeriodEnd: true },
+      select: { id: true, source: true, currentPeriodEnd: true, providerPlanId: true },
     }),
     db.subscription.findFirst({
       where: {
@@ -178,14 +182,27 @@ export async function getDealerEntitlement(
     }),
   ]);
 
+  const paidSubscription = paidSubscriptions
+    .map((subscription) => ({
+      subscription,
+      tier: getDealerTierFromRippleProduct(
+        resolveRippleProduct({
+          linkCode: subscription.providerPlanId,
+          packageName: subscription.providerPlanId,
+        }),
+      ),
+    }))
+    .filter((row): row is { subscription: (typeof paidSubscriptions)[number]; tier: DealerTier } => row.tier !== null)
+    .sort((left, right) => Number(right.tier === "PRO") - Number(left.tier === "PRO"))[0];
   if (paidSubscription) {
     return {
-      subscriptionId: paidSubscription.id,
-      source: paidSubscription.source,
-      tier,
-      endsAt: paidSubscription.currentPeriodEnd,
+      subscriptionId: paidSubscription.subscription.id,
+      source: paidSubscription.subscription.source,
+      tier: paidSubscription.tier,
+      endsAt: paidSubscription.subscription.currentPeriodEnd,
     };
   }
+  if (paidSubscriptions.length > 0) return null;
   if (!adminGrant) return null;
 
   return {

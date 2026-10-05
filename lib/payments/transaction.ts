@@ -11,11 +11,13 @@ export function isPaymentTransactionConflict(error: unknown): boolean {
 export async function runPaymentSerializable<T>(
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
   maxAttempts = 3,
+  timeout?: number,
 ): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await db.$transaction(operation, {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        ...(timeout ? { timeout } : {}),
       });
     } catch (error) {
       if (!isPaymentTransactionConflict(error) || attempt === maxAttempts) {

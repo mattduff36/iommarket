@@ -249,8 +249,9 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     ? Number(reviewStats._avg.rating.toFixed(1))
     : null;
 
-  const listingCap = getDealerListingCap(user.dealerProfile.tier);
-  const tierLabel = DEALER_TIER_LABELS[user.dealerProfile.tier];
+  const listingTier = entitlement?.tier ?? user.dealerProfile.tier;
+  const listingCap = getDealerListingCap(listingTier);
+  const tierLabel = DEALER_TIER_LABELS[listingTier];
   const managedReviews = responseEligibleReviews.map(toManagedDealerReview);
   const showAdminOperationalAccess = user.role === "ADMIN" && !entitlement;
 

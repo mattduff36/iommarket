@@ -198,6 +198,8 @@ export type RefundPaymentInput = z.infer<typeof refundPaymentSchema>;
 export const refundSubscriptionPaymentSchema = z
   .object({
     subscriptionId: z.string().cuid(),
+    chargeId: z.string().cuid(),
+    operationId: z.string().uuid(),
     reason: z.enum([
       "DUPLICATE",
       "REQUESTED_BY_CUSTOMER",

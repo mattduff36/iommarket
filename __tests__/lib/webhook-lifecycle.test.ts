@@ -4,7 +4,10 @@ const {
   paymentFindMany,
   paymentUpdate,
   subscriptionFindFirst,
+  subscriptionFindUnique,
+  subscriptionFindMany,
   subscriptionUpdate,
+  dealerProfileUpdate,
   subscriptionChargeFindUnique,
   subscriptionChargeUpdateMany,
   captureBusinessEvent,
@@ -12,7 +15,10 @@ const {
   paymentFindMany: vi.fn(),
   paymentUpdate: vi.fn(),
   subscriptionFindFirst: vi.fn(),
+  subscriptionFindUnique: vi.fn(),
+  subscriptionFindMany: vi.fn(),
   subscriptionUpdate: vi.fn(),
+  dealerProfileUpdate: vi.fn(),
   subscriptionChargeFindUnique: vi.fn(),
   subscriptionChargeUpdateMany: vi.fn(),
   captureBusinessEvent: vi.fn(),
@@ -26,8 +32,12 @@ vi.mock("@/lib/db", () => {
     },
     subscription: {
       findFirst: subscriptionFindFirst,
-      findUnique: vi.fn().mockResolvedValue(null),
+      findUnique: subscriptionFindUnique,
+      findMany: subscriptionFindMany,
       update: subscriptionUpdate,
+    },
+    dealerProfile: {
+      update: dealerProfileUpdate,
     },
     subscriptionCharge: {
       findUnique: subscriptionChargeFindUnique,
@@ -100,6 +110,8 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     subscriptionChargeFindUnique.mockResolvedValue(null);
+    subscriptionFindUnique.mockResolvedValue(null);
+    subscriptionFindMany.mockResolvedValue([]);
   });
 
   it("marks matching payments refunded with a retained reason", async () => {
@@ -138,17 +150,39 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
     );
   });
 
-  it("schedules entitlement end from the exact charge even without checkout metadata", async () => {
+  it("ends entitlement after a parsed refund with no provider period end", async () => {
     paymentFindMany.mockResolvedValue([]);
     subscriptionChargeFindUnique.mockResolvedValue({
       id: "charge-1",
       subscriptionId: "sub-1",
       refundedAt: null,
+      eventTimestamp: new Date("2026-08-15T10:00:00.000Z"),
+      amount: 4999,
+      currency: "gbp",
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: "C5D44F6F18094B94",
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-09-15T10:00:00.000Z"),
+      charges: [
+        {
+          id: "charge-1",
+          eventTimestamp: new Date("2026-08-15T10:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+      ],
     });
 
     await processProviderWebhookEvent(
       baseEvent({
         type: "payment.refunded",
+        amount: 4999,
+        currency: "gbp",
         providerSubscriptionId: "prov-sub",
         currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
         metadata: {
@@ -171,8 +205,9 @@ describe("payment webhook reconciliation ALR-PAY-001", () => {
     expect(subscriptionUpdate).toHaveBeenCalledWith({
       where: { id: "sub-1" },
       data: {
-        cancelAtPeriodEnd: true,
-        currentPeriodEnd: new Date("2026-09-01T00:00:00.000Z"),
+        status: "CANCELLED",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
       },
     });
   });

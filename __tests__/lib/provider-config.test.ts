@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { isOptionalSupportCheckoutConfigured } from "@/lib/payments/provider";
+import {
+  getPaymentProviderCapabilities,
+  IN_APP_REFUND_PREREQUISITES,
+  isOptionalSupportCheckoutConfigured,
+} from "@/lib/payments/provider";
 
 describe("provider config", () => {
   beforeEach(() => {
@@ -14,5 +18,12 @@ describe("provider config", () => {
     process.env.RIPPLE_LISTING_SUPPORT_URL = "https://portal.startyourripple.co.uk/pay/support";
 
     expect(isOptionalSupportCheckoutConfigured()).toBe(false);
+  });
+
+  it("keeps in-app refunds disabled until the claim gap is closed", () => {
+    expect(IN_APP_REFUND_PREREQUISITES).toEqual([
+      "claim-without-refunded-at-skips-provider-and-records-locally",
+    ]);
+    expect(getPaymentProviderCapabilities().supportsInAppRefunds).toBe(false);
   });
 });

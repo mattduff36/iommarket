@@ -1,6 +1,5 @@
 import {
   Prisma,
-  type DealerTier,
   type PaymentCheckoutAttempt,
   type Subscription,
   type SubscriptionProviderLifecycle,
@@ -19,16 +18,18 @@ import {
   getRippleClientId,
 } from "@/lib/payments/ripple-config";
 import type { RippleProduct } from "@/lib/payments/ripple-config";
-import {
-  getDealerTierFromRippleProduct,
-  resolveRippleProduct,
-} from "@/lib/payments/ripple-mapping";
+import { resolveRippleProduct } from "@/lib/payments/ripple-mapping";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import {
   listSyntheticSubscriptionIds,
   normalizeRippleEmail,
   parseRippleReference,
 } from "@/lib/payments/ripple-reference";
+import {
+  applyRecordedChargeRefund,
+  classifySubscriptionRefund,
+  recomputeDealerTier,
+} from "@/lib/payments/subscription-refund";
 import { decideProviderEventApplication } from "@/lib/payments/webhook-ordering";
 import { runPaymentSerializable } from "@/lib/payments/transaction";
 
@@ -386,7 +387,7 @@ async function findSubscriptionRefundReceipt(providerPaymentId: string) {
       eventType: "payment.refunded",
     },
     orderBy: { eventTimestamp: "asc" },
-    select: { id: true, eventTimestamp: true },
+    select: { id: true, eventTimestamp: true, amountPence: true, currency: true },
   });
 }
 
@@ -582,41 +583,6 @@ async function isExistingChargeReplay(
   return true;
 }
 
-async function recomputeDealerTier(
-  dealerId: string,
-  now = new Date(),
-  client: PaymentDb = db
-) {
-  const subscriptions = await client.subscription.findMany({
-    where: { dealerId, source: "PAYMENT" },
-  });
-  const entitledTiers = subscriptions
-    .filter((subscription) => isPaidSubscriptionEntitled(subscription, now))
-    .map((subscription) =>
-      getDealerTierFromRippleProduct(
-        resolveRippleProduct({
-          linkCode: subscription.providerPlanId,
-          packageName: subscription.providerPlanId,
-        })
-      )
-    )
-    .filter((tier): tier is DealerTier => Boolean(tier));
-
-  if (entitledTiers.includes("PRO")) {
-    await client.dealerProfile.update({
-      where: { id: dealerId },
-      data: { tier: "PRO" },
-    });
-    return;
-  }
-  if (entitledTiers.includes("STARTER")) {
-    await client.dealerProfile.update({
-      where: { id: dealerId },
-      data: { tier: "STARTER" },
-    });
-  }
-}
-
 async function ensureDealerRole(
   dealerId: string,
   client: PaymentDb = db,
@@ -796,15 +762,33 @@ async function applyRecurringPayment(event: NormalizedProviderWebhookEvent) {
         ? await findSubscriptionRefundReceipt(event.providerPaymentId)
         : null;
       if (refundReceipt) {
-        await recordRefundedSubscriptionCharge(
-          resolved,
-          event,
-          existing,
-          attempt,
-          refundReceipt.eventTimestamp,
-          client,
-        );
-        return;
+        const classification = classifySubscriptionRefund({
+          chargeAmount: event.amount ?? Number.NaN,
+          chargeCurrency: event.currency ?? "",
+          refundAmount: refundReceipt.amountPence,
+          refundCurrency: refundReceipt.currency,
+        });
+        if (classification.kind === "full") {
+          await recordRefundedSubscriptionCharge(
+            resolved,
+            event,
+            existing,
+            attempt,
+            refundReceipt.eventTimestamp,
+            client,
+          );
+          return;
+        }
+        await captureBusinessEvent({
+          source: "WEBHOOK",
+          severity: "HIGH",
+          title: "Subscription refund was not applied",
+          message: "A refund received before its charge does not match the full payment.",
+          action: "applyRecurringPayment",
+          route: "/api/webhooks/payments",
+          requestPath: "/api/webhooks/payments",
+          tags: { refundClassification: classification.kind },
+        });
       }
       const periodEnd = laterDate(
         existing?.currentPeriodEnd,
@@ -991,7 +975,14 @@ export async function handleSubscriptionRefundSchedule(
     await lockProviderPayment(client, providerPaymentId);
     const charge = await client.subscriptionCharge.findUnique({
       where: { paymentReference: providerPaymentId },
-      select: { id: true, subscriptionId: true, refundedAt: true },
+      select: {
+        id: true,
+        subscriptionId: true,
+        refundedAt: true,
+        eventTimestamp: true,
+        amount: true,
+        currency: true,
+      },
     });
     if (!charge) {
       if (isSubscriptionRefundEvent(event)) {
@@ -1001,24 +992,34 @@ export async function handleSubscriptionRefundSchedule(
     }
 
     if (!charge.refundedAt) {
-      await client.subscriptionCharge.updateMany({
-        where: { id: charge.id, refundedAt: null },
-        data: {
-          refundedAt: event.eventTimestamp ?? new Date(),
-          refundEventId:
-            event.fingerprint ?? event.id ?? providerPaymentId,
-        },
+      const classification = classifySubscriptionRefund({
+        chargeAmount: charge.amount,
+        chargeCurrency: charge.currency,
+        refundAmount: event.amount,
+        refundCurrency: event.currency,
       });
+      if (classification.kind !== "full") {
+        await captureBusinessEvent({
+          source: "WEBHOOK",
+          severity: "HIGH",
+          title: "Subscription refund was not applied",
+          message: "The Ripple refund amount does not match the full stored charge.",
+          action: "handleSubscriptionRefundSchedule",
+          route: "/api/webhooks/payments",
+          requestPath: "/api/webhooks/payments",
+          tags: { refundClassification: classification.kind },
+        });
+        return { id: charge.subscriptionId, refundClassification: classification.kind };
+      }
     }
 
-    return client.subscription.update({
-      where: { id: charge.subscriptionId },
-      data: {
-        cancelAtPeriodEnd: true,
-        ...(event.currentPeriodEnd
-          ? { currentPeriodEnd: event.currentPeriodEnd }
-          : {}),
-      },
+    return applyRecordedChargeRefund(client, {
+      chargeId: charge.id,
+      subscriptionId: charge.subscriptionId,
+      refundedAt: charge.refundedAt ?? event.eventTimestamp ?? new Date(),
+      refundEventId: event.fingerprint ?? event.id ?? providerPaymentId,
+      now: new Date(),
+      recordCharge: !charge.refundedAt,
     });
   });
 }

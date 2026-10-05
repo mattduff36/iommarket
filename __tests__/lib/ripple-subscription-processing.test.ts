@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isPaidSubscriptionEntitled } from "@/lib/dealers/entitlement";
+import { isRecognisedSubscriptionCharge } from "@/lib/payments/records";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
+import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
-import { installRippleTestEnv } from "./ripple-test-env";
+import { installRippleTestEnv, rippleEnvelope } from "./ripple-test-env";
 import { createRippleReference } from "@/lib/payments/ripple-reference";
 
 const {
   subscriptionFindFirst,
+  subscriptionFindUnique,
   subscriptionCreate,
   subscriptionUpdate,
   subscriptionFindMany,
@@ -19,6 +23,7 @@ const {
   db,
 } = vi.hoisted(() => {
   const subscriptionFindFirst = vi.fn();
+  const subscriptionFindUnique = vi.fn();
   const subscriptionCreate = vi.fn();
   const subscriptionUpdate = vi.fn();
   const subscriptionFindMany = vi.fn();
@@ -32,7 +37,7 @@ const {
   const db: Record<string, unknown> = {
     subscription: {
       findFirst: subscriptionFindFirst,
-      findUnique: vi.fn().mockResolvedValue(null),
+      findUnique: subscriptionFindUnique,
       create: subscriptionCreate,
       findMany: subscriptionFindMany,
       update: subscriptionUpdate,
@@ -81,6 +86,7 @@ const {
   db.$queryRaw = vi.fn();
   return {
     subscriptionFindFirst,
+    subscriptionFindUnique,
     subscriptionCreate,
     subscriptionUpdate,
     subscriptionFindMany,
@@ -100,6 +106,7 @@ vi.mock("@/lib/monitoring", () => ({
   captureBusinessEvent: vi.fn(),
 }));
 
+import { captureBusinessEvent } from "@/lib/monitoring";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 
 function renewalEvent(
@@ -143,11 +150,13 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
   beforeEach(() => {
     installRippleTestEnv();
     vi.clearAllMocks();
+    (db.$queryRaw as ReturnType<typeof vi.fn>).mockReset();
     transactionMock.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
     (
       db.paymentWebhookInbox as { findFirst: ReturnType<typeof vi.fn> }
     ).findFirst.mockReset().mockResolvedValue(null);
     subscriptionFindFirst.mockResolvedValue(null);
+    subscriptionFindUnique.mockResolvedValue(null);
     subscriptionFindMany.mockResolvedValue([]);
     (
       db.providerPaymentClaim as { findUnique: ReturnType<typeof vi.fn> }
@@ -748,6 +757,8 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
       id: "charge-1",
       subscriptionId: "sub-1",
       refundedAt: null,
+      amount: 4999,
+      currency: "gbp",
     });
     subscriptionFindFirst.mockResolvedValue({
       id: "sub-1",
@@ -814,6 +825,8 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     ).findFirst.mockResolvedValue({
       id: "inbox-refund-1",
       eventTimestamp: refundedAt,
+      amountPence: 4999,
+      currency: "gbp",
     });
 
     await processProviderWebhookEvent(renewalEvent());
@@ -874,5 +887,365 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
       }),
     );
     expect(dealerProfileUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["partial", 1000],
+    ["zero", 0],
+    ["missing", null],
+  ] as const)("PAY-REV-011 does not retire a %s refund that arrived before the charge", async (_label, amountPence) => {
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(null);
+    (
+      db.paymentWebhookInbox as { findFirst: ReturnType<typeof vi.fn> }
+    ).findFirst.mockResolvedValue({
+      id: "inbox-refund-early",
+      eventTimestamp: new Date("2026-09-15T11:00:00.000Z"),
+      amountPence,
+      currency: "gbp",
+    });
+
+    await processProviderWebhookEvent(renewalEvent());
+
+    expect(subscriptionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: "ACTIVE", dealerId: "dealer-1" }),
+    });
+    expect(subscriptionChargeCreate).toHaveBeenCalledWith({
+      data: [expect.not.objectContaining({ refundedAt: expect.any(Date) })],
+      skipDuplicates: true,
+    });
+    expect(captureBusinessEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "applyRecurringPayment",
+      tags: { refundClassification: amountPence === 1000 ? "partial" : "mismatch" },
+    }));
+  });
+
+  it("PAY-REV-005 cancels activated coverage when the parsed refund has no period end", async () => {
+    const order: string[] = [];
+    (db.$queryRaw as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push("lock");
+      return [];
+    });
+    subscriptionChargeFindUnique.mockImplementation(async () => {
+      order.push("charge");
+      return {
+        id: "charge-1",
+        subscriptionId: "sub-1",
+        refundedAt: null,
+        eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+        amount: 4999,
+        currency: "gbp",
+      };
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      charges: [
+        {
+          id: "charge-1",
+          eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+      ],
+    });
+    subscriptionFindMany.mockResolvedValue([
+      {
+        id: "sub-1",
+        source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+        status: "CANCELLED",
+        currentPeriodEnd: null,
+      },
+    ]);
+    const parsed = parseRippleWebhookEnvelope(rippleEnvelope({
+      event: "payment.refunded",
+      timestamp: "2030-12-20T00:00:00.000Z",
+      data: {
+        amount: 49.99,
+        currency: "GBP",
+        link_code: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+        package: "Dealer Pro",
+        recurring: true,
+        link_type: "recurring",
+        payment_reference: "pay-renew-1",
+        description: "Dealer Pro",
+      },
+    }));
+
+    expect(parsed.event.currentPeriodEnd).toBeNull();
+    await processProviderWebhookEvent(parsed.event);
+
+    expect(order.indexOf("lock")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("lock")).toBeLessThan(order.indexOf("charge"));
+    const refundedAt = new Date("2030-12-20T00:00:00.000Z");
+    expect(
+      (db.subscriptionCharge as { updateMany: ReturnType<typeof vi.fn> }).updateMany,
+    ).toHaveBeenCalledWith({
+      where: { id: "charge-1", refundedAt: null },
+      data: { refundedAt, refundEventId: parsed.event.fingerprint },
+    });
+    expect(isRecognisedSubscriptionCharge({ refundedAt })).toBe(false);
+    expect(subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-1" },
+      data: { status: "CANCELLED", currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    });
+    expect(isPaidSubscriptionEntitled({ status: "CANCELLED", currentPeriodEnd: null })).toBe(false);
+    expect(dealerProfileUpdate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-REV-006 replays a refund without restoring entitlement", async () => {
+    const refundedAt = new Date("2030-12-20T00:00:00.000Z");
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "charge-1",
+      subscriptionId: "sub-1",
+      refundedAt,
+      eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+      amount: 4999,
+      currency: "gbp",
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "CANCELLED",
+      currentPeriodEnd: null,
+      charges: [
+        {
+          id: "charge-1",
+          eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt,
+        },
+      ],
+    });
+
+    await processProviderWebhookEvent(renewalEvent({
+      type: "payment.refunded",
+      eventTimestamp: refundedAt,
+      fingerprint: "refund-replay",
+    }));
+
+    expect(
+      (db.subscriptionCharge as { updateMany: ReturnType<typeof vi.fn> }).updateMany,
+    ).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-1" },
+      data: { status: "CANCELLED", currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    });
+    expect(dealerProfileUpdate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-REV-007 keeps later unrefunded coverage and the pro tier", async () => {
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "older-charge",
+      subscriptionId: "sub-1",
+      refundedAt: null,
+      eventTimestamp: new Date("2030-11-15T00:00:00.000Z"),
+      amount: 4999,
+      currency: "gbp",
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      charges: [
+        {
+          id: "older-charge",
+          eventTimestamp: new Date("2030-11-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+        {
+          id: "later-charge",
+          eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+      ],
+    });
+    subscriptionFindMany.mockResolvedValue([
+      {
+        id: "sub-1",
+        source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+        status: "ACTIVE",
+        currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      },
+    ]);
+
+    await processProviderWebhookEvent(renewalEvent({
+      type: "payment.refunded",
+      providerPaymentId: "pay-older",
+      eventTimestamp: new Date("2030-12-20T00:00:00.000Z"),
+      fingerprint: "refund-older",
+    }));
+
+    expect(subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-1" },
+      data: {
+        status: "ACTIVE",
+        currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+        cancelAtPeriodEnd: false,
+      },
+    });
+    expect(dealerProfileUpdate).toHaveBeenCalledWith({
+      where: { id: "dealer-1" },
+      data: { tier: "PRO" },
+    });
+  });
+
+  it("PAY-REV-008 keeps an independent starter subscription after the pro charge is refunded", async () => {
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "pro-charge",
+      subscriptionId: "sub-pro",
+      refundedAt: null,
+      eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+      amount: 4999,
+      currency: "gbp",
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-pro",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      charges: [
+        {
+          id: "pro-charge",
+          eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+      ],
+    });
+    subscriptionFindMany.mockResolvedValue([
+      {
+        id: "sub-pro",
+        source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+        status: "CANCELLED",
+        currentPeriodEnd: null,
+      },
+      {
+        id: "sub-starter",
+        source: "PAYMENT",
+        providerPlanId: RIPPLE_CANONICAL_PRODUCTS.starter.code,
+        status: "ACTIVE",
+        currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      },
+    ]);
+
+    await processProviderWebhookEvent(renewalEvent({
+      type: "payment.refunded",
+      eventTimestamp: new Date("2030-12-20T00:00:00.000Z"),
+      fingerprint: "refund-pro",
+    }));
+
+    expect(subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-pro" },
+      data: { status: "CANCELLED", currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    });
+    expect(dealerProfileUpdate).toHaveBeenCalledWith({
+      where: { id: "dealer-1" },
+      data: { tier: "STARTER" },
+    });
+  });
+
+  it("PAY-REV-009 keeps scheduled cancellation when later coverage remains", async () => {
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "older-charge",
+      subscriptionId: "sub-1",
+      refundedAt: null,
+      eventTimestamp: new Date("2030-11-15T00:00:00.000Z"),
+      amount: 4999,
+      currency: "gbp",
+    });
+    subscriptionFindUnique.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      source: "PAYMENT",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "ACTIVE",
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      charges: [
+        {
+          id: "older-charge",
+          eventTimestamp: new Date("2030-11-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+        {
+          id: "later-charge",
+          eventTimestamp: new Date("2030-12-15T00:00:00.000Z"),
+          amount: 4999,
+          currency: "gbp",
+          refundedAt: null,
+        },
+      ],
+    });
+
+    await processProviderWebhookEvent(renewalEvent({
+      type: "payment.refunded",
+      providerPaymentId: "pay-older",
+      amount: 4999,
+      currency: "gbp",
+      eventTimestamp: new Date("2030-12-20T00:00:00.000Z"),
+    }));
+
+    expect(subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-1" },
+      data: expect.objectContaining({
+        status: "ACTIVE",
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: new Date("2031-01-15T00:00:00.000Z"),
+      }),
+    });
+  });
+
+  it.each([
+    ["partial", 1000, "gbp", "partial"],
+    ["larger than the charge", 5000, "gbp", "mismatch"],
+    ["missing", null, "gbp", "mismatch"],
+    ["in another currency", 4999, "eur", "mismatch"],
+  ] as const)("PAY-REV-010 does not retire a charge for a %s refund", async (_label, amount, currency, kind) => {
+    subscriptionChargeFindUnique.mockResolvedValue({
+      id: "charge-1",
+      subscriptionId: "sub-1",
+      refundedAt: null,
+      amount: 4999,
+      currency: "gbp",
+    });
+
+    await processProviderWebhookEvent(renewalEvent({
+      type: "payment.refunded",
+      amount,
+      currency,
+    }));
+
+    expect(
+      (db.subscriptionCharge as { updateMany: ReturnType<typeof vi.fn> }).updateMany,
+    ).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(captureBusinessEvent).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Subscription refund was not applied",
+      tags: { refundClassification: kind },
+    }));
   });
 });

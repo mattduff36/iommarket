@@ -108,11 +108,25 @@ export function getPaymentProviderPortalUrl(): string | null {
   return process.env.RIPPLE_DASHBOARD_URL?.trim() || null;
 }
 
+/**
+ * In-app refunds stay disabled until this is removed.
+ *
+ * adminRefundSubscriptionPayment writes the operation onto refundEventId
+ * before any provider call. A later request that finds that claim and no
+ * refundedAt skips the provider and still records the local refund. That
+ * covers a crash after the claim commits, and an overlap that sets
+ * refundedAt while the provider call is still running, after which a
+ * provider failure can no longer clear the claim.
+ */
+export const IN_APP_REFUND_PREREQUISITES: readonly string[] = [
+  "claim-without-refunded-at-skips-provider-and-records-locally",
+];
+
 export function getPaymentProviderCapabilities(): PaymentProviderCapabilities {
   return {
     supportsHostedCheckout: true,
     supportsEmbeddedCheckout: false,
-    supportsInAppRefunds: false,
+    supportsInAppRefunds: IN_APP_REFUND_PREREQUISITES.length === 0,
     supportsInAppSubscriptionCancellation: false,
     preferredCheckoutSurface: "HOSTED",
   };

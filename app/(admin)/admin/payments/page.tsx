@@ -337,7 +337,15 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         orderBy: subscriptionOrderBy(sort),
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-        include: { dealer: { select: { name: true, slug: true, tier: true } } },
+        include: {
+          dealer: { select: { name: true, slug: true, tier: true } },
+          charges: {
+            where: { refundedAt: null },
+            orderBy: { eventTimestamp: "desc" },
+            take: 1,
+            select: { id: true, amount: true, currency: true, paymentReference: true },
+          },
+        },
       }),
       db.subscription.count({ where: visibleSubWhere }),
     ]);
@@ -377,7 +385,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             </>
           ) : (
             <>
-              Subscription billing actions are managed in Ripple&apos;s portal.
+              Refund the charge in Ripple&apos;s portal, then record it here. Recording updates local access and does not send a refund to Ripple.
               {providerPortalUrl ? (
                 <>
                   {" "}
@@ -464,8 +472,8 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                       />
                       <RefundSubPaymentButton
                         subscriptionId={sub.id}
-                        enabled={capabilities.supportsInAppRefunds}
-                        providerPortalUrl={providerPortalUrl}
+                        charge={sub.charges[0] ?? null}
+                        recordLocally={!capabilities.supportsInAppRefunds}
                       />
                     </div>
                   ) : (

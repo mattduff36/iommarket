@@ -24,6 +24,7 @@ import {
   getPaymentDisplayId,
   getProviderLabel,
   getSubscriptionDisplayId,
+  recognisedSubscriptionChargeWhere,
 } from "@/lib/payments/records";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import {
@@ -109,7 +110,7 @@ export default async function AdminRevenuePage() {
     }),
     db.subscriptionCharge.aggregate({
       where: {
-        refundedAt: null,
+        ...recognisedSubscriptionChargeWhere(),
         subscription: { is: visibleSubscriptionWhere },
       },
       _sum: { amount: true },

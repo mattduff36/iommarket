@@ -82,8 +82,9 @@ describe("payment reconciliation migration", () => {
   it("PAY-REV-001 persists refunds and excludes them from recognized revenue", () => {
     expect(migration).toContain('ADD COLUMN "refundedAt" TIMESTAMP(3)');
     expect(migration).toContain('ADD COLUMN "refundEventId" TEXT');
-    expect(revenuePage).toMatch(
-      /subscriptionCharge\.aggregate\(\{[\s\S]*?refundedAt: null/,
+    expect(revenuePage).toContain("recognisedSubscriptionChargeWhere()");
+    expect(fs.readFileSync(path.join(process.cwd(), "lib/payments/records.ts"), "utf8")).toContain(
+      "refundedAt: null",
     );
     expect(revenuePage).toContain("getPaidSubscriptionEntitlementWhere()");
   });

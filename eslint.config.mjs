@@ -29,5 +29,6 @@ export default defineConfig([
     "private/**",
     ".local/**",
     "public/vendor/**",
+    "tmp/**",
   ]),
 ]);
