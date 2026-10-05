@@ -1,6 +1,7 @@
 import pg from "pg";
 import { requiredPublicRelations } from "./catalog";
 import { assertPrivateAuthSource, authSourceMode, sourceAuthTable, AUTH_EXPORT_SCHEMA } from "./auth-source";
+import { SCHEMA_FINGERPRINT_SQL, schemaCompatibility } from "./fingerprint";
 import { buildDatabasePoolOptions } from "@/lib/db/pool-options";
 import { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF } from "@/scripts/wipe-preview-marketplace/target";
 import { resolvePreviewSessionUrl } from "./session";
@@ -254,14 +255,12 @@ export async function inspectClient(client: pg.PoolClient, requireSourceReadOnly
       const result = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${qualified}`);
       selectedCounts[`auth.${table}`] = Number(result.rows[0]?.count ?? 0);
     }
-    const migrations = await client.query<{ migration_name: string }>(
-      `SELECT migration_name FROM public._prisma_migrations WHERE rolled_back_at IS NULL AND finished_at IS NOT NULL ORDER BY migration_name`,
-    );
+    const schemaLines = await client.query<{ line: string }>(SCHEMA_FINGERPRINT_SQL);
     return {
       tables: publicTables,
       authTables,
       counts: selectedCounts,
-      migrations: migrations.rows.map((row) => row.migration_name),
+      schemaLines: schemaLines.rows.map((row) => row.line),
       readOnlyRole,
       rowSecurityTables: publicTables.filter((table) => table.row_security).map((table) => table.table_name),
     };
@@ -304,13 +303,10 @@ export async function inspectDatabaseSync(env: NodeJS.ProcessEnv = process.env):
     const destination = await inspectConnection(config.destination, false, env);
     base.sourceTables = source.tables.length;
     base.destinationTables = destination.tables.length;
-    const sourceSignatures = new Map([...source.tables, ...source.authTables].map((table) => [`${table.schema_name}.${table.table_name}`, table.column_signature]));
-    const destinationSignatures = new Map([...destination.tables, ...destination.authTables].map((table) => [`${table.schema_name}.${table.table_name}`, table.column_signature]));
-    base.schemaCompatible = sourceSignatures.size === destinationSignatures.size &&
-      [...sourceSignatures].every(([name, signature]) => destinationSignatures.get(name) === signature);
-    base.migrationsCompatible = source.migrations.join("\n") === destination.migrations.join("\n");
-    if (!base.schemaCompatible) base.blockers.push("Selected sync table schemas differ. Apply and verify reviewed migrations before any copy.");
-    if (!base.migrationsCompatible) base.blockers.push("Applied Prisma migrations differ between production and development.");
+    const compatibility = schemaCompatibility(source.schemaLines, destination.schemaLines);
+    base.schemaCompatible = compatibility.schemaCompatible;
+    base.migrationsCompatible = compatibility.migrationsCompatible;
+    base.blockers.push(...compatibility.blockers);
     base.rows = [...COUNT_TABLES, ...AUTH_READ_TABLES.map((table) => `auth.${table}`)].map((table) => ({
       table,
       production: source.counts[table] ?? 0,

@@ -3,7 +3,7 @@ import { scrubAuthUser, scrubIdentity, adminIdentityCollision, authScrubViolatio
 import { loadCloneCatalog, parsePrismaCatalog } from "@/lib/database-sync/catalog";
 import { canonicalBytes, hashCanonical, parseCanonical, restoreValueExpression } from "@/lib/database-sync/codec";
 import { openChunk, sealChunk } from "@/lib/database-sync/chunks";
-import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines } from "@/lib/database-sync/fingerprint";
+import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines, schemaCompatibility } from "@/lib/database-sync/fingerprint";
 import { lockCloneTablesSql, APPLY_DEADLINE_MS, APPLY_STATEMENT_TIMEOUT, CLONE_PAGE_SIZE } from "@/lib/database-sync/clone-engine";
 import { externalEffectBlocked } from "@/lib/database-sync/effects";
 import { planCloneOrder } from "@/lib/database-sync/order";
@@ -68,6 +68,48 @@ describe("ARCH-CLONE-002 lossless codec and fingerprint", () => {
     expect(hashCanonical(bytes)).toHaveLength(64);
     expect(restoreValueExpression("character varying(255)", 0)).toContain("CAST");
     expect(hashSchemaLines(["b", "a"])).toBe(hashSchemaLines(["a", "b"]));
+  });
+
+  it("ignores migration checksum bytes and still blocks a real column change", () => {
+    const production = [
+      "column|public|User|id|uuid|true|-1|",
+      "constraint|public|User|User_pkey|p|PRIMARY KEY (id)|false|false",
+      "migration|20260929213000_signup_rate_limit|8e0ea07ee41a42a306888ba2e42a2b7ea23653be597e43c925e97078944cae94",
+      "migration|20260930200000_preview_review_metadata|5daedeb41f5b97e79dbb4173351468e53ab87114a5e6ca89073cf35211e923c2",
+    ];
+    const development = [
+      production[0],
+      production[1],
+      "migration|20260929213000_signup_rate_limit|ba8cad568a90f446450ad3d25bc850c404317b861875f28c4eae83946918f99b",
+      "migration|20260930200000_preview_review_metadata|aa54297ba0b2c50f6b0f8410d8713c839c78bbe0230788b16479982cf33db91c",
+    ];
+    expect(schemaCompatibility(production, development)).toEqual({
+      schemaCompatible: true,
+      migrationsCompatible: true,
+      blockers: [],
+    });
+
+    const drifted = schemaCompatibility(
+      [...production, "column|public|Category|merge_probe|text|false|-1|"],
+      development,
+    );
+    expect(drifted.schemaCompatible).toBe(false);
+    expect(drifted.migrationsCompatible).toBe(true);
+    expect(drifted.blockers[0]).toBe("Source and destination schema or migrations differ. Review them before copying.");
+    expect(drifted.blockers[1]).toContain("column|public|Category|merge_probe");
+    expect(drifted.blockers.join(" ")).not.toContain("8e0ea07e");
+  });
+
+  it("reports a changed migration name without exposing its checksum", () => {
+    const result = schemaCompatibility(
+      ["column|public|User|id|uuid|true|-1|", "migration|present_on_production|checksum-a"],
+      ["column|public|User|id|uuid|true|-1|", "migration|present_on_development|checksum-a"],
+    );
+    expect(result.schemaCompatible).toBe(true);
+    expect(result.migrationsCompatible).toBe(false);
+    expect(result.blockers.join("\n")).toContain("migration|present_on_production");
+    expect(result.blockers.join("\n")).toContain("migration|present_on_development");
+    expect(result.blockers.join("\n")).not.toContain("checksum-a");
   });
 });
 

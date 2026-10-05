@@ -33,3 +33,56 @@ ORDER BY line`;
 export function hashSchemaLines(lines: readonly string[]): string {
   return createHash("sha256").update([...lines].sort().join("\n")).digest("hex");
 }
+
+const MISMATCH_SUMMARY = "Source and destination schema or migrations differ. Review them before copying.";
+const DETAIL_LIMIT = 6;
+const DETAIL_WIDTH = 220;
+
+/** Migration checksum bytes are history, not the live schema. Names still have to match. */
+export function compatibilityLine(line: string): string {
+  if (!line.startsWith("migration|")) return line;
+  const name = line.split("|")[1] ?? "";
+  return `migration|${name}`;
+}
+
+function normalized(lines: readonly string[], kind: "schema" | "migration" | "all"): string[] {
+  const selected = lines.filter((line) => {
+    const migration = line.startsWith("migration|");
+    if (kind === "migration") return migration;
+    if (kind === "schema") return !migration;
+    return true;
+  }).map(compatibilityLine);
+  return [...new Set(selected)].sort();
+}
+
+function sameLines(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((line, index) => line === right[index]);
+}
+
+function clip(line: string): string {
+  const redacted = line.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]");
+  return redacted.length > DETAIL_WIDTH ? `${redacted.slice(0, DETAIL_WIDTH - 3)}...` : redacted;
+}
+
+function sideDetail(label: string, lines: readonly string[]): string | null {
+  if (lines.length === 0) return null;
+  const shown = lines.slice(0, DETAIL_LIMIT).map(clip);
+  const extra = lines.length > DETAIL_LIMIT ? ` (+${lines.length - DETAIL_LIMIT} more)` : "";
+  return `${label}: ${shown.join(" | ")}${extra}`;
+}
+
+export function schemaCompatibility(sourceLines: readonly string[], destinationLines: readonly string[]) {
+  const schemaCompatible = sameLines(normalized(sourceLines, "schema"), normalized(destinationLines, "schema"));
+  const migrationsCompatible = sameLines(normalized(sourceLines, "migration"), normalized(destinationLines, "migration"));
+  if (schemaCompatible && migrationsCompatible) return { schemaCompatible, migrationsCompatible, blockers: [] as string[] };
+  const source = normalized(sourceLines, "all");
+  const destination = normalized(destinationLines, "all");
+  const destinationSet = new Set(destination);
+  const sourceSet = new Set(source);
+  const blockers = [MISMATCH_SUMMARY];
+  const production = sideDetail("Only in production", source.filter((line) => !destinationSet.has(line)));
+  const development = sideDetail("Only in development", destination.filter((line) => !sourceSet.has(line)));
+  if (production) blockers.push(production);
+  if (development) blockers.push(development);
+  return { schemaCompatible, migrationsCompatible, blockers };
+}

@@ -8,7 +8,7 @@ import { sourceAuthTable } from "./auth-source";
 import { canonicalBytes, hashCanonical, parseCanonical, quoteIdent, restoreValueExpression, selectExpression } from "./codec";
 import { chunkAad, openChunk, sealChunk } from "./chunks";
 import { closeWithoutReplacing, createSyncTrace, reportPrepareFailure, rollbackWithoutReplacing, type SyncTrace } from "./diagnostics";
-import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines } from "./fingerprint";
+import { SCHEMA_FINGERPRINT_SQL, hashSchemaLines, schemaCompatibility } from "./fingerprint";
 import { planCloneOrder, type CloneForeignKey } from "./order";
 import { classifySyncCounts, hasUniqueConflict, loadUniqueConstraints } from "./plan-counts";
 import { assertRequiredRelations, inspectDatabaseSyncConfiguration, inspectionPoolOptions, validateSourceClient } from "./preflight";
@@ -117,9 +117,13 @@ async function foreignKeys(client: PoolClient): Promise<CloneForeignKey[]> {
   }));
 }
 
-async function fingerprint(client: PoolClient): Promise<string> {
+async function schemaLines(client: PoolClient): Promise<string[]> {
   const result = await client.query<{ line: string }>(SCHEMA_FINGERPRINT_SQL);
-  return hashSchemaLines(result.rows.map((row) => row.line));
+  return result.rows.map((row) => row.line);
+}
+
+async function fingerprint(client: PoolClient): Promise<string> {
+  return hashSchemaLines(await schemaLines(client));
 }
 
 async function admins(client: PoolClient): Promise<AdminIdentity[]> {
@@ -508,8 +512,9 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
     const order = planCloneOrder(catalog.map((table) => table.name), await foreignKeys(destination));
     const instance = await destination.query<{ id: string }>(`SELECT instance_id::text AS id FROM auth.users WHERE instance_id IS NOT NULL LIMIT 1`);
     markTrace(trace, "destination", "destination.fingerprint");
+    const destinationLines = await schemaLines(destination);
     const manifest: CloneManifest = {
-      v: 2, mode, fingerprint: await fingerprint(destination), blockers: [...order.blockers], tables: [],
+      v: 2, mode, fingerprint: hashSchemaLines(destinationLines), blockers: [...order.blockers], tables: [],
       insertOrder: order.insertOrder, deleteOrder: order.deleteOrder, deferredConstraints: order.deferredConstraints,
       nullThenUpdate: order.nullThenUpdate, preservedAdminIds: preserved.map((admin) => admin.id),
       preservedAuthIds: preserved.map((admin) => admin.authUserId), previewInstanceId: instance.rows[0]?.id ?? null,
@@ -534,7 +539,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
         await assertRequiredRelations(source, relations, "source");
         await validateSourceClient(source, env);
         markTrace(trace, "source", "source.fingerprint");
-        if ((await fingerprint(source)) !== manifest.fingerprint) manifest.blockers.push("Source and destination schema or migrations differ. Review them before copying.");
+        manifest.blockers.push(...schemaCompatibility(await schemaLines(source), destinationLines).blockers);
         markTrace(trace, "source", "source.public-users");
         const users = await source.query<AdminIdentity>(`SELECT id, email, "authUserId" FROM public."User"`);
         for (const user of users.rows) {

@@ -1,5 +1,34 @@
 # Database merge repair handover
 
+## CURRENT: schema blocker identified — checksum bytes, not a live schema drift — 2026-10-05T02:21Z
+
+The manual Merge preview on `dpl_85xTFxFLtk3DsLwtUMsGXeACmGjC` prepared at 02:05 UK and stored only `Source and destination schema or migrations differ. Review them before copying.` No merge was applied.
+
+Root cause, from the deployed `SCHEMA_FINGERPRINT_SQL` run read-only as administrative `postgres` on both direct hosts (PostgreSQL 17.6, search_path `"$user", public, extensions`, effective schemas `pg_catalog, public, extensions`). This was not the runtime `itrader_staging_reader` session. The reader's role settings do not change `search_path`, and repeating the fingerprint with `"$user", public` produced the same lines. Checksums are stored values, so that session difference does not affect this result.
+
+Both sides returned 1,365 fingerprint lines. The only unpaired lines were two migration checksums for the same names:
+
+- `20260930200000_preview_review_metadata`: production `5daedeb41f5b97e79dbb4173351468e53ab87114a5e6ca89073cf35211e923c2` is the git file with LF. Development `aa54297ba0b2c50f6b0f8410d8713c839c78bbe0230788b16479982cf33db91c` is the same file with CRLF.
+- `20260929213000_signup_rate_limit`: production `8e0ea07ee41a42a306888ba2e42a2b7ea23653be597e43c925e97078944cae94` is the committed file with CRLF, applied 2026-09-30T01:16:03Z. Development `ba8cad568a90f446450ad3d25bc850c404317b861875f28c4eae83946918f99b` was applied earlier, 2026-09-29T21:32:06Z, and matches neither the current LF nor CRLF file. `_prisma_migrations.logs` is null, so the older script text is not stored.
+
+Columns, defaults, primary/unique/foreign keys, enums, indexes, triggers, and row-level-security flags match. No fingerprint entries were outside the copy catalog. Production-only `itrader_staging_reader_select` policies are operational reader policies and are not part of this fingerprint. Inspection compared migration names and column signatures, so it could pass while preparation hashed checksum bytes.
+
+Code correction: `schemaCompatibility()` is now used by both inspection and preparation. It still requires column, default, constraint, enum, and migration-name equality, and it reports the differing lines. It does not compare checksum bytes. The stored plan/backup hash still uses the unchanged fingerprint SQL, so existing backup hashes were not rewritten. The 02:05 plan still contains the old blocker; prepare a fresh preview after the staging deploy. A real column or migration-name difference still blocks.
+
+Targeted tests: `npx vitest run __tests__/lib/database-sync-clone.test.ts __tests__/lib/database-sync-worker.test.ts` — 2 files, 27 passed. The same live fingerprint lines are compatible under the new comparison. Deployment id will be recorded after the staging deploy of this commit. No Merge, Replace, Reset, or Restore was applied.
+
+## CURRENT: deployed and configured for a manual staging test — 2026-10-05T01:01:01Z
+
+This supersedes the 2026-10-05T00:47:53.322Z claim that the export was not installed and that private-views was not enabled. This is still the production-to-development database merge, not a production application release. No hosted merge has been tested.
+
+Production project `snlqivvogfqesxpbjiei` has the reviewed private schema `itrader_sync_export` and masked views `auth_users` and `auth_identities`, installed from `docs/staging-transition/PRODUCTION-AUTH-EXPORT.sql` as `postgres`. The runtime reader can select those views and still cannot use schema `auth`. Auth records, policies, and role attributes were not changed. The live Data API exposes only `public` and `graphql_public`.
+
+`DATABASE_SYNC_AUTH_SOURCE_MODE=private-views` is set only for Vercel Preview on git branch `staging` (env id `3zGxAiKATPeQ3ST0`). Production does not have the variable. The dedicated reader URL and encryption key were left in place.
+
+Preview deployment `dpl_85xTFxFLtk3DsLwtUMsGXeACmGjC` is READY. Commit `47256d4fe3d32b53450cc76bd8394b4a99ffddff`, branch `staging`, ready at 2026-10-05T01:01:01.316Z. `itrader.dev` points to that deployment, and its build and runtime environment include `DATABASE_SYNC_AUTH_SOURCE_MODE`. No Merge, Replace, Reset, or Restore was applied.
+
+Nothing is blocked in the authorized setup. Unverified until the manual test: source inspection, merge-plan counts and blockers, and any later apply or restore on the shared development database.
+
 Checkpoint after the isolated PostgreSQL repair and before any staging deploy. This is the production-to-development database merge, not the staging-to-main code release.
 
 ## Current git
@@ -172,3 +201,12 @@ The owner requested immediate deployment without another verification cycle. The
 The remote tool blocked creation of the production-export provisioning runner before it executed. No production SQL or grants ran, and the private export is NOT installed. This denial was not retried through another tool. The staging code rollout is proceeding independently. DATABASE_SYNC_AUTH_SOURCE_MODE remains its existing default (direct); private-views is not enabled before its required production objects exist. The auth-schema access blocker therefore remains.
 
 No data Merge, Replace, Reset or Restore is authorized or performed by this deployment. No additional integration tests or signed-in Merge preview were run. Deployment result will be appended after Vercel completes.
+
+
+## Live staging deployment outcome - 2026-10-05T00:47:53.322Z
+
+Commit 47256d4fe3d32b53450cc76bd8394b4a99ffddff is pushed to staging. Vercel deployment dpl_FpAXJr3TyJctG5R42QzmuZ715zGX is READY and aliased to itrader.dev. Only the 12 scoped repair/test/documentation files were committed. Main remains e3f77faae74ca787936853426798ea546ef89bff. Concurrent admin-profile and ImageKit working-tree edits remain uncommitted.
+
+The production-export setup was blocked by the tool before its runner file was created or executed. No production connection or SQL mutation was attempted by this rollout. No private-view environment switch was made, so the existing default direct Auth mode remains and the known missing-auth-USAGE blocker persists. This is a completed application-code deployment, not a working hosted Merge claim. No additional local test cycle, signed-in plan preparation, or shared-development Apply was performed.
+
+Pending activation requires permitted execution of the reviewed production private-schema/two-view setup and setting DATABASE_SYNC_AUTH_SOURCE_MODE=private-views for staging only. Do not bypass the tool denial or apply a shared-development data merge without explicit approval.
