@@ -4,6 +4,7 @@ import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { AUTH_TOKEN_COLUMNS, adminIdentityCollision, authScrubViolations, preservedAuthCollision, scrubAuthUser, scrubIdentity, type AdminIdentity } from "./auth-clone";
 import { loadCloneCatalog, type CatalogTable } from "./catalog";
 import { loadPhysicalColumns } from "./columns";
+import { sourceAuthTable } from "./auth-source";
 import { canonicalBytes, hashCanonical, parseCanonical, quoteIdent, restoreValueExpression, selectExpression } from "./codec";
 import { chunkAad, openChunk, sealChunk } from "./chunks";
 import { closeWithoutReplacing, createSyncTrace, reportPrepareFailure, rollbackWithoutReplacing, type SyncTrace } from "./diagnostics";
@@ -159,7 +160,9 @@ async function writeChunks(
   const captured = { key: relation.key, schema: relation.schema, name: relation.name, primaryKey: relation.primaryKey, rows, sha256: "", bytes };
   if (!meta.length) return { ...captured, sha256: hash.digest("hex") };
   const select = meta.map((column) => selectExpression(column.name, column.dataType)).join(", ");
-  const qualified = `${relation.schema}.${quoteIdent(relation.name)}`;
+  const qualified = purpose === "source" && relation.schema === "auth"
+    ? sourceAuthTable(relation.name, env)
+    : `${relation.schema}.${quoteIdent(relation.name)}`;
   const pk = `${quoteIdent(relation.primaryKey)}::text`;
   while (true) {
     assertCloneDeadline(deadline);
@@ -529,7 +532,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
         await source.query(`SET LOCAL statement_timeout='${APPLY_STATEMENT_TIMEOUT}'`);
         markTrace(trace, "source", "source.validate");
         await assertRequiredRelations(source, relations, "source");
-        await validateSourceClient(source);
+        await validateSourceClient(source, env);
         markTrace(trace, "source", "source.fingerprint");
         if ((await fingerprint(source)) !== manifest.fingerprint) manifest.blockers.push("Source and destination schema or migrations differ. Review them before copying.");
         markTrace(trace, "source", "source.public-users");
@@ -543,7 +546,7 @@ async function prepareOnDestination(destination: PoolClient, mode: "merge" | "re
           if (collision) manifest.blockers.push(collision);
         }
         markTrace(trace, "source", "source.auth-users");
-        const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM auth.users`);
+        const authUsers = await source.query<{ id: string }>(`SELECT id::text AS id FROM ${sourceAuthTable("users", env)}`);
         const publicIdByAuth = new Map(users.rows.map((user) => [user.authUserId, user.id]));
         for (const user of authUsers.rows) {
           const collision = preservedAuthCollision(preserved, user.id, publicIdByAuth.get(user.id) ?? null);

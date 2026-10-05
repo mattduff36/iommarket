@@ -1,15 +1,20 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { applyClone, prepareClone, restoreClone, type IsolatedDatabaseSync } from "@/lib/database-sync/clone-engine";
+import { inspectConnection, validateSourceClient } from "@/lib/database-sync/preflight";
+import { authFixtureSql } from "./database-sync-auth-fixture";
+import { authExportProvisioningSql, authExportViewSql } from "@/scripts/database-sync/auth-export-provisioning";
+import { AUTH_EXPORT_SCHEMA } from "@/lib/database-sync/auth-source";
 
 const BIN = "C:/Program Files/PostgreSQL/18/bin";
-const PORT = 55434;
-const DATA = join(tmpdir(), "iommarket-merge-it");
-const SCHEMA = join(tmpdir(), "iommarket-merge-schema.sql");
+const PRIVATE_AUTH = process.env.DATABASE_SYNC_TEST_PRIVATE_AUTH_EXPORT === "1";
+const PORT = PRIVATE_AUTH ? 55436 : 55435;
+const DATA = mkdtempSync(join(tmpdir(), "iommarket-auth-export-it-"));
+const SCHEMA = join(DATA, "fixture-schema.sql");
 const postgresAvailable = existsSync(join(BIN, "initdb.exe"));
 const ADMIN_AUTH = "11111111-1111-4111-8111-111111111111";
 const UPDATE_AUTH = "33333333-3333-4333-8333-333333333333";
@@ -20,6 +25,7 @@ const SOURCE_INSTANCE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const env: NodeJS.ProcessEnv = {
   NODE_ENV: "test",
   DATABASE_SYNC_ISOLATED_TEST: "1",
+  DATABASE_SYNC_AUTH_SOURCE_MODE: PRIVATE_AUTH ? "private-views" : "direct",
   DATABASE_SYNC_ENCRYPTION_KEY: "0123456789abcdef".repeat(4),
 };
 const WRITE_SQL = /^\s*(insert|update|delete|truncate|alter|drop|create|grant|revoke|copy|lock|call|do)\b/i;
@@ -36,13 +42,14 @@ function run(name: string, args: string[]) {
   execFileSync(exe(name), args, { stdio: "ignore", timeout: 120_000 });
 }
 
-function connect(database: string, user = "postgres"): Client {
-  return new Client({ host: "127.0.0.1", port: PORT, database, user, password: user === "postgres" ? undefined : "reader" });
+function connect(database: string, user = "fixture_root"): Client {
+  return new Client({ host: "127.0.0.1", port: PORT, database, user, password: user === "itrader_staging_reader" ? "reader" : undefined });
 }
 
 let sourceOwner: Client;
 let destination: Client;
 let sourceReader: Client;
+let exportOwner: Client | undefined;
 let sourceSql: string[] = [];
 let started = false;
 
@@ -111,7 +118,7 @@ async function insertAuth(client: Client, instanceId: string, id: string, email:
   );
   await client.query(
     `INSERT INTO auth.identities(id, user_id, identity_data, provider, provider_id)
-     VALUES (gen_random_uuid(), $1::uuid, $2::jsonb, 'email', $1)`,
+     VALUES ($1::uuid, $1::uuid, $2::jsonb, 'email', $1)`,
     [id, JSON.stringify({ email, password: "hidden" })],
   );
 }
@@ -133,29 +140,26 @@ function assertSourceSql(sql: readonly string[]) {
   expect(sql.some((statement) => statement.includes("REPEATABLE READ READ ONLY"))).toBe(true);
   expect(sql.some((statement) => statement.includes("f.contype::text"))).toBe(true);
   expect(sql.some((statement) => statement.includes("SHOW transaction_read_only"))).toBe(true);
+  if (PRIVATE_AUTH) {
+    expect(sql.some((statement) => statement.includes(AUTH_EXPORT_SCHEMA))).toBe(true);
+    expect(sql.some((statement) => /FROM\s+auth\.(users|identities)\b/i.test(statement))).toBe(false);
+  }
 }
 
-describe.skipIf(!postgresAvailable)("isolated production-to-development merge", () => {
+describe.skipIf(!postgresAvailable)(`isolated production-to-development merge (${PRIVATE_AUTH ? "private Auth views" : "direct Auth"})`, () => {
   beforeAll(async () => {
-    const oldData = join(tmpdir(), "iommarket-dbmerge-pg");
-    if (existsSync(join(oldData, "PG_VERSION"))) {
-      try { run("pg_ctl", ["-D", oldData, "-m", "fast", "-w", "stop"]); } catch { /* leftover cluster already stopped */ }
-    }
-    if (existsSync(DATA)) {
-      try { run("pg_ctl", ["-D", DATA, "-m", "fast", "-w", "stop"]); } catch { /* not running */ }
-      rmSync(DATA, { recursive: true, force: true });
-    }
-    run("initdb", ["-D", DATA, "--username=postgres", "--auth=trust", "--encoding=UTF8", "--locale=C", "--no-sync"]);
+    // This run owns its unique directory. Never stop or delete another test cluster.
+    run("initdb", ["-D", DATA, "--username=fixture_root", "--auth=trust", "--encoding=UTF8", "--locale=C", "--no-sync"]);
     appendFileSync(join(DATA, "postgresql.conf"), `\nport=${PORT}\nlisten_addresses='127.0.0.1'\n`);
     run("pg_ctl", ["-D", DATA, "-l", join(DATA, "server.log"), "-w", "start"]);
     started = true;
-    const configDir = join(tmpdir(), "iommarket-merge-prisma");
+    const configDir = join(DATA, "prisma-config");
     mkdirSync(configDir, { recursive: true });
     const configFile = join(configDir, "prisma.config.ts");
     writeFileSync(configFile, `import { defineConfig } from "prisma/config";
 export default defineConfig({
   schema: ${JSON.stringify(join(process.cwd(), "prisma/schema.prisma"))},
-  datasource: { url: "postgresql://postgres@127.0.0.1:${PORT}/postgres" },
+  datasource: { url: "postgresql://fixture_root@127.0.0.1:${PORT}/postgres" },
 });
 `);
     execFileSync(process.execPath, [
@@ -174,34 +178,21 @@ export default defineConfig({
         TMP: process.env.TMP,
       },
     });
-    run("createdb", ["-h", "127.0.0.1", "-p", String(PORT), "-U", "postgres", "sync_source"]);
-    run("createdb", ["-h", "127.0.0.1", "-p", String(PORT), "-U", "postgres", "sync_dest"]);
+    run("createdb", ["-h", "127.0.0.1", "-p", String(PORT), "-U", "fixture_root", "sync_source"]);
+    run("createdb", ["-h", "127.0.0.1", "-p", String(PORT), "-U", "fixture_root", "sync_dest"]);
     for (const database of ["sync_source", "sync_dest"]) {
-      run("psql", ["-h", "127.0.0.1", "-p", String(PORT), "-U", "postgres", "-d", database, "-v", "ON_ERROR_STOP=1", "-f", SCHEMA]);
+      run("psql", ["-h", "127.0.0.1", "-p", String(PORT), "-U", "fixture_root", "-d", database, "-v", "ON_ERROR_STOP=1", "-f", SCHEMA]);
     }
     sourceOwner = connect("sync_source");
     destination = connect("sync_dest");
     await sourceOwner.connect();
     await destination.connect();
+    await sourceOwner.query(`CREATE ROLE supabase_admin NOLOGIN;
+      CREATE ROLE supabase_auth_admin NOLOGIN;
+      CREATE ROLE postgres LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
+      CREATE ROLE service_role NOLOGIN;`);
     const extra = `
-      CREATE SCHEMA IF NOT EXISTS auth;
-      CREATE TABLE auth.users (
-        instance_id uuid, id uuid PRIMARY KEY, email text,
-        encrypted_password text NOT NULL DEFAULT '',
-        email_confirmed_at timestamptz, phone_confirmed_at timestamptz,
-        confirmation_token text NOT NULL DEFAULT '', recovery_token text NOT NULL DEFAULT '',
-        email_change_token_new text NOT NULL DEFAULT '', email_change_token_current text NOT NULL DEFAULT '',
-        phone_change_token text NOT NULL DEFAULT '', reauthentication_token text NOT NULL DEFAULT '',
-        email_change text NOT NULL DEFAULT '', phone_change text NOT NULL DEFAULT '',
-        banned_until timestamptz,
-        confirmed_at timestamptz GENERATED ALWAYS AS (LEAST(email_confirmed_at, phone_confirmed_at)) STORED
-      );
-      CREATE TABLE auth.identities (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-        identity_data jsonb, provider text NOT NULL, provider_id text NOT NULL,
-        email text GENERATED ALWAYS AS (lower(identity_data->>'email')) STORED
-      );
+      ${authFixtureSql()}
       CREATE TABLE IF NOT EXISTS public._prisma_migrations (
         id varchar(36) PRIMARY KEY, checksum varchar(64) NOT NULL, finished_at timestamptz,
         migration_name varchar(255) NOT NULL, logs text, rolled_back_at timestamptz,
@@ -245,6 +236,17 @@ export default defineConfig({
       END LOOP;
     END $$`);
     await sourceOwner.query(`GRANT SELECT ON TABLE auth.users, auth.identities TO itrader_staging_reader`);
+    if (PRIVATE_AUTH) {
+      await sourceOwner.query(`ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE auth.identities ENABLE ROW LEVEL SECURITY;
+        GRANT USAGE ON SCHEMA auth TO postgres;
+        GRANT SELECT ON auth.users, auth.identities TO postgres;
+        GRANT CREATE ON DATABASE sync_source TO postgres;
+        REVOKE USAGE ON SCHEMA auth FROM itrader_staging_reader;`);
+      exportOwner = connect("sync_source", "postgres");
+      await exportOwner.connect();
+      await exportOwner.query(authExportProvisioningSql());
+    }
     const privileged = await sourceOwner.query<{ name: string }>(`SELECT n.nspname || '.' || p.proname AS name
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE p.prosecdef AND has_function_privilege('itrader_staging_reader', p.oid, 'EXECUTE') LIMIT 5`);
@@ -257,6 +259,7 @@ export default defineConfig({
 
   afterAll(async () => {
     await sourceReader?.end().catch(() => undefined);
+    await exportOwner?.end().catch(() => undefined);
     await sourceOwner?.end().catch(() => undefined);
     await destination?.end().catch(() => undefined);
     if (!started) return;
@@ -428,6 +431,147 @@ export default defineConfig({
       await destination.query(`DROP FUNCTION IF EXISTS public.sync_test_fail()`);
     }
   }, 180_000);
+
+  it.skipIf(PRIVATE_AUTH)("stops inspection and preparation when auth schema USAGE is missing but SELECT remains", async () => {
+    await seedMinimal();
+    await settle(sourceReader);
+    const privileges = () => sourceOwner.query<{
+      users_select: boolean;
+      identities_select: boolean;
+      auth_usage: boolean;
+      public_usage: boolean;
+    }>(`SELECT
+      has_table_privilege('itrader_staging_reader', 'auth.users', 'SELECT') AS users_select,
+      has_table_privilege('itrader_staging_reader', 'auth.identities', 'SELECT') AS identities_select,
+      has_schema_privilege('itrader_staging_reader', 'auth', 'USAGE') AS auth_usage,
+      has_schema_privilege('itrader_staging_reader', 'public', 'USAGE') AS public_usage`);
+    expect((await privileges()).rows[0]).toEqual({
+      users_select: true,
+      identities_select: true,
+      auth_usage: true,
+      public_usage: true,
+    });
+    await sourceOwner.query("REVOKE USAGE ON SCHEMA auth FROM itrader_staging_reader");
+    try {
+      expect((await privileges()).rows[0]).toEqual({
+        users_select: true,
+        identities_select: true,
+        auth_usage: false,
+        public_usage: true,
+      });
+      const readerUrl = `postgresql://itrader_staging_reader:reader@127.0.0.1:${PORT}/sync_source`;
+      await expect(inspectConnection(readerUrl, true, env)).rejects.toThrow(
+        "Production source role lacks USAGE on schema auth.",
+      );
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(
+        /Production source role lacks USAGE on schema auth\. Reference /,
+      );
+    } finally {
+      await settle(sourceReader);
+      await sourceOwner.query("GRANT USAGE ON SCHEMA auth TO itrader_staging_reader");
+    }
+    expect((await privileges()).rows[0]?.auth_usage).toBe(true);
+    await sourceReader.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    try {
+      await validateSourceClient(sourceReader as unknown as PoolClient, env);
+      await sourceReader.query("SELECT * FROM auth.users LIMIT 0");
+      await sourceReader.query("SELECT * FROM auth.identities LIMIT 0");
+    } finally {
+      await settle(sourceReader);
+    }
+  }, 120_000);
+
+  it.skipIf(!PRIVATE_AUTH)("exports complete masked Auth rows without a superuser creator or reader auth USAGE", async () => {
+    await seedMinimal();
+    const rights = await sourceOwner.query(`SELECT
+      (SELECT rolsuper FROM pg_roles WHERE rolname='postgres') AS creator_superuser,
+      has_schema_privilege('postgres','auth','USAGE WITH GRANT OPTION') AS creator_can_grant_auth,
+      has_schema_privilege('itrader_staging_reader','auth','USAGE') AS reader_auth_usage,
+      (SELECT rolbypassrls FROM pg_roles WHERE rolname='itrader_staging_reader') AS reader_bypass`);
+    expect(rights.rows[0]).toEqual({ creator_superuser: false, creator_can_grant_auth: false, reader_auth_usage: false, reader_bypass: false });
+    await expect(sourceReader.query("SELECT * FROM auth.users LIMIT 0")).rejects.toMatchObject({ code: "42501" });
+    const owners = await sourceOwner.query("SELECT count(*)::text AS count FROM auth.users");
+    const exported = await sourceReader.query(`SELECT count(*)::text AS count, bool_and(encrypted_password='' AND confirmation_token='' AND banned_until='infinity'::timestamptz) AS masked FROM ${AUTH_EXPORT_SCHEMA}.auth_users`);
+    expect(exported.rows[0]).toEqual({ count: owners.rows[0].count, masked: true });
+    const identities = await sourceReader.query(`SELECT identity_data FROM ${AUTH_EXPORT_SCHEMA}.auth_identities`);
+    expect(identities.rows).toHaveLength(1);
+    expect(identities.rows[0].identity_data).not.toHaveProperty("password");
+    const inspected = await inspectConnection(`postgresql://itrader_staging_reader:reader@127.0.0.1:${PORT}/sync_source`, true, env);
+    expect(inspected.counts["auth.users"]).toBe(1);
+    expect(inspected.counts["auth.identities"]).toBe(1);
+  }, 120_000);
+
+  it.skipIf(!PRIVATE_AUTH)("denies view writes even in a read-write transaction and denies API-role access", async () => {
+    await seedMinimal();
+    for (const sql of [
+      `INSERT INTO ${AUTH_EXPORT_SCHEMA}.auth_users(id) VALUES (gen_random_uuid())`,
+      `UPDATE ${AUTH_EXPORT_SCHEMA}.auth_users SET email='blocked@example.com'`,
+      `DELETE FROM ${AUTH_EXPORT_SCHEMA}.auth_users`,
+    ]) {
+      await sourceReader.query("BEGIN READ WRITE");
+      try { await expect(sourceReader.query(sql)).rejects.toMatchObject({ code: "42501" }); }
+      finally { await settle(sourceReader); }
+    }
+    for (const role of ["anon", "authenticated", "service_role"]) {
+      await sourceOwner.query("BEGIN READ ONLY");
+      try {
+        await sourceOwner.query(`SET LOCAL ROLE ${role}`);
+        await expect(sourceOwner.query(`SELECT * FROM ${AUTH_EXPORT_SCHEMA}.auth_users LIMIT 0`)).rejects.toMatchObject({ code: "42501" });
+      } finally { await settle(sourceOwner); }
+    }
+    expect((await sourceOwner.query("SELECT count(*)::text AS count FROM auth.users")).rows[0].count).toBe("1");
+    await sourceOwner.query(`GRANT SELECT ON ${AUTH_EXPORT_SCHEMA}.auth_users TO authenticated`);
+    try {
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(/unsafe or missing private Auth export permissions/);
+    } finally { await sourceOwner.query(`REVOKE SELECT ON ${AUTH_EXPORT_SCHEMA}.auth_users FROM authenticated`); }
+  }, 120_000);
+
+  it.skipIf(!PRIVATE_AUTH)("blocks missing export-schema access or a missing view without fallback to Auth", async () => {
+    await seedMinimal();
+    await exportOwner!.query(`REVOKE USAGE ON SCHEMA ${AUTH_EXPORT_SCHEMA} FROM itrader_staging_reader`);
+    try {
+      await expect(inspectConnection(`postgresql://itrader_staging_reader:reader@127.0.0.1:${PORT}/sync_source`, true, env)).rejects.toThrow(`lacks USAGE on schema ${AUTH_EXPORT_SCHEMA}`);
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(`lacks USAGE on schema ${AUTH_EXPORT_SCHEMA}`);
+    } finally { await exportOwner!.query(`GRANT USAGE ON SCHEMA ${AUTH_EXPORT_SCHEMA} TO itrader_staging_reader`); }
+    await exportOwner!.query(`ALTER VIEW ${AUTH_EXPORT_SCHEMA}.auth_identities RENAME TO hidden_identities`);
+    try {
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(/requires private Auth export view auth_identities/);
+    } finally { await exportOwner!.query(`ALTER VIEW ${AUTH_EXPORT_SCHEMA}.hidden_identities RENAME TO auth_identities`); }
+    await expect(prepareClone("merge", "admin", { ...env, DATABASE_SYNC_AUTH_SOURCE_MODE: "direct" }, isolated())).rejects.toThrow(/lacks USAGE on schema auth/);
+  }, 120_000);
+
+  it.skipIf(!PRIVATE_AUTH)("refuses filtered definitions, RLS-truncated access, and export column drift", async () => {
+    await seedMinimal();
+    const original = authExportViewSql("users").replace("CREATE VIEW", "CREATE OR REPLACE VIEW");
+    const filtered = original.replace('FROM auth."users" AS src;', 'FROM auth."users" AS src WHERE false;');
+    await exportOwner!.query(filtered);
+    try {
+      expect((await sourceReader.query(`SELECT count(*)::text AS count FROM ${AUTH_EXPORT_SCHEMA}.auth_users`)).rows[0].count).toBe("0");
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(/altered or unverified Auth export definition/);
+    } finally { await exportOwner!.query(original); }
+    await sourceOwner.query("ALTER ROLE postgres NOBYPASSRLS");
+    try {
+      expect((await sourceReader.query(`SELECT count(*)::text AS count FROM ${AUTH_EXPORT_SCHEMA}.auth_users`)).rows[0].count).toBe("0");
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(/cannot verify complete Auth export access/);
+    } finally { await sourceOwner.query("ALTER ROLE postgres BYPASSRLS"); }
+    await sourceOwner.query("ALTER TABLE auth.users ADD COLUMN export_drift_probe text");
+    try {
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(/Auth export schema drift for users/);
+    } finally { await sourceOwner.query("ALTER TABLE auth.users DROP COLUMN export_drift_probe"); }
+    expect((await destination.query("SELECT count(*)::text AS count FROM staging_admin.database_sync_runs")).rows[0].count).toBe("0");
+    expect((await destination.query("SELECT count(*)::text AS count FROM public.\"User\"")).rows[0].count).toBe("1");
+  }, 120_000);
+
+  it.skipIf(PRIVATE_AUTH)("direct Auth access rejects silent RLS filtering despite valid schema and table grants", async () => {
+    await seedMinimal();
+    await sourceOwner.query("ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY");
+    try {
+      expect((await sourceReader.query("SELECT count(*)::text AS count FROM auth.users")).rows[0].count).toBe("0");
+      await expect(inspectConnection(`postgresql://itrader_staging_reader:reader@127.0.0.1:${PORT}/sync_source`, true, env)).rejects.toThrow(/unconditional reader RLS policy on users/);
+      await expect(prepareClone("merge", "admin", env, isolated())).rejects.toThrow(/unconditional reader RLS policy on users/);
+    } finally { await sourceOwner.query("ALTER TABLE auth.users DISABLE ROW LEVEL SECURITY"); }
+  }, 120_000);
+
 
   it("blocks a missing required source table instead of treating it as empty", async () => {
     await seedMinimal();
