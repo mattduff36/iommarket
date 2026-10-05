@@ -20,6 +20,7 @@ import {
   applySampleReviewResponseRevisionVisibility,
 } from "@/lib/listings/sample-related-visibility";
 import { OPEN_CANCELLATION_STATUSES } from "@/lib/policy/cancellation";
+import { resolveVisibleAdminPaymentWhere } from "@/lib/payments/payment-visibility";
 import {
   AdminActionQueue,
   buildAdminActionQueueItems,
@@ -63,6 +64,9 @@ export default async function AdminDashboardPage() {
   );
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const recentPaymentWhere = await resolveVisibleAdminPaymentWhere(
+    applySamplePaymentVisibility({}, sampleVisibility),
+  );
 
   const [
     totalListings,
@@ -170,7 +174,7 @@ export default async function AdminDashboardPage() {
       },
     }),
     db.payment.findMany({
-      where: applySamplePaymentVisibility({}, sampleVisibility),
+      where: recentPaymentWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {

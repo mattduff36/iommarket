@@ -24,6 +24,7 @@ import {
   getPaymentDisplayId,
   getProviderLabel,
   getSubscriptionDisplayId,
+  recognisedListingPaymentWhere,
   recognisedSubscriptionChargeWhere,
 } from "@/lib/payments/records";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
@@ -83,7 +84,7 @@ export default async function AdminRevenuePage() {
     await Promise.all([
     db.payment.findMany({
       where: applySamplePaymentVisibility(
-        { status: "SUCCEEDED", refundedAt: null },
+        recognisedListingPaymentWhere(),
         sampleVisibility,
       ),
       orderBy: { createdAt: "desc" },
@@ -102,7 +103,7 @@ export default async function AdminRevenuePage() {
     }),
     db.payment.aggregate({
       where: applySamplePaymentVisibility(
-        { status: "SUCCEEDED", refundedAt: null },
+        recognisedListingPaymentWhere(),
         sampleVisibility,
       ),
       _sum: { amount: true },

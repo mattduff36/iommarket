@@ -861,11 +861,32 @@ describe("createDealerSubscription", () => {
       status: "LIVE", featured: false, title: "Free live listing",
     });
     mockDb.freeListingClaim.findUnique.mockResolvedValue({ id: "claim-1", userId: "user_123" });
+    mockDb.payment.findFirst.mockResolvedValue(null);
+    mockDb.payment.create.mockImplementation(async ({ data }) => ({
+      id: "pending-pay",
+      status: "PENDING",
+      ...data,
+    }));
 
     const result = await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa");
 
     expect(result).toEqual({ data: { checkoutUrl: expect.any(String) } });
     expect(createFeaturedUpgradeCheckoutMock).toHaveBeenCalled();
+    expect(mockDb.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "FEATURED",
+        status: "PENDING",
+        paymentProvider: "RIPPLE",
+      }),
+    });
+    expect(persistCheckoutAttemptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "FEATURED_UPGRADE",
+        paymentId: "pending-pay",
+        listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+        merchantReference: "featured-reference-new",
+      }),
+    );
   });
 
   it("reuses a compatible pending Featured checkout reference rather than orphaning it", async () => {
