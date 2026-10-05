@@ -66,6 +66,10 @@ import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
 import type { Prisma } from "@prisma/client";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import {
+  resolveManualReviewAttemptWhere,
+  resolveVisibleAdminPaymentWhere,
+} from "@/lib/payments/payment-visibility";
+import {
   applySamplePaymentVisibility,
   applySampleSubscriptionVisibility,
 } from "@/lib/listings/sample-related-visibility";
@@ -202,7 +206,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
 
   if (tab === "reconciliation") {
     const attempts = await db.paymentCheckoutAttempt.findMany({
-      where: { status: { in: ["OPEN", "RETURNED", "REVIEW"] } },
+      where: await resolveManualReviewAttemptWhere(),
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
       include: {
@@ -240,7 +244,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
       <>
         <AdminPageHeader
           title="Payments & subscriptions"
-          description="Review charged or abandoned checkouts without counting unverified activity as revenue."
+          description="Review checkouts that have provider evidence and still need a verified outcome."
           meta={
             <span>
               Generated {new Date().toLocaleString("en-GB")} ·{" "}
@@ -515,9 +519,8 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
   }
   if (paymentStatus) payWhere.status = paymentStatus;
   if (typeFilter) payWhere.type = typeFilter;
-  const visiblePayWhere = applySamplePaymentVisibility(
-    payWhere,
-    sampleVisibility,
+  const visiblePayWhere = await resolveVisibleAdminPaymentWhere(
+    applySamplePaymentVisibility(payWhere, sampleVisibility),
   );
 
   const [payments, payTotal] = await Promise.all([

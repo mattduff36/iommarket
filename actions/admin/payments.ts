@@ -39,6 +39,7 @@ import {
 import type { Prisma } from "@prisma/client";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { applySamplePaymentVisibility } from "@/lib/listings/sample-related-visibility";
+import { resolveVisibleAdminPaymentWhere } from "@/lib/payments/payment-visibility";
 import {
   PaymentReconciliationError,
   reconcileListingPayment,
@@ -63,9 +64,8 @@ export async function searchPayments(input: SearchPaymentsInput) {
     ];
   }
   if (status) where.status = status;
-  const visibleWhere = applySamplePaymentVisibility(
-    where,
-    await getSampleVisibility(),
+  const visibleWhere = await resolveVisibleAdminPaymentWhere(
+    applySamplePaymentVisibility(where, await getSampleVisibility()),
   );
 
   const [payments, total] = await Promise.all([
