@@ -169,7 +169,7 @@ export function ReconcileRippleButton({
   }
 
   return (
-    <div className="w-80 space-y-2 rounded-lg border border-warning/30 bg-surface p-3">
+    <div className="flex w-80 min-w-0 max-w-[min(20rem,80vw)] flex-col gap-2 whitespace-normal rounded-lg border border-warning/30 bg-surface p-3 text-left">
       <p className="text-xs text-text-secondary">
         Enter evidence copied from Ripple. The browser return reference alone
         is not proof of payment.
@@ -180,39 +180,41 @@ export function ReconcileRippleButton({
         onChange={(event) => setProviderPaymentId(event.target.value)}
         placeholder="Payment job reference"
         inputMode="numeric"
-        className="h-8 w-full rounded-md border border-border bg-surface px-2 text-xs"
+        className="h-8 w-full min-w-0 rounded-md border border-border bg-surface px-2 text-xs"
       />
       <input
         aria-label="Ripple payment time"
         type="datetime-local"
         value={providerEventAt}
         onChange={(event) => setProviderEventAt(event.target.value)}
-        className="h-8 w-full rounded-md border border-border bg-surface px-2 text-xs"
+        className="h-8 w-full min-w-0 rounded-md border border-border bg-surface px-2 text-xs"
       />
       <textarea
         aria-label="Reconciliation notes"
         value={notes}
         onChange={(event) => setNotes(event.target.value)}
         placeholder="Portal evidence and reason for manual recovery"
-        className="min-h-16 w-full rounded-md border border-border bg-surface p-2 text-xs"
+        className="min-h-16 w-full min-w-0 rounded-md border border-border bg-surface p-2 text-xs"
       />
-      <label className="flex gap-2 text-xs text-text-secondary">
+      <label className="flex min-w-0 items-start gap-2 text-xs text-text-secondary">
         <input
           type="checkbox"
           checked={contractConfirmed}
           onChange={(event) => setContractConfirmed(event.target.checked)}
+          className="mt-0.5 shrink-0"
         />
         Amount, GBP currency, product, listing and merchant reference match.
       </label>
-      <label className="flex gap-2 text-xs text-text-secondary">
+      <label className="flex min-w-0 items-start gap-2 text-xs text-text-secondary">
         <input
           type="checkbox"
           checked={paidConfirmed}
           onChange={(event) => setPaidConfirmed(event.target.checked)}
+          className="mt-0.5 shrink-0"
         />
         Ripple currently shows paid and not refunded.
       </label>
-      <AdminActionBar>
+      <AdminActionBar className="w-full min-w-0">
         <AdminActionButton
           onClick={submit}
           disabled={
