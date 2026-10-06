@@ -103,10 +103,11 @@ describe("isolated weekly staging subscription", () => {
     for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
     vi.stubEnv("RIPPLE_LIVE_CHECKOUT_ENABLED", "1");
     vi.stubEnv("RIPPLE_REFERENCE_SECRET", "staging-reference-secret-long-enough-for-test");
-    const input = { dealerId: "dealer-1", tier: "STARTER" as const, testPlan: true, amountInPence: 100, customerEmail: "test@example.com", successUrl: "https://preview.example/success", cancelUrl: "https://preview.example/cancel" };
+    const payer = { dealerName: null, accountName: null, email: "test@example.com" };
+    const input = { dealerId: "dealer-1", tier: "STARTER" as const, testPlan: true, amountInPence: 100, payer, successUrl: "https://preview.example/success", cancelUrl: "https://preview.example/cancel" };
     await expect(createDealerSubscriptionCheckout(input)).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
     await expect(createDealerSubscriptionCheckout({ ...input, testPlan: false, amountInPence: 2999 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
-    const listing = { listingId: "listing-1", listingTitle: "Test", successUrl: input.successUrl, cancelUrl: input.cancelUrl };
+    const listing = { listingId: "listing-1", listingTitle: "Test", payer, successUrl: input.successUrl, cancelUrl: input.cancelUrl };
     await expect(createFeaturedUpgradeCheckout({ ...listing, amountInPence: 50 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
     await expect(createFeaturedUpgradeCheckout({ ...listing, amountInPence: 500 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");
     await expect(createListingCheckout({ ...listing, amountInPence: 499 })).rejects.toThrow("RIPPLE_PREVIEW_CHECKOUT_DISABLED");

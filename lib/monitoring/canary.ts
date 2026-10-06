@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { captureBusinessEvent } from "./capture";
+import { monitoringAppUrl } from "./alert-message";
 import { enqueueMonitoringAlert, processMonitoringAlertOutbox } from "./alert-outbox";
 import { logMonitoringFallback } from "./fallback-log";
 
@@ -32,13 +33,11 @@ export async function runMonitoringCanary(now = new Date()) {
 
   const sendLive = process.env.MONITORING_CANARY_SEND === "1";
   const payload = {
-    subject: "[Monitoring][CANARY] Capture path verified",
+    subject: "Monitoring check passed",
     text: [
-      "iTrader monitoring canary",
+      "The daily monitoring check completed. Problem recording is working.",
       "",
-      `Issue: ${captured.issueId}`,
-      `Event: ${captured.eventId}`,
-      "This verifies capture and alert enqueue without repeating a real incident.",
+      `Please open this and take a look: ${monitoringAppUrl()}/admin/monitoring/${captured.issueId}`,
     ].join("\n"),
     webhookBody: {
       app: "iommarket",

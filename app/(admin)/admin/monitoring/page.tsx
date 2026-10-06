@@ -109,6 +109,11 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
             createdAt: true,
           },
         },
+        events: {
+          orderBy: { occurredAt: "desc" },
+          take: 1,
+          select: { environment: true },
+        },
       },
     }),
     db.monitoringIssue.count({ where: { status: "OPEN" } }),

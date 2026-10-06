@@ -8,6 +8,7 @@ export interface FixerrorsKnowledgeEntry {
   summary: string;
   files: string[];
   tests: string[];
+  issueFingerprints?: string[];
   recordedAt: string;
 }
 

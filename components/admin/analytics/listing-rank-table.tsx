@@ -6,6 +6,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
+import { listingReviewHref } from "@/lib/admin/record-href";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -40,7 +42,13 @@ export function ListingRankTable({
           <TableRow key={row.id}>
             <TableCell className="w-12 text-xs tabular-nums text-text-tertiary">{index + 1}</TableCell>
             <TableCell>
-              <AdminDataCell title={row.title} />
+              <AdminDataCell
+                title={
+                  <AdminRecordLink href={listingReviewHref(row.id)} external>
+                    {row.title}
+                  </AdminRecordLink>
+                }
+              />
             </TableCell>
             <TableCell className="text-text-secondary">{row.seller}</TableCell>
             <TableCell className={adminNumericCellClass}>

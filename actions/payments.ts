@@ -6,6 +6,7 @@ import { presentHostedCheckoutUrl } from "@/lib/payments/staging-return-routing"
 import { createSampleCheckout } from "@/lib/payments/sample-checkout";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
+import { toRippleCheckoutPayer } from "@/lib/payments/ripple-customer-details";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
@@ -330,12 +331,12 @@ export async function payForListing(input: PayForListingInput) {
     if (isRipplePreviewRuntime()) {
       return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
     }
+    const payer = toRippleCheckoutPayer(user);
     const session = includeFeatured ? await createListingAndFeaturedCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
       amountInPence: combinedPricePence,
-      customerName: user.name ?? undefined,
-      customerEmail: user.email,
+      payer,
       successUrl: buildHostedReturnUrl({ status: "success", context: "listing", listingId: listing.id, flow, returnTo: listingReturnTo }),
       cancelUrl: buildHostedReturnUrl({ status: "cancel", context: "listing", listingId: listing.id, flow, returnTo: listingReturnTo }),
     }) : await createListingCheckout({
@@ -343,8 +344,7 @@ export async function payForListing(input: PayForListingInput) {
       listingTitle: listing.title,
       amountInPence: pricing.privateListingPence,
       checkoutType: "listing_payment",
-      customerName: user.name ?? undefined,
-      customerEmail: user.email,
+      payer,
       successUrl: buildHostedReturnUrl({
         status: "success",
         context: "listing",
@@ -489,8 +489,7 @@ export async function createDealerSubscription(input: {
       dealerId: parsed.data.dealerId,
       tier: parsed.data.tier,
       amountInPence: getDealerPlanPricePence(pricing, parsed.data.tier),
-      customerName: user.name ?? undefined,
-      customerEmail: user.email,
+      payer: toRippleCheckoutPayer(user),
       successUrl: buildHostedReturnUrl({
         status: "success",
         context: "subscription",
@@ -618,8 +617,7 @@ export async function upgradeFeatured(listingId: string) {
     const session = await createFeaturedUpgradeCheckout({
       listingId: listing.id,
       listingTitle: listing.title,
-      customerName: user.name ?? undefined,
-      customerEmail: user.email,
+      payer: toRippleCheckoutPayer(user),
       successUrl: buildHostedReturnUrl({
         status: "success",
         context: "featured",

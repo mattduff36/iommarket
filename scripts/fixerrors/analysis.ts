@@ -158,6 +158,7 @@ export function generateAnalysisReport(
   patterns: ErrorPattern[],
   clusters: ErrorRootCauseCluster[],
   baseline: CodeBaseline | null = null,
+  history: string[] = [],
 ): string {
   const lines = [
     "# Monitoring Error Analysis Report",
@@ -190,6 +191,12 @@ export function generateAnalysisReport(
   lines.push("");
   lines.push(...describeCodeBaseline(baseline));
   lines.push("");
+  lines.push(...(history.length > 0 ? history : [
+    "## What we already know",
+    "",
+    "No alert history was attached to this report.",
+    "",
+  ]));
   lines.push("## OPEN Issues");
   lines.push("");
 

@@ -25,7 +25,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <SiteHeader />
+      <SiteHeader previewSite={process.env.VERCEL_ENV === "preview"} />
       <LiveAccountUpdates />
       <div className="flex min-w-0 flex-1">
         {/* Desktop sidebar */}

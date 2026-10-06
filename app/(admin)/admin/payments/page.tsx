@@ -12,6 +12,7 @@ import {
   TableHead,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
   AdminFilterBar,
   AdminFilterChip,
@@ -19,6 +20,7 @@ import {
   adminSearchInputClass,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { dealerAdminHref, listingReviewHref } from "@/lib/admin/record-href";
 import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminPager } from "@/components/admin/admin-pager";
 import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
@@ -214,6 +216,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           include: {
             listing: {
               select: {
+                id: true,
                 title: true,
                 featured: true,
                 user: { select: { email: true } },
@@ -275,7 +278,19 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                 </TableCell>
                 <TableCell>
                   <AdminDataCell
-                    title={attempt.payment?.listing.title ?? attempt.productCode}
+                    title={
+                      attempt.payment?.listing ? (
+                        <AdminRecordLink
+                          href={listingReviewHref(attempt.payment.listing.id)}
+                          external
+                          className="block max-w-[200px] truncate"
+                        >
+                          {attempt.payment.listing.title}
+                        </AdminRecordLink>
+                      ) : (
+                        attempt.productCode
+                      )
+                    }
                     subtitle={attempt.payment?.listing.user.email}
                   />
                 </TableCell>
@@ -342,7 +357,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
         include: {
-          dealer: { select: { name: true, slug: true, tier: true } },
+          dealer: { select: { id: true, name: true, slug: true, tier: true } },
           charges: {
             where: { refundedAt: null },
             orderBy: { eventTimestamp: "desc" },
@@ -435,7 +450,14 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
             {subscriptions.map((sub) => (
               <TableRow key={sub.id}>
                 <TableCell data-column="dealer">
-                  <AdminDataCell title={sub.dealer.name} subtitle={sub.dealer.slug} />
+                  <AdminDataCell
+                    title={
+                      <AdminRecordLink href={dealerAdminHref(sub.dealer.id)}>
+                        {sub.dealer.name}
+                      </AdminRecordLink>
+                    }
+                    subtitle={sub.dealer.slug}
+                  />
                 </TableCell>
                 <TableCell data-column="status">
                   <Badge variant={SUB_STATUS_VARIANT[sub.status] ?? "neutral"}>{sub.status}</Badge>
@@ -530,7 +552,7 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
-        listing: { select: { title: true, user: { select: { email: true } } } },
+        listing: { select: { id: true, title: true, user: { select: { email: true } } } },
         checkoutAttempt: {
           select: {
             status: true,
@@ -616,7 +638,15 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
               </TableCell>
               <TableCell data-column="listing">
                 <AdminDataCell
-                  title={<span className="block max-w-[200px] truncate">{payment.listing.title}</span>}
+                  title={
+                    <AdminRecordLink
+                      href={listingReviewHref(payment.listing.id)}
+                      external
+                      className="block max-w-[200px] truncate"
+                    >
+                      {payment.listing.title}
+                    </AdminRecordLink>
+                  }
                   subtitle={payment.listing.user.email}
                 />
               </TableCell>

@@ -2,18 +2,38 @@ import { sendResendEmail } from "@/lib/email/client";
 import { renderBrandedEmail } from "@/lib/email/layout";
 import { normaliseAlertSubject } from "@/lib/monitoring/alert-message";
 
+function extractAlertUrl(text: string): string | undefined {
+  for (const line of text.split("\n")) {
+    if (line.startsWith("Review in admin: ")) {
+      const marked = line.slice("Review in admin: ".length).trim();
+      if (/^https?:\/\//i.test(marked)) return marked;
+    }
+    const match = line.match(/https?:\/\/\S+/);
+    if (match?.[0] && /\/admin\/monitoring(?:\/|\s|$)/.test(match[0])) {
+      return match[0].replace(/[)\].,]+$/, "");
+    }
+  }
+  return undefined;
+}
+
+function emailHeading(subject: string): string {
+  const prefixed = subject.match(/^\[Monitoring\] \[[A-Z]+\] - (.*)$/);
+  return prefixed?.[1] || subject;
+}
+
 export function buildMonitoringAlertEmail(input: { subject: string; text: string }) {
-  const reviewPrefix = "Review in admin: ";
-  const lines = input.text.split("\n");
-  const reviewLine = lines.find((line) => line.startsWith(reviewPrefix));
-  const reviewUrl = reviewLine?.slice(reviewPrefix.length).trim();
-  const safeReviewUrl = reviewUrl && /^https?:\/\//i.test(reviewUrl) ? reviewUrl : undefined;
+  const subject = normaliseAlertSubject(input.subject);
+  const safeReviewUrl = extractAlertUrl(input.text);
+  const paragraphs = input.text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("Review in admin:"));
   const rendered = renderBrandedEmail({
-    title: "Monitoring alert",
-    intro: normaliseAlertSubject(input.subject),
-    paragraphs: lines.filter((line) => line !== reviewLine && line.trim().length > 0),
+    title: emailHeading(subject),
+    preheader: paragraphs[0],
+    paragraphs,
     ...(safeReviewUrl
-      ? { actionHref: safeReviewUrl, actionLabel: "Review alert" }
+      ? { actionHref: safeReviewUrl, actionLabel: "Open this issue" }
       : {}),
   });
 

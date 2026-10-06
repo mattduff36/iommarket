@@ -17,6 +17,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { acknowledgeSnapshotIssues } from "./fixerrors/acknowledge";
+import {
+  appendAlertLog,
+  applyAlertHistory,
+  loadAlertHistory,
+  newSeenEvents,
+  recallOpenIssues,
+  renderAlertHistory,
+} from "./fixerrors/alert-log";
 import { clusterErrorPatterns, generateAnalysisReport, groupOpenIssues, summarizeClusterLanes } from "./fixerrors/analysis";
 import { assertBindingMatches, formatSnapshotBinding, getArgumentValue, readSnapshotBinding } from "./fixerrors/binding";
 import { closeSnapshotIssues, readCloseManifest } from "./fixerrors/close-out";
@@ -183,6 +191,26 @@ async function verifyFromArguments(args: string[], client: PgClientLike, databas
     apply: args.includes("--apply"),
     actorAdminId,
   });
+  if (args.includes("--apply") && result.applied && result.recurred.length > 0) {
+    const recordedAt = new Date().toISOString();
+    appendAlertLog(result.recurred.flatMap((issueId) => {
+      const issue = snapshot.issues.find((entry) => entry.id === issueId);
+      if (!issue) return [];
+      return [{
+        at: recordedAt,
+        fingerprint: issue.fingerprint,
+        normalizedMessage: "",
+        source: issue.source,
+        route: issue.sampleRoute,
+        action: issue.sampleAction,
+        severity: issue.severity,
+        occurrences: issue.occurrences,
+        lastSeenAt: issue.lastSeenAt,
+        outcome: "recurred" as const,
+        summary: "The error came back after the fix was deployed.",
+      }];
+    }));
+  }
   console.log(JSON.stringify({ mode: "verify-release", dryRun: !args.includes("--apply"), ...result }, null, 2));
   if (!result.ok) process.exitCode = 1;
 }
@@ -215,9 +243,18 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
       cwd: process.cwd(),
     });
   }
-  const decisions = buildFixerrorsDecisions(clusters, baseline);
+  const history = loadAlertHistory();
+  const recalls = recallOpenIssues(snapshot.issues, history);
+  const decisions = applyAlertHistory(buildFixerrorsDecisions(clusters, baseline), recalls);
   writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "decision.json"), decisions, baseline);
-  const report = generateAnalysisReport(snapshot.issues, patterns, clusters, baseline);
+  const report = generateAnalysisReport(
+    snapshot.issues,
+    patterns,
+    clusters,
+    baseline,
+    renderAlertHistory(recalls),
+  );
+  appendAlertLog(newSeenEvents(snapshot.issues, history));
   writeAndVerifyTextArtifactAtomic(ERROR_ANALYSIS_PATH, report);
   snapshot = markSnapshotAnalysisCompleted(
     snapshot,

@@ -14,7 +14,10 @@ import {
 } from "@/lib/payments/ripple-config";
 import { parseRippleWebhookEnvelope } from "@/lib/payments/ripple-contract";
 import { createRippleReference } from "@/lib/payments/ripple-reference";
-import { getRippleCustomerDetails } from "@/lib/payments/ripple-customer-details";
+import {
+  getRippleCustomerDetails,
+  type RippleCheckoutPayer,
+} from "@/lib/payments/ripple-customer-details";
 import { verifyRippleWebhookSignature } from "@/lib/payments/ripple-signature";
 import type {
   NormalizedProviderWebhookEvent,
@@ -51,8 +54,7 @@ function buildFixedCheckoutUrl(
     amountInPence?: number;
     tier?: DealerTier;
     testPlan?: boolean;
-    customerName?: string;
-    customerEmail?: string;
+    payer: RippleCheckoutPayer;
   }
 ): ProviderCheckoutResult {
   assertHostedCheckoutAvailable();
@@ -84,7 +86,7 @@ function buildFixedCheckoutUrl(
   const url = new URL(baseUrl);
   url.search = "";
   url.searchParams.set("reference", merchantReference);
-  const customerDetails = getRippleCustomerDetails(params.customerName, params.customerEmail);
+  const customerDetails = getRippleCustomerDetails(params.payer);
   if (customerDetails) {
     url.searchParams.set("name", customerDetails.name);
     url.searchParams.set("email", customerDetails.email);
@@ -158,14 +160,13 @@ export async function createListingCheckout(params: {
   supportAmountPence?: number;
   successUrl: string;
   cancelUrl: string;
-  customerEmail?: string;
-  customerName?: string;
+  payer: RippleCheckoutPayer;
   idempotencyKey?: string;
 }): Promise<ProviderCheckoutResult> {
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({
     tables: [{ table: "Listing", rowKey: params.listingId }],
-    emails: params.customerEmail ? [params.customerEmail] : [],
+    emails: [params.payer.email],
   });
   if ((params.checkoutType ?? "listing_payment") === "listing_support") {
     throw new Error("RIPPLE_LISTING_SUPPORT_URL");
@@ -173,8 +174,7 @@ export async function createListingCheckout(params: {
   return buildFixedCheckoutUrl("listing_payment", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
-    customerName: params.customerName,
-    customerEmail: params.customerEmail,
+    payer: params.payer,
   });
 }
 
@@ -182,21 +182,19 @@ export async function createListingAndFeaturedCheckout(params: {
   listingId: string;
   listingTitle: string;
   amountInPence: number;
-  customerName?: string;
-  customerEmail?: string;
+  payer: RippleCheckoutPayer;
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({
     tables: [{ table: "Listing", rowKey: params.listingId }],
-    emails: params.customerEmail ? [params.customerEmail] : [],
+    emails: [params.payer.email],
   });
   return buildFixedCheckoutUrl("listing_and_featured", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
-    customerName: params.customerName,
-    customerEmail: params.customerEmail,
+    payer: params.payer,
   });
 }
 
@@ -205,23 +203,21 @@ export async function createDealerSubscriptionCheckout(params: {
   tier: DealerTier;
   testPlan?: boolean;
   amountInPence: number;
-  customerEmail: string;
-  customerName?: string;
+  payer: RippleCheckoutPayer;
   successUrl: string;
   cancelUrl: string;
 }): Promise<ProviderCheckoutResult> {
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({
     tables: [{ table: "DealerProfile", rowKey: params.dealerId }],
-    emails: [params.customerEmail],
+    emails: [params.payer.email],
   });
   return buildFixedCheckoutUrl("dealer_subscription", {
     targetId: params.dealerId,
     amountInPence: params.amountInPence,
     tier: params.tier,
     testPlan: params.testPlan,
-    customerName: params.customerName,
-    customerEmail: params.customerEmail,
+    payer: params.payer,
   });
 }
 
@@ -230,20 +226,18 @@ export async function createFeaturedUpgradeCheckout(params: {
   listingTitle: string;
   successUrl: string;
   cancelUrl: string;
-  customerEmail?: string;
-  customerName?: string;
+  payer: RippleCheckoutPayer;
   amountInPence?: number;
 }): Promise<ProviderCheckoutResult> {
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({
     tables: [{ table: "Listing", rowKey: params.listingId }],
-    emails: params.customerEmail ? [params.customerEmail] : [],
+    emails: [params.payer.email],
   });
   return buildFixedCheckoutUrl("featured_upgrade", {
     targetId: params.listingId,
     amountInPence: params.amountInPence,
-    customerName: params.customerName,
-    customerEmail: params.customerEmail,
+    payer: params.payer,
   });
 }
 

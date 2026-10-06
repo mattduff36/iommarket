@@ -1,6 +1,6 @@
 import { ReceiptText } from "lucide-react";
-import Link from "next/link";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import {
   AdminTable,
@@ -87,7 +87,11 @@ export function CostDashboardView({ dashboard }: { dashboard: CostDashboardDto }
 
       {dashboard.pendingRequest ? (
         <p className="mb-6 text-sm text-text-secondary">
-          Invoice request {dashboard.accountsPreview?<Link href={`/admin/costs/confirm/${dashboard.pendingRequest.id}`}>{dashboard.pendingRequest.id}</Link>:dashboard.pendingRequest.id} is pending for{" "}
+          Invoice request{" "}
+          <AdminRecordLink href={`/admin/costs/confirm/${dashboard.pendingRequest.id}`} className="font-mono">
+            {dashboard.pendingRequest.id}
+          </AdminRecordLink>{" "}
+          is pending for{" "}
           {dashboard.pendingRequest.amountLabel}
           {dashboard.pendingRequest.emailStatus === "FAILED"
             ? " and the notification email failed."

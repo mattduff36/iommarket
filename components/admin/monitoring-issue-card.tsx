@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
+import { MonitoringOriginalError, monitoringErrorCopy } from "@/components/admin/monitoring-readable-error";
 import { Badge } from "@/components/ui/badge";
 
 type TimestampValue = Date | string;
@@ -32,6 +33,8 @@ export interface MonitoringIssueCardData {
   updatedAt: TimestampValue;
   _count: { events: number };
   statusEvents: StatusEventSummary[];
+  environment?: string | null;
+  events?: { environment: string }[];
 }
 
 function statusVariant(status: string): "neutral" | "warning" | "success" | "info" {
@@ -74,8 +77,21 @@ function ContextValue({ value }: { value: string | null }) {
   );
 }
 
+export function monitoringIssueCopy(issue: MonitoringIssueCardData) {
+  return monitoringErrorCopy({
+    title: issue.title,
+    message: issue.sampleMessage,
+    route: issue.sampleRoute,
+    action: issue.sampleAction,
+    environment: issue.environment ?? issue.events?.[0]?.environment,
+    occurrences: issue.occurrences,
+    severity: issue.severity,
+  });
+}
+
 export function MonitoringIssueCard({ issue }: { issue: MonitoringIssueCardData }) {
   const latestStatusEvent = issue.statusEvents[0];
+  const plain = monitoringIssueCopy(issue);
 
   return (
     <details className="group rounded-lg border border-border bg-surface shadow-low transition-colors open:border-neon-blue-500/40">
@@ -87,10 +103,10 @@ export function MonitoringIssueCard({ issue }: { issue: MonitoringIssueCardData 
             <Badge variant="neutral">{issue.source}</Badge>
           </div>
           <h2 className="mt-3 text-base font-semibold leading-snug text-text-primary">
-            {issue.title}
+            {plain.subject}
           </h2>
-          <p className="mt-1 line-clamp-2 text-sm leading-6 text-text-secondary">
-            {issue.sampleMessage}
+          <p className="mt-1 line-clamp-2 text-sm leading-6 text-text-secondary group-open:line-clamp-none">
+            {plain.summary}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary">
             <span>
@@ -113,17 +129,7 @@ export function MonitoringIssueCard({ issue }: { issue: MonitoringIssueCardData 
       </summary>
 
       <div className="border-t border-border px-4 py-5 sm:px-5">
-        <section aria-labelledby={`message-${issue.id}`}>
-          <h3
-            id={`message-${issue.id}`}
-            className="text-xs font-semibold uppercase tracking-wider text-text-tertiary"
-          >
-            Error summary
-          </h3>
-          <p className="mt-2 max-w-4xl whitespace-pre-wrap break-words rounded-md bg-canvas px-4 py-3 text-sm leading-6 text-text-primary">
-            {issue.sampleMessage}
-          </p>
-        </section>
+        <MonitoringOriginalError title={issue.title} message={issue.sampleMessage} />
 
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <section aria-labelledby={`context-${issue.id}`}>

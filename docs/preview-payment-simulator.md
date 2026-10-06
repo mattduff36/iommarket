@@ -39,14 +39,20 @@ remain active. Do not remove those settings while the live renewal is being test
 - Original tabs refresh server-rendered content automatically. Same-origin storage
   events only request a server refresh; browser messages never establish payment.
 
-## Deferred Ripple details-page bypass
+## Ripple details-page bypass
 
-`RIPPLE_SKIP_DETAILS_ENABLED` defaults to off (unset or anything other than `1`).
-Once Ripple enables the portal option and it is checked on the intended links,
-set this **server-only** variable to `1` in the desired Vercel environment and
-redeploy. Valid account name/email are appended using URLSearchParams while the
-signed reference remains intact. Missing/invalid details retain Ripple's form.
-This forwards through Ripple; it does not introduce a direct Cashflows API.
+Production checkout appends the payer's name and account email to every hosted
+Ripple payment link. The name is the dealer business name when the account has
+a dealer profile, otherwise the account display name. `URLSearchParams` encodes
+the values, and the signed reference stays intact. The link stays on Ripple.
+Missing or unusable details are omitted, and Ripple then shows its name and
+email page. Ripple shows that same page when the skip tickbox is off for the
+link. This does not open Cashflows directly.
+
+`RIPPLE_SKIP_DETAILS_ENABLED=0` turns the query params off in production.
+Preview and local omit them unless that server-only variable is `1`. A new
+hosted payment uses the same builder, so it sends the same details without a
+separate change. Ripple still has to tick the skip option on each new link.
 
 ## Deployment and verification
 

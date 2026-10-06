@@ -16,7 +16,7 @@ import { isExpectedClientCancellation } from "@/lib/monitoring/console-filter";
 
 const ListingEditDialog = dynamic(() => import("@/components/admin/listing-edit-dialog").then((module) => module.ListingEditDialog), { ssr: false });
 
-export function SiteHeader() {
+export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -183,7 +183,9 @@ export function SiteHeader() {
             ) : null}
           </div>
           <div className="flex items-center gap-3 justify-self-end text-metallic-400">
-            <span className="text-xs">The Isle of Man&apos;s Trusted Vehicle Marketplace</span>
+            <span className={cn("text-xs", previewSite && "text-red-500")}>
+              The Isle of Man&apos;s Trusted Vehicle Marketplace
+            </span>
           </div>
         </div>
       </div>
@@ -233,7 +235,7 @@ export function SiteHeader() {
               type="button"
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className={cn("md:hidden", previewSite && "text-red-500 hover:text-red-500")}
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
               aria-expanded={mobileOpen}

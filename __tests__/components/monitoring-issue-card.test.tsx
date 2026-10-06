@@ -46,12 +46,18 @@ describe("MonitoringIssueCard", () => {
 
     expect(details).toBeTruthy();
     expect(summary).toBeTruthy();
-    expect(screen.getByText("Search request failed")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Search request failed" })).toBeTruthy();
+    expect(screen.getByText(/It has happened 3 times/)).toBeTruthy();
     expect(screen.getByText("3 occurrences")).toBeTruthy();
+    expect(screen.getByText("Original error").closest("details")?.open).toBe(false);
 
     fireEvent.click(summary!);
 
     expect(details?.open).toBe(true);
+    fireEvent.click(screen.getByText("Original error"));
+    expect(screen.getByText("Original error").closest("details")?.textContent).toContain(
+      "The search request could not load another page of listings.",
+    );
     expect(screen.getByText("/search")).toBeTruthy();
     expect(screen.getByText("ListingResultsClient")).toBeTruthy();
     expect(
@@ -60,5 +66,30 @@ describe("MonitoringIssueCard", () => {
     expect(
       container.querySelectorAll('time[datetime="2026-08-16T21:40:00.000Z"]').length,
     ).toBeGreaterThan(0);
+  });
+
+  it("shows a plain heading and keeps the raw failure inside the original error disclosure", () => {
+    const raw = "Invalid `prisma.user.create()` invocation:\nUnique constraint failed on the fields: (`email`)";
+    render(
+      <MonitoringIssueCard
+        issue={{
+          ...issue,
+          id: "issue-email",
+          title: raw,
+          sampleMessage: raw,
+          sampleRoute: "/api/me",
+          sampleAction: "route",
+          environment: "production",
+          status: "OPEN",
+          source: "SERVER",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Sign-in problem on the live site — email already in use" })).toBeTruthy();
+    expect(screen.getByText(/email is already registered/)).toBeTruthy();
+    const rawDisclosure = screen.getByText("Original error").closest("details");
+    expect(rawDisclosure?.open).toBe(false);
+    expect(rawDisclosure?.textContent).toContain("Unique constraint failed");
   });
 });

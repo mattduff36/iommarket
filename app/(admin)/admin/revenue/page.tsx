@@ -12,7 +12,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { dealerAdminHref, listingReviewHref } from "@/lib/admin/record-href";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -90,7 +92,7 @@ export default async function AdminRevenuePage() {
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
-        listing: { select: { title: true } },
+        listing: { select: { id: true, title: true } },
       },
     }),
     db.subscription.findMany({
@@ -98,7 +100,7 @@ export default async function AdminRevenuePage() {
       orderBy: { createdAt: "desc" },
       take: 50,
       include: {
-        dealer: { select: { name: true } },
+        dealer: { select: { id: true, name: true } },
       },
     }),
     db.payment.aggregate({
@@ -125,7 +127,7 @@ export default async function AdminRevenuePage() {
         payment: {
           select: {
             amount: true,
-            listing: { select: { title: true } },
+            listing: { select: { id: true, title: true } },
           },
         },
         _count: { select: { observations: true } },
@@ -204,7 +206,16 @@ export default async function AdminRevenuePage() {
                     {attempt.createdAt.toLocaleDateString("en-GB")}
                   </TableCell>
                   <TableCell>
-                    {attempt.payment?.listing.title ?? attempt.productCode}
+                    {attempt.payment?.listing ? (
+                      <AdminRecordLink
+                        href={listingReviewHref(attempt.payment.listing.id)}
+                        external
+                      >
+                        {attempt.payment.listing.title}
+                      </AdminRecordLink>
+                    ) : (
+                      attempt.productCode
+                    )}
                   </TableCell>
                   <TableCell className={adminNumericCellClass}>
                     £{(attempt.amountPence / 100).toFixed(2)}
@@ -246,7 +257,15 @@ export default async function AdminRevenuePage() {
                 </TableCell>
                 <TableCell>
                   <AdminDataCell
-                    title={<span className="block max-w-56 truncate">{payment.listing.title}</span>}
+                    title={
+                      <AdminRecordLink
+                        href={listingReviewHref(payment.listing.id)}
+                        external
+                        className="block max-w-56 truncate"
+                      >
+                        {payment.listing.title}
+                      </AdminRecordLink>
+                    }
                   />
                 </TableCell>
                 <TableCell className={adminNumericCellClass}>
@@ -294,7 +313,13 @@ export default async function AdminRevenuePage() {
             {subscriptions.map((sub) => (
               <TableRow key={sub.id}>
                 <TableCell>
-                  <AdminDataCell title={sub.dealer.name} />
+                  <AdminDataCell
+                    title={
+                      <AdminRecordLink href={dealerAdminHref(sub.dealer.id)}>
+                        {sub.dealer.name}
+                      </AdminRecordLink>
+                    }
+                  />
                 </TableCell>
                 <TableCell>
                   <Badge
