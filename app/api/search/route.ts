@@ -11,7 +11,12 @@ import {
   marketplaceListingBadge,
 } from "@/lib/listings/marketplace";
 import { listingPreviewCardProps } from "@/lib/preview-packs/review";
-import { getSearchOrderBy, parseSearchSort } from "@/lib/search/search-order";
+import { findListingsInAttributeOrder } from "@/lib/search/attribute-sort";
+import {
+  getSearchOrderBy,
+  isAttributeSearchSort,
+  parseSearchSort,
+} from "@/lib/search/search-order";
 import {
   getFuelTypeFilterValues,
   isEvCompatibleFuelType,
@@ -225,25 +230,41 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const [listings, total] = await Promise.all([
-    db.listing.findMany({
-      where,
-      orderBy: getSearchOrderBy(sort),
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: {
-        images: { take: 1, orderBy: { order: "asc" }, select: listingPhotoSelect },
-        category: true,
-        region: true,
-        attributeValues: {
-          where: { attributeDefinition: { slug: "write-off-category" } },
-          select: {
-            value: true,
-            attributeDefinition: { select: { slug: true } },
-          },
-        },
+  const listingInclude = {
+    images: { take: 1, orderBy: { order: "asc" as const }, select: listingPhotoSelect },
+    category: true,
+    region: true,
+    attributeValues: {
+      where: { attributeDefinition: { slug: "write-off-category" } },
+      select: {
+        value: true,
+        attributeDefinition: { select: { slug: true } },
       },
-    }),
+    },
+  };
+  const skip = (page - 1) * pageSize;
+  const listingsQuery = isAttributeSearchSort(sort)
+    ? findListingsInAttributeOrder({
+        where,
+        sort,
+        skip,
+        take: pageSize,
+        load: (ids) =>
+          db.listing.findMany({
+            where: { id: { in: ids } },
+            include: listingInclude,
+          }),
+      })
+    : db.listing.findMany({
+        where,
+        orderBy: getSearchOrderBy(sort),
+        skip,
+        take: pageSize,
+        include: listingInclude,
+      });
+
+  const [listings, total] = await Promise.all([
+    listingsQuery,
     db.listing.count({ where }),
   ]);
   const favouriteListingIds = currentUser

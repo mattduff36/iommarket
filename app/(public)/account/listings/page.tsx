@@ -18,6 +18,15 @@ import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
+import { Button } from "@/components/ui/button";
+import { findListingsInAttributeOrder } from "@/lib/search/attribute-sort";
+import {
+  SELLER_LISTING_SORT_OPTIONS,
+  getSearchOrderBy,
+  isAttributeSearchSort,
+  parseSellerListingSort,
+  type SellerListingSort,
+} from "@/lib/search/search-order";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
@@ -33,16 +42,6 @@ const STATUS_FILTERS = [
 ] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];
-type SortFilter = "newest" | "oldest" | "price_high" | "price_low";
-
-const SORT_OPTIONS: SortFilter[] = ["newest", "oldest", "price_high", "price_low"];
-
-function getSortOrder(sort: SortFilter) {
-  if (sort === "oldest") return { createdAt: "asc" as const };
-  if (sort === "price_high") return { price: "desc" as const };
-  if (sort === "price_low") return { price: "asc" as const };
-  return { createdAt: "desc" as const };
-}
 
 function buildHref({
   status,
@@ -50,7 +49,7 @@ function buildHref({
   page,
 }: {
   status: StatusFilter;
-  sort: SortFilter;
+  sort: SellerListingSort;
   page: number;
 }) {
   const params = new URLSearchParams();
@@ -77,9 +76,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
   const status = STATUS_FILTERS.includes(params.status as StatusFilter)
     ? (params.status as StatusFilter)
     : "ALL";
-  const sort = SORT_OPTIONS.includes(params.sort as SortFilter)
-    ? (params.sort as SortFilter)
-    : "newest";
+  const sort = parseSellerListingSort(params.sort);
   const page = Math.max(1, Number(params.page ?? "1") || 1);
 
   const where = {
@@ -87,34 +84,50 @@ export default async function AccountListingsPage({ searchParams }: Props) {
     ...(status !== "ALL" ? { status } : {}),
   };
 
-  const [listings, total, pricing] = await Promise.all([
-    db.listing.findMany({
-      where,
-      orderBy: getSortOrder(sort),
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: {
-        category: { select: { name: true } },
-        region: { select: { name: true } },
-        statusEvents: {
-          take: 1,
-          orderBy: { createdAt: "desc" },
-          select: { createdAt: true, fromStatus: true, toStatus: true },
-        },
-        payments: {
-          where: {
-            status: "SUCCEEDED",
-            refundedAt: null,
-            OR: [
-              { type: "LISTING" },
-              { type: "FEATURED" },
-              { includesFeatured: true },
-            ],
-          },
-          select: { type: true, includesFeatured: true },
-        },
+  const listingInclude = {
+    category: { select: { name: true } },
+    region: { select: { name: true } },
+    statusEvents: {
+      take: 1,
+      orderBy: { createdAt: "desc" as const },
+      select: { createdAt: true, fromStatus: true, toStatus: true },
+    },
+    payments: {
+      where: {
+        status: "SUCCEEDED" as const,
+        refundedAt: null,
+        OR: [
+          { type: "LISTING" as const },
+          { type: "FEATURED" as const },
+          { includesFeatured: true },
+        ],
       },
-    }),
+      select: { type: true, includesFeatured: true },
+    },
+  };
+  const skip = (page - 1) * PAGE_SIZE;
+  const listingsQuery = isAttributeSearchSort(sort)
+    ? findListingsInAttributeOrder({
+        where,
+        sort,
+        skip,
+        take: PAGE_SIZE,
+        load: (ids) =>
+          db.listing.findMany({
+            where: { id: { in: ids } },
+            include: listingInclude,
+          }),
+      })
+    : db.listing.findMany({
+        where,
+        orderBy: getSearchOrderBy(sort),
+        skip,
+        take: PAGE_SIZE,
+        include: listingInclude,
+      });
+
+  const [listings, total, pricing] = await Promise.all([
+    listingsQuery,
     db.listing.count({ where }),
     getMarketplacePricing(),
   ]);
@@ -160,21 +173,26 @@ export default async function AccountListingsPage({ searchParams }: Props) {
               {item}
             </Link>
           ))}
-          <div className="ml-auto flex items-center gap-2">
-            {SORT_OPTIONS.map((item) => (
-              <Link
-                key={item}
-                href={buildHref({ status, sort: item, page: 1 })}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium border ${
-                  sort === item
-                    ? "border-premium-gold-500 bg-premium-gold-500/10 text-premium-gold-500"
-                    : "border-border text-text-secondary hover:text-text-primary"
-                }`}
+          <form action="/account/listings" className="ml-auto flex items-center gap-2">
+            {status !== "ALL" ? <input type="hidden" name="status" value={status} /> : null}
+            <label className="flex items-center gap-2 text-sm text-text-secondary">
+              Sort by
+              <select
+                name="sort"
+                defaultValue={sort}
+                className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-text-primary"
               >
-                {item.replace("_", " ")}
-              </Link>
-            ))}
-          </div>
+                {SELLER_LISTING_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="submit" size="sm">
+              Apply
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

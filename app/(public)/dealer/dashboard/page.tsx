@@ -37,6 +37,13 @@ import { CancellationRequestCard } from "./cancellation-request-card";
 import { DealerCorrespondenceSettingsCard } from "./dealer-correspondence-settings";
 import { DealerReviewResponseManager } from "./dealer-review-response-manager";
 import { toManagedDealerReview } from "@/lib/reviews/dealer-review-client";
+import { findListingsInAttributeOrder } from "@/lib/search/attribute-sort";
+import {
+  SELLER_LISTING_SORT_OPTIONS,
+  getSearchOrderBy,
+  isAttributeSearchSort,
+  parseSellerListingSort,
+} from "@/lib/search/search-order";
 
 export const metadata: Metadata = {
   title: "Dealer Dashboard",
@@ -68,14 +75,6 @@ const STATUS_FILTERS = [
 ] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];
-type SortFilter = "newest" | "oldest" | "price_high" | "price_low";
-
-function getSortOrder(sort: SortFilter) {
-  if (sort === "oldest") return { createdAt: "asc" as const };
-  if (sort === "price_high") return { price: "desc" as const };
-  if (sort === "price_low") return { price: "asc" as const };
-  return { createdAt: "desc" as const };
-}
 
 interface Props {
   searchParams?: Promise<{
@@ -100,12 +99,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
   const status = STATUS_FILTERS.includes(params.status as StatusFilter)
     ? (params.status as StatusFilter)
     : "ALL";
-  const sort: SortFilter =
-    params.sort === "oldest" ||
-    params.sort === "price_high" ||
-    params.sort === "price_low"
-      ? params.sort
-      : "newest";
+  const sort = parseSellerListingSort(params.sort);
   const page = Math.max(1, Number(params.page ?? "1") || 1);
 
   const listingWhere = {
@@ -113,6 +107,41 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
     ...(status !== "ALL" ? { status } : {}),
   };
+
+  const listingInclude = {
+    images: { take: 1, orderBy: { order: "asc" as const } },
+    category: { select: { name: true } },
+    region: { select: { name: true } },
+    payments: {
+      where: {
+        status: "SUCCEEDED" as const,
+        refundedAt: null,
+        OR: [{ type: "FEATURED" as const }, { includesFeatured: true }],
+      },
+      select: { id: true },
+      take: 1,
+    },
+  };
+  const skip = (page - 1) * PAGE_SIZE;
+  const listingsQuery = isAttributeSearchSort(sort)
+    ? findListingsInAttributeOrder({
+        where: listingWhere,
+        sort,
+        skip,
+        take: PAGE_SIZE,
+        load: (ids) =>
+          db.listing.findMany({
+            where: { id: { in: ids } },
+            include: listingInclude,
+          }),
+      })
+    : db.listing.findMany({
+        where: listingWhere,
+        orderBy: getSearchOrderBy(sort),
+        skip,
+        take: PAGE_SIZE,
+        include: listingInclude,
+      });
 
   const [
     listings,
@@ -124,26 +153,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
     responseEligibleReviews,
     correspondence,
   ] = await Promise.all([
-    db.listing.findMany({
-      where: listingWhere,
-      orderBy: getSortOrder(sort),
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: {
-        images: { take: 1, orderBy: { order: "asc" } },
-        category: { select: { name: true } },
-        region: { select: { name: true } },
-        payments: {
-          where: {
-            status: "SUCCEEDED",
-            refundedAt: null,
-            OR: [{ type: "FEATURED" }, { includesFeatured: true }],
-          },
-          select: { id: true },
-          take: 1,
-        },
-      },
-    }),
+    listingsQuery,
     db.listing.count({ where: listingWhere }),
     db.listing.groupBy({
       by: ["status"],
@@ -472,10 +482,11 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
               defaultValue={sort}
               className="h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
             >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="price_high">Price high to low</option>
-              <option value="price_low">Price low to high</option>
+              {SELLER_LISTING_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             <Button type="submit">Apply</Button>
           </form>

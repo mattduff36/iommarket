@@ -74,7 +74,14 @@ describe("buildSearchCanonicalPath", () => {
     expect(buildSearchCanonicalPath({ sort: "newest" })).toBe(
       "/search?sort=newest",
     );
+    expect(buildSearchCanonicalPath({ sort: "mileage_low" })).toBe(
+      "/search?sort=mileage_low",
+    );
+    expect(buildSearchCanonicalPath({ sort: "year_newest" })).toBe(
+      "/search?sort=year_newest",
+    );
     expect(buildSearchCanonicalPath({ sort: "featured" })).toBe("/search");
+    expect(buildSearchCanonicalPath({ sort: "oldest" })).toBe("/search");
     expect(buildSearchCanonicalPath({ sort: "made-up" })).toBe("/search");
   });
 });
