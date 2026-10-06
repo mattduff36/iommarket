@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { STAGING_ORIGIN } from "@/lib/deployment/staging-origin";
-import { getRippleClientId, isRipplePreviewRuntime, isRippleStagingLinkCode } from "@/lib/payments/ripple-config";
+import { getConfiguredRippleTestSubscriptionProduct, getRippleClientId, isRipplePreviewRuntime, isRippleStagingLinkCode, isRippleWeeklyTestPackageName } from "@/lib/payments/ripple-config";
 import { RIPPLE_EVENT_TYPES, type RippleMinimizedPayload } from "@/lib/payments/ripple-contract";
 
 export const RIPPLE_PRODUCTION_WEBHOOK = "https://itrader.im/api/webhooks/ripple";
@@ -40,6 +40,28 @@ function signature(body: string, timestamp: string) {
 
 export function shouldRelayRippleToStaging(linkCode: string | null | undefined) {
   return !isRipplePreviewRuntime() && isRippleStagingLinkCode(linkCode);
+}
+
+/**
+ * Link code to forward to staging, or null when production should apply the event itself.
+ * Automatic renewals omit link_code. The weekly test is recognised only by its exact
+ * package title and £1 amount, then forwarded with the configured test link code.
+ */
+export function stagingRelayLinkCode(input: {
+  linkCode: string | null | undefined;
+  packageName: string | null | undefined;
+  amountPence: number | null | undefined;
+  eventType: string;
+}, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (isRipplePreviewRuntime(env)) return null;
+  const configured = getConfiguredRippleTestSubscriptionProduct(env);
+  if (!configured) return null;
+  const normalizedLink = input.linkCode?.trim().toUpperCase() || null;
+  if (normalizedLink) return isRippleStagingLinkCode(normalizedLink, env) ? normalizedLink : null;
+  if (!input.eventType.startsWith("payment.")) return null;
+  if (input.amountPence !== configured.amountPence) return null;
+  if (!isRippleWeeklyTestPackageName(input.packageName)) return null;
+  return configured.code;
 }
 
 export function createRippleStagingRelayRequest(input: RelayInput, now = Date.now()) {

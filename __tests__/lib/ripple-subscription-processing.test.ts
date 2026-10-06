@@ -18,6 +18,7 @@ const {
   dealerProfileUpdate,
   subscriptionChargeCreate,
   subscriptionChargeFindUnique,
+  subscriptionChargeFindFirst,
   subscriptionChargeUpdate,
   transactionMock,
   db,
@@ -32,6 +33,7 @@ const {
   const dealerProfileUpdate = vi.fn();
   const subscriptionChargeCreate = vi.fn();
   const subscriptionChargeFindUnique = vi.fn();
+  const subscriptionChargeFindFirst = vi.fn();
   const subscriptionChargeUpdate = vi.fn();
   const transactionMock = vi.fn();
   const db: Record<string, unknown> = {
@@ -50,6 +52,7 @@ const {
       create: subscriptionChargeCreate,
       createMany: subscriptionChargeCreate,
       findUnique: subscriptionChargeFindUnique,
+      findFirst: subscriptionChargeFindFirst,
       update: subscriptionChargeUpdate,
       updateMany: vi.fn(),
     },
@@ -96,6 +99,7 @@ const {
     dealerProfileUpdate,
     subscriptionChargeCreate,
     subscriptionChargeFindUnique,
+    subscriptionChargeFindFirst,
     subscriptionChargeUpdate,
     transactionMock,
     db,
@@ -181,6 +185,7 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     let insertedCharge: Record<string, unknown> | null = null;
     subscriptionChargeCreate.mockReset();
     subscriptionChargeFindUnique.mockReset();
+    subscriptionChargeFindFirst.mockReset().mockResolvedValue(null);
     subscriptionChargeCreate.mockImplementation(({ data }) => {
       insertedCharge = data[0];
       return Promise.resolve({ count: 1 });
@@ -254,6 +259,9 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
     await expect(processProviderWebhookEvent(renewalEvent({ amount: 100, linkCode: code, providerPlanId: code }))).rejects.toThrow("Unknown Ripple product");
+    await expect(processProviderWebhookEvent(renewalEvent({
+      amount: 100, linkCode: null, providerPlanId: null, packageName: "TEST SUBSCRIPTION LINK", fingerprint: "package-on-production",
+    }))).rejects.toThrow("Unknown Ripple product");
     expect(subscriptionCreate).not.toHaveBeenCalled();
     expect(subscriptionChargeCreate).not.toHaveBeenCalled();
   });
@@ -283,6 +291,59 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     }));
     expect(subscriptionChargeCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: [expect.objectContaining({ subscriptionId: "sub-1", paymentReference: "weekly-second-charge", amount: 100 })],
+    }));
+  });
+
+  it("renews the weekly test when the webhook timestamp is the period end and no checkout exists", async () => {
+    const code = "ABCDEF0123456789";
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    const periodEnd = new Date("2026-10-07T01:34:14.408Z");
+    const existing = {
+      id: "sub-1", dealerId: "dealer-1", providerPlanId: code,
+      providerSubscriptionId: "synthetic-weekly", status: "ACTIVE",
+      currentPeriodEnd: periodEnd,
+      lastProviderEventAt: new Date("2026-09-30T01:34:14.408Z"),
+      lastProviderEventType: "payment.succeeded", lastProviderEventFingerprint: "first-charge",
+    };
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue(existing);
+    subscriptionChargeFindFirst.mockResolvedValue({ id: "prior-charge" });
+    (db.paymentCheckoutAttempt as { findMany: ReturnType<typeof vi.fn> }).findMany.mockResolvedValue([]);
+    subscriptionUpdate.mockResolvedValue({ ...existing, currentPeriodEnd: new Date("2026-10-14T01:34:14.408Z") });
+    await processProviderWebhookEvent(renewalEvent({
+      amount: 100, linkCode: code, providerPlanId: code, providerPaymentId: "weekly-second-charge",
+      eventTimestamp: periodEnd, fingerprint: "second-charge", packageName: "TEST SUBSCRIPTION LINK",
+    }));
+    expect((db.paymentCheckoutAttempt as { findMany: ReturnType<typeof vi.fn> }).findMany).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "sub-1" },
+      data: expect.objectContaining({ status: "ACTIVE", currentPeriodEnd: new Date("2026-10-14T01:34:14.408Z") }),
+    }));
+    expect(subscriptionChargeCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: [expect.objectContaining({ subscriptionId: "sub-1", paymentReference: "weekly-second-charge", amount: 100 })],
+    }));
+  });
+
+  it("recognises a linkless weekly renewal by package title on preview", async () => {
+    const code = "ABCDEF0123456789";
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    const periodEnd = new Date("2026-10-07T01:34:14.408Z");
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue({
+      id: "sub-1", dealerId: "dealer-1", providerPlanId: code, status: "ACTIVE",
+      currentPeriodEnd: periodEnd, lastProviderEventAt: new Date("2026-09-30T01:34:14.408Z"),
+      lastProviderEventType: "payment.succeeded", lastProviderEventFingerprint: "first-charge",
+    });
+    subscriptionChargeFindFirst.mockResolvedValue({ id: "prior-charge" });
+    subscriptionUpdate.mockResolvedValue({ id: "sub-1" });
+    await processProviderWebhookEvent(renewalEvent({
+      amount: 100, linkCode: null, providerPlanId: null, providerPaymentId: "weekly-package-renewal",
+      eventTimestamp: periodEnd, fingerprint: "package-renewal", packageName: "TEST SUBSCRIPTION LINK",
+    }));
+    expect(subscriptionUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ providerPlanId: code, currentPeriodEnd: new Date("2026-10-14T01:34:14.408Z") }),
     }));
   });
 
@@ -504,6 +565,32 @@ describe("RIP-PRICE-001 / RIP-CORR-001 dealer fulfillment", () => {
     );
 
     expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(subscriptionChargeCreate).not.toHaveBeenCalled();
+  });
+
+  it("PAY-SUB-ATTEMPT-004 refuses a lapsed subscription that has never recorded a charge", async () => {
+    subscriptionFindMany.mockResolvedValueOnce([{ dealerId: "dealer-1" }]);
+    subscriptionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      dealerId: "dealer-1",
+      providerPlanId: RIPPLE_CANONICAL_PRODUCTS.pro.code,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2026-10-01T10:15:27.000Z"),
+      lastProviderEventAt: new Date("2026-09-01T10:15:27.000Z"),
+      lastProviderEventType: "subscription.created",
+      lastProviderEventFingerprint: "created",
+    });
+    subscriptionChargeFindFirst.mockResolvedValue(null);
+    (
+      db.paymentCheckoutAttempt as { findMany: ReturnType<typeof vi.fn> }
+    ).findMany.mockResolvedValueOnce([]);
+
+    await expect(
+      processProviderWebhookEvent(
+        renewalEvent({ eventTimestamp: new Date("2026-10-10T10:15:27.000Z"), fingerprint: "late" }),
+      ),
+    ).rejects.toThrow("Initial subscription payment has no unique persisted checkout attempt");
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
     expect(subscriptionChargeCreate).not.toHaveBeenCalled();
   });
 

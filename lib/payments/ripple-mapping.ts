@@ -3,6 +3,7 @@ import {
   RIPPLE_CANONICAL_PRODUCTS,
   getRippleTestSubscriptionProduct,
   getRippleTestFeaturedProduct,
+  isRippleWeeklyTestPackageName,
   type RippleProduct,
 } from "@/lib/payments/ripple-config";
 
@@ -49,6 +50,8 @@ export function getRippleProductByPackageName(
   if (STARTER_PACKAGE_ALIASES.has(normalized)) {
     return RIPPLE_CANONICAL_PRODUCTS.starter;
   }
+  const weekly = getRippleTestSubscriptionProduct();
+  if (weekly && isRippleWeeklyTestPackageName(packageName)) return weekly;
   return null;
 }
 

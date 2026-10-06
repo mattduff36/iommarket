@@ -59,6 +59,13 @@ export type RippleTestSubscriptionProduct = {
   envUrlKey: "RIPPLE_TEST_SUBSCRIPTION_URL";
 };
 
+/** Exact Ripple package title of the dedicated £1 weekly staging link. */
+export const RIPPLE_WEEKLY_TEST_PACKAGE_NAME = "test subscription link";
+
+export function isRippleWeeklyTestPackageName(value: string | null | undefined): boolean {
+  return value?.trim().toLowerCase() === RIPPLE_WEEKLY_TEST_PACKAGE_NAME;
+}
+
 export type RippleProduct = (typeof RIPPLE_CANONICAL_PRODUCTS)[RippleProductKey]
   | RippleTestSubscriptionProduct
   | { key: "featured-test"; code: string; amountPence: 50; checkoutType: "featured_upgrade"; envUrlKey: "RIPPLE_TEST_FEATURED_URL" };

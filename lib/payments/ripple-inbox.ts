@@ -11,13 +11,16 @@ import { hashRippleWebhookBody } from "@/lib/payments/ripple-signature";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { lockProviderPayment } from "@/lib/payments/webhook-subscriptions";
 
-import { forwardRippleWebhookToStaging, shouldRelayRippleToStaging } from "@/lib/payments/ripple-staging-relay";
+import { forwardRippleWebhookToStaging, stagingRelayLinkCode } from "@/lib/payments/ripple-staging-relay";
 
 export const RIPPLE_INBOX_STALE_PENDING_MS = 60_000;
 export const RIPPLE_INBOX_MAX_ATTEMPTS = 20;
 
-function isMinimizedPayload(value: unknown): value is RippleMinimizedPayload {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+function replayablePayload(value: unknown): RippleMinimizedPayload {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Inbox payload is not replayable");
+  }
+  return value as RippleMinimizedPayload;
 }
 
 function inboxErrorCode(error: unknown): string {
@@ -135,15 +138,23 @@ export async function processRippleInboxRecord(inboxId: string) {
   const claimedAttempt = inbox.attemptCount + 1;
 
   try {
-    if (!isMinimizedPayload(inbox.minimizedPayload)) {
-      throw new Error("Inbox payload is not replayable");
-    }
+    const minimized = replayablePayload(inbox.minimizedPayload);
     const event = eventFromMinimizedPayload({
-      minimized: inbox.minimizedPayload,
+      minimized,
       customerEmailNorm: inbox.customerEmailNorm,
     });
-    if (shouldRelayRippleToStaging(event.linkCode)) {
-      await forwardRippleWebhookToStaging({ bodyHash: inbox.bodyHash, minimized: inbox.minimizedPayload, customerEmailNorm: inbox.customerEmailNorm });
+    const relayCode = stagingRelayLinkCode({
+      linkCode: event.linkCode,
+      packageName: inbox.packageName ?? event.packageName,
+      amountPence: inbox.amountPence,
+      eventType: inbox.eventType,
+    });
+    if (relayCode) {
+      await forwardRippleWebhookToStaging({
+        bodyHash: inbox.bodyHash,
+        minimized: { ...minimized, link_code: relayCode },
+        customerEmailNorm: inbox.customerEmailNorm,
+      });
     } else {
       await processProviderWebhookEvent(event);
     }

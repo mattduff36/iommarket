@@ -204,10 +204,8 @@ async function resolveSubscriptionAttempt(
   } else {
     if (
       existing &&
-      isPaidSubscriptionEntitled(
-        existing,
-        event.eventTimestamp ?? new Date(),
-      )
+      (isPaidSubscriptionEntitled(existing, event.eventTimestamp ?? new Date()) ||
+        (await hasRecordedSubscriptionCharge(existing.id, client)))
     ) {
       return { attempt: null, alreadyConfirmed: false };
     }
@@ -341,6 +339,17 @@ async function resolveSubscriptionAttempt(
     attempt,
     alreadyConfirmed: attempt.status === "CONFIRMED",
   };
+}
+
+async function hasRecordedSubscriptionCharge(
+  subscriptionId: string,
+  client: PaymentDb,
+): Promise<boolean> {
+  const charge = await client.subscriptionCharge.findFirst({
+    where: { subscriptionId },
+    select: { id: true },
+  });
+  return Boolean(charge);
 }
 
 function eventMeta(event: NormalizedProviderWebhookEvent) {
