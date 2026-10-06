@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HoldingHeader } from "@/components/layout/holding-header";
 import { SiteHeader } from "@/components/layout/site-header";
 
 const authMocks = vi.hoisted(() => ({
@@ -295,5 +296,60 @@ describe("SiteHeader auth initialization", () => {
     expect(screen.getByTestId("mobile-menu-session")).toHaveTextContent("Admin area");
     expect(screen.getByTestId("mobile-menu-session")).toHaveTextContent("Sign out");
     expect(screen.getByTestId("mobile-menu-account")).not.toHaveTextContent("Admin area");
+  });
+
+  it("shows the marketplace tagline in red on a preview site", async () => {
+    authMocks.getSession.mockResolvedValue({ data: { session: null } });
+    render(<SiteHeader previewSite />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId("header-auth-state").every((element) => element.textContent === "ready")).toBe(true);
+    });
+    const tagline = within(screen.getByTestId("utility-strip")).getByText(
+      "The Isle of Man's Trusted Vehicle Marketplace",
+    );
+    expect(tagline.className).toContain("text-red-500");
+    const menu = screen.getByRole("button", { name: "Toggle menu" });
+    expect(menu.className).toContain("text-red-500");
+    expect(menu.className).toContain("hover:text-red-500");
+    expect(menu.className).not.toContain("hover:text-text-primary");
+    await userEvent.setup().click(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    expect(menu.className).toContain("text-red-500");
+  });
+
+  it("keeps the production marketplace tagline colour", async () => {
+    authMocks.getSession.mockResolvedValue({ data: { session: null } });
+    render(<SiteHeader />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId("header-auth-state").every((element) => element.textContent === "ready")).toBe(true);
+    });
+    const tagline = within(screen.getByTestId("utility-strip")).getByText(
+      "The Isle of Man's Trusted Vehicle Marketplace",
+    );
+    expect(tagline.className).not.toContain("text-red-500");
+    expect(screen.getByRole("button", { name: "Toggle menu" }).className).not.toContain("text-red-500");
+  });
+});
+
+describe("preview marketplace tagline", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+  });
+
+  it("uses red on the holding header when the deployment is a preview", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    render(<HoldingHeader />);
+    expect(screen.getByText("The Isle of Man's Trusted Vehicle Marketplace").className).toContain(
+      "text-red-500",
+    );
+  });
+
+  it("keeps the holding header tagline colour outside preview", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    render(<HoldingHeader />);
+    const tagline = screen.getByText("The Isle of Man's Trusted Vehicle Marketplace");
+    expect(tagline.className).toContain("text-metallic-400");
+    expect(tagline.className).not.toContain("text-red-500");
   });
 });

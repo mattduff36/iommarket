@@ -31,6 +31,8 @@ import {
 } from "@/components/admin/admin-dashboard-stats";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
+import { listingReviewHref } from "@/lib/admin/record-href";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -170,7 +172,7 @@ export default async function AdminDashboardPage() {
         id: true,
         reason: true,
         createdAt: true,
-        listing: { select: { title: true } },
+        listing: { select: { id: true, title: true } },
       },
     }),
     db.payment.findMany({
@@ -182,7 +184,7 @@ export default async function AdminDashboardPage() {
         amount: true,
         status: true,
         createdAt: true,
-        listing: { select: { title: true } },
+        listing: { select: { id: true, title: true } },
       },
     }),
   ]);
@@ -269,7 +271,13 @@ export default async function AdminDashboardPage() {
             {recentListings.map((listing) => (
               <div key={listing.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text-primary">{listing.title}</p>
+                  <AdminRecordLink
+                    href={listingReviewHref(listing.id)}
+                    external
+                    className="block truncate text-sm font-medium"
+                  >
+                    {listing.title}
+                  </AdminRecordLink>
                   <p className="mt-0.5 truncate text-xs text-text-tertiary">
                     {listing.dealer?.name ?? listing.user.name ?? listing.user.email}
                     {" \u00b7 "}
@@ -350,7 +358,13 @@ export default async function AdminDashboardPage() {
             {recentReports.map((report) => (
               <div key={report.id} className="flex min-h-14 items-start justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text-primary">{report.listing.title}</p>
+                  <AdminRecordLink
+                    href={listingReviewHref(report.listing.id)}
+                    external
+                    className="block truncate text-sm font-medium"
+                  >
+                    {report.listing.title}
+                  </AdminRecordLink>
                   <p className="mt-0.5 truncate text-xs text-text-tertiary">{report.reason}</p>
                 </div>
                 <span className="shrink-0 text-[11px] tabular-nums text-text-tertiary">
@@ -384,7 +398,13 @@ export default async function AdminDashboardPage() {
             {recentPaymentsList.map((payment) => (
               <div key={payment.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text-primary">{payment.listing.title}</p>
+                  <AdminRecordLink
+                    href={listingReviewHref(payment.listing.id)}
+                    external
+                    className="block truncate text-sm font-medium"
+                  >
+                    {payment.listing.title}
+                  </AdminRecordLink>
                   <p className="mt-0.5 text-xs tabular-nums text-text-tertiary">
                     &pound;{(payment.amount / 100).toFixed(2)}
                     {" \u00b7 "}

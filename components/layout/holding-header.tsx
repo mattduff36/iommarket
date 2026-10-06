@@ -15,7 +15,11 @@ export function HoldingHeader() {
             <Mail className="h-3 w-3" />
             <span>hello@itrader.im</span>
           </a>
-          <span className="text-xs text-metallic-400">
+          <span
+            className={`text-xs ${
+              process.env.VERCEL_ENV === "preview" ? "text-red-500" : "text-metallic-400"
+            }`}
+          >
             The Isle of Man&apos;s Trusted Vehicle Marketplace
           </span>
         </div>

@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { revealMonitoringEventIdentity, retryMonitoringAlertDelivery } from "@/actions/admin/monitoring";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import { MonitoringOriginalError, monitoringErrorCopy } from "@/components/admin/monitoring-readable-error";
+import { userAdminHref } from "@/lib/admin/record-href";
 import { monitoringIdentity } from "@/lib/monitoring/identity";
 import { vercelLogsUrl } from "@/lib/monitoring/request-context";
 
@@ -49,6 +51,7 @@ export function MonitoringEventContext({
   const [isPending, startTransition] = useTransition();
   const tags = jsonPreview(event.tags);
   const extra = jsonPreview(event.extra);
+  const revealedUserId = revealed && !identity.userEmail && identity.userId ? identity.userId : null;
   const plain = monitoringErrorCopy({
     title: event.message,
     message: event.message,
@@ -89,7 +92,16 @@ export function MonitoringEventContext({
         <p>Action: {event.action ?? "-"}</p>
         <p>Component: {event.component ?? "-"}</p>
         <p>Request ID: {event.requestId ?? "-"}</p>
-        <p>User: {monitoringIdentity(identity.userEmail ?? identity.userId, revealed)}</p>
+        <p>
+          User:{" "}
+          {revealedUserId ? (
+            <AdminRecordLink href={userAdminHref(revealedUserId)} className="font-mono">
+              {revealedUserId}
+            </AdminRecordLink>
+          ) : (
+            monitoringIdentity(identity.userEmail ?? identity.userId, revealed)
+          )}
+        </p>
         <p>Network: {monitoringIdentity(identity.ipHash, revealed)}</p>
         <p>Environment: {event.environment}</p>
       </div>

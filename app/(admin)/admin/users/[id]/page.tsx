@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -31,6 +32,7 @@ import {
   getPaidSubscriptionEntitlementWhere,
 } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
+import { dealerAdminHref } from "@/lib/admin/record-href";
 import {
   applySampleListingVisibility,
   applySampleUserVisibility,
@@ -292,7 +294,9 @@ export default async function AdminUserDetailPage({ params }: Props) {
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-text-secondary w-32">Name:</span>
-              <span className="text-text-primary">{user.dealerProfile.name}</span>
+              <AdminRecordLink href={dealerAdminHref(user.dealerProfile.id)}>
+                {user.dealerProfile.name}
+              </AdminRecordLink>
             </div>
             <div className="flex gap-2">
               <span className="text-text-secondary w-32">Slug:</span>

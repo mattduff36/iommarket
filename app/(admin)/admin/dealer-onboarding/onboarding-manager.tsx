@@ -7,6 +7,8 @@ import {
   sendDealerOnboardingInvite,
 } from "@/actions/admin/dealer-onboarding";
 import { ONBOARDING_PRO_END_LABEL } from "@/lib/dealers/onboarding/grant-plan";
+import { dealerAdminHref } from "@/lib/admin/record-href";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
   AdminTable,
   AdminTableEmpty,
@@ -181,7 +183,11 @@ export function OnboardingManager({
             <TableBody>
               {invites.map((invite) => (
                 <TableRow key={invite.id}>
-                  <TableCell className="font-medium">{invite.dealerName}</TableCell>
+                  <TableCell className="font-medium">
+                    <AdminRecordLink href={dealerAdminHref(invite.dealerId)}>
+                      {invite.dealerName}
+                    </AdminRecordLink>
+                  </TableCell>
                   <TableCell className="text-text-secondary">{invite.recipientEmail}</TableCell>
                   <TableCell>
                     <p className="text-text-primary">{invite.statusLabel}</p>

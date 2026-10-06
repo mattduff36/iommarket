@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
   AdminFilterBar,
   adminSearchButtonClass,
@@ -11,6 +12,7 @@ import {
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminPager } from "@/components/admin/admin-pager";
 import { adminTotalPages, parseAdminPage } from "@/lib/admin/query";
+import { auditRecordHref, userAdminHref } from "@/lib/admin/record-href";
 
 export const metadata: Metadata = { title: "Admin Audit" };
 
@@ -69,7 +71,11 @@ export default async function AdminAuditPage({
         </form>
       </AdminFilterBar>
       <div className="space-y-3">
-        {logs.map((log) => (
+        {logs.map((log) => {
+          const entityHref = log.entityId
+            ? auditRecordHref(log.entityType, log.entityId)
+            : null;
+          return (
           <article key={log.id} className="rounded-lg border border-border bg-surface p-4 shadow-low">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
@@ -78,7 +84,16 @@ export default async function AdminAuditPage({
                 </p>
                 {log.entityId ? (
                   <p className="mt-0.5 break-all font-mono text-xs text-text-tertiary">
-                    {log.entityId}
+                    {entityHref ? (
+                      <AdminRecordLink
+                        href={entityHref}
+                        external={log.entityType === "Listing"}
+                      >
+                        {log.entityId}
+                      </AdminRecordLink>
+                    ) : (
+                      log.entityId
+                    )}
                   </p>
                 ) : null}
               </div>
@@ -89,14 +104,20 @@ export default async function AdminAuditPage({
                 {log.createdAt.toLocaleString("en-GB")}
               </time>
             </div>
-            <p className="mt-2 text-xs text-text-secondary">Admin {log.adminId}</p>
+            <p className="mt-2 text-xs text-text-secondary">
+              Admin{" "}
+              <AdminRecordLink href={userAdminHref(log.adminId)} className="font-mono">
+                {log.adminId}
+              </AdminRecordLink>
+            </p>
             {log.details ? (
               <pre className="mt-3 overflow-x-auto rounded-md bg-canvas p-3 text-xs text-text-tertiary">
                 {JSON.stringify(log.details, null, 2)}
               </pre>
             ) : null}
           </article>
-        ))}
+          );
+        })}
         {logs.length === 0 ? (
           <AdminEmptyState
             title="No audit entries found"

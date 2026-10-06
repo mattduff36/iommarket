@@ -4,11 +4,13 @@ import type { Metadata } from "next";
 import { MessageSquare, ShieldCheck, Star } from "lucide-react";
 import { db } from "@/lib/db";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
   AdminFilterBar,
   AdminFilterChip,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { dealerAdminHref } from "@/lib/admin/record-href";
 import { Badge } from "@/components/ui/badge";
 import {
   CARD_OVERLAY_CONTROL_CLASS,
@@ -98,7 +100,7 @@ export default async function AdminReviewsPage({
           include: {
             review: {
               include: {
-                dealer: { select: { name: true, slug: true } },
+                dealer: { select: { id: true, name: true, slug: true } },
               },
             },
           },
@@ -115,7 +117,7 @@ export default async function AdminReviewsPage({
       include: {
         review: {
           include: {
-            dealer: { select: { name: true, slug: true } },
+            dealer: { select: { id: true, name: true, slug: true } },
           },
         },
       },
@@ -151,8 +153,10 @@ export default async function AdminReviewsPage({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-text-primary">
-                      {review.dealer.name}
+                    <p className="font-medium">
+                      <AdminRecordLink href={dealerAdminHref(review.dealer.id)}>
+                        {review.dealer.name}
+                      </AdminRecordLink>
                     </p>
                     <p className="mt-1 text-xs leading-5 text-text-tertiary">
                       Review status: {review.status} · Submitted{" "}
@@ -229,8 +233,10 @@ export default async function AdminReviewsPage({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-text-primary">
-                      {dispute.review.dealer.name}
+                    <p className="font-medium">
+                      <AdminRecordLink href={dealerAdminHref(dispute.review.dealer.id)}>
+                        {dispute.review.dealer.name}
+                      </AdminRecordLink>
                     </p>
                     <p className="mt-1 text-xs leading-5 text-text-tertiary">
                       Review status: {dispute.review.status} · Reason:{" "}

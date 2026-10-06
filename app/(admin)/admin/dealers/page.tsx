@@ -11,6 +11,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
+import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
   AdminFilterBar,
   AdminFilterChip,
@@ -18,6 +19,7 @@ import {
   adminSearchInputClass,
 } from "@/components/admin/admin-filter-bar";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { dealerAdminHref } from "@/lib/admin/record-href";
 import { AdminColumnMenu, AdminColumnVisibility } from "@/components/admin/admin-column-visibility";
 import { AdminPager } from "@/components/admin/admin-pager";
 import { AdminTableHeaderCell } from "@/components/admin/admin-sortable-head";
@@ -264,7 +266,14 @@ function DealerRow({ dealer }: DealerRowProps) {
     <TableRow>
       <TableCell data-column="dealer">
         <AdminDataCell
-          title={<span className="block max-w-52 truncate">{dealer.name}</span>}
+          title={
+            <AdminRecordLink
+              href={dealerAdminHref(dealer.id)}
+              className="block max-w-52 truncate"
+            >
+              {dealer.name}
+            </AdminRecordLink>
+          }
           subtitle={dealer.slug}
         />
       </TableCell>
