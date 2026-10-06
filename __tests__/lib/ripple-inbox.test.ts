@@ -190,6 +190,35 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     expect(inboxCreate).not.toHaveBeenCalled();
   });
 
+  it("forwards a linkless weekly renewal to staging with the configured test link", async () => {
+    const code = "AABBCCDDEEFF0011";
+    const bodyHash = "d".repeat(64);
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("RIPPLE_CLIENT_ID", "codelabplatfdcf3a8");
+    vi.stubEnv("RIPPLE_TEST_SUBSCRIPTION_URL", `https://portal.startyourripple.co.uk/card/codelabplatfdcf3a8/pay/${code}`);
+    vi.stubEnv("RIPPLE_STAGING_RELAY_SECRET", "test-relay-secret".repeat(3));
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ received: true, bodyHash }) });
+    vi.stubGlobal("fetch", fetcher);
+    const payload = {
+      ...minimized,
+      event: "payment.success",
+      amount: 1,
+      link_code: null,
+      recurring: true,
+      package: "TEST SUBSCRIPTION LINK",
+    };
+    inboxFindUnique.mockResolvedValue({
+      id: "weekly-renewal", status: "PENDING", attemptCount: 0, bodyHash,
+      minimizedPayload: payload, customerEmailNorm: "dealer@example.com",
+      eventType: "payment.success", packageName: "TEST SUBSCRIPTION LINK", amountPence: 100, linkCode: null,
+    });
+    await expect(processRippleInboxRecord("weekly-renewal")).resolves.toEqual({ status: "processed" });
+    expect(processProviderWebhookEvent).not.toHaveBeenCalled();
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    expect(body.minimized.link_code).toBe(code);
+    expect(body.bodyHash).toBe(bodyHash);
+  });
+
   it("keeps failed staging delivery retryable and never processes it against production", async () => {
     const code = "AABBCCDDEEFF0011";
     const bodyHash = "c".repeat(64);

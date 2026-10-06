@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRippleStagingRelayRequest, forwardRippleWebhookToStaging, RIPPLE_PRODUCTION_WEBHOOK, RIPPLE_STAGING_RECEIVER, shouldRelayRippleToStaging, verifyRippleStagingRelay } from "@/lib/payments/ripple-staging-relay";
+import { createRippleStagingRelayRequest, forwardRippleWebhookToStaging, RIPPLE_PRODUCTION_WEBHOOK, RIPPLE_STAGING_RECEIVER, shouldRelayRippleToStaging, stagingRelayLinkCode, verifyRippleStagingRelay } from "@/lib/payments/ripple-staging-relay";
 import { NextRequest } from "next/server";
 const { ingest, processInbox, findInbox } = vi.hoisted(() => ({ ingest: vi.fn(), processInbox: vi.fn(), findInbox: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: { paymentWebhookInbox: { findUnique: findInbox } } }));
@@ -56,6 +56,18 @@ describe("staging webhook authentication and destination", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     expect(shouldRelayRippleToStaging(testCode)).toBe(true);
     expect(shouldRelayRippleToStaging("74A7510E33E94821")).toBe(false);
+  });
+  it("forwards a linkless £1 weekly renewal and leaves every other missing code on production", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const renewal = { linkCode: null, packageName: "TEST SUBSCRIPTION LINK", amountPence: 100, eventType: "payment.success" };
+    expect(stagingRelayLinkCode(renewal)).toBe(testCode);
+    expect(stagingRelayLinkCode({ ...renewal, packageName: "Test Subscription Link" })).toBe(testCode);
+    expect(stagingRelayLinkCode({ ...renewal, amountPence: 2999 })).toBeNull();
+    expect(stagingRelayLinkCode({ ...renewal, packageName: "Dealer Starter" })).toBeNull();
+    expect(stagingRelayLinkCode({ ...renewal, eventType: "subscription.created" })).toBeNull();
+    expect(stagingRelayLinkCode({ ...renewal, linkCode: "74A7510E33E94821" })).toBeNull();
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(stagingRelayLinkCode(renewal)).toBeNull();
   });
   it("uses fixed HTTPS destination, forbids redirects and requires exact acknowledgement", async () => {
     expect(RIPPLE_STAGING_RECEIVER).toBe("https://itrader.dev/api/webhooks/ripple-staging");

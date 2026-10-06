@@ -56,5 +56,8 @@ out all webhooks to both databases or match environments by email.
    Refunding a charge is not a substitute for cancelling recurring billing.
 
 The live renewal is not proven by simulated callbacks. Keep both dedicated URLs
-configured through the renewal test. Callbacks missing a recognizable product
-code fail closed for investigation; do not infer a test product from a vague name.
+configured through the renewal test. A renewal with no link code is forwarded
+only when its package title is exactly `TEST SUBSCRIPTION LINK` and the amount
+is £1; any other missing product code stays on production for investigation.
+Staging then extends a subscription that already has a recorded charge, including
+when the webhook timestamp is the moment the current week ends.
