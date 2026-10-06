@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { setMonitoringIssueStatusBulk } from "@/actions/admin/monitoring";
 import {
   MonitoringIssueCard,
+  monitoringIssueCopy,
   type MonitoringIssueCardData,
 } from "@/components/admin/monitoring-issue-card";
 import { AdminActionBar, AdminActionButton } from "@/components/admin/admin-action-controls";
@@ -91,7 +92,7 @@ export function MonitoringQueue({ issues }: { issues: MonitoringIssueCardData[] 
             className="mt-6 h-4 w-4"
             checked={selected.includes(issue.id)}
             onChange={() => toggle(issue.id)}
-            aria-label={`Select ${issue.title}`}
+            aria-label={`Select ${monitoringIssueCopy(issue).subject}`}
           />
           <div className="min-w-0 flex-1">
             <MonitoringIssueCard issue={issue} />

@@ -1,54 +1,40 @@
+import { explainMonitoringAlert } from "./plain-alert";
 import type { MonitoringSeverity } from "./types";
 
 export function normaliseAlertSubject(subject: string): string {
   return subject.replace(/[\r\n\t]+/g, " ").replace(/ {2,}/g, " ").trim().slice(0, 300);
 }
 
-export function buildAlertSubject(params: {
+interface AlertCopyInput {
   severity: MonitoringSeverity;
-  source: string;
   title: string;
-}) {
-  return normaliseAlertSubject(`[Monitoring][${params.severity}] ${params.source} - ${params.title}`);
-}
-
-export function buildAlertText(params: {
-  issueId: string;
-  eventId: string;
-  severity: MonitoringSeverity;
-  status: string;
-  source: string;
-  title: string;
-  message: string;
+  message?: string;
   route?: string | null;
   action?: string | null;
-  requestPath?: string | null;
-  environment: string;
-  occurrences: number;
-  reason: string;
-  appUrl: string;
-}) {
-  const issueUrl = `${params.appUrl}/admin/monitoring/${params.issueId}`;
-  return [
-    "iTrader Monitoring Alert",
-    "",
-    `Issue: ${params.issueId}`,
-    `Event: ${params.eventId}`,
-    `Severity: ${params.severity}`,
-    `Status: ${params.status}`,
-    `Source: ${params.source}`,
-    `Environment: ${params.environment}`,
-    `Occurrences: ${params.occurrences}`,
-    `Reason: ${params.reason}`,
-    "",
-    `Title: ${params.title}`,
-    `Message: ${params.message}`,
-    `Route: ${params.route ?? "n/a"}`,
-    `Action: ${params.action ?? "n/a"}`,
-    `Request path: ${params.requestPath ?? "n/a"}`,
-    "",
-    `Review in admin: ${issueUrl}`,
-  ].join("\n");
+  environment?: string | null;
+  occurrences?: number;
+}
+
+function alertCopy(params: AlertCopyInput) {
+  return explainMonitoringAlert({
+    title: params.title,
+    message: params.message ?? params.title,
+    route: params.route,
+    action: params.action,
+    environment: params.environment,
+    occurrences: params.occurrences,
+    severity: params.severity,
+  });
+}
+
+export function buildAlertSubject(params: AlertCopyInput) {
+  return normaliseAlertSubject(`[Monitoring] [${params.severity}] - ${alertCopy(params).subject}`);
+}
+
+export function buildAlertText(params: AlertCopyInput & { issueId: string; appUrl: string }) {
+  const plain = alertCopy(params);
+  const issueUrl = `${params.appUrl.replace(/\/$/, "")}/admin/monitoring/${params.issueId}`;
+  return [plain.summary, "", `${plain.check}: ${issueUrl}`].join("\n");
 }
 
 export function monitoringAppUrl(): string {

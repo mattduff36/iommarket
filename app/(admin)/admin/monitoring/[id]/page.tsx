@@ -26,6 +26,7 @@ import { IssueStatusControls } from "./issue-status-controls";
 import { CursorPromptControls } from "./cursor-prompt-controls";
 import { MonitoringEventContext, RetryAlertButton } from "./event-context";
 import { maskMonitoringIdentity } from "@/lib/monitoring/identity";
+import { MonitoringOriginalError, monitoringErrorCopy } from "@/components/admin/monitoring-readable-error";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -78,12 +79,21 @@ export default async function MonitoringIssuePage({ params }: Props) {
     : null;
 
   if (!issue) notFound();
+  const plain = monitoringErrorCopy({
+    title: issue.title,
+    message: issue.sampleMessage,
+    route: issue.sampleRoute,
+    action: issue.sampleAction,
+    environment: issue.events[0]?.environment,
+    occurrences: issue.occurrences,
+    severity: issue.severity,
+  });
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        title={issue.title}
-        description={`First seen ${issue.firstSeenAt.toLocaleString("en-GB")}`}
+        title={plain.subject}
+        description={plain.summary}
         meta={
           <>
             <Badge variant={statusVariant(issue.status)}>{issue.status}</Badge>
@@ -130,12 +140,13 @@ export default async function MonitoringIssuePage({ params }: Props) {
               <span className="text-text-secondary">Sample component:</span>{" "}
               <span className="font-mono text-text-primary">{issue.sampleComponent ?? "-"}</span>
             </p>
-            <div>
-              <p className="text-text-secondary mb-1">Message:</p>
-              <p className="rounded-md border border-border bg-canvas px-3 py-2 text-text-primary">
-                {issue.sampleMessage}
-              </p>
-            </div>
+            <p>
+              <span className="text-text-secondary">First seen:</span>{" "}
+              <span className="font-medium text-text-primary">
+                {issue.firstSeenAt.toLocaleString("en-GB")}
+              </span>
+            </p>
+            <MonitoringOriginalError title={issue.title} message={issue.sampleMessage} />
             {issue.mutedUntil && (
               <p className="text-xs text-text-secondary">
                 Muted until {issue.mutedUntil.toLocaleString("en-GB")}

@@ -2,7 +2,12 @@
 
 1. Run `npm run fixerrors`. This reads `.env.production` and exports every open `MonitoringIssue` from the production database. It fetches `origin/main` and `origin/staging`, records both commit SHAs and the blob hash of every suggested file, and writes `private/fixerrors/error-analysis.md`, `private/fixerrors/decision.json`, and a checksum-bound snapshot. Use `--database=preview`, `--database=staging`, or `--database=development` only when the production queue is not the one being fixed.
 2. Acknowledge those issues before investigation. Run the printed command, then the same command with `--apply` after the dry-run lists the unchanged issues. The printed binding uses `--database-fingerprint`. Do not pass that value as `--database`. Acknowledgement does not change fingerprint, occurrence count, or last seen time. Issues that changed after export stay `OPEN` until close-out.
-3. Read the decision manifest and the production/staging section of the analysis. Dispositions are hints:
+3. Read the decision manifest, the "What we already know" section, and the production/staging section of the analysis. That section is built from `private/fixerrors/alert-log.jsonl` plus committed fixes. Use it before choosing a repair:
+   - Same error seen before, with a fix that held: start from that fix and confirm it still applies.
+   - Same error came back after a fix: do not repeat that change. The decision is `needs-person`. Investigate a different cause.
+   - Similar error fixed before: use that note as a hint, then check the current code.
+   - No earlier record: this run has added the error to the log for the next launch.
+   Dispositions are hints:
    - `auto-repair` (`fast`, `standard`, `guarded`): fix the cluster only when every suggested file exists in both `origin/main` and `origin/staging`. A differing blob is reported and does not by itself block the repair.
    - A missing file, or refs that could not be compared, sets `blockReason` and changes the action to `needs-person`. Leave that issue acknowledged and record the next step.
    - `pause-for-approval`: do not change the code. Close the issues as `acknowledged` and say what approval is required.

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { revealMonitoringEventIdentity, retryMonitoringAlertDelivery } from "@/actions/admin/monitoring";
+import { MonitoringOriginalError, monitoringErrorCopy } from "@/components/admin/monitoring-readable-error";
 import { monitoringIdentity } from "@/lib/monitoring/identity";
 import { vercelLogsUrl } from "@/lib/monitoring/request-context";
 
@@ -48,6 +49,15 @@ export function MonitoringEventContext({
   const [isPending, startTransition] = useTransition();
   const tags = jsonPreview(event.tags);
   const extra = jsonPreview(event.extra);
+  const plain = monitoringErrorCopy({
+    title: event.message,
+    message: event.message,
+    route: event.route ?? event.requestPath,
+    action: event.action,
+    environment: event.environment,
+    severity: event.severity,
+    omitCount: true,
+  });
 
   function reveal() {
     setError(null);
@@ -70,7 +80,10 @@ export function MonitoringEventContext({
         <span>{new Date(event.occurredAt).toLocaleString("en-GB")}</span>
         {event.requestPath ? <span className="font-mono">{event.requestPath}</span> : null}
       </div>
-      <p className="mt-2 text-sm text-text-primary">{event.message}</p>
+      <p className="mt-2 text-sm leading-6 text-text-primary">{plain.summary}</p>
+      <div className="mt-3">
+        <MonitoringOriginalError title={event.message} message={event.message} extra={event.stack} />
+      </div>
       <div className="mt-2 grid gap-2 text-xs text-text-secondary sm:grid-cols-2">
         <p>Route: {event.route ?? "-"}</p>
         <p>Action: {event.action ?? "-"}</p>
@@ -93,11 +106,6 @@ export function MonitoringEventContext({
       {error ? <p role="alert" className="mt-2 text-xs text-text-error">{error}</p> : null}
       {tags ? <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-canvas p-3 text-[11px]">{tags}</pre> : null}
       {extra ? <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-canvas p-3 text-[11px]">{extra}</pre> : null}
-      {event.stack ? (
-        <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-canvas p-3 text-[11px] text-text-secondary">
-          {event.stack}
-        </pre>
-      ) : null}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { assessStagingBranch, blobAtRef, requireHeadSha, type GitRunner, type RepairWorkspace } from "./git-policy";
+import { appendAlertLog } from "./alert-log";
 import { recordKnowledge } from "./knowledge";
 import { clusterFingerprint, sealReleaseManifest, type ReleaseContext } from "./release";
 
@@ -92,7 +93,8 @@ export function commitVerifiedCluster(input: {
     issueFingerprints: input.issueFingerprints,
   });
   if (!assessment.ok) return { committed: false, ...assessment };
-  if (!input.apply || !input.review) return { ok: true as const, committed: false };
+  const review = input.review;
+  if (!input.apply || !review) return { ok: true as const, committed: false };
   if (!input.release) {
     return { ok: false as const, committed: false, reason: "Commit requires the signed snapshot release context" };
   }
@@ -101,7 +103,7 @@ export function commitVerifiedCluster(input: {
   const run = input.runCommand ?? gitRunner;
   const added = run(["add", "--", ...input.paths], cwd);
   if (added.status !== 0) return { ok: false as const, committed: false, reason: "git add failed" };
-  const committed = run(["commit", "-m", `fix: ${input.clusterId} ${input.review.summary}`], cwd);
+  const committed = run(["commit", "-m", `fix: ${input.clusterId} ${review.summary}`], cwd);
   if (committed.status !== 0) return { ok: false as const, committed: false, reason: "git commit failed" };
   const fixCommitSha = requireHeadSha(cwd, run);
   const postFixBlobs: Record<string, string> = {};
@@ -115,10 +117,26 @@ export function commitVerifiedCluster(input: {
     fingerprint: input.fingerprint,
     lane: input.lane as "fast" | "standard" | "guarded",
     outcome: "fixed",
-    summary: input.review.summary,
+    summary: review.summary,
     files: input.paths,
-    tests: input.review.tests,
+    tests: review.tests,
+    issueFingerprints: input.issueFingerprints,
   }, cwd);
+  const recordedAt = new Date().toISOString();
+  appendAlertLog(input.issueFingerprints.map((fingerprint) => ({
+    at: recordedAt,
+    fingerprint,
+    normalizedMessage: "",
+    source: "",
+    route: null,
+    action: null,
+    severity: "",
+    occurrences: 0,
+    lastSeenAt: recordedAt,
+    outcome: "fixed" as const,
+    summary: review.summary,
+    files: input.paths,
+  })), cwd);
   const manifest = sealReleaseManifest({
     version: 1,
     safetyContract: input.release.safetyContract,
@@ -133,8 +151,8 @@ export function commitVerifiedCluster(input: {
     fixCommitSha,
     paths: input.paths,
     postFixBlobs,
-    tests: input.review.tests,
-    evidence: input.review.evidence,
+    tests: review.tests,
+    evidence: review.evidence,
   });
   const manifestPath = resolve(cwd, "private", "fixerrors", "runs", input.clusterId, "release.json");
   mkdirSync(dirname(manifestPath), { recursive: true });

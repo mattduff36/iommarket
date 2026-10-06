@@ -78,8 +78,12 @@ const samples = {
     confirmUrl: "https://itrader.im/admin/costs/confirm/req_1",
   }),
   monitoring: buildMonitoringAlertEmail({
-    subject: "[Monitoring][HIGH] api - timeout",
-    text: "Issue: issue-1\nMessage: Example alert\nReview in admin: https://itrader.im/admin/monitoring/issue-1",
+    subject: "[Monitoring] [HIGH] - Sign-in problem on the live site — email already in use",
+    text: [
+      "A signed-in person could not get an account, because their email is already registered. It has happened 3 times. The site is still up.",
+      "",
+      "Please open this and check that email: https://itrader.im/admin/monitoring/issue-1",
+    ].join("\n"),
   }),
 };
 

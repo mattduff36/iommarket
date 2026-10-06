@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getMonitoringAlertEmailRecipientsAsync, getMonitoringAlertMinSeverityAsync, getMonitoringAlertWebhookUrlAsync } from "@/lib/config/monitoring";
 import { monitoringAppUrl } from "./alert-message";
+import { explainMonitoringAlert } from "./plain-alert";
 import { enqueueMonitoringAlert, processMonitoringAlertOutbox } from "./alert-outbox";
 import { logMonitoringFallback } from "./fallback-log";
 import { severitiesBelow } from "./severity";
@@ -29,7 +30,9 @@ export async function sendMonitoringDigest(now = new Date()) {
         select: {
           severity: true,
           message: true,
-          issue: { select: { id: true, title: true, occurrences: true } },
+          environment: true,
+          route: true,
+          issue: { select: { id: true, title: true, occurrences: true, sampleRoute: true, sampleAction: true } },
         },
       });
 
@@ -44,20 +47,27 @@ export async function sendMonitoringDigest(now = new Date()) {
   }
 
   const appUrl = monitoringAppUrl();
-  const lines = events.slice(0, 20).map((event) => (
-    `- [${event.severity}] ${event.issue.title} (${event.issue.occurrences}) ${appUrl}/admin/monitoring/${event.issue.id}`
-  ));
+  const lines = events.slice(0, 20).map((event) => {
+    const plain = explainMonitoringAlert({
+      title: event.issue.title,
+      message: event.message,
+      route: event.route ?? event.issue.sampleRoute,
+      action: event.issue.sampleAction,
+      environment: event.environment,
+      occurrences: event.issue.occurrences,
+      severity: event.severity,
+    });
+    return `- ${plain.summary} ${appUrl}/admin/monitoring/${event.issue.id}`;
+  });
   const text = [
-    "iTrader monitoring digest",
-    "",
-    `${events.length} lower-severity event${events.length === 1 ? "" : "s"} since ${since.toISOString()}.`,
+    `Here are ${events.length} smaller issue${events.length === 1 ? "" : "s"} since ${formatDigestWhen(since)}. Each one was too small for its own email.`,
     "",
     ...lines,
     "",
-    `Review in admin: ${appUrl}/admin/monitoring`,
+    `Please open this and take a look: ${appUrl}/admin/monitoring`,
   ].join("\n");
   const payload = {
-    subject: `[Monitoring][DIGEST] ${events.length} lower-severity events`,
+    subject: `Smaller issues from iTrader`,
     text,
     webhookBody: {
       app: "iommarket",
@@ -93,4 +103,15 @@ export async function sendMonitoringDigest(now = new Date()) {
     });
     return { sent: false, events: events.length, reason: "failed" as const };
   }
+}
+
+function formatDigestWhen(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Europe/London",
+  }).format(date);
 }

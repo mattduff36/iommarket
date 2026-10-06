@@ -277,7 +277,10 @@ describe("payForListing", () => {
       listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true, includeFeatured: true,
     });
 
-    expect(createListingAndFeaturedCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({ amountInPence: 999 }));
+    expect(createListingAndFeaturedCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+      amountInPence: 999,
+      payer: { dealerName: null, accountName: null, email: "seller@example.com" },
+    }));
     expect(mockDb.payment.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ amount: 999, includesFeatured: true, providerReference: "new-reference" }),
     }));
@@ -468,6 +471,11 @@ describe("payForListing", () => {
   });
 
   it("requires checkout to renew an expired free listing", async () => {
+    requireAuthMock.mockResolvedValue({
+      id: "user_123",
+      email: "seller@example.com",
+      name: "Ada Lovelace",
+    });
     mockDb.listing.findUnique.mockResolvedValue({
       id: "caaaaaaaaaaaaaaaaaaaaaaaa",
       userId: "user_123",
@@ -503,7 +511,10 @@ describe("payForListing", () => {
       mockDb.policyAcceptance.upsert.mock.invocationCallOrder[0],
     ).toBeLessThan(createListingCheckoutMock.mock.invocationCallOrder[0]);
     expect(createListingCheckoutMock).toHaveBeenCalledWith(
-      expect.objectContaining({ amountInPence: 749 }),
+      expect.objectContaining({
+        amountInPence: 749,
+        payer: { dealerName: null, accountName: "Ada Lovelace", email: "seller@example.com" },
+      }),
     );
     expect(mockDb.payment.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -768,7 +779,8 @@ describe("createDealerSubscription", () => {
     requireAuthMock.mockResolvedValue({
       id: "user_123",
       email: "dealer@example.com",
-      dealerProfile: { id: "caaaaaaaaaaaaaaaaaaaaaaaa" },
+      name: "Ada Lovelace",
+      dealerProfile: { id: "caaaaaaaaaaaaaaaaaaaaaaaa", name: "A1 Motors" },
     });
     checkRateLimitMock.mockReturnValue({ allowed: true });
     makeRateLimitKeyMock.mockReturnValue("checkout-dealer-subscription:user_123");
@@ -806,7 +818,11 @@ describe("createDealerSubscription", () => {
     });
 
     expect(createDealerSubscriptionCheckoutMock).toHaveBeenCalledWith(
-      expect.objectContaining({ tier: "PRO", amountInPence: 5999 }),
+      expect.objectContaining({
+        tier: "PRO",
+        amountInPence: 5999,
+        payer: { dealerName: "A1 Motors", accountName: "Ada Lovelace", email: "dealer@example.com" },
+      }),
     );
     expect(mockDb.policyAcceptance.upsert).toHaveBeenCalled();
     expect(decodeHostedReturnContext(setCookieMock.mock.calls[0][1])).toMatchObject({
@@ -871,7 +887,9 @@ describe("createDealerSubscription", () => {
     const result = await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa");
 
     expect(result).toEqual({ data: { checkoutUrl: expect.any(String) } });
-    expect(createFeaturedUpgradeCheckoutMock).toHaveBeenCalled();
+    expect(createFeaturedUpgradeCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+      payer: { dealerName: "A1 Motors", accountName: "Ada Lovelace", email: "dealer@example.com" },
+    }));
     expect(mockDb.payment.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         type: "FEATURED",

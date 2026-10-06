@@ -110,7 +110,7 @@ describe("transactional email templates", () => {
       text: "Issue: issue-1\nReview in admin: https://itrader.im/admin/monitoring/issue-1",
     });
     expect(monitoring.text).toContain("Issue: issue-1");
-    expect(monitoring.html).toContain(">Review alert</a>");
+    expect(monitoring.html).toContain(">Open this issue</a>");
 
     const cancellation = buildCancellationStatusEmail({
       dealerName: "TD <Centre>",

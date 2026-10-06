@@ -109,23 +109,22 @@ export async function dispatchMonitoringAlerts(input: {
     const payload = {
       subject: buildAlertSubject({
         severity: issue.severity,
-        source: issue.source,
-        title: issue.title,
-      }),
-      text: buildAlertText({
-        issueId: issue.id,
-        eventId: event.id,
-        severity: issue.severity,
-        status: issue.status,
-        source: issue.source,
         title: issue.title,
         message: issue.sampleMessage,
         route: issue.sampleRoute,
         action: issue.sampleAction,
-        requestPath: event.requestPath,
         environment: event.environment,
         occurrences: issue.occurrences,
-        reason: decision.reason,
+      }),
+      text: buildAlertText({
+        issueId: issue.id,
+        severity: issue.severity,
+        title: issue.title,
+        message: issue.sampleMessage,
+        route: issue.sampleRoute,
+        action: issue.sampleAction,
+        environment: event.environment,
+        occurrences: issue.occurrences,
         appUrl,
       }),
       webhookBody: webhookBody({
