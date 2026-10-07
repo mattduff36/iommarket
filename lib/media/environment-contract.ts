@@ -25,7 +25,7 @@ export function mediaEnvironmentIssues(env: Record<string, string | undefined>):
   const needsImageKit = read !== "cloudinary" || upload === "imagekit" || env.IMAGEKIT_UPLOADS_ENABLED === "1";
   if (needsCloudinary) {
     requireValue("CLOUDINARY_API_KEY");
-    requireValue("CLOUDINARY_API_SECRET", value => value.length >= 32);
+    requireValue("CLOUDINARY_API_SECRET");
     requireValue("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", value => value === EXPECTED_CLOUD);
   }
   if (needsImageKit) {

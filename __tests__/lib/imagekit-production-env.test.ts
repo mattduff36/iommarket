@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { classifyLaunchEnvironment, PRODUCTION_SENSITIVE_KEYS } from "@/lib/ops/production-env-contract";
 import { validateVercelProductionEnvMetadata } from "@/lib/ops/production-env";
+import { mediaEnvironmentIssues } from "@/lib/media/environment-contract";
 const strict = { MEDIA_PROVIDER: "imagekit", NEXT_PUBLIC_MEDIA_PROVIDER: "imagekit", MEDIA_UPLOAD_PROVIDER: "imagekit",
   IMAGEKIT_UPLOADS_ENABLED: "1", IMAGEKIT_URL_ENDPOINT: "https://ik.imagekit.io/itraderim",
   IMAGEKIT_PRIVATE_KEY: "private_" + "x".repeat(40), IMAGEKIT_PUBLIC_KEY: "public_test", VERCEL_ENV: "production" };
 const mediaIssues = (env: Record<string, string | undefined>) => classifyLaunchEnvironment(env).issues.filter(i => /IMAGEKIT|MEDIA_PROVIDER|MEDIA_UPLOAD|CLOUDINARY/.test(i.key));
 
 describe("production media environment contract", () => {
+  it("accepts a present 27-character Cloudinary API secret without imposing an invented minimum", () => {
+    const env = { CLOUDINARY_API_KEY: "test-key", CLOUDINARY_API_SECRET: "x".repeat(27), NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "du3othqre" };
+    expect(mediaEnvironmentIssues(env)).toEqual([]);
+  });
+  it("rejects a missing Cloudinary API secret", () => {
+    const env = { CLOUDINARY_API_KEY: "test-key", NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "du3othqre" };
+    expect(mediaEnvironmentIssues(env)).toContainEqual({ key: "CLOUDINARY_API_SECRET", code: "missing" });
+  });
   it("accepts verified ImageKit-only configuration without requiring retired Cloudinary credentials", () => {
     expect(mediaIssues(strict)).toEqual([]);
   });

@@ -4,6 +4,7 @@ import { SYNC_TABLES, type SyncDataset, type SyncRow } from "@/lib/database-sync
 import { buildListingPhotoUrl, buildSocialImageUrl, getSocialImageDimensions } from "@/lib/images/cloudinary-url";
 import { toListingPhotoSource } from "@/lib/images/photo";
 import { deleteImage, signCloudinaryDeliveryPath, signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
+import { listingSocialMetadataUrl, signedDeliveryForPhoto, structuredListingImageUrl } from "@/lib/media/serve-photo";
 import { assertOwnedListingAsset } from "@/lib/upload/owned-cloudinary-assets";
 import { getOwnedDealerLogoStoragePath } from "@/lib/upload/dealer-logo";
 import { DATABASE_SYNC_REFERENCE_FRAGMENT, isDatabaseSyncReference } from "@/lib/images/database-sync-reference";
@@ -81,6 +82,57 @@ describe("database sync read-only media references", () => {
     for (const url of ["https://evil.example/image/private/asset", "https://res.cloudinary.com/other/image/private/asset"]) {
       expect(signPrivateCloudinaryUrl(url)).toBe(url);
     }
+  });
+
+  it("re-signs only this Cloudinary account's already-signed private URLs with the current secret", () => {
+    const path = "v123/iommarket/listings/production/car/photo.jpg";
+    const oldSecret = "retired-test-secret";
+    const newSecret = "current-test-secret";
+    const ownUrl = `https://res.cloudinary.com/owned/image/private/s--${signCloudinaryDeliveryPath(path, oldSecret)}--/${path}`;
+    const env = { NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "owned", CLOUDINARY_API_SECRET: newSecret };
+
+    expect(signPrivateCloudinaryUrl(ownUrl, env)).toBe(
+      `https://res.cloudinary.com/owned/image/private/s--${signCloudinaryDeliveryPath(path, newSecret)}--/${path}`,
+    );
+    const otherCloudUrl = `https://res.cloudinary.com/other/image/private/s--${signCloudinaryDeliveryPath(path, oldSecret)}--/${path}`;
+    expect(signPrivateCloudinaryUrl(otherCloudUrl, env)).toBe(otherCloudUrl);
+    expect(signPrivateCloudinaryUrl("https://images.example/photo.jpg", env)).toBe("https://images.example/photo.jpg");
+  });
+
+  it("re-signs a read-only DB-sync photo at delivery time without changing its stored row or identity", () => {
+    const source = dataset();
+    const oldSecret = "retired-test-secret";
+    const newSecret = "current-test-secret";
+    const imported = sanitiseSourceMedia(source, {
+      NODE_ENV: "test",
+      NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "owned",
+      CLOUDINARY_API_SECRET: oldSecret,
+    });
+    const image = imported.ListingImage[0]!;
+    const photo = toListingPhotoSource(image as unknown as Parameters<typeof toListingPhotoSource>[0])!;
+    const path = "v123/iommarket/listings/production/car/photo.jpg";
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: "test",
+      MEDIA_PROVIDER: "cloudinary",
+      NEXT_PUBLIC_MEDIA_PROVIDER: "cloudinary",
+      NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "owned",
+      CLOUDINARY_API_SECRET: newSecret,
+    };
+
+    expect(photo.url).toBe(
+      `https://res.cloudinary.com/owned/image/private/s--${signCloudinaryDeliveryPath(path, oldSecret)}--/${path}`,
+    );
+    expect(signedDeliveryForPhoto({ photo, mode: "fit", frame: "gallery", width: 1200, env })).toEqual({
+      kind: "redirect",
+      url: `https://res.cloudinary.com/owned/image/private/s--${signCloudinaryDeliveryPath(path, newSecret)}--/${path}`,
+    });
+    expect(image.url).toContain(`s--${signCloudinaryDeliveryPath(path, oldSecret)}--`);
+    const currentUrl = `https://res.cloudinary.com/owned/image/private/s--${signCloudinaryDeliveryPath(path, newSecret)}--/${path}`;
+    expect(listingSocialMetadataUrl("listing-1", photo, env)).toBe(currentUrl);
+    expect(structuredListingImageUrl({ photo, primary: true, env })).toBe(currentUrl);
+    expect(image.publicId).toMatch(/^database-sync\/[a-f0-9]{64}$/);
+    expect(image).toMatchObject({ provider: "EXTERNAL", assetId: null, uploadIntentId: null });
+    expect(source.ListingImage[0]).toEqual(row);
   });
 
   it("marks verified Cloudinary dealer logos as read-only media references", () => {

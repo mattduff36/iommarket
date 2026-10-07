@@ -81,7 +81,9 @@ export function signedDeliveryForPhoto(input: {
     }
   }
   const decision = resolvedPhotoTarget(input.photo, env);
-  if (decision.decision === "passthrough") return { kind: "passthrough" as const, url: input.photo.url };
+  if (decision.decision === "passthrough") {
+    return { kind: "passthrough" as const, url: signPrivateCloudinaryUrl(input.photo.url, env) };
+  }
   if (mode === "imagekit" && !storedPath && !disposablePathFromPhoto(input.photo)) {
     return { kind: "unresolved" as const, reason: "ImageKit identity is not stored for this reference." };
   }
@@ -94,7 +96,7 @@ export function signedDeliveryForPhoto(input: {
           mode: input.mode,
           frame: input.frame,
         });
-    return { kind: "redirect" as const, url: signPrivateCloudinaryUrl(built) };
+    return { kind: "redirect" as const, url: signPrivateCloudinaryUrl(built, env) };
   }
 
   const disposablePath = disposablePathFromPhoto(input.photo);
@@ -129,7 +131,7 @@ export function appMediaUrl(path: string, env: NodeJS.ProcessEnv = process.env) 
 
 export function listingSocialMetadataUrl(listingId: string, photo: ListingPhotoSource, env: NodeJS.ProcessEnv = process.env) {
   if (readMediaProviderMode(env) === "cloudinary" && !photo.publicId.startsWith("imagekit/") && !photo.imageKitFilePath?.startsWith("/iommarket-media/")) {
-    return signPrivateCloudinaryUrl(buildSocialImageUrl(photo));
+    return signPrivateCloudinaryUrl(buildSocialImageUrl(photo), env);
   }
   return appMediaUrl(`/api/media/social/${encodeURIComponent(listingId)}`, env);
 }
@@ -145,6 +147,7 @@ export function structuredListingImageUrl(input: {
       input.primary
         ? buildSocialImageUrl(input.photo)
         : buildListingPhotoUrl(input.photo, { width: 1200, mode: "fit", frame: "gallery" }),
+      env,
     );
   }
   const params = new URLSearchParams({
