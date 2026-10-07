@@ -93,14 +93,14 @@ export function MonitoringHealthSummary({
 
 function HealthCard({ label, mobileLabel, value, accent, detail }: { label: string; mobileLabel: string; value: number; accent: string; detail?: string }) {
   return (
-    <div className="relative min-w-0 bg-surface p-2.5 shadow-none sm:rounded-lg sm:border sm:border-border sm:p-4 sm:shadow-low">
+    <div className="@container/health relative min-w-0 bg-surface p-2.5 shadow-none sm:rounded-lg sm:border sm:border-border sm:p-4 sm:shadow-low">
       <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-[3px] sm:hidden ${accent}`} />
       <p className="break-words text-[10px] leading-3 text-text-tertiary sm:text-xs sm:leading-4 sm:uppercase sm:tracking-wider">
         <span aria-hidden="true" className="sm:hidden">{mobileLabel}</span>
         <span aria-hidden="true" className="hidden sm:inline">{label}</span>
         <span className="sr-only">{label}</span>
       </p>
-      <p className="mt-1 break-words text-lg font-bold leading-tight tabular-nums text-text-primary sm:mt-2 sm:text-2xl sm:leading-8 sm:normal-nums">{value.toLocaleString()}</p>
+      <p className="mt-1 min-w-0 break-words text-[clamp(0.75rem,15cqi,1.5rem)] font-bold leading-tight tabular-nums text-text-primary [overflow-wrap:anywhere] sm:mt-2 sm:leading-8 sm:normal-nums">{value.toLocaleString()}</p>
       {detail ? <p className="mt-1 break-words text-[10px] leading-3 text-text-tertiary sm:text-xs sm:leading-4">{detail}</p> : null}
     </div>
   );

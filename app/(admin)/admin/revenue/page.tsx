@@ -57,11 +57,11 @@ const SUBSCRIPTION_STATUS_VARIANT: Record<
 
 function MetricCard({ label, value, accent }: { label: string; value: string | number; accent: string }) {
   return (
-    <Card className="relative min-w-0 overflow-hidden rounded-none border-0 shadow-none sm:rounded-lg sm:border sm:border-border sm:shadow-low">
+    <Card className="@container/metric relative min-w-0 overflow-hidden rounded-none border-0 shadow-none sm:rounded-lg sm:border sm:border-border sm:shadow-low">
       <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-[3px] sm:hidden ${accent}`} />
       <CardContent className="min-w-0 p-3 sm:p-5">
         <p className="break-words text-[11px] leading-4 text-text-secondary sm:text-xs sm:font-medium">{label}</p>
-        <p className="mt-1 break-words text-base font-bold leading-tight tracking-[-0.02em] tabular-nums text-text-primary sm:mt-2 sm:text-2xl sm:leading-8">
+        <p className="mt-1 min-w-0 break-words text-[clamp(0.75rem,10cqi,1.5rem)] font-bold leading-tight tracking-[-0.02em] tabular-nums text-text-primary [overflow-wrap:anywhere] sm:mt-2 sm:leading-8">
           {value}
         </p>
       </CardContent>
