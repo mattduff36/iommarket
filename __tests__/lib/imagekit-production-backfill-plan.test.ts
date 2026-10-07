@@ -60,6 +60,36 @@ describe("digest-bound production ImageKit backfill planning", () => {
     expect(() => verifyProductionBackfillPlan(plan, plan.digest, now)).toThrow(/unresolved/);
   });
 
+  it("accepts a byte-proven equivalent version without changing stored source fields", () => {
+    const old = { ...row, version: "9", url: row.url.replace("/v10/", "/v9/") };
+    const proof = { table: row.table, id: row.id, assetId: asset.assetId, storedVersion: "9", migratedVersion: "10",
+      bytes: asset.sourceBytes, sha256: asset.sourceSha256, verifiedAt: now.toISOString() };
+    const plan = createProductionBackfillPlan({ rows: [old], index: buildMigrationIndex([asset]), mapSha256: "b".repeat(64), now, versionProofs: [proof] });
+    expect(plan.counts.write).toBe(1);
+    expect(plan.entries[0]?.source).toEqual(old);
+    expect(plan.entries[0]?.sourceVersionProof).toEqual(proof);
+    expect(conditionalBackfillStatement(plan.entries[0]!).values).toContain("9");
+    for (const invalid of [
+      { ...proof, sha256: "c".repeat(64) }, { ...proof, assetId: "other" }, { ...proof, bytes: 101 },
+      { ...proof, storedVersion: "8" }, { ...proof, migratedVersion: "11" },
+      { ...proof, verifiedAt: new Date(now.getTime() - 25 * 3600_000).toISOString() },
+    ]) {
+      expect(createProductionBackfillPlan({ rows: [old], index: buildMigrationIndex([asset]), mapSha256: "b".repeat(64), now, versionProofs: [invalid] }).counts.blocked).toBe(1);
+    }
+    expect(createProductionBackfillPlan({ rows: [{ ...old, url: row.url }], index: buildMigrationIndex([asset]), mapSha256: "b".repeat(64), now, versionProofs: [proof] }).counts.blocked).toBe(1);
+    for (const url of [
+      "https://res.cloudinary.com/du3othqre/image/private/v9/other.jpg",
+      "https://res.cloudinary.com/du3othqre/not-an-image",
+      "https://res.cloudinary.com/du3othqre/image/private/iommarket/listings/staging/user/photo.jpg",
+    ]) expect(createProductionBackfillPlan({ rows: [{ ...old, url }], index: buildMigrationIndex([asset]), mapSha256: "b".repeat(64), now, versionProofs: [proof] }).counts.blocked).toBe(1);
+  });
+
+  it("refuses blank existing identities instead of treating them as empty", () => {
+    expect(createProductionBackfillPlan({ rows: [{ ...row, imageKitFileId: "" }], index: buildMigrationIndex([asset]), mapSha256: "b".repeat(64), now }).counts.blocked).toBe(1);
+    const entry = build().entries[0]!;
+    expect(() => conditionalBackfillStatement({ ...entry, source: { ...row, imageKitFilePath: "" } })).toThrow(/empty/);
+  });
+
   it("detects concurrent source changes and supports idempotent resume", () => {
     const entry = build().entries[0]!;
     expect(classifyBackfillRow(row, entry)).toBe("pending");

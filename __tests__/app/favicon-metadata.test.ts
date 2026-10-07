@@ -19,7 +19,7 @@ async function expectSamePixels(expected: Buffer | string, actual: Buffer | stri
   expect(actualPixels.width).toBe(expectedPixels.width);
   expect(actualPixels.height).toBe(expectedPixels.height);
   expect(actualPixels.channels).toBe(expectedPixels.channels);
-  expect(actualPixels.data).toEqual(expectedPixels.data);
+  expect(actualPixels.data.equals(expectedPixels.data)).toBe(true);
 }
 
 async function resizedMaster(size: number) {

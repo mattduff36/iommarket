@@ -8,7 +8,27 @@ import {
 } from "@/lib/dealers/onboarding/session-cutoff";
 import { profileNameSchema } from "@/lib/validations/profile-name";
 import type { UserRole } from "@prisma/client";
-import { hasStagingAdminRole, requiresStagingAdmin } from "@/lib/deployment/staging-access-policy";
+import { hasStagingAccess, requiresStagingAdmin } from "@/lib/deployment/staging-access-policy";
+
+function withStagingAccess<T extends {
+  role: string;
+  email: string;
+  disabledAt?: unknown;
+  deletedAt?: unknown;
+}>(user: T, authUser: {
+  email?: string;
+  email_confirmed_at?: string;
+}) {
+  return {
+    ...user,
+    stagingAccessAllowed: hasStagingAccess({
+      ...user,
+      role: user.role,
+      email: user.email,
+      verifiedAuthEmail: authUser.email_confirmed_at ? authUser.email ?? null : null,
+    }),
+  };
+}
 
 export class AuthenticationRequiredError extends Error {
   readonly statusCode = 401 as const;
@@ -96,10 +116,11 @@ export async function getCurrentUser() {
         getAuthProfileName(authUser.user_metadata ?? {}),
         authUser.app_metadata?.policy_acceptance
       );
-      return db.user.findUnique({
+      const syncedUser = await db.user.findUnique({
         where: { id: synced.id },
         include: { dealerProfile: true },
       });
+      return syncedUser ? withStagingAccess(syncedUser, authUser) : null;
     } catch (error) {
       if (error instanceof DeletedAccountError) {
         await supabase.auth.signOut();
@@ -116,7 +137,7 @@ export async function getCurrentUser() {
 
   if (user.disabledAt) return null;
 
-  return user;
+  return withStagingAccess(user, authUser);
 }
 
 /**
@@ -193,8 +214,8 @@ export async function requireAuth() {
   if (!user) {
     throw new AuthenticationRequiredError();
   }
-  if (requiresStagingAdmin() && !hasStagingAdminRole(user)) {
-    throw new InsufficientPermissionsError("Staging is restricted to administrators.");
+  if (requiresStagingAdmin() && !user.stagingAccessAllowed) {
+    throw new InsufficientPermissionsError("Staging is restricted to administrators and approved test accounts.");
   }
   if (user.disabledAt) {
     throw new AccountDisabledError();

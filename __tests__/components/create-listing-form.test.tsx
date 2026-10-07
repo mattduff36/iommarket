@@ -55,6 +55,7 @@ vi.mock("@/actions/payments", () => ({
 vi.mock("@/components/marketplace/image-upload", () => ({
   ImageUpload: ({
     onImagesChange,
+    onBusyChange,
     maxImages,
   }: {
     onImagesChange: (
@@ -66,34 +67,51 @@ vi.mock("@/components/marketplace/image-upload", () => ({
         provider: "CLOUDINARY";
       }>
     ) => void;
+    onBusyChange?: (isBusy: boolean) => void;
     maxImages: number;
-  }) => (
-    <button
-      type="button"
-      data-testid="mock-image-upload"
-      data-max-images={maxImages}
-      onClick={() =>
-        onImagesChange([
-          {
-            url: "https://example.com/image-1.jpg",
-            publicId: "image-1",
-            order: 0,
-            uploadIntentId: "intent-1",
-            provider: "CLOUDINARY",
-          },
-          {
-            url: "https://example.com/image-2.jpg",
-            publicId: "image-2",
-            order: 1,
-            uploadIntentId: "intent-2",
-            provider: "CLOUDINARY",
-          },
-        ])
-      }
-    >
-      Add mock images ({maxImages})
-    </button>
-  ),
+  }) => {
+    const [isBusy, setIsBusy] = React.useState(false);
+    return (
+      <>
+        <button
+          type="button"
+          data-testid="mock-image-upload"
+          data-max-images={maxImages}
+          onClick={() =>
+            onImagesChange([
+              {
+                url: "https://example.com/image-1.jpg",
+                publicId: "image-1",
+                order: 0,
+                uploadIntentId: "intent-1",
+                provider: "CLOUDINARY",
+              },
+              {
+                url: "https://example.com/image-2.jpg",
+                publicId: "image-2",
+                order: 1,
+                uploadIntentId: "intent-2",
+                provider: "CLOUDINARY",
+              },
+            ])
+          }
+        >
+          Add mock images ({maxImages})
+        </button>
+        <button
+          type="button"
+          aria-label={isBusy ? "Finish mock upload" : "Start mock upload"}
+          onClick={() => {
+            const next = !isBusy;
+            setIsBusy(next);
+            onBusyChange?.(next);
+          }}
+        >
+          Toggle mock upload
+        </button>
+      </>
+    );
+  },
 }));
 
 import { CreateListingForm } from "@/app/(public)/sell/create-listing-form";
@@ -234,7 +252,7 @@ const categories = [
 
 const regions = [{ id: "iom", name: "IOM Central" }];
 
-function reachPrivateReviewStep() {
+function reachPhotoUploadStep() {
   fireEvent.click(screen.getByRole("button", { name: "Cars" }));
   fireEvent.change(screen.getByLabelText(/^Title/), {
     target: { value: "2019 BMW 320d M Sport" },
@@ -261,6 +279,10 @@ function reachPrivateReviewStep() {
     target: { value: "45000" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+}
+
+function reachPrivateReviewStep() {
+  reachPhotoUploadStep();
   fireEvent.click(screen.getByTestId("mock-image-upload"));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(
@@ -378,6 +400,54 @@ describe("CreateListingForm registration lookup", () => {
     completeDetailsStep();
 
     expect(screen.getByTestId("mock-image-upload").getAttribute("data-max-images")).toBe("20");
+  });
+
+  it("blocks continuing and submitting until photo uploads settle", async () => {
+    mockSavedPrivateListing();
+    vi.mocked(payForListing).mockResolvedValue({
+      data: { checkoutUrl: null, skippedPayment: true },
+    } as Awaited<ReturnType<typeof payForListing>>);
+
+    render(
+      <CreateListingForm
+        categories={categories}
+        regions={regions}
+        mode="private"
+        isFreeForUser
+      />,
+    );
+    reachPhotoUploadStep();
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Start mock upload" }));
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    expect(continueButton).toBeDisabled();
+    fireEvent.click(continueButton);
+    fireEvent.submit(document.querySelector("form")!);
+    expect(createListing).not.toHaveBeenCalled();
+    expect(syncListingImages).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish mock upload" }));
+    expect(continueButton).toBeEnabled();
+    fireEvent.click(continueButton);
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit Listing" }));
+
+    await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1));
+    expect(syncListingImages).toHaveBeenCalledWith(
+      "listing-123",
+      expect.objectContaining({ photos: expect.arrayContaining([
+        expect.objectContaining({ uploadIntentId: "intent-1" }),
+        expect.objectContaining({ uploadIntentId: "intent-2" }),
+      ]) }),
+    );
   });
 
   it("marks vehicle mileage as required", () => {

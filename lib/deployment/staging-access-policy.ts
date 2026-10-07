@@ -1,4 +1,10 @@
 import type { RuntimeEnv } from "@/lib/runtime-env";
+import { isStagingDeployment } from "@/lib/deployment/environment";
+
+const APPROVED_STAGING_TEST_EMAILS = new Set([
+  "mattduff36@gmail.com",
+  "davooomarsh@hotmail.com",
+]);
 
 /** Every hosted preview running this code is private, regardless of its branch. */
 export function requiresStagingAdmin(env: RuntimeEnv = process.env): boolean {
@@ -31,4 +37,25 @@ export function hasStagingAdminRole(user: {
   deletedAt?: unknown;
 } | null | undefined): boolean {
   return user?.role === "ADMIN" && !user.disabledAt && !user.deletedAt;
+}
+
+/**
+ * Allows only explicitly approved, verified test identities on the exact staging
+ * deployment. Admin access keeps its existing behavior; production never accepts
+ * the test-account exception.
+ */
+export function hasStagingAccess(user: {
+  role: string;
+  email?: string | null;
+  verifiedAuthEmail?: string | null;
+  disabledAt?: unknown;
+  deletedAt?: unknown;
+} | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (hasStagingAdminRole(user)) return true;
+  if (!user || !isStagingDeployment(env) || user.disabledAt || user.deletedAt) return false;
+  if (!user.verifiedAuthEmail || !user.email) return false;
+
+  const verifiedEmail = user.verifiedAuthEmail.trim().toLowerCase();
+  return user.email.trim().toLowerCase() === verifiedEmail &&
+    APPROVED_STAGING_TEST_EMAILS.has(verifiedEmail);
 }

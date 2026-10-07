@@ -239,3 +239,15 @@ h1, h2, h3, h4, h5, h6 {
 .animate-strobe {
   animation: strobe 0.6s ease-in-out infinite;
 }
+
+/* Keep iOS focused form fields at a readable size so Safari need not enlarge
+   the page to make small control text legible. Desktop sizing is unchanged. */
+@media (max-width: 767px) {
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="image"]):not([type="hidden"]),
+  textarea:not([rows]),
+  textarea[rows],
+  select:not([multiple]),
+  select[multiple] {
+    font-size: 16px;
+  }
+}

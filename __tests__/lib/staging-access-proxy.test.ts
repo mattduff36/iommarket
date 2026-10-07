@@ -87,6 +87,45 @@ describe("staging access proxy", () => {
     }));
   });
 
+  it.each([
+    ["mattduff36@gmail.com", "DEALER"],
+    ["davooomarsh@hotmail.com", "USER"],
+  ])("allows the verified approved preview account %s", async (email, role) => {
+    getUserMock.mockResolvedValue({ data: { user: {
+      id: `auth-${email}`, email, email_confirmed_at: "2026-01-01T00:00:00Z", app_metadata: {},
+    } } });
+    findUniqueMock.mockResolvedValue({
+      role, email: email.toUpperCase(), disabledAt: null, deletedAt: null,
+    });
+
+    const response = await proxy(new NextRequest("https://itrader.dev/account"));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(findUniqueMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { authUserId: `auth-${email}` },
+      select: { role: true, email: true, disabledAt: true, deletedAt: true },
+    }));
+  });
+
+  it("does not allow an unverified approved address or a mismatched database email", async () => {
+    getUserMock.mockResolvedValue({ data: { user: {
+      id: "auth-test", email: "mattduff36@gmail.com", app_metadata: {},
+    } } });
+    findUniqueMock.mockResolvedValue({
+      role: "USER", email: "mattduff36@gmail.com", disabledAt: null, deletedAt: null,
+    });
+    const unverified = await proxy(new NextRequest("https://itrader.dev/account"));
+    expect(unverified.status).toBe(307);
+
+    getUserMock.mockResolvedValue({ data: { user: {
+      id: "auth-test", email: "mattduff36@gmail.com", email_confirmed_at: "2026-01-01T00:00:00Z", app_metadata: {},
+    } } });
+    findUniqueMock.mockResolvedValue({
+      role: "USER", email: "different@example.com", disabledAt: null, deletedAt: null,
+    });
+    const mismatch = await proxy(new NextRequest("https://itrader.dev/account"));
+    expect(mismatch.status).toBe(307);
+  });
+
   it("fails closed on signed-machine routes when staging database configuration is invalid", async () => {
     process.env.DATABASE_URL = "postgresql://postgres@production.example:5432/postgres";
     const response = await proxy(new NextRequest("https://itrader.dev/api/webhooks/payments", {

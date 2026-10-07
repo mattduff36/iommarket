@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { isStagingDeployment } from "@/lib/deployment/environment";
 import {
-  hasStagingAdminRole, isStagingEntryRequest, isStagingMachineRequest, requiresStagingAdmin,
+  hasStagingAccess, isStagingEntryRequest, isStagingMachineRequest, requiresStagingAdmin,
 } from "@/lib/deployment/staging-access-policy";
 import { isOnboardingSessionStale, readOnboardingSessionInvalidBefore } from "@/lib/dealers/onboarding/session-cutoff";
 
@@ -43,11 +43,14 @@ export async function stagingAccessResponse(request: NextRequest): Promise<NextR
       stale = isOnboardingSessionStale(user.app_metadata, session?.access_token);
     }
     const account = user && !stale ? await db.user.findUnique({
-      where: { authUserId: user.id }, select: { role: true, disabledAt: true, deletedAt: true },
+      where: { authUserId: user.id }, select: { role: true, email: true, disabledAt: true, deletedAt: true },
     }) : null;
-    if (hasStagingAdminRole(account)) return privateResponse(response);
+    if (hasStagingAccess(account ? {
+      ...account,
+      verifiedAuthEmail: user?.email_confirmed_at ? user.email ?? null : null,
+    } : null)) return privateResponse(response);
     const denied = path.startsWith("/api/") || action || !["GET", "HEAD"].includes(request.method)
-      ? NextResponse.json({ error: "Administrator sign-in required." }, { status: user ? 403 : 401 })
+      ? NextResponse.json({ error: "Administrator or approved test-account sign-in required." }, { status: user ? 403 : 401 })
       : NextResponse.redirect(new URL("/staging-access", request.url));
     response.cookies.getAll().forEach((cookie) => denied.cookies.set(cookie));
     return privateResponse(denied);
