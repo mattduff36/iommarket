@@ -55,12 +55,13 @@ const SUBSCRIPTION_STATUS_VARIANT: Record<
   INCOMPLETE: "neutral",
 };
 
-function MetricCard({ label, value }: { label: string; value: string | number }) {
+function MetricCard({ label, value, accent }: { label: string; value: string | number; accent: string }) {
   return (
-    <Card>
-      <CardContent className="p-4 sm:p-5">
-        <p className="text-xs font-medium text-text-secondary">{label}</p>
-        <p className="mt-2 text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">
+    <Card className="relative min-w-0 overflow-hidden rounded-none border-0 shadow-none sm:rounded-lg sm:border sm:border-border sm:shadow-low">
+      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-[3px] sm:hidden ${accent}`} />
+      <CardContent className="min-w-0 p-3 sm:p-5">
+        <p className="break-words text-[11px] leading-4 text-text-secondary sm:text-xs sm:font-medium">{label}</p>
+        <p className="mt-1 break-words text-base font-bold leading-tight tracking-[-0.02em] tabular-nums text-text-primary sm:mt-2 sm:text-2xl sm:leading-8">
           {value}
         </p>
       </CardContent>
@@ -161,16 +162,18 @@ export default async function AdminRevenuePage() {
         }
       />
 
-      <div className="mb-8 grid gap-3 sm:grid-cols-4">
-        <MetricCard label="Total revenue" value={`£${totalRevenue.toLocaleString()}`} />
+      <div className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent">
+        <MetricCard label="Total revenue" value={`£${totalRevenue.toLocaleString()}`} accent="bg-premium-gold-500" />
         <MetricCard
           label="Recognized charges"
           value={paymentTotals._count + chargeTotals._count}
+          accent="bg-neon-blue-500"
         />
-        <MetricCard label="Active paid subscriptions" value={activePaidSubscriptions} />
+        <MetricCard label="Active paid subscriptions" value={activePaidSubscriptions} accent="bg-emerald-500" />
         <MetricCard
           label="Unresolved checkouts"
           value={`${attemptTotals._count} (£${((attemptTotals._sum.amountPence ?? 0) / 100).toFixed(2)})`}
+          accent={attemptTotals._count > 0 ? "bg-neon-red-500" : "bg-emerald-500"}
         />
       </div>
 

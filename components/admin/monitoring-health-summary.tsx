@@ -67,17 +67,19 @@ export function MonitoringHealthSummary({
           />
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <HealthCard label="Open issues" value={openCount} />
-        <HealthCard label="Critical active" value={criticalCount} />
-        <HealthCard label="Recurring in 24h" value={recurringCount} />
-        <HealthCard label="Events in 24h" value={recentEvents} detail={`Previous 24h: ${previousEvents.toLocaleString()}`} />
+      <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent xl:grid-cols-3">
+        <HealthCard label="Open issues" mobileLabel="Open" value={openCount} accent={openCount > 0 ? "bg-neon-red-500" : "bg-emerald-500"} />
+        <HealthCard label="Critical active" mobileLabel="Critical" value={criticalCount} accent={criticalCount > 0 ? "bg-neon-red-500" : "bg-emerald-500"} />
+        <HealthCard label="Recurring in 24h" mobileLabel="Recurring 24h" value={recurringCount} accent={recurringCount > 0 ? "bg-premium-gold-500" : "bg-emerald-500"} />
+        <HealthCard label="Events in 24h" mobileLabel="Events 24h" value={recentEvents} accent="bg-neon-blue-500" detail={`Previous 24h: ${previousEvents.toLocaleString()}`} />
         <HealthCard
           label="Failed alerts in 24h"
           value={failedDeliveries}
+          mobileLabel="Failed alerts 24h"
+          accent={failedDeliveries > 0 ? "bg-neon-red-500" : "bg-emerald-500"}
           detail={unresolvedFailedAlerts > failedDeliveries ? `Unresolved: ${unresolvedFailedAlerts}` : undefined}
         />
-        <HealthCard label="Suppressed alerts" value={health?.suppressedAlertCount ?? 0} />
+        <HealthCard label="Suppressed alerts" mobileLabel="Suppressed" value={health?.suppressedAlertCount ?? 0} accent="bg-text-tertiary" />
       </div>
       <div className="grid gap-3 text-sm text-text-secondary sm:grid-cols-2 xl:grid-cols-4">
         <p>Capture: {captureEnabled ? "enabled" : "disabled"}. Last success {formatTime(health?.lastCaptureAt ?? null)}.</p>
@@ -89,12 +91,17 @@ export function MonitoringHealthSummary({
   );
 }
 
-function HealthCard({ label, value, detail }: { label: string; value: number; detail?: string }) {
+function HealthCard({ label, mobileLabel, value, accent, detail }: { label: string; mobileLabel: string; value: number; accent: string; detail?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 shadow-low">
-      <p className="text-xs uppercase tracking-wider text-text-tertiary">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-text-primary">{value.toLocaleString()}</p>
-      {detail ? <p className="mt-1 text-xs text-text-tertiary">{detail}</p> : null}
+    <div className="relative min-w-0 bg-surface p-2.5 shadow-none sm:rounded-lg sm:border sm:border-border sm:p-4 sm:shadow-low">
+      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-[3px] sm:hidden ${accent}`} />
+      <p className="break-words text-[10px] leading-3 text-text-tertiary sm:text-xs sm:leading-4 sm:uppercase sm:tracking-wider">
+        <span aria-hidden="true" className="sm:hidden">{mobileLabel}</span>
+        <span aria-hidden="true" className="hidden sm:inline">{label}</span>
+        <span className="sr-only">{label}</span>
+      </p>
+      <p className="mt-1 break-words text-lg font-bold leading-tight tabular-nums text-text-primary sm:mt-2 sm:text-2xl sm:leading-8 sm:normal-nums">{value.toLocaleString()}</p>
+      {detail ? <p className="mt-1 break-words text-[10px] leading-3 text-text-tertiary sm:text-xs sm:leading-4">{detail}</p> : null}
     </div>
   );
 }

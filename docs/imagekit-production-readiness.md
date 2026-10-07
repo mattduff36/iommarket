@@ -1,6 +1,23 @@
 # ImageKit production readiness and Cloudinary retirement
 
-Updated: 5 October 2026. This is an implementation checkpoint, not production activation approval.
+Updated: 7 October 2026. This is an implementation checkpoint, not production activation approval.
+
+## Current checkpoint — 7 October
+
+This section supersedes the historical 5 October status below. Production activation remains pending.
+
+- Staging commit `72d5ac564635fa0988bdc0a7ecf3725539f836d2` passed typechecking and the full suite (3,026 passed, five skipped). Vercel deployment `dpl_GUFvJ11LyiG5NAENh8GNNX3hL2MY` is READY and serves `itrader.dev`.
+- Staging uses managed ImageKit uploads. Authenticated PNG, JPEG, a 7,362,334-byte JPEG, and genuine HEIC/HEIF uploads produced visible previews. HEIC MIME aliases needed a narrow fix; the deployed retry converted successfully to WebP. All five verified originals are private: signed downloads succeed and unsigned requests return 401. A file one byte above 10 MiB was rejected without losing existing previews. Modified signed upload-policy fields were rejected by the provider.
+- The recovered original migration map and backups are retained outside the repository. Source reconciliation produced a 7,749-asset map, including 72 additional originals verified by size and SHA-256. Do not restart the completed uploader.
+- The fresh production identity plan contains 4,406 writes and 350 explicitly excluded image rows, with zero other blocked references or unmapped dealer logos. The exclusions cover exactly 94 owner-reviewed `ADMIN_PREVIEW` listings; their source identities and listing/row ID sets are pinned. Planning and apply recheck current parent eligibility; apply locks and rechecks the census before writing. Excluded rows remain untouched.
+- All 4,406 planned destinations passed live private-identity and original-byte checksum verification. This is read-only evidence, not an applied production backfill. Verification receipts expire after 30 minutes; the plan expires after 24 hours and rejects source drift.
+- Dealer archive runs retain source URL candidates for the excluded listings, but no locally mirrored originals. Image order needs further reconciliation before restoring those optional photos.
+- No production identity backfill or production media-provider switch has been performed. Still required: remaining hosted lifecycle acceptance, fresh source reconciliation at cutover, concrete backup/rollback checks, production configuration validation, and the approved `staging` → `main` release.
+- Production credential readiness and coordinated consumer updates remain part of the release gate; keep operational security details in the private recovery evidence, never in published reports.
+
+Evidence is retained under `D:\Websites\iommarket-imagekit-recovery-20261007\current-audit` and ignored `tmp/imagekit-cutover-20261007`. The reviewed exclusion manifest is `reviewed-admin-preview-exclusions-v3.json`; the map is `delta-originals-20261007/source-destination-map-7749-final-20261007.jsonl` under the recovery directory.
+
+## Historical implementation record — 5 October
 
 ## Release boundary
 
