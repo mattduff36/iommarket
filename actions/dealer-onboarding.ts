@@ -292,7 +292,7 @@ async function runSerializable<T>(callback: (tx: Prisma.TransactionClient) => Pr
       lastError = error;
       if (
         !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-        error.code !== "P2034" ||
+        (error.code !== "P2034" && !isActiveAdminGrantUniqueConflict(error)) ||
         attempt === 1
       ) {
         throw error;
@@ -300,4 +300,15 @@ async function runSerializable<T>(callback: (tx: Prisma.TransactionClient) => Pr
     }
   }
   throw lastError;
+}
+
+function isActiveAdminGrantUniqueConflict(
+  error: Prisma.PrismaClientKnownRequestError,
+) {
+  if (error.code !== "P2002" || error.meta?.modelName !== "Subscription") {
+    return false;
+  }
+  const target = error.meta.target;
+  return target === "Subscription_active_admin_grant_dealerId_key" ||
+    (Array.isArray(target) && target.length === 1 && target[0] === "dealerId");
 }

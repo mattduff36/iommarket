@@ -2,9 +2,13 @@ import { spawnSync } from "node:child_process";
 import type { CodeBaseline, CodePathBaseline } from "./types";
 
 const GIT_SHA = /^[0-9a-f]{40}$/iu;
+const REPAIR_SOURCE_ROOTS = new Set(["app", "components", "lib", "actions", "hooks", "utils", "services", "scripts"]);
+const REPAIR_SOURCE_EXTENSION = /\.(?:tsx|ts|jsx|js)$/iu;
+const REPAIR_TEST_EXTENSION = /\.(?:test|spec)\.(?:tsx?|jsx?)$/iu;
+const BLOCKED_REPAIR_PATH = /(^|\/)\.env(?:$|[./])|(^|\/)private(?:\/|$)|(^|\/)prisma\/migrations(?:\/|$)|(^|\/)(?:\.git|node_modules)(?:\/|$)|\.(?:pem|p12|pfx|key)$/iu;
 
 export type GitResult = { status: number | null; stdout: string; stderr: string };
-export type GitRunner = (args: string[], cwd: string) => GitResult;
+export type GitRunner = (args: string[], cwd: string, env?: Record<string, string | undefined>) => GitResult;
 
 export type RepairWorkspace = {
   branch: string;
@@ -12,8 +16,12 @@ export type RepairWorkspace = {
   dirtyPaths: string[];
 };
 
-export function runGit(args: string[], cwd: string): GitResult {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+export function runGit(args: string[], cwd: string, env?: Record<string, string | undefined>): GitResult {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    ...(env ? { env: { ...process.env, ...env } } : {}),
+  });
   return {
     status: result.status,
     stdout: typeof result.stdout === "string" ? result.stdout : "",
@@ -60,6 +68,88 @@ export function compareRepairPaths(input: {
     stagingBlob: blobAtRef(input.stagingSha, file, input.cwd, run),
   }));
   return { productionSha: input.productionSha, stagingSha: input.stagingSha, paths };
+}
+
+export type ExplicitRepairPathsAssessment =
+  | { ok: true; paths: string[]; newPaths: string[] }
+  | { ok: false; reason: string };
+
+/**
+ * Check explicit repair files against the refs bound to an exported snapshot.
+ * A path absent from both refs is allowed only when explicitly declared new
+ * and absent from HEAD, so the caller can create and review it before commit.
+ */
+export function assessExplicitRepairPaths(input: {
+  paths: string[];
+  newPaths: string[];
+  baseline: Pick<CodeBaseline, "productionSha" | "stagingSha">;
+  cwd: string;
+  run?: GitRunner;
+}): ExplicitRepairPathsAssessment {
+  if (!GIT_SHA.test(input.baseline.productionSha) || !GIT_SHA.test(input.baseline.stagingSha)) {
+    return { ok: false, reason: "Repair baseline refs are malformed" };
+  }
+  const paths = normalizeExplicitRepairPaths(input.paths);
+  if (!paths.ok) return paths;
+  const newPaths = normalizeExplicitRepairPaths(input.newPaths, true);
+  if (!newPaths.ok) return newPaths;
+  const requested = new Set(paths.paths);
+  if (newPaths.paths.some((file) => !requested.has(file))) {
+    return { ok: false, reason: "Every --new-paths entry must also appear in --paths" };
+  }
+
+  const baseline = compareRepairPaths({
+    files: paths.paths,
+    productionSha: input.baseline.productionSha,
+    stagingSha: input.baseline.stagingSha,
+    cwd: input.cwd,
+    run: input.run,
+  });
+  const declaredNew = new Set(newPaths.paths);
+  const run = input.run ?? runGit;
+  for (const entry of baseline.paths) {
+    const existsInProduction = entry.productionBlob !== null;
+    const existsInStaging = entry.stagingBlob !== null;
+    if (declaredNew.has(entry.file)) {
+      if (existsInProduction || existsInStaging) {
+        return { ok: false, reason: `${entry.file} exists in a signed ref and cannot be declared new` };
+      }
+      if (blobAtRef("HEAD", entry.file, input.cwd, run)) {
+        return { ok: false, reason: `${entry.file} already exists in HEAD and cannot be declared new` };
+      }
+      continue;
+    }
+    if (!existsInProduction || !existsInStaging) {
+      return { ok: false, reason: `${entry.file} is not present in both origin/main and origin/staging` };
+    }
+  }
+
+  return { ok: true, paths: paths.paths, newPaths: newPaths.paths };
+}
+
+function normalizeExplicitRepairPaths(paths: string[], allowEmpty = false): { ok: true; paths: string[] } | { ok: false; reason: string } {
+  const normalized = paths.map((path) => path.replaceAll("\\", "/").replace(/^\.\//u, ""));
+  if ((!allowEmpty && normalized.length === 0) || normalized.some((path) => !path)) {
+    return { ok: false, reason: "Repair paths must be explicit" };
+  }
+  if (new Set(normalized).size !== normalized.length) {
+    return { ok: false, reason: "Repair paths must not contain duplicates" };
+  }
+  for (const file of normalized) {
+    const segments = file.split("/");
+    if (
+      file.startsWith("/")
+      || /^[a-z]:\//iu.test(file)
+      || segments.some((segment) => segment === ".." || segment === ".")
+      || !(segments[0] === "__tests__"
+        ? REPAIR_TEST_EXTENSION.test(file)
+        : REPAIR_SOURCE_ROOTS.has(segments[0] ?? "") && REPAIR_SOURCE_EXTENSION.test(file))
+      || BLOCKED_REPAIR_PATH.test(file)
+    ) {
+      return { ok: false, reason: `Repair path is unsafe or not a source file: ${file}` };
+    }
+  }
+  return { ok: true, paths: normalized };
 }
 
 export function assessStagingBranch(

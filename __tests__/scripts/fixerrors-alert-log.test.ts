@@ -43,6 +43,19 @@ describe("fixerrors alert log", () => {
     expect(readFileSync(alertLogPath(root), "utf8")).toContain("\"outcome\":\"seen\"");
   });
 
+  it("indexes history by fingerprint and uses the newest seen record for deduplication", () => {
+    const current = issue();
+    const latest = newSeenEvents([current], [], new Date("2026-10-06T12:00:00.000Z"))[0]!;
+    const older = {
+      ...latest,
+      at: "2026-10-05T12:00:00.000Z",
+      occurrences: 1,
+      lastSeenAt: "2026-10-05T11:00:00.000Z",
+    };
+
+    expect(newSeenEvents([current], [latest, older])).toEqual([]);
+  });
+
   it("refuses to repeat a fix that the same error came back after", () => {
     const current = issue({ lastSeenAt: "2026-10-06T18:00:00.000Z" });
     const history: AlertLogEvent[] = [

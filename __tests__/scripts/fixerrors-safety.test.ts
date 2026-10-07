@@ -590,6 +590,7 @@ function releaseGit(contained: { staging?: boolean; main?: boolean } = {}) {
   const onMain = contained.main ?? true;
   return (args: string[]) => {
     if (args[0] === "fetch") return { status: 0, stdout: "", stderr: "" };
+    if (args[0] === "rev-parse" && args[1]?.startsWith("origin/main:")) return { status: 0, stdout: `${"d".repeat(40)}\n`, stderr: "" };
     if (args[0] === "rev-parse" && args[1] === "origin/main") return { status: 0, stdout: `${MAIN_SHA}\n`, stderr: "" };
     if (args[0] === "rev-parse" && args[1] === "origin/staging") return { status: 0, stdout: `${STAGING_SHA}\n`, stderr: "" };
     if (args[0] === "merge-base") {
@@ -615,7 +616,7 @@ function deployedStatus(sha = MAIN_SHA) {
 
 function releaseManifest(snapshot: OpenIssueSnapshot, issue: SnapshotIssue): ReleaseManifest {
   return sealReleaseManifest({
-    version: 1,
+    version: 2,
     safetyContract: FIXERRORS_SAFETY_CONTRACT,
     snapshotId: snapshot.snapshotId,
     snapshotChecksum: snapshot.checksum,
@@ -630,6 +631,9 @@ function releaseManifest(snapshot: OpenIssueSnapshot, issue: SnapshotIssue): Rel
     postFixBlobs: { "lib/monitoring/alerts.ts": "d".repeat(40) },
     tests: ["vitest"],
     evidence: "reviewed alert retry",
+    reviewer: "independent-review-agent",
+    reviewerEvidence: "separate review result in private review report",
+    reviewedDiffSha256: "e".repeat(64),
   });
 }
 
@@ -750,6 +754,21 @@ describe("FIX-RELEASE production deployment gate", () => {
     expect(client.queries.some((query) => query.startsWith("BEGIN"))).toBe(false);
     expect(client.issues.get(issue.id)?.status).toBe("ACKNOWLEDGED");
 
+    const changedProduction = await verifyProductionRelease({
+      client,
+      snapshot,
+      manifest,
+      databaseTargetFingerprint: snapshot.databaseTargetFingerprint,
+      apply: true,
+      actorAdminId: "admin-1",
+      runGit: (args) => args[0] === "rev-parse" && args[1]?.startsWith("origin/main:")
+        ? { status: 0, stdout: `${"f".repeat(40)}\n`, stderr: "" }
+        : releaseGit()(args),
+      deployment: deployedStatus(),
+    });
+    expect(changedProduction).toMatchObject({ ok: false, reason: expect.stringMatching(/differs from the reviewed repair.*explicit review/) });
+    expect(client.queries.some((query) => query.startsWith("BEGIN"))).toBe(false);
+
     const unverified = await verifyProductionRelease({
       client,
       snapshot,
@@ -768,6 +787,7 @@ describe("FIX-RELEASE production deployment gate", () => {
       containedByStaging: true,
       containedByMain: true,
       mainSha: MAIN_SHA,
+      mainBlobs: { "lib/monitoring/alerts.ts": "d".repeat(40) },
       vercel: deployedStatus("e".repeat(40)),
       issues: [{ issueId: issue.id, fingerprint: issue.fingerprint, lastSeenAt: issue.lastSeenAt, status: "ACKNOWLEDGED" }],
     });

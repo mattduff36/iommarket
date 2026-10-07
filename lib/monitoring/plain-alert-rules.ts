@@ -1,3 +1,5 @@
+import { isMetaMaskNoise, isWebKitBridgeNoise } from "./browser-noise";
+
 export interface PlainAlertContext {
   text: string;
   title: string;
@@ -345,7 +347,7 @@ function browserRules(ctx: PlainAlertContext): PlainAlertMatch | null {
     };
   }
   if (/cannot read properties of undefined|undefined is not an object/i.test(ctx.text)) {
-    if (/webkit\.messageHandlers/i.test(ctx.text)) {
+    if (isWebKitBridgeNoise(ctx.message)) {
       return {
         problem: "In-app browser error",
         summary: "A visitor's in-app browser reported an error.",
@@ -360,7 +362,7 @@ function browserRules(ctx: PlainAlertContext): PlainAlertMatch | null {
       impact: "The site is still up.",
     };
   }
-  if (/failed to connect to metamask/i.test(ctx.text)) {
+  if (isMetaMaskNoise(ctx.message)) {
     return {
       problem: "Wallet extension error",
       summary: "A visitor's wallet extension reported an error.",

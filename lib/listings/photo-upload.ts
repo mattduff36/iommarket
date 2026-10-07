@@ -1,4 +1,4 @@
-import { readMediaUploadProvider } from "@/lib/media/upload-provider";
+import { hasVerifiedImageKitUploadIdentity, readMediaUploadProvider, UPLOAD_PROVIDER_CUTOVER_ERROR } from "@/lib/media/upload-provider";
 import { issueManagedImageKitUploadIntent, type ManagedUploadInput } from "@/lib/media/managed-upload";
 import { MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
 import { IMAGE_CONSTRAINTS, isAllowedListingImageFormat, validateListingImageBounds } from "@/lib/images/constraints";
@@ -146,10 +146,16 @@ export async function finalizeListingImageUploadIntent({
   if (!intent || intent.userId !== userId) {
     return { error: "Upload not found." };
   }
+  if (readMediaUploadProvider() === "imagekit" && !hasVerifiedImageKitUploadIdentity(intent)) {
+    return { error: UPLOAD_PROVIDER_CUTOVER_ERROR };
+  }
   if (intent.deliveryType === "imagekit" || intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE) {
     return { error: "This upload must be verified by the ImageKit uploader." };
   }
   if (intent.status === "VERIFIED") {
+    if (intent.expiresAt.getTime() <= Date.now()) {
+      return { error: "This upload expired. Please upload the image again." };
+    }
     return { data: intent };
   }
   if (intent.status !== "ISSUED") {

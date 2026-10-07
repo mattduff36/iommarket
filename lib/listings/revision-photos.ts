@@ -1,4 +1,4 @@
-import { MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
+import { uploadIntentCanBeAttached, UPLOAD_PROVIDER_CUTOVER_ERROR } from "@/lib/media/upload-provider";
 import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { cleanupDeliveryForRemovedImage, imageRecordFromIntent } from "@/lib/media/stored-image";
@@ -222,7 +222,10 @@ export async function syncRevisionImagesForUser(input: {
           if (intent.status !== "VERIFIED") {
             throw new Error("Wait until each photo has finished uploading before saving.");
           }
-          if (intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE && intent.expiresAt.getTime() <= Date.now()) {
+          if (!uploadIntentCanBeAttached(intent)) {
+            throw new Error(UPLOAD_PROVIDER_CUTOVER_ERROR);
+          }
+          if (intent.expiresAt.getTime() <= Date.now()) {
             throw new Error("This image upload expired. Upload it again before saving.");
           }
           if (!intent.assetId || !intent.version || !intent.width || !intent.height || !intent.format) {
@@ -269,7 +272,7 @@ export async function syncRevisionImagesForUser(input: {
             id: item.intent.id,
             status: "VERIFIED",
             userId: listing.userId,
-            ...(item.intent.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE ? { expiresAt: { gt: new Date() } } : {}),
+            expiresAt: { gt: new Date() },
           },
           data: { status: "CONSUMED", listingId: input.listingId },
         });

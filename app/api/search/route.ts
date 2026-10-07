@@ -6,12 +6,17 @@ import {
   expireStaleLiveListings,
 } from "@/lib/listings/expiry";
 import {
+  numericAttributeListingIdQuery,
+  parseNumericAttributeBound,
+} from "@/lib/listings/numeric-attribute-search";
+import {
   combineMarketplaceListingWhere,
   marketplaceListingWhereWithSettings,
   marketplaceListingBadge,
 } from "@/lib/listings/marketplace";
 import { listingPreviewCardProps } from "@/lib/preview-packs/review";
 import { findListingsInAttributeOrder } from "@/lib/search/attribute-sort";
+import { normalizeNumericFilterUnits } from "@/lib/search/numeric-filter-units";
 import {
   getSearchOrderBy,
   isAttributeSearchSort,
@@ -36,12 +41,6 @@ import {
   parseOptionalBoundedInteger,
 } from "@/lib/constants/search-filters";
 
-function safeInt(v: string | null): number | undefined {
-  if (!v) return undefined;
-  const n = Number.parseInt(v, 10);
-  return Number.isNaN(n) ? undefined : n;
-}
-
 interface NumericRangeFilter {
   slug: string;
   min?: number;
@@ -52,6 +51,13 @@ export async function GET(request: NextRequest) {
   await expireStaleLiveListings();
   const currentUser = await getCurrentUser();
   const sp = request.nextUrl.searchParams;
+  const numericUnits = normalizeNumericFilterUnits({
+    numericFilterUnits: sp.get("numericFilterUnits") ?? undefined,
+    minEngineSize: sp.get("minEngineSize") ?? undefined,
+    maxEngineSize: sp.get("maxEngineSize") ?? undefined,
+    minChargingTime: sp.get("minChargingTime") ?? undefined,
+    maxChargingTime: sp.get("maxChargingTime") ?? undefined,
+  });
   const query = sp.get("q")?.trim() ?? "";
   const page = Math.max(1, Number.parseInt(sp.get("page") ?? "1", 10));
   const pageSize = 12;
@@ -78,15 +84,35 @@ export async function GET(request: NextRequest) {
       min: parseOptionalBoundedInteger(sp.get("minYear"), YEAR_MIN, currentYear),
       max: parseOptionalBoundedInteger(sp.get("maxYear"), YEAR_MIN, currentYear),
     },
-    { slug: "engine-size", min: safeInt(sp.get("minEngineSize")), max: safeInt(sp.get("maxEngineSize")) },
-    { slug: "engine-power", min: safeInt(sp.get("minEnginePower")), max: safeInt(sp.get("maxEnginePower")) },
+    {
+      slug: "engine-size",
+      min: parseNumericAttributeBound(numericUnits.minEngineSize, "engine-size"),
+      max: parseNumericAttributeBound(numericUnits.maxEngineSize, "engine-size"),
+    },
+    {
+      slug: "engine-power",
+      min: parseNumericAttributeBound(sp.get("minEnginePower"), "engine-power"),
+      max: parseNumericAttributeBound(sp.get("maxEnginePower"), "engine-power"),
+    },
     ...(canApplyBatteryFilters
       ? [
-          { slug: "battery-range", min: safeInt(sp.get("minBatteryRange")), max: safeInt(sp.get("maxBatteryRange")) },
-          { slug: "charging-time", min: safeInt(sp.get("minChargingTime")), max: safeInt(sp.get("maxChargingTime")) },
+          {
+            slug: "battery-range",
+            min: parseNumericAttributeBound(sp.get("minBatteryRange"), "battery-range"),
+            max: parseNumericAttributeBound(sp.get("maxBatteryRange"), "battery-range"),
+          },
+          {
+            slug: "charging-time",
+            min: parseNumericAttributeBound(numericUnits.minChargingTime, "charging-time"),
+            max: parseNumericAttributeBound(numericUnits.maxChargingTime, "charging-time"),
+          },
         ]
       : []),
-    { slug: "acceleration", min: safeInt(sp.get("minAcceleration")), max: safeInt(sp.get("maxAcceleration")) },
+    {
+      slug: "acceleration",
+      min: parseNumericAttributeBound(sp.get("minAcceleration"), "acceleration"),
+      max: parseNumericAttributeBound(sp.get("maxAcceleration"), "acceleration"),
+    },
     {
       slug: "fuel-consumption",
       min: parseOptionalBoundedInteger(
@@ -100,40 +126,43 @@ export async function GET(request: NextRequest) {
         FUEL_CONSUMPTION_MAX,
       ),
     },
-    { slug: "co2-emissions", min: safeInt(sp.get("minCo2")), max: safeInt(sp.get("maxCo2")) },
+    {
+      slug: "co2-emissions",
+      min: parseNumericAttributeBound(sp.get("minCo2"), "co2-emissions"),
+      max: parseNumericAttributeBound(sp.get("maxCo2"), "co2-emissions"),
+    },
     {
       slug: "tax-per-year",
       min: parseOptionalBoundedInteger(sp.get("minTax"), TAX_MIN, TAX_MAX),
       max: parseOptionalBoundedInteger(sp.get("maxTax"), TAX_MIN, TAX_MAX),
     },
-    { slug: "insurance-group", min: safeInt(sp.get("minInsuranceGroup")), max: safeInt(sp.get("maxInsuranceGroup")) },
-    { slug: "boot-space", min: safeInt(sp.get("minBootSpace")), max: safeInt(sp.get("maxBootSpace")) },
-    { slug: "doors", min: safeInt(sp.get("doors")), max: safeInt(sp.get("doors")) },
-    { slug: "seats", min: safeInt(sp.get("seats")), max: safeInt(sp.get("seats")) },
+    {
+      slug: "insurance-group",
+      min: parseNumericAttributeBound(sp.get("minInsuranceGroup"), "insurance-group"),
+      max: parseNumericAttributeBound(sp.get("maxInsuranceGroup"), "insurance-group"),
+    },
+    {
+      slug: "boot-space",
+      min: parseNumericAttributeBound(sp.get("minBootSpace"), "boot-space"),
+      max: parseNumericAttributeBound(sp.get("maxBootSpace"), "boot-space"),
+    },
+    {
+      slug: "doors",
+      min: parseNumericAttributeBound(sp.get("doors"), "doors"),
+      max: parseNumericAttributeBound(sp.get("doors"), "doors"),
+    },
+    {
+      slug: "seats",
+      min: parseNumericAttributeBound(sp.get("seats"), "seats"),
+      max: parseNumericAttributeBound(sp.get("seats"), "seats"),
+    },
   ].filter((filter) => filter.min !== undefined || filter.max !== undefined);
 
   let listingIdsFromAttributes: string[] | null = null;
   if (numericRangeFilters.length > 0) {
-    const { Prisma } = await import("@prisma/client");
-    const conditions = numericRangeFilters.map((filter) =>
-      Prisma.sql`EXISTS (
-        SELECT 1 FROM listing_attribute_values lav
-        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
-        WHERE lav.listing_id = l.id AND ad.slug = ${filter.slug}
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${filter.min ?? 0}
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${filter.max ?? 999999999}
-      )`
+    const result = await db.$queryRaw<{ id: string }[]>(
+      numericAttributeListingIdQuery(numericRangeFilters),
     );
-
-    let combined = conditions[0];
-    for (let i = 1; i < conditions.length; i++) {
-      combined = Prisma.sql`${combined} AND ${conditions[i]}`;
-    }
-
-    const result = await db.$queryRaw<{ id: string }[]>`
-      SELECT l.id FROM listings l
-      WHERE ${combined}
-    `;
     listingIdsFromAttributes = result.map((row) => row.id);
   }
 

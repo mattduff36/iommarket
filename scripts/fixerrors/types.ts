@@ -25,6 +25,8 @@ export type SnapshotEvent = {
   action: string | null;
   component: string | null;
   requestPath: string | null;
+  digest?: string | null;
+  traceId?: string | null;
   occurredAt: string;
 };
 

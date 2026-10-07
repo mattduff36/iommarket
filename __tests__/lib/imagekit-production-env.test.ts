@@ -19,6 +19,16 @@ describe("production media environment contract", () => {
   it("accepts verified ImageKit-only configuration without requiring retired Cloudinary credentials", () => {
     expect(mediaIssues(strict)).toEqual([]);
   });
+  it("requires ImageKit mode and valid Cloudinary credentials for the temporary read option", () => {
+    const cloudinary = { CLOUDINARY_API_KEY: "test-key", CLOUDINARY_API_SECRET: "test-secret", NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: "du3othqre" };
+    expect(mediaIssues({ ...strict, ...cloudinary, IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS: "1" })).toEqual([]);
+    expect(mediaIssues({ ...strict, IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS: "1" }).map(i => i.key)).toEqual(expect.arrayContaining([
+      "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET", "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME",
+    ]));
+    expect(mediaIssues({ ...strict, ...cloudinary, IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS: "true" })).toContainEqual({ key: "IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS", code: "invalid" });
+    expect(mediaIssues({ ...strict, ...cloudinary, IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS: "1", MEDIA_PROVIDER: "cloudinary", NEXT_PUBLIC_MEDIA_PROVIDER: "cloudinary" })).toContainEqual({ key: "IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS", code: "invalid" });
+    expect(mediaIssues({ ...strict, IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS: "0" })).toEqual([]);
+  });
   it("still requires Cloudinary credentials when delivery is rolled back", () => {
     expect(mediaIssues({ ...strict, MEDIA_PROVIDER: "cloudinary", NEXT_PUBLIC_MEDIA_PROVIDER: "cloudinary" }).map(i => i.key)).toContain("CLOUDINARY_API_SECRET");
   });

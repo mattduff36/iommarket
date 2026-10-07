@@ -48,8 +48,8 @@ function gravityForPhoto(photo: ListingPhotoSource) {
   return `g_xy_center,x_${x},y_${y}`;
 }
 
-export function getCloudinaryCloudName() {
-  return process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
+export function getCloudinaryCloudName(env: Record<string, string | undefined> = process.env) {
+  return env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
 }
 
 export function isTrustedListingPublicId(publicId: string) {
@@ -66,12 +66,13 @@ export function buildListingPhotoUrl(
     mode: ListingPhotoDeliveryMode;
     frame: ListingPhotoFrame;
   },
+  env: Record<string, string | undefined> = process.env,
 ): string {
   if (photo.provider !== "CLOUDINARY" || !isTrustedListingPublicId(photo.publicId)) {
     return photo.url;
   }
 
-  const cloudName = getCloudinaryCloudName();
+  const cloudName = getCloudinaryCloudName(env);
   if (!cloudName) return photo.url;
 
   const width = options.mode === "social" ? SOCIAL_WIDTH : clampWidth(options.width);
@@ -139,7 +140,7 @@ function buildSocialTransforms(photo: ListingPhotoSource, gravity: string) {
   ];
 }
 
-export function buildSocialImageUrl(photo: ListingPhotoSource) {
+export function buildSocialImageUrl(photo: ListingPhotoSource, env: Record<string, string | undefined> = process.env) {
   if (photo.provider !== "CLOUDINARY" || !isTrustedListingPublicId(photo.publicId)) {
     return photo.url;
   }
@@ -147,7 +148,7 @@ export function buildSocialImageUrl(photo: ListingPhotoSource) {
     width: SOCIAL_WIDTH,
     mode: "social",
     frame: "social",
-  });
+  }, env);
 }
 
 export function getSocialImageDimensions(photo: ListingPhotoSource) {

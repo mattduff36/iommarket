@@ -64,12 +64,16 @@ export function groupOpenIssues(
 function classifyRootCauseFamily(pattern: ErrorPattern): string {
   const text = [pattern.errorType, pattern.component, pattern.normalizedMessage, ...pattern.affectedPages]
     .join(" ")
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/_/gu, " ");
   if (/\b(rls|row level|auth|jwt|permission|forbidden|unauthori[sz]ed|access control)\b/u.test(text)) {
     return "auth-permissions-security";
   }
-  if (/\b(postgres|database|sql|constraint|foreign key|schema|migration)\b/u.test(text)) {
+  if (/\b(postgres|database|sql|constraint|foreign key|schema|migration|42p01|undefined table|relation .{1,120} does not exist|table .{1,120} does not exist)\b/u.test(text)) {
     return "database-persistence";
+  }
+  if (/react error #?441|server components render/u.test(text)) {
+    return "react-server-components-digest";
   }
   if (/\b(payment|billing|invoice|money|charge|ripple)\b/u.test(text)) {
     return "money-billing";
@@ -100,6 +104,9 @@ function classifyCluster(
     rootCauseFamily === "concurrency-transaction"
   ) {
     return { lane: "critical", action: "critical-gates" };
+  }
+  if (rootCauseFamily === "react-server-components-digest") {
+    return { lane: "report-only", action: "report-only" };
   }
   if (rootCauseFamily === "external-network" || rootCauseFamily === "user-input") {
     return { lane: "report-only", action: "report-only" };
@@ -186,6 +193,9 @@ export function generateAnalysisReport(
   lines.push("");
   lines.push("Dispositions are hints. A code fix, or a tooling change that makes monitoring less sensitive, can still resolve the issue after it is deployed to production.");
   lines.push("Clusters are routed independently; a CRITICAL cluster does not escalate unrelated clusters.");
+  if (patterns.some((pattern) => /react error #?441|server components render/i.test(pattern.normalizedMessage))) {
+    lines.push("React error #441 is a Server Components render failure with a production-hidden message. Correlate the client digest with a server event using the same route and nearby timestamp; trace IDs can support the match. Without that evidence, keep the issue open and do not attribute it to a neighboring database or payment error.");
+  }
   lines.push("");
   lines.push("## Production and staging code");
   lines.push("");
@@ -213,6 +223,12 @@ export function generateAnalysisReport(
     lines.push(`- Route: ${issue.sampleRoute ?? "n/a"}`);
     lines.push(`- Action: ${issue.sampleAction ?? "n/a"}`);
     lines.push(`- Suggested files: ${files}`);
+    const correlations = issue.events
+      .filter((event) => event.digest || event.traceId)
+      .map((event) => `${event.source} ${event.route ?? event.requestPath ?? "route n/a"} at ${event.occurredAt}: digest=${event.digest ?? "n/a"}, traceId=${event.traceId ?? "n/a"}`);
+    if (correlations.length > 0) {
+      lines.push(`- Allowlisted correlation evidence: ${correlations.join("; ")}`);
+    }
     lines.push("");
   }
 

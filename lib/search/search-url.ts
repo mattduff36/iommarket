@@ -1,4 +1,5 @@
 import { SEARCH_SORT_OPTIONS } from "@/lib/search/search-order";
+import { normalizeNumericFilterUnits } from "@/lib/search/numeric-filter-units";
 
 export const SEARCH_KEYS = [
   "q",
@@ -33,6 +34,7 @@ export const SEARCH_KEYS = [
   "maxBatteryRange",
   "minChargingTime",
   "maxChargingTime",
+  "numericFilterUnits",
   "minAcceleration",
   "maxAcceleration",
   "minFuelConsumption",
@@ -91,6 +93,8 @@ export function normalizeSearchParams(
     if (value) normalized[key] = value;
   }
 
+  Object.assign(normalized, normalizeNumericFilterUnits(normalized));
+
   return normalized;
 }
 
@@ -124,7 +128,7 @@ export function getSearchSeoState(
   indexable: boolean;
 } {
   const normalized = normalizeSearchParams(searchParams);
-  const keys = Object.keys(normalized);
+  const keys = Object.keys(normalized).filter((key) => key !== "numericFilterUnits");
   const categoryOnly = keys.length === 1 && keys[0] === "category";
   const canonicalParams = { ...normalized };
 
@@ -149,7 +153,7 @@ export function buildSearchUrl(
   basePath = "/search",
 ): string {
   const params = new URLSearchParams();
-  const merged = { ...current, ...overrides };
+  const merged = normalizeSearchParams({ ...current, ...overrides });
 
   const hasFilterChange = SEARCH_KEYS.filter((k) => k !== "page").some(
     (k) => k in overrides,

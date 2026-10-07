@@ -8,7 +8,7 @@
    - Similar error fixed before: use that note as a hint, then check the current code.
    - No earlier record: this run has added the error to the log for the next launch.
    Dispositions are hints:
-   - `auto-repair` (`fast`, `standard`, `guarded`): fix the cluster only when every suggested file exists in both `origin/main` and `origin/staging`. A differing blob is reported and does not by itself block the repair.
+   - `auto-repair` (`fast`, `standard`, `guarded`): fix the cluster only when every suggested file exists in both `origin/main` and `origin/staging`. A differing blob is reported and does not by itself block the repair. Additional existing callers are checked against those same snapshot-bound commits. Declare genuinely new helpers/tests explicitly with `--new-paths=<files>`; they must be absent from both bound commits and `HEAD`, and included in the independently reviewed diff.
    - A missing file, or refs that could not be compared, sets `blockReason` and changes the action to `needs-person`. Leave that issue acknowledged and record the next step.
    - `pause-for-approval`: do not change the code. Close the issues as `acknowledged` and say what approval is required.
    - `mute-noise`: expected user input or validation noise, unless investigation shows a code defect or tooling that is too sensitive.
@@ -19,8 +19,12 @@
 npm run fixerrors -- --prepare-repair --paths=<files>
 ```
 
-5. For each unblocked auto-repair cluster, and for any other cluster that investigation shows is a real defect or over-sensitive tooling: implement the root-cause fix on `staging`, add or update regression tests, and run the targeted checks. Over-sensitive tooling means the capture, threshold, or classifier should change so the alert stops firing. Write `private/fixerrors/reviews/<cluster-id>.json` with `testsPassed`, `independentReview`, `evidence`, the exact `issueIds`, a short sanitized `summary`, and `tests`.
-6. Dry-run the local commit, then apply it only after the dry run is correct. The cluster fingerprint is derived from the signed issue fingerprints. The commit is rejected on `main`, a detached HEAD, a feature branch, or a staging branch that is behind `origin/staging`. It writes `private/fixerrors/runs/<cluster-id>/release.json`. It must never be given `--push`:
+5. For each unblocked auto-repair cluster, and for any other cluster that investigation shows is a real defect or over-sensitive tooling: implement the root-cause fix on `staging`, add or update regression tests, and run the targeted checks. Over-sensitive tooling means the capture, threshold, or classifier should change so the alert stops firing. An opaque `Script error` is not proof of noise. Check historical configuration errors against current read-only evidence before claiming the configuration is still wrong. Keep security checks intact.
+
+   Reuse already-read files while their content is unchanged; batch independent lookups, limit dependency searches to a specific package, and stop broad searches once the cause is established. Record elapsed time, tool count, model routing and available usage counters; do not invent a billed cost. Regression tests must exercise the failure, including malformed and boundary inputs. Normal tests must never automatically load production credentials; provider/database integration tests require an explicit test connection.
+
+   An independent reviewer must inspect the actual diff and tests. Write `private/fixerrors/reviews/<cluster-id>.json` with `testsPassed`, `independentReview`, `reviewer`, `reviewerEvidence`, `reviewedDiffSha256`, `evidence`, the exact repaired `issueIds`, a short sanitized `summary`, and `tests`. Stage only the reviewed repair paths and calculate `reviewedDiffSha256` from the raw bytes of `git diff --cached --binary -- <paths>`; do not hash a shell-reformatted string. The review must name the reviewer and substantive evidence, not merely assert a boolean. A mixed cluster may have a non-empty reviewed subset; never include unrelated issue IDs as fixed. Unrelated staged work is rejected. A changed diff requires another review.
+6. Stage exactly the reviewed paths first. Dry-run the local commit, then apply it only after the dry run is correct. Both modes check the real staged paths and reviewed diff hash. Apply commits a separate snapshot of that index so later unrelated staging cannot enter the commit; the real index is not reset. Do not run concurrent commits in the shared checkout. The cluster fingerprint is derived from the signed issue fingerprints. The commit is rejected on `main`, a detached HEAD, a feature branch, or a staging branch that is behind `origin/staging`. It writes `private/fixerrors/runs/<cluster-id>/release.json`. It must never be given `--push`:
 
 ```bash
 npm run fixerrors -- --commit-cluster --cluster-id=<id> --lane=<lane> --issue-ids=<ids> --paths=<files> --review=private/fixerrors/reviews/<id>.json
@@ -47,5 +51,13 @@ npm run fixerrors -- --verify-release --cluster-id=<id>
 npm run fixerrors -- --verify-release --cluster-id=<id> --apply
 ```
 
-   This check does not use the 30-minute export expiry. It resolves an issue only when the signed fingerprint still matches and `lastSeenAt` is not later than the Vercel completion time. Recurrence before deployment can still be resolved. Recurrence after deployment stays `ACKNOWLEDGED` with a remediation note. Authentication failure, a missing or pending Vercel status, or a newer unverified `origin/main` SHA also leaves the issue acknowledged.
+   This check does not use the 30-minute export expiry. It requires the deployed source blobs to still match the reviewed repair, so a later revert cannot resolve an issue merely through commit ancestry. Changed content requires explicit re-review. It resolves an issue only when the signed fingerprint still matches and `lastSeenAt` is not later than the Vercel completion time. Recurrence before deployment can still be resolved. Recurrence after deployment stays `ACKNOWLEDGED` with a remediation note. Authentication failure, a missing or pending Vercel status, or a newer unverified `origin/main` SHA also leaves the issue acknowledged. Existing release manifests cannot be overwritten; retain their evidence.
 11. CRITICAL clusters keep their own architecture, security, and data gates. Rollback of issues resolved by a verify-release run is `npm run fixerrors -- --reopen --run-id=<id> --apply`.
+
+12. Correct a mistaken mute using the original archived snapshot and mute run, with explicit issue IDs and a sanitized reason. Dry-run first, inspect exactly which issues would be acknowledged, then repeat with `--apply`:
+
+```bash
+npm run fixerrors -- --reopen-muted --run-id=<mute-run-id> --snapshot-file=private/fixerrors/snapshots/<snapshot-id>.json --issue-ids=<ids> --evidence="Reason for correcting the mute"
+```
+
+   This acknowledges rather than resolves. It verifies the original snapshot and database, unchanged fingerprints/occurrences/last-seen times, and the latest matching mute audit and status event. A newer action or recurrence blocks the entire correction. It records status and admin audit events. Historical corrections do not use export expiry because they undo a precisely identified prior action; they do not authorize unrelated status changes.

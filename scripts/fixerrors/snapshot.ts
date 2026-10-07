@@ -49,6 +49,11 @@ function toPreciseIso(value: unknown, field: string): string {
   return text;
 }
 
+function safeCorrelationValue(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 1 || value.length > 160) return null;
+  return /^[A-Za-z0-9:_-]+$/u.test(value) ? value : null;
+}
+
 export function writeAndVerifyTextArtifactAtomic(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
@@ -179,6 +184,8 @@ function normalizeEvent(row: Record<string, unknown>): SnapshotEvent {
     action: row.action == null ? null : String(row.action),
     component: row.component == null ? null : String(row.component),
     requestPath: row.requestPath == null ? null : redactFreeText(String(row.requestPath)),
+    digest: safeCorrelationValue(row.digest),
+    traceId: safeCorrelationValue(row.traceId),
     occurredAt: toIso(row.occurredAt, "occurredAt"),
   };
 }
@@ -203,12 +210,20 @@ export async function fetchOpenIssueSnapshot(
     const eventsByIssue = new Map<string, SnapshotEvent[]>();
     if (issueIds.length > 0) {
       const eventsResult = await client.query(
-        `SELECT id, "issueId", source, severity, environment, message, stack, route, action,
-                component, "requestPath", "occurredAt"
-         FROM "MonitoringEvent"
-         WHERE "issueId" = ANY($1::text[])
-         ORDER BY "occurredAt" DESC, id DESC`,
-        [issueIds],
+        `WITH ranked_events AS (
+           SELECT id, "issueId", source, severity, environment, message, stack, route, action,
+                  component, "requestPath", tags->>'digest' AS digest,
+                  tags->>'traceId' AS "traceId", "occurredAt",
+                  row_number() OVER (PARTITION BY "issueId" ORDER BY "occurredAt" DESC, id DESC) AS issue_event_rank
+           FROM "MonitoringEvent"
+           WHERE "issueId" = ANY($1::text[])
+         )
+         SELECT id, "issueId", source, severity, environment, message, stack, route, action,
+                component, "requestPath", digest, "traceId", "occurredAt"
+         FROM ranked_events
+         WHERE issue_event_rank <= $2
+         ORDER BY "issueId", "occurredAt" DESC, id DESC`,
+        [issueIds, EVENTS_PER_ISSUE],
       );
       for (const row of eventsResult.rows) {
         const issueId = String(row.issueId);

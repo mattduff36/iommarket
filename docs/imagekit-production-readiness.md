@@ -1,6 +1,20 @@
 # ImageKit production readiness and Cloudinary retirement
 
-Updated: 7 October 2026. This is an implementation checkpoint, not production activation approval.
+Updated: 8 October 2026. This is an implementation checkpoint, not production activation approval.
+
+## Current checkpoint — 8 October
+
+This section supersedes older checkpoints below. Production still uses Cloudinary; no production identity backfill or ImageKit activation has occurred.
+
+- The refreshed read-only plan contains 4,406 identity writes, 350 approved exclusions and zero other blocked references, unmapped dealer logos or avatars. Its digest is `52b61dff4209c0c7cde1055df1a9aae54a030c191e94bc05361d8e9009c8632f`. Refresh the 30-minute destination verification receipt immediately before any approved apply; do not reuse the expired receipt.
+- Production database and Cloudinary consumer credentials were rotated and the credential-only production deployment was verified. The old Cloudinary API key remains enabled pending safe revocation. Dealer-logo delivery must also use current signing credentials before retiring that key.
+- The retained production dump restored its public schema into an isolated local PostgreSQL instance: 80 tables, 317 indexes and 43,847 rows. This is not a full Supabase auth/storage/vault recovery test. Both local verification database servers were stopped; recovery files were retained.
+- New attachment/finalization guards reject pending legacy Cloudinary uploads once ImageKit writes are selected, validate native ImageKit provenance, and enforce verified-intent expiry. Existing attached-image reorder/replay is preserved.
+- Older immutable deployments can still accept legacy uploads. The live Vercel project has a 43,200-second skew-protection window. Therefore a final database scan alone cannot prove there will be no later legacy attachment. Review deployment routing and old-client handling as part of the cutover; changing routing can interrupt unsaved forms.
+- A temporary, explicit `IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS=1` compatibility option is prepared, not enabled. In ImageKit read mode it permits current-key Cloudinary delivery only for authorized persisted, trusted legacy identities without partial ImageKit identity. Verified ImageKit identities remain preferred, and upload previews cannot use this fallback. The strict default remains unchanged.
+- If the compatibility option is approved for activation, retain Cloudinary, reconcile any late writes after old-deployment routing ends, verify zero required legacy reads, then disable the option. Do not describe that intermediate state as completed Cloudinary retirement.
+
+Next: finish current-tree tests and independent review, commit/deploy staging, verify that exact deployment, and obtain the reviewed production release/cutover approval. Keep the migration map, original backups and rollback credentials intact.
 
 ## Current checkpoint — 7 October
 

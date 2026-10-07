@@ -32,9 +32,10 @@ import { commitVerifiedCluster, readClusterReview } from "./fixerrors/commit-clu
 import { assertAutoRepairDecision, buildFixerrorsDecisions, writeFixerrorsDecisions, type FixerrorsDecision } from "./fixerrors/decision";
 import { asPgClient, createFixerrorsClient } from "./fixerrors/db";
 import { createDatabaseTargetFingerprint, loadFixerrorsDatabase, parseFixerrorsDatabaseTarget } from "./fixerrors/env";
-import { assessRepairWorkspace, compareRepairPaths, fetchReleaseRefs, readRepairWorkspace } from "./fixerrors/git-policy";
+import { assessExplicitRepairPaths, assessRepairWorkspace, compareRepairPaths, fetchReleaseRefs, readRepairWorkspace } from "./fixerrors/git-policy";
 import { clusterFingerprint, readReleaseManifest, verifyProductionRelease } from "./fixerrors/release";
 import { reopenResolvedByRun, resolveActorAdminId } from "./fixerrors/resolve";
+import { reopenMutedByRun } from "./fixerrors/unmute";
 import {
   ERROR_ANALYSIS_PATH,
   ERROR_SNAPSHOT_PATH,
@@ -46,7 +47,7 @@ import {
 } from "./fixerrors/snapshot";
 import { type CodeBaseline, type OpenIssueSnapshot, type PgClientLike } from "./fixerrors/types";
 
-const MODES = ["--commit-cluster", "--prepare-repair", "--reopen", "--acknowledge", "--close", "--verify-release"] as const;
+const MODES = ["--commit-cluster", "--prepare-repair", "--reopen", "--reopen-muted", "--acknowledge", "--close", "--verify-release"] as const;
 const CLUSTER_ID = /^cluster-[0-9]+$/u;
 
 export function getSnapshotIssueIds(snapshot: Pick<OpenIssueSnapshot, "issues">): string[] {
@@ -83,6 +84,11 @@ function commitFromArguments(args: string[]) {
   };
   if (decisionFile.version !== 2) throw new Error("Decision manifest version mismatch");
   assertAutoRepairDecision(decisionFile.decisions, clusterId, issueIds);
+  const selectedDecision = decisionFile.decisions.find((decision) => decision.clusterId === clusterId);
+  if (!issueIds.length || new Set(issueIds).size !== issueIds.length
+    || issueIds.some((id) => !selectedDecision?.issueIds.includes(id) || !getSnapshotIssueIds(snapshot).includes(id))) {
+    throw new Error("Repair issue IDs must be a unique non-empty subset of the signed cluster");
+  }
   const baseline = snapshot.analysis.codeBaseline;
   if (
     !baseline
@@ -91,6 +97,10 @@ function commitFromArguments(args: string[]) {
   ) {
     throw new Error("Decision manifest does not match the signed snapshot code baseline");
   }
+  const pathAssessment = assessExplicitRepairPaths({
+    paths, newPaths: splitList(getArgumentValue(args, "--new-paths")), baseline, cwd: process.cwd(),
+  });
+  if (!pathAssessment.ok) throw new Error(pathAssessment.reason);
   const issueFingerprints = issueIds.map((issueId) => {
     const issue = snapshot.issues.find((entry) => entry.id === issueId);
     if (!issue) throw new Error("Cluster issue is not in the signed snapshot");
@@ -108,7 +118,7 @@ function commitFromArguments(args: string[]) {
     review: readClusterReview(reviewPath),
     clusterIssueIds: issueIds,
     snapshotIssueIds: getSnapshotIssueIds(snapshot),
-    paths,
+    paths: pathAssessment.paths,
     workspace: readRepairWorkspace(process.cwd()),
     issueFingerprints,
     release: {
@@ -129,13 +139,11 @@ function prepareFromArguments(args: string[]) {
   const snapshot = readAndVerifySnapshot();
   const baseline = snapshot.analysis.codeBaseline;
   if (!baseline) throw new Error("Snapshot has no production and staging code baseline");
-  for (const file of paths) {
-    const entry = baseline.paths.find((path) => path.file === file);
-    if (!entry?.productionBlob || !entry.stagingBlob) {
-      return { ok: false as const, reason: `${file} is not present in both origin/main and origin/staging` };
-    }
-  }
-  return assessRepairWorkspace(readRepairWorkspace(process.cwd()), paths);
+  const pathAssessment = assessExplicitRepairPaths({
+    paths, newPaths: splitList(getArgumentValue(args, "--new-paths")), baseline, cwd: process.cwd(),
+  });
+  if (!pathAssessment.ok) return pathAssessment;
+  return assessRepairWorkspace(readRepairWorkspace(process.cwd()), pathAssessment.paths);
 }
 
 function requireBinding(args: string[], message: string) {
@@ -312,6 +320,21 @@ async function main() {
   const databaseClient = asPgClient(client);
 
   try {
+    if (invocation.mode === "--reopen-muted") {
+      const runId = getArgumentValue(args, "--run-id");
+      const snapshotFile = getArgumentValue(args, "--snapshot-file");
+      const evidence = getArgumentValue(args, "--evidence");
+      if (!runId || !snapshotFile || !evidence) {
+        throw new Error("--reopen-muted requires --run-id, --snapshot-file, --issue-ids and --evidence");
+      }
+      const result = await reopenMutedByRun({
+        client: databaseClient, snapshot: readAndVerifySnapshot(snapshotFile),
+        databaseTargetFingerprint, runId, issueIds: splitList(getArgumentValue(args, "--issue-ids")),
+        evidence, actorAdminId: await resolveActorAdminId(databaseClient), apply: args.includes("--apply"),
+      });
+      console.log(JSON.stringify({ mode: "reopen-muted", ...result }, null, 2));
+      return;
+    }
     if (invocation.mode === "--reopen") {
       const runId = getArgumentValue(args, "--run-id");
       if (!runId) throw new Error("--reopen requires --run-id");

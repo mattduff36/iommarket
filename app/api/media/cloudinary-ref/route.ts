@@ -9,6 +9,8 @@ import { signedImageKitDeliveryUrl } from "@/lib/media/imagekit-api";
 import { imageKitDeliveryRelativePath, imageKitFillTransform } from "@/lib/media/imagekit-transforms";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
+import { dealerLogoDeliveryUrl } from "@/lib/media/dealer-logo-delivery";
+import { readMediaProviderMode } from "@/lib/media/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Image not available." }, { status: 400 });
   }
-  if (parsed.protocol !== "https:" || parsed.host !== "res.cloudinary.com") {
+  if (parsed.protocol !== "https:" || parsed.host !== "res.cloudinary.com" || parsed.username || parsed.password) {
     return NextResponse.json({ error: "Image not available." }, { status: 400 });
   }
 
@@ -72,6 +74,16 @@ export async function GET(request: NextRequest) {
     })
   ) {
     return NextResponse.json({ error: "Image not available." }, { status: 404 });
+  }
+
+  if (readMediaProviderMode() === "cloudinary") {
+    let deliveryUrl: string;
+    try {
+      deliveryUrl = dealerLogoDeliveryUrl(raw);
+    } catch {
+      return NextResponse.redirect(new URL("/media-unresolved.svg", request.url), 302);
+    }
+    return NextResponse.redirect(deliveryUrl, { status: 302, headers: { "Cache-Control": "private, max-age=60" } });
   }
 
   const asset = findMigratedDealerLogo(parsed.toString());

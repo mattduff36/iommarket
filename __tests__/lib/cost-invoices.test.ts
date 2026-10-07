@@ -61,7 +61,17 @@ describe("COST-REQUEST-001 pending invoice uniqueness", () => {
         },
       ],
     });
+    expect(fakeTx.costEntry.findMany).toHaveBeenCalledWith({
+      where: {
+        invoiceability: "INVOICEABLE",
+        settlement: { is: null },
+        invoiceLines: { none: { request: { status: "PENDING" } } },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true, markedGbpMinor: true },
+    });
     expect(fakeTx.costEmailOutbox.create).toHaveBeenCalled();
+    expect(runSerializableMock).toHaveBeenCalledWith(expect.any(Function), { timeoutMs: 15_000 });
   });
 
   it("rejects a second concurrent open request", async () => {

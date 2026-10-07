@@ -27,6 +27,12 @@ describe("MON-CLIENT-001 / MON-CLIENT-002 console and window capture", () => {
     expect(shouldIgnoreConsoleError("Payment failed")).toBe(false);
     expect(shouldIgnoreConsoleError('{"isTrusted":true}')).toBe(true);
     expect(shouldIgnoreConsoleError("Error invoking postMessage: Java object is gone")).toBe(true);
+    expect(shouldIgnoreConsoleError("undefined is not an object (evaluating 'window.webkit.messageHandlers')")).toBe(true);
+    expect(shouldIgnoreConsoleError("Failed to connect to MetaMask")).toBe(true);
+    expect(shouldIgnoreConsoleError("App action failed while accessing window.webkit.messageHandlers")).toBe(false);
+    expect(shouldIgnoreConsoleError("Payment action failed: Failed to connect to MetaMask")).toBe(false);
+    expect(shouldIgnoreConsoleError("Script error.")).toBe(false);
+    expect(shouldIgnoreConsoleError("Script error")).toBe(false);
     expect(shouldIgnoreConsoleError("Load failed")).toBe(true);
     expect(shouldIgnoreConsoleError("Console Error: Failed to fetch RSC payload for /admin")).toBe(true);
     expect(
