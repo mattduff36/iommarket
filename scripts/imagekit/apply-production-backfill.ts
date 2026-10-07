@@ -15,7 +15,7 @@ import {
 } from "@/lib/media/production-backfill-apply";
 import { assertProductionBackfillTarget } from "@/lib/media/production-backfill-plan";
 
-type Settings = { apply: boolean; verifyOnly: boolean; plan: string; map: string; digest: string; verification?: string; output?: string };
+type Settings = { apply: boolean; verifyOnly: boolean; plan: string; map: string; digest: string; verification?: string; output?: string; adminPreviewExclusions?: string };
 
 function options(args: string[]): Settings {
   const values: Record<string, string> = {};
@@ -29,7 +29,7 @@ function options(args: string[]): Settings {
       continue;
     }
     const value = args[++index];
-    if (!["--plan", "--map", "--approved-digest", "--verification", "--output"].includes(key) || !value || value.startsWith("--") || values[key]) {
+    if (!["--plan", "--map", "--approved-digest", "--verification", "--output", "--admin-preview-exclusions"].includes(key) || !value || value.startsWith("--") || values[key]) {
       throw new Error("Invalid command options.");
     }
     values[key] = value;
@@ -44,7 +44,8 @@ function options(args: string[]): Settings {
     values["--output"] = output;
   }
   return { apply, verifyOnly, plan: resolve(values["--plan"]), map: resolve(values["--map"]), digest: values["--approved-digest"],
-    verification: values["--verification"] ? resolve(values["--verification"]) : undefined, output: values["--output"] };
+    verification: values["--verification"] ? resolve(values["--verification"]) : undefined, output: values["--output"],
+    adminPreviewExclusions: values["--admin-preview-exclusions"] ? resolve(values["--admin-preview-exclusions"]) : undefined };
 }
 
 function loadInputs(settings: Settings) {
@@ -52,7 +53,10 @@ function loadInputs(settings: Settings) {
   const mapRows = mapBytes.toString("utf8").split(/\r?\n/).filter((line) => line.trim()).map((line) => JSON.parse(line) as Record<string, unknown>);
   const mapSha256 = createHash("sha256").update(mapBytes).digest("hex");
   const planValue: unknown = JSON.parse(readFileSync(settings.plan, "utf8"));
-  const verified = validateProductionBackfillInputs({ planValue, approvedDigest: settings.digest, mapRows, mapSha256 });
+  const adminPreviewExclusions = settings.adminPreviewExclusions
+    ? JSON.parse(readFileSync(settings.adminPreviewExclusions, "utf8")) as unknown
+    : undefined;
+  const verified = validateProductionBackfillInputs({ planValue, approvedDigest: settings.digest, mapRows, mapSha256, adminPreviewExclusions });
   return { ...verified, index: buildMigrationIndex(mapRows) };
 }
 

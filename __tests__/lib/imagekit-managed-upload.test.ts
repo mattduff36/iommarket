@@ -56,6 +56,22 @@ describe("managed ImageKit intent lifecycle", () => {
     expect(mocks.create).toHaveBeenCalledWith({ data: expect.objectContaining({ deliveryType: "imagekit-managed" }) });
   });
 
+  it.each([
+    { fileName: "car.heic", fileType: "image/heif" },
+    { fileName: "car.heif", fileType: "image/heic" },
+  ])("accepts provider MIME aliases within the HEIC/HEIF family: %j", async ({ fileName, fileType }) => {
+    const issued = await issueManagedImageKitUploadIntent("user", { fileName, fileType, fileSize: 6 });
+    expect(issued.intent.format).toBe(fileName.endsWith(".heic") ? "heic" : "heif");
+  });
+
+  it.each([
+    { fileName: "car.png", fileType: "image/heif" },
+    { fileName: "car.heic", fileType: "image/heic-sequence" },
+  ])("rejects MIME values outside the filename's supported family: %j", async ({ fileName, fileType }) => {
+    await expect(issueManagedImageKitUploadIntent("user", { fileName, fileType, fileSize: 6 })).rejects.toThrow(/filename and type/);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it("attaches only independently sanitized and verified immutable bytes", async () => {
     const result = await finalizeManagedImageKitUpload(request);
     expect(mocks.clean).toHaveBeenCalledWith({ bytes: Buffer.from("source"), format: "jpg" });

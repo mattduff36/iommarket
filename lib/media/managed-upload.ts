@@ -19,7 +19,10 @@ export async function issueManagedImageKitUploadIntent(userId: string, input: Ma
   }
   const format = managedInputFormat(input.fileName.split(".").pop() ?? "");
   const expectedMime = format === "jpg" ? "image/jpeg" : `image/${format}`;
-  if (input.fileType && input.fileType !== expectedMime) throw new Error("The image filename and type do not agree.");
+  const allowedMimes = format === "heic" || format === "heif"
+    ? ["image/heic", "image/heif"]
+    : [expectedMime];
+  if (input.fileType && !allowedMimes.includes(input.fileType)) throw new Error("The image filename and type do not agree.");
   await assertExternalEffectAllowed({ tables: [{ table: "User", rowKey: userId }] });
   const id = randomUUID();
   const paths = managedUploadPaths(scope, userId, id, format);

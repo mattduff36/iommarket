@@ -11,7 +11,7 @@ import {
   type BackfillClient,
   type BackfillQueryResult,
 } from "@/lib/media/production-backfill-apply";
-import { createProductionBackfillPlan } from "@/lib/media/production-backfill-plan";
+import { createProductionBackfillPlan, REVIEWED_ADMIN_PREVIEW_CSV_SHA256, REVIEWED_ADMIN_PREVIEW_LISTING_IDS_SHA256, REVIEWED_ADMIN_PREVIEW_ROW_IDS_SHA256 } from "@/lib/media/production-backfill-plan";
 
 const instant = new Date("2026-10-07T12:00:00.000Z");
 const asset = {
@@ -38,6 +38,17 @@ function redigest(value: Record<string, unknown>) {
   const { digest: _digest, ...body } = value;
   return { ...body, digest: createHash("sha256").update(canonical(body)).digest("hex") };
 }
+function reviewedManifest() {
+  const listingIds = Array.from({ length: 94 }, (_, n) => `listing-${String(n).padStart(3, "0")}`);
+  const entries = Array.from({ length: 350 }, (_, n) => {
+    const id = `preview-image-${String(n).padStart(3, "0")}`;
+    const listingId = listingIds[n % listingIds.length]!;
+    const row = { ...source, id, assetId: null, publicId: `unmapped/${id}`, url: `https://res.cloudinary.com/du3othqre/image/private/v10/unmapped/${id}.jpg` };
+    return { id, listingId, status: "ADMIN_PREVIEW" as const, reviewState: "NONE" as const, source: row };
+  }).sort((a, b) => a.id.localeCompare(b.id));
+  const body = { version: 1 as const, reviewedListingCsvSha256: REVIEWED_ADMIN_PREVIEW_CSV_SHA256, reviewedListingIdsSha256: REVIEWED_ADMIN_PREVIEW_LISTING_IDS_SHA256, reviewedRowIdsSha256: REVIEWED_ADMIN_PREVIEW_ROW_IDS_SHA256, listingIds, entries };
+  return { ...body, digest: createHash("sha256").update(canonical(body)).digest("hex") };
+}
 function inputs(planValue: unknown = plan, overrides: Partial<{ approvedDigest: string; mapSha256: string; rows: Array<Record<string, unknown>> }> = {}) {
   return validateProductionBackfillInputs({ planValue, approvedDigest: overrides.approvedDigest ?? plan.digest,
     mapRows: overrides.rows ?? mapRows, mapSha256: overrides.mapSha256 ?? mapBytesHash, now: instant });
@@ -48,9 +59,13 @@ function fixtureReceipt() {
 
 class CensusClient implements BackfillClient {
   statements: string[] = [];
-  constructor(public rows: Array<Record<string, unknown>>, private updateRows?: Array<Record<string, unknown>>) {}
+  constructor(public rows: Array<Record<string, unknown>>, private updateRows?: Array<Record<string, unknown>>, private listingOverrides: Record<string, Record<string, unknown>> = {}) {}
   async query(text: string, _values?: unknown[]): Promise<BackfillQueryResult> {
     this.statements.push(text);
+    if (text.startsWith("SELECT li.id")) {
+      const ids = _values?.[0] as string[];
+      return { rows: ids.map((id) => this.listingOverrides[id] ?? { id, listingId: `listing-${String(Number(id.split("-").pop()) % 94).padStart(3, "0")}`, listingStatus: "ADMIN_PREVIEW", reviewState: "NONE" }) };
+    }
     if (text.startsWith("SELECT id, provider")) {
       const table = text.includes('"ListingRevisionImage"') ? "ListingRevisionImage" : "ListingImage";
       return { rows: this.rows.filter((row) => row.table === table) };
@@ -94,6 +109,34 @@ describe("safe production identity apply gates", () => {
     await expect(censusAndClassify(fixture([{ ...source, table: "ListingImage" }, { ...nonWrite, table: "ListingImage" },
       { ...nonWrite, id: "added", table: "ListingImage" }]), twoRowPlan)).rejects.toThrow(/count/i);
     await expect(censusAndClassify(fixture([{ ...source, table: "ListingImage" }, { ...nonWrite, url: "https://images.example/changed.jpg", table: "ListingImage" }]), twoRowPlan)).rejects.toThrow(/non-write/i);
+  });
+
+  it("binds the reviewed preview exclusion manifest and rechecks listing eligibility under its lock", async () => {
+    const manifest = reviewedManifest();
+    const allSources = [source, ...manifest.entries.map((entry) => entry.source)];
+    const basePlan = createProductionBackfillPlan({ rows: allSources, index, mapSha256: mapBytesHash, now: instant });
+    const reviewedPlan = redigest({ ...basePlan, entries: basePlan.entries.map((entry) => {
+      const reviewed = manifest.entries.find((item) => item.id === entry.source.id);
+      return entry.status === "blocked" && reviewed ? { source: entry.source, status: "excluded", reason: "reviewed-unpublished-admin-preview", exclusionProof: { listingId: reviewed.listingId, reason: "reviewed-unpublished-admin-preview", manifestSha256: "f".repeat(64) } } : entry;
+    }), counts: { ...basePlan.counts, blocked: 0, excluded: 350 } }) as typeof basePlan;
+    expect(reviewedPlan.counts.excluded).toBe(350);
+    expect(() => validateProductionBackfillInputs({ planValue: reviewedPlan, approvedDigest: reviewedPlan.digest, mapRows, mapSha256: mapBytesHash, now: instant, adminPreviewExclusions: manifest })).toThrow(/manifest|IDs do not match|canonical planning/i);
+    expect(() => validateProductionBackfillInputs({ planValue: reviewedPlan, approvedDigest: reviewedPlan.digest, mapRows, mapSha256: mapBytesHash, now: instant })).toThrow(/canonical planning/i);
+    const dbRows = allSources.map((item) => ({ ...item, table: "ListingImage" }));
+    const accepted = new CensusClient(dbRows);
+    const states = await censusAndClassify(accepted, reviewedPlan);
+    expect(states).toHaveLength(351);
+    expect(accepted.statements.some((statement) => statement.startsWith("SELECT li.id"))).toBe(true);
+    const first = manifest.entries[0]!;
+    const changedParent = new CensusClient(dbRows, undefined, { [first.id]: { id: first.id, listingId: "reparented", listingStatus: "ADMIN_PREVIEW", reviewState: "NONE" } });
+    await expect(censusAndClassify(changedParent, reviewedPlan)).rejects.toThrow(/eligibility/i);
+    const published = new CensusClient(dbRows, undefined, { [first.id]: { id: first.id, listingId: first.listingId, listingStatus: "PUBLISHED", reviewState: "NONE" } });
+    await expect(censusAndClassify(published, reviewedPlan)).rejects.toThrow(/eligibility/i);
+    const transaction = new CensusClient(dbRows);
+    await expect(executeProductionBackfillTransaction(transaction, reviewedPlan)).resolves.toEqual({ updatedCount: 1, resumedCount: 0 });
+    const lock = transaction.statements.find((statement) => statement.startsWith("LOCK TABLE"));
+    expect(lock).toContain('public."Listing", public."ListingImage"');
+    expect(transaction.rows.filter((item) => String(item.id).startsWith("preview-image-")).every((item) => item.imageKitFileId === null && item.imageKitFilePath === null)).toBe(true);
   });
 
   it("binds persisted destination receipts to exact private destination, size and checksum", async () => {
@@ -153,14 +196,14 @@ describe("safe production identity apply gates", () => {
     const calls: string[] = [];
     const fetchImpl = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      calls.push(url.includes("api.imagekit.io/v1/files?") ? "inventory" : "delivery");
+      calls.push(url.includes("api.imagekit.io/v1/files?") ? "inventory" : `delivery:${url.includes("tr:orig-true") ? "original" : "transformed"}`);
       if (url.includes("api.imagekit.io/v1/files?")) return Response.json([{ type: "file", fileType: "image", fileId: asset.destinationFileId,
         filePath: asset.destinationPath, size: asset.sourceBytes, isPrivateFile: true }]);
       return new Response("abc", { status: 200 });
     }) as typeof fetch;
     const verified = await createImageKitDestinationVerifier({ env: { NODE_ENV: "test", IMAGEKIT_PRIVATE_KEY: "test", IMAGEKIT_URL_ENDPOINT: "https://ik.imagekit.io/test" }, fetchImpl }).verify(asset);
     expect(verified).toEqual({ size: 3, sha256: asset.sourceSha256, isPrivate: true });
-    expect(calls).toEqual(["inventory", "delivery"]);
+    expect(calls).toEqual(["inventory", "delivery:original"]);
     expect(calls.join(" ")).not.toContain("ik-s");
   });
 });

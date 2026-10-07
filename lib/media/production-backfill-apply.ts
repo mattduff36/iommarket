@@ -39,7 +39,7 @@ function canonical(value: unknown): string {
 function hash(value: unknown) { return createHash("sha256").update(canonical(value)).digest("hex"); }
 
 export function validateProductionBackfillInputs(input: {
-  planValue: unknown; approvedDigest: string; mapRows: Array<Record<string, unknown>>; mapSha256: string; now?: Date;
+  planValue: unknown; approvedDigest: string; mapRows: Array<Record<string, unknown>>; mapSha256: string; now?: Date; adminPreviewExclusions?: unknown;
 }) {
   shaSchema.parse(input.mapSha256);
   const index = buildMigrationIndex(input.mapRows);
@@ -48,6 +48,7 @@ export function validateProductionBackfillInputs(input: {
   const recomputed = createProductionBackfillPlan({
     rows: plan.entries.map((entry) => entry.source), index, mapSha256: input.mapSha256,
     now: new Date(plan.createdAt), versionProofs: plan.entries.flatMap((entry) => entry.sourceVersionProof ? [entry.sourceVersionProof] : []),
+    adminPreviewExclusions: input.adminPreviewExclusions,
   });
   if (recomputed.digest !== plan.digest || canonical(recomputed.entries) !== canonical(plan.entries) || canonical(recomputed.counts) !== canonical(plan.counts)) {
     throw new Error("The plan destinations or counts do not match canonical planning from the supplied map.");
@@ -125,7 +126,7 @@ export function createImageKitDestinationVerifier(input: { env?: NodeJS.ProcessE
         details.size !== asset.sourceBytes || details.isPrivateFile !== true || details.fileType !== "image" || details.type !== "file") {
         throw new Error("A destination's live ImageKit inventory does not match the private image migration map.");
       }
-      const url = signedImageKitDeliveryUrl({ relativePath: imageKitDeliveryRelativePath(asset.destinationPath), env });
+      const url = signedImageKitDeliveryUrl({ relativePath: imageKitDeliveryRelativePath(asset.destinationPath, "orig-true"), env });
       const response = await fetcher(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(60_000) });
       if (!response.ok || !response.body) throw new Error("A signed destination original could not be fetched for checksum verification.");
       const digest = createHash("sha256");
@@ -216,6 +217,23 @@ export async function censusAndClassify(client: BackfillClient, plan: Production
     else states.push({ entry, state: "unchanged" });
   }
   if (expected.size) throw new Error("Approved source rows are missing from the production census.");
+  const excluded = plan.entries.filter((entry) => entry.status === "excluded");
+  if (excluded.length) {
+    const result = await client.query(
+      'SELECT li.id, li."listingId", l.status::text AS "listingStatus", l."reviewState"::text AS "reviewState" FROM public."ListingImage" li JOIN public."Listing" l ON l.id = li."listingId" WHERE li.id = ANY($1::text[]) ORDER BY li.id',
+      [excluded.map((entry) => entry.source.id)],
+    );
+    if (result.rows.length !== excluded.length) throw new Error("A reviewed ADMIN_PREVIEW source row no longer has its approved parent listing.");
+    const currentListings = new Map(result.rows.map((row) => [String(row.id), row]));
+    for (const entry of excluded) {
+      const proof = entry.exclusionProof;
+      const currentListing = currentListings.get(entry.source.id);
+      if (!proof || proof.reason !== "reviewed-unpublished-admin-preview" || !currentListing ||
+        String(currentListing.listingId) !== proof.listingId || String(currentListing.listingStatus) !== "ADMIN_PREVIEW" || String(currentListing.reviewState) !== "NONE") {
+        throw new Error("A reviewed ADMIN_PREVIEW exclusion changed eligibility after planning.");
+      }
+    }
+  }
   return states;
 }
 
@@ -229,7 +247,11 @@ export async function executeProductionBackfillTransaction(client: BackfillClien
     await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE"); began = true;
     await client.query("SET LOCAL statement_timeout = '30000ms'");
     await client.query("SET LOCAL lock_timeout = '10000ms'");
-    await client.query('LOCK TABLE public."ListingImage", public."ListingRevisionImage" IN SHARE ROW EXCLUSIVE MODE');
+    if (plan.counts.excluded > 0) {
+      await client.query('LOCK TABLE public."Listing", public."ListingImage", public."ListingRevisionImage" IN SHARE ROW EXCLUSIVE MODE');
+    } else {
+      await client.query('LOCK TABLE public."ListingImage", public."ListingRevisionImage" IN SHARE ROW EXCLUSIVE MODE');
+    }
     const states = await censusAndClassify(client, plan);
     const pending = states.filter((state) => state.state === "pending").map((state) => state.entry);
     const updated: string[] = [];
