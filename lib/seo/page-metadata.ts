@@ -65,6 +65,9 @@ export function publicPageMetadata(input: {
     alternates: { canonical },
     robots: resolvePageRobots(input.index !== false, input.follow !== false, input.env, input.now),
     openGraph: {
+      type: "website",
+      siteName: "itrader.im",
+      locale: "en_GB",
       ...(input.title ? { title: input.title } : {}),
       description: input.description,
       url: canonical,
@@ -74,7 +77,7 @@ export function publicPageMetadata(input: {
       card: "summary_large_image",
       ...(input.title ? { title: input.title } : {}),
       description: input.description,
-      ...(image ? { images: [image.url] } : {}),
+      ...(image ? { images: [{ url: image.url, alt: image.alt }] } : {}),
     },
   };
 }

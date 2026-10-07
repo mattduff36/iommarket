@@ -23,7 +23,8 @@ import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { JsonLd } from "@/components/seo/json-ld";
 import { buildSiteIdentityJsonLd } from "@/lib/seo/listing-json-ld";
-import { buildCanonicalUrl, getCanonicalBaseUrl } from "@/lib/seo/structured-data";
+import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import {
   getMarketplaceDealerSpotlightQuery,
@@ -43,7 +44,12 @@ function shuffleListings<T>(items: T[]): T[] {
 }
 
 export const metadata: Metadata = {
-  alternates: { canonical: buildCanonicalUrl("/") },
+  ...publicPageMetadata({
+    title: "iTrader.im – Isle of Man Vehicle Sales",
+    description: "Buy and sell cars, vans, motorbikes, and motorhomes on the Isle of Man.",
+    path: "/",
+  }),
+  title: { absolute: "iTrader.im – Isle of Man Vehicle Sales" },
 };
 
 export default async function HomePage() {

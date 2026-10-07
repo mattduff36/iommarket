@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { buildCanonicalUrl } from "@/lib/seo/structured-data";
+import { publicPageMetadata } from "@/lib/seo/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "Buyer Safety",
   description: "Safety guidance for buyers and sellers on iTrader.im.",
-  alternates: { canonical: buildCanonicalUrl("/safety") },
-};
+  path: "/safety",
+});
 
 export default function SafetyPage() {
   return (

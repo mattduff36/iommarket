@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   AdminActionQueue,
@@ -86,7 +86,29 @@ describe("AdminActionQueue", () => {
     expect(reviewsCard?.className).not.toContain("border-neon-red-500/30");
     expect(reviewsCard?.className).not.toContain("bg-premium-gold-500/10");
     expect(reviewsCard?.className).not.toContain("bg-neon-red-500/10");
-    expect(screen.getByText("2").className).toContain("text-premium-gold-400");
-    expect(screen.getByText("3").className).toContain("text-neon-red-400");
+    expect(screen.getAllByText("2").find((element) => element.className.includes("text-premium-gold-400"))?.className).toContain("text-premium-gold-400");
+    expect(screen.getAllByText("3").find((element) => element.className.includes("text-neon-red-400"))?.className).toContain("text-neon-red-400");
+  });
+});
+
+ describe("mobile action queue", () => {
+  it("starts collapsed and reuses one panel for the last selected queue", () => {
+    render(<AdminActionQueue items={buildAdminActionQueueItems({...EMPTY_COUNTS, openMonitoringIssues:40})} />);
+    const buttons=screen.getAllByRole("button");
+    expect(buttons).toHaveLength(5);
+    const panel=document.getElementById(buttons[0].getAttribute("aria-controls")!);
+    expect(panel?.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.queryByRole("link", {name:"Open listings queue"})).toBeNull();
+    fireEvent.click(buttons[0]);
+    expect(panel?.getAttribute("aria-hidden")).toBe("false");
+    expect(screen.getByRole("link", {name:"Open listings queue"}).getAttribute("href")).toBe(EXPECTED_HREFS[0]);
+    fireEvent.click(buttons[4]);
+    expect(document.getElementById(buttons[4].getAttribute("aria-controls")!)).toBe(panel);
+    expect(screen.queryByRole("link", {name:"Open listings queue"})).toBeNull();
+    expect(screen.getByRole("link", {name:"Open issues queue"}).getAttribute("href")).toBe(EXPECTED_HREFS[4]);
+    expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
+    expect(buttons[4].getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(buttons[4]);
+    expect(panel?.getAttribute("aria-hidden")).toBe("false");
   });
 });
