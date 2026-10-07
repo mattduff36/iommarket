@@ -126,6 +126,8 @@ describe("favicon package", () => {
       const frameMetadata = await sharp(frame).metadata();
       expect(frameMetadata.width).toBe(size);
       expect(frameMetadata.height).toBe(size);
+      expect(frameMetadata.channels).toBe(4);
+      expect(frameMetadata.hasAlpha).toBe(true);
       await expectSamePixels(await resizedMaster(size), frame);
     }
   });

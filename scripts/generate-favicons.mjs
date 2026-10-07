@@ -9,7 +9,10 @@ const save = (path, data) => writeFile(new URL(path, root), data);
 
 // PNG-compressed ICO frames retain the approved artwork at every browser size.
 const sizes = [16, 32, 48, 64, 128, 256];
-const frames = await Promise.all(sizes.map(png));
+// Next.js/Turbopack requires RGBA PNG frames inside the 32-bit ICO container.
+const frames = await Promise.all(sizes.map(async (size) =>
+  sharp(await png(size)).ensureAlpha().png().toBuffer(),
+));
 const header = Buffer.alloc(6 + sizes.length * 16);
 header.writeUInt16LE(1, 2);
 header.writeUInt16LE(sizes.length, 4);

@@ -146,6 +146,7 @@ export function CreateListingForm({
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(
     () => initialDraft?.images.map(toUploadedImage) ?? [],
   );
+  const [photoUploadsBusy, setPhotoUploadsBusy] = useState(false);
   const [, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
   const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
@@ -311,6 +312,10 @@ export function CreateListingForm({
   }
 
   function nextStep() {
+    if (step === 2 && photoUploadsBusy) {
+      setError("Please wait for all photo uploads to finish before continuing.");
+      return;
+    }
     if (step === 1) {
       const detailsValidation = validateListingDetailsStep({
         selectedCategoryId,
@@ -350,6 +355,11 @@ export function CreateListingForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!tryBeginSubmitFlight(submitFlightRef)) {
+      return;
+    }
+    if (photoUploadsBusy) {
+      setError("Please wait for all photo uploads to finish before submitting.");
+      releaseSubmitFlight(submitFlightRef);
       return;
     }
     setError(null);
@@ -672,6 +682,7 @@ export function CreateListingForm({
               <ImageUpload
                 images={uploadedImages}
                 onImagesChange={setUploadedImages}
+                onBusyChange={setPhotoUploadsBusy}
                 maxImages={maxImages}
               />
           </div>
@@ -757,11 +768,23 @@ export function CreateListingForm({
               </Button>
             ) : null}
             {step < 3 ? (
-              <Button type="button" size="lg" className="w-full" onClick={nextStep}>
+              <Button
+                type="button"
+                size="lg"
+                className="w-full"
+                onClick={nextStep}
+                disabled={step === 2 && photoUploadsBusy}
+              >
                 Continue
               </Button>
             ) : (
-              <Button type="submit" size="lg" className="w-full" loading={isPending}>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                loading={isPending}
+                disabled={isPending || photoUploadsBusy}
+              >
                 {editMode === "revision"
                   ? "Submit changes for review"
                   : editMode === "resubmit"
