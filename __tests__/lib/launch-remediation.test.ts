@@ -17,6 +17,8 @@ import { acceptedAuthHttpStatus } from "@/lib/policy/gate";
 import { InsufficientPermissionsError } from "@/lib/auth";
 import { classifyLaunchEnvironment } from "@/lib/ops/production-env-contract";
 import { RIPPLE_CANONICAL_PRODUCTS } from "@/lib/payments/ripple-config";
+import { metadata as homeMetadata } from "@/app/(public)/page";
+import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
 const NOW = Date.parse("2026-09-22T09:00:00.000Z");
@@ -187,9 +189,7 @@ describe("launch gate", () => {
     const layout = readFileSync(resolve(process.cwd(), "app/layout.tsx"), "utf8");
     expect(layout).not.toContain("maximumScale");
     expect(layout).not.toContain("userScalable");
-    expect(readFileSync(resolve(process.cwd(), "app/(public)/page.tsx"), "utf8")).toContain(
-      'canonical: buildCanonicalUrl("/")',
-    );
+    expect(homeMetadata.alternates?.canonical).toBe(buildCanonicalUrl("/"));
     expect(readFileSync(resolve(process.cwd(), "app/(public)/demo/payments/page.tsx"), "utf8")).toContain(
       'process.env.VERCEL_ENV === "production"',
     );

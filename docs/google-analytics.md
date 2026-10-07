@@ -28,3 +28,21 @@ The dashboard uses the Google Analytics Data API to read users, page views, the 
 The server requests only the `analytics.readonly` OAuth scope, does not send credentials to the browser, and times out report calls. A successful empty report is shown separately from missing credentials or a failed API request. A newly configured property may report no data until consented production visits have been processed.
 
 Example variable names and placeholders are in [`.env.example`](../.env.example). Never put the real service-account key in source control or client-side environment variables.
+
+## Cursor development access
+
+Google's official Analytics MCP (`analytics-mcp`) is installed on this development machine for Cursor only. It gives a Cursor chat read-only access to GA4 property `557226172` for ad-hoc questions about traffic, realtime activity, events, funnels, acquisition, devices, locations, Google Ads links, and whether events arrived after a deployment.
+
+This does not replace consent-gated browser tracking, `/admin/analytics`, `lib/analytics/google-analytics.ts`, or database business metrics. It is not an application dependency, and it is not part of the Vercel deployment.
+
+Cursor starts the pipx-installed server from the gitignored project file `.cursor/mcp.json`. That file is project-scoped so the server is not offered in other Cursor workspaces. Authentication is Application Default Credentials for the existing `itrader-analytics` service account. The credential file stays outside this repository, and the MCP process requests only `https://www.googleapis.com/auth/analytics.readonly`. The server's tools are read methods. It cannot create or edit GA4 configuration.
+
+The Data API and [Google Analytics Admin API](https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com?project=itrader-analytics) are enabled on the `itrader-analytics` Cloud project. After the owner enabled the Admin API on 7 October 2026, a fresh MCP session successfully listed the account, read property `557226172`, listed Google Ads links (none), and returned standard and realtime reports. The account summary confirmed `can_edit: false`; no new key or elevated GA4 role was needed. These checks used Cursor's configured server executable and credentials directly; they did not verify an existing Cursor chat's cached connection.
+
+Useful prompts:
+
+- What were iTrader's users and page views on property 557226172 over the last 7 days?
+- Show the most common GA4 events for iTrader over the last 7 days.
+- Who is active on iTrader right now?
+- Run a funnel for `listing_submitted`, `checkout_started`, and `checkout_completed` over the last 28 days.
+- Which custom dimensions and metrics exist on property 557226172?

@@ -68,6 +68,17 @@ describe("search metadata robots", () => {
 
     expect(metadata.robots).toEqual({ index: true, follow: true });
     expect(metadata.title).toBe("Cars for sale");
+    expect(metadata.openGraph).toMatchObject({
+      type: "website",
+      siteName: "itrader.im",
+      locale: "en_GB",
+      title: "Cars for sale",
+      url: buildCanonicalUrl("/search?category=car"),
+    });
+    expect(metadata.twitter).toMatchObject({
+      card: "summary_large_image",
+      images: [{ url: "/og/itrader-social.png?v=official-20261003", alt: "iTrader.im, the Isle of Man vehicle marketplace" }],
+    });
     expect(metadata.alternates?.canonical).toBe(
       buildCanonicalUrl("/search?category=car"),
     );

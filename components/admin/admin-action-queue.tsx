@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CardOverlayLink } from "@/components/ui/card-overlay-link";
 import { cn } from "@/lib/cn";
+import { AdminActionQueueMobile } from "./admin-action-queue-mobile";
 
 export type AdminActionQueueTone = "warning" | "error";
 
@@ -97,7 +98,9 @@ export function buildAdminActionQueueItems(
 
 export function AdminActionQueue({ items }: { items: AdminActionQueueItem[] }) {
   return (
-    <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <>
+    <AdminActionQueueMobile items={items.map(({ href, label, count, subtitle, tone }) => ({ href, label, count, subtitle, tone }))} />
+    <div className="mb-6 hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {items.map((item) => {
         const Icon = item.icon;
         const needsAction = item.count > 0;
@@ -144,5 +147,6 @@ export function AdminActionQueue({ items }: { items: AdminActionQueueItem[] }) {
         );
       })}
     </div>
+    </>
   );
 }

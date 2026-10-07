@@ -9,8 +9,12 @@ MCP servers extend Cursor's capabilities by providing access to external tools a
 ## Configuration Location
 
 The MCP config file is located at:
-- **Project-level**: `.cursor/mcp.json` (in this repo)
+- **Project-level**: `.cursor/mcp.json` (in this repo, gitignored)
 - **Global**: `~/.cursor/mcp.json` (applies to all projects)
+
+### Google Analytics (this machine only)
+
+The official `analytics-mcp` server is configured in the project MCP file so Cursor can query iTrader's GA4 property during development. It is read-only, uses a service-account credential stored outside the repository, and is not part of the Next.js app or Vercel deployment. See [google-analytics.md](google-analytics.md#cursor-development-access).
 
 ## Included Servers
 
