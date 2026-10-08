@@ -145,13 +145,7 @@ describe("createListingSchema", () => {
     },
   );
 
-  it("LST-ATTR-ID-001 keeps entity IDs CUID-only", () => {
-    expect(
-      createListingSchema.safeParse({
-        ...validInput,
-        categoryId: "attr_writeoff_cmn3oefbu0001twzjvgysi1k5",
-      }).success,
-    ).toBe(false);
+  it("keeps region and listing entity IDs CUID-only", () => {
     expect(
       createListingSchema.safeParse({
         ...validInput,
@@ -165,6 +159,36 @@ describe("createListingSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("accepts the opaque Motorhomes ID created by the category migration for create and update", () => {
+    const motorhomeCategoryId = "motorhome_a96c2e2c9bc030d3e6d3";
+
+    expect(
+      createListingSchema.safeParse({
+        ...validInput,
+        categoryId: `  ${motorhomeCategoryId}  `,
+      }),
+    ).toMatchObject({ success: true, data: { categoryId: motorhomeCategoryId } });
+    expect(
+      updateListingSchema.safeParse({
+        id: "cllisting123456789012345678",
+        categoryId: `  ${motorhomeCategoryId}  `,
+      }),
+    ).toMatchObject({ success: true, data: { categoryId: motorhomeCategoryId } });
+  });
+
+  it.each(["", "   ", "x".repeat(101)])(
+    "rejects invalid category ID %j",
+    (categoryId) => {
+      expect(createListingSchema.safeParse({ ...validInput, categoryId }).success).toBe(false);
+      expect(
+        updateListingSchema.safeParse({
+          id: "cllisting123456789012345678",
+          categoryId,
+        }).success,
+      ).toBe(false);
+    },
+  );
 
   it("requires the expanded listing declarations POL-LIST-001", () => {
     const result = createListingSchema.safeParse({

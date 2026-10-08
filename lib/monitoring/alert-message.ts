@@ -2,7 +2,11 @@ import { explainMonitoringAlert } from "./plain-alert";
 import type { MonitoringSeverity } from "./types";
 
 export function normaliseAlertSubject(subject: string): string {
-  return subject.replace(/[\r\n\t]+/g, " ").replace(/ {2,}/g, " ").trim().slice(0, 300);
+  const singleLine = subject.replace(/[\r\n\t]+/g, " ").replace(/ {2,}/g, " ").trim();
+  const prefixed = /^\[monitoring\]/i.test(singleLine)
+    ? singleLine.replace(/^\[monitoring\]/i, "[Monitoring]")
+    : `[Monitoring] ${singleLine}`;
+  return prefixed.slice(0, 300);
 }
 
 interface AlertCopyInput {
