@@ -14,7 +14,6 @@ import {
   LAUNCH_GATE_COOKIE,
   verifyLaunchGateCookie,
 } from "@/lib/launch/session";
-import { resolvePreviewAccessPath } from "@/lib/preview-access";
 import {
   hasConfirmedSupabaseSession,
   hasSupabaseAuthCookie,
@@ -36,7 +35,6 @@ export function isPublicPath(pathname: string): boolean {
     pathname === "/forgot-password" ||
     pathname === "/auth/callback" ||
     pathname === "/early-access" ||
-    pathname === "/preview" ||
     pathname.startsWith("/dealer/onboarding")
   ) {
     return true;
@@ -147,14 +145,6 @@ async function routeProxy(request: NextRequest) {
       clearCheckoutRouting(response);
       return response;
     }
-    return NextResponse.next();
-  }
-
-  const previewAccess = resolvePreviewAccessPath(pathname);
-  if (previewAccess?.action === "redirect") {
-    return NextResponse.redirect(new URL(previewAccess.to, request.url));
-  }
-  if (previewAccess?.action === "allow") {
     return NextResponse.next();
   }
 

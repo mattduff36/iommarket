@@ -3,6 +3,17 @@ import { NextRequest } from "next/server";
 import { retiredPreviewResponse } from "@/lib/deployment/retired-preview";
 
 describe("retired preview hostname", () => {
+  it.each(["/preview", "/preview/", "/dev", "/dev/auth"])("retires obsolete access URL %s without a login redirect", async (path) => {
+    for (const environment of ["production", "preview"]) {
+      const response = retiredPreviewResponse(new NextRequest(`https://itrader.im${path}?next=/admin`), { VERCEL_ENV: environment });
+      expect(response?.status).toBe(404);
+      expect(response?.headers.get("location")).toBeNull();
+      expect(await response?.text()).not.toContain('type="password"');
+    }
+  });
+  it.each(["/staging-access", "/sign-in", "/api/dev-auth", "/api/webhooks/ripple"])("preserves current access and payment routes %s", (path) => {
+    expect(retiredPreviewResponse(new NextRequest(`https://itrader.dev${path}`), { VERCEL_ENV: "preview" })).toBeNull();
+  });
   it.each(["/", "/listings/old", "/robots.txt", "/api/me", "/_next/static/test.js"])("returns a branded true 404 for %s", async (path) => {
     const response = retiredPreviewResponse(new NextRequest(`https://preview.itrader.im${path}`), { VERCEL_ENV: "production" });
     expect(response?.status).toBe(404);
