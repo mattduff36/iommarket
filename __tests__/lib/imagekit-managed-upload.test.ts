@@ -90,6 +90,17 @@ describe("managed ImageKit intent lifecycle", () => {
     expect(mocks.upload).not.toHaveBeenCalled();
   });
 
+  it("accepts matching PNG dimensions and rejects a changed edge", async () => {
+    const pngPath = rawPath.replace(".jpg", ".png");
+    mocks.find.mockResolvedValue({ ...intent, format: "png", imageKitFilePath: pngPath });
+    mocks.details.mockResolvedValue({ fileId: "raw-file", filePath: pngPath, size: 6, width: 1200, height: 800 });
+    mocks.clean.mockResolvedValue({ bytes: Buffer.from("clean"), width: 1200, height: 800, format: "png", bytesLength: 5 });
+    await expect(finalizeManagedImageKitUpload(request)).resolves.toMatchObject({ status: "VERIFIED", format: "png", width: 1200, height: 800 });
+    mocks.clean.mockResolvedValue({ bytes: Buffer.from("clean"), width: 1199, height: 800, format: "png", bytesLength: 5 });
+    await expect(finalizeManagedImageKitUpload(request)).rejects.toThrow(/do not agree/);
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a raw file with a different authoritative size", async () => {
     mocks.details.mockResolvedValue({ size: 7 });
     await expect(finalizeManagedImageKitUpload(request)).rejects.toThrow(/size/);

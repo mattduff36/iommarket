@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { finalizeManagedImageKitUpload } from "@/lib/media/managed-upload";
+import { publicImageVerificationError } from "@/lib/media/verification-error";
 import { imageRecordFromIntent } from "@/lib/media/stored-image";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
@@ -38,8 +39,8 @@ export async function POST(request: NextRequest) {
       ...stored, uploadIntentId: intent.id, version: intent.version,
       width: intent.width, height: intent.height, format: intent.format, bytes: intent.bytes,
     } });
-  } catch {
+  } catch (error) {
     // Provider errors can contain private paths. Never echo raw provider responses or signed URLs.
-    return reply({ error: "The image could not be verified. Check its format and size, then try again." }, 400);
+    return reply({ error: publicImageVerificationError(error) }, 400);
   }
 }

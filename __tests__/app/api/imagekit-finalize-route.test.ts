@@ -41,6 +41,15 @@ describe("managed ImageKit finalize route", () => {
   it("does not echo private provider errors", async () => {
     m.finalize.mockRejectedValue(new Error("https://ik.imagekit.io/private?token=secret"));
     const response = await POST(request());
-    expect(response.status).toBe(400); expect(await response.text()).not.toContain("secret");
+    expect(response.status).toBe(400);
+    const body = await response.text();
+    expect(body).not.toContain("secret");
+    expect(body).toContain("could not be verified");
+  });
+  it("returns the pixel-size reason for an undersized image without provider details", async () => {
+    m.finalize.mockRejectedValue(new Error("Images must be at least 800×480px."));
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Images must be at least 800×480px." });
   });
 });
