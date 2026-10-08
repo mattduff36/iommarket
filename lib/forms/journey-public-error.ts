@@ -14,11 +14,6 @@ export const JOURNEY_UNKNOWN_DESTRUCTIVE =
   "We couldn't confirm that this change finished. Check the recorded result before trying again.";
 export const JOURNEY_READ_FAILURE =
   "We couldn't load this just now. Try again shortly.";
-export const TRANSPORT_AMBIGUOUS =
-  "We couldn't tell whether that finished. Check your connection, then check the result before trying again.";
-export const TRANSPORT_OFFLINE_HINT =
-  "Your browser reports that you are offline. We couldn't tell whether that finished. Check the result before trying again.";
-
 export type JourneyKind = "read" | "write" | "destructive";
 
 export function acceptedPublicSentence(
@@ -48,23 +43,6 @@ export function journeyFallback(kind: JourneyKind): {
     return { message: JOURNEY_UNKNOWN_DESTRUCTIVE, code: "unknown", retryable: false };
   }
   return { message: JOURNEY_UNKNOWN_WRITE, code: "unknown", retryable: false };
-}
-
-export function isTransportFailure(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return (
-    error.name === "TypeError" ||
-    error.name === "AbortError" ||
-    error.name === "TimeoutError" ||
-    /failed to fetch|networkerror|timeout|aborted/i.test(error.message)
-  );
-}
-
-/** Browser online status is only a hint. A transport failure never claims the write succeeded or failed. */
-export function transportPublicMessage(error: unknown, onlineHint?: boolean): string | null {
-  if (!isTransportFailure(error)) return null;
-  if (onlineHint === false) return TRANSPORT_OFFLINE_HINT;
-  return TRANSPORT_AMBIGUOUS;
 }
 
 export async function journeyUnknownResult(input: {

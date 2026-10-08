@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
-import { transportPublicMessage } from "@/lib/forms/journey-public-error";
+import { transportPublicMessage } from "@/lib/forms/transport-public-error";
 import { Input } from "@/components/ui/input";
 import {
   firstFieldError,

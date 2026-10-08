@@ -1,10 +1,10 @@
+import { transportPublicMessage } from "@/lib/forms/transport-public-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CancellationError } from "@/lib/policy/cancellation";
 import { ListingLifecycleError } from "@/lib/listings/errors";
 import {
   JOURNEY_UNKNOWN_DESTRUCTIVE,
   journeyUnknownResult,
-  transportPublicMessage,
 } from "@/lib/forms/journey-public-error";
 import { cancellationPublicMessage } from "@/lib/forms/known-domain-messages";
 import { lifecyclePublicMessage } from "@/lib/listings/lifecycle-public-error";
