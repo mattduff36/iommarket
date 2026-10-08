@@ -32,7 +32,8 @@ export const listingDetailsSchema = z.object({
     .int("Price must be a whole number (in pence)")
     .min(100, "Minimum price is £1")
     .max(100_000_000, "Maximum price is £1,000,000"),
-  categoryId: z.string().cuid("Invalid category"),
+  // Migrated categories can have non-CUID IDs; actions verify category existence and availability.
+  categoryId: z.string().trim().min(1, "Invalid category").max(100, "Invalid category"),
   regionId: z.string().cuid("Invalid region"),
   trustDeclarationAccepted: z
     .boolean()

@@ -5,6 +5,7 @@ import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FUEL_TYPE_OPTIONS } from "@/lib/constants/fuel-types";
+import { createListingSchema } from "@/lib/validations/listing";
 
 const { pushMock, replaceMock } = vi.hoisted(() => ({
   pushMock: vi.fn(),
@@ -1822,6 +1823,128 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
         disconnect() {}
       },
     );
+  });
+
+  it("LST-CAT-OPAQUE-001 submits a migrated Motorhomes category with manual vehicle details", async () => {
+    const motorhomeCategoryId = "motorhome_a96c2e2c9bc030d3e6d3";
+    const motorhomeAttributes = [
+      {
+        id: "motorhome_attr_make",
+        name: "Make",
+        slug: "make",
+        dataType: "text",
+        required: true,
+        options: null,
+      },
+      {
+        id: "motorhome_attr_model",
+        name: "Model",
+        slug: "model",
+        dataType: "text",
+        required: true,
+        options: null,
+      },
+      {
+        id: "motorhome_attr_year",
+        name: "Year",
+        slug: "year",
+        dataType: "number",
+        required: true,
+        options: null,
+      },
+      {
+        id: "motorhome_attr_mileage",
+        name: "Mileage",
+        slug: "mileage",
+        dataType: "number",
+        required: true,
+        options: null,
+      },
+      {
+        id: "motorhome_attr_write_off",
+        name: "Insurance write-off category",
+        slug: "write-off-category",
+        dataType: "select",
+        required: false,
+        options: JSON.stringify(["None", "Category N", "Category S"]),
+      },
+    ];
+    const migrationFormatCategories = [
+      ...categories,
+      {
+        id: motorhomeCategoryId,
+        name: "Motorhomes",
+        slug: "motorhome",
+        attributes: motorhomeAttributes,
+      },
+    ];
+    vi.mocked(createListing).mockResolvedValue({
+      data: { id: "listing-motorhome" },
+    } as Awaited<ReturnType<typeof createListing>>);
+    vi.mocked(syncListingImages).mockResolvedValue({
+      data: { count: 2, photoRevision: 1 },
+    } as Awaited<ReturnType<typeof syncListingImages>>);
+    render(
+      <CreateListingForm
+        categories={migrationFormatCategories}
+        regions={[{ id: "clx1234567890123456789012", name: "IOM Central" }]}
+        mode="dealer"
+        enforceListingNs
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Motorhomes" }));
+    fireEvent.change(screen.getByLabelText(/^Title/), {
+      target: { value: "2019 Auto-Trail Expedition" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Description/), {
+      target: {
+        value:
+          "A well-kept motorhome with a full service history and recent habitation check.",
+      },
+    });
+    fireEvent.change(screen.getByLabelText(/^Price \(£\)/), {
+      target: { value: "45000" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Region/), {
+      target: { value: "clx1234567890123456789012" },
+    });
+    fireEvent.change(screen.getByLabelText(/Make/i), {
+      target: { value: "Auto-Trail" },
+    });
+    fireEvent.change(screen.getByLabelText(/Model/i), {
+      target: { value: "Expedition" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Year/i), {
+      target: { value: "2019" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Mileage/i), {
+      target: { value: "28000" },
+    });
+    fireEvent.change(screen.getByLabelText(/Insurance write-off category/i), {
+      target: { value: "None" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit Listing" }));
+
+    await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1));
+    const submittedPayload = vi.mocked(createListing).mock.calls[0][0];
+    expect(submittedPayload.categoryId).toBe(motorhomeCategoryId);
+    expect(createListingSchema.safeParse(submittedPayload).success).toBe(true);
+    expect(submittedPayload.attributes).toEqual(
+      expect.arrayContaining([
+        { attributeDefinitionId: "motorhome_attr_make", value: "Auto-Trail" },
+        { attributeDefinitionId: "motorhome_attr_model", value: "Expedition" },
+        { attributeDefinitionId: "motorhome_attr_year", value: "2019" },
+        { attributeDefinitionId: "motorhome_attr_mileage", value: "28000" },
+        { attributeDefinitionId: "motorhome_attr_write_off", value: "None" },
+      ]),
+    );
+    expect(syncListingImages).toHaveBeenCalledTimes(1);
   });
 
   it("LST-VAL-001 keeps step 1 Continue on shared attribute validation errors", () => {

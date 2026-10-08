@@ -342,6 +342,8 @@ export async function updateListing(input: unknown) {
     const category = await db.category.findUnique({
       where: { id: data.categoryId ?? existing.categoryId },
       select: {
+        id: true,
+        active: true,
         slug: true,
         attributeDefinitions: {
           select: {
@@ -356,7 +358,7 @@ export async function updateListing(input: unknown) {
       },
     });
 
-    if (!category) {
+    if (!category || (!category.active && category.id !== existing.categoryId)) {
       return { error: { categoryId: ["Invalid category."] } };
     }
 

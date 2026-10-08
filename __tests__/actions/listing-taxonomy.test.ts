@@ -6,7 +6,13 @@ const { requireAcceptedAuthMock, checkRateLimitMock, mockDb } = vi.hoisted(() =>
   mockDb: {
     category: { findUnique: vi.fn() },
     region: { findUnique: vi.fn() },
-    listing: { create: vi.fn(), count: vi.fn() },
+    listing: {
+      create: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    listingAttributeValue: { deleteMany: vi.fn(), createMany: vi.fn() },
     listingStatusEvent: { create: vi.fn() },
     subscription: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),
@@ -73,6 +79,10 @@ describe("createListing taxonomy ALR-TAX-001", () => {
       ...validInput,
       status: "DRAFT",
     });
+    mockDb.listing.update.mockResolvedValue({
+      id: "cllisting123456789012345678",
+      status: "DRAFT",
+    });
     mockDb.listingStatusEvent.create.mockResolvedValue({ id: "event-1" });
   });
 
@@ -82,6 +92,11 @@ describe("createListing taxonomy ALR-TAX-001", () => {
     await expect(createListing(validInput)).resolves.toEqual({
       error: { categoryId: ["Invalid or inactive category."] },
     });
+    expect(mockDb.category.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: validInput.categoryId, active: true },
+      }),
+    );
     expect(mockDb.listing.create).not.toHaveBeenCalled();
 
     mockDb.category.findUnique.mockResolvedValue({
@@ -92,6 +107,74 @@ describe("createListing taxonomy ALR-TAX-001", () => {
     await expect(createListing(validInput)).resolves.toEqual({
       error: { regionId: ["Invalid or inactive region."] },
     });
+  });
+
+  it("accepts the migrated Motorhomes ID and keeps create and update category checks in the database", async () => {
+    const motorhomeCategoryId = "motorhome_a96c2e2c9bc030d3e6d3";
+    mockDb.category.findUnique.mockResolvedValue({
+      slug: "motorhome",
+      attributeDefinitions: [],
+    });
+
+    const { createListing, updateListing } = await import("@/actions/listings");
+    await expect(
+      createListing({ ...validInput, categoryId: motorhomeCategoryId }),
+    ).resolves.toMatchObject({ data: { id: "cllisting123456789012345678" } });
+    expect(mockDb.category.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: motorhomeCategoryId, active: true },
+      }),
+    );
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "cllisting123456789012345678",
+      userId: "user-1",
+      categoryId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+      status: "DRAFT",
+      trustDeclarationAcceptedAt: null,
+      lifecycleRevision: 0,
+    });
+    mockDb.category.findUnique.mockResolvedValue(null);
+    await expect(
+      updateListing({
+        id: "cllisting123456789012345678",
+        categoryId: motorhomeCategoryId,
+        attributes: [],
+      }),
+    ).resolves.toEqual({ error: { categoryId: ["Invalid category."] } });
+    expect(mockDb.category.findUnique).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: motorhomeCategoryId } }),
+    );
+
+    mockDb.category.findUnique.mockResolvedValue({
+      id: motorhomeCategoryId,
+      active: false,
+      slug: "motorhome",
+      attributeDefinitions: [],
+    });
+    await expect(
+      updateListing({
+        id: "cllisting123456789012345678",
+        categoryId: motorhomeCategoryId,
+        attributes: [],
+      }),
+    ).resolves.toEqual({ error: { categoryId: ["Invalid category."] } });
+
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "cllisting123456789012345678",
+      userId: "user-1",
+      categoryId: motorhomeCategoryId,
+      status: "DRAFT",
+      trustDeclarationAcceptedAt: null,
+      lifecycleRevision: 0,
+    });
+    await expect(
+      updateListing({
+        id: "cllisting123456789012345678",
+        categoryId: motorhomeCategoryId,
+        attributes: [],
+      }),
+    ).resolves.toMatchObject({ data: { id: "cllisting123456789012345678" } });
   });
 
   it("LST-ATTR-SCOPE-001 persists a deterministic known ID and drops unknown IDs", async () => {

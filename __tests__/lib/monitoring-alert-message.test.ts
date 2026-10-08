@@ -8,6 +8,15 @@ const emailTaken = [
 ].join("\n");
 
 describe("monitoring alert subjects", () => {
+  it.each(["Smaller issues from iTrader", "Monitoring check passed"])(
+    "prefixes every monitoring email, including %s",
+    (subject) => {
+      const email = buildMonitoringAlertEmail({ subject, text: "Monitoring update" });
+      expect(email.subject).toBe(`[Monitoring] ${subject}`);
+      expect(normaliseAlertSubject(email.subject)).toBe(email.subject);
+    },
+  );
+
   it("turns a known database failure into one plain subject line", () => {
     const title = "Invalid `prisma.dealerUpgradeAcceptance.deleteMany()` invocation:\n\nDatabase error.";
 

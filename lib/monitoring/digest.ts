@@ -24,7 +24,12 @@ export async function sendMonitoringDigest(now = new Date()) {
   const events = severities.length === 0
     ? []
     : await db.monitoringEvent.findMany({
-        where: { occurredAt: { gt: since }, severity: { in: severities } },
+        where: {
+          occurredAt: { gt: since },
+          severity: { in: severities },
+          issue: { status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+          message: { not: "monitoring-canary" },
+        },
         orderBy: { occurredAt: "desc" },
         take: 100,
         select: {
@@ -47,7 +52,14 @@ export async function sendMonitoringDigest(now = new Date()) {
   }
 
   const appUrl = monitoringAppUrl();
-  const lines = events.slice(0, 20).map((event) => {
+  // Events are newest first: keep the latest example for each distinct issue.
+  const seen = new Set<string>();
+  const issues = events.filter((event) => {
+    if (seen.has(event.issue.id)) return false;
+    seen.add(event.issue.id);
+    return true;
+  });
+  const lines = issues.slice(0, 20).map((event) => {
     const plain = explainMonitoringAlert({
       title: event.issue.title,
       message: event.message,
@@ -60,7 +72,8 @@ export async function sendMonitoringDigest(now = new Date()) {
     return `- ${plain.summary} ${appUrl}/admin/monitoring/${event.issue.id}`;
   });
   const text = [
-    `Here are ${events.length} smaller issue${events.length === 1 ? "" : "s"} since ${formatDigestWhen(since)}. Each one was too small for its own email.`,
+    `Here are ${issues.length} distinct smaller issue${issues.length === 1 ? "" : "s"} since ${formatDigestWhen(since)}. Each one was too small for its own email.`,
+    ...(issues.length > 20 ? ["Showing the 20 most recently active issues below."] : []),
     "",
     ...lines,
     "",
@@ -73,6 +86,7 @@ export async function sendMonitoringDigest(now = new Date()) {
       app: "iommarket",
       type: "monitoring_digest",
       eventCount: events.length,
+      issueCount: issues.length,
       adminUrl: `${appUrl}/admin/monitoring`,
     },
   };
