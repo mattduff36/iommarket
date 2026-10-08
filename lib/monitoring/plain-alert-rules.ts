@@ -104,10 +104,42 @@ function accountRules(ctx: PlainAlertContext): PlainAlertMatch | null {
 }
 
 function paymentRules(ctx: PlainAlertContext): PlainAlertMatch | null {
-  if (/webhook rejected|failed HMAC|envelope checks/i.test(ctx.text)) {
+  if (/failed currency validation/i.test(ctx.text)) {
+    return {
+      problem: "Payment notice rejected",
+      detail: "currency field was missing or unsupported (including malformed)",
+      summary:
+        "A payment notice was turned away because the currency field was missing or unsupported (including malformed).",
+      check: "that payment notice",
+      impact: "The site is still up.",
+    };
+  }
+  const combinedLegacyReject = /envelope checks/i.test(ctx.text);
+  if (
+    /failed the signature check/i.test(ctx.text) ||
+    (/failed HMAC/i.test(ctx.text) && !combinedLegacyReject)
+  ) {
     return {
       problem: "Payment notice rejected",
       summary: "A payment notice was turned away because it failed a security check.",
+      check: "that payment notice",
+      impact: "The site is still up.",
+    };
+  }
+  if (/failed payload validation/i.test(ctx.text)) {
+    return {
+      problem: "Payment notice rejected",
+      detail: "details were not valid",
+      summary: "A payment notice was turned away because its details were not valid.",
+      check: "that payment notice",
+      impact: "The site is still up.",
+    };
+  }
+  if (/webhook rejected|envelope checks/i.test(ctx.text)) {
+    return {
+      problem: "Payment notice rejected",
+      detail: "invalid notice",
+      summary: "A payment notice was turned away because it was an invalid notice.",
       check: "that payment notice",
       impact: "The site is still up.",
     };

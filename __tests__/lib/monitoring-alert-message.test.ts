@@ -79,6 +79,91 @@ describe("monitoring alert subjects", () => {
     expect(email.html).toContain(">Open this issue</a>");
   });
 
+  it("describes signature, currency, and payload rejects differently", () => {
+    const signature = buildAlertText({
+      severity: "LOW",
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed the signature check before persist.",
+      route: "/api/webhooks/payments",
+      environment: "preview",
+      occurrences: 4,
+      issueId: "issue-sig",
+      appUrl: "https://preview.itrader.im",
+    });
+    const currency = buildAlertText({
+      severity: "LOW",
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed currency validation before persist.",
+      route: "/api/webhooks/payments",
+      environment: "preview",
+      occurrences: 22,
+      issueId: "issue-ccy",
+      appUrl: "https://preview.itrader.im",
+    });
+    const payload = buildAlertText({
+      severity: "LOW",
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed payload validation before persist.",
+      route: "/api/webhooks/payments",
+      environment: "preview",
+      occurrences: 1,
+      issueId: "issue-payload",
+      appUrl: "https://preview.itrader.im",
+    });
+    const historical = buildAlertText({
+      severity: "LOW",
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed HMAC or envelope checks before persist.",
+      route: "/api/webhooks/payments",
+      environment: "production",
+      occurrences: 26,
+      issueId: "issue-old",
+      appUrl: "https://itrader.im",
+    });
+
+    expect(signature).toContain("failed a security check");
+    expect(signature).not.toContain("invalid notice");
+    expect(currency).toContain(
+      "currency field was missing or unsupported (including malformed)",
+    );
+    expect(currency).not.toMatch(/not pounds|non-gbp|was not gbp|security check/i);
+    expect(payload).toContain("details were not valid");
+    expect(payload).not.toContain("security check");
+    expect(historical).toContain("invalid notice");
+    expect(historical).not.toMatch(/security check|not pounds|non-gbp/i);
+    expect(new Set([signature, currency, payload, historical]).size).toBe(4);
+    expect(buildAlertSubject({
+      severity: "LOW",
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed currency validation before persist.",
+      route: "/api/webhooks/payments",
+      environment: "preview",
+    })).toBe(
+      "[Monitoring] [LOW] - Payment notice rejected on the preview site — currency field was missing or unsupported (including malformed)",
+    );
+  });
+
+  it.each(["missing", "blank", "wrongtype"] as const)(
+    "does not describe currency state %s as a known non-GBP value",
+    (state) => {
+      const text = buildAlertText({
+        severity: "LOW",
+        title: "Ripple webhook rejected",
+        message: `Ripple webhook failed currency validation before persist. ccyState ${state}`,
+        route: "/api/webhooks/payments",
+        environment: "preview",
+        occurrences: 1,
+        issueId: `issue-${state}`,
+        appUrl: "https://preview.itrader.im",
+      });
+
+      expect(text).toContain(
+        "currency field was missing or unsupported (including malformed)",
+      );
+      expect(text).not.toMatch(/not pounds|non-gbp|was not gbp|security check/i);
+    },
+  );
+
   it("keeps the severity prefix in the inbox subject and the plain sentence as the heading", () => {
     const email = buildMonitoringAlertEmail({
       subject: "[Monitoring] [HIGH] - Payment notice rejected on the live site",

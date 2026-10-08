@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createRippleWebhookSignature } from "@/lib/payments/ripple-signature";
 import { assertRippleSafeMonitoringPayload } from "@/lib/payments/ripple-privacy";
+import { createMonitoringFingerprint } from "@/lib/monitoring";
 import {
   classifyRippleEnvelopeReject,
   classifyRippleHmacShape,
+  describeRippleCurrencyField,
   describeRippleWebhookAuth,
+  rippleRejectMonitoringCopy,
   rippleRejectTags,
 } from "@/lib/payments/ripple-webhook-reject";
 import { RIPPLE_TEST_WEBHOOK_SECRET } from "./ripple-test-env";
@@ -49,6 +52,70 @@ describe("RIP-REJ-001 Ripple webhook reject diagnostics", () => {
     expect(
       classifyRippleEnvelopeReject(new Error("Ripple client_id mismatch"))
     ).toBe("client");
+  });
+
+  it("classifies currency shape without storing an arbitrary value", () => {
+    expect(describeRippleCurrencyField({ data: {} })).toMatchObject({
+      ccyState: "missing",
+      ccyKeys: "none",
+    });
+    expect(
+      describeRippleCurrencyField({ data: { currency: null, currency_code: "GBP" } })
+    ).toMatchObject({ ccyState: "missing", ccyKeys: "currency,currency_code" });
+    expect(describeRippleCurrencyField({ data: { currency: "  " } }).ccyState).toBe(
+      "blank"
+    );
+    expect(describeRippleCurrencyField({ data: { currency: 826 } })).toEqual({
+      ccyState: "wrongtype",
+      ccyKeys: "currency",
+    });
+    expect(describeRippleCurrencyField({ data: { currency: "EUR" } })).toEqual({
+      ccyState: "unsupported",
+      ccyCode: "eur",
+      ccyKeys: "currency",
+    });
+    const freeText = describeRippleCurrencyField({
+      data: { currency: "buyer@example.com", ccy: "notes" },
+    });
+    expect(freeText).toEqual({
+      ccyState: "unsupported",
+      ccyKeys: "currency,ccy",
+    });
+    expect(JSON.stringify(freeText)).not.toContain("@");
+  });
+
+  it("uses separate monitoring messages for signature, currency, and other envelope failures", () => {
+    const signature = rippleRejectMonitoringCopy({ rejectStage: "hmac" });
+    const currency = rippleRejectMonitoringCopy({
+      rejectStage: "envelope",
+      envReason: "ccy",
+    });
+    const payload = rippleRejectMonitoringCopy({
+      rejectStage: "envelope",
+      envReason: "json",
+    });
+    const fingerprint = (message: string) =>
+      createMonitoringFingerprint({
+        source: "WEBHOOK",
+        message,
+        route: "/api/webhooks/payments",
+        action: "paymentsWebhookReject",
+      });
+
+    expect(signature.message).toMatch(/signature check/);
+    expect(currency.message).toMatch(/currency validation/);
+    expect(payload.message).toMatch(/payload validation/);
+    const signatureFingerprint = fingerprint(signature.message);
+    const currencyFingerprint = fingerprint(currency.message);
+    const payloadFingerprint = fingerprint(payload.message);
+    expect(signatureFingerprint).not.toBe(currencyFingerprint);
+    expect(signatureFingerprint).not.toBe(payloadFingerprint);
+    expect(currencyFingerprint).not.toBe(payloadFingerprint);
+    expect(new Set([
+      signatureFingerprint,
+      currencyFingerprint,
+      payloadFingerprint,
+    ]).size).toBe(3);
   });
 
   it("emits monitoring tags that survive Ripple privacy filters", () => {

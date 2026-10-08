@@ -5,6 +5,8 @@ import { ingestVerifiedRippleWebhook } from "@/lib/payments/ripple-inbox";
 import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import {
   classifyRippleEnvelopeReject,
+  describeRippleCurrencyField,
+  rippleRejectMonitoringCopy,
   rippleRejectTags,
 } from "@/lib/payments/ripple-webhook-reject";
 import { getRippleWebhookSecret } from "@/lib/payments/ripple-config";
@@ -16,13 +18,14 @@ function invalidWebhookResponse() {
 }
 
 async function reportRippleWebhookReject(
-  tags: ReturnType<typeof rippleRejectTags>
+  tags: ReturnType<typeof rippleRejectTags>,
+  copy: ReturnType<typeof rippleRejectMonitoringCopy>
 ) {
   await captureBusinessEvent({
     source: "WEBHOOK",
     severity: "LOW",
-    title: "Ripple webhook rejected",
-    message: "Ripple webhook failed HMAC or envelope checks before persist.",
+    title: copy.title,
+    message: copy.message,
     action: "paymentsWebhookReject",
     route: "/api/webhooks/payments",
     requestPath: "/api/webhooks/payments",
@@ -46,26 +49,36 @@ export async function POST(req: NextRequest) {
     } catch {
       matches = {};
     }
+    const hmacTags = rippleRejectTags({
+      rejectStage: "hmac",
+      headers: req.headers,
+      ...matches,
+    });
     await reportRippleWebhookReject(
-      rippleRejectTags({
-        rejectStage: "hmac",
-        headers: req.headers,
-        ...matches,
-      })
+      hmacTags,
+      rippleRejectMonitoringCopy({ rejectStage: "hmac" })
     );
     return invalidWebhookResponse();
   }
 
   let parsed: ReturnType<typeof parseRippleWebhookEnvelope>;
+  let payload: unknown = undefined;
   try {
-    parsed = parseRippleWebhookEnvelope(JSON.parse(body));
+    payload = JSON.parse(body);
+    parsed = parseRippleWebhookEnvelope(payload);
   } catch (error) {
+    const envReason = classifyRippleEnvelopeReject(error);
+    const currency =
+      envReason === "ccy" ? describeRippleCurrencyField(payload) : {};
+    const envelopeTags = rippleRejectTags({
+      rejectStage: "envelope",
+      headers: req.headers,
+      envReason,
+      ...currency,
+    });
     await reportRippleWebhookReject(
-      rippleRejectTags({
-        rejectStage: "envelope",
-        headers: req.headers,
-        envReason: classifyRippleEnvelopeReject(error),
-      })
+      envelopeTags,
+      rippleRejectMonitoringCopy({ rejectStage: "envelope", envReason })
     );
     return invalidWebhookResponse();
   }
