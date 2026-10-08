@@ -83,6 +83,7 @@ describe("AUD-PAY-001 payments webhook persist ACK", () => {
     expect(captureBusinessEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "paymentsWebhookReject",
+        message: "Ripple webhook failed the signature check before persist.",
         tags: expect.objectContaining({
           rejectStage: "hmac",
           hmacShape: "sha256eq",
@@ -90,7 +91,52 @@ describe("AUD-PAY-001 payments webhook persist ACK", () => {
         }),
       }),
     );
+    expect(captureBusinessEvent.mock.calls[0]?.[0].tags).not.toHaveProperty("ccyState");
   });
+
+  it.each([
+    ["missing", "currency_code", (data: Record<string, unknown>) => {
+      delete data.currency;
+      data.currency_code = "GBP";
+    }],
+    ["blank", "currency", (data: Record<string, unknown>) => {
+      data.currency = "  ";
+    }],
+    ["wrongtype", "currency", (data: Record<string, unknown>) => {
+      data.currency = 826;
+    }],
+    ["unsupported", "currency", (data: Record<string, unknown>) => {
+      data.currency = "eur";
+    }],
+  ] as const)(
+    "rejects currency shape %s after a valid HMAC and does not ingest",
+    async (ccyState, ccyKeys, mutate) => {
+      const { POST } = await import("@/app/api/webhooks/payments/route");
+      const envelope = rippleEnvelope();
+      mutate(envelope.data);
+      const body = JSON.stringify(envelope);
+      const response = await POST(signedWebhookRequest(body));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "Invalid webhook" });
+      expect(ingestVerifiedRippleWebhook).not.toHaveBeenCalled();
+      expect(captureBusinessEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "paymentsWebhookReject",
+          message: "Ripple webhook failed currency validation before persist.",
+          tags: expect.objectContaining({
+            rejectStage: "envelope",
+            envReason: "ccy",
+            ccyState,
+            ccyKeys,
+            ...(ccyState === "unsupported" ? { ccyCode: "eur" } : {}),
+          }),
+        }),
+      );
+      const tags = captureBusinessEvent.mock.calls[0]?.[0].tags;
+      expect(JSON.stringify(tags)).not.toMatch(/826|buyer@|signature/i);
+    },
+  );
 
   it("logs envelope reject reason after a valid HMAC", async () => {
     const { POST } = await import("@/app/api/webhooks/payments/route");
@@ -105,11 +151,25 @@ describe("AUD-PAY-001 payments webhook persist ACK", () => {
     expect(captureBusinessEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "paymentsWebhookReject",
+        message: "Ripple webhook failed currency validation before persist.",
         tags: expect.objectContaining({
           rejectStage: "envelope",
           envReason: "ccy",
+          ccyState: "missing",
         }),
       }),
     );
+  });
+
+  it("ingests an explicit GBP notice and does not open a reject issue", async () => {
+    ingestVerifiedRippleWebhook.mockResolvedValue(undefined);
+    const { POST } = await import("@/app/api/webhooks/payments/route");
+    const response = await POST(
+      signedWebhookRequest(JSON.stringify(rippleEnvelope({ data: { currency: "GBP" } }))),
+    );
+
+    expect(response.status).toBe(200);
+    expect(ingestVerifiedRippleWebhook).toHaveBeenCalledOnce();
+    expect(captureBusinessEvent).not.toHaveBeenCalled();
   });
 });

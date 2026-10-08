@@ -104,6 +104,21 @@ describe("RIP-CONTRACT-001 Ripple webhook contract", () => {
     expect(() =>
       parseRippleWebhookEnvelope(rippleEnvelope({ data: { currency: "eur" } })),
     ).toThrow("currency must be GBP");
+    expect(() =>
+      parseRippleWebhookEnvelope(rippleEnvelope({ data: { currency: "  " } })),
+    ).toThrow("currency must be GBP");
+    expect(() =>
+      parseRippleWebhookEnvelope(rippleEnvelope({ data: { currency: 826 } })),
+    ).toThrow("currency must be GBP");
+    expect(() =>
+      parseRippleWebhookEnvelope(
+        rippleEnvelope({ data: { currency: undefined, currency_code: "GBP" } }),
+      ),
+    ).toThrow("currency must be GBP");
+    expect(
+      parseRippleWebhookEnvelope(rippleEnvelope({ data: { currency: " gbp " } }))
+        .minimized.currency,
+    ).toBe("gbp");
   });
 
   it("attaches a valid merchant reference to listing metadata", () => {

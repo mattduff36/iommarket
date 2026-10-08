@@ -107,6 +107,21 @@ export function describeRippleWebhookAuth(
   };
 }
 
+export const RIPPLE_CURRENCY_STATES = [
+  "missing",
+  "blank",
+  "wrongtype",
+  "unsupported",
+] as const;
+
+export type RippleCurrencyState = (typeof RIPPLE_CURRENCY_STATES)[number];
+
+const CURRENCY_KEY_NAMES = ["currency", "currency_code", "ccy"] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export function classifyRippleEnvelopeReject(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
   if (error instanceof SyntaxError || /JSON|Unexpected token|Unexpected end/i.test(message)) {
@@ -121,10 +136,69 @@ export function classifyRippleEnvelopeReject(error: unknown): string {
   return "other";
 }
 
+export function describeRippleCurrencyField(payload: unknown): {
+  ccyState: RippleCurrencyState;
+  ccyCode?: string;
+  ccyKeys: string;
+} {
+  const data = isRecord(payload) && isRecord(payload.data) ? payload.data : null;
+  const ccyKeys = data
+    ? CURRENCY_KEY_NAMES.filter((key) =>
+        Object.prototype.hasOwnProperty.call(data, key)
+      ).join(",") || "none"
+    : "none";
+
+  if (!data || !Object.prototype.hasOwnProperty.call(data, "currency")) {
+    return { ccyState: "missing", ccyKeys };
+  }
+
+  const value = data.currency;
+  if (value === null || value === undefined) {
+    return { ccyState: "missing", ccyKeys };
+  }
+  if (typeof value !== "string") {
+    return { ccyState: "wrongtype", ccyKeys };
+  }
+  if (!value.trim()) {
+    return { ccyState: "blank", ccyKeys };
+  }
+
+  const code = value.trim().toLowerCase();
+  if (/^[a-z]{3}$/.test(code) && code !== "gbp") {
+    return { ccyState: "unsupported", ccyCode: code, ccyKeys };
+  }
+  return { ccyState: "unsupported", ccyKeys };
+}
+
+export function rippleRejectMonitoringCopy(input: {
+  rejectStage: "hmac" | "envelope";
+  envReason?: string;
+}): { title: string; message: string } {
+  if (input.rejectStage === "hmac") {
+    return {
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed the signature check before persist.",
+    };
+  }
+  if (input.envReason === "ccy") {
+    return {
+      title: "Ripple webhook rejected",
+      message: "Ripple webhook failed currency validation before persist.",
+    };
+  }
+  return {
+    title: "Ripple webhook rejected",
+    message: "Ripple webhook failed payload validation before persist.",
+  };
+}
+
 export function rippleRejectTags(input: {
   rejectStage: "hmac" | "envelope";
   headers?: Headers | Record<string, string | undefined>;
   envReason?: string;
+  ccyState?: RippleCurrencyState;
+  ccyCode?: string;
+  ccyKeys?: string;
   macBody?: 0 | 1;
   macTsBody?: 0 | 1;
   macTsHash?: 0 | 1;
@@ -145,6 +219,9 @@ export function rippleRejectTags(input: {
     authHdrs: auth.authHdrs,
     authOther: auth.authOther ? 1 : 0,
     envReason: input.envReason,
+    ccyState: input.ccyState,
+    ccyCode: input.ccyCode,
+    ccyKeys: input.ccyKeys,
     macBody: input.macBody,
     macTsBody: input.macTsBody,
     macTsHash: input.macTsHash,
