@@ -2,6 +2,25 @@
 
 Updated: 8 October 2026. This is an implementation checkpoint, not production activation approval.
 
+## Production activated — 8 October, approximately 01:18 BST
+
+The owner approved PR #31 and the production mapping/provider switch. This section supersedes the pre-activation checkpoints below.
+
+- PR #31 merged as `f9a5849145fadf15240d81ee06ab78e4b0455095`. Both main-branch validation runs passed. The ImageKit activation deployment is `dpl_DYPi9xG4RRZJ4T17mB6Rp37DBK5e` (`https://iommarket-lovlmmarz-mpdees-projects.vercel.app`), READY and aliased to `itrader.im`.
+- All 4,406 destinations passed refreshed private-original checksum verification. The approved transactional backfill updated exactly 4,406 rows. Independent read-only postflight returned zero pending, 4,406 already applied, and 350 unchanged exclusions.
+- Production now selects ImageKit for reads and writes, enables managed uploads, disables development uploads and enables the explicit temporary legacy-read compatibility option. Both ImageKit keys are sensitive production settings. Cloudinary credentials and originals remain available.
+- Six public listing-photo probes redirected to ImageKit and returned image bytes with HTTP 200. An unsigned private-image probe returned 401. The numeric search API returned 36 results and HTTP 200 for the legacy engine-size link.
+- Authenticated production PNG/JPEG uploads both rendered previews, retained their order after next/back navigation, and were confirmed read-only as VERIFIED `imagekit-managed` intents under the production folder. Neither was attached to a listing; the two synthetic photos were removed from the unsaved draft. No listing, payment or policy acceptance was submitted.
+- All five public production dealer logos loaded. The post-activation deployment error-log query returned zero entries during the checked window; this is immediate acceptance, not a long-term absence-of-errors claim.
+
+### Remaining compatibility and retirement work
+
+`IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS=1` remains enabled because older immutable deployments may accept late Cloudinary attachments during the project's 12-hour skew-protection window. After old-deployment routing ends, perform a fresh source census/delta reconciliation, migrate any late references, verify no required legacy reads, then disable the flag. Do not delete Cloudinary originals, revoke its old key, or cancel the account as part of this completed activation.
+
+Read rollback: set both `MEDIA_PROVIDER` and `NEXT_PUBLIC_MEDIA_PROVIDER` to `cloudinary`, set `IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS=0`, retain `MEDIA_UPLOAD_PROVIDER=imagekit` plus ImageKit keys/uploads, validate the environment contract and redeploy the approved code. Native ImageKit identities continue to render under read rollback. Do not roll back to code predating native ImageKit support or restore an old database backup merely to change the read provider.
+
+Private evidence is retained under `tmp/imagekit-cutover-20261007/`: `destination-verification-approved-20261008.json`, `approved-apply.log`, `production-media-env-receipt.json`, `live-production-media-probes.json`, and `production-upload-acceptance.json`. Original/map/database recovery material remains outside the repository.
+
 ## Current checkpoint — 8 October
 
 This section supersedes older checkpoints below. Production still uses Cloudinary; no production identity backfill or ImageKit activation has occurred.

@@ -1,5 +1,11 @@
 # Fixerrors audit — 8 October 2026
 
+## Release verification
+
+The fixes were committed as `e40eec5` on staging: typechecking passed, 548 test files passed with one skipped, and 3,106 tests passed with six skipped. Exact-head staging acceptance reproduced the former search failure before deployment and verified 33 results afterward, correct legacy-unit conversion, loaded dealer logos and a fresh upload preview.
+
+Owner-approved PR #31 merged as `f9a5849` and is live in production. Production numeric search returned 36 results; subsequent ImageKit activation and authenticated upload acceptance are recorded in `docs/imagekit-production-readiness.md`. No monitoring issue was automatically marked resolved merely because the release deployed. Payment-inbox events without safe product/customer references and opaque events lacking correlation evidence remain separate investigation items.
+
 ## Observed run
 
 Cursor ran the production `/fixerrors` workflow on the shared `staging` branch. It inspected 40 open issues in 28 patterns and 16 clusters. The first pass took 903,596 ms (15 minutes 4 seconds) and 131 completed tool calls. Routing was `Auto`; the underlying model and billed cost were unavailable. Runtime counters reported 346,170 input tokens, 42,888 output tokens and 4,791,808 cache-read tokens; these are not unique context size or a cost calculation.
