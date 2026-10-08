@@ -495,15 +495,34 @@ describe("submitListingForReview", () => {
           listingId: "listing_123",
           privateSellerTermsAccepted: true,
         }),
-      ).resolves.toEqual({
-        error: "Unable to submit this listing. Please try again.",
+      ).resolves.toMatchObject({
+        error: "We couldn't confirm whether this listing was submitted. Check the listing before trying again.",
+        code: "unknown",
+        retryable: false,
       });
-      expect(reportHandledExceptionMock).toHaveBeenCalledWith(
+      expect(captureExceptionMock).toHaveBeenCalledWith(
         expect.objectContaining({ action: "submitListingForReview" }),
       );
-      expect(captureExceptionMock).not.toHaveBeenCalled();
+      expect(reportHandledExceptionMock).not.toHaveBeenCalled();
     },
   );
+
+  it("keeps the safe submit result when monitoring capture throws", async () => {
+    mockDb.freeListingClaim.findUnique.mockResolvedValue({ id: "claim_1", userId: "user_123" });
+    transitionListingStatusMock.mockRejectedValue(new Error("https://db.example/tok_secret"));
+    captureExceptionMock.mockRejectedValueOnce(new Error("monitor down"));
+    const { submitListingForReview } = await import("@/actions/listings");
+    const result = await submitListingForReview({
+      listingId: "listing_123",
+      privateSellerTermsAccepted: true,
+    });
+    expect(result).toMatchObject({
+      error: "We couldn't confirm whether this listing was submitted. Check the listing before trying again.",
+      code: "unknown",
+      retryable: false,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/tok_secret|https:/);
+  });
 
   it("returns safe conflict copy for revision submission races", async () => {
     const { ListingRevisionConflictError } = await import(
@@ -808,7 +827,7 @@ describe("submitListingForReview", () => {
     await expect(
       submitListingForReview({ listingId: "listing_123" }),
     ).resolves.toEqual({
-      error: "Not authorized",
+      error: "This listing isn't available for that action.",
     });
   });
 
@@ -929,7 +948,7 @@ describe("submitListingForReview", () => {
 
     await expect(
       submitListingForReview({ listingId: "listing_123" }),
-    ).resolves.toEqual({ error: "Not authorized" });
+    ).resolves.toEqual({ error: "This listing isn't available for that action." });
     expect(submitRevisionMock).not.toHaveBeenCalled();
   });
 
@@ -1408,7 +1427,7 @@ describe("updateListing T11", () => {
         title: "Updated live dealer listing title",
       }),
     ).resolves.toEqual({
-      error: "Not authorized to edit this listing",
+      error: "This listing isn't available for that action.",
     });
   });
 
@@ -1486,4 +1505,15 @@ describe("admin owned listing lifecycle", () => {
     expect(transitionListingStatusMock).not.toHaveBeenCalled();
     expect(syncListingImagesForUserMock).not.toHaveBeenCalled();
   });
+  it.each(["auth", "database"])("contains a submit %s service failure before mutation", async (stage) => {
+    const { submitListingForReview } = await import("@/actions/listings");
+    const failure = new Error("postgres private_token https://internal.example/key");
+    if (stage === "auth") requireAuthMock.mockRejectedValueOnce(failure);
+    else mockDb.listing.findUnique.mockRejectedValueOnce(failure);
+    captureExceptionMock.mockResolvedValueOnce({ eventId: "safe-reference-456" });
+    const result = await submitListingForReview({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true });
+    expect(result).toMatchObject({ code: "unknown", retryable: false, supportReference: "safe-reference-456" });
+    expect(JSON.stringify(result)).not.toMatch(/private_token|internal.example|postgres/);
+  });
+
 });

@@ -40,11 +40,11 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
       <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
         <Card>
           <CardHeader>
-            <CardTitle>Checkout cancelled</CardTitle>
+            <CardTitle>No listing selected</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-text-secondary">
-              Your checkout was cancelled before a listing was selected.
+              Select a listing to check its payment status. This page does not confirm a payment or cancellation.
             </p>
             <Button asChild>
               <Link href="/sell">Back to Sell</Link>

@@ -29,21 +29,12 @@ export function PaymentReturnActions({
   context,
   listingId,
 }: PaymentReturnActionsProps) {
-  const [link, setLink] = useState<HostedCheckoutLink | null>(status === "success" ? null : { status: "review" });
+  const [link, setLink] = useState<HostedCheckoutLink | null>(null);
   const [handoffEvent, setHandoffEvent] = useState<PaymentReturnEvent | null>(null);
   const [gaveUp, setGaveUp] = useState(false);
   const showReturnFallback = useCheckoutWindowHandoff(handoffEvent);
 
   useEffect(() => {
-    if (status !== "success") {
-      publishCheckoutHandoff(createPaymentReturnEvent({
-        status: "cancel",
-        context,
-        listingId,
-      }));
-      return;
-    }
-
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
@@ -94,18 +85,16 @@ export function PaymentReturnActions({
 
   const confirmed = link?.status === "confirmed";
   const failed = link?.status === "failed";
-  const waiting = status === "success" && !confirmed && !failed && !gaveUp;
+  const waiting = !confirmed && !failed && !gaveUp && link?.status !== "review" && link?.status !== "sign-in";
   const detail = confirmed && !showReturnFallback
     ? "Your payment is linked. Returning to your original itrader tab…"
     : confirmed
       ? "Your payment is linked. This tab could not close automatically, so use the buttons below to return."
       : failed
-        ? "This payment was not completed. Return to itrader to retry. Your saved listing is still there."
+        ? "This payment was not completed. Return to itrader and check the listing before paying again."
         : waiting
-          ? "We are checking that this payment is linked. Please don’t pay again."
-          : status === "cancel"
-            ? "You can return to itrader and try again when you are ready."
-            : "We could not confirm this payment from the return page. If you paid, don’t pay again—return to itrader and check the listing.";
+          ? "We are checking whether this payment is linked. Please don’t pay again."
+          : "We haven't confirmed the payment result yet. Check payment status before paying again.";
 
   return (
     <div className="flex flex-col gap-3">

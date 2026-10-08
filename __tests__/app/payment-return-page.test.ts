@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isSafeInternalReturnHref,
   resolveReturnHref,
-} from "@/app/(public)/payment-return/page";
+} from "@/lib/payments/payment-return-link";
 
 describe("payment return URL validation", () => {
   it("allows normal app-relative paths", () => {

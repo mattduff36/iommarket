@@ -1173,16 +1173,13 @@ describe("CreateListingForm registration lookup", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("recovers from a rejected checkout action without losing the saved draft or photos", async () => {
+  it("requires status review after a rejected checkout action without losing the saved draft or photos", async () => {
     mockSavedPrivateListing();
     vi.mocked(updateListing).mockResolvedValue({
       data: { id: "listing-123" },
     } as Awaited<ReturnType<typeof updateListing>>);
     vi.mocked(payForListing)
-      .mockRejectedValueOnce(new Error("Connection lost"))
-      .mockResolvedValueOnce({
-        data: { checkoutUrl: "https://checkout.example/recovered" },
-      } as Awaited<ReturnType<typeof payForListing>>);
+      .mockRejectedValueOnce(new Error("Connection lost"));
 
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     reachPrivateReviewStep();
@@ -1190,22 +1187,16 @@ describe("CreateListingForm registration lookup", () => {
     const submit = screen.getByRole("button", { name: "Continue to Checkout" });
     fireEvent.click(submit);
 
-    expect(await screen.findByText(/Something interrupted submission/i)).toBeInTheDocument();
+    expect(await screen.findByText(/haven't confirmed the payment result/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("2019 BMW 320d M Sport")).toBeInTheDocument();
     expect(screen.getByText("Photos selected: 2")).toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalledWith(
       "/sell/checkout?listing=listing-123&flow=private&opened=1",
     );
-    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
-
+    expect(submit).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Check payment status" })).toHaveAttribute("href", "/sell/checkout?listing=listing-123");
     fireEvent.click(submit);
-    await waitFor(() => {
-      expect(payForListing).toHaveBeenCalledTimes(2);
-      expect(updateListing).toHaveBeenCalledWith(expect.objectContaining({ id: "listing-123" }));
-    });
-    expect(replaceMock).toHaveBeenCalledWith(
-      "/sell/checkout?listing=listing-123&flow=private&opened=1",
-    );
+    expect(payForListing).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the checkout status page open and shows fallback when the browser blocks the new tab", async () => {
@@ -1794,6 +1785,8 @@ describe("CreateListingForm registration lookup", () => {
     await screen.findByText("Request timed out");
     await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
 
+    expect(screen.getByRole("button", { name: /^Photos\./ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /^Review\./ }));
     fireEvent.click(submit);
     await waitFor(() => expect(syncListingImages).toHaveBeenCalledTimes(2));
 
@@ -2158,6 +2151,8 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     expect(payForListing).not.toHaveBeenCalled();
     await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
 
+    expect(screen.getByRole("button", { name: /^Photos\./ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /^Review\./ }));
     fireEvent.click(submit);
     await waitFor(() => expect(syncListingImages).toHaveBeenCalledTimes(2));
     expect(vi.mocked(syncListingImages).mock.calls[0][1].basePhotoRevision).toBe(8);
@@ -2415,6 +2410,23 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     expect(screen.getByTestId("mock-image-upload")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Blue");
+  });
+
+  it("opens the optional group for an invalid optional field and keeps the entered value", () => {
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Engine and efficiency" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: /Engine Size/i }), {
+      target: { value: "1600" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("heading", { name: "Create Listing - Step 2 of 5" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Optional vehicle details. Check" })).toBeTruthy();
+    expect((screen.getByRole("spinbutton", { name: /Engine Size/i }) as HTMLInputElement).value).toBe("1600");
+    expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe("2019 BMW 320d M Sport");
+    expect(createListing).not.toHaveBeenCalled();
   });
 
   it("blocks the review card until required details are complete", () => {

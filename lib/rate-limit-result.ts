@@ -1,3 +1,5 @@
+import { publicErrorBody, type PublicErrorBody } from "@/lib/forms/public-error";
+
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
@@ -41,4 +43,19 @@ export function rateLimitActionError(
   limitedMessage: string,
 ): string | null {
   return toRateLimitDenial(result, limitedMessage)?.message ?? null;
+}
+
+/** Additive wait-time payload. Existing string callers keep rateLimitActionError. */
+export function rateLimitPublicError(
+  result: RateLimitResult,
+  limitedMessage: string,
+  now = Date.now(),
+): PublicErrorBody | null {
+  const denial = toRateLimitDenial(result, limitedMessage, now);
+  if (!denial) return null;
+  return publicErrorBody({
+    message: denial.message,
+    code: denial.status === 429 ? "rate_limited" : "unavailable",
+    retryAfterSeconds: denial.retryAfterSeconds,
+  });
 }

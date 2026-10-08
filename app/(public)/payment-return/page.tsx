@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import { CheckCircle2, CircleSlash2, ExternalLink } from "lucide-react";
+import { resolveReturnHref } from "@/lib/payments/payment-return-link";
+import { Clock3, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaymentReturnActions } from "@/components/payments/payment-return-actions";
+import { PAYMENT_RETURN_UNCERTAIN } from "@/lib/payments/checkout-public-error";
 
 export const metadata: Metadata = {
   title: "Return to itrader",
@@ -20,101 +22,20 @@ interface Props {
   }>;
 }
 
-export function isSafeInternalReturnHref(
-  returnTo: string | undefined
-): returnTo is `/${string}` {
-  return Boolean(returnTo && /^\/(?!\/)/.test(returnTo));
-}
-
-export function resolveReturnHref(
-  returnTo: string | undefined,
-  context: "listing" | "featured" | "subscription" | undefined,
-  listingId: string | undefined
-): string {
-  if (isSafeInternalReturnHref(returnTo)) {
-    return returnTo;
-  }
-
-  if (context === "featured" && listingId) {
-    return `/listings/${listingId}`;
-  }
-
-  if (context === "subscription") {
-    return "/dealer/dashboard";
-  }
-
-  return listingId ? `/sell/checkout?listing=${listingId}` : "/";
-}
-
-function getPaymentReturnCopy(
-  status: "success" | "cancel",
-  context: "listing" | "featured" | "subscription"
-) {
-  if (status === "success") {
-    if (context === "listing") {
-      return {
-        title: "Confirming your payment",
-        message:
-          "The payment tab is open so itrader can check that this payment is linked. Please don’t pay again.",
-      };
-    }
-
-    if (context === "featured") {
-      return {
-        title: "Confirming your Featured payment",
-        message:
-          "The payment tab is open so itrader can check that this Featured upgrade is linked. Please don’t pay again.",
-      };
-    }
-
-    return {
-      title: "Confirming your subscription payment",
-      message:
-        "The payment tab is open so itrader can check that this subscription is linked. Please don’t pay again.",
-    };
-  }
-
-  if (context === "listing") {
-    return {
-      title: "Payment cancelled",
-      message:
-        "The hosted payment was cancelled. Your original itrader tab is still open and your saved listing draft is waiting there for you.",
-    };
-  }
-
-  if (context === "featured") {
-    return {
-      title: "Featured payment cancelled",
-      message:
-        "The featured upgrade checkout was cancelled. Return to itrader to reopen payment or keep managing the listing.",
-    };
-  }
-
-  return {
-    title: "Subscription payment cancelled",
-    message:
-      "The subscription checkout was cancelled. Return to itrader to choose a plan or restart payment when ready.",
-  };
-}
-
 export default async function PaymentReturnPage({ searchParams }: Props) {
   const sp = await searchParams;
   const status = sp.status === "cancel" ? "cancel" : "success";
   const context = sp.context ?? "listing";
   const returnHref = resolveReturnHref(sp.returnTo, context, sp.listing);
-  const copy = getPaymentReturnCopy(status, context);
-  const Icon = status === "success" ? CheckCircle2 : CircleSlash2;
+  const copy = PAYMENT_RETURN_UNCERTAIN;
+  const Icon = Clock3;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6 lg:px-8">
       <Card>
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-neon-blue-500/20 bg-neon-blue-500/10">
-            <Icon
-              className={`h-7 w-7 ${
-                status === "success" ? "text-emerald-400" : "text-text-secondary"
-              }`}
-            />
+            <Icon className="h-7 w-7 text-text-secondary" />
           </div>
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neon-blue-400">

@@ -5,7 +5,15 @@ import {
   updateListing,
 } from "@/actions/listings";
 import { payForListing, upgradeFeatured } from "@/actions/payments";
-import { summarizeFieldErrors, type FieldErrors } from "@/lib/forms/action-error";
+import { readPublicActionError, splitActionError, summarizeFieldErrors, type FieldErrors } from "@/lib/forms/action-error";
+import {
+  isUncertainActionResult,
+  listingOutcomeReview,
+  paymentOutcomeReview,
+  UNCERTAIN_LISTING_MESSAGE,
+  UNCERTAIN_CHECKOUT_MESSAGE,
+  type OutcomeReview,
+} from "@/lib/forms/outcome-uncertainty";
 import {
   guidedStepForFieldErrors,
   type GuidedListingStep,
@@ -14,7 +22,6 @@ import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { defendVehicleCatalogueSelection } from "./create-listing-form.helpers";
 import {
-  FEATURED_AFTER_SUBMIT_MESSAGE,
   buildPayForListingInput,
   featuredPurchaseFailure,
   readListingPaymentResult,
@@ -98,12 +105,12 @@ export function interpretPhotoSyncResult(result: {
   }
 
   if (result.error) {
+    const published = readPublicActionError(result);
+    const message = published?.formError
+      ?? (typeof result.error === "string" ? result.error : "");
     return {
       kind: "error",
-      error:
-        typeof result.error === "string"
-          ? result.error
-          : "Failed to save images. Please try again.",
+      error: message || "We couldn't confirm that these photos were saved. Reload the listing before trying again.",
     };
   }
 
@@ -197,7 +204,51 @@ export type ListingSubmitNavigation =
       error?: string;
       fieldErrors?: ListingSubmitFieldErrors;
       step?: GuidedListingStep;
+      uncertain?: boolean;
+      reviewHref?: string;
+      reviewLabel?: string;
     };
+
+function stayForListingError(
+  result: { error?: unknown },
+  attributeSteps: Partial<Record<string, GuidedListingStep>> | undefined,
+  fallback: GuidedListingStep,
+  review: OutcomeReview,
+): ListingSubmitNavigation {
+  const published = readPublicActionError(result);
+  const split = published ?? splitActionError(
+    result.error && typeof result.error === "object" ? result.error : result.error,
+  );
+  if (Object.keys(split.fieldErrors).length > 0) {
+    return {
+      kind: "stay",
+      error: split.formError ?? summarizeListingSubmitFieldErrors(
+        split.fieldErrors,
+        "Please review the highlighted listing details and try again.",
+      ),
+      fieldErrors: split.fieldErrors,
+      step: guidedStepForFieldErrors(split.fieldErrors, { attributeSteps, fallback }),
+    };
+  }
+  const uncertain = isUncertainActionResult(result);
+  return {
+    kind: "stay",
+    error: split.formError ?? UNCERTAIN_LISTING_MESSAGE,
+    ...(uncertain
+      ? { uncertain: true, reviewHref: review.href, reviewLabel: review.label }
+      : {}),
+  };
+}
+
+function releaseUnlessUncertain(
+  flight: { current: boolean },
+  navigation: ListingSubmitNavigation,
+): ListingSubmitNavigation {
+  if (navigation.kind !== "stay" || !navigation.uncertain) {
+    releaseSubmitFlight(flight);
+  }
+  return navigation;
+}
 
 export async function executeCreateListingSubmit(params: {
   form: FormData;
@@ -227,6 +278,8 @@ export async function executeCreateListingSubmit(params: {
   onPhotoRevision: (photoRevision: number) => void;
   openCheckout: (url: string) => boolean | void;
 }): Promise<ListingSubmitNavigation> {
+  let checkoutStarted = false;
+  try {
   const listingPayload = {
     title: params.form.get("title") as string,
     description: params.form.get("description") as string,
@@ -256,27 +309,26 @@ export async function executeCreateListingSubmit(params: {
         });
 
   if (result.error) {
-    releaseSubmitFlight(params.submitFlightRef);
-    if (typeof result.error === "string") {
-      return { kind: "stay", error: result.error };
-    }
-    return {
-      kind: "stay",
-      error: summarizeListingSubmitFieldErrors(
-        result.error,
-        "Please review the highlighted listing details and try again.",
+    return releaseUnlessUncertain(
+      params.submitFlightRef,
+      stayForListingError(
+        result,
+        params.attributeSteps,
+        1,
+        listingOutcomeReview(existingListingId),
       ),
-      fieldErrors: result.error,
-      step: guidedStepForFieldErrors(result.error, {
-        attributeSteps: params.attributeSteps,
-        fallback: 1,
-      }),
-    };
+    );
   }
 
   if (!result.data) {
-    releaseSubmitFlight(params.submitFlightRef);
-    return { kind: "stay", error: "Failed to save listing. Please try again." };
+    const review = listingOutcomeReview(existingListingId);
+    return {
+      kind: "stay",
+      error: UNCERTAIN_LISTING_MESSAGE,
+      uncertain: true,
+      reviewHref: review.href,
+      reviewLabel: review.label,
+    };
   }
 
   const listingId = existingListingId ?? result.data.id;
@@ -317,16 +369,23 @@ export async function executeCreateListingSubmit(params: {
       mutationId: resolvedMutation.mutationId,
     });
     const photoOutcome = interpretPhotoSyncResult(saveResult);
-    if (photoOutcome.kind === "conflict") {
-      params.photoRevisionRef.current = photoOutcome.photoRevision;
-      params.onPhotoRevision(photoOutcome.photoRevision);
-      params.photoMutationRef.current = null;
-      releaseSubmitFlight(params.submitFlightRef);
-      return { kind: "stay", error: photoOutcome.error };
-    }
-    if (photoOutcome.kind === "error") {
-      releaseSubmitFlight(params.submitFlightRef);
-      return { kind: "stay", error: photoOutcome.error };
+    if (photoOutcome.kind === "conflict" || photoOutcome.kind === "error") {
+      if (photoOutcome.kind === "conflict") {
+        params.photoRevisionRef.current = photoOutcome.photoRevision;
+        params.onPhotoRevision(photoOutcome.photoRevision);
+        params.photoMutationRef.current = null;
+      }
+      const uncertain = photoOutcome.kind === "error" && isUncertainActionResult(saveResult);
+      const review = listingOutcomeReview(listingId);
+      if (!uncertain) releaseSubmitFlight(params.submitFlightRef);
+      return {
+        kind: "stay",
+        error: photoOutcome.error,
+        step: 3,
+        ...(uncertain
+          ? { uncertain: true, reviewHref: review.href, reviewLabel: review.label }
+          : {}),
+      };
     }
     const nextRevision = applyAuthoritativePhotoRevision(
       params.photoRevisionRef.current,
@@ -344,6 +403,7 @@ export async function executeCreateListingSubmit(params: {
     }
   }
 
+  checkoutStarted = !params.skipCheckout;
   const payResult = params.skipCheckout
     ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
     : await payForListing(
@@ -355,24 +415,13 @@ export async function executeCreateListingSubmit(params: {
         }),
       );
   if (payResult.error) {
-    releaseSubmitFlight(params.submitFlightRef);
-    if (typeof payResult.error === "string") {
-      return { kind: "stay", error: payResult.error };
-    }
-    return {
-      kind: "stay",
-      error: summarizeListingSubmitFieldErrors(
-        payResult.error,
-        "Unable to continue to checkout. Please review your details and try again.",
-      ),
-      fieldErrors: payResult.error,
-      step: guidedStepForFieldErrors(payResult.error, {
-        attributeSteps: params.attributeSteps,
-        fallback: 5,
-      }),
-    };
+    return releaseUnlessUncertain(
+      params.submitFlightRef,
+      stayForListingError(payResult, params.attributeSteps, 5, paymentOutcomeReview(listingId)),
+    );
   }
 
+  if (!payResult.data) throw new Error("Missing checkout result");
   const listingSubmitted = readListingPaymentResult(payResult.data).listingSubmitted;
   if (payResult.data?.skippedPayment && !listingSubmitted) {
     const reviewResult = await submitListingForReview({
@@ -380,14 +429,7 @@ export async function executeCreateListingSubmit(params: {
       privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
     });
     if (reviewResult?.error) {
-      releaseSubmitFlight(params.submitFlightRef);
-      return {
-        kind: "stay",
-        error:
-          typeof reviewResult.error === "string"
-            ? reviewResult.error
-            : "Failed to submit listing for review.",
-      };
+      return releaseUnlessUncertain(params.submitFlightRef, stayForListingError(reviewResult, params.attributeSteps, 5, listingOutcomeReview(listingId)));
     }
   }
 
@@ -402,8 +444,10 @@ export async function executeCreateListingSubmit(params: {
     try {
       const featuredResult = await upgradeFeatured(listingId);
       if (featuredResult.error || !featuredResult.data?.checkoutUrl) {
-        releaseSubmitFlight(params.submitFlightRef);
-        return { kind: "stay", error: featuredPurchaseFailure(featuredResult.error) };
+        const uncertain = isUncertainActionResult(featuredResult) || !featuredResult.error;
+        const review = paymentOutcomeReview(listingId);
+        if (!uncertain) releaseSubmitFlight(params.submitFlightRef);
+        return { kind: "stay", error: featuredPurchaseFailure(featuredResult.error), ...(uncertain ? { uncertain: true, reviewHref: review.href, reviewLabel: review.label } : {}) };
       }
       const opened = params.openCheckout(featuredResult.data.checkoutUrl);
       if (opened === false || isRippleDemoCheckoutUrl(featuredResult.data.checkoutUrl)) {
@@ -415,8 +459,8 @@ export async function executeCreateListingSubmit(params: {
         href: getHostedCheckoutHref({ listingId, mode: params.mode }),
       };
     } catch {
-      releaseSubmitFlight(params.submitFlightRef);
-      return { kind: "stay", error: FEATURED_AFTER_SUBMIT_MESSAGE };
+      const review = paymentOutcomeReview(listingId);
+      return { kind: "stay", error: featuredPurchaseFailure(undefined), uncertain: true, reviewHref: review.href, reviewLabel: review.label };
     }
   }
 
@@ -437,4 +481,8 @@ export async function executeCreateListingSubmit(params: {
       skippedPayment: Boolean(payResult.data?.skippedPayment),
     }),
   };
+  } catch {
+    const review = checkoutStarted ? paymentOutcomeReview(params.listingIdRef.current) : listingOutcomeReview(params.listingIdRef.current);
+    return { kind: "stay", uncertain: true, error: checkoutStarted ? UNCERTAIN_CHECKOUT_MESSAGE : UNCERTAIN_LISTING_MESSAGE, reviewHref: review.href, reviewLabel: review.label };
+  }
 }

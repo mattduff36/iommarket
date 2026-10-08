@@ -4,8 +4,19 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
+import { captureException } from "@/lib/monitoring";
+import {
+  asActionFailure,
+  publicErrorBody,
+  withMonitoringReference,
+  type ActionFailure,
+} from "@/lib/forms/public-error";
+import {
+  SAMPLE_OUTCOME_UNKNOWN,
+  checkoutAuthBody,
+} from "@/lib/payments/checkout-public-error";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
-import { assertSampleCheckoutEnabled, SAMPLE_MAX_ATTEMPTS } from "@/lib/payments/sample-checkout-config";
+import { isSampleCheckoutEnabled, SAMPLE_MAX_ATTEMPTS } from "@/lib/payments/sample-checkout-config";
 import { assertSampleTarget, sampleCheckoutView, type SampleCheckoutView } from "@/lib/payments/sample-checkout";
 import { fulfillSampleCheckout } from "@/lib/payments/sample-checkout-fulfillment";
 
@@ -14,9 +25,64 @@ const paymentSchema = z.object({ checkoutId: checkoutIdSchema,
   card: z.enum(["approve", "decline"]), attempt: z.number().int().min(1).max(SAMPLE_MAX_ATTEMPTS),
 }).strict();
 
-async function changeCheckout(input: unknown, cancel: boolean): Promise<{ data?: SampleCheckoutView; error?: string }> {
-  assertSampleCheckoutEnabled();
-  const user = await requireAcceptedAuth();
+async function changeCheckout(
+  input: unknown,
+  cancel: boolean,
+): Promise<{ data?: SampleCheckoutView; error?: string } | ActionFailure> {
+  if (!isSampleCheckoutEnabled()) {
+    return { error: "Sample payments are unavailable in this environment." };
+  }
+  try {
+    return await changeCheckoutBody(input, cancel);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (SAMPLE_KNOWN.has(message)) return { error: message };
+    return asActionFailure(await withMonitoringReference(
+      publicErrorBody({ message: SAMPLE_OUTCOME_UNKNOWN, code: "unknown", retryable: false }),
+      () => captureException({
+        source: "SERVER",
+        error,
+        action: cancel ? "cancelSamplePayment" : "submitSamplePayment",
+        route: "/sample-checkout",
+        requestPath: "/sample-checkout",
+      }),
+    ));
+  }
+}
+
+const SAMPLE_KNOWN = new Set<string>([
+  "Sample checkout not found.",
+  "Listing not found.",
+  "Dealer profile not found.",
+  "Only an eligible live listing can be featured.",
+  "This account has a real subscription. Use another preview account to test sample subscriptions.",
+  "This account already has an active sample subscription.",
+  "This sample checkout has no payment attempt available. Return to iTrader to start again.",
+]);
+
+async function changeCheckoutBody(
+  input: unknown,
+  cancel: boolean,
+): Promise<{ data?: SampleCheckoutView; error?: string } | ActionFailure> {
+  let user: Awaited<ReturnType<typeof requireAcceptedAuth>>;
+  try {
+    user = await requireAcceptedAuth();
+  } catch (error) {
+    const specific = checkoutAuthBody(error);
+    if (specific && specific.code !== "unavailable") return specific;
+    const body = specific ?? asActionFailure(publicErrorBody({
+      message: SAMPLE_OUTCOME_UNKNOWN,
+      code: "unknown",
+      retryable: false,
+    }));
+    return asActionFailure(await withMonitoringReference(body, () => captureException({
+      source: "SERVER",
+      error,
+      action: "sampleCheckout",
+      route: "/sample-checkout",
+      requestPath: "/sample-checkout",
+    })));
+  }
   const parsed = cancel
     ? z.object({ checkoutId: checkoutIdSchema }).strict().safeParse(input)
     : paymentSchema.safeParse(input);
@@ -55,14 +121,25 @@ async function changeCheckout(input: unknown, cancel: boolean): Promise<{ data?:
     revalidatePath(`/listings/${row.targetId}`);
     return { data: sampleCheckoutView(row) };
   } catch (error) {
-    // Database/provider diagnostics should never be returned to a checkout browser.
     const message = error instanceof Error ? error.message : "";
     const safe = ["Sample checkout not found.", "Listing not found.", "Dealer profile not found.",
       "Only an eligible live listing can be featured.",
       "This account has a real subscription. Use another preview account to test sample subscriptions.",
       "This account already has an active sample subscription.",
       "This sample checkout has no payment attempt available. Return to iTrader to start again."];
-    return { error: safe.includes(message) ? message : "Unable to process the sample payment. Please try again." };
+    if (safe.includes(message)) return { error: message };
+    return asActionFailure(await withMonitoringReference(
+      publicErrorBody({ message: SAMPLE_OUTCOME_UNKNOWN, code: "unknown", retryable: false }),
+      () => captureException({
+        source: "SERVER",
+        error,
+        action: cancel ? "cancelSamplePayment" : "submitSamplePayment",
+        route: "/sample-checkout",
+        requestPath: "/sample-checkout",
+        userId: user.id,
+        userEmail: user.email,
+      }),
+    ));
   }
 }
 

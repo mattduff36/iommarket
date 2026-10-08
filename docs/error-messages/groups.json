@@ -1,0 +1,1046 @@
+{
+  "candidate_count": 3369,
+  "file_count": 421,
+  "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
+  "semantic_display_verified_count": 477,
+  "deferred_e_candidate_rows": 0,
+  "classification_counts": {
+    "displayed": 1159,
+    "internal-only": 1283,
+    "duplicate": 793,
+    "irrelevant": 134
+  },
+  "rule_counts": {
+    "ast-public-return": 531,
+    "ast-diagnostic-call": 107,
+    "ast-value-reaches-return": 32,
+    "exact-source-repeat": 793,
+    "ast-no-public-sink": 811,
+    "ast-throw-forwarded": 52,
+    "ast-throw-caller-sink": 110,
+    "ast-binding": 20,
+    "ast-throw-unrendered": 348,
+    "ast-throw-replaced": 7,
+    "ast-enclosing-public-function": 64,
+    "ast-type-or-import": 100,
+    "ast-public-sink": 240,
+    "ast-jsx-consumer": 130,
+    "ast-jsx-close": 10,
+    "ast-non-message-attribute": 3,
+    "ast-diagnostic-text": 3,
+    "ast-signature": 1,
+    "ast-branch-condition": 7
+  },
+  "exception_rows": 734,
+  "implementation_status_counts": {
+    "deferred-c": 2605,
+    "listings-b-public-boundary": 192,
+    "payments-b-public-boundary": 125,
+    "deferred-c-payment-internals": 263,
+    "deferred-d": 9,
+    "uploads-b-public-boundary": 102,
+    "uploads-b-mapped-if-surfaced": 73
+  },
+  "journey_counts": {
+    "accounts": 339,
+    "dealer-admin": 1041,
+    "action-dev-bypass": 8,
+    "listing-save": 418,
+    "payments": 381,
+    "saved-listings": 5,
+    "vehicle-lookup": 94,
+    "action-policy": 2,
+    "page-boundary": 9,
+    "page-page.tsx": 11,
+    "api-me": 1,
+    "api-webhooks": 5,
+    "api-monitoring": 9,
+    "api-media": 10,
+    "listing-photo-upload": 268,
+    "api-internal": 47,
+    "api-cron": 9,
+    "reports": 18,
+    "enquiries": 15,
+    "page-listings": 4,
+    "ui-dev": 2,
+    "ui-layout": 2,
+    "ui-marketplace": 21,
+    "ui-monitoring": 1,
+    "ui-ui": 65,
+    "internal-platform": 317,
+    "shared-error-contract": 81,
+    "monitoring": 174,
+    "lib-services": 12
+  },
+  "family_counts": {
+    "public-sink": 1288,
+    "monitoring": 117,
+    "raw-message": 176,
+    "thrown": 879,
+    "fragment": 525,
+    "static-literal": 270,
+    "rate-limit": 13,
+    "field-errors": 101
+  },
+  "groups": [
+    {
+      "id": "displayed:ast-public-return:deferred-c:public-sink",
+      "count": 396,
+      "example": "actions/account.ts:28",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:public-sink",
+      "count": 300,
+      "example": "actions/account.ts:81",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-throw-unrendered:deferred-c:thrown",
+      "count": 263,
+      "example": "actions/dealer-reviews.ts:61",
+      "rule_id": "ast-throw-unrendered",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c:fragment",
+      "count": 215,
+      "example": "actions/dealer-reviews.ts:49",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-public-sink:deferred-c:public-sink",
+      "count": 203,
+      "example": "app/early-access/continue-form.tsx:21",
+      "rule_id": "ast-public-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c:thrown",
+      "count": 151,
+      "example": "actions/admin.ts:286",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c:static-literal",
+      "count": 147,
+      "example": "actions/dealer-reviews.ts:44",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-jsx-consumer:deferred-c:public-sink",
+      "count": 120,
+      "example": "app/early-access/continue-form.tsx:40",
+      "rule_id": "ast-jsx-consumer",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:thrown",
+      "count": 115,
+      "example": "actions/dealer-reviews.ts:66",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:fragment",
+      "count": 101,
+      "example": "actions/admin/users.ts:568",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "displayed:ast-throw-caller-sink:deferred-c:thrown",
+      "count": 99,
+      "example": "actions/dealer-onboarding.ts:256",
+      "rule_id": "ast-throw-caller-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-throw-unrendered:deferred-c-payment-internals:thrown",
+      "count": 66,
+      "example": "lib/payments/checkout-attempts.ts:39",
+      "rule_id": "ast-throw-unrendered",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-diagnostic-call:deferred-c:monitoring",
+      "count": 63,
+      "example": "actions/account.ts:59",
+      "rule_id": "ast-diagnostic-call",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-public-return:listings-b-public-boundary:public-sink",
+      "count": 50,
+      "example": "actions/listings.ts:134",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:deferred-c:fragment",
+      "count": 50,
+      "example": "actions/admin/profile-edit.ts:62",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c:raw-message",
+      "count": 47,
+      "example": "actions/admin.ts:463",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-throw-forwarded:deferred-c:raw-message",
+      "count": 45,
+      "example": "actions/dealer-onboarding.ts:174",
+      "rule_id": "ast-throw-forwarded",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:deferred-c:thrown",
+      "count": 40,
+      "example": "actions/admin/dealer-tier.ts:140",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:static-literal",
+      "count": 38,
+      "example": "actions/admin/costs.ts:370",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c:field-errors",
+      "count": 38,
+      "example": "actions/admin/profile-edit.ts:427",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:raw-message",
+      "count": 36,
+      "example": "actions/dealer-onboarding.ts:190",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:thrown",
+      "count": 34,
+      "example": "lib/payments/reconcile-payment.ts:89",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:thrown",
+      "count": 29,
+      "example": "lib/payments/provider.ts:64",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-mapped-if-surfaced:thrown",
+      "count": 26,
+      "example": "lib/listings/photo-upload.ts:24",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-public-return:deferred-c-payment-internals:public-sink",
+      "count": 25,
+      "example": "actions/admin/payments.ts:96",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:field-errors",
+      "count": 25,
+      "example": "app/(public)/listings/[id]/report-button.tsx:27",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:fragment",
+      "count": 24,
+      "example": "app/(public)/sell/create-listing-form.demo.ts:13",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-public-return:payments-b-public-boundary:public-sink",
+      "count": 23,
+      "example": "actions/payments.ts:150",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-diagnostic-call:deferred-c-payment-internals:monitoring",
+      "count": 23,
+      "example": "actions/admin/payments.ts:135",
+      "rule_id": "ast-diagnostic-call",
+      "classification": "internal-only"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:public-sink",
+      "count": 21,
+      "example": "actions/payments.ts:140",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:fragment",
+      "count": 21,
+      "example": "app/(admin)/admin/payments/page.tsx:560",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:listings-b-public-boundary:public-sink",
+      "count": 20,
+      "example": "actions/listings.ts:139",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:deferred-c:static-literal",
+      "count": 20,
+      "example": "app/uidemo/page.tsx:54",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-public-return:uploads-b-public-boundary:public-sink",
+      "count": 19,
+      "example": "app/api/listing-images/finalize/route.ts:74",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:public-sink",
+      "count": 18,
+      "example": "actions/admin/payments.ts:52",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "displayed:ast-public-return:uploads-b-mapped-if-surfaced:public-sink",
+      "count": 17,
+      "example": "lib/listings/photo-upload.ts:89",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-throw-unrendered:uploads-b-mapped-if-surfaced:thrown",
+      "count": 17,
+      "example": "lib/listings/photo-upload.ts:28",
+      "rule_id": "ast-throw-unrendered",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-public-sink:listings-b-public-boundary:public-sink",
+      "count": 16,
+      "example": "app/(public)/sell/create-listing-form.tsx:326",
+      "rule_id": "ast-public-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:fragment",
+      "count": 16,
+      "example": "app/api/listing-images/imagekit-finalize/route.ts:27",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-value-reaches-return:deferred-c:raw-message",
+      "count": 14,
+      "example": "actions/account.ts:65",
+      "rule_id": "ast-value-reaches-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-diagnostic-call:listings-b-public-boundary:monitoring",
+      "count": 14,
+      "example": "actions/listings.ts:289",
+      "rule_id": "ast-diagnostic-call",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:field-errors",
+      "count": 14,
+      "example": "app/(public)/sell/create-listing-form.tsx:124",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
+      "count": 14,
+      "example": "actions/payments.ts:109",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-value-reaches-return:deferred-c:public-sink",
+      "count": 13,
+      "example": "actions/account.ts:184",
+      "rule_id": "ast-value-reaches-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:fragment",
+      "count": 13,
+      "example": "app/(admin)/admin/payments/attach-inbox-form.tsx:15",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:static-literal",
+      "count": 13,
+      "example": "app/api/listing-images/finalize/route.ts:46",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-throw-caller-sink:deferred-c-payment-internals:thrown",
+      "count": 11,
+      "example": "lib/payments/attach-unmatched-listing.ts:25",
+      "rule_id": "ast-throw-caller-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
+      "count": 11,
+      "example": "actions/listings.ts:326",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-jsx-close:deferred-c:fragment",
+      "count": 10,
+      "example": "app/uidemo/page.tsx:513",
+      "rule_id": "ast-jsx-close",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:fragment",
+      "count": 9,
+      "example": "actions/payments.ts:427",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:deferred-c:fragment",
+      "count": 8,
+      "example": "lib/admin/checklist.ts:169",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-jsx-consumer:payments-b-public-boundary:public-sink",
+      "count": 8,
+      "example": "app/sample-checkout/[id]/checkout.tsx:188",
+      "rule_id": "ast-jsx-consumer",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-public-sink:deferred-c-payment-internals:public-sink",
+      "count": 8,
+      "example": "app/(admin)/admin/payments/attach-inbox-form.tsx:20",
+      "rule_id": "ast-public-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:listings-b-public-boundary:fragment",
+      "count": 8,
+      "example": "app/(public)/sell/create-listing-form.lookup.ts:27",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:fragment",
+      "count": 8,
+      "example": "actions/payments.ts:542",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
+      "count": 8,
+      "example": "actions/listings.ts:115",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-public-sink:payments-b-public-boundary:public-sink",
+      "count": 7,
+      "example": "app/(public)/dealer/subscribe/subscribe-form.tsx:72",
+      "rule_id": "ast-public-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:static-literal",
+      "count": 7,
+      "example": "actions/payments.ts:158",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:field-errors",
+      "count": 7,
+      "example": "lib/forms/action-error.ts:18",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:fragment",
+      "count": 7,
+      "example": "app/(public)/sell/create-listing-submit.ts:81",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:deferred-c:raw-message",
+      "count": 6,
+      "example": "lib/costs/email.ts:79",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-public-sink:uploads-b-public-boundary:public-sink",
+      "count": 6,
+      "example": "components/marketplace/image-upload.tsx:112",
+      "rule_id": "ast-public-sink",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-mapped-if-surfaced:public-sink",
+      "count": 6,
+      "example": "lib/listings/photo-upload.ts:147",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-diagnostic-call:payments-b-public-boundary:monitoring",
+      "count": 6,
+      "example": "actions/payments.ts:191",
+      "rule_id": "ast-diagnostic-call",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-binding:deferred-c:fragment",
+      "count": 6,
+      "example": "actions/dealer-onboarding.ts:306",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-throw-forwarded:payments-b-public-boundary:raw-message",
+      "count": 5,
+      "example": "actions/payments.ts:232",
+      "rule_id": "ast-throw-forwarded",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:public-sink",
+      "count": 5,
+      "example": "app/api/listing-images/imagekit-upload/route.ts:29",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-branch-condition:deferred-c:thrown",
+      "count": 5,
+      "example": "lib/database-sync/executor.ts:20",
+      "rule_id": "ast-branch-condition",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c:rate-limit",
+      "count": 5,
+      "example": "actions/dealer/correspondence.ts:33",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-mapped-if-surfaced:thrown",
+      "count": 4,
+      "example": "lib/media/managed-io.ts:62",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:rate-limit",
+      "count": 4,
+      "example": "app/api/listing-images/finalize/route.ts:70",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:thrown",
+      "count": 4,
+      "example": "lib/images/client-upload.ts:63",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:uploads-b-public-boundary:fragment",
+      "count": 4,
+      "example": "lib/rate-limit-result.ts:10",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:deferred-c-payment-internals:thrown",
+      "count": 3,
+      "example": "lib/payments/pending-listing-payment.ts:98",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:deferred-c:monitoring",
+      "count": 3,
+      "example": "lib/monitoring/alert-outbox.ts:205",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-value-reaches-return:payments-b-public-boundary:public-sink",
+      "count": 3,
+      "example": "actions/payments.ts:148",
+      "rule_id": "ast-value-reaches-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:raw-message",
+      "count": 3,
+      "example": "actions/admin/payments.ts:292",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:monitoring",
+      "count": 3,
+      "example": "lib/monitoring/capture.ts:218",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:listings-b-public-boundary:static-literal",
+      "count": 3,
+      "example": "actions/listings.ts:853",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:field-errors",
+      "count": 3,
+      "example": "app/(public)/dealer/subscribe/subscribe-form.tsx:63",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:raw-message",
+      "count": 3,
+      "example": "actions/payments.ts:233",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:field-errors",
+      "count": 3,
+      "example": "lib/forms/action-error.ts:63",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:raw-message",
+      "count": 3,
+      "example": "app/api/listing-images/finalize/route.ts:69",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:static-literal",
+      "count": 3,
+      "example": "app/api/listing-images/finalize/route.ts:86",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-diagnostic-text:deferred-c:monitoring",
+      "count": 3,
+      "example": "components/layout/site-header.tsx:117",
+      "rule_id": "ast-diagnostic-text",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:raw-message",
+      "count": 3,
+      "example": "actions/admin/payments.ts:146",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:raw-message",
+      "count": 3,
+      "example": "actions/payments.ts:426",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-throw-replaced:deferred-c:thrown",
+      "count": 3,
+      "example": "components/marketplace/search/listing-results-client.tsx:99",
+      "rule_id": "ast-throw-replaced",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-binding:deferred-c:field-errors",
+      "count": 3,
+      "example": "components/auth/signup-feedback.ts:32",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:deferred-c-payment-internals:fragment",
+      "count": 3,
+      "example": "components/payments/payment-awaiting-status.tsx:100",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:deferred-c:field-errors",
+      "count": 3,
+      "example": "lib/listings/attribute-ui.ts:452",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:deferred-d:fragment",
+      "count": 3,
+      "example": "app/error.tsx:11",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:static-literal",
+      "count": 3,
+      "example": "app/(public)/sell/create-listing-submit.ts:8",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:deferred-c:static-literal",
+      "count": 2,
+      "example": "lib/monitoring/alert-outbox.ts:143",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:thrown",
+      "count": 2,
+      "example": "actions/payments.ts:643",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:rate-limit",
+      "count": 2,
+      "example": "app/api/listing-images/finalize/route.ts:65",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:raw-message",
+      "count": 2,
+      "example": "components/marketplace/image-upload.tsx:196",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-throw-replaced:listings-b-public-boundary:static-literal",
+      "count": 2,
+      "example": "actions/listings.ts:736",
+      "rule_id": "ast-throw-replaced",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-throw-replaced:listings-b-public-boundary:thrown",
+      "count": 2,
+      "example": "actions/listings.ts:735",
+      "rule_id": "ast-throw-replaced",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-throw-unrendered:uploads-b-public-boundary:thrown",
+      "count": 2,
+      "example": "lib/images/imagekit-client-upload.ts:16",
+      "rule_id": "ast-throw-unrendered",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-binding:uploads-b-public-boundary:fragment",
+      "count": 2,
+      "example": "lib/forms/action-error.ts:16",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-non-message-attribute:deferred-c:fragment",
+      "count": 2,
+      "example": "components/ui/alert.tsx:42",
+      "rule_id": "ast-non-message-attribute",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:field-errors",
+      "count": 2,
+      "example": "app/(public)/sell/create-listing-submit.ts:198",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:uploads-b-public-boundary:static-literal",
+      "count": 2,
+      "example": "lib/media/verification-error.ts:23",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:payments-b-public-boundary:fragment",
+      "count": 1,
+      "example": "actions/payments.ts:101",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-enclosing-public-function:uploads-b-public-boundary:thrown",
+      "count": 1,
+      "example": "lib/images/client-upload.ts:132",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-jsx-consumer:deferred-d:public-sink",
+      "count": 1,
+      "example": "components/monitoring/error-fallback.tsx:22",
+      "rule_id": "ast-jsx-consumer",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-jsx-consumer:listings-b-public-boundary:public-sink",
+      "count": 1,
+      "example": "app/(public)/sell/create-listing-form.tsx:733",
+      "rule_id": "ast-jsx-consumer",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-public-return:deferred-d:public-sink",
+      "count": 1,
+      "example": "components/admin/monitoring-readable-error.tsx:24",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-throw-forwarded:deferred-c-payment-internals:raw-message",
+      "count": 1,
+      "example": "actions/admin/payments.ts:230",
+      "rule_id": "ast-throw-forwarded",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-throw-forwarded:uploads-b-mapped-if-surfaced:raw-message",
+      "count": 1,
+      "example": "lib/media/strip-metadata.ts:38",
+      "rule_id": "ast-throw-forwarded",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-value-reaches-return:deferred-c-payment-internals:raw-message",
+      "count": 1,
+      "example": "actions/admin/payments.ts:435",
+      "rule_id": "ast-value-reaches-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-value-reaches-return:listings-b-public-boundary:public-sink",
+      "count": 1,
+      "example": "actions/listings.ts:185",
+      "rule_id": "ast-value-reaches-return",
+      "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-c:rate-limit",
+      "count": 1,
+      "example": "app/api/dealer-profile/logo/route.ts:112",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:deferred-d:fragment",
+      "count": 1,
+      "example": "app/global-error.tsx:11",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:listings-b-public-boundary:raw-message",
+      "count": 1,
+      "example": "actions/listings.ts:473",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:listings-b-public-boundary:thrown",
+      "count": 1,
+      "example": "actions/listings.ts:754",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:monitoring",
+      "count": 1,
+      "example": "actions/payments.ts:442",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:fragment",
+      "count": 1,
+      "example": "app/api/listing-images/imagekit-upload/route.ts:52",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "internal-only:ast-branch-condition:deferred-c:fragment",
+      "count": 1,
+      "example": "lib/monitoring/plain-alert-rules.ts:439",
+      "rule_id": "ast-branch-condition",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-branch-condition:uploads-b-public-boundary:static-literal",
+      "count": 1,
+      "example": "lib/forms/action-error.ts:120",
+      "rule_id": "ast-branch-condition",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-diagnostic-call:uploads-b-public-boundary:monitoring",
+      "count": 1,
+      "example": "app/api/listing-images/finalize/route.ts:35",
+      "rule_id": "ast-diagnostic-call",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:static-literal",
+      "count": 1,
+      "example": "lib/payments/provider.ts:43",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-d:fragment",
+      "count": 1,
+      "example": "components/admin/monitoring-readable-error.tsx:34",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:deferred-d:static-literal",
+      "count": 1,
+      "example": "app/error.tsx:21",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:rate-limit",
+      "count": 1,
+      "example": "actions/listings.ts:93",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:raw-message",
+      "count": 1,
+      "example": "lib/listings/sync-images-action.ts:87",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:thrown",
+      "count": 1,
+      "example": "app/(public)/sell/vehicle-catalogue-fields.tsx:263",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-mapped-if-surfaced:raw-message",
+      "count": 1,
+      "example": "lib/media/strip-metadata.ts:47",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-mapped-if-surfaced:static-literal",
+      "count": 1,
+      "example": "lib/listings/photo-upload.ts:94",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-binding:listings-b-public-boundary:field-errors",
+      "count": 1,
+      "example": "app/(public)/sell/create-listing-submit.ts:185",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-non-message-attribute:deferred-c:field-errors",
+      "count": 1,
+      "example": "app/(public)/dealer/profile/dealer-profile-form.tsx:183",
+      "rule_id": "ast-non-message-attribute",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-signature:deferred-c:fragment",
+      "count": 1,
+      "example": "components/ui/form-error-summary.tsx:8",
+      "rule_id": "ast-signature",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:deferred-d:static-literal",
+      "count": 1,
+      "example": "components/admin/monitoring-readable-error.tsx:2",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:payments-b-public-boundary:fragment",
+      "count": 1,
+      "example": "app/(public)/dealer/subscribe/subscribe-form.tsx:30",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-type-or-import:uploads-b-public-boundary:field-errors",
+      "count": 1,
+      "example": "lib/forms/action-error.ts:8",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    }
+  ],
+  "deferred": {
+    "B-listings": "Save, update, submit, and wizard presentation use the public contract. Withdraw, report, contact, and renew in actions/listings.ts keep their previous copy.",
+    "B-payments": "Customer checkout unknown outcomes use non-retryable uncertainty. Charges, webhooks, refunds, and entitlements are unchanged. Other payment files stay deferred.",
+    "C": "Accounts, dealer/admin and remaining journeys stay deferred.",
+    "D": "Offline handling and page/global boundaries stay deferred.",
+    "E": "Release-gate lint and unknown-error frequency tracking have no rows in this candidate file and are not implemented."
+  }
+}

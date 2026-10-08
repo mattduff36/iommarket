@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  isPublicErrorCode,
+  isRenderablePublicMessage,
+  publicFallbackMessage,
+  type PublicErrorCode,
+} from "@/lib/forms/public-error";
 import { publicPasswordPolicyMessage } from "@/lib/forms/password-policy-message";
 
 export type FieldErrors = Record<string, string[]>;
@@ -33,7 +39,36 @@ function isFieldErrorMap(value: unknown): value is Record<string, string[] | und
   );
 }
 
+function publicBodyFieldErrors(value: unknown): FieldErrors {
+  return isFieldErrorMap(value) ? normalizeFieldErrors(value) : {};
+}
+
+/**
+ * Recognises the additive public contract. Unsafe messages are replaced.
+ * A string or plain field map still uses the legacy branches below.
+ */
+export function readPublicActionError(error: unknown): SplitActionError | null {
+  if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+  const record = error as Record<string, unknown>;
+  if (!isPublicErrorCode(record.code)) return null;
+  const code: PublicErrorCode = record.code;
+  const fieldErrors = publicBodyFieldErrors(record.fieldErrors);
+  const nestedFields = publicBodyFieldErrors(record.error);
+  const fields = Object.keys(fieldErrors).length > 0 ? fieldErrors : nestedFields;
+  const rawMessage = typeof record.error === "string" ? record.error.trim() : "";
+  if (!rawMessage && Object.keys(fields).length > 0 && code === "validation") {
+    return { formError: null, fieldErrors: fields };
+  }
+  const formError = rawMessage && isRenderablePublicMessage(rawMessage)
+    ? rawMessage
+    : publicFallbackMessage(code);
+  return { formError, fieldErrors: fields };
+}
+
 export function splitActionError(error: unknown): SplitActionError {
+  const published = readPublicActionError(error);
+  if (published) return published;
+
   if (typeof error === "string") {
     const trimmed = error.trim();
     return { formError: trimmed.length > 0 ? trimmed : null, fieldErrors: {} };

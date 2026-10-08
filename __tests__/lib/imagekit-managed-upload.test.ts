@@ -120,4 +120,36 @@ describe("managed ImageKit intent lifecycle", () => {
     await expect(finalizeManagedImageKitUpload(request)).rejects.toThrow(/state changed/);
     expect(mocks.cleanupCreate).not.toHaveBeenCalled();
   });
+
+  it("converts a signed HEIF original before metadata stripping", async () => {
+    const heifPath = "/iommarket-media/local/quarantine/user/intent/source.heif";
+    const bytes = Buffer.alloc(20);
+    bytes.write("ftyp", 4, "ascii");
+    bytes.write("heic", 8, "ascii");
+    mocks.find.mockResolvedValue({
+      ...intent,
+      format: "heif",
+      bytes: bytes.length,
+      imageKitFilePath: heifPath,
+    });
+    mocks.details.mockResolvedValue({
+      fileId: "raw-file",
+      filePath: heifPath,
+      size: bytes.length,
+      width: 1200,
+      height: 800,
+    });
+    mocks.download.mockImplementation(async (input: { convertHeif?: boolean }) =>
+      input.convertHeif ? Buffer.from("converted-webp") : bytes);
+    mocks.clean.mockResolvedValue({
+      bytes: Buffer.from("clean"),
+      width: 1200,
+      height: 800,
+      format: "webp",
+      bytesLength: 5,
+    });
+    await expect(finalizeManagedImageKitUpload(request)).resolves.toMatchObject({ status: "VERIFIED", format: "webp" });
+    expect(mocks.download).toHaveBeenCalledWith(expect.objectContaining({ convertHeif: true }));
+    expect(mocks.clean).toHaveBeenCalledWith({ bytes: Buffer.from("converted-webp"), format: "webp" });
+  });
 });

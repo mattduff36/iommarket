@@ -47,11 +47,12 @@ import {
 } from "@/lib/monitoring";
 import { transitionListingStatus } from "@/lib/listings/status-events";
 import {
-  ListingLifecycleConflictError,
-  ListingLifecycleError,
   isListingConflictError,
   isListingLifecycleDomainError,
+  ListingLifecycleConflictError,
+  ListingLifecycleError,
 } from "@/lib/listings/errors";
+import { captureWithoutMasking } from "@/lib/forms/public-error";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { canSkipListingPayment } from "@/lib/listings/payment-skip";
 import {
@@ -80,6 +81,14 @@ import {
 } from "@/lib/listings/sync-images-action";
 import { claimFreeListingSlot } from "@/lib/config/marketplace";
 import { validateVehicleCatalogueSubmission } from "@/lib/vehicle-catalogue/listing-validation";
+import {
+  LISTING_SAVE_UNKNOWN,
+  LISTING_SUBMIT_UNKNOWN,
+  LISTING_UNAVAILABLE,
+  listingDomainResult,
+  listingUnknownResult,
+  requireListingActor,
+} from "@/lib/listings/save-public-error";
 
 const LISTING_LIFECYCLE_RATE_LIMIT = {
   windowMs: 10 * 60_000,
@@ -114,6 +123,14 @@ function listingLifecycleRateError(result: RateLimitResult): string | null {
 function expectedListingActionError(
   error: unknown,
   conflictMessage: string,
+): { error: string; conflict?: true; data?: undefined } | null {
+  return listingDomainResult(error, conflictMessage);
+}
+
+/** Withdraw stays on the previous domain mapping. It is not part of the listing-save contract. */
+function withdrawListingDomainError(
+  error: unknown,
+  conflictMessage: string,
 ): { error: string; conflict?: true } | null {
   if (isListingConflictError(error)) {
     return { error: conflictMessage, conflict: true };
@@ -124,12 +141,42 @@ function expectedListingActionError(
   return null;
 }
 
+async function guardListingWrite<T>(
+  context: { action: string; route: string },
+  conflictMessage: string,
+  message: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    const expected = listingDomainResult(error, conflictMessage);
+    if (expected) return expected as T;
+    return listingUnknownResult(error, context, message) as Promise<T>;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Create Listing
 // ---------------------------------------------------------------------------
 
 export async function createListing(input: CreateListingInput) {
-  const user = await requireAcceptedAuth();
+  return guardListingWrite(
+    { action: "createListing", route: "/sell/private" },
+    "This listing changed in another session. Review the latest version before saving again.",
+    LISTING_SAVE_UNKNOWN,
+    () => createListingBody(input),
+  );
+}
+
+async function createListingBody(input: CreateListingInput) {
+  const actor = await requireListingActor({
+    action: "createListing",
+    route: "/sell/private",
+    fallbackMessage: LISTING_SAVE_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
@@ -284,17 +331,17 @@ export async function createListing(input: CreateListingInput) {
     revalidatePath("/");
     return { data: listing };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    const expected = expectedListingActionError(
+      err,
+      "This listing changed in another session. Review the latest version before saving again.",
+    );
+    if (expected) return expected;
+    return listingUnknownResult(err, {
       action: "createListing",
       route: "/sell/private",
-      requestPath: "/sell/private",
       userId: user.id,
       userEmail: user.email,
-    });
-    const message = err instanceof Error ? err.message : "Failed to create listing";
-    return { error: message };
+    }, LISTING_SAVE_UNKNOWN);
   }
 }
 
@@ -303,7 +350,22 @@ export async function createListing(input: CreateListingInput) {
 // ---------------------------------------------------------------------------
 
 export async function updateListing(input: unknown) {
-  const user = await requireAcceptedAuth();
+  return guardListingWrite(
+    { action: "updateListing", route: "/sell" },
+    "This listing changed in another session. Review the latest version before saving again.",
+    LISTING_SAVE_UNKNOWN,
+    () => updateListingBody(input),
+  );
+}
+
+async function updateListingBody(input: unknown) {
+  const actor = await requireListingActor({
+    action: "updateListing",
+    route: "/sell",
+    fallbackMessage: LISTING_SAVE_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
 
   const parsed = updateListingSchema.safeParse(input);
   if (!parsed.success) {
@@ -323,9 +385,8 @@ export async function updateListing(input: unknown) {
       lifecycleRevision: true,
     },
   });
-  if (!existing) return { error: "Listing not found" };
-  if (existing.userId !== user.id) {
-    return { error: "Not authorized to edit this listing" };
+  if (!existing || existing.userId !== user.id) {
+    return { error: LISTING_UNAVAILABLE };
   }
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
@@ -460,18 +521,18 @@ export async function updateListing(input: unknown) {
     revalidatePath("/");
     return { data: listing };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    const expected = expectedListingActionError(
+      err,
+      "This listing changed in another session. Review the latest version before saving again.",
+    );
+    if (expected) return expected;
+    return listingUnknownResult(err, {
       action: "updateListing",
       route: `/listings/${id}`,
-      requestPath: `/listings/${id}`,
       userId: user.id,
       userEmail: user.email,
       tags: { listingId: id },
-    });
-    const message = err instanceof Error ? err.message : "Failed to update listing";
-    return { error: message };
+    }, LISTING_SAVE_UNKNOWN);
   }
 }
 
@@ -487,7 +548,29 @@ export async function submitListingForReview(
         privateSellerTermsAccepted?: true;
       },
 ) {
-  const user = await requireAcceptedAuth();
+  return guardListingWrite(
+    { action: "submitListingForReview", route: "/sell" },
+    "This listing changed before it could be submitted. Refresh and try again.",
+    LISTING_SUBMIT_UNKNOWN,
+    () => submitListingForReviewBody(input),
+  );
+}
+
+async function submitListingForReviewBody(
+  input:
+    | string
+    | {
+        listingId: string;
+        privateSellerTermsAccepted?: true;
+      },
+) {
+  const actor = await requireListingActor({
+    action: "submitListingForReview",
+    route: "/sell",
+    fallbackMessage: LISTING_SUBMIT_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   const parsedInput = submitListingForReviewSchema.safeParse(
     typeof input === "string" ? { listingId: input } : input,
   );
@@ -507,10 +590,8 @@ export async function submitListingForReview(
       dealer: { select: { tier: true } },
     },
   });
-  if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id) return { error: "Not authorized" };
-  if (hasMismatchedDealerListing(user, listing)) {
-    return { error: "Not authorized" };
+  if (!listing || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
+    return { error: LISTING_UNAVAILABLE };
   }
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
@@ -552,7 +633,7 @@ export async function submitListingForReview(
         source: "LISTING",
       });
     } catch (err) {
-      await captureException({
+      await captureWithoutMasking(() => captureException({
         source: "SERVER",
         error: err,
         action: "submitListingForReview",
@@ -560,7 +641,7 @@ export async function submitListingForReview(
         requestPath: "/sell",
         userId: user.id,
         tags: { listingId, acceptanceType: "LISTING_BUNDLE" },
-      });
+      }));
       return {
         error:
           "Unable to record Private Seller Terms acceptance. Please try again.",
@@ -579,7 +660,7 @@ export async function submitListingForReview(
         };
       }
     } catch (err) {
-      await captureException({
+      await captureWithoutMasking(() => captureException({
         source: "SERVER",
         error: err,
         action: "submitListingForReview",
@@ -587,7 +668,7 @@ export async function submitListingForReview(
         requestPath: "/sell",
         userId: user.id,
         tags: { listingId, acceptanceType: "LISTING_BUNDLE" },
-      });
+      }));
       return {
         error:
           "Unable to verify Private Seller Terms acceptance. Please try again.",
@@ -616,18 +697,13 @@ export async function submitListingForReview(
         "These listing changes changed before they could be submitted. Refresh and try again.",
       );
       if (expected) return expected;
-      await reportHandledException({
-        error: err,
+      return listingUnknownResult(err, {
         action: "submitListingRevisionForReview",
         route: `/listings/${listingId}`,
-        requestPath: `/listings/${listingId}`,
         userId: user.id,
         userEmail: user.email,
         tags: { listingId },
-      });
-      return {
-        error: "Unable to submit these listing changes. Please try again.",
-      };
+      }, LISTING_SUBMIT_UNKNOWN);
     }
   }
   if (
@@ -805,18 +881,13 @@ export async function submitListingForReview(
             "This listing changed before it could be submitted. Refresh and try again.",
           );
           if (expected) return expected;
-          await reportHandledException({
-            error: err,
+          return listingUnknownResult(err, {
             action: "submitListingForReview",
             route: `/listings/${listingId}`,
-            requestPath: `/listings/${listingId}`,
             userId: user.id,
             userEmail: user.email,
             tags: { listingId, flow: "free-listing-claim" },
-          });
-          return {
-            error: "Unable to submit this listing. Please try again.",
-          };
+          }, LISTING_SUBMIT_UNKNOWN);
         }
       }
     }
@@ -853,16 +924,13 @@ export async function submitListingForReview(
       "This listing changed before it could be submitted. Refresh and try again.",
     );
     if (expected) return expected;
-    await reportHandledException({
-      error: err,
+    return listingUnknownResult(err, {
       action: "submitListingForReview",
       route: `/listings/${listingId}`,
-      requestPath: `/listings/${listingId}`,
       userId: user.id,
       userEmail: user.email,
       tags: { listingId },
-    });
-    return { error: "Unable to submit this listing. Please try again." };
+    }, LISTING_SUBMIT_UNKNOWN);
   }
 }
 
@@ -928,7 +996,7 @@ export async function withdrawListingSubmission(input: unknown) {
     revalidatePath("/admin/listings");
     return { data: result.listing };
   } catch (err) {
-    const expected = expectedListingActionError(
+    const expected = withdrawListingDomainError(
       err,
       "This submission changed before it could be withdrawn. Refresh and try again.",
     );
@@ -1262,7 +1330,9 @@ export async function syncListingImages(
   listingId: string,
   input: SyncListingImagesInput,
 ) {
-  const user = await requireAcceptedAuth();
+  const actor = await requireListingActor({ action: "syncListingImages", route: "/sell" });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
@@ -1274,7 +1344,9 @@ export async function saveListingImages(
   photos: ListingPhotoMutationItem[],
   input: Omit<SyncListingImagesInput, "photos">,
 ) {
-  const user = await requireAcceptedAuth();
+  const actor = await requireListingActor({ action: "saveListingImages", route: "/sell" });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }

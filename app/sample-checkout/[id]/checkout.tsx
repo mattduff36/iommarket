@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { isUncertainActionResult, UNCERTAIN_SAMPLE_MESSAGE } from "@/lib/forms/outcome-uncertainty";
 import { useRouter } from "next/navigation";
 import { CreditCard } from "lucide-react";
 import {
@@ -39,6 +40,7 @@ export function SampleCheckout({
   const [checkout, setCheckout] = useState(initialCheckout);
   const [selectedCard, setSelectedCard] = useState<CardChoice | null>(null);
   const [message, setMessage] = useState("");
+  const [uncertain, setUncertain] = useState(false);
   const [retrying, setRetrying] = useState(initialCheckout.status !== "FAILED");
   const [isExpired, setIsExpired] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -80,7 +82,7 @@ export function SampleCheckout({
   }
 
   function submitPayment() {
-    if (!selectedCard || isPending || checkout.status === "SUCCEEDED" || checkout.status === "CANCELLED") return;
+    if (uncertain || !selectedCard || isPending || checkout.status === "SUCCEEDED" || checkout.status === "CANCELLED") return;
     const card = selectedCard;
     const attempt = checkout.attemptCount + 1;
     setMessage("");
@@ -98,16 +100,18 @@ export function SampleCheckout({
           setMessage(result.data.status === "FAILED" ? "The sample payment was declined." : "");
           if (result.data.status === "SUCCEEDED") setSelectedCard(null);
         } else {
-          setMessage(result.error ?? "Unable to process the sample payment. Please try again.");
+          setUncertain(isUncertainActionResult(result) || !result.error);
+          setMessage(result.error ?? UNCERTAIN_SAMPLE_MESSAGE);
         }
       } catch {
-        setMessage("We couldn’t complete that sample attempt. Please try again.");
+        setUncertain(true);
+        setMessage("We haven't confirmed this sample attempt. Check the listing before using a sample card again.");
       }
     });
   }
 
   function cancelCheckout() {
-    if (isPending || isTerminal) return;
+    if (uncertain || isPending || isTerminal) return;
     startTransition(async () => {
       try {
         const result = await cancelSamplePayment({ checkoutId: checkout.id });
@@ -116,12 +120,15 @@ export function SampleCheckout({
           setCheckout(result.data);
         }
         if (result.error) {
+          setUncertain(isUncertainActionResult(result));
           setMessage(result.error);
           return;
         }
-        router.push(result.data?.returnUrl ?? checkout.returnUrl);
+        if (!result.data) { setUncertain(true); setMessage(UNCERTAIN_SAMPLE_MESSAGE); return; }
+        router.push(result.data.returnUrl);
       } catch {
-        setMessage("We couldn’t close this sample checkout. Please try again.");
+        setUncertain(true);
+        setMessage("We haven't confirmed whether this sample checkout was closed. Check the listing before paying again.");
       }
     });
   }
@@ -159,13 +166,13 @@ export function SampleCheckout({
           <div className="flowpay-amount"><small>{checkout.currency.toUpperCase()}</small><span>{formattedAmount.replace(/^[^\d]+/, "")}</span></div>
         </header>
         <div className="flowpay-cardbar">
-          <button type="button" onClick={isTerminal ? continueToMarketplace : cancelCheckout} disabled={isPending}>‹ Back</button>
+          <button type="button" onClick={isTerminal ? continueToMarketplace : cancelCheckout} disabled={isPending || uncertain}>‹ Back</button>
           <span>Card</span>
           <CreditCard size={24} aria-hidden="true" />
         </div>
 
         <div className="flowpay-content">
-          {terminalSuccess ? (
+          {uncertain ? <div role="alert"><p>{message || UNCERTAIN_SAMPLE_MESSAGE}</p><a href={`/sample-checkout/${checkout.id}`} className="flowpay-pay">Reload payment status</a></div> : terminalSuccess ? (
             <div className="flowpay-result" role="status">
               <strong>Sample payment approved</strong>
               <p>
@@ -198,12 +205,12 @@ export function SampleCheckout({
               <fieldset className="flowpay-saved" role="radiogroup" aria-label="Use your saved card to pay">
                 <legend>Use your saved card to pay</legend>
                 <label className="flowpay-saved-card">
-                  <input type="radio" name="sample-card" value="approve" checked={selectedCard === "approve"} onChange={() => setSelectedCard("approve")} disabled={isPending || attemptsLeft === 0 || isExpired} />
+                  <input type="radio" name="sample-card" value="approve" checked={selectedCard === "approve"} onChange={() => setSelectedCard("approve")} disabled={uncertain || isPending || attemptsLeft === 0 || isExpired} />
                   <span><span className="flowpay-cardnumber">424242••••••4242</span><small>Successful payment</small></span>
                   <span className="flowpay-outcome">Approves</span>
                 </label>
                 <label className="flowpay-saved-card">
-                  <input type="radio" name="sample-card" value="decline" checked={selectedCard === "decline"} onChange={() => setSelectedCard("decline")} disabled={isPending || attemptsLeft === 0 || isExpired} />
+                  <input type="radio" name="sample-card" value="decline" checked={selectedCard === "decline"} onChange={() => setSelectedCard("decline")} disabled={uncertain || isPending || attemptsLeft === 0 || isExpired} />
                   <span><span className="flowpay-cardnumber">400000••••••0002</span><small>Declined payment</small></span>
                   <span className="flowpay-outcome">Declines</span>
                 </label>
@@ -221,13 +228,13 @@ export function SampleCheckout({
               <p className="flowpay-note" id="sample-card-note">Select a saved sample card above. Real card details cannot be entered.</p>
               {message ? <p className="flowpay-error" role="alert">{message}</p> : null}
               {isExpired ? <p className="flowpay-error" role="status">This sample checkout has expired. Return to iTrader to start again.</p> : null}
-              <button type="button" className="flowpay-pay" disabled={!selectedCard || isPending || attemptsLeft === 0 || isExpired} onClick={submitPayment}>
+              <button type="button" className="flowpay-pay" disabled={uncertain || !selectedCard || isPending || attemptsLeft === 0 || isExpired} onClick={submitPayment}>
                 {isPending ? "Processing…" : "Pay using Card"}
               </button>
             </>
           )}
           {isTerminal ? <button type="button" className="flowpay-pay" onClick={continueToMarketplace}>Continue to iTrader</button>
-            : <button type="button" className="flowpay-cancel" onClick={cancelCheckout} disabled={isPending}>Cancel payment</button>}
+            : <button type="button" className="flowpay-cancel" onClick={cancelCheckout} disabled={isPending || uncertain}>Cancel payment</button>}
         </div>
       </section>
       </div>

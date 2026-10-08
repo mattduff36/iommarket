@@ -103,7 +103,7 @@ describe("sample payment actions", () => {
     process.env.VERCEL_ENV = "production";
     process.env.RIPPLE_SAMPLE_CHECKOUT_ENABLED = "1";
     await expect(submitSamplePayment({ checkoutId: state.row!.id, card: "approve", attempt: 1 }))
-      .rejects.toThrow("Sample payments are unavailable");
+      .resolves.toEqual({ error: "Sample payments are unavailable in this environment." });
     expect(mockDb.$transaction).not.toHaveBeenCalled();
   });
 

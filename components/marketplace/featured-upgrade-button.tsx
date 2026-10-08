@@ -7,6 +7,7 @@ import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,
 } from "@/components/payments/ripple-demo-checkout-dialog";
+import { isUncertainActionResult, UNCERTAIN_CHECKOUT_MESSAGE } from "@/lib/forms/outcome-uncertainty";
 import { Star } from "lucide-react";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { PaymentAwaitingStatus } from "@/components/payments/payment-awaiting-status";
@@ -31,30 +32,33 @@ export function FeaturedUpgradeButton({
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen, sampleCheckoutId } =
     useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
   const pendingCopy = "This purchase activates after the listing is approved.";
 
   function handleUpgrade() {
-    if (submitLock.current || checkoutUnavailable) return;
+    if (submitLock.current || checkoutUnavailable || uncertain) return;
     submitLock.current = true;
     setError(null);
     startTransition(async () => {
       try {
         const result = await upgradeFeatured(listingId);
         if (result.error) {
+          setUncertain(isUncertainActionResult(result));
           setError(
             typeof result.error === "string"
               ? result.error
-              : "Failed to start checkout. Please try again.",
+              : UNCERTAIN_CHECKOUT_MESSAGE,
           );
           return;
         }
         if (result.data?.checkoutUrl) {
           openCheckout(result.data.checkoutUrl);
           setIsAwaitingPayment(true);
-        }
+        } else { setUncertain(true); setError(UNCERTAIN_CHECKOUT_MESSAGE); }
       } catch {
-        setError("Failed to start checkout. Please try again.");
+        setUncertain(true);
+        setError(UNCERTAIN_CHECKOUT_MESSAGE);
       } finally {
         submitLock.current = false;
       }
@@ -69,7 +73,7 @@ export function FeaturedUpgradeButton({
           variant="ghost"
           size="sm"
           onClick={handleUpgrade}
-          disabled={checkoutUnavailable}
+          disabled={checkoutUnavailable || uncertain}
           loading={isPending}
           aria-busy={isPending || undefined}
           className="text-premium-gold-400 hover:text-premium-gold-500"
@@ -91,7 +95,8 @@ export function FeaturedUpgradeButton({
             {error}
           </p>
         )}
-        <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
+        {uncertain ? <a href={`/listings/${listingId}`} className="text-text-trust underline">Check Featured status</a> : null}
+      <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
           isAwaitingPayment={isAwaitingPayment}
           message="Checkout is open in another tab. This page will update when the payment service confirms the featured upgrade."
         />
@@ -125,7 +130,7 @@ export function FeaturedUpgradeButton({
         variant="premium"
         size="sm"
         onClick={handleUpgrade}
-        disabled={checkoutUnavailable}
+        disabled={checkoutUnavailable || uncertain}
         loading={isPending}
         aria-busy={isPending || undefined}
         className="shrink-0"
@@ -143,6 +148,7 @@ export function FeaturedUpgradeButton({
           {error}
         </p>
       )}
+      {uncertain ? <a href={`/listings/${listingId}`} className="text-text-trust underline">Check Featured status</a> : null}
       <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
         isAwaitingPayment={isAwaitingPayment}
         message="Checkout is open in another tab. This page will update when the payment service confirms the featured upgrade."

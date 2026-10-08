@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
-import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { imageKitDevUploadsEnabled } from "@/lib/media/config";
 import { uploadDisposableImage, deleteDisposableImageKitFile } from "@/lib/media/disposable-media";
 import { listingUploadFormat, stripListingImageMetadata } from "@/lib/media/strip-metadata";
 import { verifyImageKitListingUpload } from "@/lib/listings/photo-upload";
 import { db } from "@/lib/db";
+import { publicErrorBody } from "@/lib/forms/public-error";
+import { uploadAuthErrorBody } from "@/lib/media/upload-auth-error";
+import { captureException } from "@/lib/monitoring";
+import { respondToUploadError } from "@/lib/media/upload-error-catalog";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
-import { toRateLimitDenial } from "@/lib/rate-limit-result";
+import { rateLimitPublicError } from "@/lib/rate-limit-result";
 import { ADMIN_OWNED_LISTING_ERROR, isAdminSellerBlocked } from "@/lib/listings/seller-access";
 
 export const runtime = "nodejs";
@@ -23,18 +27,25 @@ function hasTrustedOrigin(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!imageKitDevUploadsEnabled()) {
-    return NextResponse.json({ error: "ImageKit development uploads are disabled." }, { status: 404 });
+    return NextResponse.json(publicErrorBody({ message: "ImageKit development uploads are disabled.", code: "unavailable" }), { status: 404 });
   }
   if (!hasTrustedOrigin(request)) {
-    return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+    return NextResponse.json(publicErrorBody({ message: "Invalid request origin", code: "forbidden" }), { status: 403 });
   }
   let user;
   try {
     user = await requireAcceptedAuth();
   } catch (error) {
-    return NextResponse.json({ error: "Not authorized" }, { status: acceptedAuthHttpStatus(error) });
+    const auth = await uploadAuthErrorBody(error, () => captureException({
+      source: "SERVER",
+      error,
+      action: "requireAcceptedAuth",
+      route: "/api/listing-images/imagekit-upload",
+      requestPath: "/api/listing-images/imagekit-upload",
+    }));
+    return NextResponse.json(auth.body, { status: auth.status });
   }
-  const rateDenial = toRateLimitDenial(
+  const rateBody = rateLimitPublicError(
     await checkRateLimit(makeRateLimitKey("listing-image-imagekit", user.id), {
       windowMs: 60_000,
       maxRequests: 10,
@@ -42,29 +53,29 @@ export async function POST(request: NextRequest) {
     }),
     "Too many upload attempts. Try again shortly.",
   );
-  if (rateDenial) {
-    return NextResponse.json(
-      { error: rateDenial.message },
-      { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds) } },
-    );
+  if (rateBody) {
+    return NextResponse.json(rateBody, {
+      status: rateBody.code === "unavailable" ? 503 : 429,
+      headers: { "Retry-After": String(rateBody.retryAfterSeconds) },
+    });
   }
   if (isAdminSellerBlocked(user.role)) {
-    return NextResponse.json({ error: ADMIN_OWNED_LISTING_ERROR }, { status: 403 });
+    return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
   }
 
   const form = await request.formData();
   const intentId = intentSchema.safeParse(form.get("uploadIntentId"));
   const file = form.get("file");
   if (!intentId.success || !(file instanceof File)) {
-    return NextResponse.json({ error: "Upload request is invalid." }, { status: 400 });
+    return NextResponse.json(publicErrorBody({ message: "Upload request is invalid.", code: "validation" }), { status: 400 });
   }
   if (file.size <= 0 || file.size > IMAGE_CONSTRAINTS.maxFileSizeBytes) {
-    return NextResponse.json({ error: "Images must be 10MB or smaller." }, { status: 400 });
+    return NextResponse.json(publicErrorBody({ message: "Images must be 10MB or smaller.", code: "validation" }), { status: 400 });
   }
 
   const intent = await db.listingImageUploadIntent.findUnique({ where: { id: intentId.data } });
   if (!intent || intent.userId !== user.id || intent.deliveryType !== "imagekit" || intent.status !== "ISSUED") {
-    return NextResponse.json({ error: "Upload not found." }, { status: 404 });
+    return NextResponse.json(publicErrorBody({ message: "Upload not found.", code: "not_found" }), { status: 404 });
   }
 
   let uploaded: { fileId: string; filePath: string } | null = null;
@@ -92,12 +103,21 @@ export async function POST(request: NextRequest) {
       bytes: stripped.bytesLength,
     });
     if ("error" in verified && verified.error) {
+      const reason = verified.error;
       await deleteDisposableImageKitFile({
         fileId: uploaded.fileId,
         filePath: uploaded.filePath,
         allowlist: [uploaded],
       });
-      return NextResponse.json({ error: verified.error }, { status: 400 });
+      const classified = await respondToUploadError(new Error(reason), () => captureException({
+        source: "SERVER",
+        error: new Error(reason),
+        action: "verifyImageKitListingUpload",
+        route: "/api/listing-images/imagekit-upload",
+        requestPath: "/api/listing-images/imagekit-upload",
+        userId: user.id,
+      }));
+      return NextResponse.json(classified.body, { status: classified.status });
     }
     return NextResponse.json({
       data: {
@@ -121,7 +141,14 @@ export async function POST(request: NextRequest) {
         allowlist: [uploaded],
       }).catch(() => undefined);
     }
-    const message = error instanceof Error ? error.message : "Could not upload the image.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    const classified = await respondToUploadError(error, () => captureException({
+      source: "SERVER",
+      error,
+      action: "imagekitDevListingUpload",
+      route: "/api/listing-images/imagekit-upload",
+      requestPath: "/api/listing-images/imagekit-upload",
+      userId: user.id,
+    }));
+    return NextResponse.json(classified.body, { status: classified.status });
   }
 }

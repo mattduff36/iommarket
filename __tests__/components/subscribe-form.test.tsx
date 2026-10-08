@@ -213,4 +213,20 @@ describe("SubscribeForm demo checkout flow", () => {
     ).toBeTruthy();
     expect(createDealerSubscription).not.toHaveBeenCalled();
   });
+
+  it.each(["response", "transport"])("requires subscription status review after uncertain %s", async (kind) => {
+    if (kind === "transport") vi.mocked(createDealerSubscription).mockRejectedValueOnce(new Error("private-provider-token"));
+    else vi.mocked(createDealerSubscription).mockResolvedValueOnce({ error: "Check payment status before paying again.", code: "unknown", retryable: false });
+    render(<SubscribeForm tier="STARTER" tierLabel="Starter" tierPrice="£29.99" features={[]} hasDealerProfile />);
+    const button = screen.getByRole("button", { name: /Subscribe for/ });
+    fireEvent.click(screen.getByLabelText(/I accept the Dealer Terms/i));
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    expect(await screen.findByRole("link", { name: "Check subscription status" })).toHaveAttribute("href", "/dealer/dashboard");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(createDealerSubscription).toHaveBeenCalledTimes(1);
+    expect(document.body).not.toHaveTextContent("private-provider-token");
+  });
+
 });

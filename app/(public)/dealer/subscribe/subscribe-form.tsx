@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { guardClientMutation, isUncertainActionResult, UNCERTAIN_CHECKOUT_MESSAGE } from "@/lib/forms/outcome-uncertainty";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ export function SubscribeForm({
   const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [demoOutcomeError, setDemoOutcomeError] = useState<string | null>(null);
@@ -89,6 +91,7 @@ export function SubscribeForm({
   }
 
   function handleSubscribe() {
+    if (uncertain || isPending) return;
     setError(null);
     setFieldErrors({});
     setNotice(null);
@@ -100,12 +103,13 @@ export function SubscribeForm({
       return;
     }
     startTransition(async () => {
-      const result = await createDealerSubscription({
+      const result = await guardClientMutation(() => createDealerSubscription({
         testPlan: false,
         tier,
         acceptedDealerTerms: true,
-      });
+      }));
       if (result.error) {
+        if (isUncertainActionResult(result)) { setUncertain(true); setDemoDialogOpen(false); setError(UNCERTAIN_CHECKOUT_MESSAGE); }
         const split = splitActionError(result.error);
         setFieldErrors(split.fieldErrors);
         setError(split.formError);
@@ -127,14 +131,16 @@ export function SubscribeForm({
   }
 
   function handleSimulatedDemoOutcome(outcome: "success" | "declined") {
+    if (uncertain) return;
     setDemoOutcomeError(null);
     startSimulatingDemoOutcome(async () => {
-      const result = await simulateDemoDealerSubscriptionOutcome({
+      const result = await guardClientMutation(() => simulateDemoDealerSubscriptionOutcome({
         tier,
         outcome,
-      });
+      }));
 
       if (result.error) {
+        if (isUncertainActionResult(result)) { setUncertain(true); setDemoDialogOpen(false); setError(UNCERTAIN_CHECKOUT_MESSAGE); }
         setDemoOutcomeError(
           typeof result.error === "string"
             ? result.error
@@ -244,6 +250,7 @@ export function SubscribeForm({
               Return here after paying to see your subscription confirmation.
             </p>
             <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
+            {uncertain ? <a href="/dealer/dashboard" className="text-text-trust underline">Check subscription status</a> : null}
             {notice && (
               <p className="text-sm text-text-secondary mb-4" role="status">
                 {notice}
@@ -301,7 +308,7 @@ export function SubscribeForm({
             />
             <Button
               onClick={handleSubscribe}
-              disabled={checkoutUnavailable || !termsRecorded || !acceptedDealerTerms || isRecordingTerms}
+              disabled={uncertain || checkoutUnavailable || !termsRecorded || !acceptedDealerTerms || isRecordingTerms}
               className="w-full mt-4"
               loading={isPending}
             >

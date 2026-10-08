@@ -12,15 +12,15 @@ const outcomes = {
     Icon: Clock3,
   },
   failed: {
-    title: "Your payment wasn't completed",
-    message: "Checkout returned an unsuccessful result. Your saved listing draft and photos are still available.",
-    detail: "Return to your listings to review the payment status before trying again. If you see a charge or received a payment receipt, contact us first to avoid paying twice.",
+    title: "Payment result not confirmed",
+    message: "We haven't confirmed the payment result yet. Check payment status before paying again.",
+    detail: "Return to your listings and review the payment. If you see a charge or a receipt, contact us before paying again.",
     Icon: TriangleAlert,
   },
   cancelled: {
-    title: "You left checkout",
-    message: "You can pick up where you left off. Your saved listing draft and photos are still available.",
-    detail: "Return to your listings whenever you're ready. If you completed a payment before leaving checkout, check its status or contact us before paying again.",
+    title: "Payment result not confirmed",
+    message: "Leaving checkout does not confirm a cancellation. Check payment status before paying again.",
+    detail: "Return to your listings and review the payment before starting another one.",
     Icon: CircleSlash2,
   },
 } as const;

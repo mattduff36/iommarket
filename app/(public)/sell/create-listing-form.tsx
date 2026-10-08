@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { paymentOutcomeReview, UNCERTAIN_CHECKOUT_MESSAGE, listingOutcomeReview, UNCERTAIN_LISTING_MESSAGE, type OutcomeReview } from "@/lib/forms/outcome-uncertainty";
 import { useRouter } from "next/navigation";
 import {
   RippleDemoCheckoutDialog,
@@ -121,6 +122,7 @@ export function CreateListingForm({
   const [includeFeatured, setIncludeFeatured] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [outcomeReview, setOutcomeReview] = useState<OutcomeReview | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState<GuidedListingStep>(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialDraft?.categoryId ?? "");
@@ -144,6 +146,7 @@ export function CreateListingForm({
     setDemoDialogOpen,
     replace: (href) => router.replace(href),
     refresh: () => router.refresh(),
+    onUncertain: () => { setOutcomeReview(paymentOutcomeReview(listingIdRef.current)); setError(UNCERTAIN_CHECKOUT_MESSAGE); },
   });
   const [attributeValues, setAttributeValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -504,7 +507,7 @@ export function CreateListingForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!tryBeginSubmitFlight(submitFlightRef)) {
+    if (outcomeReview || !tryBeginSubmitFlight(submitFlightRef)) {
       return;
     }
     if (photoUploadsBusy) {
@@ -600,6 +603,9 @@ export function CreateListingForm({
           trackMarketplaceEvent("listing_submitted", { listingId: listingIdRef.current, context: "listing" });
         }
         if (navigation.kind === "stay") {
+          if (navigation.uncertain) {
+            setOutcomeReview({ href: navigation.reviewHref ?? "/account/listings", label: navigation.reviewLabel ?? "Check your listings" });
+          }
           if (navigation.error) setError(navigation.error);
           if (navigation.fieldErrors) {
             showFieldErrors(
@@ -619,10 +625,8 @@ export function CreateListingForm({
         }
         router.replace(navigation.href);
       } catch {
-        releaseSubmitFlight(submitFlightRef);
-        setError(
-          "Something interrupted submission. Your entered details and selected photos are still in this form. If checkout may have opened or payment may have completed, check My listings before retrying.",
-        );
+        setOutcomeReview(listingOutcomeReview(listingIdRef.current));
+        setError(UNCERTAIN_LISTING_MESSAGE);
       }
     });
   }
@@ -731,6 +735,7 @@ export function CreateListingForm({
             </GuidedListingRail>
 
             {error ? <FormErrorSummary messages={[error]} /> : null}
+            {outcomeReview ? <a href={outcomeReview.href} className="text-text-trust underline">{outcomeReview.label}</a> : null}
 
             <div className="flex items-center gap-3">
               {step > 1 ? (
@@ -754,7 +759,7 @@ export function CreateListingForm({
                   size="lg"
                   className="w-full"
                   loading={isPending}
-                  disabled={isPending || photoUploadsBusy}
+                  disabled={isPending || photoUploadsBusy || Boolean(outcomeReview)}
                 >
                   {editMode === "revision"
                     ? "Submit changes for review"

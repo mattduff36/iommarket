@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { guardClientMutation, isUncertainActionResult, paymentOutcomeReview, UNCERTAIN_CHECKOUT_MESSAGE } from "@/lib/forms/outcome-uncertainty";
 import { useRouter } from "next/navigation";
 import {
   payForListing,
@@ -47,6 +48,7 @@ export function RetryCheckoutButton({
   const { demoCheckoutUrl, demoDialogOpen, openCheckout, setDemoDialogOpen } =
     useRippleDemoCheckout();
   const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isSimulatingDemoOutcome, startSimulatingDemoOutcome] = useTransition();
@@ -63,14 +65,14 @@ export function RetryCheckoutButton({
   const chooseFeatured = includeFeatured && !featuredAlreadyPurchased;
 
   function handleRetry() {
-    if (submitLock.current) return;
+    if (submitLock.current || uncertain) return;
     submitLock.current = true;
     setError(null);
     setNotice(null);
     setDemoOutcomeError(null);
     startTransition(async () => {
       try {
-        const payResult = await payForListing(
+        const payResult = await guardClientMutation(() => payForListing(
           buildPayForListingInput({
             listingId,
             privateSellerTermsAccepted:
@@ -78,8 +80,9 @@ export function RetryCheckoutButton({
             includeFeatured: chooseFeatured,
             listingFeeDue,
           }),
-        );
+        ));
         if (payResult.error) {
+          setUncertain(isUncertainActionResult(payResult));
           setError(
             typeof payResult.error === "string"
               ? payResult.error
@@ -90,12 +93,13 @@ export function RetryCheckoutButton({
 
         const listingSubmitted = readListingPaymentResult(payResult.data).listingSubmitted;
         if (payResult.data?.skippedPayment && !listingSubmitted) {
-          const reviewResult = await submitListingForReview({
+          const reviewResult = await guardClientMutation(() => submitListingForReview({
             listingId,
             privateSellerTermsAccepted:
               flow === "private" && privateSellerTermsAccepted ? true : undefined,
-          });
+          }));
           if (reviewResult?.error) {
+            setUncertain(isUncertainActionResult(reviewResult));
             setError(
               typeof reviewResult.error === "string"
                 ? reviewResult.error
@@ -113,8 +117,9 @@ export function RetryCheckoutButton({
           })
         ) {
           try {
-            const featuredResult = await upgradeFeatured(listingId);
+            const featuredResult = await guardClientMutation(() => upgradeFeatured(listingId));
             if (featuredResult.error || !featuredResult.data?.checkoutUrl) {
+              setUncertain(isUncertainActionResult(featuredResult) || !featuredResult.error);
               setError(featuredPurchaseFailure(featuredResult.error));
               return;
             }
@@ -132,6 +137,7 @@ export function RetryCheckoutButton({
               router.refresh();
             }
           } catch {
+            setUncertain(true);
             setError(FEATURED_AFTER_SUBMIT_MESSAGE);
           }
           return;
@@ -156,6 +162,7 @@ export function RetryCheckoutButton({
 
         router.replace(`/sell/success?listing=${listingId}&flow=${flow}&payment=skipped`);
       } catch {
+        setUncertain(true);
         setError(
           "We couldn't confirm the checkout request. Check this listing's payment status before retrying if a checkout may have opened or payment may have completed.",
         );
@@ -166,15 +173,17 @@ export function RetryCheckoutButton({
   }
 
   function handleSimulatedDemoOutcome(outcome: "success" | "declined") {
+    if (uncertain) return;
     setDemoOutcomeError(null);
     startSimulatingDemoOutcome(async () => {
-      const result = await simulateDemoListingPaymentOutcome({
+      const result = await guardClientMutation(() => simulateDemoListingPaymentOutcome({
         listingId,
         flow,
         outcome,
-      });
+      }));
 
       if (result.error) {
+          if (isUncertainActionResult(result)) { setUncertain(true); setDemoDialogOpen(false); setError(UNCERTAIN_CHECKOUT_MESSAGE); }
         setDemoOutcomeError(
           typeof result.error === "string"
             ? result.error
@@ -257,12 +266,13 @@ export function RetryCheckoutButton({
       <Button
         onClick={handleRetry}
         loading={isPending}
-        disabled={flow === "private" && !privateSellerTermsAccepted}
+        disabled={uncertain || (flow === "private" && !privateSellerTermsAccepted)}
       >
         Open payment in new tab
       </Button>
       {notice ? <p className="text-sm text-text-secondary">{notice}</p> : null}
-      {error ? <p className="text-sm text-text-error">{error}</p> : null}
+      {error ? <p className="text-sm text-text-error" role="alert">{error}</p> : null}
+      {uncertain ? <a href={paymentOutcomeReview(listingId).href} className="text-text-trust underline">Check payment status</a> : null}
 
       <RippleDemoCheckoutDialog
         open={demoDialogOpen}
