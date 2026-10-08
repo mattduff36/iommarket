@@ -12,7 +12,7 @@ const { requireAcceptedAuthMock, checkRateLimitMock, mockDb } = vi.hoisted(() =>
       count: vi.fn(),
       findUnique: vi.fn(),
     },
-    listingAttributeValue: { deleteMany: vi.fn(), createMany: vi.fn() },
+    listingAttributeValue: { findMany: vi.fn().mockResolvedValue([]), deleteMany: vi.fn(), createMany: vi.fn() },
     listingStatusEvent: { create: vi.fn() },
     subscription: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),

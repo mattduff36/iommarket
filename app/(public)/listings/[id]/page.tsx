@@ -28,6 +28,7 @@ import { RenewListingButton } from "@/components/marketplace/renew-listing-butto
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
 import { PendingRevisionReview } from "@/components/admin/pending-revision-review";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
+import { ListingSpecificationGroups } from "@/components/listings/listing-specification-groups";
 import { ListingImageGallery } from "./listing-image-gallery";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import {
@@ -602,24 +603,15 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
               <ExpandableDescription description={listing.description} />
             </div>
 
-            {/* Attributes */}
-            {listing.attributeValues.length > 0 && (
-              <div className="mt-8">
-                <h2 className="section-heading-accent text-lg font-bold text-text-primary mb-5">
-                  Specifications
-                </h2>
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                  {listing.attributeValues.map((av) => (
-                    <div key={av.id} className="flex flex-col">
-                      <dt className="font-medium text-text-secondary">
-                        {av.attributeDefinition.name}
-                      </dt>
-                      <dd className="text-text-primary">{av.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
+            <ListingSpecificationGroups
+              categorySlug={listing.category.slug}
+              attributes={listing.attributeValues.map((attribute) => ({
+                slug: attribute.attributeDefinition.slug,
+                name: attribute.attributeDefinition.name,
+                value: attribute.value,
+                sortOrder: attribute.attributeDefinition.sortOrder,
+              }))}
+            />
           </div>
         </div>
 

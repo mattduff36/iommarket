@@ -26,6 +26,7 @@ export function validateListingAttributesWithServerPolicy(params: {
   categorySlug: string | undefined;
   definitions: ListingAttributeDefinitionLike[];
   attributes: ListingAttributeInputLike[];
+  retainedAttributes?: ListingAttributeInputLike[];
 }) {
   return validateListingAttributes({
     ...params,

@@ -366,10 +366,20 @@ export async function updateListing(input: unknown) {
       const { validateListingAttributesWithServerPolicy } = await import(
         "@/lib/listings/listing-ns-policy"
       );
+      const { loadRetainedAttributeValues } = await import(
+        "@/lib/listings/retained-attributes"
+      );
+      const retainedAttributes = await loadRetainedAttributeValues({
+        listingId: id,
+        storedCategoryId: existing.categoryId,
+        nextCategoryId: category.id,
+        pendingRevision: usesPendingRevision(existing.status),
+      });
       const attributeValidation = validateListingAttributesWithServerPolicy({
         categorySlug: category.slug,
         definitions: category.attributeDefinitions,
         attributes,
+        retainedAttributes,
       });
       if (attributeValidation.configurationError) {
         return { error: attributeValidation.configurationError };

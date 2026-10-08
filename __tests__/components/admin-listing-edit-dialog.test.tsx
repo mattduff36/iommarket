@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ListingEditDialog } from "@/components/admin/listing-edit-dialog";
+import { attributeDefsForCategory } from "@/prisma/seed/catalog-attributes";
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
@@ -108,6 +109,62 @@ describe("ListingEditDialog", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(mocks.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("drops a hidden tail-lift capacity and does not restore it", async () => {
+    const user = userEvent.setup();
+    const tailLift = attributeDefsForCategory("van").find((attribute) => attribute.slug === "tail-lift");
+    const capacity = attributeDefsForCategory("van").find(
+      (attribute) => attribute.slug === "tail-lift-capacity-kg",
+    );
+    if (!tailLift || !capacity) throw new Error("missing van tail lift fields");
+    const tailLiftId = "van_tail-lift";
+    const capacityId = "van_tail-lift-capacity-kg";
+    mocks.save.mockResolvedValue({ data: { listingId: "listing-1" } });
+    mocks.load.mockResolvedValue({
+      data: {
+        ...loadData,
+        listing: {
+          ...loadData.listing,
+          categoryId: "van-category",
+          attributes: [
+            { attributeDefinitionId: tailLiftId, value: "Yes" },
+            { attributeDefinitionId: capacityId, value: "500" },
+          ],
+        },
+        categories: [
+          {
+            id: "van-category",
+            name: "Vans",
+            slug: "van",
+            attributes: [
+              { id: tailLiftId, ...tailLift },
+              { id: capacityId, ...capacity },
+            ],
+          },
+        ],
+      },
+    });
+
+    render(<ListingEditDialog listingId="listing-1" open onOpenChange={mocks.onOpenChange} />);
+    const tailLiftField = await screen.findByRole("combobox", { name: "Tail lift" });
+    expect(screen.getByRole("spinbutton", { name: "Tail lift capacity (kg)" })).toHaveValue(500);
+    await user.selectOptions(tailLiftField, "No");
+    expect(screen.queryByRole("spinbutton", { name: "Tail lift capacity (kg)" })).not.toBeInTheDocument();
+
+    await user.selectOptions(tailLiftField, "Yes");
+    expect(screen.getByRole("spinbutton", { name: "Tail lift capacity (kg)" })).toHaveValue(null);
+
+    await user.selectOptions(tailLiftField, "No");
+    await user.click(screen.getByRole("button", { name: "Review and save" }));
+    await user.click(screen.getByRole("button", { name: "Confirm save" }));
+
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: [{ attributeDefinitionId: tailLiftId, value: "No" }],
+      }),
+    );
   });
 
   it("closes pristine edits without a discard confirmation", async () => {

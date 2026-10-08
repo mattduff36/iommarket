@@ -236,6 +236,8 @@ export async function saveAdminListingEdit(input: unknown) {
         categorySlug: category.slug,
         definitions: category.attributeDefinitions,
         attributes: parsed.data.attributes,
+        retainedAttributes:
+          category.id === listing.categoryId ? listing.attributeValues : [],
       });
       if (attributeValidation.configurationError) {
         return { error: attributeValidation.configurationError };

@@ -186,6 +186,22 @@ export function CreateListingForm({
   const selectedFuelType = fuelTypeAttribute
     ? attributeValues[fuelTypeAttribute.id]
     : undefined;
+  const attributeValuesBySlug = Object.fromEntries(
+    (selectedCategory?.attributes ?? []).map((attribute) => [
+      attribute.slug,
+      attributeValues[attribute.id]?.trim() ?? "",
+    ]),
+  );
+  const retainedAttributeValues =
+    initialDraft && initialDraft.categoryId === selectedCategoryId
+      ? initialDraft.attributes
+      : [];
+  const retainedAttributeValueById = Object.fromEntries(
+    retainedAttributeValues.map((attribute) => [
+      attribute.attributeDefinitionId,
+      attribute.value,
+    ]),
+  );
   const visibleAttributes = groupWriteOffWithVehicleDetails(
     selectedCategory?.attributes.filter(
       (attr) =>
@@ -195,7 +211,10 @@ export function CreateListingForm({
   )
     .map((attr) => ({
       attr,
-      config: getAttributeFieldConfig(selectedCategory?.slug, attr, selectedFuelType),
+      config: getAttributeFieldConfig(selectedCategory?.slug, attr, selectedFuelType, {
+        valuesBySlug: attributeValuesBySlug,
+        retainedValue: retainedAttributeValueById[attr.id],
+      }),
     }))
     .filter(
       (
@@ -229,16 +248,12 @@ export function CreateListingForm({
         return nextValues;
       }
 
-      if (attribute.slug === "fuel-type") {
-        return pruneHiddenAttributes(nextValues, selectedCategory);
-      }
-
       if (attribute.slug === "make") {
         const modelAttribute = selectedCategory.attributes.find((candidate) => candidate.slug === "model");
         if (modelAttribute) delete nextValues[modelAttribute.id];
       }
 
-      return nextValues;
+      return pruneHiddenAttributes(nextValues, selectedCategory);
     });
   }
 
@@ -321,6 +336,7 @@ export function CreateListingForm({
         selectedCategoryId,
         selectedCategory,
         attributeValues,
+        retainedAttributes: retainedAttributeValues,
         enforceListingNs,
       });
       if (!detailsValidation.ok) {
@@ -397,6 +413,7 @@ export function CreateListingForm({
             attribute.value,
           ]),
         ),
+        retainedAttributes: retainedAttributeValues,
         enforceListingNs,
       });
       if (!clientAttributeValidation.ok) {
