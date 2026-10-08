@@ -12,6 +12,9 @@ const {
   inboxExecuteRaw,
   inboxTransaction,
   processProviderWebhookEvent,
+  runPaymentSerializable,
+  quarantineReceipt,
+  reconcileTransaction,
 } = vi.hoisted(() => ({
   inboxFindUnique: vi.fn(),
   inboxFindMany: vi.fn(),
@@ -21,6 +24,14 @@ const {
   inboxExecuteRaw: vi.fn(),
   inboxTransaction: vi.fn(),
   processProviderWebhookEvent: vi.fn(),
+  runPaymentSerializable: vi.fn(),
+  quarantineReceipt: vi.fn(),
+  reconcileTransaction: {
+    $queryRaw: vi.fn(),
+    providerPaymentClaim: { findUnique: vi.fn() },
+    paymentReconciliation: { findMany: vi.fn() },
+    paymentWebhookInbox: { findMany: vi.fn(), updateMany: vi.fn() },
+  },
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -39,6 +50,11 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/payments/webhook-processing", () => ({
   processProviderWebhookEvent,
+}));
+
+vi.mock("@/lib/payments/transaction", () => ({ runPaymentSerializable }));
+vi.mock("@/lib/payments/quarantine-reconciled-receipt", () => ({
+  quarantineReconciledMissingReferenceReceipts: quarantineReceipt,
 }));
 
 vi.mock("@/lib/monitoring", () => ({
@@ -120,6 +136,14 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
         $executeRaw: inboxExecuteRaw,
       }),
     );
+    runPaymentSerializable.mockImplementation(
+      async (fn: (tx: unknown) => unknown) => fn(reconcileTransaction),
+    );
+    reconcileTransaction.providerPaymentClaim.findUnique.mockResolvedValue(null);
+    reconcileTransaction.paymentReconciliation.findMany.mockResolvedValue([]);
+    reconcileTransaction.paymentWebhookInbox.findMany.mockResolvedValue([]);
+    reconcileTransaction.paymentWebhookInbox.updateMany.mockResolvedValue({ count: 1 });
+    quarantineReceipt.mockResolvedValue([]);
   });
 
   it("persists a minimized PENDING row before business processing", async () => {
@@ -387,5 +411,81 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
         }),
       }),
     );
+  });
+
+  it("supersedes a late missing-reference receipt after an existing admin reconciliation", async () => {
+    inboxFindUnique.mockResolvedValue({
+      id: "inbox-late",
+      status: "PENDING",
+      attemptCount: 0,
+      updatedAt: new Date(),
+      paymentReference: "260921004609311316",
+      customerEmailNorm: "buyer@example.com",
+      minimizedPayload: minimized,
+      eventType: "payment.received",
+    });
+    processProviderWebhookEvent.mockRejectedValueOnce(
+      new Error("Listing payment missing reference"),
+    );
+    reconcileTransaction.providerPaymentClaim.findUnique.mockResolvedValue({
+      source: "ADMIN_PROVIDER_ATTESTATION",
+      attemptId: "attempt-1",
+      paymentId: "payment-1",
+    });
+    reconcileTransaction.paymentReconciliation.findMany.mockResolvedValue([
+      {
+        adminId: "admin-1",
+        evidenceId: "admin:evidence-1",
+        providerEventAt: new Date("2026-08-15T10:15:27Z"),
+      },
+    ]);
+    reconcileTransaction.paymentWebhookInbox.findMany.mockResolvedValue([
+      { id: "inbox-late" },
+    ]);
+    quarantineReceipt.mockResolvedValue(["inbox-late"]);
+
+    await expect(processRippleInboxRecord("inbox-late")).resolves.toEqual({
+      status: "quarantined",
+    });
+
+    expect(reconcileTransaction.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(quarantineReceipt).toHaveBeenCalledWith(
+      reconcileTransaction,
+      expect.objectContaining({
+        adminId: "admin-1",
+        attemptId: "attempt-1",
+        evidenceId: "admin:evidence-1",
+        providerPaymentId: "260921004609311316",
+      }),
+    );
+    expect(captureBusinessEvent).not.toHaveBeenCalled();
+  });
+
+  it("keeps a late missing-reference receipt failed when no matching admin claim exists", async () => {
+    inboxFindUnique.mockResolvedValue({
+      id: "inbox-unmatched",
+      status: "PENDING",
+      attemptCount: 0,
+      updatedAt: new Date(),
+      paymentReference: "260921004609311316",
+      customerEmailNorm: "buyer@example.com",
+      minimizedPayload: minimized,
+      eventType: "payment.received",
+    });
+    processProviderWebhookEvent.mockRejectedValueOnce(
+      new Error("Listing payment missing reference"),
+    );
+
+    await expect(processRippleInboxRecord("inbox-unmatched")).resolves.toEqual({
+      status: "failed",
+    });
+
+    expect(quarantineReceipt).not.toHaveBeenCalled();
+    expect(inboxUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: { status: "FAILED", lastErrorCode: "MISSING_REFERENCE" },
+      }),
+    );
+    expect(captureBusinessEvent).toHaveBeenCalled();
   });
 });

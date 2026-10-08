@@ -10,6 +10,8 @@ import { buildRippleSafeTags } from "@/lib/payments/ripple-privacy";
 import { hashRippleWebhookBody } from "@/lib/payments/ripple-signature";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { lockProviderPayment } from "@/lib/payments/webhook-subscriptions";
+import { runPaymentSerializable } from "@/lib/payments/transaction";
+import { quarantineReconciledMissingReferenceReceipts } from "@/lib/payments/quarantine-reconciled-receipt";
 
 import { forwardRippleWebhookToStaging, stagingRelayLinkCode } from "@/lib/payments/ripple-staging-relay";
 
@@ -38,6 +40,80 @@ function inboxErrorCode(error: unknown): string {
   }
   if (message.includes("missing dealer")) return "MISSING_DEALER";
   return "WEBHOOK_PROCESS";
+}
+
+async function supersedeLateReconciledReceipt(input: {
+  inboxId: string;
+  providerPaymentId: string | null;
+}) {
+  const providerPaymentId = input.providerPaymentId;
+  if (!providerPaymentId) return false;
+  try {
+    return await runPaymentSerializable(async (tx) => {
+      const claimKey = {
+        paymentProvider_providerPaymentId: {
+          paymentProvider: "RIPPLE" as const,
+          providerPaymentId,
+        },
+      };
+      const firstClaim = await tx.providerPaymentClaim.findUnique({
+        where: claimKey,
+      });
+      if (
+        !firstClaim ||
+        firstClaim.source !== "ADMIN_PROVIDER_ATTESTATION" ||
+        !firstClaim.attemptId ||
+        !firstClaim.paymentId
+      ) {
+        return false;
+      }
+      const attemptId = firstClaim.attemptId;
+      const paymentId = firstClaim.paymentId;
+
+      await tx.$queryRaw`
+        SELECT "id" FROM "PaymentCheckoutAttempt"
+        WHERE "id" = ${attemptId} FOR UPDATE
+      `;
+      await tx.$queryRaw`
+        SELECT "id" FROM "Payment"
+        WHERE "id" = ${paymentId} FOR UPDATE
+      `;
+
+      const claim = await tx.providerPaymentClaim.findUnique({
+        where: claimKey,
+      });
+      if (
+        !claim ||
+        claim.source !== "ADMIN_PROVIDER_ATTESTATION" ||
+        claim.attemptId !== attemptId ||
+        claim.paymentId !== paymentId
+      ) {
+        return false;
+      }
+
+      const reconciliations = await tx.paymentReconciliation.findMany({
+        where: {
+          attemptId,
+          providerPaymentId,
+          evidenceType: "ADMIN_PROVIDER_ATTESTATION",
+        },
+      });
+      if (reconciliations.length !== 1) return false;
+      const reconciliation = reconciliations[0];
+      if (!reconciliation.adminId) return false;
+
+      const quarantined = await quarantineReconciledMissingReferenceReceipts(tx, {
+        adminId: reconciliation.adminId,
+        attemptId,
+        evidenceId: reconciliation.evidenceId,
+        providerEventAt: reconciliation.providerEventAt,
+        providerPaymentId,
+      });
+      return quarantined.includes(input.inboxId);
+    });
+  } catch {
+    return false;
+  }
 }
 
 export async function persistRippleWebhookInbox(input: {
@@ -191,6 +267,15 @@ export async function processRippleInboxRecord(inboxId: string) {
     });
     if (failed.count !== 1) {
       return { status: "processing" as const };
+    }
+    if (
+      code === "MISSING_REFERENCE" &&
+      (await supersedeLateReconciledReceipt({
+        inboxId: inbox.id,
+        providerPaymentId: inbox.paymentReference,
+      }))
+    ) {
+      return { status: "quarantined" as const };
     }
     await captureBusinessEvent({
       source: "WEBHOOK",

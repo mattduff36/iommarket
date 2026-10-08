@@ -35,6 +35,7 @@ describe("Featured payment reconciliation", () => {
     subscriptionCharge: MockModel;
     providerPaymentClaim: MockModel;
     paymentReconciliation: MockModel;
+      user: MockModel;
   };
 
   beforeEach(() => {
@@ -80,10 +81,13 @@ describe("Featured payment reconciliation", () => {
       $queryRaw: vi.fn().mockResolvedValue([]),
       paymentCheckoutAttempt: {
         findFirst: vi.fn().mockResolvedValue(attempt),
+        findUnique: vi.fn().mockResolvedValue(attempt),
         update: vi.fn().mockResolvedValue({}),
       },
       paymentWebhookInbox: {
         findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       payment: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -98,6 +102,9 @@ describe("Featured payment reconciliation", () => {
       },
       paymentReconciliation: {
         create: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ email: "buyer@example.com" }),
       },
     };
     mocks.runSerializable.mockImplementation((operation) => operation(tx));
@@ -121,6 +128,97 @@ describe("Featured payment reconciliation", () => {
         },
       },
     };
+  }
+
+  function configureFailedMissingReferenceReceipt(overrides: {
+    payerEmail?: string;
+    payloadCurrency?: string | null;
+    payloadTimestamp?: string;
+    receiptTimestamp?: string;
+    clientId?: string;
+    receiptRecurring?: boolean | null;
+    receiptLinkType?: string | null;
+    attemptKind?: string;
+    includesFeatured?: boolean;
+    evidenceConfirmed?: boolean;
+  } = {}) {
+    const providerEventAt = new Date("2026-10-05T11:29:57Z");
+    const receiptTimestamp = new Date(overrides.receiptTimestamp ?? providerEventAt.toISOString());
+    const evidenceId = "admin:evidence-1";
+    const confirmedAt = new Date("2026-10-05T12:00:00Z");
+    const confirmedAttempt = {
+      ...attempt,
+      status: "CONFIRMED",
+      confirmedAt,
+      kind: overrides.attemptKind ?? "FEATURED_UPGRADE",
+      providerClaims: [
+        {
+          paymentProvider: "RIPPLE",
+          providerPaymentId,
+          attemptId: "attempt-1",
+          paymentId: "payment-1",
+          source: "ADMIN_PROVIDER_ATTESTATION",
+        },
+      ],
+      reconciliations: [
+        {
+          evidenceType: "ADMIN_PROVIDER_ATTESTATION",
+          evidenceId,
+          providerPaymentId,
+          providerEventAt,
+          adminId: "admin-1",
+          evidenceSnapshot: {
+            confirmedAmountCurrencyProduct: overrides.evidenceConfirmed ?? true,
+            confirmedCurrentlyPaidAndNotRefunded: true,
+          },
+        },
+      ],
+      payment: {
+        ...(attempt.payment as Record<string, unknown>),
+        status: "SUCCEEDED",
+        providerPaymentId,
+        includesFeatured: overrides.includesFeatured ?? false,
+      },
+    };
+    tx.paymentCheckoutAttempt.findUnique.mockResolvedValue(confirmedAttempt);
+    tx.user.findUnique.mockResolvedValue({ email: "buyer@example.com" });
+    tx.paymentWebhookInbox.findMany.mockResolvedValue([
+      {
+        id: "inbox-missing-reference",
+        updatedAt: new Date("2026-10-05T11:30:00Z"),
+        status: "FAILED",
+        lastErrorCode: "MISSING_REFERENCE",
+        attemptCount: 2,
+        paymentReference: providerPaymentId,
+        merchantReference: null,
+        eventType: "payment.received",
+        eventTimestamp: receiptTimestamp,
+        clientId: overrides.clientId ?? "codelabplatfdcf3a8",
+        linkCode: RIPPLE_CANONICAL_PRODUCTS.featured.code,
+        amountPence: 500,
+        currency: "gbp",
+        recurring: overrides.receiptRecurring ?? false,
+        linkType: overrides.receiptLinkType ?? "one-off",
+        customerEmailNorm: overrides.payerEmail ?? "buyer@example.com",
+        processedAt: null,
+        minimizedPayload: {
+          event: "payment.received",
+          client_id: "codelabplatfdcf3a8",
+          timestamp: overrides.payloadTimestamp ?? receiptTimestamp.toISOString(),
+          amount: 5,
+          currency: overrides.payloadCurrency ?? "gbp",
+          payment_reference: providerPaymentId,
+          merchant_reference: null,
+          link_code: RIPPLE_CANONICAL_PRODUCTS.featured.code,
+          link_type: "one-off",
+          recurring: false,
+          package: "Featured listing upgrade",
+          description: "Featured listing upgrade",
+          reason: null,
+        },
+      },
+    ]);
+    return confirmedAttempt;
   }
 
   it("PAY-FTR-001 reconciles a valid pending Featured payment once", async () => {
@@ -208,6 +306,100 @@ describe("Featured payment reconciliation", () => {
       expect.objectContaining({ idempotent: true }),
     );
     expect(tx.payment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("PAY-REC-005 quarantines an exact missing-reference receipt after admin reconciliation", async () => {
+    configureFailedMissingReferenceReceipt();
+
+    await reconcileListingPayment(adminInput());
+
+    expect(tx.paymentWebhookInbox.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: "inbox-missing-reference",
+        paymentReference: providerPaymentId,
+        updatedAt: new Date("2026-10-05T11:30:00Z"),
+        eventType: "payment.received",
+        merchantReference: null,
+        status: "FAILED",
+        lastErrorCode: "MISSING_REFERENCE",
+        attemptCount: 2,
+      }),
+      data: {
+        status: "QUARANTINED",
+        lastErrorCode: "RECONCILED_PAYMENT",
+      },
+    });
+    expect(tx.paymentWebhookInbox.updateMany.mock.calls[0]?.[0]?.data).not.toHaveProperty(
+      "processedAt",
+    );
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "SUPERSEDE_RIPPLE_INBOX_BY_RECONCILIATION",
+        entityType: "PaymentWebhookInbox",
+        entityId: "inbox-missing-reference",
+        details: expect.objectContaining({
+          disposition: "SUPERSEDED_BY_ADMIN_PROVIDER_ATTESTATION",
+          resultingStatus: "QUARANTINED",
+          resultingErrorCode: "RECONCILED_PAYMENT",
+          processedAtPreserved: true,
+        }),
+      }),
+      tx,
+    );
+  });
+
+  it("PAY-REC-007 retries the inbox disposition for an identical admin reconciliation", async () => {
+    const confirmedAttempt = configureFailedMissingReferenceReceipt();
+    Object.assign(attempt, confirmedAttempt);
+
+    await expect(reconcileListingPayment(adminInput())).resolves.toEqual(
+      expect.objectContaining({ idempotent: true }),
+    );
+
+    expect(tx.paymentWebhookInbox.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: "FAILED", lastErrorCode: "MISSING_REFERENCE" }),
+        data: { status: "QUARANTINED", lastErrorCode: "RECONCILED_PAYMENT" },
+      }),
+    );
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "SUPERSEDE_RIPPLE_INBOX_BY_RECONCILIATION" }),
+      tx,
+    );
+  });
+
+  it("PAY-REC-008 accepts provider timestamp milliseconds within the same second", async () => {
+    configureFailedMissingReferenceReceipt({
+      receiptTimestamp: "2026-10-05T11:29:57.263Z",
+      payloadTimestamp: "2026-10-05T11:29:57.263Z",
+    });
+
+    await expect(reconcileListingPayment(adminInput())).resolves.toEqual(
+      expect.objectContaining({ idempotent: false }),
+    );
+    expect(tx.paymentWebhookInbox.updateMany).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["payer email", { payerEmail: "someone-else@example.com" }],
+    ["currency", { payloadCurrency: "eur" }],
+    ["event timestamp", { payloadTimestamp: "2026-10-05T11:29:58Z" }],
+    ["client ID", { clientId: "other-client" }],
+    ["recurrence flag", { receiptRecurring: true }],
+    ["attempt kind", { attemptKind: "LISTING_PAYMENT" }],
+    ["featured contract", { includesFeatured: true }],
+    ["attestation snapshot", { evidenceConfirmed: false }],
+  ])("PAY-REC-006 refuses a missing-reference receipt with mismatched %s", async (_label, overrides) => {
+    configureFailedMissingReferenceReceipt(overrides);
+
+    await expect(reconcileListingPayment(adminInput())).rejects.toThrow(
+      "conflicts with the confirmed payment reconciliation",
+    );
+    expect(tx.paymentWebhookInbox.updateMany).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: "SUPERSEDE_RIPPLE_INBOX_BY_RECONCILIATION" }),
+      tx,
+    );
   });
 
   it("PAY-REC-003 rejects different evidence after completion", async () => {

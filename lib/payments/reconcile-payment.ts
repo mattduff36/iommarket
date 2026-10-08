@@ -5,6 +5,7 @@ import {
   getRippleProductByLinkCode,
 } from "@/lib/payments/ripple-mapping";
 import { parseRippleReference } from "@/lib/payments/ripple-reference";
+import { quarantineReconciledMissingReferenceReceipts } from "@/lib/payments/quarantine-reconciled-receipt";
 import { runPaymentSerializable } from "@/lib/payments/transaction";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider-types";
 import type { ListingNotificationIntent } from "@/lib/listings/notification-intents";
@@ -212,6 +213,15 @@ export async function reconcileListingPaymentInTransaction(
         payment.status === "SUCCEEDED" &&
         payment.providerPaymentId === input.providerPaymentId
       ) {
+        if (input.evidence.type === "ADMIN_PROVIDER_ATTESTATION") {
+          await quarantineReconciledMissingReferenceReceipts(tx, {
+            adminId: input.evidence.adminId,
+            attemptId: attempt.id,
+            evidenceId: input.evidence.evidenceId,
+            providerEventAt: input.providerEventAt,
+            providerPaymentId: input.providerPaymentId,
+          });
+        }
         return {
           paymentId: payment.id,
           listingId: payment.listingId,
@@ -348,6 +358,13 @@ export async function reconcileListingPaymentInTransaction(
     });
 
     if (input.evidence.type === "ADMIN_PROVIDER_ATTESTATION") {
+      const supersededInboxIds = await quarantineReconciledMissingReferenceReceipts(tx, {
+        adminId: input.evidence.adminId,
+        attemptId: attempt.id,
+        evidenceId: input.evidence.evidenceId,
+        providerEventAt: input.providerEventAt,
+        providerPaymentId: input.providerPaymentId,
+      });
       await logAdminAction(
         {
           adminId: input.evidence.adminId,
@@ -364,6 +381,7 @@ export async function reconcileListingPaymentInTransaction(
             featuredApplied,
             evidenceId: input.evidence.evidenceId,
             notes: input.evidence.notes,
+            supersededInboxIds,
           },
         },
         tx,
