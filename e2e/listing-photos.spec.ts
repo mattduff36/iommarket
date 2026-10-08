@@ -127,7 +127,7 @@ test.describe("PHOTO-E2E-001 adaptive listing photos", () => {
     await signInAsAdmin(page);
     await page.goto("/sell/private", { waitUntil: "domcontentloaded" });
     await dismissCookieBanner(page);
-    await expect(page.getByText(/create listing - step 1 of 3/i)).toBeVisible({
+    await expect(page.getByText(/create listing - step 1 of 5/i)).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.getByRole("button", { name: "Add Photos" })).toHaveCount(1);
@@ -142,9 +142,10 @@ test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
     await page.goto(`/sell/private?draft=${listing.id}`, { waitUntil: "domcontentloaded" });
     await dismissCookieBanner(page);
 
-    await expect(page.getByText(/continue editing - step 1 of 3/i)).toBeVisible({
+    await expect(page.getByText(/continue editing - step 1 of 5/i)).toBeVisible({
       timeout: 20_000,
     });
+    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByTestId("listing-photo-grid")).toBeVisible();
     await expect(page.getByText("Cover photo")).toBeVisible();
@@ -161,6 +162,7 @@ test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
     await page.getByRole("button", { name: "Save focus" }).click();
     await expect(page.getByText("Focus set")).toBeVisible();
 
+    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: /continue to checkout/i }).click();
 
@@ -197,6 +199,7 @@ test.describe("PHOTO-ORDER-E2E-001 listing photo order", () => {
     }
 
     await page.goto(`/sell/private?draft=${listing.id}`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByTestId("listing-photo-0")).toBeVisible();
     await expect(page.getByAltText("Upload 1")).toHaveAttribute(

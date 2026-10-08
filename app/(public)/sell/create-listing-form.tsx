@@ -1,25 +1,33 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,
 } from "@/components/payments/ripple-demo-checkout-dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
+import type { UploadedImage } from "@/components/marketplace/image-upload";
+import { GuidedListingRail } from "@/components/listings/guided-listing-rail";
 import { getAttributeFieldConfig } from "@/lib/listings/attribute-ui";
-import { CreateListingDeclarations } from "./create-listing-form.declarations";
 import { groupWriteOffWithVehicleDetails } from "@/lib/listings/listing-ns-ui";
 import {
-  CreateListingAttributeFields,
-  ListingFieldLabel,
-} from "./create-listing-attribute-fields";
+  attributeStepMap,
+  buildOptionalDetailSections,
+  focusIdForFieldErrors,
+  guidedNavigationBlock,
+  guidedStepForFieldErrors,
+  MIN_GUIDED_LISTING_PHOTOS,
+  optionalSectionForAttribute,
+  partitionGuidedAttributeFields,
+  splitGuidedAttributeErrors,
+  validateAdvertFields,
+  type GuidedListingStep,
+} from "@/lib/listings/guided-listing-workflow";
+import { GuidedListingStepPanels } from "./create-listing-guided-panels";
 import { validateListingDetailsStep } from "./create-listing-form.validation";
-import { FeaturedCheckoutOffer } from "./create-listing-featured-offer";
 import {
   collectListingAttributes,
   executeCreateListingSubmit,
@@ -29,10 +37,6 @@ import {
 } from "./create-listing-submit";
 import { shouldOfferFeaturedUpsell } from "./featured-checkout";
 import { runVehicleLookup } from "./create-listing-form.lookup";
-import {
-  CATEGORY_TILE_META,
-  DEFAULT_CATEGORY_TILE_ICON,
-} from "./create-listing-form.constants";
 import { useListingDemoOutcome } from "./create-listing-form.demo";
 import { trackMarketplaceEvent } from "@/lib/analytics/track-client";
 import {
@@ -45,10 +49,7 @@ import type { EditableDraft } from "@/lib/listings/editable-draft";
 import { getListingPhotoLimit } from "@/lib/listings/photo-limits";
 import { formatRegistrationForDisplay } from "@/lib/utils/registration";
 import type { VehicleMakeOption } from "@/lib/vehicle-catalogue/queries";
-import {
-  VehicleCatalogueFields,
-  type VehicleCatalogueSelection,
-} from "./vehicle-catalogue-fields";
+import type { VehicleCatalogueSelection } from "./vehicle-catalogue-fields";
 
 interface AttributeDef {
   id: string;
@@ -121,9 +122,16 @@ export function CreateListingForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState<GuidedListingStep>(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialDraft?.categoryId ?? "");
   const [titleValue, setTitleValue] = useState(initialDraft?.title ?? "");
+  const [descriptionValue, setDescriptionValue] = useState(initialDraft?.description ?? "");
+  const [priceValue, setPriceValue] = useState(
+    initialDraft?.price != null ? String(initialDraft.price) : "",
+  );
+  const [regionId, setRegionId] = useState(initialDraft?.regionId ?? "");
+  const [optionalSectionId, setOptionalSectionId] = useState<string | null>(null);
+  const [focusFieldId, setFocusFieldId] = useState<string | null>(null);
   const [pendingListingId, setPendingListingId] = useState<string | null>(initialDraft?.id ?? null);
   const {
     demoOutcomeError,
@@ -182,7 +190,6 @@ export function CreateListingForm({
       makeAttribute &&
       modelAttribute,
   );
-  const isDetailsStep = step === 1;
   const selectedFuelType = fuelTypeAttribute
     ? attributeValues[fuelTypeAttribute.id]
     : undefined;
@@ -222,8 +229,89 @@ export function CreateListingForm({
       ): item is {
         attr: AttributeDef;
         config: NonNullable<ReturnType<typeof getAttributeFieldConfig>>;
-      } => item.config !== null
+      }       => item.config !== null
     );
+  const guidedFields = partitionGuidedAttributeFields(
+    selectedCategory?.slug,
+    visibleAttributes,
+    enforceListingNs,
+  );
+  const optionalSections = buildOptionalDetailSections(
+    selectedCategory?.slug,
+    guidedFields.optional,
+    (field) => field.attr.slug,
+  );
+  const activeOptionalSectionId = optionalSections.some((section) => section.id === optionalSectionId)
+    ? optionalSectionId
+    : (optionalSections[0]?.id ?? null);
+  const detailsValidation = validateListingDetailsStep({
+    selectedCategoryId,
+    selectedCategory,
+    attributeValues,
+    retainedAttributes: retainedAttributeValues,
+    enforceListingNs,
+  });
+  const attributeErrorSplit = detailsValidation.ok
+    ? { required: {}, optional: {} }
+    : splitGuidedAttributeErrors(
+        detailsValidation.fieldErrors,
+        selectedCategory?.attributes ?? [],
+        selectedCategory?.slug,
+        enforceListingNs,
+      );
+  const configurationError = detailsValidation.ok
+    ? undefined
+    : detailsValidation.configurationError;
+  const requiredComplete =
+    Boolean(selectedCategoryId) &&
+    !configurationError &&
+    Object.keys(attributeErrorSplit.required).length === 0;
+  const optionalValid = Object.keys(attributeErrorSplit.optional).length === 0;
+  const photosComplete = uploadedImages.length >= MIN_GUIDED_LISTING_PHOTOS && !photoUploadsBusy;
+  const advertValidation = validateAdvertFields({
+    title: titleValue,
+    description: descriptionValue,
+    price: priceValue,
+    regionId,
+  });
+  const advertComplete = advertValidation.ok;
+  const attributeSteps = attributeStepMap(
+    selectedCategory?.attributes ?? [],
+    selectedCategory?.slug,
+    enforceListingNs,
+  );
+  const completion: Record<GuidedListingStep, boolean> = {
+    1: requiredComplete,
+    2: requiredComplete && optionalValid,
+    3: photosComplete,
+    4: advertComplete,
+    5: false,
+  };
+  const attention: Record<GuidedListingStep, boolean> = {
+    1: false,
+    2: false,
+    3: false,
+    4: false,
+    5: false,
+  };
+  for (const key of Object.keys(fieldErrors)) {
+    const errorStep = guidedStepForFieldErrors(
+      { [key]: fieldErrors[key] },
+      { attributeSteps, fallback: step },
+    );
+    attention[errorStep] = true;
+  }
+
+  useEffect(() => {
+    if (!focusFieldId) return;
+    const node = document.getElementById(focusFieldId);
+    if (!node) return;
+    const target = node.matches("button, input, select, textarea")
+      ? node
+      : node.querySelector<HTMLElement>("button, input, select, textarea");
+    target?.focus();
+  }, [focusFieldId, step, activeOptionalSectionId]);
+
   function getFieldError(fieldName: string) {
     return fieldErrors[fieldName]?.[0];
   }
@@ -239,6 +327,8 @@ export function CreateListingForm({
     setLookupError(null);
     setLookupMeta(null);
     setVehicleCatalogueSelection({ makeMode: "manual", modelMode: "manual" });
+    setOptionalSectionId(null);
+    setFocusFieldId(null);
   }
 
   function handleAttributeChange(attribute: AttributeDef, value: string) {
@@ -326,46 +416,90 @@ export function CreateListingForm({
     setLookupMeta(result.meta);
   }
 
-  function nextStep() {
-    if (step === 2 && photoUploadsBusy) {
-      setError("Please wait for all photo uploads to finish before continuing.");
-      return;
+  function showFieldErrors(errors: Record<string, string[]>, next: GuidedListingStep) {
+    setFieldErrors(errors);
+    setStep(next);
+    const attributeKey = Object.keys(errors).find((key) => key.startsWith("attr-"));
+    if (attributeKey) {
+      const sectionId = optionalSectionForAttribute(optionalSections, attributeKey.slice(5));
+      if (sectionId) setOptionalSectionId(sectionId);
     }
-    if (step === 1) {
-      const detailsValidation = validateListingDetailsStep({
-        selectedCategoryId,
-        selectedCategory,
-        attributeValues,
-        retainedAttributes: retainedAttributeValues,
-        enforceListingNs,
-      });
-      if (!detailsValidation.ok) {
-        setFieldErrors(detailsValidation.fieldErrors);
-        if (detailsValidation.configurationError) {
-          setError(detailsValidation.configurationError);
-        }
+    setFocusFieldId(focusIdForFieldErrors(errors));
+  }
+
+  function activePanelIsValid() {
+    const panel = formRef.current?.querySelector<HTMLElement>(`[data-listing-step="${step}"]`);
+    if (!panel) return true;
+    const fields = panel.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+      "input, select, textarea",
+    );
+    for (const field of fields) {
+      if (field.disabled || field.type === "hidden") continue;
+      if (!field.reportValidity()) return false;
+    }
+    return true;
+  }
+
+  function selectStep(target: GuidedListingStep) {
+    if (target === step) return;
+    const block = guidedNavigationBlock({
+      from: step,
+      to: target,
+      photoUploadsBusy,
+      requiredComplete,
+      optionalValid,
+      photosComplete,
+      advertComplete,
+    });
+    if (block) {
+      setError(block.message);
+      if (block.step === 1) {
+        if (configurationError) setError(configurationError);
+        showFieldErrors(attributeErrorSplit.required, 1);
         return;
       }
-      if (formRef.current && !formRef.current.reportValidity()) {
+      if (block.step === 2) {
+        showFieldErrors(attributeErrorSplit.optional, 2);
         return;
       }
-    }
-    if (step === 2 && uploadedImages.length < 2) {
-      setFieldErrors({});
-      setError("Please upload at least 2 photos before continuing.");
+      if (block.step === 4 && !advertValidation.ok) {
+        showFieldErrors(advertValidation.fieldErrors, 4);
+        return;
+      }
+      if (block.step !== step) setStep(block.step);
       return;
     }
     setFieldErrors({});
     setError(null);
+    setFocusFieldId(null);
     setTrustConfirmationMissing(false);
-    setStep((currentStep) => Math.min(3, currentStep + 1));
+    setPrivateSellerTermsMissing(false);
+    setStep(target);
+  }
+
+  function nextStep() {
+    if (step >= 5) return;
+    const target = (step + 1) as GuidedListingStep;
+    const block = guidedNavigationBlock({
+      from: step,
+      to: target,
+      photoUploadsBusy,
+      requiredComplete,
+      optionalValid,
+      photosComplete,
+      advertComplete,
+    });
+    if (block) {
+      selectStep(target);
+      return;
+    }
+    if ((step === 1 || step === 4) && !activePanelIsValid()) return;
+    selectStep(target);
   }
 
   function prevStep() {
-    setFieldErrors({});
-    setError(null);
-    setTrustConfirmationMissing(false);
-    setStep((currentStep) => Math.max(1, currentStep - 1));
+    if (step <= 1) return;
+    selectStep((step - 1) as GuidedListingStep);
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -417,11 +551,15 @@ export function CreateListingForm({
         enforceListingNs,
       });
       if (!clientAttributeValidation.ok) {
-        setFieldErrors(clientAttributeValidation.fieldErrors);
+        const mapped = guidedStepForFieldErrors(clientAttributeValidation.fieldErrors, {
+          attributeSteps,
+          fallback: 1,
+        });
+        showFieldErrors(clientAttributeValidation.fieldErrors, mapped);
         if (clientAttributeValidation.configurationError) {
           setError(clientAttributeValidation.configurationError);
+          setStep(1);
         }
-        setStep(1);
         releaseSubmitFlight(submitFlightRef);
         return;
       }
@@ -443,6 +581,7 @@ export function CreateListingForm({
           vehicleCatalogueSelection,
           isVehicleCatalogueCategory,
           selectedCategoryAttributes: selectedCategory?.attributes ?? [],
+          attributeSteps,
           createMutationId: createPhotoMutationId,
           includeFeatured: showFeaturedOffer && includeFeatured,
           listingFeeDue,
@@ -463,7 +602,14 @@ export function CreateListingForm({
         if (navigation.kind === "stay") {
           if (navigation.error) setError(navigation.error);
           if (navigation.fieldErrors) {
-            setFieldErrors(navigation.fieldErrors);
+            showFieldErrors(
+              navigation.fieldErrors,
+              navigation.step ??
+                guidedStepForFieldErrors(navigation.fieldErrors, {
+                  attributeSteps,
+                  fallback: step,
+                }),
+            );
           }
           if (navigation.step) setStep(navigation.step);
           return;
@@ -487,12 +633,12 @@ export function CreateListingForm({
         <CardHeader>
           <CardTitle>
             {editMode === "revision"
-              ? `Edit live listing - Step ${step} of 3`
+              ? `Edit live listing - Step ${step} of 5`
               : editMode === "resubmit"
-                ? `Edit and resubmit - Step ${step} of 3`
+                ? `Edit and resubmit - Step ${step} of 5`
                 : isEditingDraft
-                  ? `Continue Editing - Step ${step} of 3`
-                  : `Create Listing - Step ${step} of 3`}
+                  ? `Continue Editing - Step ${step} of 5`
+                  : `Create Listing - Step ${step} of 5`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -504,230 +650,69 @@ export function CreateListingForm({
             </p>
           ) : null}
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
-          <div className={isDetailsStep ? "space-y-6" : "hidden"}>
-              <div className="space-y-3 rounded-lg border border-border p-4">
-                <h3 className="text-sm font-semibold text-text-primary">
-                  Category
-                </h3>
-                <input type="hidden" name="categoryId" value={selectedCategoryId} />
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {categories.map((category) => {
-                    const isSelected = category.id === selectedCategoryId;
-                    const meta = CATEGORY_TILE_META[category.slug];
-                    const Icon = meta?.icon ?? DEFAULT_CATEGORY_TILE_ICON;
-                    return (
-                      <Button
-                        key={category.id}
-                        type="button"
-                        variant="ghost"
-                        aria-pressed={isSelected}
-                        onClick={() => handleCategoryChange(category.id)}
-                        className={[
-                          "h-16 w-full flex-col gap-1 rounded-md border text-[11px] leading-tight sm:text-xs",
-                          "font-semibold normal-case not-italic",
-                          isSelected
-                            ? (meta?.selectedClass ??
-                              "border-neon-blue-400 bg-neon-blue-500/15 text-white ring-2 ring-neon-blue-500/70")
-                            : "border-border bg-surface/40 text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
-                        ].join(" ")}
-                        leftIcon={
-                          <Icon
-                            className={`h-4 w-4 ${isSelected ? "text-white" : meta?.idleIconClass ?? "text-neon-blue-400"}`}
-                          />
-                        }
-                      >
-                        {category.name}
-                      </Button>
-                    );
-                  })}
-                </div>
-                {getFieldError("categoryId") ? (
-                  <p id="category-error" className="text-xs text-text-energy">
-                    {getFieldError("categoryId")}
-                  </p>
-                ) : (
-                  <p className="text-xs text-text-secondary">
-                    Select the listing type first, then use number plate lookup.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-border p-4">
-                <h3 className="text-sm font-semibold text-text-primary">
-                  Number Plate Lookup
-                </h3>
-                <p className="text-xs text-text-secondary">
-                  Enter a UK or Isle of Man plate to auto-fill available vehicle details.
-                </p>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <Input
-                    label="Number Plate"
-                    value={registrationInput}
-                    onChange={(event) => {
-                      setRegistrationInput(
-                        event.target.value
-                          .toUpperCase()
-                          .replace(/[^A-Z0-9 -]/g, "")
-                      );
-                      setLookupError(null);
-                    }}
-                    onBlur={() => {
-                      if (!registrationInput.trim()) return;
-                      setRegistrationInput(formatRegistrationForDisplay(registrationInput));
-                    }}
-                    placeholder="e.g. AB12 CDE or MAN 123"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => void handleVehicleLookup()}
-                    loading={lookupPending}
-                    disabled={lookupPending}
-                  >
-                    Lookup Vehicle
-                  </Button>
-                </div>
-                {!selectedCategory ? (
-                  <p className="text-xs text-text-secondary">
-                    If category is empty, lookup will try to auto-select one from returned data.
-                  </p>
-                ) : !isLookupCategorySupported ? (
-                  <p className="text-xs text-text-secondary">
-                    Lookup is available for car, van, motorbike, and motorhome categories.
-                  </p>
-                ) : null}
-                {lookupError ? (
-                  <p className="text-xs text-text-error">{lookupError}</p>
-                ) : null}
-                {lookupMeta ? (
-                  <p className="text-xs text-text-secondary">{lookupMeta}</p>
-                ) : null}
-              </div>
-
-              <Input
-                label="Title"
-                name="title"
-                value={titleValue}
-                onChange={(event) => setTitleValue(event.target.value)}
-                required={isDetailsStep}
-                minLength={5}
-                maxLength={120}
-                placeholder="e.g. 2019 BMW 320d M Sport"
-                error={getFieldError("title")}
-              />
-
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor="description"
-                  className="text-sm font-medium text-text-primary"
-                >
-                  <ListingFieldLabel label="Description" required />
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  defaultValue={initialDraft?.description ?? ""}
-                  required={isDetailsStep}
-                  minLength={20}
-                  maxLength={5000}
-                  rows={6}
-                  aria-invalid={getFieldError("description") ? true : undefined}
-                  aria-describedby={getFieldError("description") ? "description-error" : undefined}
-                  placeholder="Describe your item in detail..."
-                  className={`flex w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus focus:shadow-outline ${
-                    getFieldError("description") ? "border-neon-red-500" : "border-border"
-                  }`}
-                />
-                {getFieldError("description") ? (
-                  <p id="description-error" className="text-xs text-text-energy">
-                    {getFieldError("description")}
-                  </p>
-                ) : null}
-              </div>
-
-              <Input
-                label="Price (£)"
-                name="price"
-                type="number"
-                defaultValue={initialDraft?.price}
-                required={isDetailsStep}
-                min={1}
-                max={1000000}
-                step={0.01}
-                inputMode="decimal"
-                placeholder="e.g. 15000"
-                error={getFieldError("price")}
-              />
-
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor="regionId"
-                  className="text-sm font-medium text-text-primary"
-                >
-                  <ListingFieldLabel label="Region" required />
-                </label>
-                <select
-                  id="regionId"
-                  name="regionId"
-                  required={isDetailsStep}
-                  defaultValue={initialDraft?.regionId ?? ""}
-                  aria-invalid={getFieldError("regionId") ? true : undefined}
-                  aria-describedby={getFieldError("regionId") ? "region-error" : undefined}
-                  className={`flex h-10 w-full rounded-md border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-focus focus:shadow-outline ${
-                    getFieldError("regionId") ? "border-neon-red-500" : "border-border"
-                  }`}
-                >
-                  <option value="">Select a region</option>
-                  {regions.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-                {getFieldError("regionId") ? (
-                  <p id="region-error" className="text-xs text-text-energy">
-                    {getFieldError("regionId")}
-                  </p>
-                ) : null}
-              </div>
-
-          </div>
-
-          <div className={step === 2 ? "space-y-3" : "hidden"}>
-              <p className="text-sm text-text-secondary">
-                Add between 2 and {maxImages} photos. Use a clean first image and include exterior and interior shots.
-              </p>
-              <ImageUpload
-                images={uploadedImages}
-                onImagesChange={setUploadedImages}
-                onBusyChange={setPhotoUploadsBusy}
-                maxImages={maxImages}
-              />
-          </div>
-
-          <div className={step === 3 ? "space-y-3 rounded-lg border border-border p-4" : "hidden"}>
-              <h3 className="text-base font-semibold text-text-primary">Preview</h3>
-              <p className="text-sm text-text-secondary">
-                {mode === "dealer" || isFreeForUser
-                  ? "Review your listing and submit. Your listing will go to moderation once submitted."
-                  : "Review your listing and continue to checkout. Your listing will be submitted for moderation after payment."}
-              </p>
-              <p className="text-sm text-text-secondary">
-                Photos selected: {uploadedImages.length}
-              </p>
-              {showFeaturedOffer &&
-              typeof listingFeePence === "number" &&
-              typeof featuredUpgradePricePence === "number" ? (
-                <FeaturedCheckoutOffer
-                  listingFeePence={listingFeePence}
-                  featuredUpgradePricePence={featuredUpgradePricePence}
-                  listingFeeDue={listingFeeDue}
-                  includeFeatured={includeFeatured}
-                  onIncludeFeaturedChange={setIncludeFeatured}
-                />
-              ) : null}
-              <CreateListingDeclarations
-                mode={mode}
+            <GuidedListingRail
+              current={step}
+              completion={completion}
+              attention={attention}
+              onSelect={selectStep}
+            >
+              <GuidedListingStepPanels
                 step={step}
+                categories={categories}
+                regions={regions}
+                selectedCategoryId={selectedCategoryId}
+                selectedCategoryName={selectedCategory?.name}
+                selectedCategorySlug={selectedCategory?.slug}
+                onCategoryChange={handleCategoryChange}
+                registrationInput={registrationInput}
+                onRegistrationInput={(value) => {
+                  setRegistrationInput(value.toUpperCase().replace(/[^A-Z0-9 -]/g, ""));
+                  setLookupError(null);
+                }}
+                onRegistrationBlur={() => {
+                  if (!registrationInput.trim()) return;
+                  setRegistrationInput(formatRegistrationForDisplay(registrationInput));
+                }}
+                lookupPending={lookupPending}
+                lookupError={lookupError}
+                lookupMeta={lookupMeta}
+                onLookup={() => void handleVehicleLookup()}
+                isLookupCategorySupported={isLookupCategorySupported}
+                hasSelectedCategory={Boolean(selectedCategory)}
+                titleValue={titleValue}
+                onTitleChange={setTitleValue}
+                descriptionValue={descriptionValue}
+                onDescriptionChange={setDescriptionValue}
+                priceValue={priceValue}
+                onPriceChange={setPriceValue}
+                regionId={regionId}
+                onRegionChange={setRegionId}
+                requiredFields={guidedFields.required}
+                optionalSections={optionalSections}
+                activeOptionalSectionId={activeOptionalSectionId}
+                onOptionalSectionChange={setOptionalSectionId}
+                attributeValues={attributeValues}
+                enforceListingNs={enforceListingNs}
+                getFieldError={getFieldError}
+                onAttributeChange={handleAttributeChange}
+                isVehicleCatalogueCategory={isVehicleCatalogueCategory}
+                makeAttribute={makeAttribute}
+                modelAttribute={modelAttribute}
+                vehicleMakes={vehicleMakes}
+                onCatalogueChange={handleVehicleCatalogueChange}
+                onCatalogueSelectionChange={setVehicleCatalogueSelection}
+                maxImages={maxImages}
+                uploadedImages={uploadedImages}
+                onImagesChange={setUploadedImages}
+                onPhotoBusyChange={setPhotoUploadsBusy}
+                mode={mode}
+                isFreeForUser={isFreeForUser}
+                showFeaturedOffer={showFeaturedOffer}
+                listingFeePence={listingFeePence}
+                featuredUpgradePricePence={featuredUpgradePricePence}
+                listingFeeDue={listingFeeDue}
+                includeFeatured={includeFeatured}
+                onIncludeFeaturedChange={setIncludeFeatured}
                 trustConfirmed={trustConfirmed}
                 trustConfirmationMissing={trustConfirmationMissing}
                 privateSellerTermsAccepted={privateSellerTermsAccepted}
@@ -740,82 +725,51 @@ export function CreateListingForm({
                   setPrivateSellerTermsAccepted(accepted);
                   if (accepted) setPrivateSellerTermsMissing(false);
                 }}
+                onEditStep={selectStep}
+                revisionLocked={revisionLocked}
               />
-          </div>
+            </GuidedListingRail>
 
-          {/* Dynamic category attributes */}
-          {selectedCategory &&
-            (visibleAttributes.length > 0 || isVehicleCatalogueCategory) && (
-            <div className={isDetailsStep ? "space-y-4 rounded-lg border border-border p-4" : "hidden"}>
-              <h3 className="text-sm font-semibold text-text-primary">
-                {selectedCategory.name} Details
-              </h3>
-              {isVehicleCatalogueCategory && makeAttribute && modelAttribute ? (
-                <VehicleCatalogueFields
-                  makeAttribute={makeAttribute}
-                  modelAttribute={modelAttribute}
-                  makes={vehicleMakes}
-                  makeValue={attributeValues[makeAttribute.id] ?? ""}
-                  modelValue={attributeValues[modelAttribute.id] ?? ""}
-                  makeError={getFieldError(`attr-${makeAttribute.id}`)}
-                  modelError={getFieldError(`attr-${modelAttribute.id}`)}
-                  required={isDetailsStep}
-                  onChange={handleVehicleCatalogueChange}
-                  onSelectionChange={setVehicleCatalogueSelection}
-                />
+            {error ? <FormErrorSummary messages={[error]} /> : null}
+
+            <div className="flex items-center gap-3">
+              {step > 1 ? (
+                <Button type="button" variant="ghost" onClick={prevStep}>
+                  Back
+                </Button>
               ) : null}
-              <CreateListingAttributeFields
-                categorySlug={selectedCategory.slug}
-                visibleAttributes={visibleAttributes}
-                attributeValues={attributeValues}
-                isDetailsStep={isDetailsStep}
-                enforceListingNs={enforceListingNs}
-                getFieldError={getFieldError}
-                onAttributeChange={handleAttributeChange}
-              />
+              {step < 5 ? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={nextStep}
+                  disabled={step === 3 && photoUploadsBusy}
+                >
+                  Continue
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full"
+                  loading={isPending}
+                  disabled={isPending || photoUploadsBusy}
+                >
+                  {editMode === "revision"
+                    ? "Submit changes for review"
+                    : editMode === "resubmit"
+                      ? "Resubmit for review"
+                      : mode === "dealer" || isFreeForUser
+                        ? "Submit Listing"
+                        : "Continue to Checkout"}
+                </Button>
+              )}
             </div>
-          )}
 
-          {error ? <FormErrorSummary messages={[error]} /> : null}
-
-          <div className="flex items-center gap-3">
-            {step > 1 ? (
-              <Button type="button" variant="ghost" onClick={prevStep}>
-                Back
-              </Button>
-            ) : null}
-            {step < 3 ? (
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                onClick={nextStep}
-                disabled={step === 2 && photoUploadsBusy}
-              >
-                Continue
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                loading={isPending}
-                disabled={isPending || photoUploadsBusy}
-              >
-                {editMode === "revision"
-                  ? "Submit changes for review"
-                  : editMode === "resubmit"
-                    ? "Resubmit for review"
-                    : mode === "dealer" || isFreeForUser
-                      ? "Submit Listing"
-                      : "Continue to Checkout"}
-              </Button>
-            )}
-          </div>
-
-          <p className="text-xs text-text-tertiary text-center">
-            Your listing will be reviewed by our moderation team before going live.
-          </p>
+            <p className="text-xs text-text-tertiary text-center">
+              Your listing will be reviewed by our moderation team before going live.
+            </p>
           </form>
         </CardContent>
       </Card>

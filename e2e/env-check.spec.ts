@@ -226,7 +226,7 @@ test.describe("[Cloudinary] Image upload widget", () => {
     // Admin redirected to /sell → chooses private flow
     await page.goto("/sell/private", { waitUntil: "domcontentloaded" });
     await dismissCookieBanner(page);
-    await expect(page.getByText(/create listing - step 1 of 3/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/create listing - step 1 of 5/i)).toBeVisible({ timeout: 20_000 });
     // The upload widget button lives in step 2 but should still be rendered in the DOM.
     // This verifies widget wiring without mutating listing form state.
     const uploadBtn = page.locator("button:has-text('Add Photos')");

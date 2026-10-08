@@ -1,0 +1,77 @@
+.workflow {
+  min-width: 0;
+}
+
+.rail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--sem-border-default);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  overflow: hidden;
+  background: var(--sem-bg-surface);
+}
+
+.card {
+  height: auto;
+  min-height: 5.75rem;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  white-space: normal;
+  border-radius: 0;
+  border-right: 1px solid var(--sem-border-default);
+  padding: 0.5rem 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: none;
+  font-style: normal;
+}
+
+.card:last-child {
+  border-right: 0;
+}
+
+.card[data-state="current"] {
+  background: var(--sem-bg-surfaceElevated);
+  color: var(--sem-text-primary);
+  box-shadow: inset 0 3px 0 var(--color-neonBlue-500);
+}
+
+.card[data-state="complete"] {
+  color: var(--sem-text-trust);
+}
+
+.card[data-state="attention"] {
+  color: var(--sem-text-energy);
+  box-shadow: inset 0 3px 0 var(--color-neonRed-500);
+}
+
+.card[data-state="pending"] {
+  color: var(--sem-text-secondary);
+}
+
+.label,
+.state {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--sem-border-default);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--sem-bg-surface);
+  padding: var(--sp-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .panel {
+    transition: none;
+    animation: none;
+  }
+}

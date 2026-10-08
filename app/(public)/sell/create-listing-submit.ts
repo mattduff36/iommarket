@@ -6,6 +6,10 @@ import {
 } from "@/actions/listings";
 import { payForListing, upgradeFeatured } from "@/actions/payments";
 import { summarizeFieldErrors, type FieldErrors } from "@/lib/forms/action-error";
+import {
+  guidedStepForFieldErrors,
+  type GuidedListingStep,
+} from "@/lib/listings/guided-listing-workflow";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
 import { isRippleDemoCheckoutUrl } from "@/lib/payments/demo-checkout";
 import { defendVehicleCatalogueSelection } from "./create-listing-form.helpers";
@@ -192,7 +196,7 @@ export type ListingSubmitNavigation =
       kind: "stay";
       error?: string;
       fieldErrors?: ListingSubmitFieldErrors;
-      step?: 1 | 3;
+      step?: GuidedListingStep;
     };
 
 export async function executeCreateListingSubmit(params: {
@@ -214,6 +218,7 @@ export async function executeCreateListingSubmit(params: {
   vehicleCatalogueSelection: VehicleCatalogueSelection;
   isVehicleCatalogueCategory: boolean;
   selectedCategoryAttributes: Array<{ id: string; slug: string }>;
+  attributeSteps?: Partial<Record<string, GuidedListingStep>>;
   createMutationId: () => string;
   includeFeatured?: boolean;
   listingFeeDue?: boolean;
@@ -262,7 +267,10 @@ export async function executeCreateListingSubmit(params: {
         "Please review the highlighted listing details and try again.",
       ),
       fieldErrors: result.error,
-      step: 1,
+      step: guidedStepForFieldErrors(result.error, {
+        attributeSteps: params.attributeSteps,
+        fallback: 1,
+      }),
     };
   }
 
@@ -358,7 +366,10 @@ export async function executeCreateListingSubmit(params: {
         "Unable to continue to checkout. Please review your details and try again.",
       ),
       fieldErrors: payResult.error,
-      step: 3,
+      step: guidedStepForFieldErrors(payResult.error, {
+        attributeSteps: params.attributeSteps,
+        fallback: 5,
+      }),
     };
   }
 

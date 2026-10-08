@@ -280,11 +280,13 @@ function reachPhotoUploadStep() {
     target: { value: "45000" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
 
 function reachPrivateReviewStep() {
   reachPhotoUploadStep();
   fireEvent.click(screen.getByTestId("mock-image-upload"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(
     screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -386,6 +388,7 @@ describe("CreateListingForm registration lookup", () => {
         target: { value: "45000" },
       });
       fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     }
 
     const { unmount } = render(
@@ -431,6 +434,7 @@ describe("CreateListingForm registration lookup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Finish mock upload" }));
     expect(continueButton).toBeEnabled();
     fireEvent.click(continueButton);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
     );
@@ -466,6 +470,13 @@ describe("CreateListingForm registration lookup", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Cars" }));
+    fireEvent.change(screen.getByLabelText(/Make/i), { target: { value: "BMW" } });
+    fireEvent.change(screen.getByLabelText(/^Model \(manual entry\)/), {
+      target: { value: "320d" },
+    });
+    fireEvent.change(screen.getByLabelText(/Year/i), { target: { value: "2019" } });
+    fireEvent.change(screen.getByLabelText(/Mileage/i), { target: { value: "45000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     const fuelTypeSelect = screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement;
     expect(Array.from(fuelTypeSelect.options).slice(1).map((option) => option.value)).toEqual(
@@ -659,7 +670,9 @@ describe("CreateListingForm registration lookup", () => {
       target: { value: "40000" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -774,7 +787,9 @@ describe("CreateListingForm registration lookup", () => {
       target: { value: "35000" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -885,9 +900,15 @@ describe("CreateListingForm registration lookup", () => {
       ).toBe("A 200 AMG LINE"),
     );
     expect((screen.getByLabelText(/Year/i) as HTMLInputElement).value).toBe("2020");
-    expect((screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement).value).toBe("Petrol");
-    expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Grey");
     expect((screen.getByLabelText(/Mileage/i) as HTMLInputElement).value).toBe("");
+    expect(screen.queryByRole("combobox", { name: /Fuel Type/i })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /^Title/ })).toBeNull();
+    expect((screen.getByLabelText(/Fuel Type/i) as HTMLSelectElement).value).toBe(
+      "Petrol",
+    );
+    expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe(
+      "Grey",
+    );
     expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe(
       "2020 Mercedes-Benz A 200 AMG LINE"
     );
@@ -1062,6 +1083,7 @@ describe("CreateListingForm registration lookup", () => {
     ).toBe("true");
     expect((screen.getByLabelText(/Make/i) as HTMLSelectElement).value).toBe("Honda");
     expect((screen.getByLabelText(/^Model \(manual entry\)/) as HTMLInputElement).value).toBe("CBR600RR");
+    expect(screen.queryByRole("textbox", { name: /^Title/ })).toBeNull();
     expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe(
       "2019 Honda CBR600RR"
     );
@@ -1112,7 +1134,9 @@ describe("CreateListingForm registration lookup", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(
@@ -1442,6 +1466,8 @@ describe("CreateListingForm registration lookup", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: /I expressly accept the current Private Seller Terms/i,
@@ -1549,7 +1575,9 @@ describe("CreateListingForm registration lookup", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(
@@ -1651,6 +1679,8 @@ describe("CreateListingForm registration lookup", () => {
     expect(screen.getByText(/The current live listing stays public/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: /I expressly accept the current Private Seller Terms/i,
@@ -1750,6 +1780,8 @@ describe("CreateListingForm registration lookup", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
@@ -1924,7 +1956,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
       target: { value: "None" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -1958,7 +1992,7 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByText("Create Listing - Step 1 of 3")).toBeTruthy();
+    expect(screen.getByText("Create Listing - Step 1 of 5")).toBeTruthy();
     expect(
       screen.getByText("Insurance write-off category is required."),
     ).toBeTruthy();
@@ -1975,7 +2009,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -1991,7 +2027,7 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     expect(alert.textContent).toContain(
       "A listing detail could not be validated. Please review it.",
     );
-    expect(screen.getByText("Create Listing - Step 1 of 3")).toBeTruthy();
+    expect(screen.getByText("Create Listing - Step 1 of 5")).toBeTruthy();
     expect(syncListingImages).not.toHaveBeenCalled();
     expect(payForListing).not.toHaveBeenCalled();
   });
@@ -2008,18 +2044,30 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
 
     const writeOff = screen.getByLabelText(/Insurance write-off category/);
     expect(writeOff).toBeTruthy();
-    expect(screen.getByText("Insurance write-off category").textContent).toContain(
-      "*",
-    );
+    expect(screen.getByText("Insurance write-off category").textContent).toContain("*");
+    expect(screen.queryByRole("spinbutton", { name: /Engine Size/i })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /Fuel Type/i })).toBeNull();
 
     const labels = screen
-      .getAllByText(/^(Fuel Type|Mileage|Insurance write-off category|Engine Size)/)
+      .getAllByText(/^(Mileage|Insurance write-off category)/)
       .map((node) => node.textContent?.replace(/\s+\*$/, "").trim());
-    expect(labels.indexOf("Fuel Type")).toBeLessThan(labels.indexOf("Insurance write-off category"));
     expect(labels.indexOf("Mileage")).toBeLessThan(labels.indexOf("Insurance write-off category"));
-    expect(labels.indexOf("Insurance write-off category")).toBeLessThan(
-      labels.indexOf("Engine Size"),
-    );
+
+    fireEvent.change(screen.getByLabelText(/Make/i), { target: { value: "BMW" } });
+    fireEvent.change(screen.getByLabelText(/^Model \(manual entry\)/), {
+      target: { value: "320d" },
+    });
+    fireEvent.change(screen.getByLabelText(/Year/i), { target: { value: "2019" } });
+    fireEvent.change(screen.getByLabelText(/Mileage/i), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText(/Insurance write-off category/i), {
+      target: { value: "None" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("combobox", { name: /Fuel Type/i })).toBeTruthy();
+    expect(screen.queryByRole("spinbutton", { name: /Engine Size/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Engine and efficiency" }));
+    expect(screen.getByRole("spinbutton", { name: /Engine Size/i })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: /Fuel Type/i })).toBeNull();
   });
 
   it("LST-PHOTO-CAS-001 applies the winning revision, drops the mutation, and does not auto-retry", async () => {
@@ -2095,6 +2143,8 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: /I expressly accept the current Private Seller Terms/i,
@@ -2138,7 +2188,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -2186,7 +2238,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -2201,7 +2255,7 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     fireEvent.click(submit);
 
     await screen.findByText("Private seller terms acceptance is required.");
-    expect(screen.getByText("Create Listing - Step 3 of 3")).toBeTruthy();
+    expect(screen.getByText("Create Listing - Step 5 of 5")).toBeTruthy();
     await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
 
     fireEvent.click(submit);
@@ -2233,7 +2287,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -2271,7 +2327,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -2323,7 +2381,9 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
     fillRequiredVehicleDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
@@ -2341,6 +2401,67 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     releaseCreate?.({ data: { id: "listing-flight" } } as Awaited<
       ReturnType<typeof createListing>
     >);
+  });
+
+  it("keeps optional answers when the optional step is skipped and reopened", () => {
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByLabelText(/Colour/i), { target: { value: "Blue" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Blue");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByTestId("mock-image-upload")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect((screen.getByLabelText(/Colour/i) as HTMLSelectElement).value).toBe("Blue");
+  });
+
+  it("blocks the review card until required details are complete", () => {
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fireEvent.click(screen.getByRole("button", { name: /Review/ }));
+    expect(screen.getByText("Create Listing - Step 1 of 5")).toBeTruthy();
+    expect(screen.getByText(/Complete the required vehicle details/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Continue to Checkout" })).toBeNull();
+  });
+
+  it("invalidates later steps after a category change", () => {
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByLabelText(/Colour/i), { target: { value: "Red" } });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Motorbikes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Photos/ }));
+    expect(screen.getByText("Create Listing - Step 1 of 5")).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: /Colour/i })).toBeNull();
+    expect(screen.getByText(/Complete the required vehicle details/i)).toBeTruthy();
+  });
+
+  it("opens the advert step when the server returns a title error", async () => {
+    vi.mocked(createListing).mockResolvedValue({
+      error: { title: ["Title must be at least 5 characters"] },
+    } as Awaited<ReturnType<typeof createListing>>);
+    render(<CreateListingForm categories={categories} regions={regions} mode="private" />);
+    fillRequiredVehicleDetails();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("mock-image-upload"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByLabelText(/I confirm I have authority to advertise this vehicle/),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /I expressly accept the current Private Seller Terms/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Checkout" }));
+
+    expect((await screen.findAllByText("Title must be at least 5 characters")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Create Listing - Step 4 of 5" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /^Title/ })).toBeTruthy();
   });
 });
 
