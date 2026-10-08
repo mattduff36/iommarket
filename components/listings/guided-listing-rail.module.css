@@ -68,6 +68,15 @@
   padding: var(--sp-4);
 }
 
+@media (max-width: 380px) {
+  .label,
+  .state {
+    font-size: 0.625rem;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card,
   .panel {

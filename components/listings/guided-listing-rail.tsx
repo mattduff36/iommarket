@@ -50,7 +50,7 @@ export function GuidedListingRail({
               type="button"
               variant="ghost"
               id={`${panelId}-step-${entry.step}`}
-              className={`${styles.card} h-auto min-h-[5.75rem] w-full min-w-0 flex-col gap-1 whitespace-normal rounded-none px-1 py-2 text-[11px] font-semibold normal-case not-italic`}
+              className={`${styles.card} h-auto min-h-[5.75rem] w-full min-w-0 flex-col gap-1 whitespace-normal rounded-none px-0 py-2 text-[11px] font-semibold normal-case not-italic`}
               data-state={status}
               aria-pressed={current === entry.step}
               aria-expanded={current === entry.step}
