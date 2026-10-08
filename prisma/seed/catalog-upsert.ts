@@ -1,10 +1,6 @@
 import type { Prisma } from "@prisma/client";
-import {
-  CATEGORY_DEFS,
-  MARKETPLACE_REGIONS,
-  MOTORBIKE_EXCLUDED_ATTRS,
-  VEHICLE_ATTRIBUTE_DEFS,
-} from "./catalog";
+import { attributeDefsForCategory } from "./catalog-attributes";
+import { CATEGORY_DEFS, MARKETPLACE_REGIONS } from "./catalog";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -47,13 +43,7 @@ export async function upsertCatalog(tx: TransactionClient) {
     });
     categories[category.slug] = row.id;
     attributes[category.slug] = {};
-    const defs =
-      category.slug === "motorbike"
-        ? VEHICLE_ATTRIBUTE_DEFS.filter(
-            (attr) =>
-              !(MOTORBIKE_EXCLUDED_ATTRS as readonly string[]).includes(attr.slug),
-          )
-        : VEHICLE_ATTRIBUTE_DEFS;
+    const defs = attributeDefsForCategory(category.slug);
     for (const attr of defs) {
       const created = await tx.attributeDefinition.upsert({
         where: {
@@ -64,7 +54,7 @@ export async function upsertCatalog(tx: TransactionClient) {
           dataType: attr.dataType,
           required: attr.required,
           sortOrder: attr.sortOrder,
-          options: "options" in attr ? attr.options : null,
+          options: attr.options,
         },
         create: {
           categoryId: row.id,
@@ -73,7 +63,7 @@ export async function upsertCatalog(tx: TransactionClient) {
           dataType: attr.dataType,
           required: attr.required,
           sortOrder: attr.sortOrder,
-          options: "options" in attr ? attr.options : null,
+          options: attr.options,
         },
       });
       attributes[category.slug][attr.slug] = created.id;

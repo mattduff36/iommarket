@@ -4,6 +4,7 @@ import {
   type ListingAttributeDefinitionLike,
   type ListingAttributeInputLike,
 } from "@/lib/listings/attribute-ui";
+import { pruneHiddenAttributes } from "./create-listing-form.helpers";
 import { collectListingAttributes } from "./create-listing-submit";
 
 export function validateListingDetailsStep(params: {
@@ -13,6 +14,7 @@ export function validateListingDetailsStep(params: {
     attributes: ListingAttributeDefinitionLike[];
   };
   attributeValues: Record<string, string>;
+  retainedAttributes?: ListingAttributeInputLike[];
   enforceListingNs?: boolean;
 }):
   | { ok: true; attributes: ListingAttributeInputLike[] }
@@ -28,14 +30,19 @@ export function validateListingDetailsStep(params: {
     return { ok: true, attributes: [] };
   }
 
+  const visibleValues = pruneHiddenAttributes(params.attributeValues, {
+    slug: params.selectedCategory.slug,
+    attributes: params.selectedCategory.attributes,
+  });
   const attributes = collectListingAttributes(
     params.selectedCategory.attributes,
-    params.attributeValues,
+    visibleValues,
   );
   const result = validateListingAttributes({
     categorySlug: params.selectedCategory.slug,
     definitions: params.selectedCategory.attributes,
     attributes,
+    retainedAttributes: params.retainedAttributes,
     enforceListingNs: params.enforceListingNs,
   });
 

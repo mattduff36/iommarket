@@ -120,13 +120,14 @@ export function pruneHiddenAttributes<T extends { id: string; slug: string }>(
   category: { slug: string; attributes: T[] }
 ) {
   const nextValues = { ...values };
-  const fuelTypeDef = category.attributes.find(
-    (attribute) => attribute.slug === "fuel-type"
-  );
-  const fuelType = fuelTypeDef ? nextValues[fuelTypeDef.id] : undefined;
+  const valuesBySlug: Record<string, string> = {};
+  for (const attribute of category.attributes) {
+    valuesBySlug[attribute.slug] = nextValues[attribute.id]?.trim() ?? "";
+  }
+  const fuelType = valuesBySlug["fuel-type"] || undefined;
 
   for (const candidate of category.attributes) {
-    if (!isAttributeVisible(category.slug, candidate.slug, fuelType || undefined)) {
+    if (!isAttributeVisible(category.slug, candidate.slug, fuelType, valuesBySlug)) {
       delete nextValues[candidate.id];
     }
   }

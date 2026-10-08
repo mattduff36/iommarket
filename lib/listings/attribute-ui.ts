@@ -8,6 +8,14 @@ import {
   WRITE_OFF_CATEGORY_VALUES,
   WRITE_OFF_CONFIG_ERROR,
 } from "@/lib/listings/write-off-category";
+import {
+  EARLIEST_RECORDED_CHECK,
+  findVehicleDetailAttribute,
+  isManufacturerSizeDesignation,
+  isRealIsoDate,
+  maximumRecordedCheckDate,
+  withRetainedSelectOption,
+} from "@/lib/listings/vehicle-detail-catalog";
 
 export interface ListingAttributeDefinitionLike {
   id: string;
@@ -24,7 +32,7 @@ export interface ListingAttributeInputLike {
 }
 
 export interface ListingAttributeFieldConfig {
-  control: "text" | "number" | "select" | "checkbox" | "model-select";
+  control: "text" | "number" | "select" | "checkbox" | "model-select" | "date";
   options?: string[];
   helperText?: string;
   placeholder?: string;
@@ -32,6 +40,14 @@ export interface ListingAttributeFieldConfig {
   min?: number;
   max?: number;
   step?: number;
+  maxLength?: number;
+  minDate?: string;
+  maxDate?: string;
+}
+
+export interface ListingAttributeFieldContext {
+  valuesBySlug?: Record<string, string>;
+  retainedValue?: string;
 }
 
 const VEHICLE_CATEGORY_SLUGS = new Set(["car", "van", "motorbike", "motorhome"]);
@@ -115,11 +131,21 @@ export function parseAttributeOptions(options: string | null): string[] {
 export function isAttributeVisible(
   categorySlug: string | undefined,
   attributeSlug: string,
-  fuelType: string | undefined
+  fuelType: string | undefined,
+  valuesBySlug?: Record<string, string>,
 ): boolean {
   if (ALWAYS_HIDDEN_ATTRIBUTE_SLUGS.has(attributeSlug)) {
     return false;
   }
+
+  const detail = findVehicleDetailAttribute(categorySlug, attributeSlug);
+  if (
+    detail?.showWhen &&
+    (valuesBySlug?.[detail.showWhen.slug] ?? "") !== detail.showWhen.equals
+  ) {
+    return false;
+  }
+
   if (!isVehicleCategorySlug(categorySlug)) {
     return true;
   }
@@ -138,9 +164,10 @@ export function isAttributeVisible(
 export function getAttributeFieldConfig(
   categorySlug: string | undefined,
   attribute: ListingAttributeDefinitionLike,
-  fuelType: string | undefined
+  fuelType: string | undefined,
+  context?: ListingAttributeFieldContext,
 ): ListingAttributeFieldConfig | null {
-  if (!isAttributeVisible(categorySlug, attribute.slug, fuelType)) {
+  if (!isAttributeVisible(categorySlug, attribute.slug, fuelType, context?.valuesBySlug)) {
     return null;
   }
 
@@ -177,17 +204,31 @@ export function getAttributeFieldConfig(
     };
   }
 
-  if (attribute.dataType === "select") {
-    const options = parseAttributeOptions(attribute.options);
-    if (options.length === 0) {
-      return {
-        control: "text",
-        placeholder: `Enter ${attribute.name.toLowerCase()}`,
-        helperText: "This field is temporarily using free text while options are unavailable.",
-      };
-    }
+  const detail = findVehicleDetailAttribute(categorySlug, attribute.slug);
 
-    return { control: "select", options };
+  if (attribute.slug === "body-type" && attribute.dataType === "select") {
+    return selectConfig(
+      attribute,
+      legacyBodyTypeValue(categorySlug, context?.retainedValue),
+      bodyTypeHelper(categorySlug),
+    );
+  }
+
+  if (detail?.dataType === "select" || (detail && attribute.dataType === "select")) {
+    return selectConfig(attribute, undefined, detail?.helperText, detail?.options);
+  }
+
+  if (attribute.dataType === "date" || detail?.dataType === "date") {
+    return {
+      control: "date",
+      minDate: EARLIEST_RECORDED_CHECK,
+      maxDate: maximumRecordedCheckDate(),
+      helperText: detail?.helperText,
+    };
+  }
+
+  if (attribute.dataType === "select") {
+    return selectConfig(attribute);
   }
 
   if (attribute.dataType === "boolean") {
@@ -195,7 +236,23 @@ export function getAttributeFieldConfig(
   }
 
   if (attribute.dataType === "number") {
-    return getNumberFieldConfig(attribute.slug, attribute.name);
+    const numberConfig = getNumberFieldConfig(attribute.slug, attribute.name, categorySlug);
+    return detail?.helperText || detail?.placeholder
+      ? {
+          ...numberConfig,
+          helperText: detail.helperText ?? numberConfig.helperText,
+          placeholder: detail.placeholder ?? numberConfig.placeholder,
+        }
+      : numberConfig;
+  }
+
+  if (detail?.dataType === "text") {
+    return {
+      control: "text",
+      maxLength: detail.maxLength,
+      placeholder: detail.placeholder,
+      helperText: detail.helperText,
+    };
   }
 
   return {
@@ -204,10 +261,66 @@ export function getAttributeFieldConfig(
   };
 }
 
+function legacyBodyTypeValue(
+  categorySlug: string | undefined,
+  retainedValue: string | undefined,
+): string | undefined {
+  if (categorySlug !== "motorhome" && categorySlug !== "van") return undefined;
+  return retainedValue;
+}
+
+function selectConfig(
+  attribute: ListingAttributeDefinitionLike,
+  retainedValue?: string,
+  helperText?: string,
+  fallbackOptions?: readonly string[],
+): ListingAttributeFieldConfig {
+  const parsed = parseAttributeOptions(attribute.options);
+  const official = parsed.length > 0 ? parsed : [...(fallbackOptions ?? [])];
+  if (official.length === 0) {
+    return {
+      control: "text",
+      placeholder: `Enter ${attribute.name.toLowerCase()}`,
+      helperText: "This field is temporarily using free text while options are unavailable.",
+    };
+  }
+
+  const options = withRetainedSelectOption(official, retainedValue);
+  const retainedExtra = options.length > official.length;
+  return {
+    control: "select",
+    options,
+    helperText: retainedExtra
+      ? [helperText, "A previously saved value is listed so it can be kept."].filter(Boolean).join(" ")
+      : helperText,
+  };
+}
+
+function bodyTypeHelper(categorySlug: string | undefined): string | undefined {
+  if (categorySlug === "motorhome") return "Motorhome type.";
+  if (categorySlug === "van") return "Van body type.";
+  return undefined;
+}
+
 function getNumberFieldConfig(
   slug: string,
-  label: string
+  label: string,
+  categorySlug?: string,
 ): ListingAttributeFieldConfig {
+  const detail = findVehicleDetailAttribute(categorySlug, slug);
+  if (detail?.dataType === "number") {
+    const decimal = typeof detail.step === "number" && detail.step < 1;
+    return {
+      control: "number",
+      inputMode: decimal ? "decimal" : "numeric",
+      min: detail.min,
+      max: detail.max,
+      step: detail.step,
+      placeholder: detail.placeholder ?? `Enter ${label.toLowerCase()}`,
+      helperText: detail.helperText,
+    };
+  }
+
   const currentYear = new Date().getFullYear();
   const configs: Record<string, ListingAttributeFieldConfig> = {
     year: {
@@ -333,6 +446,7 @@ export function validateListingAttributes(params: {
   categorySlug: string | undefined;
   definitions: ListingAttributeDefinitionLike[];
   attributes: ListingAttributeInputLike[];
+  retainedAttributes?: ListingAttributeInputLike[];
   enforceListingNs?: boolean;
 }): {
   fieldErrors: Record<string, string[]>;
@@ -363,16 +477,36 @@ export function validateListingAttributes(params: {
   const fuelType = fuelTypeDefinition
     ? submittedValues.get(fuelTypeDefinition.id)
     : undefined;
+  const valuesBySlug: Record<string, string> = {};
+  for (const definition of params.definitions) {
+    valuesBySlug[definition.slug] = submittedValues.get(definition.id) ?? "";
+  }
+  const retainedValues = new Map(
+    (params.retainedAttributes ?? []).map((attribute) => [
+      attribute.attributeDefinitionId,
+      attribute.value.trim(),
+    ]),
+  );
 
   const fieldErrors: Record<string, string[]> = {};
   const sanitizedAttributes: ListingAttributeInputLike[] = [];
 
   for (const definition of params.definitions) {
-    const config = getAttributeFieldConfig(params.categorySlug, definition, fuelType);
+    const config = getAttributeFieldConfig(params.categorySlug, definition, fuelType, {
+      valuesBySlug,
+      retainedValue: retainedValues.get(definition.id),
+    });
     const fieldName = `attr-${definition.id}`;
     const rawValue = submittedValues.get(definition.id) ?? "";
 
     if (!config) {
+      const detail = findVehicleDetailAttribute(params.categorySlug, definition.slug);
+      if (detail?.showWhen && rawValue) {
+        const parent = findVehicleDetailAttribute(params.categorySlug, detail.showWhen.slug);
+        fieldErrors[fieldName] = [
+          `${definition.name} can only be saved when ${parent?.name ?? detail.showWhen.slug} is Yes.`,
+        ];
+      }
       continue;
     }
 
@@ -383,7 +517,12 @@ export function validateListingAttributes(params: {
       continue;
     }
 
-    const validationError = validateAttributeValue(definition, rawValue, config.options);
+    const validationError = validateAttributeValue(
+      params.categorySlug,
+      definition,
+      rawValue,
+      config,
+    );
     if (validationError) {
       fieldErrors[fieldName] = [validationError];
       continue;
@@ -399,9 +538,10 @@ export function validateListingAttributes(params: {
 }
 
 function validateAttributeValue(
+  categorySlug: string | undefined,
   definition: ListingAttributeDefinitionLike,
   value: string,
-  options: string[] | undefined
+  config: ListingAttributeFieldConfig,
 ): string | null {
   if (definition.slug === "fuel-type" && !fuelTypeSchema.safeParse(value).success) {
     return "Please choose a specific fuel type.";
@@ -417,7 +557,20 @@ function validateAttributeValue(
     if (value.length > 80) return "Model must be 80 characters or fewer.";
   }
 
-  if (options && options.length > 0 && !options.includes(value)) {
+  if (definition.slug === "manufacturer-size-designation" && !isManufacturerSizeDesignation(value)) {
+    return "Enter a short manufacturer size code, such as L2H2. Dimensions are not calculated from it.";
+  }
+
+  if (config.control === "date" || definition.dataType === "date") {
+    if (!isRealIsoDate(value)) {
+      return `${definition.name} must be a real date in YYYY-MM-DD format.`;
+    }
+    if (value < EARLIEST_RECORDED_CHECK || value > maximumRecordedCheckDate()) {
+      return `${definition.name} must be between ${EARLIEST_RECORDED_CHECK} and today.`;
+    }
+  }
+
+  if (config.options && config.options.length > 0 && !config.options.includes(value)) {
     return `Please choose a valid ${definition.name.toLowerCase()}.`;
   }
 
@@ -425,8 +578,17 @@ function validateAttributeValue(
     return `${definition.name} must be true or false.`;
   }
 
-  if (definition.dataType !== "number") {
+  if (typeof config.maxLength === "number" && value.length > config.maxLength) {
+    return `${definition.name} must be ${config.maxLength} characters or fewer.`;
+  }
+
+  if (definition.dataType !== "number" && config.control !== "number") {
     return null;
+  }
+
+  const detail = findVehicleDetailAttribute(categorySlug, definition.slug);
+  if (detail?.dataType === "number" && !isCanonicalNumber(value, numericScale(config.step))) {
+    return `${definition.name} must be a valid number.`;
   }
 
   const numericValue = Number(value);
@@ -434,16 +596,28 @@ function validateAttributeValue(
     return `${definition.name} must be a valid number.`;
   }
 
-  const config = getNumberFieldConfig(definition.slug, definition.name);
   if (typeof config.min === "number" && numericValue < config.min) {
     return `${definition.name} must be at least ${config.min}.`;
   }
   if (typeof config.max === "number" && numericValue > config.max) {
     return `${definition.name} must be ${config.max} or less.`;
   }
-  if (config.step === 1 && !Number.isInteger(numericValue)) {
+  if ((config.step === 1 || config.step === undefined) && !Number.isInteger(numericValue)) {
     return `${definition.name} must be a whole number.`;
   }
 
   return null;
+}
+
+function numericScale(step: number | undefined): number {
+  if (step === undefined || step >= 1) return 0;
+  const text = String(step);
+  const index = text.indexOf(".");
+  return index === -1 ? 0 : text.length - index - 1;
+}
+
+function isCanonicalNumber(value: string, scale: number): boolean {
+  if (value.length > 12) return false;
+  if (scale <= 0) return /^(?:0|[1-9]\d*)$/.test(value);
+  return new RegExp(`^(?:0|[1-9]\\d*)(?:\\.\\d{1,${scale}})?$`).test(value);
 }

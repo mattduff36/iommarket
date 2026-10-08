@@ -26,6 +26,7 @@ import {
 } from "@/lib/forms/action-error";
 import { getAttributeFieldConfig } from "@/lib/listings/attribute-ui";
 import { CreateListingAttributeFields } from "@/app/(public)/sell/create-listing-attribute-fields";
+import { pruneHiddenAttributes } from "@/app/(public)/sell/create-listing-form.helpers";
 
 type ListingEditLoad = NonNullable<
   Extract<
@@ -117,19 +118,31 @@ export function ListingEditDialog({
   const selectedCategory = data?.categories.find((category) => category.id === categoryId);
   const visibleAttributes = useMemo(() => {
     if (!selectedCategory) return [];
-    const fuelType = selectedCategory.attributes.find(
-      (attribute) => attribute.slug === "fuel-type",
+    const valuesBySlug = Object.fromEntries(
+      selectedCategory.attributes.map((attribute) => [
+        attribute.slug,
+        attributeValues[attribute.id]?.trim() ?? "",
+      ]),
     );
-    const fuelValue = fuelType ? attributeValues[fuelType.id] : undefined;
+    const retainedById =
+      data && categoryId === data.listing.categoryId
+        ? Object.fromEntries(
+            data.listing.attributes.map((attribute) => [
+              attribute.attributeDefinitionId,
+              attribute.value,
+            ]),
+          )
+        : {};
     return selectedCategory.attributes.flatMap((attr) => {
       const config = getAttributeFieldConfig(
         selectedCategory.slug,
         attr,
-        fuelValue,
+        valuesBySlug["fuel-type"] || undefined,
+        { valuesBySlug, retainedValue: retainedById[attr.id] },
       );
       return config ? [{ attr, config }] : [];
     });
-  }, [attributeValues, selectedCategory]);
+  }, [attributeValues, categoryId, data, selectedCategory]);
 
   function handleOpenChange(nextOpen: boolean) {
     if (saving.current && !nextOpen) return;
@@ -177,8 +190,11 @@ export function ListingEditDialog({
       return;
     }
     const pricePence = Math.round(Number(price) * 100);
+    const submittedValues = selectedCategory
+      ? pruneHiddenAttributes(attributeValues, selectedCategory)
+      : attributeValues;
     const attributes = (selectedCategory?.attributes ?? []).flatMap((attribute) => {
-      const value = attributeValues[attribute.id]?.trim();
+      const value = submittedValues[attribute.id]?.trim();
       return value ? [{ attributeDefinitionId: attribute.id, value }] : [];
     });
 
@@ -301,7 +317,12 @@ export function ListingEditDialog({
                       setCategoryId(nextId);
                       const nextCategory = data.categories.find((category) => category.id === nextId);
                       const allowedIds = new Set(nextCategory?.attributes.map((attribute) => attribute.id) ?? []);
-                      setAttributeValues((current) => Object.fromEntries(Object.entries(current).filter(([id]) => allowedIds.has(id))));
+                      setAttributeValues((current) => {
+                        const allowed = Object.fromEntries(
+                          Object.entries(current).filter(([id]) => allowedIds.has(id)),
+                        );
+                        return nextCategory ? pruneHiddenAttributes(allowed, nextCategory) : allowed;
+                      });
                     }}
                     required
                   >
@@ -343,7 +364,12 @@ export function ListingEditDialog({
                     isDetailsStep
                     getFieldError={(field) => firstFieldError(fieldErrors, field)}
                     onAttributeChange={(attribute, value) =>
-                      setAttributeValues((current) => ({ ...current, [attribute.id]: value }))
+                      setAttributeValues((current) => {
+                        const nextValues = { ...current, [attribute.id]: value };
+                        return selectedCategory
+                          ? pruneHiddenAttributes(nextValues, selectedCategory)
+                          : nextValues;
+                      })
                     }
                   />
                 </section>

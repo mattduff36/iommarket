@@ -1,2 +1,5 @@
 # Shell hooks must remain executable after Windows checkouts.
 scripts/git-hooks/* text eol=lf
+
+# Keep this generated migration and its checksum identical on Windows and CI.
+prisma/migrations/20261008160000_motorhome_van_details/migration.sql text eol=lf
