@@ -1,3 +1,4 @@
+import { vehicleLookupPublicError } from "./vehicle-lookup-public-error";
 import {
   createAuctionHistoryApiService,
   type AuctionHistoryEntry,
@@ -247,12 +248,8 @@ function buildIomVehicleRecord(
   };
 }
 
-function formatLookupWarning(error: unknown, fallback: string): string {
-  if (isVehicleLookupError(error)) {
-    return error.message;
-  }
-
-  return error instanceof Error ? error.message : fallback;
+function formatLookupWarning(error: unknown, _fallback: string): string {
+  return vehicleLookupPublicError(error).message;
 }
 
 async function lookupUkVehicle(registrationNumber: string): Promise<VehicleCheckResult> {

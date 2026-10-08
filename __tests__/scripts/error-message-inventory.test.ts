@@ -43,7 +43,11 @@ describe("error candidate inventory rules", () => {
     const duplicates = records.filter((record) => record.classification === "duplicate");
     expect(duplicates.every((record) => record.duplicate_of.includes(":"))).toBe(true);
     expect(records.some((record) => record.implementation_status === "deferred-c")).toBe(true);
-    expect(records.some((record) => record.implementation_status === "deferred-d")).toBe(true);
+    expect(records.some((record) => record.implementation_status === "boundary-d-public")).toBe(true);
+    expect(records.some((record) =>
+      record.implementation_status === "journey-c-public-boundary" ||
+      record.implementation_status === "journey-c-destructive-boundary",
+    )).toBe(true);
     expect(records.some((record) => record.implementation_status === "deferred-c-payment-internals")).toBe(true);
     const stored = inventory.map((line) => JSON.parse(line) as { file: string; line: number; source: string });
     expect(stored.map((record) => `${record.file}:${record.line}:${record.source}`)).toEqual(

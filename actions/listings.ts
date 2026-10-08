@@ -20,8 +20,8 @@ import {
 import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import {
-  RATE_LIMIT_UNAVAILABLE_MESSAGE,
   rateLimitActionError,
+  rateLimitRecoveryMessage,
   type RateLimitResult,
 } from "@/lib/rate-limit-result";
 import {
@@ -48,11 +48,12 @@ import {
 import { transitionListingStatus } from "@/lib/listings/status-events";
 import {
   isListingConflictError,
-  isListingLifecycleDomainError,
   ListingLifecycleConflictError,
   ListingLifecycleError,
 } from "@/lib/listings/errors";
 import { captureWithoutMasking } from "@/lib/forms/public-error";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import { lifecyclePublicMessage } from "@/lib/listings/lifecycle-public-error";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { canSkipListingPayment } from "@/lib/listings/payment-skip";
 import {
@@ -115,9 +116,7 @@ async function canChangeListingLifecycle(userId: string, listingId: string): Pro
 }
 
 function listingLifecycleRateError(result: RateLimitResult): string | null {
-  if (result.unavailable) return RATE_LIMIT_UNAVAILABLE_MESSAGE;
-  if (!result.allowed) return LISTING_LIFECYCLE_RATE_LIMIT_ERROR;
-  return null;
+  return rateLimitRecoveryMessage(result, LISTING_LIFECYCLE_RATE_LIMIT_ERROR);
 }
 
 function expectedListingActionError(
@@ -127,7 +126,7 @@ function expectedListingActionError(
   return listingDomainResult(error, conflictMessage);
 }
 
-/** Withdraw stays on the previous domain mapping. It is not part of the listing-save contract. */
+/** Withdraw stays outside the listing-save contract. Known lifecycle copy is allowlisted. */
 function withdrawListingDomainError(
   error: unknown,
   conflictMessage: string,
@@ -135,9 +134,8 @@ function withdrawListingDomainError(
   if (isListingConflictError(error)) {
     return { error: conflictMessage, conflict: true };
   }
-  if (isListingLifecycleDomainError(error)) {
-    return { error: error.message };
-  }
+  const known = lifecyclePublicMessage(error);
+  if (known) return { error: known };
   return null;
 }
 
@@ -1002,18 +1000,17 @@ export async function withdrawListingSubmission(input: unknown) {
     );
     if (expected) return expected;
 
-    await reportHandledException({
+    return journeyUnknownResult({
       error: err,
+      journey: "listing-lifecycle",
       action: "withdrawListingSubmission",
       route: "/account/listings",
-      requestPath: "/account/listings",
+      kind: "write",
+      message: "We couldn't confirm that this submission was withdrawn. Check the listing before trying again.",
       userId: user.id,
       userEmail: user.email,
       tags: { listingId },
     });
-    return {
-      error: "Unable to withdraw this submission. Please try again.",
-    };
   }
 }
 
@@ -1051,18 +1048,19 @@ export async function renewListing(listingId: string) {
     revalidatePath(`/listings/${listingId}`);
     return { data: updated.listing };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    const known = lifecyclePublicMessage(err);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error: err,
+      journey: "listing-lifecycle",
       action: "renewListing",
       route: "/account/listings",
-      requestPath: "/account/listings",
+      kind: "write",
+      message: "We couldn't confirm that this listing was renewed. Check the listing before trying again.",
       userId: user.id,
       userEmail: user.email,
       tags: { listingId },
     });
-    const message = err instanceof Error ? err.message : "Failed to renew listing";
-    return { error: message };
   }
 }
 
@@ -1076,7 +1074,7 @@ export async function reportListing(input: ReportListingInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const reportRateError = rateLimitActionError(
+  const reportRateError = rateLimitRecoveryMessage(
     await checkRateLimit(
       makeRateLimitKey("report", parsed.data.reporterEmail),
       { windowMs: 300_000, maxRequests: 3, policy: "report-listing" },
@@ -1163,16 +1161,15 @@ export async function reportListing(input: ReportListingInput) {
 
     return { data: report };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    return journeyUnknownResult({
       error: err,
+      journey: "enquiries",
       action: "reportListing",
       route: `/listings/${parsed.data.listingId}`,
-      requestPath: `/listings/${parsed.data.listingId}`,
+      kind: "write",
+      message: "We couldn't confirm that this report was submitted. Check before trying again.",
       tags: { listingId: parsed.data.listingId },
     });
-    const message = err instanceof Error ? err.message : "Failed to submit report";
-    return { error: message };
   }
 }
 
@@ -1195,7 +1192,7 @@ export async function contactSeller(input: ContactSellerInput) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const contactRateError = rateLimitActionError(
+  const contactRateError = rateLimitRecoveryMessage(
     await checkRateLimit(
       makeRateLimitKey("contact-seller", parsed.data.email),
       { windowMs: 300_000, maxRequests: 5, policy: "contact-seller" },
@@ -1264,17 +1261,15 @@ export async function contactSeller(input: ContactSellerInput) {
     });
     return { data: { sent: true } };
   } catch (err) {
-    await captureException({
-      source: "BUSINESS",
+    return journeyUnknownResult({
       error: err,
-      severity: "MEDIUM",
-      title: "Contact seller email delivery failure",
+      journey: "enquiries",
       action: "contactSeller",
       route: `/listings/${parsed.data.listingId}`,
-      requestPath: `/listings/${parsed.data.listingId}`,
+      kind: "write",
+      message: "We couldn't confirm that this message was sent. Check before sending it again.",
       tags: { listingId: parsed.data.listingId },
     });
-    return { error: "Failed to send message. Please try again later." };
   }
 }
 
@@ -1311,18 +1306,19 @@ export async function markListingAsSold(listingId: string) {
     revalidatePath("/");
     return { data: updated.listing };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    const known = lifecyclePublicMessage(err);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error: err,
+      journey: "listing-lifecycle",
       action: "markListingAsSold",
       route: `/listings/${listingId}`,
-      requestPath: `/listings/${listingId}`,
+      kind: "destructive",
+      message: "We couldn't confirm that this listing was marked sold. Check the listing before trying again.",
       userId: user.id,
       userEmail: user.email,
       tags: { listingId },
     });
-    const message = err instanceof Error ? err.message : "Failed to mark listing as sold";
-    return { error: message };
   }
 }
 

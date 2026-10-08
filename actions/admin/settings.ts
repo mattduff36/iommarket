@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -61,17 +63,17 @@ export async function updateSiteSetting(input: UpdateSiteSettingInput) {
     revalidatePath("/admin/settings");
     return { data: setting };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "updateSiteSetting",
       route: "/admin/settings",
-      requestPath: "/admin/settings",
       userId: admin.id,
       tags: { key },
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update setting finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update setting";
-    return { error: message };
   }
 }
 
@@ -124,17 +126,16 @@ export async function updateMarketplacePricing(
 
     return { data: prices };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "updateMarketplacePricing",
       route: "/admin/settings",
-      requestPath: "/admin/settings",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update marketplace pricing finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to update marketplace pricing";
-    return { error: message };
   }
 }
 
@@ -162,16 +163,16 @@ export async function deleteSiteSetting(key: string) {
     revalidatePath("/admin/settings");
     return { data: { deleted: true } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "deleteSiteSetting",
       route: "/admin/settings",
-      requestPath: "/admin/settings",
       userId: admin.id,
       tags: { key },
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to delete setting finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to delete setting";
-    return { error: message };
   }
 }

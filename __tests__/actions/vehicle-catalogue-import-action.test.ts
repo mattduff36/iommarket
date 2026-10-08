@@ -107,8 +107,9 @@ describe("vehicle catalogue import action", () => {
         userId: "admin-1",
       }),
     );
-    expect(result).toEqual({
-      error: "Vehicle catalogue update failed. No changes were applied.",
+    expect(result).toMatchObject({
+      code: "unknown", retryable: false,
+      error: "We could not confirm the catalogue update. Reload the catalogue and check it before importing or saving again.",
     });
   });
 });

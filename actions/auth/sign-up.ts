@@ -11,6 +11,7 @@ import { buildSignupAcceptanceReceipt } from "@/lib/policy/acceptance";
 import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { signUpSchema, type SignUpInput } from "@/lib/validations/auth";
 import { publicAuthErrorMessage } from "@/lib/forms/action-error";
+import { rateLimitRecoveryMessage } from "@/lib/rate-limit-result";
 import { supabasePasswordErrorMessage } from "@/lib/forms/password-policy-message";
 import { shouldEnforceLaunchGate } from "@/lib/launch/gate";
 import { reportHandledException } from "@/lib/monitoring";
@@ -25,6 +26,7 @@ function signupProviderError(error: { message: string }) {
     error: publicAuthErrorMessage(
       error.message,
       "We could not create your account. Please try again shortly.",
+      { discloseExistingAccount: true },
     ),
   };
 }
@@ -113,8 +115,13 @@ export async function signUpWithPolicyAcceptance(input: SignUpInput) {
       clientAddress,
     });
     if (!rateLimit.allowed) {
+      const resetAt = rateLimit.resetAt instanceof Date ? rateLimit.resetAt.getTime() : Number.NaN;
       return {
-        error: "Too many signup attempts. Please wait a moment and try again.",
+        error:
+          rateLimitRecoveryMessage(
+            { allowed: false, remaining: 0, resetAt, unavailable: false },
+            "Too many signup attempts. Please wait a moment and try again.",
+          ) ?? "Too many signup attempts. Please wait a moment and try again.",
       };
     }
 

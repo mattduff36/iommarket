@@ -3,14 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import {
-  CancellationError,
-  transitionDealerCancellationRequest,
-} from "@/lib/policy/cancellation";
+import { transitionDealerCancellationRequest } from "@/lib/policy/cancellation";
 import { sendCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
 import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { staffCancellationActionSchema } from "@/lib/validations/cancellation";
-import { reportHandledException } from "@/lib/monitoring";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import { cancellationPublicMessage } from "@/lib/forms/known-domain-messages";
 
 const ACTION_TO_STATUS = {
   ACKNOWLEDGE: "ACKNOWLEDGED",
@@ -66,16 +64,16 @@ export async function processDealerCancellationRequest(input: {
     revalidatePath("/dealer/dashboard");
     return { data: { id: result.request.id, status: result.request.status } };
   } catch (error) {
-    if (error instanceof CancellationError) {
-      return { error: error.message };
-    }
-    await reportHandledException({
+    const known = cancellationPublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "processDealerCancellationRequest",
       route: "/admin/cancellations",
+      kind: "destructive",
+      message: "We couldn't confirm that this cancellation change finished. Check the request before trying again.",
+      userId: admin.id,
     });
-    const message =
-      error instanceof Error ? error.message : "Failed to process cancellation";
-    return { error: message };
   }
 }

@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import { transportPublicMessage } from "@/lib/forms/journey-public-error";
 import { Input } from "@/components/ui/input";
 import {
   firstFieldError,
@@ -104,9 +105,13 @@ export function ListingEditDialog({
         ),
       );
       setLoading(false);
-    }).catch(() => {
+    }).catch((caught: unknown) => {
       if (!active) return;
-      setLoadError("Unable to load this listing for editing.");
+      const online = typeof navigator === "undefined" ? undefined : navigator.onLine;
+      setLoadError(
+        transportPublicMessage(caught, online) ??
+          "We couldn't load this listing for editing. Try again shortly.",
+      );
       setLoading(false);
     });
 
@@ -257,7 +262,7 @@ export function ListingEditDialog({
             Loading listing details…
           </p>
         ) : loadError ? (
-          <FormErrorSummary messages={[loadError]} />
+          <FormErrorSummary messages={[loadError]} cause="service" />
         ) : data ? (
           <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-5">
             <FormErrorSummary messages={messages} />

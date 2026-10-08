@@ -214,5 +214,11 @@ function parseUploadResponse(value: string): UploadResponse | null {
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  const approved = new Set([
+    "Upload a PNG, JPG, GIF, or WebP image.", "Choose an image file to upload.",
+    "Logo images must be 5 MB or smaller.", "Could not read the selected image. Please try another file.",
+    "The selected file does not match its image type.", "Logo storage is not available. Please try again later.",
+  ]);
+  if (error instanceof Error && approved.has(error.message)) return error.message;
+  return fallback;
 }

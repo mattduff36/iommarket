@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
+
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +29,7 @@ export function RefundButton({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [showConfirm, setShowConfirm] = useState(false);
   const [reason, setReason] = useState<
     "DUPLICATE" | "REQUESTED_BY_CUSTOMER" | "FRAUD" | "SERVICE_NOT_PROVIDED" | "OTHER"
@@ -52,11 +55,11 @@ export function RefundButton({
   function handleRefund() {
     setError(null);
     startTransition(async () => {
-      const result = await adminRefundPayment({
+      const result = await recovery.run(() => adminRefundPayment({
         paymentId,
         reason,
         notes: notes.trim() || undefined,
-      });
+      }));
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed");
       } else {
@@ -71,7 +74,7 @@ export function RefundButton({
       {!showConfirm ? (
         <AdminActionButton
           onClick={() => setShowConfirm(true)}
-          disabled={isPending}
+          disabled={isPending || recovery.blocked}
           tone="danger"
         >
           Refund
@@ -108,15 +111,16 @@ export function RefundButton({
               className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
             />
           ) : null}
-          <AdminActionButton onClick={handleRefund} disabled={isPending} tone="danger">
+          <AdminActionButton onClick={handleRefund} disabled={isPending || recovery.blocked} tone="danger">
             Confirm refund
           </AdminActionButton>
-          <AdminActionButton onClick={() => setShowConfirm(false)} disabled={isPending}>
+          <AdminActionButton onClick={() => setShowConfirm(false)} disabled={isPending || recovery.blocked}>
             Cancel
           </AdminActionButton>
         </AdminActionBar>
       )}
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
+      {recovery.blocked ? <a href="/admin/payments" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );
 }
@@ -135,18 +139,19 @@ export function ReconcileRippleButton({
   const [contractConfirmed, setContractConfirmed] = useState(false);
   const [paidConfirmed, setPaidConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
 
   function submit() {
     setError(null);
     startTransition(async () => {
-      const result = await adminReconcileRipplePayment({
+      const result = await recovery.run(() => adminReconcileRipplePayment({
         paymentId,
         providerPaymentId,
         providerEventAt: new Date(providerEventAt),
         confirmedAmountCurrencyProduct: contractConfirmed as true,
         confirmedCurrentlyPaidAndNotRefunded: paidConfirmed as true,
         notes,
-      });
+      }));
       if (result.error) {
         setError(
           typeof result.error === "string"
@@ -162,7 +167,7 @@ export function ReconcileRippleButton({
 
   if (!open) {
     return (
-      <AdminActionButton onClick={() => setOpen(true)} tone="warning">
+      <AdminActionButton onClick={() => setOpen(true)} disabled={recovery.blocked} tone="warning">
         Reconcile
       </AdminActionButton>
     );
@@ -229,11 +234,12 @@ export function ReconcileRippleButton({
         >
           Confirm recovery
         </AdminActionButton>
-        <AdminActionButton onClick={() => setOpen(false)} disabled={isPending}>
+        <AdminActionButton onClick={() => setOpen(false)} disabled={isPending || recovery.blocked}>
           Cancel
         </AdminActionButton>
       </AdminActionBar>
-      {error ? <p className="text-xs text-text-error">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-text-error">{error}</p> : null}
+      {recovery.blocked ? <a href="/admin/payments" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );
 }

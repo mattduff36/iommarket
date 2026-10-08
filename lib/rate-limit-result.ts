@@ -42,7 +42,32 @@ export function rateLimitActionError(
   result: RateLimitResult,
   limitedMessage: string,
 ): string | null {
-  return toRateLimitDenial(result, limitedMessage)?.message ?? null;
+  return rateLimitRecoveryMessage(result, limitedMessage);
+}
+
+function reliableRetrySeconds(resetAt: number, now: number): number | null {
+  if (!Number.isFinite(resetAt)) return null;
+  const seconds = Math.ceil((resetAt - now) / 1000);
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 86_400) return null;
+  return seconds;
+}
+
+/**
+ * A real 429 with a finite reset includes the wait. A missing reset keeps the
+ * caller's sentence. Limiter outage stays the unavailable sentence and does
+ * not claim the person is throttled.
+ */
+export function rateLimitRecoveryMessage(
+  result: RateLimitResult,
+  limitedMessage: string,
+  now = Date.now(),
+): string | null {
+  if (result.unavailable) return RATE_LIMIT_UNAVAILABLE_MESSAGE;
+  if (result.allowed) return null;
+  const seconds = reliableRetrySeconds(result.resetAt, now);
+  if (seconds === null) return limitedMessage;
+  const base = limitedMessage.trim().split(/Please wait|Wait |Try again/i)[0].trim().replace(/\.$/, "");
+  return `${base}. Wait ${seconds} ${seconds === 1 ? "second" : "seconds"}, then try again.`;
 }
 
 /** Additive wait-time payload. Existing string callers keep rateLimitActionError. */
@@ -54,7 +79,7 @@ export function rateLimitPublicError(
   const denial = toRateLimitDenial(result, limitedMessage, now);
   if (!denial) return null;
   return publicErrorBody({
-    message: denial.message,
+    message: rateLimitRecoveryMessage(result, limitedMessage, now) ?? denial.message,
     code: denial.status === 429 ? "rate_limited" : "unavailable",
     retryAfterSeconds: denial.retryAfterSeconds,
   });

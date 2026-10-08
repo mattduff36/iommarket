@@ -112,7 +112,17 @@ export function loadConsumerIndex(root: string): Map<string, string[]> {
 }
 
 function implementationStatus(file: string, owner = ""): string {
-  if (file === "actions/listings.ts" && /withdraw|renewListing|reportListing|contactSeller|markListingAsSold/.test(owner)) return "deferred-c";
+  if (/^actions\/(account|dealer|dev-bypass)\.ts$/.test(file) && /updateMyProfile|deactivateMyAccount|createSelfServiceDealerProfile|devActivateSubscription|devMarkListingFeatured/.test(owner)) return "journey-c-public-boundary";
+  if (/^actions\/admin\/(checklist|dealers|media|monitoring|pages|preview-packs|regions|settings|users)\.ts$/.test(file) && /loadChecklist|saveChecklist|createDealerProfile|verifyDealer|downgradeDealer|deleteListingImage|updateMonitoringIssue|generateCursorPrompt|savePage|deletePage|restorePage|enablePreviewPack|disablePreviewPack|createRegion|updateRegion|toggleRegionActive|deleteRegion|updateSiteSetting|updateMarketplacePricing|deleteSiteSetting|setUserDisabled|restoreUser|setUserRegion/.test(owner)) return "journey-c-public-boundary";
+  if (/^app\/api\/vehicle-check\/|^lib\/services\/vehicle-check-aggregator/.test(file)) return "journey-c-public-boundary";
+  if (/error\.tsx|global-error|error-fallback|form-error-summary/.test(file)) return "boundary-d-public";
+  if (file === "actions/listings.ts" && /withdraw|renewListing|reportListing|contactSeller|markListingAsSold/.test(owner)) {
+    return "journey-c-public-boundary";
+  }
+  if (file === "actions/admin.ts" && /moderateListing/.test(owner)) return "journey-c-destructive-boundary";
+  if (/actions\/admin\/(payments|users|cancellations|costs|profile-edit)\.ts$|actions\/dealer\/cancellation\.ts$|actions\/dealer-onboarding\.ts$/.test(file) && /adminRefund|adminCancelSubscription|adminAttachUnmatched|adminReconcile|deleteUser|processDealerCancellation|requestDealerCancellation|completeDealerOnboarding|requestProjectInvoice|confirmProjectInvoice|recordManualProjectCost|addManualCostCategory|refreshProviderCosts|profileEditResponse|saveAdminProfile/.test(owner)) {
+    return "journey-c-destructive-boundary";
+  }
   if (/^app\/api\/listing-images\/|^components\/marketplace\/image-upload\.tsx$|^lib\/images\/(client-upload|imagekit-client-upload|upload-client-error)\.ts$|^lib\/media\/(verification-error|upload-error-catalog)\.ts$|^lib\/forms\/(action-error|public-error)\.ts$|^lib\/rate-limit-result\.ts$/.test(file)) {
     return "uploads-b-public-boundary";
   }
@@ -142,6 +152,12 @@ function testEvidence(status: string): string {
   if (status === "payments-b-public-boundary") {
     return "targeted checkout public-error tests; static trace is not per-line runtime proof";
   }
+  if (status === "journey-c-public-boundary" || status === "journey-c-destructive-boundary") {
+    return "targeted journey public-error tests; static trace is not per-line runtime proof; unmigrated functions in the same file stay deferred";
+  }
+  if (status === "boundary-d-public") {
+    return "targeted boundary, summary, and rate-limit recovery tests; static trace is not per-line runtime proof";
+  }
   return "none in this batch";
 }
 
@@ -149,7 +165,9 @@ function applyAssessment(row: CandidateRow, index: ProjectIndex | null): Omit<In
   const assessed = assessCandidate(row, index);
   const status = implementationStatus(row.file, assessed.journey_evidence);
   const authException = /Not authorized/.test(row.source) ? "deliberate-generic-auth" : "";
-  const enumeration = /publicAuthErrorMessage|Invalid login|invalid credentials/.test(row.source) ? "non-enumeration-review-deferred" : "";
+  const enumeration = /publicAuthErrorMessage|Invalid login|invalid credentials/.test(row.source)
+    ? "sign-in-non-enumerating; signup-existing-account-disclosure-reviewed"
+    : "";
   const exception = [assessed.exception, authException, enumeration].filter(Boolean).join("; ");
   return {
     file: row.file,
@@ -237,11 +255,11 @@ export function summariseInventory(records: InventoryRecord[], csvSha256: string
     family_counts: count("family_id"),
     groups: [...groups.values()].sort((a, b) => b.count - a.count || a.id.localeCompare(b.id)),
     deferred: {
-      "B-listings": "Save, update, submit, and wizard presentation use the public contract. Withdraw, report, contact, and renew in actions/listings.ts keep their previous copy.",
-      "B-payments": "Customer checkout unknown outcomes use non-retryable uncertainty. Charges, webhooks, refunds, and entitlements are unchanged. Other payment files stay deferred.",
-      C: "Accounts, dealer/admin and remaining journeys stay deferred.",
-      D: "Offline handling and page/global boundaries stay deferred.",
-      E: "Release-gate lint and unknown-error frequency tracking have no rows in this candidate file and are not implemented.",
+      "B-listings": "Save, update, submit, and wizard presentation use the public contract. Withdraw, report, contact, and renew public catches were migrated in C.",
+      "B-payments": "Customer checkout unknown outcomes use non-retryable uncertainty. Charge, webhook and entitlement behavior is unchanged. Admin refund/cancellation public error handling and client recovery were migrated in C.",
+      C: "Auth sign-in stays non-enumerating. Signup still discloses an existing account. Listing lifecycle, refunds, cancellation, purge, onboarding, profile edit, and cost catches use allowlists or uncertain outcomes. Profile, administrative configuration and media, checklist, region and page catches also use monitored uncertainty. Vehicle lookup and partial warnings use stable-code mapping. Unchanged validation and domain paths retain explicit audit status; see rollout-cde.md.",
+      D: "Page and global boundaries show a monitoring reference when capture returns one. Rate-limit recovery includes a wait only when resetAt is reliable. Service summaries do not use the validation heading. Privileged payment, user changes, cancellations and catalogue import UI lock uncertain writes and link to freshly loaded status.",
+      E: "public-boundary-gate flags new raw error.message public returns outside reviewed-public-exceptions.json. Unknown fallbacks are tagged on the existing captureException path. The candidate register still has no separate E rows.",
     },
   };
 }
@@ -253,7 +271,7 @@ export function renderReport(summary: ReturnType<typeof summariseInventory>): st
     "Generated by `scripts/error-messages/classify-candidates.ts` from `docs/error-messages/candidates.jsonl`.",
     "The private CSV is not required after checkout. The classifier re-reads the working tree at each recorded file and line.",
     "`semantic_display_verified` means a static producer-to-sink trace (return, JSX, schema, or forwarding catch). It is not a runtime or browser proof.",
-    "C-E behaviour is not migrated. Journey names are ownership for later work.",
+    "C-E covers the boundaries named in the batch notes. Other candidates stay deferred. A file status is not a claim that every function in that file changed.",
     "",
     `- Candidates: ${summary.candidate_count}`,
     `- Files: ${summary.file_count}`,
@@ -288,11 +306,11 @@ export function renderReport(summary: ReturnType<typeof summariseInventory>): st
     "",
     ...Object.entries(summary.deferred).map(([phase, text]) => `- ${phase}: ${text}`),
     "",
-    "Section E has zero candidate rows in this register. It remains a later release gate.",
+    "Section E has zero candidate rows. The prevention gate lives in scripts/error-messages/public-boundary-gate.ts and is not a candidate count.",
     "",
     "Upload public boundaries use `lib/forms/public-error.ts` and `lib/media/upload-error-catalog.ts`. Listing save and customer checkout boundaries use the same contract via `lib/listings/save-public-error.ts` and `lib/payments/checkout-public-error.ts`. A boundary status means the file is in that batch, not that every line was rewritten.",
     "",
-    "Withdraw, report, contact, renew, admin, and global error pages stay deferred. Section C-E behaviour is not implemented here.",
+    "Withdraw, report, contact, renew, and mark-sold public catches are journey-c when the enclosing function matches. Other lines in those files stay on their previous status. Global error pages are boundary-d-public. Remaining raw public returns are listed in scripts/error-messages/reviewed-public-exceptions.json.",
     "",
   ];
   return `${lines.join("\n")}\n`;

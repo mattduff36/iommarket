@@ -94,9 +94,9 @@ describe("POST /api/vehicle-check", () => {
       buildRequest(JSON.stringify({ registration: "AB12 CDE" }))
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      error: "lookup exploded",
+      error: "Vehicle lookup is temporarily unavailable. Try again shortly or enter the details manually.",
     });
   });
 

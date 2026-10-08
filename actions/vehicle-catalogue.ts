@@ -1,5 +1,6 @@
 "use server";
 
+import { asActionFailure, publicErrorBody } from "@/lib/forms/public-error";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -43,7 +44,15 @@ function errorMessage(error: unknown) {
   ) {
     return "That normalized vehicle name is already in use for this make.";
   }
-  return "Vehicle catalogue update failed. No changes were applied.";
+  return "We could not confirm the catalogue update. Reload the catalogue and check it before importing or saving again.";
+}
+
+function catalogueFailure(error: unknown) {
+  const known = error instanceof VehicleCatalogueImportConflictError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002");
+  return known ? { error: errorMessage(error), data: undefined } : asActionFailure(publicErrorBody({
+    message: errorMessage(error), code: "unknown", retryable: false,
+  }));
 }
 
 async function reportUnexpectedCatalogueFailure(
@@ -130,7 +139,7 @@ export async function saveVehicleMake(input: VehicleMakeMutation) {
       "saveVehicleMake",
       admin.id,
     );
-    return { error: errorMessage(error) };
+    return catalogueFailure(error);
   }
 }
 
@@ -221,7 +230,7 @@ export async function saveVehicleModel(input: VehicleModelMutation) {
       "saveVehicleModel",
       admin.id,
     );
-    return { error: errorMessage(error) };
+    return catalogueFailure(error);
   }
 }
 
@@ -324,7 +333,7 @@ export async function saveVehicleModelAlias(input: VehicleAliasMutation) {
       "saveVehicleModelAlias",
       admin.id,
     );
-    return { error: errorMessage(error) };
+    return catalogueFailure(error);
   }
 }
 
@@ -372,7 +381,7 @@ export async function importVehicleCatalogue(input: {
         : "applyVehicleCatalogueImport",
       admin.id,
     );
-    return { error: errorMessage(error) };
+    return catalogueFailure(error);
   }
 }
 
@@ -456,6 +465,6 @@ export async function exportVehicleCatalogue() {
       "exportVehicleCatalogue",
       admin.id,
     );
-    return { error: errorMessage(error) };
+    return catalogueFailure(error);
   }
 }

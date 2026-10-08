@@ -34,7 +34,7 @@ export function WithdrawSubmissionButton({
       });
       if (result.error) {
         setError(result.error);
-        if (result.conflict) router.refresh();
+        if ("conflict" in result && result.conflict) router.refresh();
         return;
       }
 

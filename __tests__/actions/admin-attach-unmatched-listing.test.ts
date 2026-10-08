@@ -158,7 +158,7 @@ describe("adminAttachUnmatchedListing", () => {
         listingId: LISTING_ID,
         confirmedCurrentlyPaidAndNotRefunded: true,
       }),
-    ).resolves.toEqual({ error: "audit unavailable" });
+    ).resolves.toMatchObject({ error: "We couldn't confirm that this payment attachment finished. Check the payment before trying again.", code: "unknown", retryable: false });
 
     expect(attachUnmatchedListingPaymentMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).toHaveBeenCalledWith(

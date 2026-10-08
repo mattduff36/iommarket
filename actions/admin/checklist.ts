@@ -1,4 +1,7 @@
 "use server";
+import { knownOperationMessage } from "@/lib/forms/operation-error-messages";
+
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
 
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
@@ -62,16 +65,15 @@ export async function loadChecklist() {
       data: { items: parsed.items, updatedAt: row.updatedAt.toISOString() },
     };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "loadChecklist",
       route: "/admin/checklist",
-      requestPath: "/admin/checklist",
+      journey: "dealer-admin",
+      kind: "read",
+      message: "We couldn't load checklist right now. Try again shortly."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to load checklist";
-    return { error: message };
   }
 }
 
@@ -135,17 +137,18 @@ export async function saveChecklist(input: SaveChecklistInput) {
       },
     };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    const knownReason = knownOperationMessage(err, "saveChecklist");
+    if (knownReason) return { error: knownReason, data: undefined };
+    return journeyUnknownResult({
       error: err,
       action: "saveChecklist",
       route: "/admin/checklist",
-      requestPath: "/admin/checklist",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to save checklist finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to save checklist";
-    return { error: message };
   }
 }
 
@@ -215,19 +218,8 @@ export async function updateChecklistCompletion(
     revalidatePath("/admin/checklist");
     return { data: snapshot };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
-      action: "updateChecklistCompletion",
-      route: "/admin/checklist",
-      requestPath: "/admin/checklist",
-      userId: admin.id,
-    });
-    return {
-      error:
-        err instanceof Error
-          ? err.message
-          : "Failed to update checklist completion",
-    };
+    const knownReason = knownOperationMessage(err, "updateChecklistCompletion");
+    if (knownReason) return { error: knownReason, data: undefined };
+    return journeyUnknownResult({ error: err, action: "updateChecklistCompletion", route: "/admin/checklist", userId: admin.id, journey: "dealer-admin", kind: "write", message: "We could not confirm the checklist update. Reload the checklist before changing it again." });
   }
 }

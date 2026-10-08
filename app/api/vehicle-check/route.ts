@@ -1,3 +1,5 @@
+import { vehicleLookupPublicError } from "@/lib/services/vehicle-lookup-public-error";
+import { captureWithoutMasking } from "@/lib/forms/public-error";
 import { NextRequest, NextResponse } from "next/server";
 import { getVehicleCheckResult } from "@/lib/services/vehicle-check-aggregator";
 import {
@@ -19,23 +21,6 @@ function getRequesterKey(request: NextRequest): string {
   return `${ip ?? "unknown"}:${userAgent}`;
 }
 
-function toJsonError(error: unknown): { message: string; status: number } {
-  if (isVehicleLookupError(error)) {
-    return {
-      message: error.message,
-      status: error.status,
-    };
-  }
-
-  if (error instanceof VehicleLookupError) {
-    return { message: error.message, status: error.status };
-  }
-
-  return {
-    message: error instanceof Error ? error.message : "Vehicle lookup failed",
-    status: 500,
-  };
-}
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -78,7 +63,7 @@ export async function POST(request: NextRequest) {
     try {
       result = await normalizeVehicleCheckCatalogue(lookupResult);
     } catch (normalizationError) {
-      await reportHandledException({
+      await captureWithoutMasking(() => reportHandledException({
         error: normalizationError,
         action: "vehicleCheckCatalogueNormalization",
         route: "/api/vehicle-check",
@@ -87,19 +72,19 @@ export async function POST(request: NextRequest) {
         extra: {
           normalizedRegistration: lookupResult.normalizedRegistration,
         },
-      });
+      }));
     }
     return NextResponse.json({ success: true, result });
   } catch (error) {
-    const jsonError = toJsonError(error);
+    const jsonError = vehicleLookupPublicError(error);
     if (jsonError.status >= 500) {
-      await reportHandledException({
+      await captureWithoutMasking(() => reportHandledException({
         error,
         action: "vehicleCheck",
         route: "/api/vehicle-check",
         requestPath: "/api/vehicle-check",
         requestMethod: "POST",
-      });
+      }));
     }
     return NextResponse.json(
       { error: jsonError.message },

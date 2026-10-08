@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
@@ -74,18 +76,17 @@ async function applyMonitoringStatus(
     revalidatePath(`/admin/monitoring/${input.issueId}`);
     return { data: issue };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "setMonitoringIssueStatus",
       route: `/admin/monitoring/${input.issueId}`,
-      requestPath: `/admin/monitoring/${input.issueId}`,
       userId: adminId,
       tags: { issueId: input.issueId, status: input.status },
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update monitoring issue finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to update monitoring issue";
-    return { error: message };
   }
 }
 
@@ -310,17 +311,16 @@ export async function generateMonitoringCursorPrompt(input: { issueId: string })
     revalidatePath(`/admin/monitoring/${issue.id}`);
     return { data: { prompt } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "generateMonitoringCursorPrompt",
       route: `/admin/monitoring/${parsed.data.issueId}`,
-      requestPath: `/admin/monitoring/${parsed.data.issueId}`,
       userId: admin.id,
       tags: { issueId: parsed.data.issueId },
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to generate cursor prompt finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to generate cursor prompt";
-    return { error: message };
   }
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -193,6 +194,7 @@ export function VehicleCatalogueAdmin({
   query: string;
 }) {
   const router = useRouter();
+  const recovery = useMutationRecovery();
   const [isImportPending, startImportTransition] = useTransition();
   const [isExportPending, startExportTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
@@ -219,12 +221,12 @@ export function VehicleCatalogueAdmin({
   function runImport(dryRun: boolean) {
     setStatus(null);
     startImportTransition(async () => {
-      const result = await importVehicleCatalogue({
+      const result = await recovery.run(() => importVehicleCatalogue({
         json: importJson,
         dryRun,
         confirmDeactivateMissing:
           !dryRun && requestsDeactivation && deactivationReady,
-      });
+      }));
       if (result.error) {
         setStatus(toMessage(result.error));
         return;
@@ -422,7 +424,7 @@ export function VehicleCatalogueAdmin({
           <Button
             type="button"
             variant="ghost"
-            disabled={!importJson.trim() || isImportPending}
+            disabled={recovery.blocked || !importJson.trim() || isImportPending}
             loading={isImportPending}
             onClick={() => runImport(true)}
           >
@@ -431,7 +433,7 @@ export function VehicleCatalogueAdmin({
           <Button
             type="button"
             disabled={
-              !importJson.trim() || isImportPending || !deactivationReady
+              recovery.blocked || !importJson.trim() || isImportPending || !deactivationReady
             }
             loading={isImportPending}
             onClick={() => runImport(false)}
@@ -452,6 +454,7 @@ export function VehicleCatalogueAdmin({
       <p aria-live="polite" className="min-h-5 text-sm text-text-secondary">
         {status}
       </p>
+      {recovery.blocked ? <a href="/admin/vehicle-catalogue" className="block underline">Reload and check catalogue</a> : null}
     </div>
   );
 }

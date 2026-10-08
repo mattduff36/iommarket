@@ -343,7 +343,7 @@ describe("saveAdminProfile", () => {
       },
     });
 
-    expect(result).toEqual({ error: PROFILE_SAVE_FAILED });
+    expect(result).toMatchObject({ error: "We could not confirm the profile changes. Reload the account and check before saving again.", code: "unknown", retryable: false });
     expect(state.user?.name).toBe("Account Holder");
     expect(state.dealer?.name).toBe("Ocean Motor Village Preview");
     expect(state.audits).toEqual([]);
@@ -363,7 +363,7 @@ describe("saveAdminProfile", () => {
       },
     });
 
-    expect(result).toEqual({ error: PROFILE_SAVE_FAILED });
+    expect(result).toMatchObject({ error: "We could not confirm the profile changes. Reload the account and check before saving again.", code: "unknown", retryable: false });
     expect(state.user?.name).toBe("Account Holder");
     expect(state.dealer?.name).toBe("Ocean Motor Village Preview");
   });

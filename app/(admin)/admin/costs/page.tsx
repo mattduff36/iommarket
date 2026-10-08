@@ -80,10 +80,7 @@ export default async function AdminCostsPage() {
     try {
       dashboard = await fetchRemoteCostDashboard(access.origin);
     } catch (error) {
-      const reason =
-        error instanceof Error
-          ? error.message
-          : "The canonical ledger is unavailable.";
+      const reason = "The canonical ledger could not be reached. Refresh this page shortly. Contact support if it remains unavailable.";
       dashboard = unavailableDashboard(reason, isOwner);
     }
     return (

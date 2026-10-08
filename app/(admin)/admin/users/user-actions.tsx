@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
+
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -73,6 +75,7 @@ export function UserActions({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [success, setSuccess] = useState<string | null>(null);
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [isDealerAccessDialogOpen, setIsDealerAccessDialogOpen] = useState(false);
@@ -80,7 +83,7 @@ export function UserActions({
   const [requestedRole, setRequestedRole] = useState<UserRole | null>(null);
   const [requestedTier, setRequestedTier] = useState<DealerTier | null>(null);
   const actionInFlight = useRef(false);
-  const isWorking = isPending || pendingLabel !== null;
+  const isWorking = isPending || pendingLabel !== null || recovery.blocked;
   const isDealerCapableRole =
     currentRole === "DEALER" || currentRole === "ADMIN";
 
@@ -98,12 +101,12 @@ export function UserActions({
     setPendingLabel(label);
     startTransition(async () => {
       try {
-        const result = await action();
+        const result = await recovery.run(() => action());
         if (result.error) {
           setError(readError(result.error, fallback));
           return;
         }
-        setSuccess(readError(result.warning, successMessage));
+        setSuccess(readError("warning" in result ? result.warning : undefined, successMessage));
         onSuccess?.();
         if (redirectOnDelete && label === "Deleting…") {
           router.push(redirectOnDelete);
@@ -409,6 +412,7 @@ export function UserActions({
           {success}
         </p>
       ) : null}
+      {recovery.blocked ? <a href={`/admin/users/${userId}`} className="block text-sm underline">Reload and check status</a> : null}
 
       <DealerAccessDialog
         userId={userId}

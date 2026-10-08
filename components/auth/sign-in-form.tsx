@@ -70,6 +70,7 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
           publicAuthErrorMessage(
             err.message,
             "We could not sign you in. Check your email and password and try again.",
+            { discloseExistingAccount: false },
           ),
         );
         return;

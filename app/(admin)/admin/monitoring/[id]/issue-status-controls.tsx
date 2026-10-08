@@ -28,7 +28,7 @@ export function IssueStatusControls({ issueId }: Props) {
         notes: notes.trim() || undefined,
         mutedHours: status === "MUTED" ? Math.max(1, Number(muteHours) || 24) : undefined,
       });
-      if (result.error) {
+      if ("error" in result && result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed to update issue");
         return;
       }

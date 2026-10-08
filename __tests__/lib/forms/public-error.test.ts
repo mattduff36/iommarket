@@ -69,7 +69,7 @@ describe("public error contract", () => {
       0,
     );
     expect(body).toMatchObject({
-      error: "Too many upload attempts. Try again shortly.",
+      error: "Too many upload attempts. Wait 30 seconds, then try again.",
       code: "rate_limited",
       retryable: true,
       retryAfterSeconds: 30,

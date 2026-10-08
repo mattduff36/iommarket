@@ -27,11 +27,10 @@ import {
   type CreateAttributeDefinitionInput,
 } from "@/lib/validations/category";
 import { transitionListingStatus } from "@/lib/listings/status-events";
-import {
-  isListingConflictError,
-  isListingLifecycleDomainError,
-} from "@/lib/listings/errors";
+import { isListingConflictError } from "@/lib/listings/errors";
 import { reportHandledException } from "@/lib/monitoring";
+import { lifecyclePublicMessage } from "@/lib/listings/lifecycle-public-error";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
 import { dispatchListingNotifications } from "@/lib/email/listing-notifications";
 import { approveRevision, rejectRevision } from "@/lib/listings/revisions";
 import { z } from "zod";
@@ -122,16 +121,17 @@ export async function moderateListing(input: ModerateListingInput) {
         conflict: true,
       };
     }
-    if (isListingLifecycleDomainError(err)) {
-      return { error: err.message };
-    }
-    await reportHandledException({
+    const known = lifecyclePublicMessage(err);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error: err,
+      journey: "dealer-admin",
       action: "moderateListing",
       route: "/admin/listings",
+      kind: "destructive",
+      message: "We couldn't confirm that this moderation change finished. Check the listing before trying again.",
       userId: admin.id,
     });
-    return { error: "Failed to moderate listing. Please try again." };
   }
 }
 
@@ -158,15 +158,16 @@ export async function createCategory(input: CreateCategoryInput) {
     revalidatePath("/admin/categories");
     return { data: category };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "createCategory",
       route: "/admin/categories",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to create category finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to create category";
-    return { error: message };
   }
 }
 
@@ -189,14 +190,15 @@ export async function createAttributeDefinition(
     revalidatePath("/admin/categories");
     return { data: attr };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "createAttributeDefinition",
       route: "/admin/categories",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to create attribute finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to create attribute";
-    return { error: message };
   }
 }
 
@@ -311,15 +313,16 @@ export async function updateReportStatus(input: {
     revalidatePath("/admin/reports");
     return { data: report };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "updateReport",
       route: "/admin/reports",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update report finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to update report";
-    return { error: message };
   }
 }
 
@@ -424,15 +427,16 @@ export async function takeDownListingFromReport(input: TakeDownFromReportInput) 
     revalidatePath(`/listings/${report.listingId}`);
     return { data: { actioned: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "takeDownListingFromReport",
       route: "/admin/reports",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to take down listing from report finished. Check the administration page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to take down listing from report";
-    return { error: message };
   }
 }
 
@@ -454,14 +458,16 @@ export async function deleteAttributeDefinition(id: string) {
     revalidatePath("/admin/categories");
     return { data: { deleted: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "deleteAttributeDefinition",
       route: "/admin/categories",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to delete attribute finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to delete attribute";
-    return { error: message };
   }
 }
 
@@ -492,14 +498,16 @@ export async function toggleCategoryActive(id: string, active: boolean) {
     revalidatePath("/");
     return { data: { ...category, liveListingCount: listingCount } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "toggleCategoryActive",
       route: "/admin/categories",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update category finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update category";
-    return { error: message };
   }
 }
 
@@ -527,14 +535,16 @@ export async function deleteCategory(id: string) {
     revalidatePath("/admin/categories");
     return { data: { deleted: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "deleteCategory",
       route: "/admin/categories",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to delete category finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to delete category";
-    return { error: message };
   }
 }
 
@@ -572,13 +582,15 @@ export async function setListingFeatured(input: {
     revalidatePath("/search");
     return { data: listing };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "setListingFeatured",
       route: "/admin/listings",
       userId: admin.id,
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update listing finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update listing";
-    return { error: message };
   }
 }

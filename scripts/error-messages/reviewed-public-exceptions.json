@@ -1,0 +1,200 @@
+[
+  {
+    "file": "actions/admin/database-sync.ts",
+    "snippet": "if (error instanceof DatabaseSyncError) return error.message;",
+    "reason": "DatabaseSyncError is deliberately public: diagnostics.ts redacts internal causes and formats bounded stage/outcome/reference copy. All other errors use trace-only fallback; admin staging gates unchanged.",
+    "occurrences": 1
+  },
+  {
+    "file": "actions/admin/database-sync.ts",
+    "snippet": "catch (error) { return { error: error instanceof DatabaseSyncError ? error.message : \"Database history is unavailable. Refresh the page to try again.\" }; }",
+    "reason": "DatabaseSyncError is deliberately public: diagnostics.ts redacts internal causes and formats bounded stage/outcome/reference copy. All other errors use trace-only fallback; admin staging gates unchanged.",
+    "occurrences": 1
+  },
+  {
+    "file": "actions/dealer-reviews.ts",
+    "snippet": "return error instanceof DealerReviewActionError ? error.message : fallback;",
+    "reason": "Private DealerReviewActionError is constructed only from checked-in lifecycle sentences in this action file; provider/DB exceptions use the fallback.",
+    "occurrences": 1
+  },
+  {
+    "file": "actions/payments.ts",
+    "snippet": "const known = trustedCheckoutMessage(error instanceof Error ? error.message : \"\");",
+    "reason": "Exception text is INPUT to the B exact checkout allowlist, never the returned public string. Unknown values use non-retryable payment uncertainty.",
+    "occurrences": 1
+  },
+  {
+    "file": "actions/payments.ts",
+    "snippet": "const known = toUserPaymentError(err instanceof Error ? err.message : \"\");",
+    "reason": "Exception text is INPUT to the B exact checkout allowlist, never the returned public string. Unknown values use non-retryable payment uncertainty.",
+    "occurrences": 3
+  },
+  {
+    "file": "actions/sample-payments.ts",
+    "snippet": "const message = error instanceof Error ? error.message : \"\";",
+    "reason": "Local variable feeds trustedCheckoutMessage before public return. Unknown simulator exceptions use the B non-retryable uncertainty boundary.",
+    "occurrences": 2
+  },
+  {
+    "file": "actions/vehicle-catalogue.ts",
+    "snippet": "return error.message;",
+    "reason": "VehicleCatalogueImportConflictError is constructed from validated catalogue names and known source-ownership/conflict or import-limit reasons. Other exceptions are replaced; transaction constraints remain unchanged.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/(public)/dealer/profile/dealer-logo-upload.tsx",
+    "snippet": "if (error instanceof Error && approved.has(error.message)) return error.message;",
+    "reason": "Only an exact member of the approved static image-validation sentence set is returned; arbitrary transport/provider strings use fixed fallback.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/cron/cost-maintenance/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/dealer-profile/logo/route.ts",
+    "snippet": "if (error instanceof Error) return error.message;",
+    "reason": "errorText is used only to classify missing storage bucket internally; public JSON is fixed wording. Rate denial messages are locally constructed by toRateLimitDenial.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/dealer-profile/logo/route.ts",
+    "snippet": "{ error: uploadRateDenial.message },",
+    "reason": "errorText is used only to classify missing storage bucket internally; public JSON is fixed wording. Rate denial messages are locally constructed by toRateLimitDenial.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/dealer-profile/logo/route.ts",
+    "snippet": "{ error: removeRateDenial.message },",
+    "reason": "errorText is used only to classify missing storage bucket internally; public JSON is fixed wording. Rate denial messages are locally constructed by toRateLimitDenial.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/dev-auth/route.ts",
+    "snippet": "{ error: denial.message },",
+    "reason": "denial is the existing explicit staging authentication decision with fixed safe copy, not a caught provider exception.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/events/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/events/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 409 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/manual/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/manual/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 409 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/manual-categories/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/manual-categories/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 409 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/refresh/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/requests/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/requests/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 409 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-ledger/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-sync/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 403 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/internal/cost-sync/route.ts",
+    "snippet": "return NextResponse.json({ error: error.message }, { status: 400 });",
+    "reason": "Authenticated machine endpoint: typed cost configuration, conflict or deployment-domain error contains known controlled reasons from lib/costs; unknown exceptions have fixed JSON or framework fallback. No provider exception pass-through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/media/cloudinary-ref/route.ts",
+    "snippet": "return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status });",
+    "reason": "RateLimitDenial.message is constructed locally from approved call-site copy and a fixed service-unavailable message, never from an exception.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/media/listing-photo/route.ts",
+    "snippet": "return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status });",
+    "reason": "RateLimitDenial.message is constructed locally from approved call-site copy and a fixed service-unavailable message, never from an exception.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/monitoring/events/route.ts",
+    "snippet": "{ error: rateDenial.message },",
+    "reason": "RateLimitDenial.message is constructed locally from approved call-site copy and a fixed service-unavailable message, never from an exception.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/vehicle-catalogue/models/route.ts",
+    "snippet": "{ error: rateDenial.message },",
+    "reason": "RateLimitDenial.message is constructed locally from approved call-site copy and a fixed service-unavailable message, never from an exception.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/vehicle-check/route.ts",
+    "snippet": "{ error: rateDenial.message },",
+    "reason": "jsonError comes from vehicleLookupPublicError stable-code mapping; rateDenial is locally constructed. Provider messages never pass through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/api/vehicle-check/route.ts",
+    "snippet": "{ error: jsonError.message },",
+    "reason": "jsonError comes from vehicleLookupPublicError stable-code mapping; rateDenial is locally constructed. Provider messages never pass through.",
+    "occurrences": 1
+  },
+  {
+    "file": "app/error.tsx",
+    "snippet": "title=\"Something went wrong\"",
+    "reason": "Boundary heading is intentionally broad because the cause is unknown. Adjacent text supplies page recovery, home, support and verified event reference.",
+    "occurrences": 1
+  },
+  {
+    "file": "actions/admin/dealer-review-moderation.ts",
+    "snippet": "instanceof DealerReviewWorkflowConflictError ? error.message",
+    "reason": "DealerReviewWorkflowConflictError has a no-argument constructor with one fixed conflict sentence; the alternative local moderation class contains checked-in refusal copy only. Unknown failures use fixed fallback.",
+    "occurrences": 1
+  }
+]

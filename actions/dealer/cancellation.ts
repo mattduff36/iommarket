@@ -4,14 +4,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
-import {
-  CancellationError,
-  createDealerCancellationRequest,
-} from "@/lib/policy/cancellation";
+import { createDealerCancellationRequest } from "@/lib/policy/cancellation";
 import { sendCancellationStatusEmail } from "@/lib/email/cancellation-notifications";
 import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routing";
 import { requestDealerCancellationSchema } from "@/lib/validations/cancellation";
-import { reportHandledException } from "@/lib/monitoring";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import { cancellationPublicMessage } from "@/lib/forms/known-domain-messages";
 
 export async function requestDealerCancellation(input: { confirmation: boolean }) {
   const user = await requireAcceptedAuth();
@@ -47,18 +45,17 @@ export async function requestDealerCancellation(input: { confirmation: boolean }
     revalidatePath("/dealer/dashboard");
     return { data: { id: result.request.id, status: result.request.status } };
   } catch (error) {
-    if (error instanceof CancellationError) {
-      return { error: error.message };
-    }
-    await reportHandledException({
+    const known = cancellationPublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "requestDealerCancellation",
       route: "/dealer/dashboard",
+      kind: "destructive",
+      message: "We couldn't confirm that this cancellation request finished. Check the dealer dashboard before trying again.",
       userId: user.id,
     });
-    const message =
-      error instanceof Error ? error.message : "Failed to request cancellation";
-    return { error: message };
   }
 }
 

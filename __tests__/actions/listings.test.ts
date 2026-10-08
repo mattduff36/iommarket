@@ -1187,10 +1187,10 @@ describe("withdrawListingSubmission", () => {
 
     await expect(
       withdrawListingSubmission({ listingId, expectedRevision: 5 }),
-    ).resolves.toEqual({
-      error: "Unable to withdraw this submission. Please try again.",
+    ).resolves.toMatchObject({
+      error: "We couldn't confirm that this submission was withdrawn. Check the listing before trying again.", code: "unknown", retryable: false,
     });
-    expect(reportHandledExceptionMock).toHaveBeenCalledWith(
+    expect(captureExceptionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "withdrawListingSubmission",
         userId: "user_123",

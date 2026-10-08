@@ -28,6 +28,11 @@ function takeCharactersSentence(rest: string) {
     ? sentence.slice(CHARACTERS_PREFIX.length, -1)
     : "";
   if (!body || body.length > 240) return null;
+  const approvedSets = new Set([
+    "abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0123456789",
+    "!@#$%^&*()_+-=[]{};':\"|<>?,./`~",
+  ]);
+  if (!body.split(", ").every((set) => approvedSets.has(set))) return null;
   return {
     sentence,
     rest: splitAt === -1 ? "" : rest.slice(splitAt).trim(),

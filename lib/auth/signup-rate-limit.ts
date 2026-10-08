@@ -63,9 +63,12 @@ export async function checkSignupRateLimit(input: {
       now,
     );
     if (addressBucket.count > MAX_ADDRESS_ATTEMPTS) {
-      return { allowed: false };
+      return { allowed: false, resetAt: addressBucket.resetAt };
     }
     const emailBucket = await consumeBucket(tx, "email", input.email, now);
-    return { allowed: emailBucket.count <= MAX_EMAIL_ATTEMPTS };
+    return {
+      allowed: emailBucket.count <= MAX_EMAIL_ATTEMPTS,
+      resetAt: emailBucket.resetAt,
+    };
   });
 }

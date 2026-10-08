@@ -1,3 +1,4 @@
+import { safeSupportReference } from "@/lib/forms/public-error";
 import { isConsoleCaptureEnabled } from "./flags";
 import { isMonitoringIngestPath, redactFreeText, redactStack } from "./redact";
 
@@ -50,12 +51,12 @@ export function createClientEventKey(payload: ClientEventPayload): string {
 export async function sendClientMonitoringEvent(
   payload: ClientEventPayload,
   fetchImpl: typeof fetch = fetch,
-): Promise<void> {
+): Promise<string | null> {
   const route = payload.route ?? (typeof window !== "undefined" ? window.location.pathname : undefined);
-  if (isMonitoringIngestPath(route)) return;
+  if (isMonitoringIngestPath(route)) return null;
 
   try {
-    await fetchImpl("/api/monitoring/events", {
+    const response = await fetchImpl("/api/monitoring/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -66,17 +67,22 @@ export async function sendClientMonitoringEvent(
       }),
       keepalive: true,
     });
+    if (!response.ok || typeof response.json !== "function") return null;
+    const body = await response.json() as { eventId?: unknown };
+    return safeSupportReference(body?.eventId) ?? null;
   } catch {
-    // Monitoring should never crash the app.
+    return null;
   }
 }
+
+const boundaryLimiter = createClientEventLimiter();
 
 export function reportClientBoundaryError(input: {
   error: Error & { digest?: string };
   component: string;
   limiter?: ClientEventLimiter;
   fetchImpl?: typeof fetch;
-}): Promise<void> {
+}): Promise<string | null> {
   const payload: ClientEventPayload = {
     message: input.error.message || "React render error",
     stack: input.error.stack,
@@ -87,9 +93,9 @@ export function reportClientBoundaryError(input: {
       digest: input.error.digest ?? null,
     },
   };
-  const limiter = input.limiter;
+  const limiter = input.limiter ?? boundaryLimiter;
   if (limiter && !limiter.canSend(createClientEventKey(payload))) {
-    return Promise.resolve();
+    return Promise.resolve(null);
   }
   return sendClientMonitoringEvent(payload, input.fetchImpl);
 }
