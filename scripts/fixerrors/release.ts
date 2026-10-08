@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { insertAdminAudit, insertStatusEvent } from "./audit";
 import {
+  blobAtRef,
   fetchReleaseRefs,
   isAncestor,
   originRepository,
@@ -26,7 +27,7 @@ export type ReleaseContext = {
 };
 
 export type ReleaseManifest = ReleaseContext & {
-  version: 1;
+  version: 2;
   clusterId: string;
   issueIds: string[];
   issueFingerprints: string[];
@@ -36,6 +37,9 @@ export type ReleaseManifest = ReleaseContext & {
   postFixBlobs: Record<string, string>;
   tests: string[];
   evidence: string;
+  reviewer: string;
+  reviewerEvidence: string;
+  reviewedDiffSha256: string;
   checksum: string;
 };
 
@@ -67,7 +71,7 @@ export function sealReleaseManifest(input: Omit<ReleaseManifest, "checksum">): R
 }
 
 export function verifyReleaseManifest(manifest: ReleaseManifest): ReleaseManifest {
-  if (manifest.version !== 1 || manifest.safetyContract !== FIXERRORS_SAFETY_CONTRACT) {
+  if (manifest.version !== 2 || manifest.safetyContract !== FIXERRORS_SAFETY_CONTRACT) {
     throw new Error("Release manifest safety contract mismatch");
   }
   const { checksum, ...rest } = manifest;
@@ -77,6 +81,22 @@ export function verifyReleaseManifest(manifest: ReleaseManifest): ReleaseManifes
   if (manifest.clusterFingerprint !== clusterFingerprint(manifest.issueFingerprints)) {
     throw new Error("Release manifest fingerprint does not match the signed issues");
   }
+  if (
+    manifest.issueIds.length === 0
+    || new Set(manifest.issueIds).size !== manifest.issueIds.length
+    || manifest.issueFingerprints.length !== manifest.issueIds.length
+  ) throw new Error("Release manifest issue IDs and fingerprints are invalid");
+  if (
+    manifest.paths.length === 0
+    || new Set(manifest.paths).size !== manifest.paths.length
+    || Object.keys(manifest.postFixBlobs).sort().join("\n") !== [...manifest.paths].sort().join("\n")
+    || Object.values(manifest.postFixBlobs).some((sha) => !GIT_SHA.test(sha))
+  ) throw new Error("Release manifest repair paths and content hashes are invalid");
+  if (
+    !manifest.reviewer.trim()
+    || manifest.reviewerEvidence.trim().length < 8
+    || !/^[a-f0-9]{64}$/iu.test(manifest.reviewedDiffSha256)
+  ) throw new Error("Release manifest independent review evidence is incomplete");
   for (const sha of [manifest.fixCommitSha, manifest.productionSha, manifest.stagingSha]) {
     if (!GIT_SHA.test(sha)) throw new Error("Release manifest commit SHAs are malformed");
   }
@@ -119,6 +139,7 @@ export function assessProductionRelease(input: {
   containedByStaging: boolean;
   containedByMain: boolean;
   mainSha: string;
+  mainBlobs: Record<string, string | null>;
   vercel: VercelDeployment;
   issues: ReleaseIssue[];
 }): { ok: true; resolvable: string[]; recurred: ReleaseIssue[] } | { ok: false; reason: string } {
@@ -129,6 +150,11 @@ export function assessProductionRelease(input: {
   if (!input.vercel.ok) return input.vercel;
   if (input.vercel.sha !== input.mainSha) {
     return { ok: false, reason: "A newer origin/main commit is not verified by Vercel" };
+  }
+  for (const [path, expectedBlob] of Object.entries(input.manifest.postFixBlobs)) {
+    if (!expectedBlob || input.mainBlobs[path] !== expectedBlob) {
+      return { ok: false, reason: `Production content for ${path} differs from the reviewed repair; explicit review is required` };
+    }
   }
   const deployedAt = new Date(input.vercel.completedAt).getTime();
   const resolvable: string[] = [];
@@ -195,11 +221,13 @@ export async function verifyProductionRelease(input: {
   const deployment = input.deployment ?? await deploymentForMain(refs.productionSha, cwd, git);
   const containedByStaging = isAncestor(manifest.fixCommitSha, "origin/staging", cwd, git);
   const containedByMain = isAncestor(manifest.fixCommitSha, "origin/main", cwd, git);
+  const mainBlobs = Object.fromEntries(manifest.paths.map((path) => [path, blobAtRef("origin/main", path, cwd, git)]));
   const releaseGate = assessProductionRelease({
     manifest,
     containedByStaging,
     containedByMain,
     mainSha: refs.productionSha,
+    mainBlobs,
     vercel: deployment,
     issues: manifest.issueIds.map((issueId, index) => ({
       issueId,
@@ -221,6 +249,7 @@ export async function verifyProductionRelease(input: {
       containedByStaging,
       containedByMain,
       mainSha: refs.productionSha,
+      mainBlobs,
       vercel: deployment,
       issues: manifest.issueIds.map((issueId) => {
         const issue = live.get(issueId);
@@ -383,6 +412,9 @@ function canonicalRelease(manifest: Omit<ReleaseManifest, "checksum">): string {
     postFixBlobs: blobs,
     tests: [...manifest.tests].sort(),
     evidence: manifest.evidence,
+    reviewer: manifest.reviewer,
+    reviewerEvidence: manifest.reviewerEvidence,
+    reviewedDiffSha256: manifest.reviewedDiffSha256,
   });
 }
 

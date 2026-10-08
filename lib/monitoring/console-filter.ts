@@ -1,3 +1,5 @@
+import { isMetaMaskNoise, isWebKitBridgeNoise } from "./browser-noise";
+
 const IGNORED_CONSOLE_PATTERNS = [
   /^warning:/i,
   /%c/,
@@ -44,6 +46,7 @@ export function shouldIgnoreClientMonitoringMessage(message: string): boolean {
   const trimmed = message.replace(/^Console Error:\s*/i, "").trim();
   if (trimmed === '{"isTrusted":true}' || trimmed === '{"isTrusted": true}') return true;
   if (/Java object is gone/i.test(trimmed)) return true;
+  if (isWebKitBridgeNoise(trimmed) || isMetaMaskNoise(trimmed)) return true;
   if (trimmed === "Load failed" || /TypeError:\s*Load failed\b/i.test(trimmed)) return true;
   if (/Failed to fetch RSC payload/i.test(trimmed)) return true;
   return false;

@@ -28,14 +28,18 @@ export function signCloudinaryDeliveryPath(path: string, apiSecret: string) {
   return signature.slice(0, 8);
 }
 
-export function signPrivateCloudinaryUrl(url: string) {
-  const config = getCloudinaryConfig();
-  const prefix = `https://res.cloudinary.com/${config.cloudName}/image/private/`;
-  if (!config.apiSecret || !url.startsWith(prefix)) return url;
-  const path = url.slice(prefix.length);
-  // Read-only synced references are already signed and must stay byte-for-byte stable.
-  if (/^s--[A-Za-z0-9_-]+--\//.test(path)) return url;
-  const signature = signCloudinaryDeliveryPath(path, config.apiSecret);
+export function signPrivateCloudinaryUrl(
+  url: string,
+  env: Record<string, string | undefined> = process.env,
+) {
+  const cloudName = env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
+  const apiSecret = env.CLOUDINARY_API_SECRET ?? "";
+  const prefix = `https://res.cloudinary.com/${cloudName}/image/private/`;
+  if (!cloudName || !apiSecret || !url.startsWith(prefix)) return url;
+  const path = url.slice(prefix.length).replace(/^s--[A-Za-z0-9_-]+--\//, "");
+  if (!path) return url;
+  // Refresh signed references at delivery time without changing their stored read-only rows.
+  const signature = signCloudinaryDeliveryPath(path, apiSecret);
   return `${prefix}s--${signature}--/${path}`;
 }
 

@@ -12,6 +12,20 @@ const MIGRATED_DEALER_LOGOS = new Map<string, MigratedDealerLogo>([
     }
   ],
   [
+    "0e1b691c11d1bf5b903c06dafb06839280f19693adb08e9bd5abce47e69c44c4",
+    {
+      "destinationPath": "/iommarket-migration/image/32b47055ea08a87ecc214f74a5d04e36__v1790896256.png",
+      "resourceType": "image"
+    }
+  ],
+  [
+    "4f98552d27a509fdf577578936a1d78d59ac74f08a617aaac5f5327370605f61",
+    {
+      "destinationPath": "/iommarket-migration/image/cf78abb40e7676e100eb59b1ec5b1ef1__v1790896183.webp",
+      "resourceType": "image"
+    }
+  ],
+  [
     "9a2b66b6d01df69aa77bbc5c81619e3e4d4721bf71859a474223a47901631cff",
     {
       "destinationPath": "/iommarket-migration/image/cf78abb40e7676e100eb59b1ec5b1ef1__v1790896183.webp",
@@ -22,6 +36,20 @@ const MIGRATED_DEALER_LOGOS = new Map<string, MigratedDealerLogo>([
     "a8fa7be3efc3dc6d039a19b0ddc1e538b112d958b0feec71aacbdbcbde99bdb5",
     {
       "destinationPath": "/iommarket-migration/image/b360420375a26ce8204627c00e433838__v1790896102.png",
+      "resourceType": "image"
+    }
+  ],
+  [
+    "bdb09310d929540e0391b1e04024bcdaf3eda34a6a84e2bcd727032800eb0ae6",
+    {
+      "destinationPath": "/iommarket-migration/image/51c3d24bae05ad9b8151efbac4cec0d5__v1790896386.png",
+      "resourceType": "image"
+    }
+  ],
+  [
+    "c2e27df77383d52f32e03ab7af32a1e58a0792a35aa259a8e298d847c86dd8be",
+    {
+      "destinationPath": "/iommarket-migration/image/84e791494acfe117e4c5211e66af253a__v1790896220.jpg",
       "resourceType": "image"
     }
   ],

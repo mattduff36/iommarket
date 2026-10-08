@@ -45,6 +45,22 @@ describe("buildSearchUrl", () => {
     );
     expect(url).toBe("/search?sort=price_low&featured=true");
   });
+
+  it("migrates legacy whole-number unit URLs and preserves canonical decimal URLs", () => {
+    expect(buildSearchCanonicalPath({ minEngineSize: "16", maxChargingTime: "100" })).toBe(
+      "/search?minEngineSize=1.6&maxChargingTime=1.666667&numericFilterUnits=v1",
+    );
+    expect(buildSearchCanonicalPath({ minEngineSize: "1.6", minChargingTime: "4.5" })).toBe(
+      "/search?minEngineSize=1.6&minChargingTime=4.5&numericFilterUnits=v1",
+    );
+    expect(buildSearchCanonicalPath({ minEngineSize: "1", numericFilterUnits: "v1" })).toBe(
+      "/search?minEngineSize=1&numericFilterUnits=v1",
+    );
+  });
+
+  it("keeps numeric unit metadata out of the filter-only SEO index decision", () => {
+    expect(shouldIndexSearch({ numericFilterUnits: "v1" })).toBe(true);
+  });
 });
 
 describe("buildSearchCanonicalPath", () => {

@@ -51,6 +51,7 @@ const issuedIntent = {
 
 describe("PHOTO-TRUST-001 listing upload finalization", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
     intentFindUnique.mockResolvedValue(issuedIntent);
     intentUpdateMany.mockResolvedValue({ count: 1 });
@@ -186,6 +187,39 @@ describe("PHOTO-TRUST-001 listing upload finalization", () => {
     ).resolves.toMatchObject({
       data: { status: "VERIFIED", assetId: "asset-1" },
     });
+  });
+
+  it("rejects an outstanding Cloudinary upload after ImageKit writes are enabled", async () => {
+    vi.stubEnv("MEDIA_PROVIDER", "cloudinary");
+    vi.stubEnv("MEDIA_UPLOAD_PROVIDER", "imagekit");
+    intentFindUnique.mockResolvedValue({
+      ...issuedIntent,
+      deliveryType: "private",
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await expect(finalizeListingImageUploadIntent({
+      userId: "user-1",
+      intentId: "intent-1",
+      publicId: issuedIntent.publicId,
+    })).resolves.toEqual({ error: "This Cloudinary upload can no longer be used. Please upload the image again." });
+
+    expect(getCloudinaryResource).not.toHaveBeenCalled();
+    expect(intentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not replay an expired verified Cloudinary intent", async () => {
+    intentFindUnique.mockResolvedValue({
+      ...issuedIntent,
+      status: "VERIFIED",
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+
+    await expect(finalizeListingImageUploadIntent({
+      userId: "user-1",
+      intentId: "intent-1",
+      publicId: issuedIntent.publicId,
+    })).resolves.toEqual({ error: "This upload expired. Please upload the image again." });
   });
 
   it("does not expire or delete an issued intent that already has an attached image", async () => {

@@ -101,6 +101,7 @@ describe("AdminProfileEditForm", () => {
     await user.type(screen.getByRole("textbox", { name: /business name/i }), "Ocean Motor Village");
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() => expect(screen.getByText("Profile saved.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: /dealer phone/i })).toBeEnabled());
 
     await user.clear(screen.getByRole("textbox", { name: /dealer phone/i }));
     await user.type(screen.getByRole("textbox", { name: /dealer phone/i }), "01624 999999");

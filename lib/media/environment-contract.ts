@@ -3,7 +3,7 @@ import { readMediaUploadProvider } from "@/lib/media/upload-provider";
 export interface MediaEnvironmentIssue { key: string; code: "missing" | "invalid" }
 const MODES = ["cloudinary", "imagekit-sample", "imagekit"];
 const EXPECTED_ENDPOINT = "https://ik.imagekit.io/itraderim";
-const EXPECTED_CLOUD = "du3othqre";
+export const EXPECTED_CLOUDINARY_CLOUD_NAME = "du3othqre";
 
 /** Deployment validation is provider-aware. It never changes the environment. */
 export function mediaEnvironmentIssues(env: Record<string, string | undefined>): MediaEnvironmentIssue[] {
@@ -18,15 +18,22 @@ export function mediaEnvironmentIssues(env: Record<string, string | undefined>):
   if (!MODES.includes(read)) issues.push({ key: "MEDIA_PROVIDER", code: "invalid" });
   const publicMode = present("NEXT_PUBLIC_MEDIA_PROVIDER") ?? "cloudinary";
   if (publicMode !== read) issues.push({ key: "NEXT_PUBLIC_MEDIA_PROVIDER", code: "invalid" });
+  const legacyCloudinaryReads = present("IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS");
+  if (legacyCloudinaryReads && legacyCloudinaryReads !== "0" && legacyCloudinaryReads !== "1") {
+    issues.push({ key: "IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS", code: "invalid" });
+  }
+  if (legacyCloudinaryReads === "1" && read !== "imagekit") {
+    issues.push({ key: "IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS", code: "invalid" });
+  }
   let upload: "imagekit" | "cloudinary" = "cloudinary";
   try { upload = readMediaUploadProvider(env); }
   catch { issues.push({ key: "MEDIA_UPLOAD_PROVIDER", code: "invalid" }); }
-  const needsCloudinary = read !== "imagekit" || upload === "cloudinary";
+  const needsCloudinary = read !== "imagekit" || upload === "cloudinary" || legacyCloudinaryReads === "1";
   const needsImageKit = read !== "cloudinary" || upload === "imagekit" || env.IMAGEKIT_UPLOADS_ENABLED === "1";
   if (needsCloudinary) {
     requireValue("CLOUDINARY_API_KEY");
-    requireValue("CLOUDINARY_API_SECRET", value => value.length >= 32);
-    requireValue("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", value => value === EXPECTED_CLOUD);
+    requireValue("CLOUDINARY_API_SECRET");
+    requireValue("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", value => value === EXPECTED_CLOUDINARY_CLOUD_NAME);
   }
   if (needsImageKit) {
     requireValue("IMAGEKIT_PRIVATE_KEY", value => value.startsWith("private_") && value.length >= 32);

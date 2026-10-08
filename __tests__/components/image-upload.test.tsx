@@ -160,6 +160,10 @@ describe("PHOTO-ORDER-BATCH-001 listing photo batch order", () => {
     await waitFor(() => {
       expect(uploadListingImageFile).toHaveBeenCalledTimes(2);
     });
+    await waitFor(() => {
+      expect(screen.getByAltText("Preview of second.jpg")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Uploading first.jpg…")).toBeInTheDocument();
 
     finishSecond?.({
       ...first,
@@ -172,6 +176,7 @@ describe("PHOTO-ORDER-BATCH-001 listing photo batch order", () => {
       expect(screen.getByTestId("listing-photo-1")).toBeTruthy();
     });
     expect(screen.getByAltText("Upload 1").getAttribute("src")).toContain("one.jpg");
+    expect(screen.getByAltText("Upload 2").getAttribute("src")).toContain("two.jpg");
   });
 
   it("releases a failed upload slot so another photo can be selected", async () => {

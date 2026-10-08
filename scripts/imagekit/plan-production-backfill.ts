@@ -5,25 +5,26 @@ import { Client } from "pg";
 import { databaseSslOptions, sanitiseConnectionString } from "@/lib/db/pool-options";
 import { buildMigrationIndex } from "@/lib/media/migration-index";
 import { findMigratedDealerLogo } from "@/lib/media/migrated-dealer-logos";
-import { assertProductionBackfillTarget, createProductionBackfillPlan, type ProductionBackfillSource } from "@/lib/media/production-backfill-plan";
+import { censusAndClassify } from "@/lib/media/production-backfill-apply";
+import { assertProductionBackfillTarget, createProductionBackfillPlan, sourceVersionProofSchema, type ProductionBackfillSource } from "@/lib/media/production-backfill-plan";
 
 // This command cannot apply changes. There is no apply flag or mutation path.
-// Example: node --env-file=<verified-production-env> --import tsx scripts/imagekit/plan-production-backfill.ts --map <retained-map.jsonl>
+// Example: node --env-file=<verified-production-env> --import tsx scripts/imagekit/plan-production-backfill.ts --map <retained-map.jsonl> --admin-preview-exclusions <reviewed-manifest.json>
 function options() {
   const args = process.argv.slice(2);
   const values: Record<string, string> = {};
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i];
     const value = args[i + 1];
-    if (!key || !["--map", "--output"].includes(key) || !value || value.startsWith("--") || values[key]) {
-      throw new Error("Only --map <verified-map.jsonl> and optional --output <new-file-in-tmp> are accepted. This command is read-only.");
+    if (!key || !["--map", "--output", "--version-proofs", "--admin-preview-exclusions"].includes(key) || !value || value.startsWith("--") || values[key]) {
+      throw new Error("Only --map, optional --version-proofs, --admin-preview-exclusions and --output paths are accepted. This command is read-only.");
     }
     values[key] = value;
   }
   if (!values["--map"]) throw new Error("A retained, verified migration map must be supplied with --map.");
   const output = resolve(values["--output"] ?? `tmp/imagekit-production-backfill-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
   if (!output.startsWith(resolve("tmp") + sep)) throw new Error("Backfill plans must be written inside the ignored tmp directory.");
-  return { map: resolve(values["--map"]), output };
+  return { map: resolve(values["--map"]), output, versionProofs: values["--version-proofs"], adminPreviewExclusions: values["--admin-preview-exclusions"] ? resolve(values["--admin-preview-exclusions"]) : undefined };
 }
 
 function sourceConnection() {
@@ -58,6 +59,12 @@ async function main() {
   const bytes = readFileSync(settings.map);
   const index = buildMigrationIndex(bytes.toString("utf8").split(/\r?\n/).filter((line) => line.trim()).map((line) => JSON.parse(line)));
   const mapSha256 = createHash("sha256").update(bytes).digest("hex");
+  const versionProofs = settings.versionProofs
+    ? sourceVersionProofSchema.array().parse(JSON.parse(readFileSync(resolve(settings.versionProofs), "utf8")))
+    : [];
+  const adminPreviewExclusions = settings.adminPreviewExclusions
+    ? JSON.parse(readFileSync(settings.adminPreviewExclusions, "utf8")) as unknown
+    : undefined;
   const client = new Client(sourceConnection());
   try {
     await client.connect();
@@ -72,11 +79,17 @@ async function main() {
     }
     const logos = await client.query('SELECT id, "logoUrl" FROM public."DealerProfile" WHERE "logoUrl" IS NOT NULL');
     const avatars = await client.query('SELECT count(*)::integer AS count FROM public."User" WHERE "avatarUrl" LIKE $1', ["%res.cloudinary.com/%"]);
-    const plan = createProductionBackfillPlan({ rows, index, mapSha256 });
+    const plan = createProductionBackfillPlan({ rows, index, mapSha256, versionProofs, adminPreviewExclusions });
+    let currentAdminPreviewEligibilityVerified = plan.counts.excluded === 0;
+    if (plan.counts.excluded > 0) {
+      await censusAndClassify(client, plan);
+      currentAdminPreviewEligibilityVerified = true;
+    }
     const dealerLogos = logoReadiness(logos.rows);
     const readiness = {
       at: new Date().toISOString(), transactionReadOnly: true, planDigest: plan.digest,
       listingAndRevisionCounts: plan.counts, dealerLogos,
+      currentAdminPreviewEligibilityVerified,
       potentialCloudinaryAvatars: avatars.rows[0]?.count ?? 0,
       note: "This is an identity plan, not proof of live destination availability, production approval or a completed cutover. No database or cloud assets were changed.",
     };

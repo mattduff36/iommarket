@@ -19,6 +19,16 @@ import {
 } from "@/components/ui/select";
 import { SearchBar } from "@/components/marketplace/search-bar";
 import { RangeSlider } from "@/components/ui/range-slider";
+import {
+  chargingTimeHoursToSliderMinutes,
+  chargingTimeSliderMinutesToHours,
+  CHARGING_TIME_SLIDER_MAX,
+  engineSizeLitresToSlider,
+  engineSizeSliderToLitres,
+  ENGINE_SIZE_SLIDER_MAX,
+  ENGINE_SIZE_SLIDER_TENTHS_PER_LITRE,
+  NUMERIC_FILTER_UNITS_V1,
+} from "@/lib/search/numeric-filter-units";
 import { type SearchParams } from "@/lib/search/search-url";
 import {
   BODY_TYPE_OPTIONS,
@@ -71,10 +81,10 @@ export interface AdvancedSearchModalProps {
   onApply: (values: SearchParams) => void;
 }
 
-const ENGINE_SIZE_MAX = 70;
+const ENGINE_SIZE_MAX = ENGINE_SIZE_SLIDER_MAX;
 const ENGINE_POWER_MAX = 800;
 const BATTERY_RANGE_MAX = 500;
-const CHARGING_TIME_MAX = 720;
+const CHARGING_TIME_MAX = CHARGING_TIME_SLIDER_MAX;
 const ACCELERATION_MAX = 20;
 const CO2_MAX = 300;
 const INSURANCE_GROUP_MAX = 50;
@@ -130,7 +140,8 @@ export function AdvancedSearchModal({
     parseYearRange(initial.minYear, initial.maxYear),
   );
   const [engineSizeRange, setEngineSizeRange] = React.useState<[number, number]>([
-    parseFloat2(initial.minEngineSize, 0), parseFloat2(initial.maxEngineSize, ENGINE_SIZE_MAX),
+    engineSizeLitresToSlider(parseFloat2(initial.minEngineSize, 0)),
+    engineSizeLitresToSlider(parseFloat2(initial.maxEngineSize, ENGINE_SIZE_MAX / ENGINE_SIZE_SLIDER_TENTHS_PER_LITRE)),
   ]);
   const [enginePowerRange, setEnginePowerRange] = React.useState<[number, number]>([
     parseNum(initial.minEnginePower, 0), parseNum(initial.maxEnginePower, ENGINE_POWER_MAX),
@@ -139,7 +150,8 @@ export function AdvancedSearchModal({
     parseNum(initial.minBatteryRange, 0), parseNum(initial.maxBatteryRange, BATTERY_RANGE_MAX),
   ]);
   const [chargingTimeRange, setChargingTimeRange] = React.useState<[number, number]>([
-    parseNum(initial.minChargingTime, 0), parseNum(initial.maxChargingTime, CHARGING_TIME_MAX),
+    chargingTimeHoursToSliderMinutes(parseFloat2(initial.minChargingTime, 0)),
+    chargingTimeHoursToSliderMinutes(parseFloat2(initial.maxChargingTime, CHARGING_TIME_MAX / 60)),
   ]);
   const [accelerationRange, setAccelerationRange] = React.useState<[number, number]>([
     parseNum(initial.minAcceleration, 0), parseNum(initial.maxAcceleration, ACCELERATION_MAX),
@@ -186,10 +198,16 @@ export function AdvancedSearchModal({
       parseBoundedRange(initial.minMileage, initial.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
     );
     setYearRange(parseYearRange(initial.minYear, initial.maxYear));
-    setEngineSizeRange([parseFloat2(initial.minEngineSize, 0), parseFloat2(initial.maxEngineSize, ENGINE_SIZE_MAX)]);
+    setEngineSizeRange([
+      engineSizeLitresToSlider(parseFloat2(initial.minEngineSize, 0)),
+      engineSizeLitresToSlider(parseFloat2(initial.maxEngineSize, ENGINE_SIZE_MAX / ENGINE_SIZE_SLIDER_TENTHS_PER_LITRE)),
+    ]);
     setEnginePowerRange([parseNum(initial.minEnginePower, 0), parseNum(initial.maxEnginePower, ENGINE_POWER_MAX)]);
     setBatteryRange([parseNum(initial.minBatteryRange, 0), parseNum(initial.maxBatteryRange, BATTERY_RANGE_MAX)]);
-    setChargingTimeRange([parseNum(initial.minChargingTime, 0), parseNum(initial.maxChargingTime, CHARGING_TIME_MAX)]);
+    setChargingTimeRange([
+      chargingTimeHoursToSliderMinutes(parseFloat2(initial.minChargingTime, 0)),
+      chargingTimeHoursToSliderMinutes(parseFloat2(initial.maxChargingTime, CHARGING_TIME_MAX / 60)),
+    ]);
     setAccelerationRange([parseNum(initial.minAcceleration, 0), parseNum(initial.maxAcceleration, ACCELERATION_MAX)]);
     setFuelConsumptionRange(
       parseBoundedRange(
@@ -247,14 +265,15 @@ export function AdvancedSearchModal({
       maxMileage: rangeMaxParam(mileageRange[1], MILEAGE_MAX),
       minYear: rangeMinParam(yearRange[0], YEAR_MIN),
       maxYear: rangeMaxParam(yearRange[1], currentYear),
-      minEngineSize: rangeMinParam(engineSizeRange[0], 0),
-      maxEngineSize: rangeMaxParam(engineSizeRange[1], ENGINE_SIZE_MAX),
+      minEngineSize: rangeMinParam(engineSizeSliderToLitres(engineSizeRange[0]), 0),
+      maxEngineSize: rangeMaxParam(engineSizeSliderToLitres(engineSizeRange[1]), ENGINE_SIZE_MAX / ENGINE_SIZE_SLIDER_TENTHS_PER_LITRE),
       minEnginePower: rangeMinParam(enginePowerRange[0], 0),
       maxEnginePower: rangeMaxParam(enginePowerRange[1], ENGINE_POWER_MAX),
       minBatteryRange: showBatteryFilters ? rangeMinParam(batteryRange[0], 0) : undefined,
       maxBatteryRange: showBatteryFilters ? rangeMaxParam(batteryRange[1], BATTERY_RANGE_MAX) : undefined,
-      minChargingTime: showBatteryFilters ? rangeMinParam(chargingTimeRange[0], 0) : undefined,
-      maxChargingTime: showBatteryFilters ? rangeMaxParam(chargingTimeRange[1], CHARGING_TIME_MAX) : undefined,
+      minChargingTime: showBatteryFilters ? rangeMinParam(chargingTimeSliderMinutesToHours(chargingTimeRange[0]), 0) : undefined,
+      maxChargingTime: showBatteryFilters ? rangeMaxParam(chargingTimeSliderMinutesToHours(chargingTimeRange[1]), CHARGING_TIME_MAX / 60) : undefined,
+      numericFilterUnits: NUMERIC_FILTER_UNITS_V1,
       minAcceleration: rangeMinParam(accelerationRange[0], 0),
       maxAcceleration: rangeMaxParam(accelerationRange[1], ACCELERATION_MAX),
       minFuelConsumption: rangeMinParam(fuelConsumptionRange[0], FUEL_CONSUMPTION_MIN),
@@ -402,7 +421,7 @@ export function AdvancedSearchModal({
           <section>
             <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Performance</h3>
             <div className="space-y-4">
-              <RangeSlider label="Engine Size" min={0} max={ENGINE_SIZE_MAX} step={1} value={engineSizeRange} onValueChange={setEngineSizeRange} formatValue={(v) => `${(v / 10).toFixed(1)}L`} />
+              <RangeSlider label="Engine Size" min={0} max={ENGINE_SIZE_MAX} step={1} value={engineSizeRange} onValueChange={setEngineSizeRange} formatValue={(v) => `${(v / ENGINE_SIZE_SLIDER_TENTHS_PER_LITRE).toFixed(1)}L`} />
               <RangeSlider label="Engine Power" min={0} max={ENGINE_POWER_MAX} step={10} value={enginePowerRange} onValueChange={setEnginePowerRange} formatValue={(v) => `${v} bhp`} />
               <RangeSlider label="Acceleration (0-62mph)" min={0} max={ACCELERATION_MAX} step={1} value={accelerationRange} onValueChange={setAccelerationRange} formatValue={(v) => `${v}s`} />
             </div>

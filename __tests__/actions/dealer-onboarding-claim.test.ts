@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 
 const {
   mockDb,
@@ -162,5 +163,43 @@ describe("completeDealerOnboardingClaim", () => {
     expect(revokeMock).toHaveBeenCalledWith("access-token");
     expect(signOutMock).toHaveBeenCalledWith({ scope: "global" });
     expect(clearCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the grant after a concurrent active admin grant wins the unique index", async () => {
+    mockDb.$transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (dealerId)",
+      { code: "P2002", clientVersion: "test", meta: { modelName: "Subscription", target: ["dealerId"] } },
+    ));
+
+    const result = await completeDealerOnboardingClaim({
+      password: "new-password",
+      confirmPassword: "new-password",
+      ageAttested: true,
+      accountPoliciesAccepted: true,
+      dealerPoliciesAccepted: true,
+    });
+
+    expect(result).toEqual({ data: { completed: true } });
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(3);
+    expect(commitMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry unrelated unique conflicts", async () => {
+    mockDb.$transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (email)",
+      { code: "P2002", clientVersion: "test", meta: { modelName: "User", target: ["email"] } },
+    ));
+
+    const result = await completeDealerOnboardingClaim({
+      password: "new-password",
+      confirmPassword: "new-password",
+      ageAttested: true,
+      accountPoliciesAccepted: true,
+      dealerPoliciesAccepted: true,
+    });
+
+    expect(result).toEqual({ error: "We could not finish activating this account. Submit the form again." });
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    expect(commitMock).not.toHaveBeenCalled();
   });
 });

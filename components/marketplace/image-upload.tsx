@@ -54,12 +54,14 @@ export interface UploadedImage extends ListingPhotoSource {
 interface ImageUploadProps {
   images: UploadedImage[];
   onImagesChange: React.Dispatch<React.SetStateAction<UploadedImage[]>>;
+  onBusyChange?: (isBusy: boolean) => void;
   maxImages?: number;
 }
 
 interface PendingSlot {
   clientId: string;
   fileName: string;
+  image?: UploadedImage;
   error?: string;
 }
 
@@ -72,14 +74,24 @@ function createClientId() {
 export function ImageUpload({
   images,
   onImagesChange,
+  onBusyChange,
   maxImages = 10,
 }: ImageUploadProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const isMountedRef = React.useRef(true);
+  const uploadInProgressRef = React.useRef(false);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState<PendingSlot[]>([]);
   const [announcement, setAnnouncement] = React.useState("");
   const [focalImage, setFocalImage] = React.useState<UploadedImage | null>(null);
   const isBusy = pending.length > 0;
+
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -121,6 +133,10 @@ export function ImageUpload({
     const selectedFiles = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (selectedFiles.length === 0) return;
+    if (uploadInProgressRef.current) {
+      setError("Wait for the current photo uploads to finish.");
+      return;
+    }
 
     const remainingSlots = maxImages - images.length - pending.length;
     if (remainingSlots <= 0) {
@@ -135,54 +151,80 @@ export function ImageUpload({
       setError(null);
     }
 
-    const slots = filesToProcess.map((file) => ({
-      clientId: `${file.name}-${file.lastModified}-${createClientId()}`,
-      fileName: file.name,
-    }));
-    setPending((current) => [...current, ...slots]);
-
-    const reserved = await Promise.all(
-      filesToProcess.map(async (file, index) => {
-        const slot = slots[index];
-        const validationError = validateListingImageFile(file);
-        if (validationError) {
-          setPending((current) => current.filter((item) => item.clientId !== slot.clientId));
-          setError(validationError);
-          return null;
-        }
-
-        try {
-          const uploaded = await uploadListingImageFile(file);
-          setPending((current) => current.filter((item) => item.clientId !== slot.clientId));
-          return {
-            ...uploaded,
-            uploadIntentId: uploaded.uploadIntentId!,
-            order: 0,
-            url: buildCanonicalListingImageUrl({
-              ...uploaded,
-              url: uploaded.url,
-            }),
-          } satisfies UploadedImage;
-        } catch (uploadError) {
-          const message =
-            uploadError instanceof Error ? uploadError.message : "Could not upload this image.";
-          setPending((current) => current.filter((item) => item.clientId !== slot.clientId));
-          setError(message);
-          return null;
-        }
-      }),
-    );
-
-    onImagesChange((current) => {
-      const next = [...current];
-      for (const uploaded of reserved) {
-        if (!uploaded || next.some((image) => image.uploadIntentId === uploaded.uploadIntentId)) {
-          continue;
-        }
-        next.push({ ...uploaded, order: next.length });
+    const validEntries = filesToProcess.flatMap((file) => {
+      const slot = {
+        clientId: `${file.name}-${file.lastModified}-${createClientId()}`,
+        fileName: file.name,
+      };
+      const validationError = validateListingImageFile(file);
+      if (validationError) {
+        setError(validationError);
+        return [];
       }
-      return next;
+      return [{ file, slot }];
     });
+    if (validEntries.length === 0) return;
+
+    uploadInProgressRef.current = true;
+    setPending((current) => [...current, ...validEntries.map(({ slot }) => slot)]);
+    onBusyChange?.(true);
+
+    try {
+      const reserved = await Promise.all(
+        validEntries.map(async ({ file, slot }) => {
+          try {
+            const uploaded = await uploadListingImageFile(file);
+            const image = {
+              ...uploaded,
+              uploadIntentId: uploaded.uploadIntentId!,
+              order: 0,
+              url: buildCanonicalListingImageUrl({
+                ...uploaded,
+                url: uploaded.url,
+              }),
+            } satisfies UploadedImage;
+            if (isMountedRef.current) {
+              setPending((current) =>
+                current.map((item) =>
+                  item.clientId === slot.clientId ? { ...item, image } : item,
+                ),
+              );
+            }
+            return image;
+          } catch (uploadError) {
+            const message =
+              uploadError instanceof Error ? uploadError.message : "Could not upload this image.";
+            if (isMountedRef.current) {
+              setPending((current) =>
+                current.map((item) =>
+                  item.clientId === slot.clientId ? { ...item, error: message } : item,
+                ),
+              );
+              setError(message);
+            }
+            return null;
+          }
+        }),
+      );
+
+      if (!isMountedRef.current) return;
+      onImagesChange((current) => {
+        const next = [...current];
+        for (const uploaded of reserved) {
+          if (!uploaded || next.some((image) => image.uploadIntentId === uploaded.uploadIntentId)) {
+            continue;
+          }
+          next.push({ ...uploaded, order: next.length });
+        }
+        return next;
+      });
+      setPending((current) =>
+        current.filter((item) => !validEntries.some(({ slot }) => slot.clientId === item.clientId)),
+      );
+    } finally {
+      uploadInProgressRef.current = false;
+      if (isMountedRef.current) onBusyChange?.(false);
+    }
   }
 
   return (
@@ -220,10 +262,29 @@ export function ImageUpload({
               {pending.map((slot) => (
                 <div
                   key={slot.clientId}
-                  className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border bg-surface-elevated px-4 text-center text-sm text-text-secondary"
+                  className={cn(
+                    "flex min-h-44 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-surface-elevated text-center text-sm text-text-secondary",
+                    slot.image && "block border-solid",
+                  )}
                   role="status"
                 >
-                  {slot.error ? slot.error : `Uploading ${slot.fileName}…`}
+                  {slot.image ? (
+                    <div className="relative">
+                      <ListingPhoto
+                        photo={slot.image}
+                        frame="preview"
+                        alt={`Preview of ${slot.fileName}`}
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      />
+                      <span className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-xs text-white">
+                        Uploaded — finishing photo selection…
+                      </span>
+                    </div>
+                  ) : slot.error ? (
+                    slot.error
+                  ) : (
+                    `Uploading ${slot.fileName}…`
+                  )}
                 </div>
               ))}
             </div>

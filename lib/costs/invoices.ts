@@ -68,7 +68,7 @@ export async function createInvoiceRequest(input: {
     });
 
     return { request, outboxId: outbox.id, entryIds: entries.map((entry) => entry.id) };
-  });
+  }, { timeoutMs: 15_000 });
 }
 
 export async function confirmInvoiceRequest(input: {

@@ -95,6 +95,7 @@ function listing(overrides: Record<string, unknown> = {}) {
 
 describe("listing photo mutation", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
     listingImageFindMany.mockResolvedValue([existingImage]);
     listingImageUpdate.mockResolvedValue(existingImage);
@@ -204,6 +205,7 @@ describe("listing photo mutation", () => {
       height: 1800,
       format: "jpg",
       bytes: 2000,
+      expiresAt: new Date(Date.now() + 60_000),
     });
 
     const result = await syncListingImagesForUser({
@@ -243,7 +245,7 @@ describe("listing photo mutation", () => {
       }),
     );
     expect(intentUpdateMany).toHaveBeenCalledWith({
-      where: { id: "intent-2", status: "VERIFIED", userId: "user-1" },
+      where: { id: "intent-2", status: "VERIFIED", userId: "user-1", expiresAt: { gt: expect.any(Date) } },
       data: { status: "CONSUMED", listingId: "listing-1" },
     });
   });
@@ -388,6 +390,7 @@ describe("listing photo mutation", () => {
       userId: "user-1",
       status: "VERIFIED",
       publicId: "iommarket/listings/staging/user/new",
+      expiresAt: new Date(Date.now() + 60_000),
       assetId: "asset-2",
       version: "2",
       width: 1200,
@@ -516,5 +519,40 @@ describe("listing photo mutation", () => {
     ).resolves.toEqual({
       error: "Only your verified uploads can be attached to this listing.",
     });
+  });
+
+  it("rejects a previously verified Cloudinary intent after ImageKit writes are enabled", async () => {
+    vi.stubEnv("MEDIA_PROVIDER", "cloudinary");
+    vi.stubEnv("MEDIA_UPLOAD_PROVIDER", "imagekit");
+    listingFindUnique.mockResolvedValue(listing());
+    intentFindUnique.mockResolvedValue({
+      id: "intent-2",
+      userId: "user-1",
+      status: "VERIFIED",
+      publicId: "iommarket/listings/staging/user-1/intent-2",
+      deliveryType: "private",
+      assetId: "asset-2",
+      version: "2",
+      width: 1200,
+      height: 1800,
+      format: "jpg",
+      bytes: 2000,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await expect(syncListingImagesForUser({
+      listingId: "listing-1",
+      userId: "user-1",
+      isAdmin: false,
+      input: {
+        photos: [{ uploadIntentId: "intent-2" }],
+        basePhotoRevision: 3,
+        mutationId: "mut-provider-cutover",
+      },
+    })).resolves.toEqual({
+      error: "This Cloudinary upload can no longer be used. Please upload the image again.",
+    });
+
+    expect(listingImageCreate).not.toHaveBeenCalled();
   });
 });

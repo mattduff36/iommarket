@@ -50,6 +50,20 @@ describe("managed ImageKit upload policy", () => {
     expect(JSON.stringify(result)).not.toContain("test-private");
   });
 
+  it.each(["heic", "heif"] as const)("allows only the verified HEIC/HEIF provider MIME aliases for %s", (format) => {
+    const result = createImageKitUploadToken({ userId: "user-1", intentId: "intent-1", format, env: local, now: 1_800_000_000_000 });
+    expect(result.fields.checks).toContain('"file.mime" IN ["image/heic","image/heif"]');
+    expect(result.fields.isPrivateFile).toBe("true");
+    expect(result.fields.overwriteFile).toBe("false");
+  });
+
+  it.each([
+    ["jpg", "image/jpeg"], ["png", "image/png"], ["webp", "image/webp"],
+  ] as const)("keeps %s upload MIME validation exact", (format, mime) => {
+    const result = createImageKitUploadToken({ userId: "user-1", intentId: "intent-1", format, env: local, now: 1_800_000_000_000 });
+    expect(result.fields.checks).toContain(`"file.mime" IN ["${mime}"]`);
+  });
+
   it("cannot issue an upload token without explicit enablement and the verified account", () => {
     const input = { userId: "user", intentId: "intent", format: "png" as const };
     expect(() => createImageKitUploadToken({ ...input, env: { ...local, IMAGEKIT_UPLOADS_ENABLED: "0" } })).toThrow();

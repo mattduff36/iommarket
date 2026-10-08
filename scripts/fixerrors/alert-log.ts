@@ -42,6 +42,42 @@ export interface AlertRecall {
   note: string;
 }
 
+type AlertHistoryIndex = {
+  byFingerprint: Map<string, AlertLogEvent[]>;
+  byMessage: Map<string, AlertLogEvent[]>;
+  latestSeenByFingerprint: Map<string, AlertLogEvent>;
+  fixedByToken: Map<string, AlertLogEvent[]>;
+};
+
+function indexAlertHistory(events: AlertLogEvent[]): AlertHistoryIndex {
+  const index: AlertHistoryIndex = {
+    byFingerprint: new Map(),
+    byMessage: new Map(),
+    latestSeenByFingerprint: new Map(),
+    fixedByToken: new Map(),
+  };
+  for (const event of events) {
+    appendIndexed(index.byFingerprint, event.fingerprint, event);
+    if (event.normalizedMessage) appendIndexed(index.byMessage, event.normalizedMessage, event);
+    if (event.outcome === "seen") {
+      const previous = index.latestSeenByFingerprint.get(event.fingerprint);
+      if (!previous || event.at >= previous.at) index.latestSeenByFingerprint.set(event.fingerprint, event);
+    }
+    if (event.outcome === "fixed") {
+      for (const token of new Set(tokens(event.normalizedMessage))) {
+        appendIndexed(index.fixedByToken, token, event);
+      }
+    }
+  }
+  return index;
+}
+
+function appendIndexed<T>(index: Map<string, T[]>, key: string, value: T) {
+  const values = index.get(key);
+  if (values) values.push(value);
+  else index.set(key, [value]);
+}
+
 export function alertLogPath(root = process.cwd()) {
   return resolve(root, "private", "fixerrors", "alert-log.jsonl");
 }
@@ -89,10 +125,10 @@ export function newSeenEvents(
   existing: AlertLogEvent[],
   now = new Date(),
 ): AlertLogEvent[] {
+  const history = indexAlertHistory(existing);
   return issues.flatMap((issue) => {
     const normalizedMessage = loggedMessage(issue);
-    const prior = existing.filter((event) => event.fingerprint === issue.fingerprint && event.outcome === "seen");
-    const latest = prior.at(-1);
+    const latest = history.latestSeenByFingerprint.get(issue.fingerprint);
     if (
       latest
       && latest.lastSeenAt === issue.lastSeenAt
@@ -106,7 +142,8 @@ export function newSeenEvents(
 }
 
 export function recallOpenIssues(issues: AlertLogSubject[], events: AlertLogEvent[]): AlertRecall[] {
-  return issues.map((issue) => recallIssue(issue, events));
+  const history = indexAlertHistory(events);
+  return issues.map((issue) => recallIssue(issue, history));
 }
 
 export function applyAlertHistory(
@@ -142,9 +179,12 @@ export function renderAlertHistory(recalls: AlertRecall[]): string[] {
   return lines;
 }
 
-function recallIssue(issue: AlertLogSubject, events: AlertLogEvent[]): AlertRecall {
+function recallIssue(issue: AlertLogSubject, history: AlertHistoryIndex): AlertRecall {
   const message = loggedMessage(issue);
-  const same = events.filter((event) => event.fingerprint === issue.fingerprint || (message.length > 0 && event.normalizedMessage === message));
+  const same = [...new Set([
+    ...(history.byFingerprint.get(issue.fingerprint) ?? []),
+    ...(message.length > 0 ? history.byMessage.get(message) ?? [] : []),
+  ])];
   const earlierCount = same.filter((event) => event.outcome === "seen").length;
   const previousFix = latest(same, "fixed");
   const recurred = latest(same, "recurred");
@@ -152,7 +192,7 @@ function recallIssue(issue: AlertLogSubject, events: AlertLogEvent[]): AlertReca
     new Date(issue.lastSeenAt).getTime() > new Date(previousFix.at).getTime()
     || (recurred != null && new Date(recurred.at).getTime() >= new Date(previousFix.at).getTime())
   );
-  const similarFix = previousFix ? null : latestSimilarFix(message, issue.fingerprint, events);
+  const similarFix = previousFix ? null : latestSimilarFix(message, issue.fingerprint, history);
   return {
     issueId: issue.id,
     earlierCount,
@@ -182,13 +222,14 @@ function recallNote(input: {
   return "No earlier record of this error. This run adds it to the alert log.";
 }
 
-function latestSimilarFix(message: string, fingerprint: string, events: AlertLogEvent[]): AlertLogEvent | null {
-  const similar = events.filter((event) =>
+function latestSimilarFix(message: string, fingerprint: string, history: AlertHistoryIndex): AlertLogEvent | null {
+  const candidates = new Set(tokens(message).flatMap((token) => history.fixedByToken.get(token) ?? []));
+  const similar = [...candidates].filter((event) =>
     event.outcome === "fixed"
     && event.fingerprint !== fingerprint
     && messagesSimilar(message, event.normalizedMessage),
   );
-  return similar.at(-1) ?? null;
+  return latest(similar, "fixed");
 }
 
 function messagesSimilar(left: string, right: string): boolean {
@@ -209,7 +250,11 @@ function tokens(value: string): string[] {
 }
 
 function latest(events: AlertLogEvent[], outcome: AlertLogOutcome): AlertLogEvent | null {
-  return events.filter((event) => event.outcome === outcome).at(-1) ?? null;
+  let result: AlertLogEvent | null = null;
+  for (const event of events) {
+    if (event.outcome === outcome && (!result || event.at >= result.at)) result = event;
+  }
+  return result;
 }
 
 function fixText(event: AlertLogEvent): string {

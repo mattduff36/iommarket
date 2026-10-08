@@ -18,8 +18,7 @@ export function DealerLogo({
   imageClassName,
 }: DealerLogoProps) {
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
-  const providerMode = process.env.NEXT_PUBLIC_MEDIA_PROVIDER;
-  const displayUrl = logoUrl && (providerMode === "imagekit" || providerMode === "imagekit-sample") && logoUrl.includes("://res.cloudinary.com/")
+  const displayUrl = logoUrl && logoUrl.includes("://res.cloudinary.com/")
     ? `/api/media/cloudinary-ref?url=${encodeURIComponent(logoUrl)}`
     : logoUrl;
   const hasUsableLogo = Boolean(displayUrl && failedLogoUrl !== displayUrl);

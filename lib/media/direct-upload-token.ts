@@ -31,7 +31,9 @@ export function createImageKitUploadToken(input: {
   const env = input.env ?? process.env;
   const scope = assertManagedUploadsConfigured(env);
   const paths = managedUploadPaths(scope, input.userId, input.intentId, input.format);
-  const mime = input.format === "jpg" ? "image/jpeg" : `image/${input.format}`;
+  const mimes = input.format === "heic" || input.format === "heif"
+    ? ["image/heic", "image/heif"]
+    : [input.format === "jpg" ? "image/jpeg" : `image/${input.format}`];
   const fields: Record<string, string> = {
     fileName: `source.${input.format}`,
     folder: paths.quarantineFolder,
@@ -39,7 +41,7 @@ export function createImageKitUploadToken(input: {
     useUniqueFileName: "false",
     overwriteFile: "false",
     responseFields: "isPrivateFile",
-    checks: `"file.size" > 0 AND "file.size" <= ${IMAGE_CONSTRAINTS.maxFileSizeBytes} AND "file.mime" IN ["${mime}"]`,
+    checks: `"file.size" > 0 AND "file.size" <= ${IMAGE_CONSTRAINTS.maxFileSizeBytes} AND "file.mime" IN [${mimes.map((mime) => `"${mime}"`).join(",")}]`,
   };
   const iat = Math.floor((input.now ?? Date.now()) / 1000);
   const exp = iat + IMAGEKIT_UPLOAD_TOKEN_TTL_SECONDS;

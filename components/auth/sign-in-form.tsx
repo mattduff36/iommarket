@@ -90,6 +90,11 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
             router.refresh();
             return;
           }
+          if (adminOnly && me.stagingAccessAllowed === true) {
+            router.push("/account");
+            router.refresh();
+            return;
+          }
         }
       } catch {
         // fall through to default destination
@@ -97,7 +102,7 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
 
       if (adminOnly) {
         await supabase.auth.signOut();
-        setError("This staging site is restricted to active development administrators.");
+        setError("This staging site is restricted to active development administrators and approved test accounts.");
         return;
       }
 

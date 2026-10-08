@@ -63,6 +63,7 @@ import { syncRevisionImagesForUser } from "@/lib/listings/revision-photos";
 
 describe("revision photo lifecycle CAS LST-CAS-002", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
     listingFindUnique.mockResolvedValue({
       id: "listing-1",
@@ -166,5 +167,41 @@ describe("revision photo lifecycle CAS LST-CAS-002", () => {
         }),
       }),
     );
+  });
+
+  it("rejects a verified Cloudinary intent when saving a revision after ImageKit writes are enabled", async () => {
+    vi.stubEnv("MEDIA_PROVIDER", "cloudinary");
+    vi.stubEnv("MEDIA_UPLOAD_PROVIDER", "imagekit");
+    mockDb.listingImageUploadIntent.findUnique.mockResolvedValue({
+      id: "intent-2",
+      userId: "user-1",
+      status: "VERIFIED",
+      publicId: "iommarket/listings/staging/user-1/intent-2",
+      deliveryType: "private",
+      assetId: "asset-2",
+      version: "2",
+      width: 1200,
+      height: 1800,
+      format: "jpg",
+      bytes: 2000,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    transaction.mockImplementationOnce(async (callback: (tx: typeof mockDb) => unknown) => callback(mockDb));
+
+    await expect(syncRevisionImagesForUser({
+      listingId: "listing-1",
+      userId: "user-1",
+      revisionId: "revision-1",
+      expectedListingRevision: 5,
+      photos: {
+        photos: [{ uploadIntentId: "intent-2" }],
+        basePhotoRevision: 2,
+        mutationId: "revision-provider-cutover",
+      },
+    })).resolves.toEqual({
+      error: "This Cloudinary upload can no longer be used. Please upload the image again.",
+    });
+
+    expect(mockDb.listingRevisionImage.create).not.toHaveBeenCalled();
   });
 });

@@ -8,7 +8,27 @@ import {
 } from "@/lib/dealers/onboarding/session-cutoff";
 import { profileNameSchema } from "@/lib/validations/profile-name";
 import type { UserRole } from "@prisma/client";
-import { hasStagingAdminRole, requiresStagingAdmin } from "@/lib/deployment/staging-access-policy";
+import { hasStagingAccess, requiresStagingAdmin } from "@/lib/deployment/staging-access-policy";
+
+function withStagingAccess<T extends {
+  role: string;
+  email: string;
+  disabledAt?: unknown;
+  deletedAt?: unknown;
+}>(user: T, authUser: {
+  email?: string;
+  email_confirmed_at?: string;
+}) {
+  return {
+    ...user,
+    stagingAccessAllowed: hasStagingAccess({
+      ...user,
+      role: user.role,
+      email: user.email,
+      verifiedAuthEmail: authUser.email_confirmed_at ? authUser.email ?? null : null,
+    }),
+  };
+}
 
 export class AuthenticationRequiredError extends Error {
   readonly statusCode = 401 as const;
@@ -96,10 +116,16 @@ export async function getCurrentUser() {
         getAuthProfileName(authUser.user_metadata ?? {}),
         authUser.app_metadata?.policy_acceptance
       );
-      return db.user.findUnique({
+      const syncedUser = await db.user.findUnique({
         where: { id: synced.id },
         include: { dealerProfile: true },
       });
+      if (syncedUser?.deletedAt) {
+        await supabase.auth.signOut();
+        return null;
+      }
+      if (syncedUser?.disabledAt) return null;
+      return syncedUser ? withStagingAccess(syncedUser, authUser) : null;
     } catch (error) {
       if (error instanceof DeletedAccountError) {
         await supabase.auth.signOut();
@@ -116,7 +142,7 @@ export async function getCurrentUser() {
 
   if (user.disabledAt) return null;
 
-  return user;
+  return withStagingAccess(user, authUser);
 }
 
 /**
@@ -130,58 +156,78 @@ export async function syncUser(
   name?: string,
   policyAcceptanceReceipt?: unknown
 ) {
-  try {
-    return await db.$transaction(async (tx) => {
-      const parsedName = profileNameSchema.safeParse(name);
-      const existing = await tx.user.findUnique({
-        where: { authUserId },
-        select: { id: true },
-      });
-      const user = existing
-        ? await tx.user.update({
-            where: { authUserId },
+  const persist = () => db.$transaction(async (tx) => {
+    const parsedName = profileNameSchema.safeParse(name);
+    const existing = await tx.user.findUnique({
+      where: { authUserId },
+      select: { id: true },
+    });
+    const user = existing
+      ? await tx.user.update({
+          where: { authUserId },
+          data: {
+            email,
+            ...(parsedName.success ? { name: parsedName.data } : {}),
+          },
+        })
+      : parsedName.success
+        ? await tx.user.create({
             data: {
+              authUserId,
               email,
-              ...(parsedName.success ? { name: parsedName.data } : {}),
+              name: parsedName.data,
+              role: "USER",
             },
           })
-        : parsedName.success
-          ? await tx.user.create({
-              data: {
-                authUserId,
-                email,
-                name: parsedName.data,
-                role: "USER",
-              },
-            })
-          : null;
-      if (!user) throw new ProfileNameRequiredError();
-      if (policyAcceptanceReceipt) {
-        const { importSignupAcceptances } = await import(
-          "@/lib/policy/acceptance"
-        );
-        await importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
-      }
-      return user;
-    });
-  } catch (err) {
-    const prismaCode =
-      typeof err === "object" && err !== null && "code" in err
-        ? String(err.code)
-        : "";
-    const isUniqueViolation =
-      prismaCode === "P2002" ||
-      (err instanceof Error &&
-        (err.message.includes("Unique constraint") || err.message.includes("P2002")));
+        : null;
+    if (!user) throw new ProfileNameRequiredError();
+    if (policyAcceptanceReceipt) {
+      const { importSignupAcceptances } = await import(
+        "@/lib/policy/acceptance"
+      );
+      await importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
+    }
+    return user;
+  });
 
-    if (isUniqueViolation && email) {
+  try {
+    return await persist();
+  } catch (err) {
+    let finalError = err;
+    const isUniqueViolation = (error: unknown) => {
+      const prismaCode =
+        typeof error === "object" && error !== null && "code" in error
+          ? String(error.code)
+          : "";
+      return prismaCode === "P2002" ||
+        (error instanceof Error &&
+          (error.message.includes("Unique constraint") || error.message.includes("P2002")));
+    };
+
+    if (isUniqueViolation(err)) {
+      const concurrentIdentity = await db.user.findUnique({
+        where: { authUserId },
+        select: { id: true, deletedAt: true, disabledAt: true },
+      });
+      if (concurrentIdentity?.deletedAt) throw new DeletedAccountError();
+      if (concurrentIdentity?.disabledAt) return concurrentIdentity;
+      if (concurrentIdentity) {
+        try {
+          return await persist();
+        } catch (retryError) {
+          finalError = retryError;
+        }
+      }
+    }
+
+    if (isUniqueViolation(finalError) && email) {
       const existing = await db.user.findFirst({
         where: { email: { equals: email, mode: "insensitive" } },
         select: { deletedAt: true },
       });
       if (existing?.deletedAt) throw new DeletedAccountError();
     }
-    throw err;
+    throw finalError;
   }
 }
 
@@ -193,8 +239,8 @@ export async function requireAuth() {
   if (!user) {
     throw new AuthenticationRequiredError();
   }
-  if (requiresStagingAdmin() && !hasStagingAdminRole(user)) {
-    throw new InsufficientPermissionsError("Staging is restricted to administrators.");
+  if (requiresStagingAdmin() && !user.stagingAccessAllowed) {
+    throw new InsufficientPermissionsError("Staging is restricted to administrators and approved test accounts.");
   }
   if (user.disabledAt) {
     throw new AccountDisabledError();

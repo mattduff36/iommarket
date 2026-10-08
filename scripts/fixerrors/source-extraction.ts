@@ -95,32 +95,20 @@ export function parseStackTrace(stack: string | null): SourceFileRef[] {
   const refs: SourceFileRef[] = [];
   const seen = new Set<string>();
 
-  const webpackPattern = /webpack-internal:\/\/\/[^)]*?\.\/([^:)]+?)(?::(\d+))?(?::(\d+))?(?:\)|$)/g;
-  let match: RegExpExecArray | null;
-  while ((match = webpackPattern.exec(stack)) !== null) {
-    const file = match[1];
-    if (!file || file.includes("node_modules") || file.startsWith("__")) continue;
-    addSourceRef(refs, seen, {
-      file,
-      line: match[2] ? Number.parseInt(match[2], 10) : undefined,
-      column: match[3] ? Number.parseInt(match[3], 10) : undefined,
-    });
-  }
-
-  const directPattern =
-    /(?:\/app\/|\.\/)((?:app|lib|components|actions|hooks|utils|services)[^:)]*?)(?::(\d+))?(?::(\d+))?(?:\)|$)/g;
-  while ((match = directPattern.exec(stack)) !== null) {
-    const lineStart = stack.lastIndexOf("\n", match.index) + 1;
-    const lineEndIndex = stack.indexOf("\n", match.index);
-    const currentLine = stack.slice(lineStart, lineEndIndex === -1 ? stack.length : lineEndIndex);
-    if (currentLine.includes(".next/") || currentLine.includes("_next/")) continue;
-    const file = match[1];
-    if (!file || file.includes("node_modules")) continue;
-    addSourceRef(refs, seen, {
-      file,
-      line: match[2] ? Number.parseInt(match[2], 10) : undefined,
-      column: match[3] ? Number.parseInt(match[3], 10) : undefined,
-    });
+  const sourcePathPattern = /(?:^|[\\/])((?:app|lib|components|actions|hooks|utils|services)(?:[\\/][^\s:]+)*?\.(?:tsx|ts|jsx|js))(?::(\d+))?(?::(\d+))?/giu;
+  for (const frame of stack.split(/\r?\n/u)) {
+    if (frame.includes(".next/") || frame.includes("_next/") || frame.includes("node_modules")) continue;
+    sourcePathPattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = sourcePathPattern.exec(frame)) !== null) {
+      const file = match[1];
+      if (!file || file.startsWith("__")) continue;
+      addSourceRef(refs, seen, {
+        file,
+        line: match[2] ? Number.parseInt(match[2], 10) : undefined,
+        column: match[3] ? Number.parseInt(match[3], 10) : undefined,
+      });
+    }
   }
 
   return refs;

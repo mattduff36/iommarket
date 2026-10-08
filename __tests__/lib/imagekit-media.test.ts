@@ -379,7 +379,7 @@ describe("MEDIA-MATCH-001 exact backfill", () => {
   const index = buildMigrationIndex([asset]);
 
   it("ships the reviewed dealer-logo subset without the external migration map", () => {
-    expect(MIGRATED_DEALER_LOGO_COUNT).toBe(7);
+    expect(MIGRATED_DEALER_LOGO_COUNT).toBe(11);
   });
 
   it("writes an exact match and refuses ambiguous or version-mismatched rows", () => {

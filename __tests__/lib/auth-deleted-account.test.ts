@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 
-const { getAuthUser, mockDb } = vi.hoisted(() => ({
+const { getAuthUser, signOut, mockDb } = vi.hoisted(() => ({
   getAuthUser: vi.fn(),
+  signOut: vi.fn(),
   mockDb: {
     $transaction: vi.fn(),
     user: {
@@ -22,6 +24,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
     auth: {
       getUser: getAuthUser,
+      signOut,
     },
   })),
 }));
@@ -58,6 +61,58 @@ describe("syncUser", () => {
     );
     expect(mockDb.user.update).not.toHaveBeenCalled();
     expect(mockDb.user.upsert).not.toHaveBeenCalled();
+  });
+
+  it("retries a unique collision only after confirming the same auth identity now exists", async () => {
+    const sameIdentity = { id: "user-1", deletedAt: null };
+    mockDb.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(sameIdentity)
+      .mockResolvedValueOnce(sameIdentity);
+    mockDb.user.create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`email`)",
+      { code: "P2002", clientVersion: "test", meta: { modelName: "User", target: ["email"] } },
+    ));
+    mockDb.user.update.mockResolvedValue({ id: "user-1" });
+
+    await expect(syncUser("auth-same", "member@example.com", "Member")).resolves.toMatchObject({ id: "user-1" });
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(2);
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { authUserId: "auth-same" },
+      data: { email: "member@example.com", name: "Member" },
+    });
+  });
+
+  it("does not link an email collision to a different auth identity", async () => {
+    mockDb.user.findUnique.mockResolvedValue(null);
+    mockDb.user.create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`email`)",
+      { code: "P2002", clientVersion: "test", meta: { modelName: "User", target: ["email"] } },
+    ));
+    mockDb.user.findFirst.mockResolvedValue(null);
+
+    await expect(syncUser("auth-other", "member@example.com", "Member")).rejects.toMatchObject({ code: "P2002" });
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
+
+  it("does not update or return a disabled account found after a create race", async () => {
+    const disabledAt = new Date("2026-10-01T00:00:00.000Z");
+    getAuthUser.mockResolvedValue({
+      data: { user: { id: "auth-disabled", email: "member@example.com", user_metadata: { name: "Member" }, app_metadata: {} } },
+    });
+    mockDb.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "user-disabled", deletedAt: null, disabledAt })
+      .mockResolvedValueOnce({ id: "user-disabled", deletedAt: null, disabledAt });
+    mockDb.user.create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`email`)",
+      { code: "P2002", clientVersion: "test", meta: { modelName: "User", target: ["email"] } },
+    ));
+
+    await expect(getCurrentUser()).resolves.toBeNull();
+    expect(mockDb.user.update).not.toHaveBeenCalled();
   });
 
   it("requires a valid name before creating a newly authenticated profile", async () => {

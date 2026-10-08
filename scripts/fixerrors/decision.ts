@@ -62,9 +62,16 @@ export function assertAutoRepairDecision(
   issueIds: string[],
 ): void {
   const decision = decisions.find((entry) => entry.clusterId === clusterId);
-  const actual = [...issueIds].sort().join(",");
-  if (!decision || [...decision.issueIds].sort().join(",") !== actual) {
-    throw new Error("Cluster is not in the signed decision manifest");
+  const requested = new Set(issueIds);
+  const decided = new Set(decision?.issueIds ?? []);
+  if (
+    !decision
+    || issueIds.length === 0
+    || requested.size !== issueIds.length
+    || decided.size !== decision.issueIds.length
+    || issueIds.some((issueId) => !decided.has(issueId))
+  ) {
+    throw new Error("Requested issue IDs are not a unique subset of the signed decision manifest");
   }
   if (decision.action !== "auto-repair" || decision.blockReason) {
     throw new Error(decision.blockReason ?? "Cluster is not an unblocked auto-repair");

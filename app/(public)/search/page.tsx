@@ -32,6 +32,10 @@ import {
   expireStaleLiveListings,
 } from "@/lib/listings/expiry";
 import {
+  numericAttributeListingIdQuery,
+  parseNumericAttributeBound,
+} from "@/lib/listings/numeric-attribute-search";
+import {
   combineMarketplaceListingWhere,
   marketplaceListingWhereWithSettings,
   marketplaceListingBadge,
@@ -77,12 +81,6 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   });
 }
 
-function safeInt(v: string | undefined): number | undefined {
-  if (!v) return undefined;
-  const n = parseInt(v, 10);
-  return Number.isNaN(n) ? undefined : n;
-}
-
 interface NumericRangeFilter {
   slug: string;
   min?: number;
@@ -124,15 +122,35 @@ export default async function SearchPage({ searchParams }: Props) {
       min: parseOptionalBoundedInteger(sp.minYear, YEAR_MIN, currentYear),
       max: parseOptionalBoundedInteger(sp.maxYear, YEAR_MIN, currentYear),
     },
-    { slug: "engine-size", min: safeInt(sp.minEngineSize), max: safeInt(sp.maxEngineSize) },
-    { slug: "engine-power", min: safeInt(sp.minEnginePower), max: safeInt(sp.maxEnginePower) },
+    {
+      slug: "engine-size",
+      min: parseNumericAttributeBound(sp.minEngineSize, "engine-size"),
+      max: parseNumericAttributeBound(sp.maxEngineSize, "engine-size"),
+    },
+    {
+      slug: "engine-power",
+      min: parseNumericAttributeBound(sp.minEnginePower, "engine-power"),
+      max: parseNumericAttributeBound(sp.maxEnginePower, "engine-power"),
+    },
     ...(canApplyBatteryFilters
       ? [
-          { slug: "battery-range", min: safeInt(sp.minBatteryRange), max: safeInt(sp.maxBatteryRange) },
-          { slug: "charging-time", min: safeInt(sp.minChargingTime), max: safeInt(sp.maxChargingTime) },
+          {
+            slug: "battery-range",
+            min: parseNumericAttributeBound(sp.minBatteryRange, "battery-range"),
+            max: parseNumericAttributeBound(sp.maxBatteryRange, "battery-range"),
+          },
+          {
+            slug: "charging-time",
+            min: parseNumericAttributeBound(sp.minChargingTime, "charging-time"),
+            max: parseNumericAttributeBound(sp.maxChargingTime, "charging-time"),
+          },
         ]
       : []),
-    { slug: "acceleration", min: safeInt(sp.minAcceleration), max: safeInt(sp.maxAcceleration) },
+    {
+      slug: "acceleration",
+      min: parseNumericAttributeBound(sp.minAcceleration, "acceleration"),
+      max: parseNumericAttributeBound(sp.maxAcceleration, "acceleration"),
+    },
     {
       slug: "fuel-consumption",
       min: parseOptionalBoundedInteger(
@@ -146,40 +164,43 @@ export default async function SearchPage({ searchParams }: Props) {
         FUEL_CONSUMPTION_MAX,
       ),
     },
-    { slug: "co2-emissions", min: safeInt(sp.minCo2), max: safeInt(sp.maxCo2) },
+    {
+      slug: "co2-emissions",
+      min: parseNumericAttributeBound(sp.minCo2, "co2-emissions"),
+      max: parseNumericAttributeBound(sp.maxCo2, "co2-emissions"),
+    },
     {
       slug: "tax-per-year",
       min: parseOptionalBoundedInteger(sp.minTax, TAX_MIN, TAX_MAX),
       max: parseOptionalBoundedInteger(sp.maxTax, TAX_MIN, TAX_MAX),
     },
-    { slug: "insurance-group", min: safeInt(sp.minInsuranceGroup), max: safeInt(sp.maxInsuranceGroup) },
-    { slug: "boot-space", min: safeInt(sp.minBootSpace), max: safeInt(sp.maxBootSpace) },
-    { slug: "doors", min: safeInt(sp.doors), max: safeInt(sp.doors) },
-    { slug: "seats", min: safeInt(sp.seats), max: safeInt(sp.seats) },
+    {
+      slug: "insurance-group",
+      min: parseNumericAttributeBound(sp.minInsuranceGroup, "insurance-group"),
+      max: parseNumericAttributeBound(sp.maxInsuranceGroup, "insurance-group"),
+    },
+    {
+      slug: "boot-space",
+      min: parseNumericAttributeBound(sp.minBootSpace, "boot-space"),
+      max: parseNumericAttributeBound(sp.maxBootSpace, "boot-space"),
+    },
+    {
+      slug: "doors",
+      min: parseNumericAttributeBound(sp.doors, "doors"),
+      max: parseNumericAttributeBound(sp.doors, "doors"),
+    },
+    {
+      slug: "seats",
+      min: parseNumericAttributeBound(sp.seats, "seats"),
+      max: parseNumericAttributeBound(sp.seats, "seats"),
+    },
   ].filter((f) => f.min !== undefined || f.max !== undefined);
 
   let listingIdsFromAttributes: string[] | null = null;
   if (numericRangeFilters.length > 0) {
-    const { Prisma } = await import("@prisma/client");
-    const conditions = numericRangeFilters.map((f) =>
-      Prisma.sql`EXISTS (
-        SELECT 1 FROM listing_attribute_values lav
-        INNER JOIN attribute_definitions ad ON ad.id = lav.attribute_definition_id
-        WHERE lav.listing_id = l.id AND ad.slug = ${f.slug}
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) >= ${f.min ?? 0}
-        AND CAST(NULLIF(TRIM(lav.value), '') AS INT) <= ${f.max ?? 999999999}
-      )`
+    const result = await db.$queryRaw<{ id: string }[]>(
+      numericAttributeListingIdQuery(numericRangeFilters),
     );
-
-    let combined = conditions[0];
-    for (let i = 1; i < conditions.length; i++) {
-      combined = Prisma.sql`${combined} AND ${conditions[i]}`;
-    }
-
-    const result = await db.$queryRaw<{ id: string }[]>`
-      SELECT l.id FROM listings l
-      WHERE ${combined}
-    `;
     listingIdsFromAttributes = result.map((r) => r.id);
   }
 

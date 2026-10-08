@@ -1,6 +1,37 @@
 # ImageKit production readiness and Cloudinary retirement
 
-Updated: 5 October 2026. This is an implementation checkpoint, not production activation approval.
+Updated: 8 October 2026. This is an implementation checkpoint, not production activation approval.
+
+## Current checkpoint — 8 October
+
+This section supersedes older checkpoints below. Production still uses Cloudinary; no production identity backfill or ImageKit activation has occurred.
+
+- The refreshed read-only plan contains 4,406 identity writes, 350 approved exclusions and zero other blocked references, unmapped dealer logos or avatars. Its digest is `52b61dff4209c0c7cde1055df1a9aae54a030c191e94bc05361d8e9009c8632f`. Refresh the 30-minute destination verification receipt immediately before any approved apply; do not reuse the expired receipt.
+- Production database and Cloudinary consumer credentials were rotated and the credential-only production deployment was verified. The old Cloudinary API key remains enabled pending safe revocation. Dealer-logo delivery must also use current signing credentials before retiring that key.
+- The retained production dump restored its public schema into an isolated local PostgreSQL instance: 80 tables, 317 indexes and 43,847 rows. This is not a full Supabase auth/storage/vault recovery test. Both local verification database servers were stopped; recovery files were retained.
+- New attachment/finalization guards reject pending legacy Cloudinary uploads once ImageKit writes are selected, validate native ImageKit provenance, and enforce verified-intent expiry. Existing attached-image reorder/replay is preserved.
+- Older immutable deployments can still accept legacy uploads. The live Vercel project has a 43,200-second skew-protection window. Therefore a final database scan alone cannot prove there will be no later legacy attachment. Review deployment routing and old-client handling as part of the cutover; changing routing can interrupt unsaved forms.
+- A temporary, explicit `IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS=1` compatibility option is prepared, not enabled. In ImageKit read mode it permits current-key Cloudinary delivery only for authorized persisted, trusted legacy identities without partial ImageKit identity. Verified ImageKit identities remain preferred, and upload previews cannot use this fallback. The strict default remains unchanged.
+- If the compatibility option is approved for activation, retain Cloudinary, reconcile any late writes after old-deployment routing ends, verify zero required legacy reads, then disable the option. Do not describe that intermediate state as completed Cloudinary retirement.
+
+Next: finish current-tree tests and independent review, commit/deploy staging, verify that exact deployment, and obtain the reviewed production release/cutover approval. Keep the migration map, original backups and rollback credentials intact.
+
+## Current checkpoint — 7 October
+
+This section supersedes the historical 5 October status below. Production activation remains pending.
+
+- Staging commit `72d5ac564635fa0988bdc0a7ecf3725539f836d2` passed typechecking and the full suite (3,026 passed, five skipped). Vercel deployment `dpl_GUFvJ11LyiG5NAENh8GNNX3hL2MY` is READY and serves `itrader.dev`.
+- Staging uses managed ImageKit uploads. Authenticated PNG, JPEG, a 7,362,334-byte JPEG, and genuine HEIC/HEIF uploads produced visible previews. HEIC MIME aliases needed a narrow fix; the deployed retry converted successfully to WebP. All five verified originals are private: signed downloads succeed and unsigned requests return 401. A file one byte above 10 MiB was rejected without losing existing previews. Modified signed upload-policy fields were rejected by the provider.
+- The recovered original migration map and backups are retained outside the repository. Source reconciliation produced a 7,749-asset map, including 72 additional originals verified by size and SHA-256. Do not restart the completed uploader.
+- The fresh production identity plan contains 4,406 writes and 350 explicitly excluded image rows, with zero other blocked references or unmapped dealer logos. The exclusions cover exactly 94 owner-reviewed `ADMIN_PREVIEW` listings; their source identities and listing/row ID sets are pinned. Planning and apply recheck current parent eligibility; apply locks and rechecks the census before writing. Excluded rows remain untouched.
+- All 4,406 planned destinations passed live private-identity and original-byte checksum verification. This is read-only evidence, not an applied production backfill. Verification receipts expire after 30 minutes; the plan expires after 24 hours and rejects source drift.
+- Dealer archive runs retain source URL candidates for the excluded listings, but no locally mirrored originals. Image order needs further reconciliation before restoring those optional photos.
+- No production identity backfill or production media-provider switch has been performed. Still required: remaining hosted lifecycle acceptance, fresh source reconciliation at cutover, concrete backup/rollback checks, production configuration validation, and the approved `staging` → `main` release.
+- Production credential readiness and coordinated consumer updates remain part of the release gate; keep operational security details in the private recovery evidence, never in published reports.
+
+Evidence is retained under `D:\Websites\iommarket-imagekit-recovery-20261007\current-audit` and ignored `tmp/imagekit-cutover-20261007`. The reviewed exclusion manifest is `reviewed-admin-preview-exclusions-v3.json`; the map is `delta-originals-20261007/source-destination-map-7749-final-20261007.jsonl` under the recovery directory.
+
+## Historical implementation record — 5 October
 
 ## Release boundary
 

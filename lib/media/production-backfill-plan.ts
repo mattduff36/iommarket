@@ -9,6 +9,10 @@ import { isManagedListingPath, managedMediaPublicId } from "@/lib/media/managed-
 export const PRODUCTION_BACKFILL_PROJECT = "snlqivvogfqesxpbjiei";
 const SHA256 = /^[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9_-]{1,100}$/;
+export const REVIEWED_ADMIN_PREVIEW_CSV_SHA256 = "671f24c07a4f20b653dc9d17dcbda67929503b70007078237b0f400c2e50f0c4";
+export const REVIEWED_ADMIN_PREVIEW_LISTING_IDS_SHA256 = "26d46f7b5e07be32a83d57e33f8b36d0439f317d98d5b89a34a70895e1856375";
+export const REVIEWED_ADMIN_PREVIEW_ROW_IDS_SHA256 = "697a064c7561a5046d7f925f73a2ceec160adb4902016c14b80a0c989c363539";
+export const ADMIN_PREVIEW_EXCLUSION_REASON = "reviewed-unpublished-admin-preview";
 const sourceSchema = z.object({
   table: z.enum(["ListingImage", "ListingRevisionImage"]), id: z.string().min(1).max(80),
   provider: z.string().min(1).max(30), assetId: z.string().nullable(), publicId: z.string(),
@@ -16,14 +20,34 @@ const sourceSchema = z.object({
   imageKitFileId: z.string().nullable(), imageKitFilePath: z.string().nullable(),
 }).strict();
 const destinationSchema = z.object({ fileId: z.string().regex(ID), filePath: z.string() }).strict();
+const adminPreviewManifestRowSchema = z.object({
+  id: z.string().min(1).max(80), listingId: z.string().min(1).max(80), status: z.literal("ADMIN_PREVIEW"),
+  reviewState: z.literal("NONE"), source: sourceSchema,
+}).strict();
+const adminPreviewManifestBodySchema = z.object({
+  version: z.literal(1), reviewedListingCsvSha256: z.literal(REVIEWED_ADMIN_PREVIEW_CSV_SHA256),
+  reviewedListingIdsSha256: z.literal(REVIEWED_ADMIN_PREVIEW_LISTING_IDS_SHA256),
+  reviewedRowIdsSha256: z.literal(REVIEWED_ADMIN_PREVIEW_ROW_IDS_SHA256),
+  listingIds: z.array(z.string().min(1).max(80)).length(94), entries: z.array(adminPreviewManifestRowSchema).length(350),
+}).strict();
+export const adminPreviewExclusionManifestSchema = adminPreviewManifestBodySchema.extend({ digest: z.string().regex(SHA256) }).strict();
+export type AdminPreviewExclusionManifest = z.infer<typeof adminPreviewExclusionManifestSchema>;
+export const sourceVersionProofSchema = z.object({
+  table: z.enum(["ListingImage", "ListingRevisionImage"]), id: z.string().min(1).max(80),
+  assetId: z.string().min(1), storedVersion: z.string().regex(/^\d+$/), migratedVersion: z.string().regex(/^\d+$/),
+  bytes: z.number().int().positive(), sha256: z.string().regex(SHA256), verifiedAt: z.string().datetime(),
+}).strict();
+export type SourceVersionProof = z.infer<typeof sourceVersionProofSchema>;
 const entrySchema = z.object({
   source: sourceSchema,
-  status: z.enum(["write", "unchanged", "external", "native", "blocked"]),
+  status: z.enum(["write", "unchanged", "external", "native", "blocked", "excluded"]),
   reason: z.string(), destination: destinationSchema.optional(),
+  sourceVersionProof: sourceVersionProofSchema.optional(),
+  exclusionProof: z.object({ listingId: z.string().min(1).max(80), reason: z.literal(ADMIN_PREVIEW_EXCLUSION_REASON), manifestSha256: z.string().regex(SHA256) }).strict().optional(),
 }).strict();
-const countsSchema = z.object({ write: z.number().int().nonnegative(), unchanged: z.number().int().nonnegative(), external: z.number().int().nonnegative(), native: z.number().int().nonnegative(), blocked: z.number().int().nonnegative() }).strict();
+const countsSchema = z.object({ write: z.number().int().nonnegative(), unchanged: z.number().int().nonnegative(), external: z.number().int().nonnegative(), native: z.number().int().nonnegative(), blocked: z.number().int().nonnegative(), excluded: z.number().int().nonnegative() }).strict();
 const planSchema = z.object({
-  version: z.literal(1), project: z.literal(PRODUCTION_BACKFILL_PROJECT), createdAt: z.string().datetime(),
+  version: z.literal(2), project: z.literal(PRODUCTION_BACKFILL_PROJECT), createdAt: z.string().datetime(),
   mapSha256: z.string().regex(SHA256), entries: z.array(entrySchema), counts: countsSchema, digest: z.string().regex(SHA256),
 }).strict();
 export type ProductionBackfillSource = z.infer<typeof sourceSchema>;
@@ -38,6 +62,25 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 function digest(value: unknown) { return createHash("sha256").update(canonical(value)).digest("hex"); }
+
+export function validateAdminPreviewExclusionManifest(value: unknown): AdminPreviewExclusionManifest {
+  const manifest = adminPreviewExclusionManifestSchema.parse(value);
+  const { digest: supplied, ...body } = manifest;
+  if (supplied !== digest(body)) throw new Error("Reviewed ADMIN_PREVIEW exclusion manifest digest is invalid.");
+  const listingIds = [...new Set(manifest.listingIds)].sort();
+  if (listingIds.length !== 94 || canonical(listingIds) !== canonical(manifest.listingIds)) throw new Error("Reviewed ADMIN_PREVIEW listing allowlist is duplicated or unsorted.");
+  if (createHash("sha256").update(listingIds.join("\n")).digest("hex") !== REVIEWED_ADMIN_PREVIEW_LISTING_IDS_SHA256) throw new Error("Reviewed ADMIN_PREVIEW listing IDs do not match the approved CSV scope.");
+  const entries = [...manifest.entries].sort((a, b) => a.id.localeCompare(b.id));
+  if (new Set(entries.map((entry) => entry.id)).size !== 350 || canonical(entries.map(({ id }) => id)) !== canonical(manifest.entries.map(({ id }) => id))) {
+    throw new Error("Reviewed ADMIN_PREVIEW row allowlist is duplicated or unsorted.");
+  }
+  if (createHash("sha256").update(entries.map((entry) => entry.id).join("\n")).digest("hex") !== REVIEWED_ADMIN_PREVIEW_ROW_IDS_SHA256) throw new Error("Reviewed ADMIN_PREVIEW row IDs do not match the approved source scope.");
+  if (entries.some((entry) => entry.source.table !== "ListingImage" || entry.source.id !== entry.id || !listingIds.includes(entry.listingId))) {
+    throw new Error("Reviewed ADMIN_PREVIEW manifest contains a row outside its exact listing scope.");
+  }
+  if (new Set(entries.map((entry) => entry.listingId)).size !== 94) throw new Error("Reviewed ADMIN_PREVIEW manifest does not cover the exact listing scope.");
+  return manifest;
+}
 
 function assertReviewedMap(index: MigrationIndex) {
   const ids = new Set<string>();
@@ -55,7 +98,7 @@ function assertReviewedMap(index: MigrationIndex) {
   }
 }
 
-function planEntry(source: ProductionBackfillSource, index: MigrationIndex): ProductionBackfillEntry {
+function planEntry(source: ProductionBackfillSource, index: MigrationIndex, proof: SourceVersionProof | undefined, now: Date): ProductionBackfillEntry {
   const blocked = (reason: string): ProductionBackfillEntry => ({ source, status: "blocked", reason });
   if (source.provider === "IMAGEKIT") {
     const path = source.imageKitFilePath;
@@ -78,33 +121,69 @@ function planEntry(source: ProductionBackfillSource, index: MigrationIndex): Pro
   if (!match.asset) return blocked(match.reason);
   let url: URL;
   try { url = new URL(source.url); } catch { return blocked("Stored source URL is invalid."); }
-  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || url.pathname.split("/")[1] !== "du3othqre") {
+  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || url.username || url.password || url.port || url.pathname.split("/")[1] !== "du3othqre") {
     return blocked("Cloudinary source account is not the verified migration account.");
   }
   const fromUrl = cloudinaryIdentityFromUrl(source.url);
+  if (!fromUrl || fromUrl.publicId !== match.asset.sourcePublicId || !/^\d+$/.test(fromUrl.version)) {
+    return blocked("Stored source URL does not identify the migrated original.");
+  }
   const version = source.version || fromUrl?.version;
-  if (!version || version !== match.asset.sourceVersion || (fromUrl?.version && fromUrl.version !== version)) {
+  if (!version || (fromUrl?.version && fromUrl.version !== version)) {
     return blocked("Source version is missing or conflicts with the migrated original.");
   }
   if (source.provider === "CLOUDINARY" && source.publicId !== match.asset.sourcePublicId) return blocked("Source public id conflicts with its migrated asset identity.");
-  const decision = decideImageKitBackfill({ match, reference: { ...source, version } });
+  const versionDiffers = version !== match.asset.sourceVersion;
+  if (versionDiffers) {
+    const age = proof ? now.getTime() - new Date(proof.verifiedAt).getTime() : Infinity;
+    if (!proof || age < -60_000 || age > 24 * 3600_000 || proof.table !== source.table || proof.id !== source.id ||
+      proof.assetId !== source.assetId || proof.assetId !== match.asset.assetId || source.publicId !== match.asset.sourcePublicId ||
+      proof.storedVersion !== version || proof.migratedVersion !== match.asset.sourceVersion ||
+      proof.bytes !== match.asset.sourceBytes || proof.sha256 !== match.asset.sourceSha256) {
+      return blocked("Source version is missing or conflicts with the migrated original.");
+    }
+  }
+  if (source.imageKitFileId === "" || source.imageKitFilePath === "") return blocked("Stored ImageKit identity is malformed.");
+  // Only the identity decision uses the byte-proven equivalent version. Stored source fields remain untouched.
+  const decision = decideImageKitBackfill({ match, reference: { ...source, version: match.asset.sourceVersion } });
   if (decision.action === "refuse") return blocked(decision.reason);
-  return { source, status: decision.action, reason: match.reason, destination: { fileId: decision.fileId, filePath: decision.filePath } };
+  return { source, status: decision.action, reason: versionDiffers ? "Stored source version has a reviewed identical-original checksum proof." : match.reason,
+    destination: { fileId: decision.fileId, filePath: decision.filePath }, ...(versionDiffers ? { sourceVersionProof: proof } : {}) };
 }
 
-export function createProductionBackfillPlan(input: { rows: ProductionBackfillSource[]; index: MigrationIndex; mapSha256: string; now?: Date }): ProductionBackfillPlan {
+export function createProductionBackfillPlan(input: { rows: ProductionBackfillSource[]; index: MigrationIndex; mapSha256: string; now?: Date; versionProofs?: SourceVersionProof[]; adminPreviewExclusions?: unknown }): ProductionBackfillPlan {
   if (!SHA256.test(input.mapSha256)) throw new Error("Migration map digest is invalid.");
   assertReviewedMap(input.index);
+  const now = input.now ?? new Date();
+  const proofs = new Map<string, SourceVersionProof>();
+  for (const value of input.versionProofs ?? []) {
+    const proof = sourceVersionProofSchema.parse(value);
+    const key = `${proof.table}:${proof.id}`;
+    if (proofs.has(key)) throw new Error("Source version evidence repeats a row.");
+    proofs.set(key, proof);
+  }
+  const exclusions = input.adminPreviewExclusions === undefined ? undefined : validateAdminPreviewExclusionManifest(input.adminPreviewExclusions);
+  const exclusionById = new Map(exclusions?.entries.map((entry) => [entry.id, entry]) ?? []);
+  const foundExclusions = new Set<string>();
   const seen = new Set<string>();
   const entries = input.rows.map((raw) => {
     const row = sourceSchema.parse(raw);
     const key = `${row.table}:${row.id}`;
     if (seen.has(key)) throw new Error("Production backfill contains a duplicate source row.");
     seen.add(key);
-    return planEntry(row, input.index);
+    const planned = planEntry(row, input.index, proofs.get(key), now);
+    const reviewed = exclusionById.get(row.id);
+    if (!reviewed) return planned;
+    if (row.table !== "ListingImage" || canonical(row) !== canonical(reviewed.source) || planned.status !== "blocked") {
+      throw new Error("Reviewed ADMIN_PREVIEW source identity no longer matches the blocked plan row.");
+    }
+    foundExclusions.add(row.id);
+    return { source: row, status: "excluded" as const, reason: ADMIN_PREVIEW_EXCLUSION_REASON,
+      exclusionProof: { listingId: reviewed.listingId, reason: ADMIN_PREVIEW_EXCLUSION_REASON as typeof ADMIN_PREVIEW_EXCLUSION_REASON, manifestSha256: exclusions!.digest } };
   }).sort((a, b) => `${a.source.table}:${a.source.id}`.localeCompare(`${b.source.table}:${b.source.id}`));
-  const counts = entries.reduce((value, entry) => ({ ...value, [entry.status]: value[entry.status] + 1 }), { write: 0, unchanged: 0, external: 0, native: 0, blocked: 0 });
-  const body: Omit<ProductionBackfillPlan, "digest"> = { version: 1, project: PRODUCTION_BACKFILL_PROJECT, createdAt: (input.now ?? new Date()).toISOString(), mapSha256: input.mapSha256, entries, counts };
+  if (foundExclusions.size !== exclusionById.size) throw new Error("The source census does not contain every exact reviewed ADMIN_PREVIEW row.");
+  const counts = entries.reduce((value, entry) => ({ ...value, [entry.status]: value[entry.status] + 1 }), { write: 0, unchanged: 0, external: 0, native: 0, blocked: 0, excluded: 0 });
+  const body: Omit<ProductionBackfillPlan, "digest"> = { version: 2, project: PRODUCTION_BACKFILL_PROJECT, createdAt: now.toISOString(), mapSha256: input.mapSha256, entries, counts };
   return { ...body, digest: digest(body) };
 }
 
@@ -115,6 +194,9 @@ export function verifyProductionBackfillPlan(value: unknown, approvedDigest: str
   const age = now.getTime() - new Date(plan.createdAt).getTime();
   if (age < -60_000 || age > 24 * 3600_000) throw new Error("The backfill plan expired or has an invalid timestamp.");
   if (plan.entries.some((entry) => entry.status === "blocked") || plan.counts.blocked !== 0) throw new Error("Required production references remain unresolved.");
+  if (plan.counts.excluded !== plan.entries.filter((entry) => entry.status === "excluded").length || plan.entries.some((entry) => entry.status === "excluded" && (!entry.exclusionProof || entry.destination))) {
+    throw new Error("Reviewed ADMIN_PREVIEW exclusions are malformed.");
+  }
   const keys = plan.entries.map((entry) => `${entry.source.table}:${entry.source.id}`);
   if (new Set(keys).size !== keys.length) throw new Error("Backfill plan contains duplicate rows.");
   return plan;
@@ -136,7 +218,7 @@ export function classifyBackfillRow(current: ProductionBackfillSource, entry: Pr
 
 export function conditionalBackfillStatement(entry: ProductionBackfillEntry) {
   const parsed = entrySchema.parse(entry);
-  if (parsed.status !== "write" || !parsed.destination || parsed.source.imageKitFileId || parsed.source.imageKitFilePath) throw new Error("Entry is not an empty, approved identity write.");
+  if (parsed.status !== "write" || !parsed.destination || parsed.source.imageKitFileId !== null || parsed.source.imageKitFilePath !== null) throw new Error("Entry is not an empty, approved identity write.");
   const { source, destination } = parsed;
   const safePath = /^\/iommarket-migration(?:-sample)?\/[A-Za-z0-9_./-]+$/.test(destination.filePath) &&
     !destination.filePath.slice(1).split("/").some((segment) => !segment || segment === "." || segment === "..");

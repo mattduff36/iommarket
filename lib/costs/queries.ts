@@ -37,6 +37,7 @@ export async function listInvoiceableEntries(client: Prisma.TransactionClient | 
   return client.costEntry.findMany({
     where: invoiceableWhere,
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, markedGbpMinor: true },
   });
 }
 

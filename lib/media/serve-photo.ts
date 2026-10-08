@@ -15,8 +15,9 @@ import {
   imageKitTransformForMode,
   type ImageKitDeliveryMode,
 } from "@/lib/media/imagekit-transforms";
-import { buildListingPhotoUrl, buildSocialImageUrl } from "@/lib/images/cloudinary-url";
+import { buildListingPhotoUrl, buildSocialImageUrl, isTrustedListingPublicId } from "@/lib/images/cloudinary-url";
 import { signPrivateCloudinaryUrl } from "@/lib/upload/cloudinary";
+import { EXPECTED_CLOUDINARY_CLOUD_NAME } from "@/lib/media/environment-contract";
 import type { ListingPhotoFrame } from "@/lib/images/constraints";
 import type { ListingPhotoSource } from "@/lib/images/photo";
 
@@ -33,6 +34,19 @@ export function resolvedPhotoTarget(photo: ListingPhotoSource, env: NodeJS.Proce
     ? matchMediaReference(photo, index)
     : { kind: "missing" as const, reason: "ImageKit migration map is not configured." };
   return decideReferenceDelivery({ match, env, disposablePath });
+}
+
+function canServeLegacyCloudinaryRead(photo: ListingPhotoSource, mode: string, env: NodeJS.ProcessEnv) {
+  const version = photo.version?.trim() ?? "";
+  return mode === "imagekit" && env.IMAGEKIT_ALLOW_LEGACY_CLOUDINARY_READS === "1" &&
+    typeof photo.id === "string" && photo.id.trim().length > 0 &&
+    photo.provider === "CLOUDINARY" && isTrustedListingPublicId(photo.publicId) &&
+    /^[0-9]+$/.test(version) && Number.isSafeInteger(Number(version)) && Number(version) > 0 &&
+    photo.imageKitFileId == null && photo.imageKitFilePath == null &&
+    !photo.publicId.startsWith("imagekit/") && !photo.url.startsWith(IMAGEKIT_PRIVATE_URL_PREFIX) &&
+    photo.deliverySource !== "upload" &&
+    env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME === EXPECTED_CLOUDINARY_CLOUD_NAME &&
+    Boolean(env.CLOUDINARY_API_KEY?.trim()) && Boolean(env.CLOUDINARY_API_SECRET?.trim());
 }
 
 export function signedDeliveryForPhoto(input: {
@@ -81,11 +95,27 @@ export function signedDeliveryForPhoto(input: {
     }
   }
   const decision = resolvedPhotoTarget(input.photo, env);
-  if (decision.decision === "passthrough") return { kind: "passthrough" as const, url: input.photo.url };
-  if (mode === "imagekit" && !storedPath && !disposablePathFromPhoto(input.photo)) {
-    return { kind: "unresolved" as const, reason: "ImageKit identity is not stored for this reference." };
+  if (decision.decision === "passthrough") {
+    return { kind: "passthrough" as const, url: signPrivateCloudinaryUrl(input.photo.url, env) };
   }
-  if (decision.decision === "unresolved") return { kind: "unresolved" as const, reason: decision.reason };
+  const allowLegacyCloudinaryRead = canServeLegacyCloudinaryRead(input.photo, mode, env) &&
+    decision.decision === "unresolved";
+  if (mode === "imagekit" && !storedPath && !disposablePathFromPhoto(input.photo)) {
+    if (!allowLegacyCloudinaryRead) {
+      return { kind: "unresolved" as const, reason: "ImageKit identity is not stored for this reference." };
+    }
+  }
+  if (decision.decision === "unresolved" && !allowLegacyCloudinaryRead) return { kind: "unresolved" as const, reason: decision.reason };
+  if (allowLegacyCloudinaryRead) {
+    const url = input.mode === "social"
+      ? buildSocialImageUrl(input.photo, env)
+      : buildListingPhotoUrl(input.photo, {
+          width: input.width,
+          mode: input.mode,
+          frame: input.frame,
+        }, env);
+    return { kind: "redirect" as const, url: signPrivateCloudinaryUrl(url, env) };
+  }
   if (decision.decision === "cloudinary") {
     const built = input.mode === "social"
       ? buildSocialImageUrl(input.photo)
@@ -94,7 +124,7 @@ export function signedDeliveryForPhoto(input: {
           mode: input.mode,
           frame: input.frame,
         });
-    return { kind: "redirect" as const, url: signPrivateCloudinaryUrl(built) };
+    return { kind: "redirect" as const, url: signPrivateCloudinaryUrl(built, env) };
   }
 
   const disposablePath = disposablePathFromPhoto(input.photo);
@@ -129,7 +159,7 @@ export function appMediaUrl(path: string, env: NodeJS.ProcessEnv = process.env) 
 
 export function listingSocialMetadataUrl(listingId: string, photo: ListingPhotoSource, env: NodeJS.ProcessEnv = process.env) {
   if (readMediaProviderMode(env) === "cloudinary" && !photo.publicId.startsWith("imagekit/") && !photo.imageKitFilePath?.startsWith("/iommarket-media/")) {
-    return signPrivateCloudinaryUrl(buildSocialImageUrl(photo));
+    return signPrivateCloudinaryUrl(buildSocialImageUrl(photo), env);
   }
   return appMediaUrl(`/api/media/social/${encodeURIComponent(listingId)}`, env);
 }
@@ -145,6 +175,7 @@ export function structuredListingImageUrl(input: {
       input.primary
         ? buildSocialImageUrl(input.photo)
         : buildListingPhotoUrl(input.photo, { width: 1200, mode: "fit", frame: "gallery" }),
+      env,
     );
   }
   const params = new URLSearchParams({
