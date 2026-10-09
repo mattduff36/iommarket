@@ -1,17 +1,5 @@
 [
   {
-    "file": "actions/admin/database-sync.ts",
-    "snippet": "if (error instanceof DatabaseSyncError) return error.message;",
-    "reason": "DatabaseSyncError is deliberately public: diagnostics.ts redacts internal causes and formats bounded stage/outcome/reference copy. All other errors use trace-only fallback; admin staging gates unchanged.",
-    "occurrences": 1
-  },
-  {
-    "file": "actions/admin/database-sync.ts",
-    "snippet": "catch (error) { return { error: error instanceof DatabaseSyncError ? error.message : \"Database history is unavailable. Refresh the page to try again.\" }; }",
-    "reason": "DatabaseSyncError is deliberately public: diagnostics.ts redacts internal causes and formats bounded stage/outcome/reference copy. All other errors use trace-only fallback; admin staging gates unchanged.",
-    "occurrences": 1
-  },
-  {
     "file": "actions/dealer-reviews.ts",
     "snippet": "return error instanceof DealerReviewActionError ? error.message : fallback;",
     "reason": "Private DealerReviewActionError is constructed only from checked-in lifecycle sentences in this action file; provider/DB exceptions use the fallback.",

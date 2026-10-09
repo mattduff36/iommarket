@@ -20,6 +20,7 @@ const ENTRY_PATHS = new Set([
 // arbitrary /api prefixes or the legacy shared-password endpoint through.
 const MACHINE_PATHS = new Set([
   "/api/auth/send-email",
+  "/api/cron/preview-mirror",
   "/api/webhooks/payments", "/api/webhooks/ripple", "/api/webhooks/ripple-staging",
 ]);
 

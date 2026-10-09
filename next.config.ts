@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     root: projectRoot,
   },
   outputFileTracingIncludes: {
-    "/**": ["./content/policies/**"],
+    "/**": ["./content/policies/**", "./prisma/schema.prisma"],
   },
   images: {
     remotePatterns: [
