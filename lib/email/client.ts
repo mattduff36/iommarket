@@ -50,6 +50,20 @@ export async function sendResendEmail(input: {
   replyTo?: string;
   idempotencyKey?: string;
 }): Promise<void> {
+  const { captureStagingTestEffect } = await import("@/lib/deployment/staging-test-effects");
+  const captured = await captureStagingTestEffect({
+    kind: "EMAIL",
+    payload: {
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      replyTo: input.replyTo,
+      idempotencyKey: input.idempotencyKey,
+    },
+  });
+  if (captured) return;
+
   const resend = getResendClient();
   if (!resend) return;
   const recipients = (Array.isArray(input.to) ? input.to : [input.to])

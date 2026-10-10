@@ -18,7 +18,17 @@ Reset deletes development marketplace rows and clears clone provenance. It does 
 
 ## Side effects
 
-Each applied clone records immutable provenance for imported rows. On staging, email, payment checkout, webhooks, media deletion, monitoring alerts and account deletion fail closed for those rows. Outside staging the guard does nothing. If the provenance tables are missing, staging still allows effects because no clone has been installed. If a generation is active and the lookup fails, the effect stops. Cloned cost-ledger rows stay in the database for diagnosis. Canonical cost routing continues to use the live ledger, not the clone. No Supabase Storage or other chargeable Supabase service is used.
+Each applied clone records immutable provenance for imported rows. The clone copies media references only; it does not copy physical ImageKit or Cloudinary files.
+
+Verified staging captures emails, monitoring alerts and outbound webhooks as redacted `AdminAuditLog` records with entity type `StagingTestEffect`. These flows complete without contacting recipients or requiring live provider configuration. Invalid staging or preview identity blocks delivery. Production retains its existing provider flow and safeguards.
+
+Cloned users can upload new images into the managed staging namespace. User ownership, immutable paths and exact provider file identities remain required. Removing a copied production image changes staging records only: cleanup completes with `preserved-original` and does not fetch, delete or purge the original file. All legacy Cloudinary storage remains read-only on staging because its historical paths do not reliably prove environment ownership. New staging ImageKit files can be physically deleted; the storage boundary checks observed metadata and refuses production, migration and unknown paths even without clone provenance. Failed provenance lookups stop provider operations.
+
+Cloned account deletion can complete local anonymisation while preserving lease fencing and legal holds. Auth admin operations validate staging identity before returning any cached client and target only the preview Supabase project.
+
+Sample subscription checkout ignores only Subscription rows proven copied from production in the same transaction. It creates a separate DEV simulation subscription through the existing fulfillment path. Genuine preview subscriptions still block simulation; copied and genuine provider billing rows are preserved. Production payment simulation remains disabled.
+
+Cloned cost-ledger rows remain available for diagnosis. Hosted staging uses the separate Accounts preview configuration. Read-only external reference lookups retain their existing behaviour. The next database refresh replaces staging test records and captures; it does not itself clean orphaned staging files from external storage. No Supabase Storage or other chargeable Supabase service is used.
 
 ## Backups and restore
 

@@ -11,6 +11,17 @@ export async function notifyMonitoringWebhook({
   headers,
   body,
 }: NotifyWebhookInput): Promise<{ ok: boolean; status?: number; error?: string }> {
+  const { captureStagingTestEffect } = await import("@/lib/deployment/staging-test-effects");
+  const captured = await captureStagingTestEffect({
+    kind: "WEBHOOK",
+    payload: {
+      webhookUrl,
+      body: payload,
+      headers,
+    },
+  });
+  if (captured) return { ok: true };
+
   try {
     const response = await fetch(webhookUrl, {
       method: "POST",

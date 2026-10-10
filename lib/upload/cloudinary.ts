@@ -143,6 +143,9 @@ export async function deleteImage(
   publicId: string,
   deliveryType: string = IMAGE_CONSTRAINTS.deliveryType,
 ): Promise<void> {
+  const { isStagingTestRuntime } = await import("@/lib/deployment/staging-test-runtime");
+  // Legacy assets have no reliable staging namespace. Staging writes use ImageKit.
+  if (isStagingTestRuntime()) return;
   // These are read-only production references, never Cloudinary-owned assets.
   if (publicId.startsWith("database-sync/")) return;
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");

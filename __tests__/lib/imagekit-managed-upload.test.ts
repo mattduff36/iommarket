@@ -152,4 +152,51 @@ describe("managed ImageKit intent lifecycle", () => {
     expect(mocks.download).toHaveBeenCalledWith(expect.objectContaining({ convertHeif: true }));
     expect(mocks.clean).toHaveBeenCalledWith({ bytes: Buffer.from("converted-webp"), format: "webp" });
   });
+
+  it("lets a cloned actor upload and finalize a new staging file without dropping path checks", async () => {
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres.syneonzucehwlghqmfbg@aws-0.pooler.supabase.com/postgres");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://syneonzucehwlghqmfbg.supabase.co");
+    mocks.effects.mockRejectedValue(new Error("Cloned production records cannot trigger external effects from staging."));
+    const issued = await issueManagedImageKitUploadIntent("cloned-user", {
+      fileName: "car.jpg", fileType: "image/jpeg", fileSize: 6,
+    });
+    const created = issued.intent;
+    expect(created.publicId).toBe(`imagekit/staging/cloned-user/${created.id}`);
+    expect(created.imageKitFilePath).toBe(`/iommarket-media/staging/quarantine/cloned-user/${created.id}/source.jpg`);
+    const stagingIntent = {
+      ...intent, ...created, userId: "cloned-user", status: "ISSUED", imageKitFileId: "raw-file",
+      bytes: 6, format: "jpg", expiresAt: new Date("2099-01-01T00:00:00Z"),
+    };
+    mocks.find.mockResolvedValue({
+      ...stagingIntent,
+      publicId: `imagekit/production/cloned-user/${created.id}`,
+      imageKitFilePath: `/iommarket-media/production/quarantine/cloned-user/${created.id}/source.jpg`,
+    });
+    await expect(finalizeManagedImageKitUpload({
+      userId: "cloned-user", intentId: created.id, fileId: "raw-file",
+    })).rejects.toThrow(/identity changed/);
+    mocks.find.mockResolvedValue({ ...stagingIntent, userId: "other" });
+    await expect(finalizeManagedImageKitUpload({
+      userId: "cloned-user", intentId: created.id, fileId: "raw-file",
+    })).rejects.toThrow(/not found/);
+    expect(mocks.download).not.toHaveBeenCalled();
+    mocks.find.mockResolvedValue(stagingIntent);
+    mocks.details.mockResolvedValue({
+      fileId: "raw-file", filePath: stagingIntent.imageKitFilePath, size: 6, width: 1200, height: 800,
+    });
+    await expect(finalizeManagedImageKitUpload({
+      userId: "cloned-user", intentId: created.id, fileId: "substitute",
+    })).rejects.toThrow(/identity changed/);
+    await expect(finalizeManagedImageKitUpload({
+      userId: "cloned-user", intentId: created.id, fileId: "raw-file",
+    })).resolves.toMatchObject({
+      status: "VERIFIED",
+      imageKitFilePath: `/iommarket-media/staging/listings/cloned-user/${created.id}/photo.jpg`,
+    });
+    expect(mocks.upload).toHaveBeenCalledWith({
+      filePath: `/iommarket-media/staging/listings/cloned-user/${created.id}/photo.jpg`,
+      bytes: Buffer.from("clean"),
+    });
+    expect(mocks.effects).not.toHaveBeenCalled();
+  });
 });

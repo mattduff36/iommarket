@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { createMonitoringFingerprint } from "./fingerprint";
 import {
   redactFreeText,
@@ -246,7 +247,7 @@ export async function captureException(
       title: context.title ?? message.slice(0, 180),
       message,
       stack: payload.stack,
-      environment: context.environment ?? process.env.NODE_ENV ?? "unknown",
+      environment: context.environment ?? (isStagingOnlyFeatureEnabled() ? "staging" : process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown"),
       route: context.route,
       action: context.action,
       component: context.component,
@@ -286,7 +287,7 @@ export async function captureBusinessEvent(
       title: context.title ?? message.slice(0, 180),
       message,
       stack: null,
-      environment: context.environment ?? process.env.NODE_ENV ?? "unknown",
+      environment: context.environment ?? (isStagingOnlyFeatureEnabled() ? "staging" : process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown"),
       route: context.route,
       action: context.action,
       component: context.component,
