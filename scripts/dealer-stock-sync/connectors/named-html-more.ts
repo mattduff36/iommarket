@@ -109,21 +109,25 @@ export function extractFranklinsListBoxes(html: string, origin: string) {
   if (!html.includes("list-box-wrapper") || !html.includes("view-car-details")) return [];
   const chunks = html.split(/class="list-box-wrapper/i).slice(1);
   return chunks.flatMap((chunk) => {
-    const href = chunk.match(/href="(https?:\/\/[^"]+\/cars\/[^"]+\/\d+\/)"/i)?.[1];
+    const href = chunk.match(/href="([^"]*\/(?:cars|vans)\/[^"]*\/(\d+)\/?)"/i);
+    const detailPath = href?.[1];
     const make = decodeListingText(chunk.match(/<h2>\s*<strong>([^<]+)<\/strong>\s*([^<]+)/i)?.[1] ?? "");
     const model = decodeListingText(chunk.match(/<h2>\s*<strong>[^<]+<\/strong>\s*([^<]+)/i)?.[1] ?? "");
     if (!make || !model) return [];
     const reserved = /RESERVED/i.test(chunk);
+    const poa = !reserved && /\bpoa\b/i.test(chunk);
     return [
       {
-        url: resolveMaybeUrl(href ?? null, origin),
-        sourceVehicleId: href?.split("/").filter(Boolean).at(-1),
+        url: resolveMaybeUrl(detailPath ?? null, origin),
+        sourceVehicleId: href?.[2],
+        vehicleType: /\/vans\//i.test(detailPath ?? "") ? "van" : "car",
         make,
         model,
         derivative: decodeListingText(chunk.match(/<h3>([^<]+)<\/h3>/i)?.[1] ?? ""),
         year: yearFrom(chunk.match(/<h3>([^<]+)<\/h3>/i)?.[1] ?? ""),
-        price: reserved ? null : priceFrom(chunk),
-        isPoa: reserved,
+        price: reserved || poa ? null : priceFrom(chunk),
+        isPoa: poa,
+        availability: reserved ? "reserved" : "available",
         mileage: milesFrom(chunk),
         transmission: decodeListingText(chunk.match(/title='Transmission'>([^<]+)/i)?.[1] ?? ""),
         fuel: decodeListingText(chunk.match(/title='Fuel'>([^<]+)/i)?.[1] ?? ""),

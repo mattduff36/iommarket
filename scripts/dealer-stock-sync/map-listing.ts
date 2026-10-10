@@ -92,6 +92,9 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
   if (vehicle.availability === "sold") {
     return { reconciled, listing: null, skipReason: "sold" };
   }
+  if (vehicle.availability === "reserved") {
+    return { reconciled, listing: null, skipReason: "reserved" };
+  }
   if (vehicle.isPoa) return { reconciled, listing: null, skipReason: "poa" };
   if (vehicle.pricePence == null) return { reconciled, listing: null, skipReason: "missing-price" };
   if (

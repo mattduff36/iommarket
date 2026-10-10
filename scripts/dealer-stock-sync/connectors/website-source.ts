@@ -8,10 +8,10 @@ import {
 } from "../html-media";
 import {
   collectJsonVehicles,
+  discoverStockPageUrls,
   extractJsonLdVehicles,
   extractNextDataVehicles,
   extractStructuredHtml,
-  stockPageQueue,
 } from "./html-extract";
 import { extractDetailSpecs } from "./named-html-more";
 import type { CanonicalVehicle, ConnectorKey, SourceListResult } from "../types";
@@ -126,19 +126,24 @@ function toListResult(
   startUrl: string,
   raw: unknown[],
   pagesFetched: number,
+  html = "",
 ): SourceListResult {
   const vehicles = raw
     .map((item) => normalizeWebsiteVehicle(item, context))
     .filter((item): item is CanonicalVehicle => item != null);
+  const confirmedEmpty = context.source.connectorKey === "click-dealer" && raw.length === 0 &&
+    /We do not have any matching vehicles in stock at present\./i.test(
+      html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " "),
+    );
   return {
     dealerKey: context.dealer.key,
     sourceKey: context.source.key,
     platform: context.source.connectorKey,
-    status: vehicles.length > 0 ? "ok" : "failed",
-    error: vehicles.length > 0 ? null : "No structured public stock records found",
+    status: vehicles.length > 0 || confirmedEmpty ? "ok" : "failed",
+    error: vehicles.length > 0 || confirmedEmpty ? null : "No structured public stock records found",
     startUrl,
     pagesFetched,
-    advertisedCount: null,
+    advertisedCount: confirmedEmpty ? 0 : null,
     rawCount: vehicles.length > 0 ? vehicles.length : null,
     vehicles,
     rawRecords: raw,
@@ -181,16 +186,18 @@ export function createWebsiteConnector(input: {
       });
     },
     async fetchDetails(context, frozen) {
+      const { fetchPageHtml, withPublicPage } = await import("../browse");
+      const enrich = async (load: (url: string) => Promise<string>) => {
       let detailMissing = 0;
       const vehicles: CanonicalVehicle[] = [];
       for (const vehicle of frozen) {
         if (!vehicle.detailUrl) {
+          detailMissing += 1;
           vehicles.push(vehicle);
           continue;
         }
         try {
-          const { fetchPageHtml } = await import("../browse");
-          const html = await fetchPageHtml(vehicle.detailUrl, context.fetchImpl);
+          const html = await load(vehicle.detailUrl);
           const origin = new URL(vehicle.detailUrl).origin;
           const specs = extractDetailSpecs(html, vehicle.detailUrl);
           const detailImages = extractWebsiteDetailImages(html, origin, {
@@ -218,6 +225,15 @@ export function createWebsiteConnector(input: {
         }
       }
       return { vehicles, detailMissing };
+      };
+      if (context.source.connectorKey === "click-dealer" && !context.fetchImpl && context.source.startUrl && frozen.length) {
+        return withPublicPage(context.source.startUrl, async page => enrich(async url => {
+          const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+          if (!response?.ok()) throw new Error("Vehicle detail page was unavailable");
+          return page.content();
+        }), { headed: false, settleMs: 1000 });
+      }
+      return enrich(url => fetchPageHtml(url, context.fetchImpl));
     },
     normalize(raw, context) {
       return normalizeWebsiteVehicle(raw, context);
@@ -268,20 +284,26 @@ export async function fetchWebsiteList(
           ? [...extractNextDataVehicles(firstHtml), ...extractJsonLdVehicles(firstHtml)].filter(Boolean)
           : extractStructuredHtml(firstHtml, origin, options.extractHtml);
         let pagesFetched = 1;
-        if (!preferBrowser && maxPages > 1) {
-          const extraUrls = stockPageQueue(firstHtml, startUrl, startUrl, maxPages).slice(0, maxPages - 1);
-          for (const pageUrl of extraUrls) {
-            try {
-              const pageHtml = await fetchPageHtml(pageUrl, context.fetchImpl);
-              raw = [...raw, ...extractStructuredHtml(pageHtml, origin, options.extractHtml)];
-              pagesFetched += 1;
-            } catch {
-              // Sequential guesses such as /used-cars/4 can 404; keep earlier pages.
+        const fetched = new Set([startUrl.replace(/\/$/, "")]);
+        const queue = discoverStockPageUrls(firstHtml, startUrl);
+        let failedPage = false;
+        while (!preferBrowser && pagesFetched < maxPages && queue.length) {
+          const pageUrl = queue.shift()!;
+          const key = pageUrl.replace(/\/$/, "");
+          if (fetched.has(key)) continue;
+          fetched.add(key);
+          try {
+            const pageHtml = await fetchPageHtml(pageUrl, context.fetchImpl);
+            raw = mergeRawRecords([raw, extractStructuredHtml(pageHtml, origin, options.extractHtml)]);
+            pagesFetched += 1;
+            for (const next of discoverStockPageUrls(pageHtml, pageUrl)) {
+              if (!fetched.has(next.replace(/\/$/, "")) && !queue.includes(next)) queue.push(next);
             }
-          }
+          } catch { failedPage = true; }
         }
-        const listed = toListResult(context, startUrl, raw, pagesFetched);
-        if (listed.status === "ok" || preferBrowser === false) return listed;
+        const listed = toListResult(context, startUrl, raw, pagesFetched, firstHtml);
+        const withPagination = { ...listed, paginationUncertain: failedPage || queue.length > 0 || listed.vehicles.length !== raw.length };
+        if (listed.status === "ok" || preferBrowser === false) return withPagination;
       } catch (error) {
         if (preferBrowser === false) {
           throw error;
@@ -300,7 +322,7 @@ export async function fetchWebsiteList(
         );
         const htmls = [await page.content()];
         const visited = new Set([page.url().replace(/\/$/, "")]);
-        const queue = stockPageQueue(htmls[0] ?? "", page.url(), startUrl, maxPages);
+        const queue = discoverStockPageUrls(htmls[0] ?? "", page.url());
         const { sleep } = await import("../rate-limit");
         while (htmls.length < maxPages && queue.length > 0) {
           const nextUrl = queue.shift();
@@ -313,11 +335,18 @@ export async function fetchWebsiteList(
           await sleep(settleMs);
           const nextHtml = await page.content();
           htmls.push(nextHtml);
-          for (const extra of stockPageQueue(nextHtml, nextUrl, startUrl, maxPages)) {
+          for (const extra of discoverStockPageUrls(nextHtml, nextUrl)) {
             if (!visited.has(extra.replace(/\/$/, "")) && !queue.includes(extra)) queue.push(extra);
           }
         }
-        return { jsonRequest, html: htmls[0], htmls, jsonPayloads, htmlPayloads };
+        return {
+          jsonRequest,
+          html: htmls[0],
+          htmls,
+          jsonPayloads,
+          htmlPayloads,
+          paginationUncertain: queue.length > 0,
+        };
       },
       {
         captureJson: true,
@@ -360,7 +389,10 @@ export async function fetchWebsiteList(
         // Keep captured payloads / fall through to rendered HTML.
       }
     }
-    return toListResult(context, startUrl, raw, pages.length);
+    return {
+      ...toListResult(context, startUrl, raw, pages.length, pages.join("\n")),
+      paginationUncertain: Boolean(capturedJson.paginationUncertain) || raw.some(item => !normalizeWebsiteVehicle(item, context)),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
