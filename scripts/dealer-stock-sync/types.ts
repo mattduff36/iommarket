@@ -123,6 +123,8 @@ export interface SourceListResult {
   rawCount: number | null;
   vehicles: CanonicalVehicle[];
   rawRecords?: unknown[];
+  detailMissing?: number;
+  paginationUncertain?: boolean;
 }
 
 export interface ReconciledVehicle {

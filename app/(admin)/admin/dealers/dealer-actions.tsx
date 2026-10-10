@@ -13,6 +13,7 @@ import { DealerAccessDialog } from "../users/dealer-access-dialog";
 import type { DealerTier } from "@prisma/client";
 
 interface DealerActionsProps {
+  stockSyncDisabledReason?: string | null;
   dealerId: string;
   dealerName?: string;
   userId: string;
@@ -33,6 +34,7 @@ function readError(error: unknown, fallback: string) {
 }
 
 export function DealerActions({
+  stockSyncDisabledReason,
   dealerId,
   dealerName,
   userId,
@@ -121,6 +123,14 @@ export function DealerActions({
       id: "onboarding",
       label: "Onboarding email",
       href: `/admin/dealer-onboarding?dealer=${dealerId}`,
+    },
+    {
+      kind: "link",
+      id: "stock-sync",
+      disabled: Boolean(stockSyncDisabledReason),
+      disabledReason: stockSyncDisabledReason ?? undefined,
+      label: "Sync website stock",
+      href: `/admin/dealers/${dealerId}/stock-sync`,
     },
     canGrantAccess
       ? {

@@ -31,6 +31,8 @@ export interface AdminRowLink {
   id: string;
   label: string;
   href: string;
+  disabled?: boolean;
+  disabledReason?: string;
   hidden?: boolean;
 }
 
@@ -134,6 +136,15 @@ function renderAction(action: AdminRowAction, pending: boolean) {
   }
 
   if (action.kind === "link") {
+    if (action.disabled || pending) {
+      return (
+        <div key={action.id} title={action.disabledReason}>
+          <DropdownMenuItem disabled aria-label={action.disabledReason ? `${action.label}. ${action.disabledReason}` : action.label}>
+            {action.label}
+          </DropdownMenuItem>
+        </div>
+      );
+    }
     return (
       <DropdownMenuItem key={action.id} asChild disabled={pending}>
         <Link href={action.href}>{action.label}</Link>

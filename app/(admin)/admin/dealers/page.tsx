@@ -31,6 +31,8 @@ import {
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
 import { DealerActions } from "./dealer-actions";
+import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
+import { SyncAllDealerStockButton } from "./sync-all-button";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import { formatAdminDate } from "@/lib/admin/format";
@@ -136,6 +138,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
       <AdminPageHeader
         title="Dealers"
         description="Review dealer identity, verification, plans, and current access."
+        actions={<SyncAllDealerStockButton disabledReason={getDealerStockSyncAvailability().reason} />}
       />
 
       <AdminFilterBar
@@ -338,6 +341,7 @@ function DealerRow({ dealer }: DealerRowProps) {
       </TableCell>
       <TableCell data-column="actions" className={adminActionsCellClass}>
         <DealerActions
+          stockSyncDisabledReason={getDealerStockSyncAvailability().reason}
           dealerId={dealer.id}
           dealerName={dealer.name}
           userId={dealer.user.id}

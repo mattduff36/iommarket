@@ -5,6 +5,17 @@ import { describe, expect, it, vi } from "vitest";
 import { AdminRowActions } from "@/components/admin/admin-row-actions";
 
 describe("AdminRowActions", () => {
+  it("keeps a disabled link visible with a tooltip and no navigable anchor", async () => {
+    const user = userEvent.setup();
+    const reason = "Disabled in production until verified in preview.";
+    render(<AdminRowActions label="Dealer actions" actions={[
+      { kind: "link", id: "sync", label: "Sync website stock", href: "/admin/dealers/stock-sync", disabled: true, disabledReason: reason },
+    ]} />);
+    await user.click(screen.getByRole("button", { name: "Dealer actions" }));
+    expect(screen.getByRole("menuitem", { name: `Sync website stock. ${reason}` })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTitle(reason)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
   it("keeps destructive actions separate and omits hidden actions", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();

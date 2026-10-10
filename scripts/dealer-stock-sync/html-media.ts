@@ -309,6 +309,41 @@ export function extractSelectCarSalesGalleryFromHtml(
   );
 }
 
+function franklinDetailStockId(detailUrl?: string | null) {
+  if (!detailUrl) return null;
+  let pathname = detailUrl;
+  try {
+    pathname = new URL(detailUrl).pathname;
+  } catch {
+    pathname = detailUrl.split("?")[0] ?? detailUrl;
+  }
+  return pathname.match(/\/(?:cars|vans)\/(?:[^/]+\/)*(\d+)\/?$/i)?.[1] ?? null;
+}
+
+function isFranklinStockImage(value: string, stockId: string) {
+  try {
+    const url = new URL(value, "https://www.franklins.co.im");
+    const host = url.hostname.toLowerCase();
+    if (host !== "cd5.uk" && !host.endsWith(".cd5.uk")) return false;
+    return new RegExp(
+      `/stockimages/${stockId}/(?:w\\d+/)?[^/]+\\.(?:jpe?g|png|webp)$`,
+      "i",
+    ).test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function extractFranklinGalleryFromHtml(
+  html: string,
+  origin: string | null,
+  detailUrl?: string | null,
+) {
+  const stockId = franklinDetailStockId(detailUrl);
+  if (!stockId) return [];
+  return extractImageAttributes(html, origin, (value) => isFranklinStockImage(value, stockId));
+}
+
 export function extractSwiftGalleryFromHtml(html: string, origin?: string | null) {
   const gallery = html.match(/<bsk-gallery\b[^>]*\bimages=["']([^"']+)["']/i)?.[1];
   if (!gallery) return [];
@@ -345,6 +380,12 @@ export function extractWebsiteDetailImages(
   origin: string | null,
   options: { dealerKey?: string; detailUrl?: string | null } = {},
 ) {
+  if (options.dealerKey === "mikes-motors") {
+    const id = options.detailUrl?.match(/-(\d+)\/?$/)?.[1];
+    if (!id) return [];
+    const urls = html.match(/https:\/\/images\.clickdealer\.co\.uk\/[^"'\s<>]+\.(?:jpg|jpeg|png|webp)/gi) ?? [];
+    return uniqueImageUrls(urls.filter(url => new URL(url).pathname.includes(`/${id}/full/`)), FEATURED_LISTING_PHOTO_LIMIT);
+  }
   if (options.dealerKey === "bcc-cars") {
     return extractBccGalleryFromHtml(html, origin);
   }
@@ -353,6 +394,9 @@ export function extractWebsiteDetailImages(
   }
   if (options.dealerKey === "swift-motors") {
     return extractSwiftGalleryFromHtml(html, origin);
+  }
+  if (options.dealerKey === "franklins") {
+    return extractFranklinGalleryFromHtml(html, origin, options.detailUrl);
   }
   if (isNextInventoryDetailUrl(options.detailUrl) && html.includes("__NEXT_DATA__")) {
     return extractNextInventoryGalleryFromHtml(html, origin, options.detailUrl);

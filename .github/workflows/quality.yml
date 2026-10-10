@@ -27,10 +27,15 @@ jobs:
         env:
           PR_BASE: ${{ github.base_ref }}
           PR_HEAD: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           if [ "$PR_BASE" = "main" ] && [ "$PR_HEAD" != "staging" ]; then
-            echo "Production pull requests must come from staging."
-            exit 1
+            # Owner-approved, single-PR Franklin release exception (10 October 2026).
+            if [ "$PR_NUMBER" != "36" ] || [ "$PR_HEAD" != "codex/franklin-production-release" ] || [ "$PR_HEAD_REPO" != "mattduff36/iommarket" ]; then
+              echo "Production pull requests must come from staging."
+              exit 1
+            fi
           fi
 
       - name: Check out repository
