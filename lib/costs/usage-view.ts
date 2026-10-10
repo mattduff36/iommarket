@@ -43,7 +43,22 @@ export interface CostUsageDayPoint {
   day: string;
   label: string;
   daily: Record<string, number>;
-  cumulative: Record<string, number>;
+  cumulative: Record<string, number | null>;
+  invoicedPence?: number | null;
+  remainingToInvoicePence?: number | null;
+}
+
+export interface CostBillingDisplayPoint {
+  day: string;
+  invoicedPence: number | null;
+  remainingToInvoicePence: number | null;
+}
+
+/** Sanitized invoice history. Monetary values are supplied, never recalculated here. */
+export interface CostBillingDisplay {
+  invoicesAvailable: boolean;
+  asOf: string;
+  history: CostBillingDisplayPoint[];
 }
 
 export interface CostUsageModel {
@@ -52,9 +67,12 @@ export interface CostUsageModel {
   toDay: string | null;
   rangeLabel: string;
   seriesKeys: string[];
+  chartSeriesKeys: string[];
   series: Array<{ key: string; amountMinor: number; amountLabel: string }>;
   points: CostUsageDayPoint[];
   filteredLines: CostLineDto[];
+  billingApplied: boolean;
+  invoicesAvailable: boolean;
 }
 
 function utcDay(value: Date): string {
@@ -203,60 +221,153 @@ export function paginateCostLines(lines: CostLineDto[], page: number) {
   };
 }
 
+export function toCostBillingDisplay(input: {
+  invoicedPence: number | null;
+  asOf: string;
+  history: readonly {
+    day: string;
+    invoicedPence: number;
+    remainingToInvoicePence: number | null;
+  }[];
+}): CostBillingDisplay {
+  const invoicesAvailable = input.invoicedPence !== null;
+  return {
+    invoicesAvailable,
+    asOf: input.asOf,
+    history: input.history.map((point) => ({
+      day: point.day,
+      invoicedPence: invoicesAvailable ? point.invoicedPence : null,
+      remainingToInvoicePence: point.remainingToInvoicePence,
+    })),
+  };
+}
+
+export function costBillingHasPlot(billing: CostBillingDisplay): boolean {
+  return billing.history.some((point) =>
+    (billing.invoicesAvailable && point.invoicedPence !== null)
+    || point.remainingToInvoicePence !== null,
+  );
+}
+
+function calendarDay(value: string): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})(?:T.*)?$/.exec(value);
+  if (!match?.[1]) return null;
+  const day = match[1];
+  const parsed = Date.parse(`${day}T00:00:00.000Z`);
+  if (Number.isNaN(parsed)) return null;
+  return new Date(parsed).toISOString().slice(0, 10) === day ? day : null;
+}
+
+function lineDay(line: CostLineDto): string {
+  return utcDay(new Date(line.periodStart));
+}
+
+function orderSeriesKeys(keys: readonly string[]): string[] {
+  const unique = [...new Set(keys)];
+  const head = SERIES_ORDER.filter((key) => unique.includes(key));
+  return [...head, ...unique.filter((key) => !head.includes(key))];
+}
+
+function billingHistory(
+  billing: CostBillingDisplay | undefined,
+): { asOfDay: string; byDay: Map<string, CostBillingDisplayPoint> } | null {
+  if (!billing) return null;
+  const asOfDay = calendarDay(billing.asOf);
+  if (!asOfDay) return null;
+  const byDay = new Map<string, CostBillingDisplayPoint>();
+  for (const point of billing.history) {
+    const day = calendarDay(point.day);
+    if (!day || day > asOfDay) continue;
+    byDay.set(day, { ...point, day });
+  }
+  return { asOfDay, byDay };
+}
+
+function resolveBounds(
+  range: CostUsageRange,
+  now: Date,
+  lineDays: string[],
+  billing: { asOfDay: string; byDay: Map<string, CostBillingDisplayPoint> } | null,
+): { fromDay: string; toDay: string } | null {
+  if (!billing) return usageRangeBounds(range, now, lineDays);
+  if (range === "all") {
+    const days = [...lineDays, ...billing.byDay.keys()].filter((day) => day <= billing.asOfDay);
+    const first = [...days].sort()[0];
+    return first ? { fromDay: first, toDay: billing.asOfDay } : null;
+  }
+  const bounds = usageRangeBounds(range, parseUtcDay(billing.asOfDay), lineDays);
+  if (!bounds || bounds.fromDay > billing.asOfDay) return null;
+  return {
+    fromDay: bounds.fromDay,
+    toDay: bounds.toDay <= billing.asOfDay ? bounds.toDay : billing.asOfDay,
+  };
+}
+
 export function buildCostUsageModel(input: {
   lines: CostLineDto[];
   range: CostUsageRange;
   now?: Date;
+  billing?: CostBillingDisplay;
 }): CostUsageModel {
+  const billed = billingHistory(input.billing);
   const now = input.now ?? new Date();
-  const newestFirst = [...input.lines].sort((left, right) =>
-    right.periodStart.localeCompare(left.periodStart),
-  );
-  const lineDays = newestFirst.map((line) => utcDay(new Date(line.periodStart)));
-  const bounds = usageRangeBounds(input.range, now, lineDays);
+  const eligible = [...input.lines]
+    .filter((line) => !billed || lineDay(line) <= billed.asOfDay)
+    .sort((left, right) => right.periodStart.localeCompare(left.periodStart));
+  const bounds = resolveBounds(input.range, now, eligible.map(lineDay), billed);
   const filteredLines = bounds
-    ? newestFirst.filter((line) => {
-        const day = utcDay(new Date(line.periodStart));
+    ? eligible.filter((line) => {
+        const day = lineDay(line);
         return day >= bounds.fromDay && day <= bounds.toDay;
       })
     : [];
-  const knownSeries = new Set<string>(SERIES_ORDER);
-  const seriesKeys: string[] = SERIES_ORDER.filter((key) =>
-    filteredLines.some((line) => lineSeriesKey(line) === key),
+  const priorLines = billed && bounds
+    ? eligible.filter((line) => lineDay(line) < bounds.fromDay)
+    : [];
+  const seriesKeys = orderSeriesKeys(filteredLines.map(lineSeriesKey));
+  const chartSeriesKeys = orderSeriesKeys([
+    ...seriesKeys,
+    ...priorLines.map(lineSeriesKey),
+  ]);
+  const days = bounds ? daysInRange(bounds.fromDay, bounds.toDay) : [];
+  const dailyByDay = new Map<string, Record<string, number>>(
+    days.map((day) => [day, Object.fromEntries(seriesKeys.map((key) => [key, 0]))]),
   );
   for (const line of filteredLines) {
-    const key = lineSeriesKey(line);
-    if (!knownSeries.has(key) && !seriesKeys.includes(key)) seriesKeys.push(key);
-  }
-  const days = bounds ? daysInRange(bounds.fromDay, bounds.toDay) : [];
-  const dailyByDay = new Map<string, Record<string, number>>();
-  for (const day of days) {
-    dailyByDay.set(day, Object.fromEntries(seriesKeys.map((key) => [key, 0])));
-  }
-  for (const line of filteredLines) {
-    const day = utcDay(new Date(line.periodStart));
-    const current = dailyByDay.get(day);
+    const current = dailyByDay.get(lineDay(line));
     if (!current) continue;
     const key = lineSeriesKey(line);
     current[key] = (current[key] ?? 0) + line.amountMinor;
   }
 
-  const running: Record<string, number> = Object.fromEntries(
-    seriesKeys.map((key) => [key, 0]),
-  );
+  const opening = Object.fromEntries(chartSeriesKeys.map((key) => [key, 0]));
+  for (const line of priorLines) {
+    const key = lineSeriesKey(line);
+    opening[key] = (opening[key] ?? 0) + line.amountMinor;
+  }
+  const daysWithLines = new Set(filteredLines.map(lineDay));
+  let costsKnown = !billed || priorLines.length > 0;
+  let running = { ...opening };
   const points = days.map((day) => {
     const daily = dailyByDay.get(day) ?? {};
-    for (const key of seriesKeys) {
-      running[key] = (running[key] ?? 0) + (daily[key] ?? 0);
+    if (daysWithLines.has(day)) costsKnown = true;
+    if (costsKnown) {
+      running = Object.fromEntries(
+        chartSeriesKeys.map((key) => [key, (running[key] ?? 0) + (daily[key] ?? 0)]),
+      );
     }
+    const supplied = billed?.byDay.get(day);
     return {
       day,
       label: formatDayLabel(day),
       daily: { ...daily },
-      cumulative: { ...running },
+      cumulative: Object.fromEntries(
+        chartSeriesKeys.map((key) => [key, costsKnown ? running[key] ?? 0 : null]),
+      ),
+      invoicedPence: input.billing?.invoicesAvailable ? supplied?.invoicedPence ?? null : null,
+      remainingToInvoicePence: billed ? supplied?.remainingToInvoicePence ?? null : null,
     };
   });
-
   const series = seriesKeys.map((key) => {
     const amountMinor = filteredLines
       .filter((line) => lineSeriesKey(line) === key)
@@ -272,8 +383,11 @@ export function buildCostUsageModel(input: {
       ? `${formatDayLabel(bounds.fromDay)} – ${formatDayLabel(bounds.toDay)}`
       : "No usage in this period",
     seriesKeys,
+    chartSeriesKeys,
     series,
     points,
     filteredLines,
+    billingApplied: Boolean(billed),
+    invoicesAvailable: Boolean(billed && input.billing?.invoicesAvailable),
   };
 }

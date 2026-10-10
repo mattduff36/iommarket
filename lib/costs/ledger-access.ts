@@ -17,7 +17,18 @@ export function assertNoDirectLedgerDatabase(env: RuntimeEnv = process.env): voi
   }
 }
 
+/** Explicit opt-in. Other roles, including canonical and remote readers, stay unchanged. */
+export function accountsReaderRequested(env: RuntimeEnv = process.env): boolean {
+  return env.COST_LEDGER_ROLE === "accounts-reader";
+}
+
 export function resolveLedgerAccess(env: RuntimeEnv = process.env): LedgerAccess {
+  if (accountsReaderRequested(env)) {
+    return {
+      mode: "unavailable",
+      reason: "Accounts manages costs. This deployment is read-only.",
+    };
+  }
   if(accountsPreviewRequested(env)){
     try{assertAccountsPreview(env);return {mode:"accounts-preview"};}
     catch{return {mode:"unavailable",reason:"Accounts preview isolation could not be verified."};}

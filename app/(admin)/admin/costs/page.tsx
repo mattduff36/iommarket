@@ -6,7 +6,9 @@ import { requireRole } from "@/lib/auth";
 import { isCostOwner, isCostsEnabled } from "@/lib/costs/config";
 import { getCostDashboard } from "@/lib/costs/queries";
 import { costDb } from "@/lib/costs/db";
-import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
+import { accountsReaderRequested, resolveLedgerAccess } from "@/lib/costs/ledger-access";
+import { fetchAccountsCostDashboard } from "@/lib/costs/accounts-reader";
+import { AccountsProjectSummaryView } from "./accounts-summary";
 import { fetchRemoteCostDashboard } from "@/lib/costs/remote-ledger";
 import { DEFAULT_MANUAL_COST_CATEGORIES } from "@/lib/costs/manual-categories";
 import { cursorAuditForViewer, type CostDashboardDto } from "@/lib/costs/dto";
@@ -49,12 +51,18 @@ export default async function AdminCostsPage() {
   const admin = await requireRole("ADMIN");
   const enabled = isCostsEnabled();
   const isOwner = isCostOwner(admin.authUserId);
-  const access = resolveLedgerAccess();
 
   if (!enabled) {
     const dashboard = await getCostDashboard({ db: costDb, enabled: false, isOwner });
     return <CostDashboardView dashboard={dashboard} />;
   }
+
+  if (accountsReaderRequested()) {
+    const dashboard = await fetchAccountsCostDashboard();
+    return <AccountsProjectSummaryView dashboard={dashboard} />;
+  }
+
+  const access = resolveLedgerAccess();
 
   if (localComparisonOrigin()) {
     const comparison = await fetchAccountsComparison();
