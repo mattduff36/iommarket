@@ -42,6 +42,7 @@
     "dealer-stock:archive": "npx tsx scripts/dealer-stock-sync/cli.ts archive",
     "dealer-stock:import": "npx tsx scripts/dealer-stock-sync/cli.ts import",
     "dealer-stock:inspect": "npx tsx scripts/dealer-stock-sync/cli.ts inspect",
+    "dealer-stock:worker": "npx tsx scripts/dealer-stock-sync/worker-cli.ts",
     "founding-dealers:onboard": "npx tsx scripts/onboard-founding-dealers.ts",
     "repair:preview-pack-images": "npx tsx scripts/repair-preview-pack-images.ts",
     "tokens:generate": "npx tsx scripts/generate-ui-from-json.ts",

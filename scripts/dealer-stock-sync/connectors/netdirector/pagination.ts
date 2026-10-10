@@ -130,8 +130,15 @@ export async function fetchSearchPage(input: {
   }
   const payload = await response.json();
   const vehicles = extractSearchVehicles(payload);
+  const record = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const pagination = (record.pagination ?? record.meta ?? record) as Record<string, unknown>;
+  const data = (record.data ?? {}) as Record<string, unknown>;
+  const paginationKnown = typeof record.hasMoreResults === "boolean" ||
+    [pagination.totalPages, pagination.pages, pagination.pageCount, record.count, data.getCount, pagination.total, pagination.totalResults]
+      .some(value => typeof value === "number" && Number.isFinite(value) && value >= 0);
   return {
     vehicles,
+    paginationKnown,
     totalPages: extractTotalPages(payload, vehicles.length),
     hasMoreResults: extractHasMoreResults(payload),
   };
@@ -154,7 +161,9 @@ export async function paginateVehicleSearch(input: {
 
   const vehicles = [...first.vehicles];
   let pagesFetched = 1;
-  for (let page = 2; page <= first.totalPages; page += 1) {
+  let hasMore = first.hasMoreResults;
+  let earlyEmpty = false;
+  for (let page = 2; (page <= first.totalPages || hasMore) && page <= 50; page += 1) {
     const next = await fetchSearchPage({
       url: firstUrl,
       method: input.captured?.method,
@@ -164,9 +173,10 @@ export async function paginateVehicleSearch(input: {
     });
     vehicles.push(...next.vehicles);
     pagesFetched += 1;
-    if (next.vehicles.length === 0) break;
+    hasMore = next.hasMoreResults;
+    if (next.vehicles.length === 0) { earlyEmpty = page < first.totalPages || hasMore; break; }
   }
-  return { vehicles, pagesFetched };
+  return { vehicles, pagesFetched, paginationUncertain: !first.paginationKnown || earlyEmpty || pagesFetched < first.totalPages || hasMore };
 }
 
 export async function paginateClassicListing(input: {
@@ -181,6 +191,7 @@ export async function paginateClassicListing(input: {
   });
   const vehicles = [...first.vehicles];
   let pagesFetched = 1;
+  let earlyEmpty = false;
   let page = 2;
   let hasMore = first.hasMoreResults;
   while (page <= first.totalPages || hasMore) {
@@ -194,8 +205,9 @@ export async function paginateClassicListing(input: {
     vehicles.push(...next.vehicles);
     pagesFetched += 1;
     hasMore = next.hasMoreResults;
-    if (next.vehicles.length === 0 || (!hasMore && page >= first.totalPages)) break;
+    if (next.vehicles.length === 0) { earlyEmpty = page < first.totalPages || hasMore; break; }
+    if (!hasMore && page >= first.totalPages) break;
     page += 1;
   }
-  return { vehicles, pagesFetched };
+  return { vehicles, pagesFetched, paginationUncertain: !first.paginationKnown || earlyEmpty || pagesFetched < first.totalPages || hasMore };
 }

@@ -44,6 +44,7 @@ export async function runDealerPipeline(
         sourceResults.push({
           ...listed,
           vehicles: enriched.vehicles,
+          detailMissing: enriched.detailMissing,
         });
       } else {
         sourceResults.push(listed);

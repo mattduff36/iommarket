@@ -100,6 +100,10 @@ model User {
   dealerUpgradeOffersCancelled   DealerUpgradeOffer[]                  @relation("DealerUpgradeOfferCancelledBy")
   dealerUpgradeAcceptances       DealerUpgradeAcceptance[]
   earlyAccessTestRecipients      WaitlistEarlyAccessRecipient[]        @relation("EarlyAccessTestAdmin")
+  dealerStockBindingsVerified    DealerStockSourceBinding[]            @relation("DealerStockBindingVerifiedBy")
+  dealerStockJobsCreated         DealerStockSyncJob[]                  @relation("DealerStockJobCreatedBy")
+  dealerStockReportsApproved     DealerStockSyncReport[]               @relation("DealerStockReportApprovedBy")
+  dealerStockSyncAudits          DealerStockSyncAudit[]                @relation("DealerStockSyncAuditActor")
 
   @@index([authUserId])
   @@index([email])
@@ -130,6 +134,7 @@ model DealerProfile {
   onboardingInvites       DealerOnboardingInvite[]
   correspondenceSettings  DealerCorrespondenceSettings?
   historicalSlugs         DealerProfileSlugHistory[]
+  stockSourceBinding      DealerStockSourceBinding?
 
   @@index([slug])
 }
@@ -440,6 +445,7 @@ model Listing {
   statusEvents            ListingStatusEvent[]
   revisions               ListingRevision[]
   freeListingClaim        FreeListingClaim?
+  stockSourceIdentity     DealerStockSourceIdentity?
 
   @@unique([previewPackId, reviewSourceIdentity])
   @@index([categoryId, regionId, status])
@@ -2131,6 +2137,147 @@ model CostClientPolicy {
   createdAt             DateTime @default(now()) @db.Timestamptz(3)
 
   @@unique([projectId, version])
+}
+
+enum DealerStockSyncJobKind {
+  SCRAPE
+  APPLY
+}
+
+enum DealerStockSyncJobStatus {
+  QUEUED
+  LEASED
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum DealerStockSyncReportStatus {
+  PENDING_REVIEW
+  APPROVED
+  APPLIED
+  REJECTED
+  SUPERSEDED
+  FAILED
+}
+
+model DealerStockSourceBinding {
+  id           String    @id @default(cuid())
+  dealerId     String    @unique
+  registryKey  String    @unique
+  enabled      Boolean   @default(false)
+  verifiedAt   DateTime?
+  verifiedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  dealer     DealerProfile               @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  verifiedBy User?                       @relation("DealerStockBindingVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  identities DealerStockSourceIdentity[]
+  jobs       DealerStockSyncJob[]
+  reports    DealerStockSyncReport[]
+
+  @@index([enabled])
+  @@index([verifiedById])
+}
+
+model DealerStockSourceIdentity {
+  id                 String   @id @default(cuid())
+  bindingId          String
+  dealerId           String
+  sourceIdentityKey  String
+  listingId          String?  @unique
+  absenceCount       Int      @default(0)
+  lastAbsenceRunId   String?
+  lastSeenRunId      String?
+  baselinePricePence Int?
+  baselineMileage    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  binding DealerStockSourceBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade)
+  listing Listing?                 @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  @@unique([dealerId, sourceIdentityKey])
+  @@index([bindingId])
+  @@index([lastSeenRunId])
+}
+
+model DealerStockSyncJob {
+  id             String                   @id @default(cuid())
+  kind           DealerStockSyncJobKind
+  status         DealerStockSyncJobStatus @default(QUEUED)
+  bindingId      String
+  dealerId       String
+  reportId       String?
+  weeklyKey      String?
+  idempotencyKey String                   @unique
+  leaseOwner     String?
+  leaseExpiresAt DateTime?
+  attempt        Int                      @default(0)
+  payload        Json
+  error          String?
+  createdById    String?
+  createdAt      DateTime                 @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  binding   DealerStockSourceBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade)
+  createdBy User?                    @relation("DealerStockJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  report    DealerStockSyncReport?   @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  audits    DealerStockSyncAudit[]
+
+  @@unique([bindingId, weeklyKey])
+  @@index([status, kind, createdAt])
+  @@index([bindingId, status])
+  @@index([dealerId])
+  @@index([createdById])
+  @@index([reportId])
+}
+
+model DealerStockSyncReport {
+  id              String                      @id @default(cuid())
+  bindingId       String
+  dealerId        String
+  scrapeRunId     String                      @unique
+  status          DealerStockSyncReportStatus
+  fingerprint     String
+  plan            Json
+  inventoryCount  Int
+  failureReason   String?
+  createdAt       DateTime                    @default(now())
+  approvedAt      DateTime?
+  approvedById    String?
+  appliedAt       DateTime?
+  supersededAt    DateTime?
+
+  binding    DealerStockSourceBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade)
+  approvedBy User?                    @relation("DealerStockReportApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  jobs       DealerStockSyncJob[]
+  audits     DealerStockSyncAudit[]
+
+  @@index([dealerId, status, createdAt])
+  @@index([bindingId, status])
+  @@index([approvedById])
+}
+
+model DealerStockSyncAudit {
+  id        String   @id @default(cuid())
+  reportId  String?
+  jobId     String?
+  actorId   String?
+  action    String
+  before    Json
+  after     Json
+  createdAt DateTime @default(now())
+
+  report DealerStockSyncReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  job    DealerStockSyncJob?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actor  User?                 @relation("DealerStockSyncAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([jobId])
+  @@index([actorId])
 }
 
 model SignupRateLimitBucket {

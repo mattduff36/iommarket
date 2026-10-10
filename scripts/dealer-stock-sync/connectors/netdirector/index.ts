@@ -118,6 +118,7 @@ export const netdirectorConnector: StockConnector = {
         error: null,
         startUrl,
         pagesFetched: paged.pagesFetched,
+        paginationUncertain: paged.paginationUncertain || vehicles.length !== paged.vehicles.length,
         advertisedCount: null,
         rawCount: vehicles.length,
         vehicles,
