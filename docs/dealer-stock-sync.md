@@ -1,6 +1,6 @@
 # Dealer website stock sync
 
-This is a local candidate. It is not operational until the database migration is applied through the normal release process and a separate background worker is running. Admin pages and the Friday cron only enqueue jobs. They do not scrape dealer websites or change listings.
+The feature is deployed to preview at `https://itrader.dev`, with its additive migration applied to the preview database. Production remains disabled. Admin pages and the Friday cron only enqueue jobs; a separate worker must be running to scrape websites and apply approved changes.
 
 Enabling a dealer binding does not mean sync is active. The dealers screen says so. If the worker process is absent, queued jobs stay queued.
 
@@ -43,7 +43,7 @@ New reports supersede older pending/approved reports. Partial sightings reset ab
 
 ## Activation checklist
 
-1. Review and apply `prisma/migrations/20261010140000_dealer_stock_sync` to preview through the normal release process. It has been tested only against isolated local PostgreSQL; no hosted migration has been applied.
+1. Preview migration `prisma/migrations/20261010140000_dealer_stock_sync` was applied on 10 October 2026; all five tables have row-level security. Production has not been migrated for this feature.
 2. Deploy the application so the admin page and cron route exist.
 3. Run the worker with the opt-in variables above, as a supervised process you control. Do not assume the Vercel web app runs it.
 4. Bind a live dealer to a registry source, queue a scrape, and approve the frozen plan only after the review looks right.
@@ -52,6 +52,10 @@ New reports supersede older pending/approved reports. Partial sightings reset ab
 
 ## Local verification
 
-Real isolated PostgreSQL checks covered overlapping lease claims, repeated price updates, approved new LIVE listings with mocked image-provider receipts, two-absence removal after approval, partial reappearance, stale plans and refusal of unleased jobs. No hosted writes or provider uploads were made.
+Real isolated PostgreSQL checks covered overlapping lease claims, repeated price updates, approved new LIVE listings with mocked image-provider receipts, two-absence removal after approval, partial reappearance, stale plans and refusal of unleased jobs.
 
-Franklin's latest public check returned eight vehicles with complete page/detail evidence. Seven generated creation proposals with source galleries; one stayed blocked for missing photos. This validates the source parser, not hosted deployment or image delivery. Any failed section of another dealer's source blocks its report.
+Hosted preview checks returned Franklin 8, Swift 39, Manx Car Warehouse 13, Mike's 32 and Ocean 151 vehicles. Franklin's reviewed plan created seven LIVE preview listings with 53 owned ImageKit photos under the staging namespace; one vehicle remained blocked for missing photos. The Hyundai gallery was verified in the browser. Other dealer reports await review; first checks of existing stock establish baselines. A temporary source failure was correctly reported without modifying listings.
+
+The hosted upload check exposed a Prisma adapter incompatibility with the `void` result of `pg_advisory_xact_lock`; the importer now casts that result to text without changing locking behaviour. A diagnostic upload was queued for cleanup.
+
+Vercel environment exports omit protected ImageKit keys. The temporary local worker reads the existing verified account keys from `D:/Websites/imagekit-credentials/itrader.env`; the owner also requested a copy in the ignored `.env.local`. Neither file belongs in Git. Worker database configuration still comes from the explicitly verified preview environment, not `.env.local`.

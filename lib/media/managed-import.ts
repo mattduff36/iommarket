@@ -19,7 +19,7 @@ export interface ManagedImportIdentity {
 
 /** Serialize each import path with attachment and cleanup, not a whole table. */
 export async function lockManagedImportIdentity(tx: Pick<Prisma.TransactionClient, "$queryRaw">, filePath: string) {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${filePath}, 0))`;
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${filePath}, 0))::text AS lock_result`;
 }
 
 /** A durable receipt precedes the provider write, including an upload with a lost response. */
