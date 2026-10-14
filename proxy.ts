@@ -27,6 +27,18 @@ import { applyIndexingHeader } from "@/lib/seo/indexing-policy";
 import { stagingAccessResponse } from "@/lib/deployment/staging-access";
 import { retiredPreviewResponse } from "@/lib/deployment/retired-preview";
 
+export function isTradeExchangePage(pathname: string): boolean {
+  return pathname === "/dealer/trade" || pathname.startsWith("/dealer/trade/");
+}
+
+function stampTradeExchange(response: NextResponse, pathname: string) {
+  if (!isTradeExchangePage(pathname) && !pathname.startsWith("/api/trade")) return response;
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
+
 export function isPublicPath(pathname: string): boolean {
   if (
     pathname === "/" ||
@@ -228,7 +240,7 @@ async function routeProxy(request: NextRequest) {
     sessionIsStale = isOnboardingSessionStale(user.app_metadata, session?.access_token);
   }
 
-  if ((!user || sessionIsStale) && !isPublicPath(pathname)) {
+  if ((!user || sessionIsStale) && !isPublicPath(pathname) && !isTradeExchangePage(pathname)) {
     const signUpUrl = new URL("/sign-up", request.url);
     signUpUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(signUpUrl);
@@ -238,12 +250,13 @@ async function routeProxy(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
   const retired = retiredPreviewResponse(request);
-  if (retired) return retired;
+  if (retired) return stampTradeExchange(retired, pathname);
   const staging = await stagingAccessResponse(request);
-  if (staging) return applyIndexingHeader(staging, request.nextUrl.pathname);
+  if (staging) return stampTradeExchange(applyIndexingHeader(staging, pathname), pathname);
   const response = await routeProxy(request);
-  return applyIndexingHeader(response, request.nextUrl.pathname);
+  return stampTradeExchange(applyIndexingHeader(response, pathname), pathname);
 }
 
 export const config = {

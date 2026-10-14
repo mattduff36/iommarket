@@ -22,6 +22,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Plus, ExternalLink, Star } from "lucide-react";
+import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { AccountListingActions } from "@/components/account/account-listing-actions";
 import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-badges";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
@@ -297,6 +298,22 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           </Button>
         </div>
       </div>
+
+      {isTradeExchangeEnabled() ? (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Trade Exchange</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-text-secondary">
+              Offer part-exchange and clearance stock to other approved dealers. Trade stock stays off the public marketplace.
+            </p>
+            <Button asChild>
+              <Link href="/dealer/trade">Open Trade Exchange</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 mb-8">

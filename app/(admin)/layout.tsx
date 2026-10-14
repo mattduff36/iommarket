@@ -5,6 +5,7 @@ import { AdminNavLink } from "@/components/admin/admin-nav-link";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
 import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
+import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { LiveAccountUpdates } from "@/components/account/live-account-updates";
 
@@ -20,7 +21,8 @@ export default async function AdminLayout({
   const navigation = ADMIN_NAV.filter((item) =>
     (item.icon !== "checklist" || checklistEnabled) &&
     (item.icon !== "preview-packs" || stagingFeaturesEnabled) &&
-    (item.href !== "/admin/database" || stagingFeaturesEnabled),
+    (item.href !== "/admin/database" || stagingFeaturesEnabled) &&
+    (item.href !== "/admin/trade" || isTradeExchangeEnabled()),
   );
 
   return (
