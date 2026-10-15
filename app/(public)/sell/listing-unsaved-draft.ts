@@ -343,6 +343,7 @@ function hasDisallowedControl(value: string, multiline: boolean) {
 function isSafePhotoUrl(url: string) {
   if (url === "") return true;
   if (url.length > 500 || /[<>\s]/.test(url)) return false;
+  if (/^imagekit-private:\/iommarket-media\/(production|staging|local)\/listings\/[A-Za-z0-9_-]{1,80}\/[A-Za-z0-9_-]{1,80}\/photo\.(jpg|png|webp)$/.test(url)) return true;
   // Private uploads are delivered through the same-origin media endpoint.
   if (url.startsWith("/api/media/listing-photo?")) {
     const parsed = new URL(url, "https://draft.invalid");

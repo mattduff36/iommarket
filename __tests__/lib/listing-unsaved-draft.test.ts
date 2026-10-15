@@ -82,6 +82,10 @@ describe("unsaved listing drafts", () => {
     if (restored.status === "restored") expect(restored.draft.photos[0]!.url).toBe(body.photos[0]!.url);
     body.photos[0]!.url = "//untrusted.example/photo.jpg";
     expect(save(storage, "user_a", "private", body).ok).toBe(false);
+    body.photos[0] = { ...body.photos[0]!, provider: "IMAGEKIT", publicId: "imagekit/staging/user_a/intent_1", url: "imagekit-private:/iommarket-media/staging/listings/user_a/intent_1/photo.jpg" };
+    expect(save(storage, "user_a", "private", body).ok).toBe(true);
+    body.photos[0]!.url = "imagekit-private:/iommarket-media/staging/listings/../secret.jpg";
+    expect(save(storage, "user_a", "private", body).ok).toBe(false);
   });
   it("restores only the matching user, mode, and category", () => {
     const storage = memoryStorage();
