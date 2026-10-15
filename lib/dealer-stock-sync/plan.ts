@@ -227,7 +227,7 @@ function normalizeStockTitle(value: string | null | undefined) {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function soldListingForNewVehicle(vehicle: InventoryVehicle, listings: SyncListing[]) {
+export function soldListingForNewVehicle(vehicle: Pick<InventoryVehicle, "title">, listings: SyncListing[]) {
   const title = normalizeStockTitle(vehicle.title);
   if (!title) return null;
   return (

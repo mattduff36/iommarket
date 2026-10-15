@@ -1,3 +1,4 @@
+import { soldListingForNewVehicle } from "./plan";
 import { createHash } from "node:crypto";
 import { calculateExpiryDate } from "../listing-status";
 import { dealerSyncBlockReason } from "./eligibility";
@@ -212,6 +213,9 @@ export async function applyFrozenPlan(input: {
   const current = fingerprintSnapshot(input.snapshot);
   if (current !== input.storedFingerprint) throw new StalePlanError();
   const creates = input.snapshot.actions.filter((action) => action.kind === "create");
+  if (creates.some(action => soldListingForNewVehicle(action, input.snapshot.listings))) {
+    throw new StalePlanError("Sold stock is protected. Generate a fresh review plan.");
+  }
   if (input.snapshot.activeListingCount + creates.length > input.snapshot.listingCap) {
     throw new StalePlanError("The dealer listing cap would be exceeded.");
   }

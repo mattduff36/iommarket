@@ -51,7 +51,7 @@ function snapshot(actions: PlanAction[], listingPrice = 1_000_000): FingerprintS
 }
 
 function writer() {
-  const updateMany = vi.fn(async () => ({ count: 1 }));
+  const updateMany = vi.fn(async (_args: { where: object; data: object }) => ({ count: 1 }));
   const create = vi.fn(async () => ({ id: "created" }));
   return {
     calls: { updateMany, create },
@@ -81,6 +81,19 @@ const update: PlanAction = {
 };
 
 describe("applyFrozenPlan", () => {
+  it("rejects an older approved creation plan that duplicates sold stock", async () => {
+    const current = snapshot([{ kind: "create", sourceIdentityKey: "changed-source", listingId: null,
+      title: "2018 Ford Focus", description: "Vehicle details", pricePence: 500000,
+      categorySlug: "car", attributes: {}, ownedImages: [], changes: [] }]);
+    current.listings[0] = { ...current.listings[0], status: "SOLD", soldAt: "2026-01-01T00:00:00Z", title: "2018 Ford-Focus" };
+    const { client, calls } = writer();
+    await expect(applyFrozenPlan({ client, snapshot: current, storedFingerprint: fingerprintSnapshot(current),
+      reportId: "old-report", reportStatus: "APPROVED", actorId: "admin", jobId: "job", now: new Date(), takeDown: vi.fn(),
+    })).rejects.toThrow(/Sold stock is protected/);
+    expect(calls.create).not.toHaveBeenCalled();
+    expect(calls.updateMany).not.toHaveBeenCalled();
+  });
+
   it("rejects a stale snapshot before writing listings", async () => {
     const current = snapshot([update], 800_000);
     const stored = fingerprintSnapshot(snapshot([update]));
