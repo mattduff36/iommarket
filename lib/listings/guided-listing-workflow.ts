@@ -6,7 +6,7 @@ import {
 
 export const GUIDED_LISTING_STEPS = [
   { step: 1, label: "Required", description: "Required vehicle details" },
-  { step: 2, label: "Optional", description: "Optional vehicle details" },
+  { step: 2, label: "Additional", description: "Additional details" },
   { step: 3, label: "Photos", description: "Photos" },
   { step: 4, label: "Advert", description: "Advert" },
   { step: 5, label: "Review", description: "Review" },

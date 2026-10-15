@@ -290,13 +290,13 @@ export function GuidedListingStepPanels({
 
       <div data-listing-step="2" hidden={step !== 2} className={step === 2 ? "space-y-4" : "hidden"}>
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-text-primary">Optional vehicle details</h3>
+          <h3 className="text-sm font-semibold text-text-primary">Additional details</h3>
           <p className="text-xs text-text-secondary">
             Optional. You can continue without these. Leave a field blank to clear it. Unknown is not the same as No.
           </p>
         </div>
         {optionalSections.length > 1 ? (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Optional detail groups">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Additional detail groups">
             {optionalSections.map((section) => {
               const selected = section.id === activeOptionalSectionId;
               return (
@@ -339,7 +339,7 @@ export function GuidedListingStepPanels({
               );
             })
           : (
-            <p className="text-sm text-text-secondary">Choose a category before adding optional details.</p>
+            <p className="text-sm text-text-secondary">Choose a category before adding additional details.</p>
           )}
       </div>
 
@@ -460,9 +460,9 @@ export function GuidedListingStepPanels({
           onEdit={() => onEditStep(1)}
         />
         <ReviewRow
-          label="Optional details"
-          value={optionalSummary || "No optional details added."}
-          action="Edit optional details"
+          label="Additional details"
+          value={optionalSummary || "No additional details added."}
+          action="Edit additional details"
           onEdit={() => onEditStep(2)}
         />
         <ReviewRow

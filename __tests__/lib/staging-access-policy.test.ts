@@ -26,6 +26,9 @@ describe("staging administrator access", () => {
   });
   it("allows only verified, matching approved test identities on the exact staging deployment", () => {
     expect(hasStagingAccess({
+      role: "USER", email: "matt.mpdee@gmail.com", verifiedAuthEmail: "matt.mpdee@gmail.com",
+    }, stagingEnv)).toBe(true);
+    expect(hasStagingAccess({
       role: "USER", email: "mattduff36@gmail.com", verifiedAuthEmail: "mattduff36@gmail.com",
     }, stagingEnv)).toBe(true);
     expect(hasStagingAccess({

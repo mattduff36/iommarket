@@ -2423,7 +2423,7 @@ describe("CreateListingForm listing contract WS-17AUG-REG-7C4B", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.getByRole("heading", { name: "Create Listing - Step 2 of 5" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Optional vehicle details. Check" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Additional details. Check" })).toBeTruthy();
     expect((screen.getByRole("spinbutton", { name: /Engine Size/i }) as HTMLInputElement).value).toBe("1600");
     expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe("2019 BMW 320d M Sport");
     expect(createListing).not.toHaveBeenCalled();

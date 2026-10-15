@@ -4,6 +4,7 @@ import { isStagingDeployment } from "@/lib/deployment/environment";
 const APPROVED_STAGING_TEST_EMAILS = new Set([
   "mattduff36@gmail.com",
   "davooomarsh@hotmail.com",
+  "matt.mpdee@gmail.com",
 ]);
 
 /** Every hosted preview running this code is private, regardless of its branch. */

@@ -25,7 +25,7 @@ describe("guided listing workflow", () => {
   it("keeps the approved five-step order", () => {
     expect(GUIDED_LISTING_STEPS.map((step) => step.description)).toEqual([
       "Required vehicle details",
-      "Optional vehicle details",
+      "Additional details",
       "Photos",
       "Advert",
       "Review",
