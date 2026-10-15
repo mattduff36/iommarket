@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { VehicleCheckResultPanel } from "@/components/vehicle-check/vehicle-check-result-panel";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
+
+import { openVehicleCheckPrintWindow } from "@/components/vehicle-check/vehicle-check-print";
 
 function makeResult(): VehicleCheckResult {
   return {
@@ -70,5 +72,52 @@ describe("VehicleCheckResultPanel status cards", () => {
     const mileageHeadline = screen.getByText("Mileage headline").closest("div.rounded-xl");
     expect(mileageHeadline).toHaveClass("border-border", "bg-canvas/40");
     expect(container.querySelectorAll(".mt-6.grid.gap-3 > div")).toHaveLength(4);
+  });
+});
+
+
+describe("Manx historical MOT presentation", () => {
+  it("keeps both cards neutral and never calls an old UK expiry overdue", () => {
+    const result = makeResult();
+    result.isManx = true;
+    result.vehicle!.lookupPath = "iom";
+    result.vehicle!.previousUkRegistration = "GF61FWX";
+    result.vehicle!.motExpiryDate = "2021-10-01";
+    render(<VehicleCheckResultPanel result={result} policyVersion="test" onExportPdf={() => undefined} />);
+    for (const label of ["UK MOT history only", "Last UK MOT expiry"]) {
+      expect(screen.getByText(label).parentElement).toHaveClass("border-border", "bg-canvas/40");
+    }
+    expect(screen.queryByText("Overdue")).not.toBeInTheDocument();
+    expect(screen.queryByText("Valid")).not.toBeInTheDocument();
+    expect(screen.getByText("Previous UK MOT history")).toBeInTheDocument();
+    expect(screen.getByText("Historical UK date, not a current IOM due date")).toBeInTheDocument();
+  });
+
+  it("handles no linked UK history without implying a missing current MOT", () => {
+    const result = makeResult(); result.isManx = true;
+    result.vehicle!.motExpiryDate = null; result.vehicle!.motStatus = null;
+    render(<VehicleCheckResultPanel result={result} policyVersion="test" onExportPdf={() => undefined} />);
+    expect(screen.getAllByText("No UK history found")).toHaveLength(2);
+    expect(screen.queryByText(/too new for its first MOT/)).not.toBeInTheDocument();
+  });
+
+  it.each([true, false])("exports the same MOT distinction for isManx=%s", (isManx) => {
+    const result = makeResult(); result.isManx = isManx;
+    result.vehicle!.motExpiryDate = "2021-10-01";
+    const write = vi.fn();
+    const open = vi.spyOn(window, "open").mockReturnValue({ document: { write, close: vi.fn() }, focus: vi.fn(), print: vi.fn(), setTimeout: vi.fn() } as unknown as Window);
+    try {
+      openVehicleCheckPrintWindow(result, "test");
+      const html = write.mock.calls[0][0] as string;
+      if (isManx) {
+        expect(html).toContain("UK MOT history only");
+        expect(html).toContain("Last UK MOT expiry");
+        expect(html).not.toContain('<td class="error">1 Oct 2021');
+        expect(html).not.toContain('>Valid</td>');
+      } else {
+        expect(html).toContain("MOT status");
+        expect(html).toContain('<td class="error">1 Oct 2021');
+      }
+    } finally { open.mockRestore(); }
   });
 });

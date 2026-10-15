@@ -109,6 +109,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
         enforceListingNs={getPolicyFlags().enforceListingNs}
         listingFeePence={pricing.privateListingPence}
         featuredUpgradePricePence={pricing.featuredUpgradePence}
+        userId={acceptedUser.id}
       />
     </div>
   );

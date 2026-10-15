@@ -1,15 +1,15 @@
 import { isListingAttributeRequired } from "@/lib/listings/attribute-ui";
 import {
   partitionByDetailGroup,
+  PUBLIC_OMITTED_ATTRIBUTE_VALUES,
   VEHICLE_DETAIL_GROUPS,
 } from "@/lib/listings/vehicle-detail-catalog";
 
 export const GUIDED_LISTING_STEPS = [
-  { step: 1, label: "Required", description: "Required vehicle details" },
-  { step: 2, label: "Additional", description: "Additional details" },
-  { step: 3, label: "Photos", description: "Photos" },
-  { step: 4, label: "Advert", description: "Advert" },
-  { step: 5, label: "Review", description: "Review" },
+  { step: 1, label: "Details", description: "Details" },
+  { step: 2, label: "Photos", description: "Photos" },
+  { step: 3, label: "Advert", description: "Advert" },
+  { step: 4, label: "Review", description: "Review" },
 ] as const;
 
 export type GuidedListingStep = (typeof GUIDED_LISTING_STEPS)[number]["step"];
@@ -45,12 +45,19 @@ const SHARED_OPTIONAL_SECTIONS = [
       "co2-emissions",
     ],
   },
-  {
-    id: "ownership",
-    title: "Ownership",
-    slugs: ["tax-per-year", "insurance-group", "location", "previously-written-off"],
-  },
 ] as const;
+
+const NON_MEANINGFUL_DETAIL_VALUES = new Set(
+  [...PUBLIC_OMITTED_ATTRIBUTE_VALUES].map((value) => value.toLowerCase()),
+);
+
+export function isMeaningfulDetailValue(value: string | undefined, placeholder?: string): boolean {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return false;
+  if (NON_MEANINGFUL_DETAIL_VALUES.has(trimmed.toLowerCase())) return false;
+  if (placeholder && trimmed === placeholder.trim()) return false;
+  return true;
+}
 
 export interface OptionalDetailSection<T> {
   id: string;
@@ -183,9 +190,9 @@ function stepForFieldKey(
   attributeSteps: Partial<Record<string, GuidedListingStep>> | undefined,
   fallback: GuidedListingStep,
 ): GuidedListingStep {
-  if (ADVERT_FIELDS.has(key)) return 4;
-  if (REVIEW_FIELDS.has(key)) return 5;
-  if (PHOTO_FIELDS.has(key)) return 3;
+  if (ADVERT_FIELDS.has(key)) return 3;
+  if (REVIEW_FIELDS.has(key)) return 4;
+  if (PHOTO_FIELDS.has(key)) return 2;
   if (REQUIRED_FIELDS.has(key)) return 1;
   if (key.startsWith("attr-")) return attributeSteps?.[key] ?? 1;
   return fallback;
@@ -193,16 +200,12 @@ function stepForFieldKey(
 
 export function attributeStepMap(
   definitions: ReadonlyArray<{ id: string; slug: string; required: boolean }>,
-  categorySlug: string | undefined,
-  enforceListingNs?: boolean,
+  _categorySlug: string | undefined,
+  _enforceListingNs?: boolean,
 ): Partial<Record<string, GuidedListingStep>> {
   const steps: Partial<Record<string, GuidedListingStep>> = {};
   for (const definition of definitions) {
-    steps[`attr-${definition.id}`] = isListingAttributeRequired(categorySlug, definition, {
-      enforceListingNs,
-    })
-      ? 1
-      : 2;
+    steps[`attr-${definition.id}`] = 1;
   }
   return steps;
 }
@@ -250,22 +253,22 @@ export function guidedNavigationBlock(input: {
       step: 1,
     };
   }
-  if (input.to > 2 && !input.optionalValid) {
+  if (input.to > 1 && !input.optionalValid) {
     return {
       message: "Check the optional vehicle details before continuing.",
+      step: 1,
+    };
+  }
+  if (input.to > 2 && !input.photosComplete) {
+    return {
+      message: "Please upload at least 2 photos before continuing.",
       step: 2,
     };
   }
-  if (input.to > 3 && !input.photosComplete) {
-    return {
-      message: "Please upload at least 2 photos before continuing.",
-      step: 3,
-    };
-  }
-  if (input.to > 4 && !input.advertComplete) {
+  if (input.to > 3 && !input.advertComplete) {
     return {
       message: "Complete the advert before review.",
-      step: 4,
+      step: 3,
     };
   }
   return null;

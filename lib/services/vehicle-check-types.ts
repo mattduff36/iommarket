@@ -12,6 +12,8 @@ export interface VehicleRecord {
   lookupPath: "uk" | "iom";
   make: string | null;
   model: string | null;
+  modelVariant?: string | null;
+  modelSource?: "previous-uk" | "iom" | "unresolved";
   colour: string | null;
   fuelType: string | null;
   taxStatus: string | null;

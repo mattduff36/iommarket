@@ -143,7 +143,11 @@ export function mapVehicleResultToListingAttributes(params: {
         nextValue = normalizeMake(vehicle?.make ?? motHistory?.make ?? null);
         break;
       case "model":
-        nextValue = normalizeModel(vehicle?.model ?? motHistory?.model ?? null);
+        nextValue = normalizeModel(vehicle?.model ?? (params.result.isManx || vehicle?.lookupPath === "iom" ? null : motHistory?.model) ?? null);
+        if (nextValue && vehicle?.modelVariant) {
+          const variant = vehicle.modelVariant.trim();
+          if (variant && !nextValue.toLowerCase().endsWith(variant.toLowerCase())) nextValue = `${nextValue} ${variant}`;
+        }
         break;
       case "year":
         nextValue = toWholeNumberString(vehicle?.yearOfManufacture ?? null);

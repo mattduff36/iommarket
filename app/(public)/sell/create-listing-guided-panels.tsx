@@ -1,12 +1,16 @@
 "use client";
 
 import { type Dispatch, type SetStateAction } from "react";
+import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 import type { ListingAttributeFieldConfig } from "@/lib/listings/attribute-ui";
-import type { OptionalDetailSection } from "@/lib/listings/guided-listing-workflow";
+import {
+  isMeaningfulDetailValue,
+  type OptionalDetailSection,
+} from "@/lib/listings/guided-listing-workflow";
 import type { VehicleMakeOption } from "@/lib/vehicle-catalogue/queries";
 import {
   CreateListingAttributeFields,
@@ -67,8 +71,7 @@ export function GuidedListingStepPanels({
   onRegionChange,
   requiredFields,
   optionalSections,
-  activeOptionalSectionId,
-  onOptionalSectionChange,
+  requiredSectionValid,
   attributeValues,
   enforceListingNs,
   getFieldError,
@@ -79,6 +82,7 @@ export function GuidedListingStepPanels({
   vehicleMakes,
   onCatalogueChange,
   onCatalogueSelectionChange,
+  catalogueVariantHint,
   maxImages,
   uploadedImages,
   onImagesChange,
@@ -126,8 +130,7 @@ export function GuidedListingStepPanels({
   onRegionChange: (value: string) => void;
   requiredFields: GuidedAttributeField[];
   optionalSections: OptionalDetailSection<GuidedAttributeField>[];
-  activeOptionalSectionId: string | null;
-  onOptionalSectionChange: (sectionId: string) => void;
+  requiredSectionValid: boolean;
   attributeValues: Record<string, string>;
   enforceListingNs?: boolean;
   getFieldError: (fieldName: string) => string | undefined;
@@ -138,6 +141,7 @@ export function GuidedListingStepPanels({
   vehicleMakes: VehicleMakeOption[];
   onCatalogueChange: (attributeId: string, value: string) => void;
   onCatalogueSelectionChange: (selection: VehicleCatalogueSelection) => void;
+  catalogueVariantHint?: string;
   maxImages: number;
   uploadedImages: UploadedImage[];
   onImagesChange: Dispatch<SetStateAction<UploadedImage[]>>;
@@ -156,7 +160,7 @@ export function GuidedListingStepPanels({
   privateSellerTermsMissing: boolean;
   onTrustChange: (accepted: boolean) => void;
   onPrivateTermsChange: (accepted: boolean) => void;
-  onEditStep: (step: 1 | 2 | 3 | 4) => void;
+  onEditStep: (step: 1 | 2 | 3 | 4, sectionId?: string) => void;
   revisionLocked: boolean;
 }) {
   const regionName = regions.find((region) => region.id === regionId)?.name ?? "";
@@ -175,9 +179,32 @@ export function GuidedListingStepPanels({
     attributeValues,
   );
 
+  const additionalAnchor = optionalSections[0]
+    ? `listing-section-${optionalSections[0].id}`
+    : "listing-required-details";
+
   return (
     <>
-      <div data-listing-step="1" hidden={step !== 1} className={step === 1 ? "space-y-6" : "hidden"}>
+      <div data-listing-step="1" hidden={step !== 1} className={step === 1 ? "md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:items-start md:gap-6" : "hidden"}>
+        <nav className="mb-4 flex flex-wrap gap-2 md:sticky md:top-24 md:mb-0 md:flex-col" aria-label="Listing detail sections">
+          <SectionShortcut
+            label="Required details"
+            complete={requiredSectionValid}
+            onSelect={() => scrollListingSection("listing-required-details")}
+          />
+          {optionalSections.map((section) => (
+            <SectionShortcut
+              key={section.id}
+              label={section.title}
+              complete={section.items.some((item) =>
+                isMeaningfulDetailValue(attributeValues[item.attr.id], item.config.placeholder),
+              )}
+              onSelect={() => scrollListingSection(`listing-section-${section.id}`)}
+            />
+          ))}
+        </nav>
+        <div className="min-w-0 space-y-6">
+        <section id="listing-required-details" className="scroll-mt-24 space-y-6">
         <div id="listing-category" className="space-y-3 rounded-lg border border-border p-4">
           <h3 className="text-sm font-semibold text-text-primary">Category</h3>
           <input type="hidden" name="categoryId" value={selectedCategoryId} />
@@ -265,6 +292,7 @@ export function GuidedListingStepPanels({
                 makes={vehicleMakes}
                 makeValue={attributeValues[makeAttribute.id] ?? ""}
                 modelValue={attributeValues[modelAttribute.id] ?? ""}
+                variantHint={catalogueVariantHint}
                 makeError={getFieldError(`attr-${makeAttribute.id}`)}
                 modelError={getFieldError(`attr-${modelAttribute.id}`)}
                 required={step === 1}
@@ -286,64 +314,40 @@ export function GuidedListingStepPanels({
             ) : null}
           </div>
         ) : null}
-      </div>
-
-      <div data-listing-step="2" hidden={step !== 2} className={step === 2 ? "grid min-w-0 gap-4 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-x-6" : "hidden"}>
-        <div className="space-y-1 md:col-start-2">
+        </section>
+        <section className="scroll-mt-24 space-y-2">
           <h3 className="text-sm font-semibold text-text-primary">Additional details</h3>
           <p className="text-xs text-text-secondary">
             Optional. You can continue without these. Leave a field blank to clear it. Unknown is not the same as No.
           </p>
-        </div>
-        {optionalSections.length > 1 ? (
-          <div className="flex flex-wrap content-start gap-2 md:col-start-1 md:row-start-1 md:row-span-2 md:flex-col" role="group" aria-label="Additional detail groups">
-            {optionalSections.map((section) => {
-              const selected = section.id === activeOptionalSectionId;
-              return (
-                <Button
-                  key={section.id}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-pressed={selected}
-                  className={
-                    selected
-                      ? "h-auto whitespace-normal border border-neon-blue-400 bg-neon-blue-500/15 text-text-primary md:w-full md:justify-start md:px-3 md:py-3 md:text-left"
-                      : "h-auto whitespace-normal border border-border md:w-full md:justify-start md:px-3 md:py-3 md:text-left"
-                  }
-                  onClick={() => onOptionalSectionChange(section.id)}
-                >
-                  {section.title}
-                </Button>
-              );
-            })}
-          </div>
-        ) : null}
+        </section>
         {selectedCategorySlug
-          ? optionalSections.map((section) => {
-              const active = section.id === activeOptionalSectionId;
-              return (
-                <div key={section.id} hidden={!active} className={active ? "min-w-0 space-y-4 md:col-start-2 md:row-start-2" : "hidden"}>
-                  <h4 className="text-sm font-semibold text-text-primary">{section.title}</h4>
-                  <CreateListingAttributeFields
-                    layout="plain"
-                    categorySlug={selectedCategorySlug}
-                    visibleAttributes={section.items}
-                    attributeValues={attributeValues}
-                    isDetailsStep={false}
-                    enforceListingNs={enforceListingNs}
-                    getFieldError={getFieldError}
-                    onAttributeChange={onAttributeChange}
-                  />
-                </div>
-              );
-            })
+          ? optionalSections.map((section) => (
+              <section
+                key={section.id}
+                id={`listing-section-${section.id}`}
+                className="scroll-mt-24 min-w-0 space-y-4"
+              >
+                <h4 className="text-sm font-semibold text-text-primary">{section.title}</h4>
+                <CreateListingAttributeFields
+                  layout="plain"
+                  categorySlug={selectedCategorySlug}
+                  visibleAttributes={section.items}
+                  attributeValues={attributeValues}
+                  isDetailsStep={false}
+                  enforceListingNs={enforceListingNs}
+                  getFieldError={getFieldError}
+                  onAttributeChange={onAttributeChange}
+                />
+              </section>
+            ))
           : (
             <p className="text-sm text-text-secondary">Choose a category before adding additional details.</p>
           )}
+        </div>
       </div>
 
-      <div data-listing-step="3" hidden={step !== 3} className={step === 3 ? "space-y-3" : "hidden"}>
+      <div data-listing-step="2" hidden={step !== 2} className={step === 2 ? "space-y-3" : "hidden"}>
         <p className="text-sm text-text-secondary">
           Add between 2 and {maxImages} photos. Use a clean first image and include exterior and interior shots.
         </p>
@@ -355,7 +359,7 @@ export function GuidedListingStepPanels({
         />
       </div>
 
-      <div data-listing-step="4" hidden={step !== 4} className={step === 4 ? "space-y-4" : "hidden"}>
+      <div data-listing-step="3" hidden={step !== 3} className={step === 3 ? "space-y-4" : "hidden"}>
         <h3 className="text-sm font-semibold text-text-primary">Advert</h3>
         <Input
           id="title"
@@ -363,7 +367,7 @@ export function GuidedListingStepPanels({
           name="title"
           value={titleValue}
           onChange={(event) => onTitleChange(event.target.value)}
-          required={step === 4}
+          required={step === 3}
           minLength={5}
           maxLength={120}
           placeholder="e.g. 2019 BMW 320d M Sport"
@@ -376,7 +380,7 @@ export function GuidedListingStepPanels({
           type="number"
           value={priceValue}
           onChange={(event) => onPriceChange(event.target.value)}
-          required={step === 4}
+          required={step === 3}
           min={1}
           max={1000000}
           step={0.01}
@@ -386,12 +390,12 @@ export function GuidedListingStepPanels({
         />
         <div className="flex flex-col gap-1">
           <label htmlFor="regionId" className="text-sm font-medium text-text-primary">
-            <ListingFieldLabel label="Region" required={step === 4} />
+            <ListingFieldLabel label="Region" required={step === 3} />
           </label>
           <select
             id="regionId"
             name="regionId"
-            required={step === 4}
+            required={step === 3}
             value={regionId}
             onChange={(event) => onRegionChange(event.target.value)}
             aria-invalid={getFieldError("regionId") ? true : undefined}
@@ -415,14 +419,14 @@ export function GuidedListingStepPanels({
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="description" className="text-sm font-medium text-text-primary">
-            <ListingFieldLabel label="Description" required={step === 4} />
+            <ListingFieldLabel label="Description" required={step === 3} />
           </label>
           <textarea
             id="description"
             name="description"
             value={descriptionValue}
             onChange={(event) => onDescriptionChange(event.target.value)}
-            required={step === 4}
+            required={step === 3}
             minLength={20}
             maxLength={5000}
             rows={6}
@@ -441,7 +445,7 @@ export function GuidedListingStepPanels({
         </div>
       </div>
 
-      <div data-listing-step="5" hidden={step !== 5} className={step === 5 ? "space-y-3" : "hidden"}>
+      <div data-listing-step="4" hidden={step !== 4} className={step === 4 ? "space-y-3" : "hidden"}>
         <h3 className="text-base font-semibold text-text-primary">Review</h3>
         <p className="text-sm text-text-secondary">
           {mode === "dealer" || isFreeForUser
@@ -457,13 +461,13 @@ export function GuidedListingStepPanels({
           label="Required details"
           value={requiredSummary || selectedCategoryName || "No required details yet."}
           action="Edit required details"
-          onEdit={() => onEditStep(1)}
+          onEdit={() => onEditStep(1, "listing-required-details")}
         />
         <ReviewRow
           label="Additional details"
           value={optionalSummary || "No additional details added."}
           action="Edit additional details"
-          onEdit={() => onEditStep(2)}
+          onEdit={() => onEditStep(1, additionalAnchor)}
         />
         <ReviewRow
           label="Photos"
@@ -473,7 +477,7 @@ export function GuidedListingStepPanels({
               : "No photos selected."
           }
           action="Edit photos"
-          onEdit={() => onEditStep(3)}
+          onEdit={() => onEditStep(2)}
         />
         {uploadedImages.length > 0 ? (
           <p className="text-sm text-text-secondary">The first photo is the cover.</p>
@@ -486,12 +490,12 @@ export function GuidedListingStepPanels({
             regionName || "No region",
           ].join(" · ")}
           action="Edit advert"
-          onEdit={() => onEditStep(4)}
+          onEdit={() => onEditStep(3)}
         />
         <div className="rounded-lg border border-border p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="text-xs text-text-secondary">Description</p>
-            <Button type="button" variant="ghost" size="sm" onClick={() => onEditStep(4)}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onEditStep(3)}>
               Edit description
             </Button>
           </div>
@@ -522,6 +526,38 @@ export function GuidedListingStepPanels({
         />
       </div>
     </>
+  );
+}
+
+export function scrollListingSection(id: string) {
+  const node = document.getElementById(id);
+  if (!node || typeof node.scrollIntoView !== "function") return;
+  const reduce = typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  node.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+}
+
+function SectionShortcut({
+  label,
+  complete,
+  onSelect,
+}: {
+  label: string;
+  complete: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-auto justify-start gap-1 whitespace-normal border border-border px-2 py-2 text-left md:w-full"
+      aria-label={complete ? `${label}, details added` : label}
+      onClick={onSelect}
+    >
+      <span>{label}</span>
+      {complete ? <Check aria-hidden size={14} className="shrink-0 text-text-trust" /> : null}
+    </Button>
   );
 }
 

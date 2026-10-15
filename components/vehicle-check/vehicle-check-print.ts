@@ -42,6 +42,7 @@ export function openVehicleCheckPrintWindow(
   if (!printWindow) return;
 
   const vehicle = result.vehicle;
+  const isIom = result.isManx || vehicle?.lookupPath === "iom";
   const tones: Record<string, string> = {
     "Tax status": getPositionVariant(vehicle?.taxStatus, vehicle?.taxDueDate, result.checkedAt),
     "MOT status": getPositionVariant(vehicle?.motStatus, vehicle?.motExpiryDate, result.checkedAt),
@@ -52,12 +53,14 @@ export function openVehicleCheckPrintWindow(
     ["Registration", result.displayRegistration],
     ["Make", result.vehicle?.make ?? "Unavailable"],
     ["Model", result.vehicle?.model ?? "Unavailable"],
+    ...(vehicle?.modelVariant ? [["Variant / trim", vehicle.modelVariant]] : []),
     ["Colour", result.vehicle?.colour ?? "Unavailable"],
     ["Fuel type", result.vehicle?.fuelType ?? "Unavailable"],
     ["Tax status", result.vehicle?.taxStatus ?? "Unavailable"],
     ["Tax due", formatDate(result.vehicle?.taxDueDate)],
-    ["MOT status", result.vehicle?.motStatus ?? "Unavailable"],
-    ["MOT due", formatDate(result.vehicle?.motExpiryDate)],
+    [isIom ? "UK MOT history only" : "MOT status", isIom ? (result.motHistory?.motTests.length || vehicle?.motExpiryDate ? "Historical record" : "No UK history found") : vehicle?.motStatus ?? "Unavailable"],
+    [isIom ? "Last UK MOT expiry" : "MOT due", formatDate(vehicle?.motExpiryDate)],
+    ...(isIom ? [["MOT context", "Historical UK information, not a current IOM MOT status or due date."]] : []),
   ];
 
   const motRows = result.motHistory?.motTests
@@ -168,6 +171,7 @@ export function openVehicleCheckPrintWindow(
         background: #fefce8;
         border-color: #eab308;
       }
+      .neutral { background: #f3f4f6; color: #4b5563; }
       .success { background: #ecfdf5; color: #065f46; }
       .error { background: #fff1f2; color: #9f1239; }
       .disclaimer {
@@ -229,7 +233,7 @@ export function openVehicleCheckPrintWindow(
       ${
         result.motHistory
           ? `<section class="card full">
-              <h2>MOT history</h2>
+              <h2>${isIom ? "Previous UK MOT history" : "MOT history"}</h2>
               <table>
                 <thead>
                   <tr>

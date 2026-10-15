@@ -6,6 +6,7 @@ import {
   guidedCardStatus,
   guidedNavigationBlock,
   guidedStepForFieldErrors,
+  isMeaningfulDetailValue,
   partitionGuidedAttributeFields,
   splitGuidedAttributeErrors,
   validateAdvertFields,
@@ -22,10 +23,9 @@ const carFields = [
 ];
 
 describe("guided listing workflow", () => {
-  it("keeps the approved five-step order", () => {
-    expect(GUIDED_LISTING_STEPS.map((step) => step.description)).toEqual([
-      "Required vehicle details",
-      "Additional details",
+  it("keeps the approved four-step order", () => {
+    expect(GUIDED_LISTING_STEPS.map((step) => step.label)).toEqual([
+      "Details",
       "Photos",
       "Advert",
       "Review",
@@ -64,6 +64,32 @@ describe("guided listing workflow", () => {
     expect(sections.find((section) => section.id === "more")?.items.map((item) => item.attr.slug)).toEqual([
       "custom-extra",
     ]);
+    expect(sections.map((section) => section.id)).not.toContain("ownership");
+  });
+
+  it("puts tax and insurance in more details without an ownership group", () => {
+    const sections = buildOptionalDetailSections(
+      "car",
+      [
+        { attr: { slug: "tax-per-year" } },
+        { attr: { slug: "insurance-group" } },
+        { attr: { slug: "fuel-type" } },
+      ],
+      (field) => field.attr.slug,
+    );
+    expect(sections.map((section) => section.id)).not.toContain("ownership");
+    expect(sections.find((section) => section.id === "more")?.items.map((item) => item.attr.slug)).toEqual([
+      "tax-per-year",
+      "insurance-group",
+    ]);
+  });
+
+  it("ticks meaningful optional values and ignores blank, unknown, and placeholder text", () => {
+    expect(isMeaningfulDetailValue("Blue")).toBe(true);
+    expect(isMeaningfulDetailValue("  ")).toBe(false);
+    expect(isMeaningfulDetailValue("Unknown")).toBe(false);
+    expect(isMeaningfulDetailValue("Not checked/Unknown")).toBe(false);
+    expect(isMeaningfulDetailValue("e.g. 2.0", "e.g. 2.0")).toBe(false);
   });
 
   it("maps server fields onto the step that owns them", () => {
@@ -90,13 +116,17 @@ describe("guided listing workflow", () => {
         { title: ["Title must be at least 5 characters"] },
         { fallback: 1 },
       ),
-    ).toBe(4);
+    ).toBe(3);
     expect(
       guidedStepForFieldErrors(
         { privateSellerTermsAccepted: ["Private seller terms acceptance is required."] },
-        { fallback: 5 },
+        { fallback: 4 },
       ),
-    ).toBe(5);
+    ).toBe(4);
+    expect(steps["attr-fuel"]).toBe(1);
+    expect(
+      guidedStepForFieldErrors({ imageId: ["Add a photo."] }, { fallback: 1 }),
+    ).toBe(2);
     expect(
       guidedStepForFieldErrors({ attributes: ["Review the listing details."] }, { fallback: 1 }),
     ).toBe(1);
@@ -121,11 +151,11 @@ describe("guided listing workflow", () => {
     expect(split.required["attr-engine"]).toBeUndefined();
   });
 
-  it("lets optional be skipped and blocks busy uploads, incomplete photos, and incomplete adverts", () => {
+  it("lets valid details continue and blocks busy uploads, incomplete photos, and incomplete adverts", () => {
     expect(
       guidedNavigationBlock({
-        from: 2,
-        to: 3,
+        from: 1,
+        to: 2,
         photoUploadsBusy: false,
         requiredComplete: true,
         optionalValid: true,
@@ -135,8 +165,8 @@ describe("guided listing workflow", () => {
     ).toBeNull();
     expect(
       guidedNavigationBlock({
-        from: 3,
-        to: 4,
+        from: 2,
+        to: 3,
         photoUploadsBusy: true,
         requiredComplete: true,
         optionalValid: true,
@@ -146,18 +176,29 @@ describe("guided listing workflow", () => {
     ).toMatch(/photo uploads/i);
     expect(
       guidedNavigationBlock({
-        from: 3,
-        to: 5,
+        from: 2,
+        to: 4,
         photoUploadsBusy: false,
         requiredComplete: true,
         optionalValid: true,
         photosComplete: false,
         advertComplete: true,
       })?.step,
-    ).toBe(3);
+    ).toBe(2);
     expect(
       guidedNavigationBlock({
-        from: 5,
+        from: 1,
+        to: 2,
+        photoUploadsBusy: false,
+        requiredComplete: true,
+        optionalValid: false,
+        photosComplete: true,
+        advertComplete: true,
+      })?.step,
+    ).toBe(1);
+    expect(
+      guidedNavigationBlock({
+        from: 4,
         to: 1,
         photoUploadsBusy: false,
         requiredComplete: false,

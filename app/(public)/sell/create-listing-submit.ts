@@ -381,7 +381,7 @@ export async function executeCreateListingSubmit(params: {
       return {
         kind: "stay",
         error: photoOutcome.error,
-        step: 3,
+        step: 2,
         ...(uncertain
           ? { uncertain: true, reviewHref: review.href, reviewLabel: review.label }
           : {}),
@@ -417,7 +417,7 @@ export async function executeCreateListingSubmit(params: {
   if (payResult.error) {
     return releaseUnlessUncertain(
       params.submitFlightRef,
-      stayForListingError(payResult, params.attributeSteps, 5, paymentOutcomeReview(listingId)),
+      stayForListingError(payResult, params.attributeSteps, 4, paymentOutcomeReview(listingId)),
     );
   }
 
@@ -429,7 +429,7 @@ export async function executeCreateListingSubmit(params: {
       privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
     });
     if (reviewResult?.error) {
-      return releaseUnlessUncertain(params.submitFlightRef, stayForListingError(reviewResult, params.attributeSteps, 5, listingOutcomeReview(listingId)));
+      return releaseUnlessUncertain(params.submitFlightRef, stayForListingError(reviewResult, params.attributeSteps, 4, listingOutcomeReview(listingId)));
     }
   }
 

@@ -194,13 +194,13 @@ function MileageChart({ mileage }: { mileage: VehicleMileageSummary }) {
   );
 }
 
-function MotHistoryList({ tests }: { tests: VehicleMotTest[] }) {
+function MotHistoryList({ tests, isIom = false }: { tests: VehicleMotTest[]; isIom?: boolean }) {
   if (tests.length === 0) {
     return (
       <EmptyState
         icon={<History className="h-6 w-6" />}
         title="No MOT tests on record"
-        description="This can happen when the vehicle is still too new for its first MOT or the linked source has no records yet."
+        description={isIom ? "No historical UK MOT tests were returned for this Manx vehicle." : "This can happen when the vehicle is still too new for its first MOT or the linked source has no records yet."}
         className="py-10"
       />
     );
@@ -280,9 +280,13 @@ export function VehicleCheckResultPanel({
   }
 
   const taxTone = getPositionVariant(vehicle.taxStatus, vehicle.taxDueDate, result.checkedAt);
-  const motTone = getPositionVariant(vehicle.motStatus, vehicle.motExpiryDate, result.checkedAt);
+  const isIom = result.isManx || vehicle.lookupPath === "iom";
+  const motTone = isIom ? "neutral" : getPositionVariant(vehicle.motStatus, vehicle.motExpiryDate, result.checkedAt);
+  const motLabel = isIom ? "UK MOT history only" : "MOT status";
+  const motValue = isIom ? (result.motHistory?.motTests.length || vehicle.motExpiryDate ? "Historical record" : "No UK history found") : vehicle.motStatus ?? "Unavailable";
+  const motDateLabel = isIom ? "Last UK MOT expiry" : "MOT due";
   const taxDueTone = getDueDateVariant(vehicle.taxDueDate, result.checkedAt);
-  const motDueTone = getDueDateVariant(vehicle.motExpiryDate, result.checkedAt);
+  const motDueTone = isIom ? "neutral" : getDueDateVariant(vehicle.motExpiryDate, result.checkedAt);
   const dueNote = (tone: VehicleStatusTone) => tone === "error" ? "Overdue" : tone === "warning" ? "Due within 30 days" : undefined;
   const heading = [vehicle.make, vehicle.model].filter(Boolean).join(" ");
 
@@ -343,8 +347,8 @@ export function VehicleCheckResultPanel({
                   tone={taxTone}
                 />
                 <MetricCard
-                  label="MOT status"
-                  value={vehicle.motStatus ?? "Unavailable"}
+                  label={motLabel}
+                  value={motValue}
                   tone={motTone}
                 />
                 <MetricCard
@@ -354,10 +358,10 @@ export function VehicleCheckResultPanel({
                   note={dueNote(taxDueTone)}
                 />
                 <MetricCard
-                  label="MOT due"
+                  label={motDateLabel}
                   value={formatDate(vehicle.motExpiryDate)}
                   tone={motDueTone}
-                  note={dueNote(motDueTone)}
+                  note={isIom ? "Historical UK date, not a current IOM due date" : dueNote(motDueTone)}
                 />
               </div>
             </div>
@@ -406,6 +410,7 @@ export function VehicleCheckResultPanel({
             <div className="space-y-0">
               <DetailRow label="Make" value={vehicle.make ?? "Unavailable"} />
               <DetailRow label="Model" value={vehicle.model ?? "Unavailable"} />
+              {vehicle.modelVariant ? <DetailRow label="Variant / trim" value={vehicle.modelVariant} /> : null}
               <DetailRow label="Colour" value={vehicle.colour ?? "Unavailable"} />
               <DetailRow label="Fuel type" value={vehicle.fuelType ?? "Unavailable"} />
               <DetailRow label="Engine" value={formatEngineSize(vehicle.engineSizeCc)} />
@@ -458,14 +463,14 @@ export function VehicleCheckResultPanel({
               <div className={`rounded-xl border p-4 ${vehicleStatusClasses[motTone]}`}>
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
                   <CalendarDays className="h-4 w-4" />
-                  MOT position
+                  {isIom ? "Previous UK MOT" : "MOT position"}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <Badge variant={motTone}>
-                    {vehicle.motStatus ?? "Unavailable"}
+                    {motValue}
                   </Badge>
                   <span className="text-sm text-metallic-400">
-                    Due {formatDate(vehicle.motExpiryDate)}
+                    {isIom ? "Last UK expiry" : "Due"} {formatDate(vehicle.motExpiryDate)}
                   </span>
                 </div>
               </div>
@@ -521,16 +526,16 @@ export function VehicleCheckResultPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>MOT history</CardTitle>
+          <CardTitle>{isIom ? "Previous UK MOT history" : "MOT history"}</CardTitle>
         </CardHeader>
         <CardContent>
           {result.motHistory ? (
-            <MotHistoryList tests={result.motHistory.motTests} />
+            <MotHistoryList tests={result.motHistory.motTests} isIom={isIom} />
           ) : (
             <EmptyState
               icon={<History className="h-6 w-6" />}
               title="No MOT history returned"
-              description="Try again later, or check whether this vehicle is still too new for its first MOT."
+              description={isIom ? "No historical UK MOT record was found for this Manx vehicle. This is not a current IOM MOT status." : "Try again later, or check whether this vehicle is still too new for its first MOT."}
               className="py-10"
             />
           )}

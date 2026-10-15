@@ -1,3 +1,4 @@
+import { resolveIomModelIdentity } from "./iom-model-identity";
 import { vehicleLookupPublicError } from "./vehicle-lookup-public-error";
 import {
   createAuctionHistoryApiService,
@@ -205,16 +206,15 @@ function buildIomVehicleRecord(
   previousUkVehicle: DVLAVehicleData | null,
   motHistory: VehicleMotHistory | null
 ): VehicleRecord {
+  const identity = resolveIomModelIdentity(iomVehicle, previousUkVehicle, motHistory);
   return {
     registrationNumber: iomVehicle.registrationNumber,
     displayRegistrationNumber: formatRegistrationForDisplay(registrationNumber),
     lookupPath: "iom",
     make: iomVehicle.make ?? previousUkVehicle?.make ?? null,
-    model:
-      iomVehicle.modelVariant ??
-      iomVehicle.model ??
-      previousUkVehicle?.model ??
-      null,
+    model: identity.model,
+    modelVariant: identity.variant,
+    modelSource: identity.source,
     colour: iomVehicle.colour ?? previousUkVehicle?.colour ?? null,
     fuelType: iomVehicle.fuelType ?? previousUkVehicle?.fuelType ?? null,
     taxStatus: iomVehicle.taxStatus,
@@ -382,6 +382,9 @@ async function lookupIomVehicle(registrationNumber: string): Promise<VehicleChec
     motHistoryResult,
     previousUkRegistration ? normalizeRegistration(previousUkRegistration) : null
   );
+
+  const identity = resolveIomModelIdentity(iomVehicle, previousUkVehicle, motHistory);
+  if (identity.warning) warnings.push(identity.warning);
 
   const sourceNotes: VehicleLookupSourceNote[] = [
     { id: "iom", label: "gov.im", detail: "Current Manx vehicle and tax data" },

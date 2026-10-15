@@ -45,6 +45,7 @@ import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
 import { IMAGE_CONSTRAINTS, LISTING_IMAGE_ACCEPT } from "@/lib/images/constraints";
 import { preflightListingImageFile, presentClientUploadError, uploadListingImageFile } from "@/lib/images/client-upload";
 import type { ListingPhotoSource } from "@/lib/images/photo";
+import { useListingDraftPhotoBackup } from "@/app/(public)/sell/listing-draft-photos";
 
 export interface UploadedImage extends ListingPhotoSource {
   uploadIntentId: string;
@@ -84,6 +85,7 @@ export function ImageUpload({
   const [pending, setPending] = React.useState<PendingSlot[]>([]);
   const [announcement, setAnnouncement] = React.useState("");
   const [focalImage, setFocalImage] = React.useState<UploadedImage | null>(null);
+  const backupListingPhoto = useListingDraftPhotoBackup();
   const isBusy = pending.length > 0;
 
   React.useEffect(() => {
@@ -187,6 +189,7 @@ export function ImageUpload({
                 url: uploaded.url,
               }),
             } satisfies UploadedImage;
+            backupListingPhoto?.(image.uploadIntentId, file);
             if (isMountedRef.current) {
               setPending((current) =>
                 current.map((item) =>

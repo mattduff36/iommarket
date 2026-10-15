@@ -82,6 +82,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
         enforceListingNs={getPolicyFlags().enforceListingNs}
         listingFeePence={pricing.privateListingPence}
         featuredUpgradePricePence={pricing.featuredUpgradePence}
+        userId={user.id}
       />
     </div>
   );

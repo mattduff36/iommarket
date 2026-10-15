@@ -75,7 +75,8 @@ export async function normalizeVehicleCheckCatalogue(
   result: VehicleCheckResult,
 ): Promise<VehicleCheckResult> {
   const rawMake = result.vehicle?.make ?? result.motHistory?.make ?? null;
-  const rawModel = result.vehicle?.model ?? result.motHistory?.model ?? null;
+  const isIom = result.isManx || result.vehicle?.lookupPath === "iom";
+  const rawModel = result.vehicle?.model ?? (isIom ? null : result.motHistory?.model) ?? null;
   const identity = await normalizeVehicleIdentity(rawMake, rawModel);
 
   if (!identity.make && !identity.model) return result;
@@ -89,7 +90,7 @@ export async function normalizeVehicleCheckCatalogue(
           model: identity.model ?? result.vehicle.model,
         }
       : result.vehicle,
-    motHistory: result.motHistory
+    motHistory: result.motHistory && !isIom
       ? {
           ...result.motHistory,
           make: identity.make ?? result.motHistory.make,

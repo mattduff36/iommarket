@@ -49,7 +49,7 @@ export function CreateListingDeclarations({
           <Checkbox
             checked={privateSellerTermsAccepted}
             onCheckedChange={(checked) => onPrivateTermsChange(checked === true)}
-            required={step === 5}
+            required={step === 4}
             label={
               <span className="leading-5">
                 I expressly accept the current{" "}
