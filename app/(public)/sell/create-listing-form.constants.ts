@@ -29,8 +29,8 @@ export const CATEGORY_TILE_META: Record<string, CategoryTileMeta> = {
   },
   motorhome: {
     icon: BusFront,
-    idleIconClass: "text-violet-300",
+    idleIconClass: "text-metallic-300",
     selectedClass:
-      "border-violet-400 bg-violet-500/15 text-white ring-2 ring-violet-400/70 shadow-[0_0_18px_rgba(167,139,250,0.35)]",
+      "border-metallic-400 bg-metallic-500/15 text-white ring-2 ring-metallic-400/70 shadow-[0_0_18px_rgba(99,99,102,0.35)]",
   },
 };
