@@ -93,6 +93,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/db", () => ({ db: h.db }));
+vi.mock("@/lib/notifications/settings", () => ({ isNotificationEnabled: vi.fn().mockResolvedValue(true) }));
 vi.mock("@/lib/trade-exchange/flag", () => ({ isTradeExchangeEnabled: h.enabled }));
 vi.mock("@/lib/trade-exchange/access", () => ({
   listEligibleTradeDealerIds: h.eligibleIds,

@@ -250,13 +250,99 @@ export async function getVisibleTradeListing(actor: TradeActor, listingId: strin
   return listing;
 }
 
+export const TRADE_BROWSE_PAGE_SIZE = 24;
+
+const TRADE_BROWSE_FILTER_KEYS = [
+  "make",
+  "model",
+  "minYear",
+  "maxYear",
+  "minMileage",
+  "maxMileage",
+  "minPriceGbp",
+  "maxPriceGbp",
+  "transmission",
+  "fuel",
+  "condition",
+  "dealerId",
+] as const;
+
+const TRADE_MEMBERSHIP_LABELS: Record<string, string> = {
+  NOT_APPLIED: "Not applied",
+  PENDING: "In review",
+  NEEDS_INFO: "More information needed",
+  APPROVED: "Approved",
+  REJECTED: "Not approved",
+  SUSPENDED: "Suspended",
+  REVOKED: "Revoked",
+};
+
+const TRADE_LISTING_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  PENDING_REVIEW: "Awaiting review",
+  LIVE: "Live",
+  RESERVED: "Reserved",
+  SOLD: "Sold",
+  WITHDRAWN: "Withdrawn",
+  REMOVED: "Removed",
+  EXPIRED: "Expired",
+};
+
+const TRADE_VAT_LABELS: Record<string, string> = {
+  PLUS_VAT: "Plus VAT",
+  VAT_INCLUDED: "VAT included",
+  NO_VAT: "No VAT",
+  NOT_STATED: "VAT not stated",
+};
+
+export function sanitizeTradeBrowsePage(value: unknown): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw.trim()) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.min(Math.floor(parsed), 10_000);
+}
+
+export function tradeBrowseHref(filters: Record<string, string | undefined>, page: number): string {
+  const params = new URLSearchParams();
+  for (const key of TRADE_BROWSE_FILTER_KEYS) {
+    const value = filters[key]?.trim();
+    if (value) params.set(key, value);
+  }
+  const safePage = sanitizeTradeBrowsePage(page);
+  if (safePage > 1) params.set("page", String(safePage));
+  const query = params.toString();
+  return query ? `/dealer/trade?${query}` : "/dealer/trade";
+}
+
+export function tradeMembershipLabel(status: string): string {
+  return TRADE_MEMBERSHIP_LABELS[status] ?? "Not applied";
+}
+
+export function tradeListingStatusLabel(status: string): string {
+  return TRADE_LISTING_STATUS_LABELS[status] ?? "Unavailable";
+}
+
+export function tradeVatLabel(treatment: string): string {
+  return TRADE_VAT_LABELS[treatment] ?? "VAT not stated";
+}
+
+export async function listEligibleTradeSellers(now = new Date()) {
+  const ids = await listEligibleTradeDealerIds(now);
+  if (ids.length === 0) return [];
+  return db.dealerProfile.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 export async function searchLiveTradeListings(actor: TradeActor, values: unknown, page = 1) {
   if (actor.kind !== "member") return { error: "Not found." as const };
   const parsed = tradeSearchSchema.safeParse(values);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the filters and try again." };
   const dealerIds = await listEligibleTradeDealerIds();
-  const take = 24;
-  const skip = Math.max(0, page - 1) * take;
+  const safePage = sanitizeTradeBrowsePage(page);
+  const skip = (safePage - 1) * TRADE_BROWSE_PAGE_SIZE;
   const now = new Date();
   const where: Prisma.TradeListingWhereInput = {
     AND: [
@@ -265,10 +351,23 @@ export async function searchLiveTradeListings(actor: TradeActor, values: unknown
     ],
   };
   const [listings, total] = await Promise.all([
-    db.tradeListing.findMany({ where, select: listingViewSelect, orderBy: { publishedAt: "desc" }, skip, take }),
+    db.tradeListing.findMany({
+      where,
+      select: listingViewSelect,
+      orderBy: { publishedAt: "desc" },
+      skip,
+      take: TRADE_BROWSE_PAGE_SIZE,
+    }),
     db.tradeListing.count({ where }),
   ]);
-  return { ok: true as const, listings, total, page, filters: parsed.data };
+  return {
+    ok: true as const,
+    listings,
+    total,
+    page: safePage,
+    pageSize: TRADE_BROWSE_PAGE_SIZE,
+    filters: parsed.data,
+  };
 }
 
 export async function listOwnTradeStock(actor: TradeActor) {

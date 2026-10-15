@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { replyTradeEnquiryAction } from "@/actions/trade/enquiries";
-import { TradeForm, tradeFieldClass } from "@/components/trade/trade-form";
+import { TradeForm } from "@/components/trade/trade-form";
+import { tradeFieldClass } from "@/components/trade/trade-styles";
 import { TradeEnquiryActions } from "@/components/trade/status-actions";
 import { TradeNav } from "@/components/trade/trade-nav";
 import { canTransitionTradeEnquiry } from "@/lib/trade-exchange/lifecycle";

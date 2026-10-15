@@ -2,14 +2,22 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { removeTradePhotoAction, reportTradeListingAction, uploadTradePhotoAction } from "@/actions/trade/listings";
 import { sendTradeEnquiryAction } from "@/actions/trade/enquiries";
-import { TradeForm, tradeFieldClass } from "@/components/trade/trade-form";
+import { TradeForm } from "@/components/trade/trade-form";
+import { tradeFieldClass } from "@/components/trade/trade-styles";
 import { TradeListingActions } from "@/components/trade/status-actions";
 import { TradeNav } from "@/components/trade/trade-nav";
-import { Button } from "@/components/ui/button";
 import { TRADE_REPORT_REASONS } from "@/lib/trade-exchange/constants";
-import { getVisibleTradeListing } from "@/lib/trade-exchange/listings";
+import { getVisibleTradeListing, tradeListingStatusLabel, tradeVatLabel } from "@/lib/trade-exchange/listings";
 import { formatTradePrice, presentTradeListing } from "@/lib/trade-exchange/presenter";
 import { loadTradeSession } from "@/lib/trade-exchange/session";
+
+const REPORT_LABELS: Record<(typeof TRADE_REPORT_REASONS)[number], string> = {
+  MISLEADING: "Misleading",
+  WRITTEN_OFF: "Written off",
+  NOT_AVAILABLE: "Not available",
+  ABUSE: "Abuse",
+  OTHER: "Other",
+};
 
 export default async function TradeListingPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await loadTradeSession();
@@ -34,14 +42,14 @@ export default async function TradeListingPage({ params }: { params: Promise<{ i
   return (
     <article>
       <TradeNav />
-      <p className="text-sm text-text-secondary">{view.dealerName} · {view.locationLabel} · {view.status}</p>
+      <p className="text-sm text-text-secondary">{view.dealerName} · {view.locationLabel} · {tradeListingStatusLabel(view.status)}</p>
       <h1 className="mt-1 text-3xl font-bold text-text-primary">{view.year} {view.make} {view.model}</h1>
-      <p className="mt-2 text-lg text-text-primary">{formatTradePrice(view)} · {view.vatTreatment.replaceAll("_", " ")}</p>
+      <p className="mt-2 text-lg text-text-primary">{formatTradePrice(view)} · {tradeVatLabel(view.vatTreatment)}</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {view.images.map((image) => (
+        {view.images.map((image, index) => (
           // Private trade photos are authorised per request.
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={image.id} src={`/api/trade/images/${image.id}`} alt="" className="aspect-[16/10] w-full rounded-lg object-cover" />
+          <img key={image.id} src={`/api/trade/images/${image.id}`} alt={`${view.year} ${view.make} ${view.model}, photo ${index + 1}`} className="aspect-[16/10] w-full rounded-lg object-cover" />
         ))}
       </div>
       <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
@@ -68,10 +76,17 @@ export default async function TradeListingPage({ params }: { params: Promise<{ i
               <input className="mt-1 block text-sm" type="file" name="photo" accept="image/jpeg,image/png,image/webp" required />
             </label>
           </TradeForm>
-          {view.images.map((image) => (
-            <form key={image.id} action={async () => { await removeTradePhotoAction(image.id); }}>
-              <Button type="submit" variant="ghost">Remove photo {image.id.slice(-4)}</Button>
-            </form>
+          {view.images.map((image, index) => (
+            <TradeForm
+              key={image.id}
+              action={removeTradePhotoAction.bind(null, image.id)}
+              submitLabel={`Remove photo ${index + 1} of ${view.year} ${view.make} ${view.model}`}
+              successMessage="Photo removed."
+              variant="ghost"
+              className="space-y-2"
+            >
+              {null}
+            </TradeForm>
           ))}
         </div>
       ) : null}
@@ -93,7 +108,7 @@ export default async function TradeListingPage({ params }: { params: Promise<{ i
             <input type="hidden" name="listingId" value={view.id} />
             <label className="flex flex-col gap-1 text-sm font-medium">Reason
               <select name="reasonCode" className={tradeFieldClass} defaultValue="MISLEADING">
-                {TRADE_REPORT_REASONS.map((reason) => <option key={reason} value={reason}>{reason.replaceAll("_", " ")}</option>)}
+                {TRADE_REPORT_REASONS.map((reason) => <option key={reason} value={reason}>{REPORT_LABELS[reason]}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">Details

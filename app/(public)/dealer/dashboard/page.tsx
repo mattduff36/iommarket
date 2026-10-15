@@ -23,6 +23,10 @@ import {
 } from "@/components/ui/table";
 import { Plus, ExternalLink, Star } from "lucide-react";
 import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
+import { tradeMembershipLabel } from "@/lib/trade-exchange/listings";
+import { tradeStockSummary } from "@/lib/trade-exchange/maintenance";
+import { loadTradeSession } from "@/lib/trade-exchange/session";
+import type { TradeActor } from "@/lib/trade-exchange/decision";
 import { AccountListingActions } from "@/components/account/account-listing-actions";
 import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-badges";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
@@ -76,6 +80,78 @@ const STATUS_FILTERS = [
 ] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];
+type TradeDashboardActor = Extract<TradeActor, { kind: "member" | "applicant" }>;
+
+function DealerTradeExchangeCard({
+  actor,
+  summary,
+}: {
+  actor: TradeDashboardActor;
+  summary: { live: number; drafts: number; enquiries: number; stale: number } | null;
+}) {
+  const proActive = actor.kind === "member" || actor.proEntitled;
+  const approval = actor.kind === "member" ? "Approved" : tradeMembershipLabel(actor.membershipStatus);
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle>Trade Exchange</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-text-secondary">
+          Offer part-exchange and clearance stock to other approved dealers. Trade stock stays off the public marketplace.
+        </p>
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm text-text-secondary">Dealer Pro</dt>
+            <dd className="mt-1">
+              <Badge variant={proActive ? "success" : "warning"}>{proActive ? "Active" : "Not active"}</Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm text-text-secondary">Trade approval</dt>
+            <dd className="mt-1">
+              <Badge variant={approval === "Approved" ? "success" : approval === "In review" ? "warning" : "neutral"}>
+                {approval}
+              </Badge>
+            </dd>
+          </div>
+        </dl>
+        {actor.kind === "member" && summary ? (
+          <>
+            <p className="text-sm text-text-secondary">
+              {summary.live} live, {summary.drafts} drafts, {summary.enquiries} open enquiries, {summary.stale} due for an availability check.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href="/dealer/trade">Browse stock</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/dealer/trade/stock">My stock</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/dealer/trade/new">New listing</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/dealer/trade/enquiries">Enquiries</Link>
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm">
+              <Link href="/dealer/trade">View Trade status</Link>
+            </Button>
+            {actor.kind === "applicant" && !actor.proEntitled ? (
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/dealer/subscribe">View Dealer Pro</Link>
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface Props {
   searchParams?: Promise<{
@@ -265,6 +341,9 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
   const tierLabel = DEALER_TIER_LABELS[listingTier];
   const managedReviews = responseEligibleReviews.map(toManagedDealerReview);
   const showAdminOperationalAccess = user.role === "ADMIN" && !entitlement;
+  const tradeActor = isTradeExchangeEnabled() ? (await loadTradeSession()).actor : null;
+  const tradeSummary = tradeActor?.kind === "member" ? await tradeStockSummary(tradeActor.dealerId) : null;
+  const tradeCardActor = tradeActor?.kind === "member" || tradeActor?.kind === "applicant" ? tradeActor : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -302,21 +381,7 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {isTradeExchangeEnabled() ? (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Trade Exchange</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-text-secondary">
-              Offer part-exchange and clearance stock to other approved dealers. Trade stock stays off the public marketplace.
-            </p>
-            <Button asChild>
-              <Link href="/dealer/trade">Open Trade Exchange</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+      {tradeCardActor ? <DealerTradeExchangeCard actor={tradeCardActor} summary={tradeSummary} /> : null}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 mb-8">

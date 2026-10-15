@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { deleteTradeSearchAction, saveTradeSearchAction } from "@/actions/trade/listings";
-import { TradeForm, tradeFieldClass } from "@/components/trade/trade-form";
+import { TradeForm } from "@/components/trade/trade-form";
+import { tradeFieldClass } from "@/components/trade/trade-styles";
 import { TradeNav } from "@/components/trade/trade-nav";
-import { Button } from "@/components/ui/button";
 import { listTradeSearches } from "@/lib/trade-exchange/saved-searches";
 import { loadTradeSession } from "@/lib/trade-exchange/session";
 
@@ -35,7 +35,7 @@ export default async function TradeSavedSearchPage() {
         {searches.map((search) => (
           <li key={search.id} className="flex items-center justify-between rounded-lg border border-border p-3">
             <span className="text-sm text-text-primary">{search.name}</span>
-            <form action={async () => { await deleteTradeSearchAction(search.id); }}><Button type="submit" variant="ghost">Delete</Button></form>
+            <TradeForm action={deleteTradeSearchAction.bind(null, search.id)} submitLabel={`Delete ${search.name}`} variant="ghost" successMessage="Saved search deleted.">{null}</TradeForm>
           </li>
         ))}
       </ul>
