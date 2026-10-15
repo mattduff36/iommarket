@@ -72,6 +72,17 @@ function save(storage: KeyValueStorage, userId: string, mode: "private" | "deale
 }
 
 describe("unsaved listing drafts", () => {
+  it("preserves private same-origin upload delivery URLs", () => {
+    const storage = memoryStorage();
+    const body = snapshot();
+    body.photos[0]!.url = "/api/media/listing-photo?imageId=79e6a636-534f-4d4b-9ac0-14bb5078d188&source=upload&mode=fill&frame=preview&w=960";
+    expect(save(storage, "user_a", "private", body).ok).toBe(true);
+    const restored = loadActiveUnsavedDraft(storage, { userId: "user_a", mode: "private", catalog });
+    expect(restored.status).toBe("restored");
+    if (restored.status === "restored") expect(restored.draft.photos[0]!.url).toBe(body.photos[0]!.url);
+    body.photos[0]!.url = "//untrusted.example/photo.jpg";
+    expect(save(storage, "user_a", "private", body).ok).toBe(false);
+  });
   it("restores only the matching user, mode, and category", () => {
     const storage = memoryStorage();
     expect(save(storage, "user_a", "private").ok).toBe(true);

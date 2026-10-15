@@ -343,6 +343,13 @@ function hasDisallowedControl(value: string, multiline: boolean) {
 function isSafePhotoUrl(url: string) {
   if (url === "") return true;
   if (url.length > 500 || /[<>\s]/.test(url)) return false;
+  // Private uploads are delivered through the same-origin media endpoint.
+  if (url.startsWith("/api/media/listing-photo?")) {
+    const parsed = new URL(url, "https://draft.invalid");
+    return parsed.origin === "https://draft.invalid" &&
+      parsed.pathname === "/api/media/listing-photo" &&
+      /^[A-Za-z0-9_-]+$/.test(parsed.searchParams.get("imageId") ?? "");
+  }
   try {
     return new URL(url).protocol === "https:";
   } catch {
