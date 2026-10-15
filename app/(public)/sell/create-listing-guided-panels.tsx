@@ -288,15 +288,15 @@ export function GuidedListingStepPanels({
         ) : null}
       </div>
 
-      <div data-listing-step="2" hidden={step !== 2} className={step === 2 ? "space-y-4" : "hidden"}>
-        <div className="space-y-1">
+      <div data-listing-step="2" hidden={step !== 2} className={step === 2 ? "grid min-w-0 gap-4 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-x-6" : "hidden"}>
+        <div className="space-y-1 md:col-start-2">
           <h3 className="text-sm font-semibold text-text-primary">Additional details</h3>
           <p className="text-xs text-text-secondary">
             Optional. You can continue without these. Leave a field blank to clear it. Unknown is not the same as No.
           </p>
         </div>
         {optionalSections.length > 1 ? (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Additional detail groups">
+          <div className="flex flex-wrap content-start gap-2 md:col-start-1 md:row-start-1 md:row-span-2 md:flex-col" role="group" aria-label="Additional detail groups">
             {optionalSections.map((section) => {
               const selected = section.id === activeOptionalSectionId;
               return (
@@ -308,8 +308,8 @@ export function GuidedListingStepPanels({
                   aria-pressed={selected}
                   className={
                     selected
-                      ? "h-auto whitespace-normal border border-neon-blue-400 bg-neon-blue-500/15 text-text-primary"
-                      : "h-auto whitespace-normal border border-border"
+                      ? "h-auto whitespace-normal border border-neon-blue-400 bg-neon-blue-500/15 text-text-primary md:w-full md:justify-start md:px-3 md:py-3 md:text-left"
+                      : "h-auto whitespace-normal border border-border md:w-full md:justify-start md:px-3 md:py-3 md:text-left"
                   }
                   onClick={() => onOptionalSectionChange(section.id)}
                 >
@@ -323,7 +323,7 @@ export function GuidedListingStepPanels({
           ? optionalSections.map((section) => {
               const active = section.id === activeOptionalSectionId;
               return (
-                <div key={section.id} hidden={!active} className={active ? "space-y-4" : "hidden"}>
+                <div key={section.id} hidden={!active} className={active ? "min-w-0 space-y-4 md:col-start-2 md:row-start-2" : "hidden"}>
                   <h4 className="text-sm font-semibold text-text-primary">{section.title}</h4>
                   <CreateListingAttributeFields
                     layout="plain"

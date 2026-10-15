@@ -92,6 +92,19 @@ describe("AdminActionQueue", () => {
 });
 
  describe("mobile action queue", () => {
+  it("uses Trade queue labels and destinations rather than dashboard positions", () => {
+    const base = buildAdminActionQueueItems(EMPTY_COUNTS)[0];
+    render(<AdminActionQueue items={[
+      { ...base, href: "/admin/trade/applications?status=PENDING", label: "Applications waiting", count: 1 },
+      { ...base, href: "/admin/trade/listings", label: "Listings in review" },
+    ]} />);
+    expect(screen.getByText("Applications")).toBeTruthy();
+    expect(screen.getByText("Listings")).toBeTruthy();
+    expect(screen.queryByText("Reports")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "1 Applications waiting" }));
+    expect(screen.getByRole("link", { name: "Open applications queue" }).getAttribute("href"))
+      .toBe("/admin/trade/applications?status=PENDING");
+  });
   it("starts collapsed and reuses one panel for the last selected queue", () => {
     render(<AdminActionQueue items={buildAdminActionQueueItems({...EMPTY_COUNTS, openMonitoringIssues:40})} />);
     const buttons=screen.getAllByRole("button");

@@ -2,12 +2,24 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, Ban, Bug, Clock, Star } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Ban, Bug, ClipboardList, Clock, Star, type LucideIcon } from "lucide-react";
 import type { AdminActionQueueItem } from "./admin-action-queue";
 import styles from "./admin-action-queue-mobile.module.css";
 
-const STATUS_ICONS = [Clock, AlertTriangle, Star, Ban, Bug];
-const SHORT_LABELS = ["Listings", "Reports", "Reviews", "Cancels", "Issues"];
+const QUEUES: Record<string, { icon: LucideIcon; label: string }> = {
+  "/admin/listings": { icon: Clock, label: "Listings" },
+  "/admin/reports": { icon: AlertTriangle, label: "Reports" },
+  "/admin/reviews": { icon: Star, label: "Reviews" },
+  "/admin/cancellations": { icon: Ban, label: "Cancels" },
+  "/admin/monitoring": { icon: Bug, label: "Issues" },
+  "/admin/trade/applications": { icon: ClipboardList, label: "Applications" },
+  "/admin/trade/reports": { icon: AlertTriangle, label: "Reports" },
+  "/admin/trade/listings": { icon: Clock, label: "Listings" },
+};
+
+function queueMeta(entry: { href: string; label: string }) {
+  return QUEUES[entry.href.split("?")[0]] ?? { icon: Clock, label: entry.label };
+}
 
 export function AdminActionQueueMobile({ items }: {
   items: Omit<AdminActionQueueItem, "icon">[];
@@ -21,7 +33,7 @@ export function AdminActionQueueMobile({ items }: {
     <div className={`${styles.queue} mb-6 sm:hidden`} data-open={Boolean(item)}>
       <div className={styles.rail} role="group" aria-label="Admin action queues">
         {items.map((entry, index) => {
-          const Icon = STATUS_ICONS[index];
+          const { icon: Icon, label } = queueMeta(entry);
           return (
             <button
               key={entry.href}
@@ -37,7 +49,7 @@ export function AdminActionQueueMobile({ items }: {
             >
               <Icon aria-hidden size={15} />
               <span className={styles.count}>{entry.count.toLocaleString()}</span>
-              <span className={styles.label}>{SHORT_LABELS[index]}</span>
+              <span className={styles.label}>{label}</span>
             </button>
           );
         })}
@@ -58,7 +70,7 @@ export function AdminActionQueueMobile({ items }: {
               {item.count === 0 ? "All clear — nothing needs attention in this queue." : item.subtitle}
             </p>
             <Link className={styles.action} href={item.href}>
-              Open {SHORT_LABELS[selected!].toLowerCase()} queue
+              Open {queueMeta(item).label.toLowerCase()} queue
               <ArrowUpRight aria-hidden size={15} />
             </Link>
           </section>
