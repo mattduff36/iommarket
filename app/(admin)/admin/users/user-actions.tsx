@@ -3,6 +3,7 @@
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AdminActionBar,
@@ -26,6 +27,7 @@ import {
 } from "@/actions/admin/dealer-upgrade-offers";
 import { setDealerTier } from "@/actions/admin/dealer-tier";
 import type { DealerTier, UserRole } from "@prisma/client";
+import { Button } from "@/components/ui/button";
 import { DealerAccessDialog } from "./dealer-access-dialog";
 
 interface UserActionsProps {
@@ -39,6 +41,7 @@ interface UserActionsProps {
   currentTier?: DealerTier | null;
   hasActivePaidSubscription?: boolean;
   redirectOnDelete?: string;
+  tradeMembershipId?: string | null;
   variant?: "row" | "detail";
 }
 
@@ -70,6 +73,7 @@ export function UserActions({
   currentTier = null,
   hasActivePaidSubscription = false,
   redirectOnDelete,
+  tradeMembershipId = null,
   variant = "detail",
 }: UserActionsProps) {
   const router = useRouter();
@@ -206,6 +210,14 @@ export function UserActions({
       label: "View account",
       href: `/admin/users/${userId}`,
     },
+    tradeMembershipId
+      ? {
+          kind: "link" as const,
+          id: "review-trade",
+          label: "Review Trade application",
+          href: `/admin/trade/applications/${tradeMembershipId}`,
+        }
+      : null,
     {
       kind: "menu",
       id: "role",
@@ -373,6 +385,13 @@ export function UserActions({
             >
               Revoke free access
             </AdminActionButton>
+          ) : null}
+          {tradeMembershipId ? (
+            <Button asChild size="sm" variant="ghost">
+              <Link href={`/admin/trade/applications/${tradeMembershipId}`}>
+                Review Trade application
+              </Link>
+            </Button>
           ) : null}
           {pendingDealerUpgradeOfferId ? (
             <>

@@ -107,7 +107,7 @@ describe("trade access", () => {
     const other = { ...member, dealerId: "dealer-2" };
     expect(canViewTradeListing({ actor: other, listingDealerId: "dealer-1", status: "DRAFT", sellerEligible: true })).toBe(false);
     expect(canViewTradeListing({ actor: other, listingDealerId: "dealer-1", status: "LIVE", sellerEligible: false })).toBe(false);
-    expect(canViewTradeListing({ actor: other, listingDealerId: "dealer-1", status: "LIVE", sellerEligible: true })).toBe(true);
+    expect(canViewTradeListing({ actor: other, listingDealerId: "dealer-1", status: "LIVE", sellerEligible: true, expiresAt: future })).toBe(true);
     expect(canEditTradeListing(other, "dealer-1")).toBe(false);
     expect(canEditTradeListing(member, "dealer-1")).toBe(true);
     expect(canReadTradeEnquiry({ actor: other, fromDealerId: "dealer-3", toDealerId: "dealer-1" })).toBe(false);

@@ -25,7 +25,15 @@ export async function decideTradeMembershipAction(formData: FormData) {
       note: formData.get("note"),
     },
   });
-  if ("ok" in result) revalidatePath("/admin/trade");
+  if ("ok" in result) {
+    revalidatePath("/admin/trade/applications");
+    revalidatePath(`/admin/trade/applications/${String(formData.get("membershipId"))}`);
+    revalidatePath("/admin/trade", "layout");
+    revalidatePath("/admin/users", "layout");
+    revalidatePath("/admin/dealers");
+    revalidatePath("/dealer/dashboard");
+    revalidatePath("/dealer/trade", "layout");
+  }
   return result;
 }
 

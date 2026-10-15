@@ -24,7 +24,10 @@ describe("preview mirror panel", () => {
     expect(screen.getByText(/replaces all preview data, including every account/i)).toBeInTheDocument();
     expect(screen.getByText(/all users will be signed out/i)).toBeInTheDocument();
     expect(screen.getByText(/Last successful refresh/)).toBeInTheDocument();
-    expect(screen.getByText(/Next automatic refresh/)).toBeInTheDocument();
+    expect(screen.getByText("Manual only")).toBeInTheDocument();
+    expect(screen.getByText(/no upcoming automatic refresh/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Next automatic refresh/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/12\/10\/2026/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
@@ -53,6 +56,7 @@ describe("preview mirror panel", () => {
     render(<DatabasePanel initialStatus={null} initialStatusError="Status database is unavailable." />);
     expect(screen.getByRole("alert")).toHaveTextContent("Refresh status is unavailable: Status database is unavailable.");
     expect(screen.getByRole("button", { name: "Refresh from production" })).toBeDisabled();
-    expect(screen.getAllByText("Unavailable")).toHaveLength(2);
+    expect(screen.getAllByText("Unavailable")).toHaveLength(1);
+    expect(screen.getByText("Manual only")).toBeInTheDocument();
   });
 });

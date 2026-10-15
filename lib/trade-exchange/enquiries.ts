@@ -1,11 +1,32 @@
 import { db } from "@/lib/db";
-import type { TradeEnquiryStatus } from "@prisma/client";
+import type { Prisma, TradeEnquiryStatus } from "@prisma/client";
 import { sellerIsEligible } from "@/lib/trade-exchange/access";
 import { canReadTradeEnquiry, canViewTradeListing, type TradeActor } from "@/lib/trade-exchange/decision";
 import { canTransitionTradeEnquiry } from "@/lib/trade-exchange/lifecycle";
 import { tradeRateLimit } from "@/lib/trade-exchange/limits";
 import { notifyTradeEnquiry } from "@/lib/trade-exchange/notify";
 import { tradeEnquirySchema } from "@/lib/trade-exchange/validation";
+
+const OPEN_ENQUIRY_STATUSES = ["OPEN", "ACCEPTED_IN_PRINCIPLE"] as const;
+
+function enquiryIsOpen(status: string) {
+  return status === "OPEN" || status === "ACCEPTED_IN_PRINCIPLE";
+}
+
+class TradeWorkflowError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TradeWorkflowError";
+  }
+}
+
+function enquiryError(error: unknown, fallback: string) {
+  return { error: error instanceof TradeWorkflowError ? error.message : fallback };
+}
+
+async function lockEnquiryPair(tx: Prisma.TransactionClient, listingId: string, fromDealerId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trade-enquiry:${listingId}:${fromDealerId}`})::bigint)`;
+}
 
 export async function sendTradeEnquiry(actor: TradeActor, values: unknown) {
   if (actor.kind !== "member") return { error: "Not found." };
@@ -15,43 +36,76 @@ export async function sendTradeEnquiry(actor: TradeActor, values: unknown) {
   if (limited) return { error: limited };
   const listing = await db.tradeListing.findUnique({
     where: { id: parsed.data.listingId },
-    select: { id: true, dealerId: true, status: true, dealer: { select: { user: { select: { email: true } } } } },
+    select: { id: true, dealerId: true, status: true, expiresAt: true, dealer: { select: { user: { select: { email: true } } } } },
   });
   if (!listing) return { error: "Not found." };
   const sellerEligible = await sellerIsEligible(listing.dealerId);
-  if (!canViewTradeListing({ actor, listingDealerId: listing.dealerId, status: listing.status, sellerEligible })) {
+  if (!canViewTradeListing({
+    actor,
+    listingDealerId: listing.dealerId,
+    status: listing.status,
+    sellerEligible,
+    expiresAt: listing.expiresAt,
+  })) {
     return { error: "Not found." };
   }
   if (listing.dealerId === actor.dealerId) return { error: "You cannot enquire on your own listing." };
-  const existing = await db.tradeEnquiry.findUnique({
-    where: { listingId_fromDealerId: { listingId: listing.id, fromDealerId: actor.dealerId } },
-    select: { id: true, status: true },
-  });
-  if (existing && existing.status !== "OPEN" && existing.status !== "ACCEPTED_IN_PRINCIPLE") {
-    return { error: "This enquiry is closed." };
-  }
-  const enquiry = await db.$transaction(async (tx) => {
-    const record = existing
-      ? await tx.tradeEnquiry.update({
-          where: { id: existing.id },
+  try {
+    const enquiry = await db.$transaction(async (tx) => {
+      await lockEnquiryPair(tx, parsed.data.listingId, actor.dealerId);
+      const current = await tx.tradeListing.findUnique({
+        where: { id: parsed.data.listingId },
+        select: { id: true, dealerId: true, status: true, expiresAt: true, dealer: { select: { user: { select: { email: true } } } } },
+      });
+      if (!current) throw new TradeWorkflowError("Not found.");
+      const currentSellerEligible = current.dealerId === listing.dealerId ? sellerEligible : await sellerIsEligible(current.dealerId);
+      if (!canViewTradeListing({
+        actor,
+        listingDealerId: current.dealerId,
+        status: current.status,
+        sellerEligible: currentSellerEligible,
+        expiresAt: current.expiresAt,
+      })) {
+        throw new TradeWorkflowError("Not found.");
+      }
+      if (current.dealerId === actor.dealerId) throw new TradeWorkflowError("You cannot enquire on your own listing.");
+      const existing = await tx.tradeEnquiry.findUnique({
+        where: { listingId_fromDealerId: { listingId: current.id, fromDealerId: actor.dealerId } },
+        select: { id: true, status: true },
+      });
+      if (existing && !enquiryIsOpen(existing.status)) {
+        throw new TradeWorkflowError("This enquiry is closed.");
+      }
+      let enquiryId: string;
+      if (existing) {
+        const updated = await tx.tradeEnquiry.updateMany({
+          where: { id: existing.id, status: { in: [...OPEN_ENQUIRY_STATUSES] } },
           data: { offerPence: parsed.data.offerPence ?? null },
-        })
-      : await tx.tradeEnquiry.create({
+        });
+        if (updated.count !== 1) throw new TradeWorkflowError("This enquiry is closed.");
+        enquiryId = existing.id;
+      } else {
+        const created = await tx.tradeEnquiry.create({
           data: {
-            listingId: listing.id,
+            listingId: current.id,
             fromDealerId: actor.dealerId,
-            toDealerId: listing.dealerId,
+            toDealerId: current.dealerId,
             offerPence: parsed.data.offerPence ?? null,
           },
         });
-    await tx.tradeMessage.create({
-      data: { enquiryId: record.id, senderDealerId: actor.dealerId, body: parsed.data.body },
+        enquiryId = created.id;
+        await tx.tradeMetricEvent.create({ data: { kind: "ENQUIRY_OPENED", dealerId: actor.dealerId } });
+      }
+      await tx.tradeMessage.create({
+        data: { enquiryId, senderDealerId: actor.dealerId, body: parsed.data.body },
+      });
+      return { id: enquiryId, email: current.dealer.user.email };
     });
-    if (!existing) await tx.tradeMetricEvent.create({ data: { kind: "ENQUIRY_OPENED", dealerId: actor.dealerId } });
-    return record;
-  });
-  await notifyTradeEnquiry(listing.dealer.user.email);
-  return { ok: true as const, id: enquiry.id };
+    await notifyTradeEnquiry(enquiry.email);
+    return { ok: true as const, id: enquiry.id };
+  } catch (error) {
+    return enquiryError(error, "The enquiry could not be sent.");
+  }
 }
 
 export async function replyToTradeEnquiry(actor: TradeActor, enquiryId: string, body: string) {
@@ -72,12 +126,41 @@ export async function replyToTradeEnquiry(actor: TradeActor, enquiryId: string, 
   if (!enquiry || !canReadTradeEnquiry({ actor, fromDealerId: enquiry.fromDealerId, toDealerId: enquiry.toDealerId })) {
     return { error: "Not found." };
   }
-  if (enquiry.status !== "OPEN" && enquiry.status !== "ACCEPTED_IN_PRINCIPLE") return { error: "This enquiry is closed." };
+  if (!enquiryIsOpen(enquiry.status)) {
+    return { error: "This enquiry is closed." };
+  }
   const limited = await tradeRateLimit("enquiry-reply", actor.userId, 60, 3_600_000);
   if (limited) return { error: limited };
-  await db.tradeMessage.create({ data: { enquiryId, senderDealerId: actor.dealerId, body: trimmed } });
-  const recipient = actor.dealerId === enquiry.toDealerId ? enquiry.fromDealer.user.email : enquiry.toDealer.user.email;
-  await notifyTradeEnquiry(recipient);
+  try {
+    const recipient = await db.$transaction(async (tx) => {
+      const seed = await tx.tradeEnquiry.findUnique({
+        where: { id: enquiryId },
+        select: { listingId: true, fromDealerId: true },
+      });
+      if (!seed) throw new TradeWorkflowError("Not found.");
+      await lockEnquiryPair(tx, seed.listingId, seed.fromDealerId);
+      const current = await tx.tradeEnquiry.findUnique({
+        where: { id: enquiryId },
+        select: { id: true, status: true, fromDealerId: true, toDealerId: true, fromDealer: { select: { user: { select: { email: true } } } }, toDealer: { select: { user: { select: { email: true } } } } },
+      });
+      if (!current || !canReadTradeEnquiry({ actor, fromDealerId: current.fromDealerId, toDealerId: current.toDealerId })) {
+        throw new TradeWorkflowError("Not found.");
+      }
+      if (!enquiryIsOpen(current.status)) {
+        throw new TradeWorkflowError("This enquiry is closed.");
+      }
+      await tx.tradeMessage.create({ data: { enquiryId, senderDealerId: actor.dealerId, body: trimmed } });
+      const bumped = await tx.tradeEnquiry.updateMany({
+        where: { id: current.id, status: { in: [...OPEN_ENQUIRY_STATUSES] } },
+        data: { updatedAt: new Date() },
+      });
+      if (bumped.count !== 1) throw new TradeWorkflowError("This enquiry is closed.");
+      return actor.dealerId === current.toDealerId ? current.fromDealer.user.email : current.toDealer.user.email;
+    });
+    await notifyTradeEnquiry(recipient);
+  } catch (error) {
+    return enquiryError(error, "The reply could not be sent.");
+  }
   return { ok: true as const };
 }
 
@@ -96,7 +179,36 @@ export async function changeTradeEnquiryStatus(actor: TradeActor, enquiryId: str
       ? "enquirer"
       : "listing-owner";
   if (!canTransitionTradeEnquiry(enquiry.status, to, role)) return { error: "Not found." };
-  await db.tradeEnquiry.update({ where: { id: enquiry.id }, data: { status: to } });
+  try {
+    await db.$transaction(async (tx) => {
+      const seed = await tx.tradeEnquiry.findUnique({
+        where: { id: enquiryId },
+        select: { listingId: true, fromDealerId: true },
+      });
+      if (!seed) throw new TradeWorkflowError("Not found.");
+      await lockEnquiryPair(tx, seed.listingId, seed.fromDealerId);
+      const current = await tx.tradeEnquiry.findUnique({
+        where: { id: enquiryId },
+        select: { id: true, status: true, fromDealerId: true, toDealerId: true },
+      });
+      if (!current || !canReadTradeEnquiry({ actor, fromDealerId: current.fromDealerId, toDealerId: current.toDealerId })) {
+        throw new TradeWorkflowError("Not found.");
+      }
+      const currentRole = actor.kind === "admin"
+        ? "admin"
+        : actor.dealerId === current.fromDealerId
+          ? "enquirer"
+          : "listing-owner";
+      if (!canTransitionTradeEnquiry(current.status, to, currentRole)) throw new TradeWorkflowError("Not found.");
+      const updated = await tx.tradeEnquiry.updateMany({
+        where: { id: current.id, status: current.status },
+        data: { status: to },
+      });
+      if (updated.count !== 1) throw new TradeWorkflowError("Not found.");
+    });
+  } catch (error) {
+    return enquiryError(error, "The enquiry could not be updated.");
+  }
   return { ok: true as const };
 }
 

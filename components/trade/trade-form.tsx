@@ -1,38 +1,79 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, type ReactNode } from "react";
+import { unstable_rethrow } from "next/navigation";
+import { useFormStatus } from "react-dom";
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 type TradeActionResult = { error?: string } | { ok?: boolean } | void;
+
+const SAVE_ERROR = "Trade Exchange could not save that. Try again.";
+
+function TradeSubmitButton({
+  label,
+  variant,
+}: {
+  label: string;
+  variant?: ButtonProps["variant"];
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant={variant} loading={pending} disabled={pending} aria-disabled={pending || undefined}>
+      {pending ? "Saving…" : label}
+    </Button>
+  );
+}
 
 export function TradeForm({
   action,
   submitLabel,
   children,
+  successMessage = "Saved.",
+  variant,
+  className,
 }: {
   action: (formData: FormData) => Promise<TradeActionResult>;
   submitLabel: string;
   children: ReactNode;
+  successMessage?: string;
+  variant?: ButtonProps["variant"];
+  className?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [success, setSuccess] = useState<string | null>(null);
 
   return (
     <form
-      className="space-y-4"
-      action={(formData) => {
-        startTransition(async () => {
+      className={cn("space-y-4", className)}
+      action={async (formData) => {
+        setError(null);
+        setSuccess(null);
+        try {
           const result = await action(formData);
-          setError(result && typeof result === "object" && "error" in result ? result.error ?? "Trade Exchange could not save that. Try again." : null);
-        });
+          if (result && typeof result === "object" && "error" in result && result.error) {
+            setSuccess(null);
+            setError(result.error);
+            return;
+          }
+          setError(null);
+          setSuccess(successMessage);
+        } catch (caught) {
+          unstable_rethrow(caught);
+          setSuccess(null);
+          setError(SAVE_ERROR);
+        }
       }}
     >
       {children}
-      {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
-      <Button type="submit" disabled={pending}>{pending ? "Saving…" : submitLabel}</Button>
+      <div aria-live="polite" aria-atomic="true">
+        {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+        {success ? <p role="status" className="text-sm text-emerald-500">{success}</p> : null}
+      </div>
+      <TradeSubmitButton label={submitLabel} variant={variant} />
     </form>
   );
 }
 
 export const tradeFieldClass =
-  "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary";
+  "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500";

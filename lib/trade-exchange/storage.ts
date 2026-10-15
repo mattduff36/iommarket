@@ -1,4 +1,5 @@
-import { signedImageKitDeliveryUrl, uploadPrivateImageKitFile } from "@/lib/media/imagekit-api";
+import { assertExternalEffectAllowed } from "@/lib/database-sync/effects";
+import { getImageKitFileDetails, signedImageKitDeliveryUrl, uploadPrivateImageKitFile, type ImageKitFileDetails } from "@/lib/media/imagekit-api";
 import { mediaDatabaseIdentity } from "@/lib/media/environment-boundary";
 
 const PREVIEW_PROJECT = "syneonzucehwlghqmfbg";
@@ -77,10 +78,22 @@ export async function readTradeFile(filePath: string, env: NodeJS.ProcessEnv = p
   return { bytes, contentType };
 }
 
+function tradeFileIdentityMatches(details: ImageKitFileDetails | null, fileId: string, filePath: string, env: NodeJS.ProcessEnv) {
+  if (!details || details.fileId !== fileId || details.filePath !== filePath || details.isPrivateFile !== true) return false;
+  try {
+    return assertTradeFilePath(details.filePath, env).scope === tradeStorageScope(env);
+  } catch {
+    return false;
+  }
+}
+
 export async function deleteTradeFile(fileId: string, filePath: string, env: NodeJS.ProcessEnv = process.env) {
   assertTradeFilePath(filePath, env);
   const privateKey = env.IMAGEKIT_PRIVATE_KEY ?? "";
   if (!privateKey || !/^[A-Za-z0-9_-]{1,120}$/.test(fileId)) throw new Error("Private storage is not available.");
+  const details = await getImageKitFileDetails({ fileId, env }).catch(() => null);
+  if (!tradeFileIdentityMatches(details, fileId, filePath, env)) throw new Error("Private storage is not available.");
+  await assertExternalEffectAllowed({ mediaIds: [fileId, filePath] });
   const response = await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
     method: "DELETE",
     headers: { Authorization: `Basic ${Buffer.from(`${privateKey}:`).toString("base64")}` },

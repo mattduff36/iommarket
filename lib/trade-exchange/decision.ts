@@ -78,11 +78,15 @@ export function canViewTradeListing(input: {
   listingDealerId: string;
   status: TradeListingStatus;
   sellerEligible: boolean;
+  expiresAt?: Date | null;
+  now?: Date;
 }): boolean {
   if (input.actor.kind === "admin") return true;
   if (input.actor.kind !== "member") return false;
   if (input.actor.dealerId === input.listingDealerId) return true;
-  return input.status === "LIVE" && input.sellerEligible;
+  const now = input.now ?? new Date();
+  const unexpired = input.expiresAt instanceof Date && input.expiresAt.getTime() > now.getTime();
+  return input.status === "LIVE" && input.sellerEligible && unexpired;
 }
 
 export function canEditTradeListing(actor: TradeActor, listingDealerId: string): boolean {

@@ -10,8 +10,13 @@ import { MIRROR_FINGERPRINT_SQL, mirrorSchemaCompatibility } from "./schema";
 import { requiredMirrorTables, assertSamePublicCatalog } from "./coverage";
 import { AUTH_ACCOUNTS, AUTH_RUNTIME, assertSupportedAuth, authTables, capture, insertTable, publicTables, qualified, tableDigest, verifyCopy, type TableData } from "./copy";
 import { encryptedBackup, recordProvenance } from "./store";
-import { automaticMirrorDue } from "./schedule";
-import { MIRROR_DEADLINE_MS, MIRROR_INTERVAL_MS, MIRROR_LOCK_A, MIRROR_LOCK_B } from "./limits";
+import { MIRROR_DEADLINE_MS, MIRROR_LOCK_A, MIRROR_LOCK_B } from "./limits";
+
+const AUTOMATIC_DISABLED = "Automatic preview refresh is disabled.";
+
+function assertManualTrigger(input: Input) {
+  if (input.trigger !== "manual") throw new PreviewMirrorError(AUTOMATIC_DISABLED);
+}
 
 type Input = { trigger: "manual" | "automatic"; actorId?: string };
 export type MirrorResult = { status: "applied" | "not-due" | "busy"; runId?: string; copiedTables?: number; copiedRows?: number };
@@ -34,7 +39,7 @@ export async function readMirrorStatus(env: NodeJS.ProcessEnv = process.env) {
     try {
       const state = await readState(client);
       const last = state.last_success_at?.getTime() ?? null;
-      return { lastSuccessAt: last == null ? null : new Date(last).toISOString(), nextAutomaticAt: last == null ? null : new Date(last + MIRROR_INTERVAL_MS).toISOString(), lastError: state.last_error };
+      return { lastSuccessAt: last == null ? null : new Date(last).toISOString(), nextAutomaticAt: null, lastError: state.last_error };
     } finally { client.release(); }
   } finally { await pool.end(); }
 }
@@ -79,6 +84,7 @@ async function replaceData(client: PoolClient, source: TableData[], tables: stri
 
 /** Internal shared engine. Callers cannot choose connections through HTTP inputs. */
 export async function mirrorWithClients(input: Input, sourceClient: PoolClient, destination: PoolClient, key: string): Promise<MirrorResult> {
+  assertManualTrigger(input);
   const started = Date.now(), runId = randomUUID();
   let sourceOpen = false, destinationOpen = false, locked = false;
   const deadline = () => { if (Date.now() - started > MIRROR_DEADLINE_MS) throw new PreviewMirrorError("Preview refresh timed out. No partial copy was committed."); };
@@ -86,7 +92,6 @@ export async function mirrorWithClients(input: Input, sourceClient: PoolClient, 
     locked = (await destination.query("SELECT pg_try_advisory_lock($1,$2) AS locked", [MIRROR_LOCK_A, MIRROR_LOCK_B])).rows[0]?.locked === true;
     if (!locked) return { status: "busy" };
     const state = await readState(destination);
-    if (input.trigger === "automatic" && !automaticMirrorDue(state.last_success_at?.getTime() ?? null, Date.now())) return { status: "not-due" };
     if (state.last_attempt_at && Date.now() - state.last_attempt_at.getTime() < 60_000) return { status: "busy" };
     await destination.query("UPDATE preview_mirror.state SET last_attempt_at=now(),last_error=NULL WHERE id=1");
     const source = await startReadOnlySource(sourceClient);
@@ -141,6 +146,7 @@ export async function mirrorWithClients(input: Input, sourceClient: PoolClient, 
 }
 
 export async function refreshPreviewMirror(input: Input, env: NodeJS.ProcessEnv = process.env): Promise<MirrorResult> {
+  assertManualTrigger(input);
   assertMirrorTargets(env);
   const sourcePool = new pg.Pool({ ...buildDatabasePoolOptions(mirrorSourceUrl(env), env), max: 1, connectionTimeoutMillis: 15_000 });
   const targetPool = new pg.Pool({ ...buildDatabasePoolOptions(resolvePreviewSessionUrl(env), env), max: 1, connectionTimeoutMillis: 15_000 });

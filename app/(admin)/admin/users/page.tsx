@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import type { TradeMembershipStatus } from "@prisma/client";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,9 @@ import {
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
 import { UserAccountStatusBadge } from "@/components/admin/user-account-status-badge";
+import { TradeMembershipBadge } from "@/components/admin/trade-admin-ui";
 import { UserActions } from "./user-actions";
+import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
 import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import { formatAdminDate } from "@/lib/admin/format";
@@ -69,6 +72,31 @@ const ROLE_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 25;
 
+function TradeApplicationStatus({
+  membership,
+}: {
+  membership: { id: string; status: TradeMembershipStatus } | null;
+}) {
+  if (!membership) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-text-secondary">Trade application</span>
+        <Badge variant="neutral">Not applied</Badge>
+        <Link href="/admin/trade/applications" className="text-xs text-neon-blue-400 hover:underline">
+          Applications
+        </Link>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-text-secondary">Trade application</span>
+      <TradeMembershipBadge status={membership.status} />
+    </span>
+  );
+}
+
 export default async function AdminUsersPage({ searchParams }: Props) {
   const params = await searchParams;
   const query = params.q ?? "";
@@ -77,6 +105,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const sort = parseAdminSort(params, USER_TABLE_COLUMNS, USER_TABLE_SORT);
   const now = new Date();
+  const tradeEnabled = isTradeExchangeEnabled();
   const paidEntitlementWhere = getPaidSubscriptionEntitlementWhere(now);
   const sampleVisibility = await getSampleVisibility();
   const visibleListings = applySampleListingVisibility({}, sampleVisibility);
@@ -129,6 +158,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
     }),
     db.user.count({ where }),
   ]);
+  const dealerIds = users.flatMap((user) => (user.dealerProfile ? [user.dealerProfile.id] : []));
+  const tradeMemberships = tradeEnabled && dealerIds.length > 0
+    ? await db.tradeMembership.findMany({
+        where: { dealerId: { in: dealerIds } },
+        select: { id: true, dealerId: true, status: true },
+      })
+    : [];
+  const tradeByDealerId = new Map(tradeMemberships.map((membership) => [membership.dealerId, membership]));
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -224,7 +261,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((user) => (
+          {users.map((user) => {
+            const tradeMembership = user.dealerProfile
+              ? tradeByDealerId.get(user.dealerProfile.id) ?? null
+              : null;
+            return (
             <TableRow key={user.id}>
               <TableCell data-column="user">
                 <AdminDataCell
@@ -286,9 +327,20 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       </Link>
                     }
                     badges={
-                      <Badge variant={user.dealerProfile.verified ? "success" : "neutral"}>
-                        {user.dealerProfile.verified ? "Verified" : "Unverified"}
-                      </Badge>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={user.dealerProfile.verified ? "success" : "neutral"}>
+                          {tradeEnabled
+                            ? user.dealerProfile.verified
+                              ? "Public verified"
+                              : "Public unverified"
+                            : user.dealerProfile.verified
+                              ? "Verified"
+                              : "Unverified"}
+                        </Badge>
+                        {tradeEnabled ? (
+                          <TradeApplicationStatus membership={tradeMembership} />
+                        ) : null}
+                      </span>
                     }
                   />
                 ) : (
@@ -329,10 +381,12 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       (subscription) => subscription.source === "PAYMENT",
                     ) ?? false
                   }
+                  tradeMembershipId={tradeEnabled ? tradeMembership?.id ?? null : null}
                 />
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
           {users.length === 0 && (
             <TableRow>
               <AdminTableEmpty colSpan={USER_TABLE_COLUMNS.length}>
