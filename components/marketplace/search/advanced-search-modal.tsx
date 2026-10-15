@@ -30,8 +30,15 @@ import {
   NUMERIC_FILTER_UNITS_V1,
 } from "@/lib/search/numeric-filter-units";
 import { type SearchParams } from "@/lib/search/search-url";
+import { CategorySearchFields } from "@/components/marketplace/search/category-search-fields";
 import {
-  BODY_TYPE_OPTIONS,
+  categoryControlsFromParams,
+  categoryControlsToParams,
+  categorySearchProfile,
+  resolveVehicleCategorySlug,
+  type CategoryControlState,
+} from "@/lib/search/category-filters";
+import {
   COLOUR_OPTIONS,
   TRANSMISSION_OPTIONS,
   DRIVE_TYPE_OPTIONS,
@@ -129,6 +136,9 @@ export function AdvancedSearchModal({
   const [location, setLocation] = React.useState(initial.location ?? "");
   const [doors, setDoors] = React.useState(initial.doors ?? "");
   const [seats, setSeats] = React.useState(initial.seats ?? "");
+  const [categoryControls, setCategoryControls] = React.useState<CategoryControlState>(
+    () => categoryControlsFromParams(initial),
+  );
 
   const [priceRange, setPriceRange] = React.useState<[number, number]>(
     parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX),
@@ -193,6 +203,7 @@ export function AdvancedSearchModal({
     setLocation(initial.location ?? "");
     setDoors(initial.doors ?? "");
     setSeats(initial.seats ?? "");
+    setCategoryControls(categoryControlsFromParams(initial));
     setPriceRange(parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX));
     setMileageRange(
       parseBoundedRange(initial.minMileage, initial.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
@@ -226,6 +237,22 @@ export function AdvancedSearchModal({
 
   const modelsForMake = make ? (modelsByMake[make] ?? []) : [];
   const showBatteryFilters = isEvCompatibleFuelType(fuelType);
+  const categorySlug = resolveVehicleCategorySlug(category, categories);
+  const categoryProfile = categorySearchProfile(categorySlug);
+
+  function handleCategoryChange(value: string) {
+    const nextSlug = resolveVehicleCategorySlug(value, categories);
+    const nextProfile = categorySearchProfile(nextSlug);
+    setCategory(value);
+    if (!nextProfile.showBody || (bodyType && !nextProfile.bodyOptions.includes(bodyType))) {
+      setBodyType("");
+    }
+    if (!nextProfile.showDoors) setDoors("");
+    if (!nextProfile.showBoot) setBootSpaceRange([0, BOOT_SPACE_MAX]);
+    setCategoryControls(categoryControlsFromParams(
+      categoryControlsToParams(categoryControls, nextSlug),
+    ));
+  }
 
   function handleFuelTypeChange(value: string) {
     setFuelType(value);
@@ -250,14 +277,14 @@ export function AdvancedSearchModal({
       model: model || undefined,
       category: category || undefined,
       region: region || undefined,
-      bodyType: bodyType || undefined,
+      bodyType: categoryProfile.showBody ? bodyType || undefined : undefined,
       colour: colour || undefined,
       fuelType: fuelType || undefined,
       transmission: transmission || undefined,
       driveType: driveType || undefined,
       sellerType: sellerType || undefined,
       location: location || undefined,
-      doors: doors || undefined,
+      doors: categoryProfile.showDoors ? doors || undefined : undefined,
       seats: seats || undefined,
       minPrice: rangeMinParam(priceRange[0], PRICE_MIN),
       maxPrice: rangeMaxParam(priceRange[1], PRICE_MAX),
@@ -284,8 +311,9 @@ export function AdvancedSearchModal({
       maxTax: rangeMaxParam(taxRange[1], TAX_MAX),
       minInsuranceGroup: rangeMinParam(insuranceGroupRange[0], 1),
       maxInsuranceGroup: rangeMaxParam(insuranceGroupRange[1], INSURANCE_GROUP_MAX),
-      minBootSpace: rangeMinParam(bootSpaceRange[0], 0),
-      maxBootSpace: rangeMaxParam(bootSpaceRange[1], BOOT_SPACE_MAX),
+      minBootSpace: categoryProfile.showBoot ? rangeMinParam(bootSpaceRange[0], 0) : undefined,
+      maxBootSpace: categoryProfile.showBoot ? rangeMaxParam(bootSpaceRange[1], BOOT_SPACE_MAX) : undefined,
+      ...categoryControlsToParams(categoryControls, categorySlug),
     });
     onOpenChange(false);
   }
@@ -393,9 +421,18 @@ export function AdvancedSearchModal({
                   </SelectContent>
                 </Select>
               </div>
-              <SelectField label="Body Type" value={bodyType} onChange={setBodyType} options={BODY_TYPE_OPTIONS} />
+              {categoryProfile.showBody && (
+                <SelectField
+                  label={categoryProfile.bodyLabel}
+                  value={bodyType}
+                  onChange={setBodyType}
+                  options={categoryProfile.bodyOptions}
+                />
+              )}
               <SelectField label="Colour" value={colour} onChange={setColour} options={COLOUR_OPTIONS} />
-              <SelectField label="Doors" value={doors} onChange={setDoors} options={DOORS_OPTIONS.map((d) => String(d))} />
+              {categoryProfile.showDoors && (
+                <SelectField label="Doors" value={doors} onChange={setDoors} options={DOORS_OPTIONS.map((d) => String(d))} />
+              )}
               <SelectField label="Seats" value={seats} onChange={setSeats} options={SEATS_OPTIONS.map((s) => String(s))} />
               <SelectField label="Gearbox" value={transmission} onChange={setTransmission} options={TRANSMISSION_OPTIONS} />
               <SelectField label="Fuel Type" value={fuelType} onChange={handleFuelTypeChange} options={FUEL_TYPE_FILTER_OPTIONS} />
@@ -403,6 +440,11 @@ export function AdvancedSearchModal({
               <SelectField label="Seller Type" value={sellerType} onChange={setSellerType} options={SELLER_TYPE_OPTIONS} />
               <SelectField label="Market" value={location} onChange={setLocation} options={LOCATION_OPTIONS} />
             </div>
+            <CategorySearchFields
+              categorySlug={categorySlug}
+              values={categoryControls}
+              onChange={setCategoryControls}
+            />
           </section>
 
           {/* --- Price, mileage, and year --- */}
@@ -452,10 +494,12 @@ export function AdvancedSearchModal({
           <section>
             <h3 className="mb-3 text-sm font-semibold text-text-primary border-b border-border pb-2">Other</h3>
             <div className="space-y-4">
-              <RangeSlider label="Boot Space" min={0} max={BOOT_SPACE_MAX} step={50} value={bootSpaceRange} onValueChange={setBootSpaceRange} formatValue={(v) => `${v}L`} />
+              {categoryProfile.showBoot && (
+                <RangeSlider label="Boot Space" min={0} max={BOOT_SPACE_MAX} step={50} value={bootSpaceRange} onValueChange={setBootSpaceRange} formatValue={(v) => `${v}L`} />
+              )}
 
               {categories.length > 0 && (
-                <SelectField label="Category" value={category} onChange={setCategory} options={categories} />
+                <SelectField label="Category" value={category} onChange={handleCategoryChange} options={categories} />
               )}
               {regions.length > 0 && (
                 <SelectField label="Region" value={region} onChange={setRegion} options={regions} />

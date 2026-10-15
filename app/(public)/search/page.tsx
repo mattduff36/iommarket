@@ -12,6 +12,13 @@ import {
   normalizeSearchParams,
   type SearchParams,
 } from "@/lib/search/search-url";
+import {
+  categoryExactFilters,
+  categoryNumericFilters,
+  categoryNumericListingIdQuery,
+  knownVehicleCategorySlug,
+  scopeCategorySearchRecord,
+} from "@/lib/search/category-filters";
 import { categoryLandingCopy } from "@/lib/seo/category-copy";
 import { publicPageMetadata } from "@/lib/seo/page-metadata";
 import { buildCategorySearchPath } from "@/lib/navigation-paths";
@@ -63,7 +70,10 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const sp = normalizeSearchParams(await searchParams);
   const activeCategory = sp.category
     ? await db.category.findFirst({
-        where: { slug: sp.category, active: true },
+        where: {
+          active: true,
+          OR: [{ slug: sp.category }, { id: sp.category }],
+        },
         select: { slug: true, name: true },
       })
     : null;
@@ -89,7 +99,18 @@ interface NumericRangeFilter {
 
 export default async function SearchPage({ searchParams }: Props) {
   await expireStaleLiveListings();
-  const sp = normalizeSearchParams(await searchParams);
+  const requested = normalizeSearchParams(await searchParams);
+  const selectedCategory = requested.category
+    ? await db.category.findFirst({
+        where: {
+          active: true,
+          OR: [{ slug: requested.category }, { id: requested.category }],
+        },
+        select: { id: true, name: true, slug: true },
+      })
+    : null;
+  const vehicleSlug = knownVehicleCategorySlug(selectedCategory?.slug);
+  const sp = scopeCategorySearchRecord(requested, vehicleSlug);
   const currentUser = await getCurrentUser();
   const query = sp.q?.trim() ?? "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
@@ -203,6 +224,16 @@ export default async function SearchPage({ searchParams }: Props) {
     );
     listingIdsFromAttributes = result.map((r) => r.id);
   }
+  const categoryRanges = categoryNumericFilters(sp, vehicleSlug);
+  if (categoryRanges.length > 0) {
+    const result = await db.$queryRaw<{ id: string }[]>(
+      categoryNumericListingIdQuery(categoryRanges),
+    );
+    const categoryIds = new Set(result.map((row) => row.id));
+    listingIdsFromAttributes = listingIdsFromAttributes
+      ? listingIdsFromAttributes.filter((id) => categoryIds.has(id))
+      : [...categoryIds];
+  }
 
   const exactAttrFilters: Array<{ slug: string; values: readonly string[] }> = [];
   if (fuelTypeFilter) {
@@ -216,6 +247,7 @@ export default async function SearchPage({ searchParams }: Props) {
   if (sp.colour) exactAttrFilters.push({ slug: "colour", values: [sp.colour] });
   if (sp.driveType) exactAttrFilters.push({ slug: "drive-type", values: [sp.driveType] });
   if (sp.location) exactAttrFilters.push({ slug: "location", values: [sp.location] });
+  exactAttrFilters.push(...categoryExactFilters(sp, vehicleSlug));
 
   const attrAndClauses = [
     ...(sp.make
@@ -275,7 +307,11 @@ export default async function SearchPage({ searchParams }: Props) {
     ...(listingIdsFromAttributes !== null
       ? { id: { in: listingIdsFromAttributes } }
       : {}),
-    ...(sp.category ? { category: { slug: sp.category } } : {}),
+    ...(requested.category
+      ? selectedCategory
+        ? { categoryId: selectedCategory.id }
+        : { category: { slug: requested.category } }
+      : {}),
     ...(sp.featured === "true" ? { featured: true } : {}),
     ...(sp.region ? { region: { slug: sp.region } } : {}),
     ...(minPricePence !== undefined || maxPricePence !== undefined
@@ -331,7 +367,6 @@ export default async function SearchPage({ searchParams }: Props) {
     regions,
     makeDefs,
     modelDefs,
-    selectedCategory,
   ] = await Promise.all([
     listingsQuery,
     db.listing.count({ where }),
@@ -354,12 +389,6 @@ export default async function SearchPage({ searchParams }: Props) {
       where: { slug: "model" },
       select: { id: true },
     }),
-    sp.category
-      ? db.category.findFirst({
-          where: { slug: sp.category, active: true },
-          select: { name: true, slug: true },
-        })
-      : Promise.resolve(null),
   ]);
   const favouriteListingIds = currentUser
     ? new Set(
@@ -432,7 +461,7 @@ export default async function SearchPage({ searchParams }: Props) {
       (sp.sellerType === "dealer" ? "Dealer listings" : "All listings");
 
   const currentParams: SearchParams = {
-    q: sp.q, category: sp.category, region: sp.region,
+    q: sp.q, category: selectedCategory?.slug ?? sp.category, region: sp.region,
     make: sp.make, model: sp.model,
     minPrice: sp.minPrice, maxPrice: sp.maxPrice,
     minMileage: sp.minMileage, maxMileage: sp.maxMileage,
@@ -453,6 +482,15 @@ export default async function SearchPage({ searchParams }: Props) {
     minTax: sp.minTax, maxTax: sp.maxTax,
     minInsuranceGroup: sp.minInsuranceGroup, maxInsuranceGroup: sp.maxInsuranceGroup,
     minBootSpace: sp.minBootSpace, maxBootSpace: sp.maxBootSpace,
+    wheelbase: sp.wheelbase, roofHeight: sp.roofHeight,
+    minPayload: sp.minPayload, maxPayload: sp.maxPayload,
+    minLoadLength: sp.minLoadLength, maxLoadLength: sp.maxLoadLength,
+    minGvw: sp.minGvw, maxGvw: sp.maxGvw,
+    minBerths: sp.minBerths, maxBerths: sp.maxBerths,
+    minBeltedSeats: sp.minBeltedSeats, maxBeltedSeats: sp.maxBeltedSeats,
+    sleepingLayout: sp.sleepingLayout, mainLayout: sp.mainLayout,
+    minOverallLength: sp.minOverallLength, maxOverallLength: sp.maxOverallLength,
+    minMtplm: sp.minMtplm, maxMtplm: sp.maxMtplm,
   };
 
   return (

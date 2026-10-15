@@ -5,6 +5,7 @@ import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { useHomeCategory } from "@/components/marketplace/home/home-category-context";
 import type { ListingPhotoSource } from "@/lib/images/photo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -18,6 +19,18 @@ export interface FeaturedListingsCarouselItem {
   meta?: string;
   href: string;
   writeOffCategory?: string | null;
+  categorySlug?: string | null;
+}
+
+function prioritizeSelectedCategory(
+  listings: FeaturedListingsCarouselItem[],
+  categorySlug: string | null,
+): FeaturedListingsCarouselItem[] {
+  if (!categorySlug) return listings;
+  const matching = listings.filter((listing) => listing.categorySlug === categorySlug);
+  if (matching.length === 0) return listings;
+  const others = listings.filter((listing) => listing.categorySlug !== categorySlug);
+  return [...matching, ...others];
 }
 
 interface FeaturedListingsCarouselProps {
@@ -27,7 +40,12 @@ interface FeaturedListingsCarouselProps {
 export function FeaturedListingsCarousel({
   listings,
 }: FeaturedListingsCarouselProps) {
-  const canNavigate = listings.length > 1;
+  const selectedCategory = useHomeCategory()?.category ?? null;
+  const orderedListings = React.useMemo(
+    () => prioritizeSelectedCategory(listings, selectedCategory),
+    [listings, selectedCategory],
+  );
+  const canNavigate = orderedListings.length > 1;
   const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
   const autoplay = React.useMemo(
     () =>
@@ -62,6 +80,11 @@ export function FeaturedListingsCarousel({
     setScrollProgress(emblaApi.scrollProgress());
     setScrollSnaps(emblaApi.scrollSnapList());
   }, [emblaApi]);
+
+  React.useEffect(() => {
+    if (!emblaApi || !selectedCategory) return;
+    emblaApi.scrollTo(0);
+  }, [emblaApi, selectedCategory]);
 
   React.useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -195,7 +218,7 @@ export function FeaturedListingsCarousel({
 
       <div className="overflow-hidden py-3" ref={emblaRef} data-testid="featured-listings-carousel-stage">
         <div className="-ml-2 flex touch-pan-y touch-pinch-zoom sm:-ml-3">
-          {listings.map((listing, index) => {
+          {orderedListings.map((listing, index) => {
             const offset = relativeSnapOffset(index);
             const clampedOffset = Math.max(-2.6, Math.min(2.6, offset));
             const absOffset = Math.abs(clampedOffset);
@@ -248,7 +271,7 @@ export function FeaturedListingsCarousel({
       {canNavigate && (
         <div className="mt-4 flex justify-center">
           <div className="flex items-center gap-2">
-            {listings.map((listing, index) => {
+            {orderedListings.map((listing, index) => {
               const isSelected = index === selectedIndex;
 
               return (

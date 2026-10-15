@@ -1,3 +1,8 @@
+import {
+  CATEGORY_SEARCH_KEYS,
+  knownVehicleCategorySlug,
+  scopeCategorySearchRecord,
+} from "@/lib/search/category-filters";
 import { SEARCH_SORT_OPTIONS } from "@/lib/search/search-order";
 import { normalizeNumericFilterUnits } from "@/lib/search/numeric-filter-units";
 
@@ -47,6 +52,7 @@ export const SEARCH_KEYS = [
   "maxInsuranceGroup",
   "minBootSpace",
   "maxBootSpace",
+  ...CATEGORY_SEARCH_KEYS,
 ] as const;
 
 type SearchKey = (typeof SEARCH_KEYS)[number];
@@ -94,8 +100,10 @@ export function normalizeSearchParams(
   }
 
   Object.assign(normalized, normalizeNumericFilterUnits(normalized));
-
-  return normalized;
+  const categorySlug = knownVehicleCategorySlug(normalized.category);
+  return scopeCategorySearchRecord(normalized, categorySlug, {
+    unresolvedCategory: Boolean(normalized.category) && !categorySlug,
+  });
 }
 
 export function buildSearchCanonicalPath(
