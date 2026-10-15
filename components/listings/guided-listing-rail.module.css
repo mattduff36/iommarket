@@ -3,6 +3,13 @@
   --listing-action-bottom: 0px;
 }
 
+/* Clip horizontal overflow without creating a second scroll container:
+   sticky section navigation and actions must follow the document viewport. */
+:global(html):has(.workflow),
+:global(body):has(.workflow) {
+  overflow-x: clip;
+}
+
 .rail {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
