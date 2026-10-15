@@ -1,3 +1,5 @@
+import { isNotificationEnabled } from "@/lib/notifications/settings";
+import type { NotificationPreferenceKey } from "@/lib/notifications/preferences";
 import { sendResendEmail } from "@/lib/email/client";
 import {
   buildTradeApplicationEmail,
@@ -6,9 +8,10 @@ import {
   buildTradeSavedSearchEmail,
 } from "@/lib/trade-exchange/emails";
 
-async function send(to: string, email: { subject: string; html: string; text: string }): Promise<boolean> {
+async function send(to: string, email: { subject: string; html: string; text: string }, category?: NotificationPreferenceKey): Promise<boolean> {
   if (!to.includes("@")) return false;
   try {
+    if (category && !await isNotificationEnabled(category, { email: to })) return true;
     await sendResendEmail({ to, subject: email.subject, html: email.html, text: email.text });
     return true;
   } catch (error) {
@@ -22,13 +25,13 @@ export function notifyTradeApplication(to: string) {
 }
 
 export function notifyTradeEnquiry(to: string) {
-  return send(to, buildTradeEnquiryEmail());
+  return send(to, buildTradeEnquiryEmail(), "tradeMessages");
 }
 
 export function notifyTradeExpiry(to: string) {
-  return send(to, buildTradeExpiryEmail());
+  return send(to, buildTradeExpiryEmail(), "tradeListingUpdates");
 }
 
 export function notifyTradeSavedSearch(to: string, matchCount: number): Promise<boolean> {
-  return send(to, buildTradeSavedSearchEmail(matchCount));
+  return send(to, buildTradeSavedSearchEmail(matchCount), "tradeSavedSearchAlerts");
 }

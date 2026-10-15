@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findUnique } = vi.hoisted(() => ({
+const { findUnique, enabled } = vi.hoisted(() => ({
   findUnique: vi.fn(),
+  enabled: vi.fn(),
 }));
+
+vi.mock("@/lib/notifications/settings", () => ({ isNotificationEnabled: enabled }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -17,6 +20,7 @@ import { resolveDealerMailRecipients } from "@/lib/dealers/correspondence-routin
 describe("dealer correspondence routing lookup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    enabled.mockResolvedValue(true);
   });
 
   it("does not query settings for a private seller", async () => {
@@ -28,6 +32,23 @@ describe("dealer correspondence routing lookup", () => {
       }),
     ).resolves.toEqual(["seller@example.com"]);
     expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("suppresses all routed listing recipients when opted out", async () => {
+    enabled.mockResolvedValue(false);
+    await expect(resolveDealerMailRecipients({ dealerId: "dealer-1", primaryEmail: "owner@example.com", category: "LISTING_UPDATES" })).resolves.toEqual([]);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("keeps buyer enquiries mandatory even with optional emails off", async () => {
+    enabled.mockResolvedValue(false);
+    await expect(resolveDealerMailRecipients({ primaryEmail: "buyer@example.com", category: "BUYER_ENQUIRIES" })).resolves.toEqual(["buyer@example.com"]);
+    expect(enabled).not.toHaveBeenCalled();
+  });
+
+  it("does not bypass optout when preferences cannot be read", async () => {
+    enabled.mockRejectedValue(new Error("unavailable"));
+    await expect(resolveDealerMailRecipients({ primaryEmail: "owner@example.com", category: "LISTING_UPDATES" })).resolves.toEqual([]);
   });
 
   it("ignores an unverified pending address", async () => {

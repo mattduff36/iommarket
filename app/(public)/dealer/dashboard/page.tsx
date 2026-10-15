@@ -296,6 +296,9 @@ export default async function DealerDashboardPage({ searchParams }: Props) {
           <Button asChild variant="ghost">
             <Link href="/dealer/profile">Manage Profile</Link>
           </Button>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/account/notifications">Notifications</Link>
+          </Button>
         </div>
       </div>
 

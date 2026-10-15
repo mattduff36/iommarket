@@ -1,3 +1,4 @@
+import { isNotificationEnabled } from "@/lib/notifications/settings";
 import { db } from "@/lib/db";
 import {
   resolveCorrespondenceRecipients,
@@ -10,6 +11,15 @@ export async function resolveDealerMailRecipients(input: {
   primaryEmail: string;
   category: DealerCorrespondenceCategory;
 }): Promise<string[]> {
+  const preference = input.category === "LISTING_UPDATES" ? "listingUpdates" : input.category === "REVIEWS" ? "dealerReviews" : null;
+  if (preference) {
+    try {
+      if (!await isNotificationEnabled(preference, { email: input.primaryEmail })) return [];
+    } catch {
+      console.error("Optional notification preferences unavailable; delivery deferred");
+      return [];
+    }
+  }
   try {
     const settings = input.dealerId
       ? await readCorrespondenceRouting(input.dealerId)

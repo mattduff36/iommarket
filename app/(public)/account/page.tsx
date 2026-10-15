@@ -177,6 +177,9 @@ export default async function AccountDashboardPage() {
             <Link href="/account/profile">Profile &amp; Security</Link>
           </Button>
           <Button asChild size="sm" variant="ghost">
+            <Link href="/account/notifications">Notifications</Link>
+          </Button>
+          <Button asChild size="sm" variant="ghost">
             <Link href={sellHref}>Start selling</Link>
           </Button>
         </div>

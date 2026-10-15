@@ -180,6 +180,80 @@ describe("applyFrozenPlan", () => {
     ).rejects.toThrow(/cap/i);
   });
 
+  it("keeps sold listings behind the live lifecycle race guard", async () => {
+    const current = snapshot([update]);
+    const { client, calls } = writer();
+    const applied = await applyFrozenPlan({
+      client,
+      snapshot: current,
+      storedFingerprint: fingerprintSnapshot(current),
+      reportId: "report",
+      reportStatus: "APPROVED",
+      actorId: "admin",
+      jobId: "job",
+      now: new Date("2026-06-19T05:00:00.000Z"),
+      takeDown: vi.fn(),
+    });
+    expect(applied.status).toBe("applied");
+    const listingUpdate = calls.updateMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(listingUpdate.where).toMatchObject({
+      id: "listing-1",
+      status: "LIVE",
+      lifecycleRevision: 4,
+      photoRevision: 2,
+      featured: false,
+    });
+
+    calls.updateMany.mockReset();
+    calls.updateMany.mockResolvedValueOnce({ count: 0 });
+    calls.create.mockClear();
+    await expect(
+      applyFrozenPlan({
+        client,
+        snapshot: current,
+        storedFingerprint: fingerprintSnapshot(current),
+        reportId: "report",
+        reportStatus: "APPROVED",
+        actorId: "admin",
+        jobId: "job",
+        now: new Date("2026-06-19T05:00:00.000Z"),
+        takeDown: vi.fn(),
+      }),
+    ).rejects.toThrow(/stale/i);
+    expect(calls.create).not.toHaveBeenCalled();
+
+    const held = snapshot([
+      {
+        kind: "blocked",
+        sourceIdentityKey: "sourceVehicleId:99",
+        listingId: "listing-1",
+        reason: "sold-preserved",
+        section: "new",
+      },
+    ]);
+    held.listings = [{ ...held.listings[0], status: "SOLD", soldAt: "2026-01-01T00:00:00.000Z", title: "2019 Mercedes A Class" }];
+    const heldWriter = writer();
+    const heldResult = await applyFrozenPlan({
+      client: heldWriter.client,
+      snapshot: held,
+      storedFingerprint: fingerprintSnapshot(held),
+      reportId: "report",
+      reportStatus: "APPROVED",
+      actorId: "admin",
+      jobId: "job",
+      now: new Date("2026-06-19T05:00:00.000Z"),
+      takeDown: vi.fn(),
+    });
+    expect(heldResult.status).toBe("applied");
+    expect(heldWriter.calls.create).not.toHaveBeenCalled();
+    expect(
+      heldWriter.calls.updateMany.mock.calls.some(([call]) => {
+        const where = (call as { where?: { status?: string } }).where;
+        return where?.status === "LIVE";
+      }),
+    ).toBe(false);
+  });
+
   it("is idempotent when the report was already applied", async () => {
     const current = snapshot([update]);
     const { client, calls } = writer();
