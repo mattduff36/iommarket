@@ -34,6 +34,14 @@ Invoice requests freeze the selected signed pence in the preview database. Confi
 
 Preview configuration deliberately fails closed if copied to production. Production integration requires a separate reviewed design/configuration change, a final reconciliation, and owner approval; merging code alone is not a cutover.
 
+## Dashboard presentation source
+
+`accountsDashboardRequested` chooses the existing Accounts project summary page. It is presentation only. It does not change `accountsReaderRequested`, `resolveLedgerAccess`, canonical writer eligibility, cost APIs, or cron.
+
+Set `COST_DASHBOARD_SOURCE` to the exact value `accounts` to show that page, including on a canonical production deployment. `COST_LEDGER_ROLE=accounts-reader` still selects it through the existing reader check. Any other value, including unset, spaced, or differently cased text, keeps the existing ledger selector.
+
+Admin authorization and `COSTS_ENABLED` still run first. A disabled costs page stays the legacy disabled dashboard. When the Accounts page is selected and Accounts cannot be read, the page shows the existing unavailable state and does not fall back to the local ledger. The Accounts read still needs `COST_ACCOUNTS_READ_TOKEN`; do not print or commit that token. Setting the dashboard source does not by itself approve a production cutover.
+
 ## Comparison views
 
 The preview also reads `GET /api/costs/projects/itrader/comparison?from=2026-08-13T23:00:00.000Z`. That response is `mpdee-project-cost-comparison-v1`. It keeps usage value, provider cost, client charge and outstanding balance separate. iTrader copies those figures and does not apply the Cursor 60/110 rates again. Provisional comparison lines are not invoiceable. A missing or invalid comparison is shown as a coverage gap; it does not replace the snapshot, the baseline, or manufacture a zero balance.
