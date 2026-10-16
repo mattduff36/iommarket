@@ -309,13 +309,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     <Badge variant="warning">Dealer offer pending</Badge>
                   ) : null}
                 </div>
-                <div className="mt-2 text-xs text-text-secondary">Region:{" "}
-                {user.region?.name ?? (
-                  <span className="text-text-tertiary">Not assigned</span>
-                )}
-                </div>
-                <div className="mt-2">
+                {user.region?.name ? (
+                  <div className="mt-2 text-xs text-text-secondary">Region: {user.region.name}</div>
+                ) : null}
                 {user.dealerProfile ? (
+                  <div className="mt-2">
                   <AdminDataCell
                     title={
                       <Link
@@ -342,13 +340,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       </span>
                     }
                   />
-                ) : (
-                  <span className="text-sm text-text-tertiary">Not a dealer</span>
-                )}
-                </div>
+                  </div>
+                ) : null}
               </TableCell>
               <TableCell data-column="region">{user.region?.name ?? "Not assigned"}</TableCell>
-              <TableCell data-column="dealer">{user.dealerProfile?.name ?? "Not a dealer"}</TableCell>
+              <TableCell data-column="dealer">{user.dealerProfile?.name ?? "\u2014"}</TableCell>
               <TableCell data-column="listings" className={adminNumericCellClass}>
                 {user._count.listings}
               </TableCell>
