@@ -43,8 +43,8 @@ interface AccountNavItem {
 }
 
 const NAV_GROUPS: Array<{ key: AccountNavGroup; label: string; accent: string }> = [
-  { key: "dealer", label: "Dealer", accent: "text-premium-gold-400" },
   { key: "account", label: "Account", accent: "text-neon-blue-400" },
+  { key: "dealer", label: "Dealer", accent: "text-premium-gold-400" },
   { key: "trade", label: "Trade", accent: "text-emerald-500" },
 ];
 
