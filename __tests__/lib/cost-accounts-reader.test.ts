@@ -9,7 +9,7 @@ import {
   fetchAccountsCostDashboard,
   fetchAccountsProjectSummary,
 } from "@/lib/costs/accounts-reader";
-import { resolveLedgerAccess } from "@/lib/costs/ledger-access";
+import { accountsDashboardRequested, resolveLedgerAccess } from "@/lib/costs/ledger-access";
 
 const TOKEN = "a".repeat(32);
 const revision = "b".repeat(64);
@@ -205,6 +205,38 @@ describe("Accounts project summary reader", () => {
       mode: "unavailable",
       reason: "Accounts preview isolation could not be verified.",
     });
+  });
+
+  it("selects the Accounts page for an exact dashboard source without changing ledger access", () => {
+    expect(accountsDashboardRequested({
+      COST_LEDGER_ROLE: "canonical",
+      COST_DASHBOARD_SOURCE: "accounts",
+    })).toBe(true);
+    expect(accountsDashboardRequested({ COST_LEDGER_ROLE: "accounts-reader" })).toBe(true);
+    expect(resolveLedgerAccess({
+      COST_LEDGER_ROLE: "canonical",
+      COST_DASHBOARD_SOURCE: "accounts",
+      COST_LEDGER_ORIGIN: "https://itrader.im",
+    })).toEqual({ mode: "local" });
+    expect(resolveLedgerAccess({ COST_LEDGER_ROLE: "accounts-reader" })).toEqual({
+      mode: "unavailable",
+      reason: "Accounts manages costs. This deployment is read-only.",
+    });
+  });
+
+  it("keeps the legacy selector for an unset or invalid dashboard source", () => {
+    expect(accountsDashboardRequested({ COST_LEDGER_ROLE: "canonical" })).toBe(false);
+    expect(accountsDashboardRequested({})).toBe(false);
+    for (const source of ["Accounts", "accounts ", " account", "preview", "canonical", ""]) {
+      expect(accountsDashboardRequested({
+        COST_LEDGER_ROLE: "canonical",
+        COST_DASHBOARD_SOURCE: source,
+      })).toBe(false);
+      expect(resolveLedgerAccess({
+        COST_LEDGER_ROLE: "canonical",
+        COST_DASHBOARD_SOURCE: source,
+      })).toEqual({ mode: "local" });
+    }
   });
 });
 

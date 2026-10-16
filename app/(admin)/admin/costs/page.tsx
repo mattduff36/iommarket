@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { isCostOwner, isCostsEnabled } from "@/lib/costs/config";
 import { getCostDashboard } from "@/lib/costs/queries";
 import { costDb } from "@/lib/costs/db";
-import { accountsReaderRequested, resolveLedgerAccess } from "@/lib/costs/ledger-access";
+import { accountsDashboardRequested, resolveLedgerAccess } from "@/lib/costs/ledger-access";
 import { fetchAccountsCostDashboard } from "@/lib/costs/accounts-reader";
 import { AccountsProjectSummaryView } from "./accounts-summary";
 import { fetchRemoteCostDashboard } from "@/lib/costs/remote-ledger";
@@ -57,7 +57,7 @@ export default async function AdminCostsPage() {
     return <CostDashboardView dashboard={dashboard} />;
   }
 
-  if (accountsReaderRequested()) {
+  if (accountsDashboardRequested()) {
     const dashboard = await fetchAccountsCostDashboard();
     return <AccountsProjectSummaryView dashboard={dashboard} />;
   }
