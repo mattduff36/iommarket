@@ -1,0 +1,44 @@
+/* The available content width, not the viewport, decides when rows stack. */
+.responsive-table-frame {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+.responsive-table-frame > table {
+  width: 100%;
+  min-width: 0;
+  table-layout: auto;
+}
+.responsive-table-frame :is(th, td) {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.responsive-table-frame :is(th, td) > * { max-width: 100%; }
+.responsive-table-frame .truncate { white-space: normal; overflow-wrap: anywhere; }
+.responsive-table-frame [data-column="actions"] { width: 6rem; }
+
+@container (max-width: 760px) {
+  .responsive-table-frame[data-ready] > table { display: block; border: 0; background: transparent; }
+  .responsive-table-frame[data-ready] :is(thead, tbody, tfoot) { display: block; }
+  /* Keep header controls available for sorting on narrow screens. */
+  .responsive-table-frame[data-ready] thead tr { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px; margin-bottom: 12px; }
+  .responsive-table-frame[data-ready] th { width: auto; height: auto; background: transparent; padding: 0; }
+  .responsive-table-frame[data-ready] thead th:not(:has(a, button, input)) { display: none; }
+  .responsive-table-frame[data-ready] tbody tr {
+    display: block; margin-bottom: 12px; padding: 8px 0;
+    border: 1px solid var(--sem-border-default); border-radius: 8px;
+    background: var(--sem-bg-surface);
+  }
+  .responsive-table-frame[data-ready] tbody :is(td, th) {
+    display: block; width: auto; height: auto; min-width: 0;
+    padding: 8px 12px; text-align: left; white-space: normal;
+  }
+  .responsive-table-frame[data-ready] tbody [data-label]::before {
+    content: attr(data-label); display: block; margin-bottom: 4px;
+    font-size: 11px; font-weight: 600; color: var(--sem-text-secondary);
+  }
+  .responsive-table-frame[data-ready] tbody :is(td, th) > .flex { flex-wrap: wrap; }
+  .responsive-table-frame[data-ready] tfoot tr { display: flex; flex-wrap: wrap; }
+}
+

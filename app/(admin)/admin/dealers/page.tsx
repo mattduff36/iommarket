@@ -314,7 +314,7 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
           badges={dealer.user.disabledAt ? <Badge variant="error">Disabled</Badge> : null}
         />
       </TableCell>
-      <TableCell data-column="verified">
+      <TableCell data-column="plan">
         <div className="flex max-w-56 flex-col items-start gap-1.5">
           <Badge variant={dealer.verified ? "success" : "neutral"}>
             {tradeEnabled
@@ -342,9 +342,7 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
             )
           ) : null}
         </div>
-      </TableCell>
-      <TableCell data-column="plan">
-        <div className="flex max-w-48 flex-wrap gap-1.5">
+        <div className="mt-2 flex max-w-48 flex-wrap gap-1.5">
           <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
             {getDealerPackageLabel(dealer.tier)}
           </Badge>
@@ -361,6 +359,9 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
             )?.toLocaleDateString("en-GB") ?? "not set"}
           </p>
         ) : null}
+      </TableCell>
+      <TableCell data-column="verified">
+        <Badge variant={dealer.verified ? "success" : "neutral"}>{dealer.verified ? "Verified" : "Unverified"}</Badge>
       </TableCell>
       <TableCell data-column="listings" className={adminNumericCellClass}>
         {dealer._count.listings}

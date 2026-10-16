@@ -1,20 +1,22 @@
 import * as React from "react";
+import { ResponsiveTableFrame } from "@/components/ui/responsive-table-frame";
 import { cn } from "@/lib/cn";
 
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto -mx-px">
+  <ResponsiveTableFrame>
     <table
+      role="table"
       ref={ref}
       className={cn(
-        "w-full min-w-[640px] caption-bottom text-sm border-separate border-spacing-0 rounded-lg border border-border bg-surface",
+        "w-full caption-bottom text-sm border-separate border-spacing-0 rounded-lg border border-border bg-surface",
         className,
       )}
       {...props}
     />
-  </div>
+  </ResponsiveTableFrame>
 ));
 Table.displayName = "Table";
 
@@ -31,6 +33,7 @@ const TableBody = React.forwardRef<
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
   <tbody
+      role="rowgroup"
     ref={ref}
     className={cn("[&_tr:last-child]:border-0", className)}
     {...props}
@@ -43,6 +46,7 @@ const TableRow = React.forwardRef<
   React.HTMLAttributes<HTMLTableRowElement>
 >(({ className, ...props }, ref) => (
   <tr
+      role="row"
     ref={ref}
     className={cn(
       "border-b border-border transition-colors hover:bg-surface-elevated",
@@ -58,6 +62,7 @@ const TableHead = React.forwardRef<
   React.ThHTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
   <th
+      role="columnheader"
     ref={ref}
     className={cn(
       "h-10 px-4 text-left align-middle text-xs font-semibold uppercase text-text-secondary bg-surface-elevated",
@@ -73,6 +78,7 @@ const TableCell = React.forwardRef<
   React.TdHTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
   <td
+      role="cell"
     ref={ref}
     className={cn(
       "px-4 py-3 align-middle text-sm text-text-primary",
