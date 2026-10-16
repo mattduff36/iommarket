@@ -90,11 +90,12 @@ export default async function StockWorkerPage({
             {invitation ? (
               <form action={authoriseComputer} className="space-y-3">
                 <p className="text-sm text-text-secondary">
-                  Check this computer before granting access. Submitting this form is the only way to approve it.
+                  Check this computer before granting access. Do not approve a pairing you did not start. Submitting this form is the only way to approve it.
                 </p>
                 <dl className="space-y-1 text-sm text-text-primary">
                   <div className="flex gap-2"><dt className="text-text-tertiary">Computer</dt><dd>{invitation.deviceName}</dd></div>
                   <div className="flex gap-2"><dt className="text-text-tertiary">Environment</dt><dd>{invitation.environment}</dd></div>
+                  <div className="flex gap-2"><dt className="text-text-tertiary">Code</dt><dd>{code}</dd></div>
                 </dl>
                 <input type="hidden" name="userCode" value={code} />
                 <button type="submit" className="inline-flex h-10 items-center rounded-md bg-neon-blue-500 px-4 text-sm font-semibold text-white">
@@ -113,7 +114,7 @@ export default async function StockWorkerPage({
               <ul className="space-y-2">
                 {devices.map((device) => (
                   <li key={device.deviceId} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-4 py-3">
-                    <span className="text-sm text-text-primary">{device.deviceName} Â· {device.environment}</span>
+                    <span className="text-sm text-text-primary">{device.deviceName} · {device.environment}</span>
                     <form action={revokeComputer}>
                       <input type="hidden" name="deviceId" value={device.deviceId} />
                       <button type="submit" className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium text-text-secondary">

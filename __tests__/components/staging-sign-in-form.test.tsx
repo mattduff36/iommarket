@@ -2,16 +2,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { pushMock, refreshMock, signInMock, signOutMock } = vi.hoisted(() => ({
+const { pushMock, refreshMock, signInMock, signOutMock, nextQuery } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   refreshMock: vi.fn(),
   signInMock: vi.fn(),
   signOutMock: vi.fn(),
+  nextQuery: { value: "" },
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(nextQuery.value),
 }));
 vi.mock("@/lib/supabase/client", () => ({
   createSupabaseBrowserClient: () => ({
@@ -20,10 +21,18 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import { SignInForm } from "@/components/auth/sign-in-form";
+import { getSafeNextPath } from "@/lib/auth/return-path";
 
 describe("staging sign-in form access decisions", () => {
+  it("preserves encoded query values while checking redirect safety", () => {
+    const path = "/search?q=red%26blue%23detail";
+    expect(getSafeNextPath(path)).toBe(path);
+    expect(getSafeNextPath("/%5c%5cevil.example")).toBeNull();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    nextQuery.value = "";
     signInMock.mockResolvedValue({ data: { user: { user_metadata: {} } }, error: null });
     signOutMock.mockResolvedValue({ error: null });
     vi.stubGlobal("fetch", vi.fn());
@@ -75,5 +84,52 @@ describe("staging sign-in form access decisions", () => {
     await waitFor(() => expect(signOutMock).toHaveBeenCalled());
     expect(screen.getByText(/approved test accounts/i)).toBeTruthy();
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a verified administrator to the retained pairing path", async () => {
+    nextQuery.value = "next=%2Fadmin%2Fstock-worker%3Fcode%3DABCDEFGH";
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({
+      role: "ADMIN", stagingAccessAllowed: true,
+    }), { status: 200 }));
+    render(<SignInForm adminOnly />);
+
+    await submit();
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/stock-worker?code=ABCDEFGH"));
+  });
+
+  it("does not send an approved non-admin to an admin return path", async () => {
+    nextQuery.value = "next=%2Fadmin%2Fstock-worker%3Fcode%3DABCDEFGH";
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({
+      role: "USER", stagingAccessAllowed: true,
+    }), { status: 200 }));
+    render(<SignInForm adminOnly />);
+
+    await submit();
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/account"));
+  });
+
+  it("does not follow a return path when administrator verification fails", async () => {
+    nextQuery.value = "next=%2Fadmin%2Fstock-worker%3Fcode%3DABCDEFGH";
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 401 }));
+    render(<SignInForm adminOnly />);
+
+    await submit();
+
+    await waitFor(() => expect(signOutMock).toHaveBeenCalled());
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an open redirect even for a verified administrator", async () => {
+    nextQuery.value = "next=https%3A%2F%2Fevil.example%2Fadmin";
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({
+      role: "ADMIN", stagingAccessAllowed: true,
+    }), { status: 200 }));
+    render(<SignInForm adminOnly />);
+
+    await submit();
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin"));
   });
 });

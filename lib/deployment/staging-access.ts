@@ -1,11 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSafeNextPath } from "@/lib/auth/return-path";
 import { db } from "@/lib/db";
 import { isStagingDeployment } from "@/lib/deployment/environment";
 import {
   hasStagingAccess, isStagingEntryRequest, isStagingMachineRequest, requiresStagingAdmin,
 } from "@/lib/deployment/staging-access-policy";
 import { isOnboardingSessionStale, readOnboardingSessionInvalidBefore } from "@/lib/dealers/onboarding/session-cutoff";
+
+function stagingAccessLocation(request: NextRequest): URL {
+  const location = new URL("/staging-access", request.url);
+  const next = getSafeNextPath(`${request.nextUrl.pathname}${request.nextUrl.search}`);
+  if (next) location.searchParams.set("next", next);
+  return location;
+}
 
 function privateResponse(response: NextResponse) {
   response.headers.set("Cache-Control", "private, no-store");
@@ -51,7 +59,7 @@ export async function stagingAccessResponse(request: NextRequest): Promise<NextR
     } : null)) return privateResponse(response);
     const denied = path.startsWith("/api/") || action || !["GET", "HEAD"].includes(request.method)
       ? NextResponse.json({ error: "Administrator or approved test-account sign-in required." }, { status: user ? 403 : 401 })
-      : NextResponse.redirect(new URL("/staging-access", request.url));
+      : NextResponse.redirect(stagingAccessLocation(request));
     response.cookies.getAll().forEach((cookie) => denied.cookies.set(cookie));
     return privateResponse(denied);
   } catch {
