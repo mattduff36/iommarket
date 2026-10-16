@@ -1,6 +1,5 @@
 @import "tailwindcss" source("..");
 @import "../styles/tokens.css";
-@import "../styles/responsive-tables.css";
 
 /*
  * Tailwind v4 theme configuration

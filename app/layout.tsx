@@ -13,6 +13,7 @@ import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { defaultSocialImage, resolvePageRobots } from "@/lib/seo/page-metadata";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
 import "./globals.css";
+import "../styles/responsive-tables.css";
 
 const inter = Inter({
   subsets: ["latin"],
