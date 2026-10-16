@@ -20,6 +20,7 @@ const ENTRY_PATHS = new Set([
 // These handlers authenticate their own signed machine requests. Never allow
 // arbitrary /api prefixes or the legacy shared-password endpoint through.
 const MACHINE_PATHS = new Set([
+  "/api/stock-worker", // This exact POST endpoint authenticates desktop tokens itself.
   "/api/auth/send-email",
   "/api/cron/preview-mirror",
   "/api/webhooks/payments", "/api/webhooks/ripple", "/api/webhooks/ripple-staging",
