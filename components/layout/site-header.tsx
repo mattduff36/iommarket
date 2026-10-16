@@ -213,11 +213,11 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
         </div>
       </div>
 
-      {/* Main header - glass surface + neon trust border */}
+      {/* Main navigation stays in document flow on every route. */}
       <header
         className={cn(
-          "sticky top-0 z-40 w-full h-16 sm:h-20",
-          "glass-surface border-b border-neon-blue-500/40",
+          "relative z-40 w-full h-16 shrink-0 sm:h-20",
+          "bg-surface border-b border-neon-blue-500/40",
         )}
       >
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -362,11 +362,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
         <ListingEditDialog listingId={editingListingId} open onOpenChange={(open) => { if (!open) setEditingListingId(null); }} />
       ) : null}
 
-      {/* Mobile menu backdrop - blurs page content behind the open panel.
-          MUST be a sibling of <header>, not a child: the header's
-          `glass-surface` class applies `backdrop-filter`, which creates a
-          containing block for fixed descendants and would confine this
-          overlay to the header's bounds. */}
+      {/* Keep the viewport backdrop below the header and its open menu. */}
       {mobileOpen && (
         <button
           type="button"

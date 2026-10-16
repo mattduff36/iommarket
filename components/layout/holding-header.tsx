@@ -24,7 +24,7 @@ export function HoldingHeader() {
           </span>
         </div>
       </div>
-      <header className="sticky top-0 z-40 h-16 w-full border-b border-neon-blue-500/40 glass-surface sm:h-20">
+      <header className="relative z-40 h-16 w-full shrink-0 border-b border-neon-blue-500/40 bg-surface sm:h-20">
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex shrink-0 items-center">
             <Image
