@@ -255,6 +255,7 @@ export default async function AdminListingsPage({
               <TableRow key={listing.id} className="group">
                 <ReviewCell column="title" href={reviewHref} className="truncate font-medium">
                   {listing.title}
+                  <span className="mt-0.5 block text-xs font-normal text-text-tertiary">{listing.category.name}</span>
                   {listing.attributeValues[0]?.value === "Category N" ||
                   listing.attributeValues[0]?.value === "Category S" ? (
                     <Badge variant="energy" className="ml-2">
@@ -264,6 +265,7 @@ export default async function AdminListingsPage({
                 </ReviewCell>
                 <ReviewCell column="seller" href={reviewHref} className="text-text-secondary">
                   {listing.user.name ?? listing.user.email}
+                  {listing.user.name ? <span className="mt-0.5 block break-all text-xs text-text-tertiary">{listing.user.email}</span> : null}
                 </ReviewCell>
                 <ReviewCell column="category" href={reviewHref}>
                   {listing.category.name}
@@ -271,7 +273,7 @@ export default async function AdminListingsPage({
                 <ReviewCell
                   column="price"
                   href={reviewHref}
-                  className="text-right font-medium tabular-nums"
+                  className="whitespace-nowrap text-right font-medium tabular-nums"
                 >
                   £{(listing.price / 100).toLocaleString("en-GB")}
                 </ReviewCell>
@@ -280,9 +282,7 @@ export default async function AdminListingsPage({
                     {listing.status}
                   </Badge>
                   {listing.revisions.length > 0 ? (
-                    <Badge variant="warning" className="ml-1">
-                      pending edit
-                    </Badge>
+                    <span className="mt-1 block text-xs text-[#e4be70]">Pending edit</span>
                   ) : null}
                 </ReviewCell>
                 <ReviewCell column="reports" href={reviewHref} className="text-right">

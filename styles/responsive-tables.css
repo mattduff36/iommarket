@@ -18,6 +18,11 @@
 .responsive-table-frame .truncate { white-space: normal; overflow-wrap: anywhere; }
 .responsive-table-frame [data-column="actions"] { width: 6rem; }
 
+/* Preserve short dates and labels; identities remain free to wrap. */
+.responsive-table-frame td.whitespace-nowrap { white-space: nowrap; }
+.responsive-table-frame th { overflow-wrap: normal; }
+.responsive-table-frame [role="status"] { overflow-wrap: normal; word-break: normal; }
+
 @container (max-width: 760px) {
   .responsive-table-frame[data-ready] > table { display: block; border: 0; background: transparent; }
   .responsive-table-frame[data-ready] :is(thead, tbody, tfoot) { display: block; }

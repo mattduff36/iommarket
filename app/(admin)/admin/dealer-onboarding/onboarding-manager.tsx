@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDataCell } from "@/components/admin/admin-data-cell";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -174,7 +175,6 @@ export function OnboardingManager({
             <TableHeader>
               <TableRow>
                 <TableHead>Dealer</TableHead>
-                <TableHead>Email</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Expires</TableHead>
                 <TableHead className={adminActionsCellClass}>Actions</TableHead>
@@ -184,11 +184,8 @@ export function OnboardingManager({
               {invites.map((invite) => (
                 <TableRow key={invite.id}>
                   <TableCell className="font-medium">
-                    <AdminRecordLink href={dealerAdminHref(invite.dealerId)}>
-                      {invite.dealerName}
-                    </AdminRecordLink>
+                    <AdminDataCell title={<AdminRecordLink href={dealerAdminHref(invite.dealerId)}>{invite.dealerName}</AdminRecordLink>} subtitle={invite.recipientEmail} />
                   </TableCell>
-                  <TableCell className="text-text-secondary">{invite.recipientEmail}</TableCell>
                   <TableCell>
                     <p className="text-text-primary">{invite.statusLabel}</p>
                     {invite.error ? <p className="mt-0.5 text-xs text-text-error">{invite.error}</p> : null}
@@ -236,7 +233,7 @@ export function OnboardingManager({
               ))}
               {invites.length === 0 ? (
                 <TableRow>
-                  <AdminTableEmpty colSpan={5}>
+                  <AdminTableEmpty colSpan={4}>
                     No onboarding invitations have been sent yet.
                   </AdminTableEmpty>
                 </TableRow>

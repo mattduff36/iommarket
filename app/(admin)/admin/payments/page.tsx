@@ -1,3 +1,4 @@
+import { DealerAccountBadge } from "@/components/admin/dealer-account-badge";
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -467,8 +468,9 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                     ? sub.grantEndsAt
                     : sub.currentPeriodEnd)}
                 </TableCell>
-                <TableCell data-column="source" className="text-xs text-text-tertiary">
-                  {sub.source === "ADMIN_GRANT" ? "Free admin grant" : "Paid"}
+                <TableCell data-column="source">
+                  <DealerAccountBadge>{getDealerPackageLabel(sub.dealer.tier)}</DealerAccountBadge>
+                  <p className="mt-1.5 text-xs text-text-secondary">{sub.source === "ADMIN_GRANT" ? "Free grant" : "Paid"}</p>
                 </TableCell>
                 <TableCell data-column="reference" className="max-w-[160px] truncate font-mono text-xs text-text-tertiary">
                   {getSubscriptionDisplayId(sub)}
@@ -480,9 +482,9 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                   {formatAdminDate(sub.createdAt)}
                 </TableCell>
                 <TableCell data-column="tier">
-                  <Badge variant={sub.dealer.tier === "PRO" ? "info" : "neutral"}>
+                  <DealerAccountBadge>
                     {getDealerPackageLabel(sub.dealer.tier)}
-                  </Badge>
+                  </DealerAccountBadge>
                 </TableCell>
                 <TableCell data-column="cancel" className="text-sm text-text-secondary">
                   {sub.cancelAtPeriodEnd ? "Yes" : "No"}
