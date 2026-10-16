@@ -72,7 +72,7 @@ export function defaultConfigPath(target: WorkerTarget, cwd: string) {
 }
 
 export function assertConfigPathAllowed(configPath: string) {
-  const name = basename(configPath).toLowerCase();
+  const name = basename(configPath.replace(/\\/gu, "/")).toLowerCase();
   if (name === ".env.local" || name === ".env" || name === ".env.development" || name === ".env.production") {
     throw new Error("Refusing to load an application environment file. Use private/dealer-stock-worker/<target>.env.");
   }

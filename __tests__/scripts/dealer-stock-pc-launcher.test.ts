@@ -81,6 +81,18 @@ function launcher(file: Record<string, string> | null, parent: Record<string, st
 }
 
 describe("dealer stock PC launcher", () => {
+  it.each([".env", ".env.local", ".env.development", ".env.production"])(
+    "rejects %s with either path separator on every host",
+    (name) => {
+      for (const prefix of ["C:\\repo\\", "/repo/", "C:\\repo/mixed\\"]) {
+        expect(() => assertConfigPathAllowed(prefix + name)).toThrow(/Refusing/);
+        expect(() => assertConfigPathAllowed(prefix + name.toUpperCase())).toThrow(/Refusing/);
+      }
+      expect(() => assertConfigPathAllowed("C:\\repo\\private\\dealer-stock-worker\\preview.env")).not.toThrow();
+      expect(() => assertConfigPathAllowed("/repo/private/dealer-stock-worker/preview.env")).not.toThrow();
+    },
+  );
+
   it("isolates the child from ambient credentials and keeps the production flag unset", async () => {
     const { io, stdout, spawned } = launcher(previewFile());
     const code = await runLauncher(["--target", "preview", "--check"], io);
