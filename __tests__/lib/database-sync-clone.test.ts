@@ -168,8 +168,9 @@ describe("ARCH-CLONE-005 external effects", () => {
     const calls: string[] = [];
     const blocked = await externalEffectBlocked({ emails: ["person@example.com"] }, async () => {
       calls.push("query");
-      if (calls.length === 1) return [{ present: true }];
-      if (calls.length === 2) return [{ id: "generation-1" }];
+      if (calls.length === 1) return [{ mirror_present: false }];
+      if (calls.length === 2) return [{ present: true }];
+      if (calls.length === 3) return [{ id: "generation-1" }];
       return [{ matched: 1 }];
     });
     expect(blocked).toBe(true);

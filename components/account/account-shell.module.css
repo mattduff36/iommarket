@@ -1,0 +1,49 @@
+.sidebar {
+  width: 224px;
+}
+
+.content {
+  width: 100%;
+  min-width: 0;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .content {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content {
+    padding: 2rem;
+  }
+}
+
+/* Direct page roots only. Nested forms, cards, and controls keep their own styles. */
+.content > :is(div, main, section) {
+  width: 100%;
+  max-width: none !important;
+  margin-inline: 0 !important;
+  padding: 0 !important;
+}
+
+.content > :is(div, main, section):global(.max-w-md) {
+  max-width: 28rem !important;
+  margin-inline: auto !important;
+}
+
+.content > :is(div, main, section):global(.max-w-lg) {
+  max-width: 32rem !important;
+  margin-inline: auto !important;
+}
+
+.content > :is(div, main, section):global(.max-w-xl) {
+  max-width: 36rem !important;
+  margin-inline: auto !important;
+}
+
+.content > :is(div, main, section):global(.max-w-2xl) {
+  max-width: 42rem !important;
+  margin-inline: auto !important;
+}

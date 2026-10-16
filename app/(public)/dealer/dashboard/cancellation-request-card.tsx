@@ -1,7 +1,9 @@
 "use client";
 
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
+
 import { useState, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { requestDealerCancellation } from "@/actions/dealer/cancellation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +22,7 @@ export function CancellationRequestCard({
 }: Props) {
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [isPending, startTransition] = useTransition();
 
   if (!enabled && !existingStatus) return null;
@@ -59,19 +62,20 @@ export function CancellationRequestCard({
               onCheckedChange={(checked) => setConfirmed(checked === true)}
               label="I understand this is an end-of-period request with no pro-rata refund"
             />
-            {error ? <p className="text-sm text-text-error">{error}</p> : null}
+            {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+      {recovery.blocked ? <a href="/dealer/dashboard" className="block text-sm underline">Reload and check status</a> : null}
             <Button
               type="button"
               variant="energy"
               size="sm"
               loading={isPending}
-              disabled={!confirmed}
+              disabled={!confirmed || isPending || recovery.blocked}
               onClick={() => {
                 setError(null);
                 startTransition(async () => {
-                  const result = await requestDealerCancellation({
+                  const result = await recovery.run(() => requestDealerCancellation({
                     confirmation: confirmed,
-                  });
+                  }));
                   if (result.error) {
                     setError(
                       typeof result.error === "string"

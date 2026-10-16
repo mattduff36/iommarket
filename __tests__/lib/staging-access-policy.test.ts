@@ -26,6 +26,9 @@ describe("staging administrator access", () => {
   });
   it("allows only verified, matching approved test identities on the exact staging deployment", () => {
     expect(hasStagingAccess({
+      role: "USER", email: "matt.mpdee@gmail.com", verifiedAuthEmail: "matt.mpdee@gmail.com",
+    }, stagingEnv)).toBe(true);
+    expect(hasStagingAccess({
       role: "USER", email: "mattduff36@gmail.com", verifiedAuthEmail: "mattduff36@gmail.com",
     }, stagingEnv)).toBe(true);
     expect(hasStagingAccess({
@@ -61,7 +64,11 @@ describe("staging administrator access", () => {
     expect(isStagingEntryRequest("/sign-in/anything", "GET", false)).toBe(false);
     expect(isStagingEntryRequest("/preview", "GET", false)).toBe(false);
   });
-  it("only exempts exact signed machine endpoints and never cron or shared passwords", () => {
+  it("only exempts exact authenticated machine endpoints and never arbitrary cron or shared passwords", () => {
+    expect(isStagingMachineRequest("/api/cron/preview-mirror", "POST", false)).toBe(true);
+    expect(isStagingMachineRequest("/api/cron/preview-mirror", "GET", false)).toBe(false);
+    expect(isStagingMachineRequest("/api/cron/preview-mirror", "POST", true)).toBe(false);
+    expect(isStagingMachineRequest("/api/cron/preview-mirror/extra", "POST", false)).toBe(false);
     expect(isStagingMachineRequest("/api/webhooks/ripple-staging", "POST", false)).toBe(true);
     expect(isStagingMachineRequest("/api/webhooks/ripple-staging", "POST", true)).toBe(false);
     expect(isStagingMachineRequest("/api/cron/account-deletion", "GET", false)).toBe(false);

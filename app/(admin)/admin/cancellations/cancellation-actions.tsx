@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
+
 import { useState, useTransition } from "react";
 import { processDealerCancellationRequest } from "@/actions/admin/cancellations";
 import {
@@ -15,16 +17,17 @@ interface Props {
 export function CancellationActions({ requestId, status }: Props) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [isPending, startTransition] = useTransition();
 
   function run(action: "ACKNOWLEDGE" | "RECONCILE" | "REJECT" | "COMPLETE") {
     setError(null);
     startTransition(async () => {
-      const result = await processDealerCancellationRequest({
+      const result = await recovery.run(() => processDealerCancellationRequest({
         requestId,
         action,
         notes: notes || undefined,
-      });
+      }));
       if (result.error) {
         setError(
           typeof result.error === "string"
@@ -45,7 +48,7 @@ export function CancellationActions({ requestId, status }: Props) {
       <div className="flex flex-wrap gap-2">
         {status === "REQUESTED" ? (
           <AdminActionButton
-            disabled={isPending}
+            disabled={isPending || recovery.blocked}
             onClick={() => run("ACKNOWLEDGE")}
           >
             Acknowledge
@@ -54,13 +57,13 @@ export function CancellationActions({ requestId, status }: Props) {
         {status === "REQUESTED" || status === "ACKNOWLEDGED" ? (
           <>
             <AdminActionButton
-              disabled={isPending}
+              disabled={isPending || recovery.blocked}
               onClick={() => run("RECONCILE")}
             >
               Mark reconciled
             </AdminActionButton>
             <AdminActionButton
-              disabled={isPending}
+              disabled={isPending || recovery.blocked}
               tone="danger"
               onClick={() => run("REJECT")}
             >
@@ -69,12 +72,13 @@ export function CancellationActions({ requestId, status }: Props) {
           </>
         ) : null}
         {status === "RECONCILED" ? (
-          <AdminActionButton disabled={isPending} onClick={() => run("COMPLETE")}>
+          <AdminActionButton disabled={isPending || recovery.blocked} onClick={() => run("COMPLETE")}>
             Complete
           </AdminActionButton>
         ) : null}
       </div>
-      {error ? <p className="text-xs text-text-error">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-text-error">{error}</p> : null}
+      {recovery.blocked ? <a href="/admin/cancellations" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );
 }

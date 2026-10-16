@@ -1,0 +1,82 @@
+.tabInset {
+  position: relative;
+  z-index: 1;
+  margin-bottom: -1px;
+  padding-inline: 1rem;
+}
+
+.tabs {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+.tab {
+  min-width: 0;
+  height: 41px;
+  margin: 0;
+  padding: 0 0.125rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 0;
+  border-radius: 0.65rem 0.65rem 0 0;
+  background: transparent;
+  color: var(--color-white);
+  font-family: var(--font-heading), "Orbitron", sans-serif;
+  font-size: clamp(8px, 3.1cqi, 13px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast);
+}
+
+.tab + .tab {
+  margin-left: -1px;
+}
+
+.active {
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-neon-blue-500);
+  outline-offset: 3px;
+}
+
+.car {
+  background: var(--color-neon-red-500);
+}
+
+.van {
+  background: var(--color-neon-blue-500);
+}
+
+.motorbike {
+  background: var(--color-premium-gold-500);
+}
+
+.motorhome {
+  background: var(--color-metallic-500);
+}
+
+@media (min-width: 640px) {
+  .tabInset {
+    padding-inline: 1.5rem;
+  }
+
+  .tab {
+    padding-inline: 0.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+}

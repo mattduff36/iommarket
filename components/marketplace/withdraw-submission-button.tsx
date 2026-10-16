@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { withdrawListingSubmission } from "@/actions/listings";
 import { Button } from "@/components/ui/button";
 
@@ -34,7 +34,7 @@ export function WithdrawSubmissionButton({
       });
       if (result.error) {
         setError(result.error);
-        if (result.conflict) router.refresh();
+        if ("conflict" in result && result.conflict) router.refresh();
         return;
       }
 

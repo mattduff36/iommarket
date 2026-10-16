@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
+
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +29,7 @@ export function CancelSubButton({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [showConfirm, setShowConfirm] = useState(false);
   const [reason, setReason] = useState<
     "REQUESTED_BY_CUSTOMER" | "FRAUD" | "SERVICE_NOT_PROVIDED" | "OTHER"
@@ -52,12 +55,12 @@ export function CancelSubButton({
   function handleCancel(immediately: boolean) {
     setError(null);
     startTransition(async () => {
-      const result = await adminCancelSubscription({
+      const result = await recovery.run(() => adminCancelSubscription({
         subscriptionId,
         immediately,
         reason,
         notes: notes.trim() || undefined,
-      });
+      }));
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed");
       } else {
@@ -72,7 +75,7 @@ export function CancelSubButton({
       {!showConfirm ? (
         <AdminActionButton
           onClick={() => setShowConfirm(true)}
-          disabled={isPending}
+          disabled={isPending || recovery.blocked}
           tone="danger"
         >
           Cancel
@@ -107,22 +110,23 @@ export function CancelSubButton({
               className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
             />
           ) : null}
-          <AdminActionButton onClick={() => handleCancel(false)} disabled={isPending}>
+          <AdminActionButton onClick={() => handleCancel(false)} disabled={isPending || recovery.blocked}>
             At period end
           </AdminActionButton>
           <AdminActionButton
             onClick={() => handleCancel(true)}
-            disabled={isPending}
+            disabled={isPending || recovery.blocked}
             tone="danger"
           >
             Immediately
           </AdminActionButton>
-          <AdminActionButton onClick={() => setShowConfirm(false)} disabled={isPending}>
+          <AdminActionButton onClick={() => setShowConfirm(false)} disabled={isPending || recovery.blocked}>
             Back
           </AdminActionButton>
         </AdminActionBar>
       )}
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
+      {recovery.blocked ? <a href="/admin/payments" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );
 }
@@ -155,6 +159,7 @@ export function RefundSubPaymentButton({
   const [confirmedCharge, setConfirmedCharge] = useState<RefundChargeTarget | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [showConfirm, setShowConfirm] = useState(false);
   const [reason, setReason] = useState<
     "DUPLICATE" | "REQUESTED_BY_CUSTOMER" | "FRAUD" | "SERVICE_NOT_PROVIDED" | "OTHER"
@@ -186,13 +191,13 @@ export function RefundSubPaymentButton({
     operationId.current = confirmedOperationId;
     setError(null);
     startTransition(async () => {
-      const result = await adminRefundSubscriptionPayment({
+      const result = await recovery.run(() => adminRefundSubscriptionPayment({
         subscriptionId,
         chargeId: target.id,
         operationId: confirmedOperationId,
         reason,
         notes: notes.trim() || undefined,
-      });
+      }));
       if (result.error) {
         setError(typeof result.error === "string" ? result.error : "Failed");
         return;
@@ -209,7 +214,7 @@ export function RefundSubPaymentButton({
       {!showConfirm ? (
         <AdminActionButton
           onClick={beginConfirm}
-          disabled={isPending}
+          disabled={isPending || recovery.blocked}
           tone="danger"
         >
           {recordLocally ? "Record portal refund" : "Refund latest payment"}
@@ -253,20 +258,21 @@ export function RefundSubPaymentButton({
           ) : null}
           <AdminActionButton
             onClick={handleRefund}
-            disabled={isPending}
+            disabled={isPending || recovery.blocked}
             tone="danger"
           >
             {recordLocally ? "Confirm record" : "Confirm refund"}
           </AdminActionButton>
           <AdminActionButton
             onClick={dismissConfirm}
-            disabled={isPending}
+            disabled={isPending || recovery.blocked}
           >
             No
           </AdminActionButton>
         </AdminActionBar>
       )}
-      {error && <p className="text-xs text-text-error">{error}</p>}
+      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
+      {recovery.blocked ? <a href="/admin/payments" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { deleteImage } from "@/lib/upload/cloudinary";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isPreviewSystemAuthUserId } from "@/lib/preview-packs/safety";
 import { isDatabaseSyncReference } from "@/lib/images/database-sync-reference";
+import { isStagingTestRuntime } from "@/lib/deployment/staging-test-runtime";
 
 export class PurgeUserError extends Error {
   constructor(message: string) {
@@ -430,13 +431,31 @@ export async function deleteAuthUser(authUserId: string | null) {
   }
 }
 
+async function clonedProductionMedia(ids: string[]) {
+  const mediaIds = [...new Set(ids.filter((id) => id.trim()))];
+  if (!mediaIds.length) return "clear" as const;
+  try {
+    const { externalEffectBlocked } = await import("@/lib/database-sync/effects");
+    return (await externalEffectBlocked({ mediaIds })) ? "cloned" as const : "clear" as const;
+  } catch {
+    return "unknown" as const;
+  }
+}
+
 export async function deleteAccountMedia(
   publicIds: string[],
   disposables: Array<{ fileId: string; filePath: string }> = [],
 ) {
+  isStagingTestRuntime();
   const failedPublicIds: string[] = [];
   for (const publicId of new Set(publicIds)) {
     if (publicId.startsWith("imagekit-dev/") || publicId.startsWith("imagekit/")) continue;
+    const media = await clonedProductionMedia([publicId]);
+    if (media === "cloned") continue;
+    if (media === "unknown") {
+      failedPublicIds.push(publicId);
+      continue;
+    }
     try {
       await deleteImage(publicId);
     } catch {
@@ -445,6 +464,12 @@ export async function deleteAccountMedia(
     }
   }
   for (const target of disposables) {
+    const media = await clonedProductionMedia([target.fileId, target.filePath]);
+    if (media === "cloned") continue;
+    if (media === "unknown") {
+      failedPublicIds.push(target.fileId);
+      continue;
+    }
     if (!isDisposableDestinationPath(target.filePath) || isProtectedDestinationPath(target.filePath)) {
       failedPublicIds.push(target.fileId);
       continue;

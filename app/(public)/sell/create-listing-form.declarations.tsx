@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LISTING_DECLARATION_LABEL } from "@/lib/listings/write-off-category";
 
@@ -49,7 +49,7 @@ export function CreateListingDeclarations({
           <Checkbox
             checked={privateSellerTermsAccepted}
             onCheckedChange={(checked) => onPrivateTermsChange(checked === true)}
-            required={step === 3}
+            required={step === 4}
             label={
               <span className="leading-5">
                 I expressly accept the current{" "}

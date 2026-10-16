@@ -244,7 +244,7 @@ describe("dealer correspondence actions", () => {
     });
 
     await expect(resendDealerCorrespondenceVerification()).resolves.toEqual({
-      error: "Too many attempts. Wait a few minutes and try again.",
+      error: expect.stringMatching(/Too many attempts\. Wait \d+ seconds?, then try again\./),
     });
     expect(sendVerificationMock).not.toHaveBeenCalled();
 

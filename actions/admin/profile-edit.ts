@@ -1,5 +1,6 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -17,7 +18,6 @@ import {
   PROFILE_NOT_FOUND_MESSAGE,
   PROFILE_REFRESH_WARNING,
   PROFILE_REGION_MESSAGE,
-  PROFILE_SAVE_FAILED,
   profileTargetAllowed,
   sameProfileInstant,
   type AccountProfileWrite,
@@ -110,13 +110,7 @@ export async function saveAdminProfile(input: unknown): Promise<SaveResult> {
   } catch (error) {
     const known = asProfileEditError(error);
     if (known) return profileEditResponse(known);
-    await reportHandledException({
-      error,
-      action: "saveAdminProfile",
-      route: "/admin/users",
-      userId: admin.id,
-    });
-    return { error: PROFILE_SAVE_FAILED };
+    return journeyUnknownResult({ error, journey: "dealer-admin", action: "saveAdminProfile", route: "/admin/users", kind: "write", userId: admin.id, message: "We could not confirm the profile changes. Reload the account and check before saving again." });
   }
 }
 
@@ -418,10 +412,16 @@ function asProfileEditError(error: unknown): AdminProfileEditError | null {
 
 function profileEditResponse(error: AdminProfileEditError): SaveResult {
   if (error.code === "invalid_region") {
-    return { error: { "account.regionId": [error.message] } };
+    return { error: { "account.regionId": [PROFILE_REGION_MESSAGE] } };
   }
-  if (error.code === "conflict") return { error: error.message, conflict: true };
-  return { error: error.message };
+  if (error.code === "conflict") return { error: PROFILE_CONFLICT_MESSAGE, conflict: true };
+  if (error.code === "not_found") return { error: PROFILE_NOT_FOUND_MESSAGE };
+  if (error.code === "deleted") return { error: PROFILE_DELETED_MESSAGE };
+  if (error.code === "no_dealer") return { error: PROFILE_NO_DEALER_MESSAGE };
+  if (error.code === "dealer_mismatch") return { error: PROFILE_DEALER_MISMATCH_MESSAGE };
+  return {
+    error: "We couldn't confirm that this profile was saved. Check the profile before trying again.",
+  };
 }
 
 function fieldErrors(error: z.ZodError): Record<string, string[]> {

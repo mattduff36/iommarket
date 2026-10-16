@@ -1,17 +1,15 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
 import { getSellLandingPath } from "@/lib/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
 import {
   CARD_OVERLAY_CONTROL_CLASS,
   CardOverlayLink,
-  NAVIGABLE_CARD_LINK_CLASS,
 } from "@/components/ui/card-overlay-link";
 import { FeaturedUpgradeButton } from "@/components/marketplace/featured-upgrade-button";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
@@ -131,55 +129,48 @@ export default async function AccountDashboardPage() {
     0
   );
   const sellHref = getSellLandingPath(user.role) ?? "/sell";
-  const quickStats = [
+  const savedMetrics = [
     {
       label: "Saved listings",
       value: favouritesCount,
       accent: "text-neon-blue-500",
+      href: "/account/favourites",
+      hint: "Open saved listings",
     },
     {
       label: "Saved searches",
       value: savedSearchCount,
       accent: "text-premium-gold-500",
+      href: "/account/saved-searches",
+      hint: "Open saved searches",
     },
     {
       label: "Dealer reviews",
       value: reviewCount,
       accent: "text-emerald-500",
-    },
-    {
-      label: "Listings created",
-      value: totalListings,
-      accent: "text-text-primary",
+      href: "/dealers",
+      hint: "Browse dealer profiles",
     },
   ];
+  const welcome =
+    user.role === "DEALER"
+      ? "Your dealer account advertises through dealer listings. Track progress and moderation updates here."
+      : user.role === "ADMIN"
+        ? "Jump into moderation from the admin area, or keep your own profile up to date."
+        : "Your private account can advertise a vehicle whenever you are ready. Track progress and moderation updates here.";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-            Your Account
+            Welcome back, {user.name || user.email}
           </h1>
-          <p className="mt-2 text-sm text-text-secondary">
-            Welcome back, {user.name || user.email}. Save favourites, keep searches handy,
-            manage your profile, and start selling when you are ready.
-          </p>
+          <p className="mt-2 max-w-2xl text-sm text-text-secondary">{welcome}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/account/favourites">Saved listings</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/account/saved-searches">Saved searches</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/account/profile">Profile &amp; Security</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={sellHref}>Start selling</Link>
-          </Button>
-        </div>
+        <Button asChild>
+          <Link href={sellHref}>New listing</Link>
+        </Button>
       </div>
 
       {pendingDealerUpgrade ? (
@@ -201,196 +192,75 @@ export default async function AccountDashboardPage() {
         </Alert>
       ) : null}
 
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        {quickStats.map((item) => (
-          <Card key={item.label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-text-secondary">{item.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className={`text-2xl font-bold ${item.accent}`}>{item.value}</p>
-            </CardContent>
-          </Card>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {savedMetrics.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-label={item.hint}
+            className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue-500"
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-text-secondary">{item.label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className={`text-2xl font-bold ${item.accent}`}>{item.value}</p>
+                <span className="mt-1 block text-xs text-text-trust">{item.hint}</span>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
-      <div className="mb-8 grid gap-6 lg:grid-cols-3">
-        <Link
-          href="/account/favourites"
-          aria-label="Open saved listings"
-          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Saved listings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-text-secondary">
-                Keep the vehicles you are tracking in one place and jump back in when you are
-                ready.
-              </p>
-              <p className="text-2xl font-bold text-neon-blue-500">{favouritesCount}</p>
-              <span aria-hidden="true" className={cn(buttonVariants({ size: "sm" }))}>
-                Open saved listings
-              </span>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link
-          href="/account/saved-searches"
-          aria-label="Open saved searches"
-          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Saved searches</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-text-secondary">
-                Re-run your favourite filters in one click and keep tabs on fresh inventory.
-              </p>
-              <p className="text-2xl font-bold text-premium-gold-500">{savedSearchCount}</p>
-              <span
-                aria-hidden="true"
-                className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-              >
-                Open saved searches
-              </span>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link
-          href="/"
-          aria-label="Browse dealer profiles"
-          className={cn("block rounded-lg", NAVIGABLE_CARD_LINK_CLASS)}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Trusted dealer reviews</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-text-secondary">
-                Signed-in members can leave named dealer reviews to help other buyers make
-                informed decisions.
-              </p>
-              <p className="text-2xl font-bold text-emerald-500">{reviewCount}</p>
-              <span
-                aria-hidden="true"
-                className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-              >
-                Browse dealer profiles
-              </span>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-
-      <div className="mb-8 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Selling tools</CardTitle>
-          </CardHeader>
-          <CardContent>
+      {user.role === "USER" && !pendingDealerUpgrade ? (
+        <Card className="mb-6">
+          <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-text-secondary">
-              {user.role === "DEALER"
-                ? "Your dealer account advertises through dealer listings. Return here to track progress and moderation updates."
-                : "Your private account can advertise a vehicle whenever you are ready. Start with a single listing, then return here to track progress and moderation updates."}
+              Need a public dealer profile? Compare plans, then choose a tier on the pricing page.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button asChild size="sm">
-                <Link href={sellHref}>
-                  {user.role === "DEALER" ? "Start a dealer listing" : "Start selling privately"}
-                </Link>
-              </Button>
-              <Button asChild size="sm" variant="ghost">
-                <Link href="/account/listings">View listing history</Link>
-              </Button>
+            <Link href="/pricing" className="text-sm font-semibold text-text-trust hover:underline">
+              Compare plans
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {user.role === "DEALER" && user.dealerProfile ? (
+        <Card className="mb-6">
+          <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-text-secondary">
+              Inventory, your public profile, and subscription stay in the dealer area.
+            </p>
+            <div className="flex flex-wrap gap-4 text-sm font-semibold">
+              <Link href="/dealer/dashboard" className="text-text-trust hover:underline">
+                Dealer dashboard
+              </Link>
+              <Link href="/dealer/profile" className="text-text-trust hover:underline">
+                Dealer profile
+              </Link>
             </div>
           </CardContent>
         </Card>
+      ) : null}
 
-        {user.role === "USER" ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {pendingDealerUpgrade ? "Dealer upgrade offered" : "Become a dealer"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-text-secondary">
-                {pendingDealerUpgrade
-                  ? "Review the current dealer documents to activate your complimentary access."
-                  : "Need more active listings and a public dealer profile? Upgrade to a dealer subscription any time."}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {pendingDealerUpgrade ? (
-                  <Button asChild size="sm">
-                    <Link
-                      href={`/account/dealer-upgrade?offer=${pendingDealerUpgrade.id}`}
-                    >
-                      Review and accept
-                    </Link>
-                  </Button>
-                ) : (
-                  <>
-                    <Button asChild size="sm">
-                      <Link href="/dealer/subscribe?tier=STARTER">Choose Starter</Link>
-                    </Button>
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href="/dealer/subscribe?tier=PRO">Choose Pro</Link>
-                    </Button>
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href="/pricing">Compare Plans</Link>
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : user.role === "DEALER" && user.dealerProfile ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Dealer tools</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-text-secondary">
-                Manage your inventory, public profile, and active subscription from your dealer
-                area.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button asChild size="sm">
-                  <Link href="/dealer/dashboard">Open dealer dashboard</Link>
-                </Button>
-                <Button asChild size="sm" variant="ghost">
-                  <Link href="/dealer/profile">Manage dealer profile</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Admin tools</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-text-secondary">
-                Jump into moderation, user management, and marketplace oversight from the admin
-                area.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button asChild size="sm">
-                  <Link href="/admin">Open admin area</Link>
-                </Button>
-                <Button asChild size="sm" variant="ghost">
-                  <Link href="/account/profile">Update profile</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {user.role !== "USER" && !(user.role === "DEALER" && user.dealerProfile) ? (
+        <Card className="mb-6">
+          <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-text-secondary">
+              Moderation, users, and marketplace oversight are in the admin area.
+            </p>
+            <div className="flex flex-wrap gap-4 text-sm font-semibold">
+              <Link href="/admin" className="text-text-trust hover:underline">
+                Admin area
+              </Link>
+              <Link href="/account/profile" className="text-text-trust hover:underline">
+                Profile
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {totalListings > 0 ? (
         <>
@@ -447,7 +317,7 @@ export default async function AccountDashboardPage() {
                   recentListings.map((listing) => (
                     <div
                       key={listing.id}
-                      className="relative flex items-center justify-between rounded-md border border-border p-3"
+                      className="relative flex flex-col gap-3 rounded-md border border-border p-3"
                     >
                       <CardOverlayLink
                         href={`/listings/${listing.id}`}

@@ -5,6 +5,7 @@ import { getPolicyFlags } from "@/lib/policy/flags";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { deleteImage } from "@/lib/upload/cloudinary";
 import { isDatabaseSyncReference } from "@/lib/images/database-sync-reference";
+import { isStagingTestRuntime } from "@/lib/deployment/staging-test-effects";
 
 const LEASE_MS = 5 * 60_000;
 const RETRY_MS = 15 * 60_000;
@@ -70,6 +71,17 @@ function cloudinaryPublicIdFromUrl(url: string | null | undefined) {
   }
 }
 
+async function clonedProductionMedia(ids: Array<string | null | undefined>) {
+  const mediaIds = [...new Set(ids.filter((id): id is string => Boolean(id?.trim())))];
+  if (!mediaIds.length) return "clear" as const;
+  try {
+    const { externalEffectBlocked } = await import("@/lib/database-sync/effects");
+    return (await externalEffectBlocked({ mediaIds })) ? "cloned" as const : "clear" as const;
+  } catch {
+    return "unknown" as const;
+  }
+}
+
 async function deleteProfileMedia(urls: Array<string | null | undefined>) {
   for (const url of urls) {
     const receipt = legacyProfileRetentionReceipt(url);
@@ -79,6 +91,8 @@ async function deleteProfileMedia(urls: Array<string | null | undefined>) {
     }
     const publicId = cloudinaryPublicIdFromUrl(url);
     if (!publicId) continue;
+    const media = await clonedProductionMedia([publicId, url]);
+    if (media !== "clear") continue;
     try {
       await deleteImage(publicId);
     } catch {
@@ -236,8 +250,10 @@ export async function anonymiseAccountAndComplete(
 }
 
 export async function processAccountDeletionJob(job: AccountDeletionJob) {
-  const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
-  await assertExternalEffectAllowed({ tables: [{ table: "User", rowKey: job.userId }] });
+  if (!isStagingTestRuntime()) {
+    const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
+    await assertExternalEffectAllowed({ tables: [{ table: "User", rowKey: job.userId }] });
+  }
   if (await hasActiveLegalHold("USER", job.userId)) {
     await failJob(job, "LEGAL_HOLD");
     return { status: "FAILED" as const, reason: "LEGAL_HOLD" };

@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
 import { HERO_GRADIENT } from "@/lib/brand/hero-gradient";
 import { FeaturedListingsCarousel } from "@/components/marketplace/home/featured-listings-carousel";
-import { HeroSearch } from "@/components/marketplace/hero-search";
+import { HomeCategoryProvider } from "@/components/marketplace/home/home-category-context";
+import { HeroSearch, type HeroCategoryInventory } from "@/components/marketplace/hero-search";
 import { HomeVehicleCheck } from "@/components/vehicle-check/home-vehicle-check";
 import { DealerSpotlights } from "@/components/dealers/dealer-spotlights";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,10 @@ import {
   getMarketplaceDealerSpotlightQuery,
   shuffleDealerSpotlights,
 } from "@/lib/dealers/spotlights";
+import {
+  resolveVehicleCategorySlug,
+  type VehicleCategorySlug,
+} from "@/lib/search/category-filters";
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -103,7 +108,11 @@ export default async function HomePage() {
             attributeDefinitionId: { in: makeIds },
             listing: liveWhere,
           },
-          select: { listingId: true, value: true },
+          select: {
+            listingId: true,
+            value: true,
+            listing: { select: { category: { select: { slug: true, name: true } } } },
+          },
         })
       : Promise.resolve([]),
     modelIds.length > 0
@@ -117,28 +126,8 @@ export default async function HomePage() {
       : Promise.resolve([]),
   ]);
 
-  const modelByListingId = new Map(modelRows.map((r) => [r.listingId, r.value]));
-  const modelCountsByMake: Record<string, Record<string, number>> = {};
-  makeRows.forEach((row) => {
-    const model = modelByListingId.get(row.listingId);
-    if (model) {
-      const make = row.value;
-      if (!modelCountsByMake[make]) modelCountsByMake[make] = {};
-      modelCountsByMake[make][model] = (modelCountsByMake[make][model] ?? 0) + 1;
-    }
-  });
-  const modelsByMake: Record<string, string[]> = {};
-  for (const [make, models] of Object.entries(modelCountsByMake)) {
-    modelsByMake[make] = Object.keys(models).sort();
-  }
-
-  const makeCounts: Record<string, number> = {};
-  for (const row of makeRows) {
-    makeCounts[row.value] = (makeCounts[row.value] ?? 0) + 1;
-  }
-  const makes = Object.entries(makeCounts)
-    .map(([label, count]) => ({ label, value: label, count }))
-    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  const modelByListingId = new Map(modelRows.map((row) => [row.listingId, row.value]));
+  const inventoryByCategory = buildCategoryInventory(makeRows, modelByListingId);
 
   /* Fetch featured listings across all categories */
   const featuredListings = await db.listing.findMany({
@@ -166,9 +155,13 @@ export default async function HomePage() {
     meta: listing.category.name,
     href: `/listings/${listing.id}`,
     writeOffCategory: listing.attributeValues[0]?.value ?? null,
+    categorySlug: resolveVehicleCategorySlug(listing.category.slug, [
+      { label: listing.category.name, value: listing.category.slug },
+    ]) ?? listing.category.slug,
   }));
 
   return (
+    <HomeCategoryProvider>
     <>
       <JsonLd data={buildSiteIdentityJsonLd(getCanonicalBaseUrl().origin)} />
       {/* ============ HERO ============ */}
@@ -192,9 +185,7 @@ export default async function HomePage() {
           </p>
 
           <HeroSearch
-            makes={makes}
-            modelsByMake={modelsByMake}
-            modelCountsByMake={modelCountsByMake}
+            inventoryByCategory={inventoryByCategory}
             categories={categories.map((c) => ({
               label: c.name,
               value: c.slug,
@@ -275,5 +266,55 @@ export default async function HomePage() {
         </section>
       )}
     </>
+    </HomeCategoryProvider>
   );
+}
+
+function buildCategoryInventory(
+  makeRows: ReadonlyArray<{
+    listingId: string;
+    value: string;
+    listing: { category: { slug: string; name: string } };
+  }>,
+  modelByListingId: ReadonlyMap<string, string>,
+): Partial<Record<VehicleCategorySlug, HeroCategoryInventory>> {
+  const buckets = new Map<VehicleCategorySlug, {
+    makeCounts: Record<string, number>;
+    modelCountsByMake: Record<string, Record<string, number>>;
+  }>();
+
+  for (const row of makeRows) {
+    const slug = resolveVehicleCategorySlug(row.listing.category.slug, [
+      { label: row.listing.category.name, value: row.listing.category.slug },
+    ]);
+    if (!slug) continue;
+    const bucket = buckets.get(slug) ?? { makeCounts: {}, modelCountsByMake: {} };
+    const makeCounts = { ...bucket.makeCounts, [row.value]: (bucket.makeCounts[row.value] ?? 0) + 1 };
+    const model = modelByListingId.get(row.listingId);
+    const modelCountsByMake = { ...bucket.modelCountsByMake };
+    if (model) {
+      const counts = { ...(modelCountsByMake[row.value] ?? {}) };
+      counts[model] = (counts[model] ?? 0) + 1;
+      modelCountsByMake[row.value] = counts;
+    }
+    buckets.set(slug, { makeCounts, modelCountsByMake });
+  }
+
+  const inventory: Partial<Record<VehicleCategorySlug, HeroCategoryInventory>> = {};
+  for (const [slug, bucket] of buckets) {
+    const modelsByMake: Record<string, string[]> = {};
+    for (const [make, models] of Object.entries(bucket.modelCountsByMake)) {
+      modelsByMake[make] = Object.keys(models).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" }),
+      );
+    }
+    inventory[slug] = {
+      makes: Object.entries(bucket.makeCounts)
+        .map(([label, count]) => ({ label, value: label, count }))
+        .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),
+      modelsByMake,
+      modelCountsByMake: bucket.modelCountsByMake,
+    };
+  }
+  return inventory;
 }

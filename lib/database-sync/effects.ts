@@ -17,6 +17,27 @@ export async function externalEffectBlocked(input: {
   paymentReferences?: string[];
 }, runQuery: Query = query): Promise<boolean> {
   if (!isStagingOnlyFeatureEnabled()) return false;
+  const mirror = await runQuery(Prisma.sql`SELECT to_regclass('preview_mirror.state') IS NOT NULL AS mirror_present`);
+  if (mirror[0]?.mirror_present === true) {
+    const state = await runQuery(Prisma.sql`SELECT generation_id::text AS id FROM preview_mirror.state WHERE id=1`);
+    const generation = state[0]?.id;
+    if (typeof generation === "string" && generation) {
+      for (const item of input.tables ?? []) {
+        const found = await runQuery(Prisma.sql`SELECT 1 FROM preview_mirror.provenance WHERE generation_id=${generation}::uuid AND table_name=${item.table} AND row_key=${item.rowKey} LIMIT 1`);
+        if (found.length) return true;
+      }
+      const references = [
+        ...(input.emails ?? []).map((value) => ({ kind: "email", value: value.trim().toLowerCase() })),
+        ...(input.mediaIds ?? []).map((value) => ({ kind: "media", value })),
+        ...(input.paymentReferences ?? []).map((value) => ({ kind: "payment", value })),
+      ].filter((reference) => reference.value);
+      for (const reference of references) {
+        const found = await runQuery(Prisma.sql`SELECT 1 FROM preview_mirror.protected_references WHERE generation_id=${generation}::uuid AND kind=${reference.kind} AND value=${reference.value} LIMIT 1`);
+        if (found.length) return true;
+      }
+      return false;
+    }
+  }
   const present = await runQuery(Prisma.sql`SELECT to_regclass('staging_admin.database_sync_state') IS NOT NULL AS present`);
   if (present[0]?.present !== true) return false;
   const state = await runQuery(Prisma.sql`SELECT active_generation_id::text AS id FROM staging_admin.database_sync_state WHERE id = 1`);

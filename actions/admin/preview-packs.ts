@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
@@ -44,8 +46,14 @@ export async function enablePreviewPack(input: { dealerKey: string }) {
     revalidatePreviewSurfaces();
     return { data: result };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to enable preview pack.";
-    return { error: message };
+    return journeyUnknownResult({
+      error: error,
+      action: "enablePreviewPack",
+      route: "/admin",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to enable preview pack finished. Check the administration page before trying again."
+    });
   }
 }
 
@@ -59,7 +67,13 @@ export async function disablePreviewPack(input: { dealerKey: string }) {
     revalidatePreviewSurfaces();
     return { data: { enabled: false } };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to disable preview pack.";
-    return { error: message };
+    return journeyUnknownResult({
+      error: error,
+      action: "disablePreviewPack",
+      route: "/admin",
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to disable preview pack finished. Check the administration page before trying again."
+    });
   }
 }

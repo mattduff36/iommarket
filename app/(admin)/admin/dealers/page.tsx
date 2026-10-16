@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,7 +30,9 @@ import {
   adminDateCellClass,
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
+import { TradeMembershipBadge } from "@/components/admin/trade-admin-ui";
 import { DealerActions } from "./dealer-actions";
+import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
 import { SyncAllDealerStockButton } from "./sync-all-button";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
@@ -44,7 +46,7 @@ import {
 import { DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT } from "@/lib/admin/table-columns";
 import { dealerOrderBy } from "@/lib/admin/table-order";
 import { buildAdminListHref, parseAdminSort } from "@/lib/admin/table-state";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TradeMembershipStatus } from "@prisma/client";
 
 export const metadata: Metadata = { title: "Dealers | Admin" };
 
@@ -68,6 +70,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const sort = parseAdminSort(params, DEALER_TABLE_COLUMNS, DEALER_TABLE_SORT);
   const now = new Date();
+  const tradeEnabled = isTradeExchangeEnabled();
   const sampleVisibility = await getSampleVisibility();
   const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
@@ -117,6 +120,13 @@ export default async function AdminDealersPage({ searchParams }: Props) {
     }),
     db.dealerProfile.count({ where }),
   ]);
+  const tradeMemberships = tradeEnabled && dealers.length > 0
+    ? await db.tradeMembership.findMany({
+        where: { dealerId: { in: dealers.map((dealer) => dealer.id) } },
+        select: { id: true, dealerId: true, status: true },
+      })
+    : [];
+  const tradeByDealerId = new Map(tradeMemberships.map((membership) => [membership.dealerId, membership]));
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -168,13 +178,13 @@ export default async function AdminDealersPage({ searchParams }: Props) {
           active={verifiedFilter === true}
           activeTone="success"
         >
-          Verified
+          {tradeEnabled ? "Public verified" : "Verified"}
         </AdminFilterChip>
         <AdminFilterChip
           href={buildUrl({ verified: verifiedFilter === false ? undefined : "false", page: "1" })}
           active={verifiedFilter === false}
         >
-          Unverified
+          {tradeEnabled ? "Public unverified" : "Unverified"}
         </AdminFilterChip>
       </AdminFilterBar>
 
@@ -194,7 +204,11 @@ export default async function AdminDealersPage({ searchParams }: Props) {
         </TableHeader>
         <TableBody>
           {dealers.map((dealer) => (
-            <DealerRow key={dealer.id} dealer={dealer} />
+            <DealerRow
+              key={dealer.id}
+              dealer={{ ...dealer, tradeMembership: tradeByDealerId.get(dealer.id) ?? null }}
+              tradeEnabled={tradeEnabled}
+            />
           ))}
           {dealers.length === 0 && (
             <TableRow>
@@ -216,6 +230,7 @@ export default async function AdminDealersPage({ searchParams }: Props) {
 }
 
 interface DealerRowProps {
+  tradeEnabled: boolean;
   dealer: {
     id: string;
     name: string;
@@ -224,6 +239,7 @@ interface DealerRowProps {
     verified: boolean;
     createdAt: Date;
     updatedAt: Date;
+    tradeMembership?: { id: string; status: TradeMembershipStatus } | null;
     user: {
       id: string;
       email: string;
@@ -243,7 +259,7 @@ interface DealerRowProps {
   };
 }
 
-function DealerRow({ dealer }: DealerRowProps) {
+function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
   const now = new Date();
   const paidSubscription = dealer.subscriptions.find(
     (subscription) => subscription.source === "PAYMENT"
@@ -298,13 +314,35 @@ function DealerRow({ dealer }: DealerRowProps) {
           badges={dealer.user.disabledAt ? <Badge variant="error">Disabled</Badge> : null}
         />
       </TableCell>
-      <TableCell data-column="verified">
-        <Badge variant={dealer.verified ? "success" : "neutral"}>
-          {dealer.verified ? "Verified" : "Unverified"}
-        </Badge>
-      </TableCell>
       <TableCell data-column="plan">
-        <div className="flex max-w-48 flex-wrap gap-1.5">
+        <div className="flex max-w-56 flex-col items-start gap-1.5">
+          <Badge variant={dealer.verified ? "success" : "neutral"}>
+            {tradeEnabled
+              ? dealer.verified
+                ? "Public verified"
+                : "Public unverified"
+              : dealer.verified
+                ? "Verified"
+                : "Unverified"}
+          </Badge>
+          {tradeEnabled ? (
+            dealer.tradeMembership ? (
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-text-secondary">Trade application</span>
+                <TradeMembershipBadge status={dealer.tradeMembership.status} />
+              </span>
+            ) : (
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-text-secondary">Trade application</span>
+                <Badge variant="neutral">Not applied</Badge>
+                <Link href="/admin/trade/applications" className="text-xs text-neon-blue-400 hover:underline">
+                  Applications
+                </Link>
+              </span>
+            )
+          ) : null}
+        </div>
+        <div className="mt-2 flex max-w-48 flex-wrap gap-1.5">
           <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
             {getDealerPackageLabel(dealer.tier)}
           </Badge>
@@ -321,6 +359,9 @@ function DealerRow({ dealer }: DealerRowProps) {
             )?.toLocaleDateString("en-GB") ?? "not set"}
           </p>
         ) : null}
+      </TableCell>
+      <TableCell data-column="verified">
+        <Badge variant={dealer.verified ? "success" : "neutral"}>{dealer.verified ? "Verified" : "Unverified"}</Badge>
       </TableCell>
       <TableCell data-column="listings" className={adminNumericCellClass}>
         {dealer._count.listings}
@@ -350,6 +391,7 @@ function DealerRow({ dealer }: DealerRowProps) {
           canGrantAccess={dealer.user.role === "DEALER"}
           currentTier={dealer.tier}
           hasActivePaidSubscription={Boolean(paidSubscription)}
+          tradeMembershipId={tradeEnabled ? dealer.tradeMembership?.id ?? null : null}
         />
       </TableCell>
     </TableRow>

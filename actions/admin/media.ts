@@ -1,4 +1,7 @@
 "use server";
+import { knownOperationMessage } from "@/lib/forms/operation-error-messages";
+
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
 
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
@@ -139,12 +142,16 @@ export async function adminDeleteImage(imageId: string) {
     revalidatePath(`/listings/${image.listingId}`);
     return { data: { deleted: true } };
   } catch (err) {
-    await reportHandledException({
+    const knownReason = knownOperationMessage(err, "adminDeleteImage");
+    if (knownReason) return { error: knownReason, data: undefined };
+
+    return journeyUnknownResult({
       error: err,
       action: "deleteListingImage",
       route: "/admin/media",
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to delete image finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to delete image";
-    return { error: message };
   }
 }

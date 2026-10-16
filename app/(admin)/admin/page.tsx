@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
@@ -33,6 +33,7 @@ import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import { listingReviewHref } from "@/lib/admin/record-href";
+import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -69,6 +70,7 @@ export default async function AdminDashboardPage() {
   const recentPaymentWhere = await resolveVisibleAdminPaymentWhere(
     applySamplePaymentVisibility({}, sampleVisibility),
   );
+  const tradeEnabled = isTradeExchangeEnabled();
 
   const [
     totalListings,
@@ -90,6 +92,7 @@ export default async function AdminDashboardPage() {
     recentUsers,
     recentReports,
     recentPaymentsList,
+    tradeQueue,
   ] = await Promise.all([
     db.listing.count({ where: catalogWhere }),
     db.listing.count({
@@ -187,6 +190,13 @@ export default async function AdminDashboardPage() {
         listing: { select: { id: true, title: true } },
       },
     }),
+    tradeEnabled
+      ? Promise.all([
+          db.tradeMembership.count({ where: { status: "PENDING" } }),
+          db.tradeReport.count({ where: { status: "OPEN" } }),
+          db.tradeListing.count({ where: { status: "PENDING_REVIEW" } }),
+        ])
+      : Promise.resolve(null),
   ]);
 
   const pendingReviews =
@@ -240,6 +250,33 @@ export default async function AdminDashboardPage() {
           openMonitoringIssues,
         })}
       />
+
+      {tradeQueue ? (
+        <Card className="mb-6 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 px-4 py-3.5">
+            <CardTitle className="text-sm font-semibold text-text-primary">Trade Exchange</CardTitle>
+            <Link href="/admin/trade" className="inline-flex items-center gap-1 text-xs font-medium text-neon-blue-400 hover:underline">
+              Open private Trade <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
+          </CardHeader>
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+            {(
+              [
+                ["Applications waiting", tradeQueue[0], "/admin/trade/applications?status=PENDING"],
+                ["Open reports", tradeQueue[1], "/admin/trade/reports"],
+                ["Listings in review", tradeQueue[2], "/admin/trade/listings"],
+              ] as const
+            ).map(([label, count, href]) => (
+              <Link key={href} href={href} className="rounded-lg border border-border bg-surface px-4 py-3 hover:border-border-focus">
+                <span className="block text-xs leading-5 text-text-secondary">{label}</span>
+                <span className="mt-1 block text-lg font-semibold tabular-nums text-text-primary">
+                  {count.toLocaleString("en-GB")}
+                </span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <AdminDashboardStats
         stats={buildAdminDashboardStats({

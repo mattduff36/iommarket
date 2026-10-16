@@ -285,7 +285,7 @@ describe("UserActions", () => {
     setUserRole.mockRejectedValueOnce(new Error("secret server detail"));
     await user.click(screen.getByRole("button", { name: "Admin" }));
     await user.click(screen.getByRole("button", { name: "Update role" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to update role");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Check the recorded result before trying again");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

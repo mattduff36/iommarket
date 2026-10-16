@@ -34,6 +34,7 @@ export async function runVehicleLookup(params: {
       appliedAttributeIds: string[];
       clearTitleError: boolean;
       meta: string;
+      modelVariant?: string;
     }
 > {
   if (params.selectedCategory && !params.isLookupCategorySupported) {
@@ -118,7 +119,7 @@ export async function runVehicleLookup(params: {
       model:
         (modelDefinition ? mapped.values[modelDefinition.id] ?? null : null) ??
         lookupPayload.result.vehicle?.model ??
-        lookupPayload.result.motHistory?.model ??
+        (lookupPayload.result.isManx ? null : lookupPayload.result.motHistory?.model) ??
         null,
     });
     const didSuggestTitle = Boolean(suggestedTitle && !params.titleValue.trim());
@@ -147,6 +148,8 @@ export async function runVehicleLookup(params: {
     if (didSuggestTitle) {
       statusMessages.push("Suggested a listing title");
     }
+    if (lookupPayload.result.vehicle?.modelSource === "previous-uk") statusMessages.push("Model matched from the linked previous UK registration; Manx trim and current details retained");
+    if (lookupPayload.result.vehicle?.modelSource === "unresolved") statusMessages.push("Please enter the model manually; the Manx trim is not a confirmed model");
     const warningSuffix = lookupPayload.result.warnings.length
       ? ` (${lookupPayload.result.warnings.length} warning${lookupPayload.result.warnings.length === 1 ? "" : "s"} reported in lookup data).`
       : ".";
@@ -157,6 +160,7 @@ export async function runVehicleLookup(params: {
       titleValue: didSuggestTitle && suggestedTitle ? suggestedTitle : undefined,
       selectedCategoryId: autoSelectedCategoryName ? activeCategory.id : undefined,
       attributeValues: pruneHiddenAttributes(mapped.values, activeCategory),
+      modelVariant: lookupPayload.result.vehicle?.modelVariant ?? undefined,
       appliedAttributeIds: mapped.appliedAttributeIds,
       clearTitleError: didSuggestTitle,
       meta: `${statusMessages.join(". ")}. Please review before submitting${warningSuffix}`,

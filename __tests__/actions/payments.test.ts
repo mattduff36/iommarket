@@ -552,6 +552,32 @@ describe("payForListing", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
+  it("hides an unclassified checkout failure and does not invite another payment", async () => {
+    isPrivateListingFreeForUserMock.mockResolvedValue(false);
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      userId: "user_123",
+      dealerId: null,
+      status: "DRAFT",
+      expiresAt: new Date("2025-01-01T00:00:00Z"),
+      title: "Test listing",
+    });
+    createListingCheckoutMock.mockRejectedValue(
+      new Error("provider timeout https://pay.example/tok_secret"),
+    );
+    const { payForListing } = await import("@/actions/payments");
+    const result = await payForListing({
+      listingId: "caaaaaaaaaaaaaaaaaaaaaaaa",
+      privateSellerTermsAccepted: true,
+    });
+    expect(result).toMatchObject({
+      error: "We haven't confirmed the payment result yet. Check payment status before paying again.",
+      code: "unknown",
+      retryable: false,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/tok_secret|https:|not charged/i);
+  });
+
   it("returns a safe action error when an enforced receipt lookup fails", async () => {
     process.env.POLICY_ENFORCE_ACCEPTANCE = "true";
     isPrivateListingFreeForUserMock.mockResolvedValue(false);
@@ -766,7 +792,7 @@ describe("payForListing", () => {
     await expect(
       payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" }),
     ).resolves.toEqual({
-      error: "Not authorized",
+      error: "This listing isn't available for that action.",
     });
     expect(createListingCheckoutMock).not.toHaveBeenCalled();
   });
@@ -1047,4 +1073,23 @@ describe("demo payment actions", () => {
     expect(requireAuthMock).not.toHaveBeenCalled();
     expect(processProviderWebhookEventMock).not.toHaveBeenCalled();
   });
+
+  it.each(["auth", "database", "rate-limit"])("contains unknown %s failures before checkout starts", async (stage) => {
+    const secret = new Error("postgres secret_token https://private.example/key");
+    if (stage === "auth") requireAuthMock.mockRejectedValueOnce(secret);
+    if (stage === "database") mockDb.listing.findUnique.mockRejectedValueOnce(secret);
+    if (stage === "rate-limit") checkRateLimitMock.mockRejectedValueOnce(secret);
+    captureExceptionMock.mockResolvedValueOnce({ eventId: "safe-reference-123" });
+    const result = await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" });
+    expect(result).toMatchObject({ code: "unknown", retryable: false, supportReference: "safe-reference-123" });
+    expect(JSON.stringify(result)).not.toMatch(/secret_token|private.example|postgres/);
+  });
+
+  it("preserves a known checkout error if monitoring also fails", async () => {
+    checkRateLimitMock.mockRejectedValueOnce(new Error("RIPPLE_FEATURED_PAYMENT_URL is not set"));
+    captureExceptionMock.mockRejectedValueOnce(new Error("monitor unavailable"));
+    const result = await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa" });
+    expect(result).toMatchObject({ error: "Featured upgrade checkout is not configured yet. Please contact support." });
+  });
+
 });

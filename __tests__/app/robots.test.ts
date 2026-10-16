@@ -22,7 +22,7 @@ describe("robots metadata", () => {
     setNodeEnv("production");
     delete process.env.PRODUCTION_LAUNCH_ENABLED;
     expect(robots()).toEqual({
-      rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/api"] },
+      rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/api", "/dealer/trade"] },
     });
   });
 

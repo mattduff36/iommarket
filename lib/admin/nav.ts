@@ -37,6 +37,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Dealer onboarding", href: "/admin/dealer-onboarding", icon: "dealer-onboarding", group: "core" },
   { label: "Preview packs", href: "/admin/preview-packs", icon: "preview-packs", group: "core" },
   { label: "Listings", href: "/admin/listings", icon: "listings", group: "core" },
+  { label: "Trade Exchange", href: "/admin/trade", icon: "listings", group: "core" },
   { label: "Categories", href: "/admin/categories", icon: "categories", group: "core" },
   { label: "Vehicle Catalogue", href: "/admin/vehicle-catalogue", icon: "vehicle-catalogue", group: "core" },
   { label: "Regions", href: "/admin/regions", icon: "regions", group: "core" },

@@ -60,6 +60,18 @@ export async function dispatchMonitoringAlerts(input: {
   reopened?: boolean;
   previousLastSeenAt?: Date | null;
 }) {
+  const { captureStagingTestEffect } = await import("@/lib/deployment/staging-test-effects");
+  const captured = await captureStagingTestEffect({
+    kind: "ALERT",
+    entityId: input.issueId,
+    payload: {
+      issueId: input.issueId,
+      eventId: input.eventId,
+      reopened: input.reopened === true,
+    },
+  });
+  if (captured) return;
+
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({
     tables: [

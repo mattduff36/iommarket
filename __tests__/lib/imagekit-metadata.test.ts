@@ -34,12 +34,12 @@ describe("ImageKit metadata and orientation", () => {
 
   it("rejects mismatched actual and declared file formats", async () => {
     const bytes = await image().png().toBuffer();
-    await expect(stripListingImageMetadata({ bytes, format: "jpg" })).rejects.toThrow(/invalid|unsupported/);
+    await expect(stripListingImageMetadata({ bytes, format: "jpg" })).rejects.toThrow(/do not match the stated format/);
   });
 
   it("does not decode vector input disguised as a raster", async () => {
     const bytes = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"/>');
-    await expect(stripListingImageMetadata({ bytes, format: "png" })).rejects.toThrow(/invalid|unsupported/);
+    await expect(stripListingImageMetadata({ bytes, format: "png" })).rejects.toThrow(/do not match the stated format/);
   });
 
   it("rejects over-limit inputs before processing", async () => {
@@ -48,8 +48,14 @@ describe("ImageKit metadata and orientation", () => {
     })).rejects.toThrow(/10MB/);
   });
 
-  it("rejects undersized decoded images", async () => {
-    const bytes = await sharp({ create: { width: 400, height: 300, channels: 3, background: "white" } }).png().toBuffer();
-    await expect(stripListingImageMetadata({ bytes, format: "png" })).rejects.toThrow(/dimensions/);
+  it("accepts a normal PNG and records its decoded dimensions", async () => {
+    const bytes = await sharp({ create: { width: 1200, height: 800, channels: 4, background: { r: 10, g: 20, b: 30, alpha: 1 } } }).png().toBuffer();
+    const result = await stripListingImageMetadata({ bytes, format: "png" });
+    expect([result.width, result.height, result.format]).toEqual([1200, 800, "png"]);
+  });
+
+  it("rejects a 385×294 PNG with the pixel minimum instead of a generic decoder failure", async () => {
+    const bytes = await sharp({ create: { width: 385, height: 294, channels: 3, background: "white" } }).png().toBuffer();
+    await expect(stripListingImageMetadata({ bytes, format: "png" })).rejects.toThrow("Images must be at least 800×480px.");
   });
 });

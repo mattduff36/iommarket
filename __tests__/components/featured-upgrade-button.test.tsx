@@ -101,4 +101,18 @@ describe("FeaturedUpgradeButton preview checkout", () => {
     fireEvent.click(button);
     await waitFor(() => expect(upgradeFeaturedMock).toHaveBeenCalledTimes(2));
   });
+
+  it.each(["response", "transport"])("blocks repeat Featured payment after uncertain %s", async (kind) => {
+    if (kind === "transport") upgradeFeaturedMock.mockRejectedValue(new Error("private-provider-token"));
+    else upgradeFeaturedMock.mockResolvedValue({ error: "Check payment status before paying again.", code: "unknown", retryable: false });
+    render(<FeaturedUpgradeButton listingId="listing-1" featuredUpgradePricePence={500} />);
+    const button = screen.getByRole("button", { name: "Upgrade - £5.00" });
+    fireEvent.click(button);
+    expect(await screen.findByRole("link", { name: "Check Featured status" })).toHaveAttribute("href", "/listings/listing-1");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(upgradeFeaturedMock).toHaveBeenCalledTimes(1);
+    expect(document.body).not.toHaveTextContent("private-provider-token");
+  });
+
 });

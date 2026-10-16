@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { FilterPanel } from "@/components/marketplace/filter-panel";
 import {
   PRICE_MAX,

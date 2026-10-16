@@ -8,7 +8,6 @@ import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { isRipplePreviewRuntime, getRippleProductByCheckoutType } from "@/lib/payments/ripple-config";
 import { toRippleCheckoutPayer } from "@/lib/payments/ripple-customer-details";
 import { db } from "@/lib/db";
-import { requireAcceptedAuth } from "@/lib/policy/gate";
 import {
   createListingCheckout,
   createDealerSubscriptionCheckout,
@@ -43,12 +42,20 @@ import {
   isAdminSellerBlocked,
 } from "@/lib/listings/seller-access";
 import { captureException } from "@/lib/monitoring";
+import { captureWithoutMasking } from "@/lib/forms/public-error";
 import type { NormalizedProviderWebhookEvent } from "@/lib/payments/provider";
 import { processProviderWebhookEvent } from "@/lib/payments/webhook-processing";
 import { persistPendingListingPayment } from "@/lib/payments/pending-listing-payment";
 import { persistCheckoutAttempt } from "@/lib/payments/checkout-attempts";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { rateLimitActionError } from "@/lib/rate-limit-result";
+import {
+  CHECKOUT_OUTCOME_UNKNOWN,
+  checkoutUnknownResult,
+  requireCheckoutActor,
+  trustedCheckoutMessage,
+} from "@/lib/payments/checkout-public-error";
+import { LISTING_UNAVAILABLE } from "@/lib/listings/save-public-error";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -99,34 +106,40 @@ function bindCheckoutToPersistedReference(
 }
 
 function toUserPaymentError(message: string) {
-  if (message.includes("RIPPLE_PREVIEW_CHECKOUT_DISABLED") || message.includes("RIPPLE_STAGING_LINK_REQUIRED")) {
-    return "New payments are disabled on preview. Existing subscriptions continue to renew.";
+  return trustedCheckoutMessage(message);
+}
+
+async function guardCustomerCheckout<T>(
+  context: {
+    action: string;
+    route: string;
+    userId?: string;
+    userEmail?: string;
+    tags?: Record<string, string>;
+  },
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    const known = trustedCheckoutMessage(error instanceof Error ? error.message : "");
+    if (known) {
+      if (!isMissingListingPaymentUrlError(error)) {
+        await captureWithoutMasking(() => captureException({
+          source: "SERVER",
+          error,
+          action: context.action,
+          route: context.route,
+          requestPath: context.route,
+          userId: context.userId,
+          userEmail: context.userEmail,
+          tags: context.tags,
+        }));
+      }
+      return { error: known } as T;
+    }
+    return checkoutUnknownResult(error, context) as Promise<T>;
   }
-  if (message.includes("RIPPLE_LISTING_PAYMENT_URL")) {
-    return "Listing checkout is not configured yet. Please contact support.";
-  }
-  if (message.includes("RIPPLE_LISTING_SUPPORT_URL")) {
-    return "Payments are temporarily unavailable in this environment. Please try again later.";
-  }
-  if (message.includes("RIPPLE_DEALER_PRO_URL")) {
-    return "Dealer Pro checkout is not configured yet. Please contact support.";
-  }
-  if (message.includes("RIPPLE_DEALER_STARTER_URL")) {
-    return "Dealer Starter checkout is not configured yet. Please contact support.";
-  }
-  if (message.includes("RIPPLE_FEATURED_PAYMENT_URL")) {
-    return "Featured upgrade checkout is not configured yet. Please contact support.";
-  }
-  if (message.includes("STAGING_CHECKOUT_HANDOFF")) {
-    return "Checkout could not be started. Please try again.";
-  }
-  if (message.includes("RIPPLE_LIVE_CHECKOUT_ENABLED")) {
-    return "Card checkout is not enabled yet. Please try again after payments go live.";
-  }
-  if (message.includes("amount must be")) {
-    return "Checkout pricing does not match the Ripple payment link. Please contact support.";
-  }
-  return message;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +147,20 @@ function toUserPaymentError(message: string) {
 // ---------------------------------------------------------------------------
 
 export async function payForListing(input: PayForListingInput) {
-  const user = await requireAcceptedAuth();
+  return guardCustomerCheckout(
+    { action: "payForListing", route: "/sell/checkout" },
+    () => payForListingBody(input),
+  );
+}
+
+async function payForListingBody(input: PayForListingInput) {
+  const actor = await requireCheckoutActor({
+    action: "payForListing",
+    route: "/sell/checkout",
+    fallbackMessage: CHECKOUT_OUTCOME_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   const parsed = payForListingSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
@@ -155,13 +181,11 @@ export async function payForListing(input: PayForListingInput) {
       dealer: { select: { tier: true } },
     },
   });
-  if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (!listing || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
+    return { error: LISTING_UNAVAILABLE };
+  }
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
-  }
-  if (hasMismatchedDealerListing(user, listing)) {
-    return { error: "Not authorized" };
   }
   if (listing.status === "LIVE") {
     return { data: { checkoutUrl: null, skippedPayment: true } };
@@ -186,7 +210,7 @@ export async function payForListing(input: PayForListingInput) {
     try {
       await detachListingDealerIdIfNeeded(db, listing.id, user, listing);
     } catch (err) {
-      await captureException({
+      await captureWithoutMasking(() => captureException({
         source: "SERVER",
         error: err,
         action: "payForListing",
@@ -195,7 +219,7 @@ export async function payForListing(input: PayForListingInput) {
         userId: user.id,
         userEmail: user.email,
         tags: { listingId, step: "detach-stale-dealer" },
-      });
+      }));
       return { error: "Unable to update this listing. Please try again." };
     }
   }
@@ -329,7 +353,7 @@ export async function payForListing(input: PayForListingInput) {
       return { data: { ...sample.data, skippedPayment: false } };
     }
     if (isRipplePreviewRuntime()) {
-      return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
+      return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") ?? CHECKOUT_OUTCOME_UNKNOWN };
     }
     const payer = toRippleCheckoutPayer(user);
     const session = includeFeatured ? await createListingAndFeaturedCheckout({
@@ -410,21 +434,29 @@ export async function payForListing(input: PayForListingInput) {
     }
     return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
   } catch (err) {
-    if (!isMissingListingPaymentUrlError(err)) {
-      await captureException({
-        source: "SERVER",
-        error: err,
-        action: "payForListing",
-        route: "/sell/checkout",
-        requestPath: "/sell/checkout",
-        userId: user.id,
-        userEmail: user.email,
-        tags: { listingId },
-      });
+    const known = toUserPaymentError(err instanceof Error ? err.message : "");
+    if (known) {
+      if (!isMissingListingPaymentUrlError(err)) {
+        await captureWithoutMasking(() => captureException({
+          source: "SERVER",
+          error: err,
+          action: "payForListing",
+          route: "/sell/checkout",
+          requestPath: "/sell/checkout",
+          userId: user.id,
+          userEmail: user.email,
+          tags: { listingId },
+        }));
+      }
+      return { error: known };
     }
-    const message =
-      err instanceof Error ? err.message : "Failed to create checkout";
-    return { error: toUserPaymentError(message) };
+    return checkoutUnknownResult(err, {
+      action: "payForListing",
+      route: "/sell/checkout",
+      userId: user.id,
+      userEmail: user.email,
+      tags: { listingId },
+    });
   }
 }
 
@@ -437,9 +469,26 @@ export async function createDealerSubscription(input: {
   testPlan?: boolean;
   acceptedDealerTerms: boolean;
 }) {
-  const user = await requireAcceptedAuth();
+  return guardCustomerCheckout(
+    { action: "createDealerSubscription", route: "/dealer/subscribe" },
+    () => createDealerSubscriptionBody(input),
+  );
+}
+
+async function createDealerSubscriptionBody(input: {
+  tier?: "STARTER" | "PRO";
+  testPlan?: boolean;
+  acceptedDealerTerms: boolean;
+}) {
+  const actor = await requireCheckoutActor({
+    action: "createDealerSubscription",
+    route: "/dealer/subscribe",
+    fallbackMessage: CHECKOUT_OUTCOME_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   if (isRipplePreviewRuntime() && !isSampleCheckoutEnabled()) {
-    return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
+    return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") ?? CHECKOUT_OUTCOME_UNKNOWN };
   }
   if (input.testPlan === true) {
     return { error: "The weekly test subscription is no longer available for new signups." };
@@ -527,19 +576,27 @@ export async function createDealerSubscription(input: {
     });
     return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    const known = toUserPaymentError(err instanceof Error ? err.message : "");
+    if (known) {
+      await captureWithoutMasking(() => captureException({
+        source: "SERVER",
+        error: err,
+        action: "createDealerSubscription",
+        route: "/dealer/subscribe",
+        requestPath: "/dealer/subscribe",
+        userId: user.id,
+        userEmail: user.email,
+        tags: { tier: parsed.data.tier },
+      }));
+      return { error: known };
+    }
+    return checkoutUnknownResult(err, {
       action: "createDealerSubscription",
       route: "/dealer/subscribe",
-      requestPath: "/dealer/subscribe",
       userId: user.id,
       userEmail: user.email,
       tags: { tier: parsed.data.tier },
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to create subscription";
-    return { error: toUserPaymentError(message) };
   }
 }
 
@@ -548,9 +605,22 @@ export async function createDealerSubscription(input: {
 // ---------------------------------------------------------------------------
 
 export async function upgradeFeatured(listingId: string) {
-  const user = await requireAcceptedAuth();
+  return guardCustomerCheckout(
+    { action: "upgradeFeatured", route: `/listings/${listingId}` },
+    () => upgradeFeaturedBody(listingId),
+  );
+}
+
+async function upgradeFeaturedBody(listingId: string) {
+  const actor = await requireCheckoutActor({
+    action: "upgradeFeatured",
+    route: `/listings/${listingId}`,
+    fallbackMessage: CHECKOUT_OUTCOME_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
   if (isRipplePreviewRuntime() && !isSampleCheckoutEnabled()) {
-    return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") };
+    return { error: toUserPaymentError("RIPPLE_PREVIEW_CHECKOUT_DISABLED") ?? CHECKOUT_OUTCOME_UNKNOWN };
   }
   const featuredRateError = rateLimitActionError(
     await checkRateLimit(
@@ -567,8 +637,7 @@ export async function upgradeFeatured(listingId: string) {
   }
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
-  if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (!listing || listing.userId !== user.id) return { error: LISTING_UNAVAILABLE };
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
@@ -661,19 +730,27 @@ export async function upgradeFeatured(listingId: string) {
     });
     return { data: { checkoutUrl: presentHostedCheckoutUrl(boundSession.url) } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    const known = toUserPaymentError(err instanceof Error ? err.message : "");
+    if (known) {
+      await captureWithoutMasking(() => captureException({
+        source: "SERVER",
+        error: err,
+        action: "upgradeFeatured",
+        route: `/listings/${listingId}`,
+        requestPath: `/listings/${listingId}`,
+        userId: user.id,
+        userEmail: user.email,
+        tags: { listingId },
+      }));
+      return { error: known };
+    }
+    return checkoutUnknownResult(err, {
       action: "upgradeFeatured",
       route: `/listings/${listingId}`,
-      requestPath: `/listings/${listingId}`,
       userId: user.id,
       userEmail: user.email,
       tags: { listingId },
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to create checkout";
-    return { error: toUserPaymentError(message) };
   }
 }
 
@@ -686,13 +763,30 @@ export async function simulateDemoListingPaymentOutcome(input: {
   flow: "private" | "dealer";
   outcome: "success" | "declined";
 }) {
+  return guardCustomerCheckout(
+    { action: "simulateDemoListingPaymentOutcome", route: "/sell/checkout" },
+    () => simulateDemoListingPaymentOutcomeBody(input),
+  );
+}
+
+async function simulateDemoListingPaymentOutcomeBody(input: {
+  listingId: string;
+  flow: "private" | "dealer";
+  outcome: "success" | "declined";
+}) {
   const unavailableError = getDemoPaymentUnavailableError(
     isDemoListingCheckoutConfigured()
   );
   if (unavailableError) {
     return { error: unavailableError };
   }
-  const user = await requireAcceptedAuth();
+  const actor = await requireCheckoutActor({
+    action: "simulateDemoListingPaymentOutcome",
+    route: "/sell/checkout",
+    fallbackMessage: CHECKOUT_OUTCOME_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
 
   const listing = await db.listing.findUnique({
     where: { id: input.listingId },
@@ -702,12 +796,8 @@ export async function simulateDemoListingPaymentOutcome(input: {
     },
   });
 
-  if (!listing) {
-    return { error: "Listing not found" };
-  }
-
-  if (listing.userId !== user.id && user.role !== "ADMIN") {
-    return { error: "Not authorized" };
+  if (!listing || (listing.userId !== user.id && user.role !== "ADMIN")) {
+    return { error: LISTING_UNAVAILABLE };
   }
 
   const providerPaymentId = `demo_listing_payment_${listing.id}`;
@@ -772,30 +862,27 @@ export async function simulateDemoListingPaymentOutcome(input: {
       },
     };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    return checkoutUnknownResult(err, {
       action: "simulateDemoListingPaymentOutcome",
       route: "/sell/checkout",
-      requestPath: "/sell/checkout",
       userId: user.id,
       userEmail: user.email,
-      tags: {
-        listingId: listing.id,
-        outcome: input.outcome,
-      },
+      tags: { listingId: listing.id, outcome: input.outcome },
     });
-
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Failed to simulate the demo payment outcome";
-
-    return { error: message };
   }
 }
 
 export async function simulateDemoDealerSubscriptionOutcome(input: {
+  tier: "STARTER" | "PRO";
+  outcome: "success" | "declined";
+}) {
+  return guardCustomerCheckout(
+    { action: "simulateDemoDealerSubscriptionOutcome", route: "/dealer/subscribe" },
+    () => simulateDemoDealerSubscriptionOutcomeBody(input),
+  );
+}
+
+async function simulateDemoDealerSubscriptionOutcomeBody(input: {
   tier: "STARTER" | "PRO";
   outcome: "success" | "declined";
 }) {
@@ -805,7 +892,13 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
   if (unavailableError) {
     return { error: unavailableError };
   }
-  const user = await requireAcceptedAuth();
+  const actor = await requireCheckoutActor({
+    action: "simulateDemoDealerSubscriptionOutcome",
+    route: "/dealer/subscribe",
+    fallbackMessage: CHECKOUT_OUTCOME_UNKNOWN,
+  });
+  if ("body" in actor) return actor.body;
+  const user = actor.user;
 
   if (!user.dealerProfile) {
     return { error: "You must have a dealer profile before simulating subscription payment." };
@@ -874,12 +967,9 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
       },
     };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    return checkoutUnknownResult(err, {
       action: "simulateDemoDealerSubscriptionOutcome",
       route: "/dealer/subscribe",
-      requestPath: "/dealer/subscribe",
       userId: user.id,
       userEmail: user.email,
       tags: {
@@ -888,12 +978,5 @@ export async function simulateDemoDealerSubscriptionOutcome(input: {
         outcome: input.outcome,
       },
     });
-
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Failed to simulate the demo subscription outcome";
-
-    return { error: message };
   }
 }

@@ -1,24 +1,31 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { getAccountNavItems, PUBLIC_NAV_ITEMS } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Mail, ShieldCheck } from "lucide-react";
 import { PreviewPacksMobileExpander } from "@/components/auth/preview-packs-controls";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { HeaderAuthButtons, type AuthState } from "@/components/auth/header-auth-buttons";
 import { isExpectedClientCancellation } from "@/lib/monitoring/console-filter";
 
-const ListingEditDialog = dynamic(() => import("@/components/admin/listing-edit-dialog").then((module) => module.ListingEditDialog), { ssr: false });
+import { useSignOutLoading } from "@/components/navigation/navigation-pending";
+
+const ListingEditDialog = dynamic(() => import("@/components/admin/listing-edit-dialog").then((module) => module.ListingEditDialog), {
+  ssr: false,
+  loading: () => <div role="status" className="fixed right-4 top-24 z-[1400] rounded-lg border border-border bg-surface px-4 py-3 text-sm">Loading listing editor…</div>,
+});
 
 export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const signOutLoading = useSignOutLoading();
+  const signingOut = useRef(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
   const currentListingId = /^\/listings\/([^/]+)\/?$/.exec(pathname)?.[1] ?? null;
@@ -33,11 +40,23 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
   });
 
   async function handleSignOut() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
+    if (signingOut.current) return;
+    signingOut.current = true;
+    setSignOutError(null);
     setMobileOpen(false);
-    router.push("/");
-    router.refresh();
+    signOutLoading.begin();
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const result = await supabase.auth.signOut();
+      if (result.error) throw result.error;
+      setAuthState((s) => ({ ...s, user: null, role: null, displayName: null, stagingFeaturesEnabled: false, loading: false }));
+      // Discard cached authenticated server content as well as the auth session.
+      window.location.replace("/sign-in");
+    } catch {
+      signingOut.current = false;
+      signOutLoading.cancel();
+      setSignOutError("Could not sign out. Please try again.");
+    }
   }
 
   async function fetchMe(userEmail: string | null | undefined) {
@@ -46,6 +65,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
         credentials: "same-origin",
         cache: "no-store",
       });
+      if (signingOut.current) return;
       if (!res.ok) {
         setAuthState((s) => ({
           ...s,
@@ -56,6 +76,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
         return;
       }
       const data = await res.json();
+      if (signingOut.current) return;
       const displayName =
         (typeof data.name === "string" ? data.name.trim() : "") ||
         userEmail ||
@@ -100,6 +121,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
     supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
+        if (signingOut.current) return;
         const u = session?.user ?? null;
         setAuthState((s) => ({
           ...s,
@@ -129,7 +151,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
           displayName: null,
           loading: false,
         }));
-      } else {
+      } else if (!signingOut.current) {
         setAuthState((s) => ({
           ...s,
           user: u,
@@ -158,6 +180,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
 
   return (
     <>
+      {signOutError ? <p role="alert" className="bg-surface px-4 py-2 text-sm text-text-error">{signOutError}</p> : null}
       {/* Top utility bar - hidden on small mobile to save vertical space */}
       <div className="hidden sm:block bg-graphite-950 text-text-secondary" data-testid="utility-strip">
         <div className="mx-auto grid h-9 max-w-7xl grid-cols-3 items-center px-4 text-xs sm:px-6 lg:px-8">
@@ -190,11 +213,11 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
         </div>
       </div>
 
-      {/* Main header - glass surface + neon trust border */}
+      {/* Main navigation stays in document flow on every route. */}
       <header
         className={cn(
-          "sticky top-0 z-40 w-full h-16 sm:h-20",
-          "glass-surface border-b border-neon-blue-500/40",
+          "relative z-40 w-full h-16 shrink-0 sm:h-20",
+          "bg-surface border-b border-neon-blue-500/40",
         )}
       >
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -339,17 +362,13 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
         <ListingEditDialog listingId={editingListingId} open onOpenChange={(open) => { if (!open) setEditingListingId(null); }} />
       ) : null}
 
-      {/* Mobile menu backdrop - blurs page content behind the open panel.
-          MUST be a sibling of <header>, not a child: the header's
-          `glass-surface` class applies `backdrop-filter`, which creates a
-          containing block for fixed descendants and would confine this
-          overlay to the header's bounds. */}
+      {/* Keep the viewport backdrop below the header and its open menu. */}
       {mobileOpen && (
         <button
           type="button"
           aria-label="Close menu"
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-30 bg-graphite-950/60 backdrop-blur-md md:hidden"
+          className="fixed inset-0 z-30 bg-black/25 backdrop-blur-[2px] md:hidden"
         />
       )}
     </>

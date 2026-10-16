@@ -1,4 +1,7 @@
 "use server";
+import { knownOperationMessage } from "@/lib/forms/operation-error-messages";
+
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -134,13 +137,17 @@ export async function createDealerProfile(input: CreateDealerProfileInput) {
     revalidatePath("/admin/users");
     return { data: profile };
   } catch (err) {
-    await reportHandledException({
+
+    const knownReason = knownOperationMessage(err, "createDealerProfile");
+    if (knownReason) return { error: knownReason, data: undefined };
+    return journeyUnknownResult({
       error: err,
       action: "createDealerProfile",
       route: "/admin/dealers",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to create dealer profile finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to create dealer profile";
-    return { error: message };
   }
 }
 
@@ -200,13 +207,17 @@ export async function verifyDealer(dealerId: string, verified: boolean) {
     revalidatePath("/admin/dealers");
     return { data: result.profile };
   } catch (err) {
-    await reportHandledException({
+
+    const knownReason = knownOperationMessage(err, "verifyDealer");
+    if (knownReason) return { error: knownReason, data: undefined };
+    return journeyUnknownResult({
       error: err,
       action: "verifyDealer",
       route: "/admin/dealers",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update verification finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update verification";
-    return { error: message };
   }
 }
 
@@ -252,12 +263,14 @@ export async function downgradeDealerToUser(dealerId: string) {
     revalidatePath("/account");
     return { data: { success: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "downgradeDealerToUser",
       route: "/admin/dealers",
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to downgrade dealer finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to downgrade dealer";
-    return { error: message };
   }
 }

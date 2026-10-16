@@ -223,10 +223,27 @@ function presentListingAction(
   };
 }
 
+function normalizeStockTitle(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function soldListingForNewVehicle(vehicle: Pick<InventoryVehicle, "title">, listings: SyncListing[]) {
+  const title = normalizeStockTitle(vehicle.title);
+  if (!title) return null;
+  return (
+    listings.find(
+      (listing) =>
+        (listing.status === "SOLD" || Boolean(listing.soldAt)) &&
+        normalizeStockTitle(listing.title) === title,
+    ) ?? null
+  );
+}
+
 function newVehicleAction(
   vehicle: InventoryVehicle,
   regionId: string | null,
   scrapeRunId: string,
+  listings: SyncListing[],
 ): { action: PlanAction; patch: IdentityPatch } {
   const key = vehicle.sourceIdentityKey ?? "";
   const patch: IdentityPatch = {
@@ -245,6 +262,19 @@ function newVehicleAction(
     reason,
     section: "new",
   });
+  const sold = soldListingForNewVehicle(vehicle, listings);
+  if (sold) {
+    return {
+      action: {
+        kind: "blocked",
+        sourceIdentityKey: key,
+        listingId: sold.id,
+        reason: "sold-preserved",
+        section: "new",
+      },
+      patch,
+    };
+  }
   if (!vehicle.importable || !vehicle.title || !vehicle.description || !vehicle.categorySlug) {
     return { action: blocked(vehicle.skipReason ?? "not-importable"), patch };
   }
@@ -325,7 +355,7 @@ export function buildStockSyncPlan(input: BuildPlanInput): StockSyncPlan {
       patches.push(present.patch);
       continue;
     }
-    const created = newVehicleAction(vehicle, input.regionId, input.scrapeRunId);
+    const created = newVehicleAction(vehicle, input.regionId, input.scrapeRunId, input.listings);
     const unmatched = input.listings.some(listing => ["LIVE", "APPROVED", "PENDING", "DRAFT"].includes(listing.status) &&
       !listing.reviewSourceIdentity && !input.identities.some(identity => identity.listingId === listing.id) &&
       !listing.slug?.startsWith(`fd-${input.registryKey}-`) && !(input.registryKey === "ocean-motor-village" && listing.slug?.startsWith("omv-")));

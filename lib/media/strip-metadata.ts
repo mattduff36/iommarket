@@ -1,5 +1,6 @@
 import sharp, { type Sharp } from "sharp";
 import { IMAGE_CONSTRAINTS, isAllowedListingImageFormat, normalizeImageFormat, validateListingImageBounds } from "@/lib/images/constraints";
+import { isSafeImageVerificationMessage } from "@/lib/media/verification-error";
 
 const RASTER_FORMATS = new Set(["jpg", "png", "webp"]);
 
@@ -42,7 +43,8 @@ export async function stripListingImageMetadata(input: {
       bytes: input.bytes.length,
     });
     if (boundsError) throw new Error(boundsError);
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && isSafeImageVerificationMessage(error.message)) throw error;
     throw new Error("The uploaded image is invalid, unsupported, or outside the allowed dimensions.");
   }
 

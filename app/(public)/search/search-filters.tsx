@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { FilterPanel, type FilterOption } from "@/components/marketplace/filter-panel";
 import { SearchBar } from "@/components/marketplace/search-bar";
 import {

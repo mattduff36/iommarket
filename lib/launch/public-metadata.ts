@@ -7,7 +7,7 @@ import { buildCanonicalUrl } from "@/lib/seo/structured-data";
 const CRAWLABLE_RULES = {
   userAgent: "*",
   allow: "/",
-  disallow: ["/admin", "/api"],
+  disallow: ["/admin", "/api", "/dealer/trade"],
 };
 
 export function buildLaunchRobots(

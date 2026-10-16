@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import Image from "next/image";
 import { FOOTER_NAV_ITEMS } from "@/lib/navigation";
 import { CookiePreferencesButton } from "@/components/layout/cookie-banner";

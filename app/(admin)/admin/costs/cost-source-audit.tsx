@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveTableFrame } from "@/components/ui/responsive-table-frame";
 import { useState } from "react";
 import type { CursorAuditDto } from "@/lib/costs/dto";
 import { addDecimalStrings } from "@/lib/costs/money";
@@ -32,7 +33,7 @@ export function CostSourceAudit({ audit }: { audit: CursorAuditDto }) {
       <ol className="mt-4 max-w-xl space-y-3">{extraDays.map(([day, value]) => <li key={day} className="grid grid-cols-[5.5rem_1fr_5rem] items-center gap-3 text-xs"><span className="text-text-secondary">{day}</span><span className="h-5 bg-surface-elevated"><span className="block h-full bg-neon-blue-500" style={{width:`${Number(value) / Number(extraDays[0][1]) * 100}%`}} /></span><span className="text-right tabular-nums">{usd(value)}</span></li>)}</ol>
       {!extraDays.length && <p className="mt-3 text-sm text-text-secondary">No additional provider charges in the verified source groups for this period.</p>}
       <div className="mt-5 overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <ResponsiveTableFrame><table className="w-full text-left text-sm">
           <caption className="sr-only">Cursor source breakdown by UTC day, model and funding. All amounts in USD.</caption>
           <thead className="bg-surface-elevated text-xs text-text-secondary"><tr>
             {['Day / model', 'Funding', 'Events', 'Nominal value', 'Extra provider charge', 'Client estimate'].map(label => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}
@@ -45,7 +46,7 @@ export function CostSourceAudit({ audit }: { audit: CursorAuditDto }) {
             <td className="px-4 py-3 tabular-nums">{usd(row.providerChargeUsd)}</td>
             <td className="px-4 py-3 tabular-nums">{usd(row.clientUsd)}{row.displayDiverged && <span className="block text-xs text-text-secondary">Source display differs</span>}</td>
           </tr>)}</tbody>
-        </table>
+        </table></ResponsiveTableFrame>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 text-xs text-text-secondary">
         <span>{currentPage * 15 + 1}–{Math.min((currentPage + 1) * 15, audit.rows.length)} of {audit.rows.length} source groups</span>

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
+import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { finalizeListingImageUploadIntent } from "@/lib/listings/photo-upload";
 import { processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
+import { publicErrorBody } from "@/lib/forms/public-error";
+import { uploadAuthErrorBody } from "@/lib/media/upload-auth-error";
 import { captureException } from "@/lib/monitoring";
+import { respondToUploadError } from "@/lib/media/upload-error-catalog";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
-import { toRateLimitDenial } from "@/lib/rate-limit-result";
+import { rateLimitPublicError } from "@/lib/rate-limit-result";
 import {
   ADMIN_OWNED_LISTING_ERROR,
   isAdminSellerBlocked,
@@ -43,20 +46,24 @@ async function runCleanupWithoutFailingFinalize(userId: string) {
 
 export async function POST(request: NextRequest) {
   if (!hasTrustedOrigin(request)) {
-    return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+    return NextResponse.json(publicErrorBody({ message: "Invalid request origin", code: "forbidden" }), { status: 403 });
   }
 
   let user;
   try {
     user = await requireAcceptedAuth();
   } catch (error) {
-    return NextResponse.json(
-      { error: "Not authorized" },
-      { status: acceptedAuthHttpStatus(error) },
-    );
+    const auth = await uploadAuthErrorBody(error, () => captureException({
+      source: "SERVER",
+      error,
+      action: "requireAcceptedAuth",
+      route: "/api/listing-images/finalize",
+      requestPath: "/api/listing-images/finalize",
+    }));
+    return NextResponse.json(auth.body, { status: auth.status });
   }
 
-  const rateDenial = toRateLimitDenial(
+  const rateBody = rateLimitPublicError(
     await checkRateLimit(makeRateLimitKey("listing-image-finalize", user.id), {
       windowMs: 60_000,
       maxRequests: 20,
@@ -64,26 +71,26 @@ export async function POST(request: NextRequest) {
     }),
     "Too many upload attempts. Try again shortly.",
   );
-  if (rateDenial) {
-    return NextResponse.json(
-      { error: rateDenial.message },
-      { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds) } },
-    );
+  if (rateBody) {
+    return NextResponse.json(rateBody, {
+      status: rateBody.code === "unavailable" ? 503 : 429,
+      headers: { "Retry-After": String(rateBody.retryAfterSeconds) },
+    });
   }
   if (isAdminSellerBlocked(user.role)) {
-    return NextResponse.json({ error: ADMIN_OWNED_LISTING_ERROR }, { status: 403 });
+    return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid upload data" }, { status: 400 });
+    return NextResponse.json(publicErrorBody({ message: "Invalid upload data", code: "validation" }), { status: 400 });
   }
 
   const parsed = finalizeSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid upload data" }, { status: 400 });
+    return NextResponse.json(publicErrorBody({ message: "Invalid upload data", code: "validation" }), { status: 400 });
   }
 
   try {
@@ -96,7 +103,17 @@ export async function POST(request: NextRequest) {
     });
     if (result.error || !result.data) {
       await runCleanupWithoutFailingFinalize(user.id);
-      return NextResponse.json({ error: result.error ?? "Could not verify the uploaded image." }, { status: 400 });
+      const classified = await respondToUploadError(new Error(result.error ?? "Could not verify the uploaded image."), () =>
+        captureException({
+          source: "SERVER",
+          error: new Error(result.error ?? "Could not verify the uploaded image."),
+          action: "finalizeListingImageUploadIntent",
+          route: "/api/listing-images/finalize",
+          requestPath: "/api/listing-images/finalize",
+          userId: user.id,
+        }),
+      );
+      return NextResponse.json(classified.body, { status: classified.status });
     }
 
     const verified = result.data;
@@ -118,14 +135,14 @@ export async function POST(request: NextRequest) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    await captureException({
+    const classified = await respondToUploadError(error, () => captureException({
       source: "SERVER",
       error,
       action: "finalizeListingImageUploadIntent",
       route: "/api/listing-images/finalize",
       requestPath: "/api/listing-images/finalize",
       userId: user.id,
-    });
-    return NextResponse.json({ error: "Could not verify the uploaded image." }, { status: 500 });
+    }));
+    return NextResponse.json(classified.body, { status: classified.status });
   }
 }

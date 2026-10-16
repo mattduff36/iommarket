@@ -157,6 +157,73 @@ describe("dealer stock sync rules", () => {
     expect(missingBaseline.patches[0]?.baselinePricePence).toBe(1_000_000);
   });
 
+  it("holds sold stock when the match is stale, the identity changes, or only soldAt is set", () => {
+    const stale = plan({
+      vehicles: [vehicle({ pricePence: 900_000, title: "2019 Mercedes A Class" })],
+      listings: [listing({ status: "SOLD", soldAt: "2026-01-01T00:00:00.000Z", title: "2019 Mercedes A Class" })],
+    });
+    expect(stale.actions).toContainEqual(
+      expect.objectContaining({ kind: "blocked", reason: "sold-preserved", listingId: "listing-1" }),
+    );
+    expect(stale.actions.some((action) => action.kind === "update" || action.kind === "create")).toBe(false);
+    expect(stale.patches[0]?.listingId).toBe("listing-1");
+
+    const changedIdentity = plan({
+      vehicles: [vehicle({ sourceIdentityKey: "sourceVehicleId:99", title: "2019  mercedes, A-Class!" })],
+      identities: [identity()],
+      listings: [
+        listing({
+          status: "SOLD",
+          soldAt: "2026-01-01T00:00:00.000Z",
+          title: "2019 Mercedes A Class",
+          reviewSourceIdentity: "sourceVehicleId:1",
+        }),
+      ],
+    });
+    expect(changedIdentity.actions).toContainEqual(
+      expect.objectContaining({
+        kind: "blocked",
+        reason: "sold-preserved",
+        sourceIdentityKey: "sourceVehicleId:99",
+        listingId: "listing-1",
+      }),
+    );
+    expect(changedIdentity.actions.some((action) => action.kind === "create")).toBe(false);
+    expect(changedIdentity.patches.find((patch) => patch.sourceIdentityKey === "sourceVehicleId:99")?.listingId).toBeNull();
+
+    const soldAtOnly = plan({
+      vehicles: [vehicle({ sourceIdentityKey: "sourceVehicleId:99", title: "2019 Mercedes A Class" })],
+      identities: [],
+      listings: [
+        listing({
+          status: "LIVE",
+          soldAt: "2026-02-01T00:00:00.000Z",
+          title: "2019 Mercedes A-Class",
+          reviewSourceIdentity: null,
+        }),
+      ],
+    });
+    expect(soldAtOnly.actions).toContainEqual(
+      expect.objectContaining({ kind: "blocked", reason: "sold-preserved", listingId: "listing-1" }),
+    );
+    expect(soldAtOnly.actions.some((action) => action.kind === "create" || action.kind === "update")).toBe(false);
+    expect(soldAtOnly.patches[0]?.listingId).toBeNull();
+
+    const unrelated = plan({
+      vehicles: [vehicle({ sourceIdentityKey: "sourceVehicleId:2", title: "2018 Ford Focus", sourceImageUrls: ["https://dealer.example/focus.jpg"] })],
+      identities: [],
+      listings: [
+        listing({
+          status: "SOLD",
+          soldAt: "2026-01-01T00:00:00.000Z",
+          title: "2019 Mercedes A Class",
+          reviewSourceIdentity: null,
+        }),
+      ],
+    });
+    expect(unrelated.actions[0]).toMatchObject({ kind: "create", sourceIdentityKey: "sourceVehicleId:2", title: "2018 Ford Focus" });
+  });
+
   it("does not create a second listing for a legacy managed slug or a composite identity", () => {
     const key = "sourceVehicleId:99";
     const legacy = plan({

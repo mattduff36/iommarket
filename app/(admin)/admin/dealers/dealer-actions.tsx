@@ -22,6 +22,7 @@ interface DealerActionsProps {
   canGrantAccess: boolean;
   currentTier: DealerTier;
   hasActivePaidSubscription: boolean;
+  tradeMembershipId?: string | null;
 }
 
 const PACKAGES = [
@@ -43,6 +44,7 @@ export function DealerActions({
   canGrantAccess,
   currentTier,
   hasActivePaidSubscription,
+  tradeMembershipId = null,
 }: DealerActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -81,6 +83,14 @@ export function DealerActions({
       label: "Edit dealer profile",
       href: `/admin/users/${userId}/profile`,
     },
+    tradeMembershipId
+      ? {
+          kind: "link" as const,
+          id: "review-trade",
+          label: "Review Trade application",
+          href: `/admin/trade/applications/${tradeMembershipId}`,
+        }
+      : null,
     {
       kind: "command",
       id: "verify",

@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -59,13 +61,15 @@ export async function createRegion(input: CreateRegionInput) {
     revalidatePath("/admin/regions");
     return { data: region };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "createRegion",
       route: "/admin/regions",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to create region finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to create region";
-    return { error: message };
   }
 }
 
@@ -91,13 +95,15 @@ export async function updateRegion(input: UpdateRegionInput) {
     revalidatePath("/admin/regions");
     return { data: region };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "updateRegion",
       route: "/admin/regions",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update region finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update region";
-    return { error: message };
   }
 }
 
@@ -126,13 +132,15 @@ export async function toggleRegionActive(id: string, active: boolean) {
     revalidatePath("/admin/regions");
     return { data: region };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "toggleRegionActive",
       route: "/admin/regions",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update region finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update region";
-    return { error: message };
   }
 }
 
@@ -165,12 +173,14 @@ export async function deleteRegion(id: string) {
     revalidatePath("/admin/regions");
     return { data: { deleted: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "deleteRegion",
       route: "/admin/regions",
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to delete region finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to delete region";
-    return { error: message };
   }
 }

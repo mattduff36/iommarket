@@ -10,6 +10,7 @@ import {
   costSeriesColor,
   buildCostUsageModel,
   summarizeCostLines,
+  type CostBillingDisplay,
   type CostUsageRange,
 } from "@/lib/costs/usage-view";
 import { CostSectionTable } from "./cost-section-table";
@@ -21,9 +22,13 @@ export function CostUsagePanel({
   sections,
   isOwner,
   cursorAudit,
+  billing,
+  costDetailsAvailable = true,
 }: {
   isOwner: boolean;
   cursorAudit?: CursorAuditDto;
+  billing?: CostBillingDisplay;
+  costDetailsAvailable?: boolean;
   sections: Array<{
     key: string;
     label: string;
@@ -37,8 +42,8 @@ export function CostUsagePanel({
     [sections],
   );
   const model = useMemo(
-    () => buildCostUsageModel({ lines: allLines, range }),
-    [allLines, range],
+    () => buildCostUsageModel({ lines: allLines, range, billing }),
+    [allLines, range, billing],
   );
   const visibleSections = sections
     .map((section) => {
@@ -85,29 +90,38 @@ export function CostUsagePanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-6 lg:grid-cols-4">
+        {costDetailsAvailable ? <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-6 lg:grid-cols-4">
           <SummaryCard title="Net client charges" value={formatMarkedGbp(audit.netTotal)} />
           <SummaryCard title="Development" value={formatMarkedGbp(model.series.find(item => item.key === "Development (Cursor)")?.amountMinor ?? 0)} />
           <SummaryCard title="Other categories, net" value={formatMarkedGbp(model.series.filter(item => item.key !== "Development (Cursor)").reduce((sum, item) => sum + item.amountMinor, 0))} />
           <SummaryCard title="Provisional portion" value={formatMarkedGbp(audit.provisionalTotal)} />
-        </div>
+        </div> : null}
 
         <div>
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-text-primary">How costs built up</h3>
               <p className="text-sm text-text-secondary">
-                Cumulative charges above zero, credits below, and net total as a line.
+                {model.billingApplied
+                  ? "Cumulative charges above zero, credits below. The dashed line is invoiced and the white line is the net total remaining to invoice."
+                  : "Cumulative charges above zero, credits below, and net total as a line."}
               </p>
             </div>
             <p className="text-xs text-text-secondary">Grouped by category</p>
           </div>
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Cumulative costs chart, scroll horizontally on small screens">
-            <div className="min-w-[560px]"><CostUsageChart points={model.points} seriesKeys={model.seriesKeys} /></div>
+            <div className="min-w-[560px]">
+              <CostUsageChart
+                points={model.points}
+                seriesKeys={model.chartSeriesKeys}
+                billingApplied={model.billingApplied}
+                invoicesAvailable={model.invoicesAvailable}
+              />
+            </div>
           </div>
-          {model.seriesKeys.length > 0 ? (
+          {model.chartSeriesKeys.length > 0 || model.billingApplied ? (
             <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-secondary">
-              {model.seriesKeys.map((key, index) => (
+              {model.chartSeriesKeys.map((key, index) => (
                 <li key={key} className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-sm"
@@ -117,17 +131,32 @@ export function CostUsagePanel({
                   {key}
                 </li>
               ))}
-              <li className="flex items-center gap-2">
-                <span
-                  className="h-0 w-4 border-t-2 border-text-primary"
-                  aria-hidden
-                />
-                Net total
-              </li>
+              {model.invoicesAvailable && model.points.some((point) => typeof point.invoicedPence === "number") ? (
+                <li className="flex items-center gap-2">
+                  <span
+                    className="h-0 w-4 border-t-2 border-dashed border-[#E4E4E7]"
+                    aria-hidden
+                  />
+                  Invoiced
+                </li>
+              ) : null}
+              {(model.billingApplied
+                ? model.points.some((point) => typeof point.remainingToInvoicePence === "number")
+                : model.chartSeriesKeys.length > 0) ? (
+                <li className="flex items-center gap-2">
+                  <span
+                    className="h-0 w-4 border-t-2 border-text-primary"
+                    aria-hidden
+                  />
+                  {model.billingApplied ? "Net total · remaining to invoice" : "Net total"}
+                </li>
+              ) : null}
             </ul>
           ) : null}
         </div>
-        <CostAuditCharts model={model} />
+        {costDetailsAvailable
+          ? <CostAuditCharts model={model} />
+          : <p className="text-sm text-text-secondary">Usage detail is unavailable.</p>}
       </section>
 
       {isOwner && cursorAudit ? <CostSourceAudit key={range} audit={{ ...cursorAudit,

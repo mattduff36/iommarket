@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
@@ -83,7 +83,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
       <Breadcrumbs
         items={[
           { label: "Sell", href: "/sell" },
@@ -109,6 +109,7 @@ export default async function SellDealerPage({ searchParams }: Props) {
         enforceListingNs={getPolicyFlags().enforceListingNs}
         listingFeePence={pricing.privateListingPence}
         featuredUpgradePricePence={pricing.featuredUpgradePence}
+        userId={acceptedUser.id}
       />
     </div>
   );

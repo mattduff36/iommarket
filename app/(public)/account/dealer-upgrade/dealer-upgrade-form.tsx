@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/navigation/link";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { acceptDealerUpgrade } from "@/actions/dealer-upgrade";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

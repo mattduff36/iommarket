@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
@@ -81,15 +83,16 @@ export async function createSelfServiceDealerProfile(
           err.message.includes("P2002"));
       if (isUniqueViolation) continue;
 
-      await reportHandledException({
-        error: err,
-        action: "createSelfServiceDealerProfile",
-        route: "/dealer/subscribe",
-        userId: user.id,
-      });
-      const message =
-        err instanceof Error ? err.message : "Failed to create dealer profile";
-      return { error: message };
+
+      return journeyUnknownResult({
+      error: err,
+      action: "createSelfServiceDealerProfile",
+      route: "/dealer/subscribe",
+      userId: user.id,
+      journey: "dealer",
+      kind: "write",
+      message: "We couldn't confirm whether the request to create dealer profile finished. Check the dealer dashboard before trying again."
+    });
     }
   }
 

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
-import { assertExternalEffectAllowed } from "@/lib/database-sync/effects";
 import { assertManagedUploadsConfigured, createImageKitUploadToken } from "@/lib/media/direct-upload-token";
 import { managedInputFormat, managedUploadPaths, MANAGED_IMAGEKIT_DELIVERY_TYPE } from "@/lib/media/managed-policy";
 import { downloadManagedImageKitBytes, requireManagedFileDetails, uploadImmutableManagedImage } from "@/lib/media/managed-io";
@@ -23,7 +22,6 @@ export async function issueManagedImageKitUploadIntent(userId: string, input: Ma
     ? ["image/heic", "image/heif"]
     : [expectedMime];
   if (input.fileType && !allowedMimes.includes(input.fileType)) throw new Error("The image filename and type do not agree.");
-  await assertExternalEffectAllowed({ tables: [{ table: "User", rowKey: userId }] });
   const id = randomUUID();
   const paths = managedUploadPaths(scope, userId, id, format);
   const expiresAt = new Date(Date.now() + INTENT_TTL_MS);
@@ -73,7 +71,6 @@ export async function finalizeManagedImageKitUpload(input: { userId: string; int
     intent.imageKitFilePath !== paths.quarantinePath || (intent.imageKitFileId && intent.imageKitFileId !== input.fileId)) {
     throw new Error("Upload intent identity changed.");
   }
-  await assertExternalEffectAllowed({ tables: [{ table: "User", rowKey: input.userId }] });
   const observed = await requireManagedFileDetails({ fileId: input.fileId, filePath: paths.quarantinePath });
   if (observed.size !== intent.bytes) throw new Error("The uploaded file size does not match this request.");
   const registered = await db.listingImageUploadIntent.updateMany({

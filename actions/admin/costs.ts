@@ -18,22 +18,24 @@ import {
   requestRemoteManualCategory,
   requestRemoteManualCost,
 } from "@/lib/costs/remote-ledger";
-import {
-  createManualCostCategory,
-  ManualCategoryError,
-} from "@/lib/costs/manual-categories";
+import { createManualCostCategory } from "@/lib/costs/manual-categories";
 import { deliverCostOutbox } from "@/lib/costs/email";
 import {
   confirmInvoiceRequest,
   createInvoiceRequest,
-  CostInvoiceError,
   safeInvoiceAuditDetails,
 } from "@/lib/costs/invoices";
-import { CostLedgerError } from "@/lib/costs/ledger";
 import { recordManualLedgerCost } from "@/lib/costs/manual-entry";
 import { manualCostSyncMessage } from "@/lib/costs/copy";
 import { runCostSync } from "@/lib/costs/sync";
 import { reportHandledException } from "@/lib/monitoring";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import {
+  COST_SETTINGS_UNAVAILABLE,
+  costInvoicePublicMessage,
+  costLedgerPublicMessage,
+  manualCategoryPublicMessage,
+} from "@/lib/forms/known-domain-messages";
 import {
   confirmInvoiceRequestSchema,
   createManualCostCategorySchema,
@@ -54,7 +56,7 @@ function canonicalWriterError(): { error: string } | null {
     assertCanonicalLedgerWriter();
     return null;
   } catch (error) {
-    if (error instanceof CostConfigError) return { error: error.message };
+    if (error instanceof CostConfigError) return { error: COST_SETTINGS_UNAVAILABLE };
     throw error;
   }
 }
@@ -89,8 +91,15 @@ export async function requestProjectInvoice() {
       revalidateCostPages();
       return { data: { requestId: created.requestId } };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to request an invoice.";
-      return { error: message };
+      return journeyUnknownResult({
+        error,
+        journey: "dealer-admin",
+        action: "requestProjectInvoice",
+        route: "/admin/costs",
+        kind: "write",
+        message: "We couldn't confirm that this invoice request finished. Check the cost pages before trying again.",
+        userId: admin.id,
+      });
     }
   }
   const writerError = canonicalWriterError();
@@ -116,15 +125,16 @@ export async function requestProjectInvoice() {
     revalidateCostPages();
     return { data: { requestId: created.request.id } };
   } catch (error) {
-    if (error instanceof CostInvoiceError) {
-      return { error: error.message };
-    }
-    await reportHandledException({
+    const known = costInvoicePublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "requestProjectInvoice",
       route: "/admin/costs",
+      kind: "write",
+      message: "We couldn't confirm that this invoice request finished. Check the cost pages before trying again.",
     });
-    return { error: "Failed to request an invoice." };
   }
 }
 
@@ -161,15 +171,16 @@ export async function confirmProjectInvoice(input: ConfirmInvoiceRequestInput) {
     revalidateCostPages(result.request.id);
     return { data: { requestId: result.request.id, alreadyConfirmed: result.alreadyConfirmed } };
   } catch (error) {
-    if (error instanceof CostInvoiceError) {
-      return { error: error.message };
-    }
-    await reportHandledException({
+    const known = costInvoicePublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "confirmProjectInvoice",
       route: "/admin/costs",
+      kind: "destructive",
+      message: "We couldn't confirm that this invoice was confirmed. Check the cost pages before trying again.",
     });
-    return { error: "Failed to confirm the invoice request." };
   }
 }
 
@@ -202,8 +213,15 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
       revalidateCostPages();
       return { data: { recorded: true } };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to record the cost.";
-      return { error: message };
+      return journeyUnknownResult({
+        error,
+        journey: "dealer-admin",
+        action: "recordManualProjectCost",
+        route: "/admin/costs",
+        kind: "write",
+        message: "We couldn't confirm that this cost was recorded. Check the cost pages before trying again.",
+        userId: admin.id,
+      });
     }
   }
 
@@ -222,15 +240,16 @@ export async function recordManualProjectCost(input: RecordManualCostInput) {
     revalidateCostPages();
     return { data: { recorded: true } };
   } catch (error) {
-    if (error instanceof CostLedgerError) {
-      return { error: error.message };
-    }
-    await reportHandledException({
+    const known = costLedgerPublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "recordManualProjectCost",
       route: "/admin/costs",
+      kind: "write",
+      message: "We couldn't confirm that this cost was recorded. Check the cost pages before trying again.",
     });
-    return { error: "Failed to record the cost." };
   }
 }
 
@@ -268,14 +287,16 @@ export async function addManualCostCategory(input: CreateManualCostCategoryInput
     revalidateCostPages();
     return { data: created };
   } catch (error) {
-    if (error instanceof ManualCategoryError) return { error: error.message };
-    if (access.mode === "remote" && error instanceof Error) return { error: error.message };
-    await reportHandledException({
+    const known = manualCategoryPublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "addManualCostCategory",
       route: "/admin/costs",
+      kind: "write",
+      message: "We couldn't confirm that this category was added. Check the cost pages before trying again.",
     });
-    return { error: "Failed to add the category." };
   }
 }
 
@@ -324,14 +345,20 @@ export async function refreshProviderCosts() {
     try {
       const result = await requestRemoteCostRefresh(access.origin);
       if (result.status === "failed") {
-        return { error: result.message, data: result };
+        const message = "The cost refresh did not finish. Check the cost pages before trying again.";
+        return { error: message, data: { status: "failed" as const, message } };
       }
       return { data: result };
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : manualCostSyncMessage({ status: "failed" });
-      return { error: message, data: { status: "failed" as const, message } };
+      const failure = await journeyUnknownResult({
+        error,
+        journey: "dealer-admin",
+        action: "refreshProviderCosts",
+        route: "/admin/costs",
+        kind: "write",
+        message: "We couldn't confirm that the cost refresh finished. Check the cost pages before trying again.",
+      });
+      return { error: failure.error, data: { status: "failed" as const, message: failure.error } };
     }
   }
 

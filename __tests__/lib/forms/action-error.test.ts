@@ -103,6 +103,7 @@ describe("publicAuthErrorMessage", () => {
       publicAuthErrorMessage(
         "An account with this email already exists. Please sign in instead.",
         "Fallback",
+        { discloseExistingAccount: true },
       ),
     ).toBe("An account with this email already exists. Please sign in instead.");
   });

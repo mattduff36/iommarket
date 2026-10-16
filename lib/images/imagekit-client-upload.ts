@@ -1,4 +1,6 @@
 import type { ListingPhotoSource } from "@/lib/images/photo";
+import { uploadErrorFromPayload } from "@/lib/images/upload-client-error";
+import { PHOTO_UNKNOWN_MESSAGE } from "@/lib/media/upload-error-catalog";
 
 export interface DirectImageKitUpload {
   provider: "imagekit";
@@ -36,7 +38,7 @@ export async function uploadDirectImageKitPhoto(file: File, uploadIntentId: stri
   const result = await finalized.json().catch(() => null) as { data?: ListingPhotoSource; error?: string } | null;
   if (!finalized.ok || !result?.data || result.data.provider !== "IMAGEKIT" ||
     result.data.uploadIntentId !== uploadIntentId || !result.data.imageKitFileId || !result.data.imageKitFilePath) {
-    throw new Error(result?.error ?? "The uploaded image could not be verified.");
+    throw uploadErrorFromPayload(result, PHOTO_UNKNOWN_MESSAGE);
   }
   // Dimensions, format and storage identity come from server verification, never the browser upload response.
   return result.data;

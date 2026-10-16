@@ -2,7 +2,7 @@
 import * as React from "react";
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
 
 const uploadListingImageFile = vi.fn();
@@ -35,6 +35,14 @@ vi.mock("next/image", () => ({
     return <img alt={imageProps.alt ?? ""} {...imageProps} />;
   },
 }));
+
+beforeEach(() => {
+  vi.stubGlobal("createImageBitmap", async () => ({ width: 1600, height: 1200, close() {} }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const first: UploadedImage = {
   id: "img-1",
@@ -196,8 +204,9 @@ describe("PHOTO-ORDER-BATCH-001 listing photo batch order", () => {
       target: { files: [new File(["bad"], "bad.jpg", { type: "image/jpeg" })] },
     });
     await waitFor(() => {
-      expect(screen.getByText("Cloudinary rejected this file")).toBeTruthy();
+      expect(screen.getByText("We couldn't verify this photo right now. Try again shortly.")).toBeTruthy();
     });
+    expect(screen.queryByText("Cloudinary rejected this file")).toBeNull();
 
     fireEvent.change(input, {
       target: { files: [new File(["good"], "good.jpg", { type: "image/jpeg" })] },
@@ -206,5 +215,33 @@ describe("PHOTO-ORDER-BATCH-001 listing photo batch order", () => {
       expect(screen.getByTestId("listing-photo-0")).toBeTruthy();
     });
     expect(screen.queryByText("Maximum 1 images allowed")).toBeNull();
+  });
+});
+
+describe("listing photo requirements", () => {
+  it("shows the minimum size before a file is chosen", () => {
+    render(<Harness initial={[]} />);
+    expect(screen.getByText(/long edge of at least 800 pixels/)).toBeTruthy();
+    expect(screen.getByText(/short edge of at least 480 pixels/)).toBeTruthy();
+    const hint = document.getElementById("listing-photo-requirements");
+    const button = screen.getByRole("button", { name: /add photos/i });
+    expect(hint).toBeTruthy();
+    expect(hint!.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("rejects a 385 by 294 photo before calling the uploader", async () => {
+    uploadListingImageFile.mockReset();
+    vi.stubGlobal("createImageBitmap", async () => ({ width: 385, height: 294, close() {} }));
+    render(<Harness initial={[]} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File([new Uint8Array(192957)], "3.png", { type: "image/png" })] },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "3.png is 385×294 pixels. Photos need a long edge of at least 800 pixels and a short edge of at least 480 pixels. Choose a larger original photo.",
+      );
+    });
+    expect(uploadListingImageFile).not.toHaveBeenCalled();
   });
 });

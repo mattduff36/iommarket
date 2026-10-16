@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { Button } from "@/components/ui/button";
 import { usePaymentConfirmationPoll } from "@/components/payments/payment-awaiting-status";
 import { acknowledgeCheckoutHandoff } from "@/lib/payments/checkout-handoff";

@@ -192,7 +192,7 @@ describe("admin costs dashboard T5", () => {
       screen.getAllByRole("heading", { name: "Website hosting (Vercel)" }).length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText("Shared Vercel services")).toBeNull();
-    expect(screen.getByText(/including the daily Pro membership share/i)).not.toBeNull();
+    expect(screen.getByText(/Vercel services used by iTrader\./i)).not.toBeNull();
     expect(screen.queryByText("Included")).toBeNull();
     expect(screen.queryByText("On-demand")).toBeNull();
     expect(screen.getByText("Provisional")).not.toBeNull();
@@ -236,15 +236,15 @@ describe("admin costs dashboard T5", () => {
     expect(screen.getByText(/Daily Cursor usage used to build and maintain iTrader/i)).not.toBeNull();
     expect(screen.getByText("12 cost items combined from 12 ledger entries")).not.toBeNull();
     expect(screen.getByText("Showing 1–10 of 12")).not.toBeNull();
-    expect(screen.getByText(/26 Sept? 2026/)).not.toBeNull();
-    expect(screen.queryByText(/16 Sept? 2026/)).toBeNull();
+    expect(screen.getByRole("cell", { name: /26 Sept? 2026/ })).not.toBeNull();
+    expect(screen.queryByRole("cell", { name: /16 Sept? 2026/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Page 2" }));
     expect(screen.getByText("Showing 11–12 of 12")).not.toBeNull();
-    expect(screen.getByText(/16 Sept? 2026/)).not.toBeNull();
-    expect(screen.queryByText(/26 Sept? 2026/)).toBeNull();
+    expect(screen.getByRole("cell", { name: /16 Sept? 2026/ })).not.toBeNull();
+    expect(screen.queryByRole("cell", { name: /26 Sept? 2026/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "7d" }));
     expect(screen.queryByText("Showing 11–12 of 12")).toBeNull();
-    expect(screen.getByText(/26 Sept? 2026/)).not.toBeNull();
+    expect(screen.getByRole("cell", { name: /26 Sept? 2026/ })).not.toBeNull();
   });
 
   it("keeps zero-value ledger detail out of the client view but available to the owner", async () => {

@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  isPublicErrorCode,
+  isRenderablePublicMessage,
+  publicFallbackMessage,
+  type PublicErrorCode,
+} from "@/lib/forms/public-error";
 import { publicPasswordPolicyMessage } from "@/lib/forms/password-policy-message";
 
 export type FieldErrors = Record<string, string[]>;
@@ -33,7 +39,36 @@ function isFieldErrorMap(value: unknown): value is Record<string, string[] | und
   );
 }
 
+function publicBodyFieldErrors(value: unknown): FieldErrors {
+  return isFieldErrorMap(value) ? normalizeFieldErrors(value) : {};
+}
+
+/**
+ * Recognises the additive public contract. Unsafe messages are replaced.
+ * A string or plain field map still uses the legacy branches below.
+ */
+export function readPublicActionError(error: unknown): SplitActionError | null {
+  if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+  const record = error as Record<string, unknown>;
+  if (!isPublicErrorCode(record.code)) return null;
+  const code: PublicErrorCode = record.code;
+  const fieldErrors = publicBodyFieldErrors(record.fieldErrors);
+  const nestedFields = publicBodyFieldErrors(record.error);
+  const fields = Object.keys(fieldErrors).length > 0 ? fieldErrors : nestedFields;
+  const rawMessage = typeof record.error === "string" ? record.error.trim() : "";
+  if (!rawMessage && Object.keys(fields).length > 0 && code === "validation") {
+    return { formError: null, fieldErrors: fields };
+  }
+  const formError = rawMessage && isRenderablePublicMessage(rawMessage)
+    ? rawMessage
+    : publicFallbackMessage(code);
+  return { formError, fieldErrors: fields };
+}
+
 export function splitActionError(error: unknown): SplitActionError {
+  const published = readPublicActionError(error);
+  if (published) return published;
+
   if (typeof error === "string") {
     const trimmed = error.trim();
     return { formError: trimmed.length > 0 ? trimmed : null, fieldErrors: {} };
@@ -44,7 +79,7 @@ export function splitActionError(error: unknown): SplitActionError {
   }
 
   return {
-    formError: "Something went wrong. Please check your details and try again.",
+    formError: "We couldn't confirm the result of this request. Check its status before trying again.",
     fieldErrors: {},
   };
 }
@@ -77,6 +112,11 @@ export function summarizeFieldErrors(
   return fallback;
 }
 
+export function actionErrorMessage(error: unknown, fallback: string): string {
+  const parts = splitActionError(error);
+  return parts.formError ?? summarizeFieldErrors(parts.fieldErrors, fallback);
+}
+
 export function uniqueErrorMessages(
   fieldErrors: FieldErrors,
   formError?: string | null,
@@ -98,32 +138,41 @@ export function uniqueErrorMessages(
   return messages;
 }
 
-export function publicAuthErrorMessage(message: string, fallback: string): string {
+export function publicAuthErrorMessage(
+  message: string,
+  fallback: string,
+  options?: { discloseExistingAccount?: boolean },
+): string {
   const trimmed = message.trim();
   if (!trimmed) return fallback;
   const passwordError = publicPasswordPolicyMessage(trimmed);
   if (passwordError) return passwordError;
   const lower = trimmed.toLowerCase();
+  if (/https?:|www\./i.test(trimmed)) return fallback;
   if (lower.includes("invalid login") || lower.includes("invalid credentials")) {
     return "Check your email and password and try again.";
   }
   if (lower.includes("email not confirmed") || lower.includes("not confirmed")) {
     return "Confirm your email first, then try again.";
   }
-  if (lower.includes("already registered") || lower.includes("already been registered")) {
-    return "An account with this email already exists. Please sign in instead.";
+  if (
+    (lower.includes("otp") || lower.includes("token") || lower.includes("link")) &&
+    (lower.includes("expired") || lower.includes("invalid"))
+  ) {
+    return "This link has expired. Request a new one.";
   }
-  if (lower.includes("rate") || lower.includes("too many")) {
-    return "Too many attempts. Please wait a moment and try again.";
+  if (lower.includes("session") && (lower.includes("expired") || lower.includes("missing"))) {
+    return "Your session has expired. Sign in again.";
   }
   if (
-    (lower.includes("try again") ||
-      lower.includes("sign in instead") ||
-      lower.includes("check ")) &&
-    !lower.includes("http") &&
-    trimmed.length < 180
+    options?.discloseExistingAccount === true &&
+    (lower.includes("already registered") || lower.includes("already been registered") ||
+      lower === "an account with this email already exists. please sign in instead.")
   ) {
-    return trimmed;
+    return "An account with this email already exists. Please sign in instead.";
+  }
+  if (lower.includes("rate limit") || lower.includes("too many")) {
+    return "Too many attempts. Please wait a moment and try again.";
   }
   return fallback;
 }

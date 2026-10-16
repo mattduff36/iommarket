@@ -1,12 +1,16 @@
 import type { PayForListingInput } from "@/lib/validations/payment";
+import { readPublicActionError } from "@/lib/forms/action-error";
+import { isRenderablePublicMessage } from "@/lib/forms/public-error";
 
 export const FEATURED_AFTER_SUBMIT_MESSAGE =
-  "Your listing was submitted for review. Featured was not purchased. You can try again from My listings.";
+  "We haven't confirmed whether the Featured payment started. Check the listing before paying again.";
 
 export function featuredPurchaseFailure(error: unknown) {
-  if (typeof error === "string" && error.trim()) {
-    return `${FEATURED_AFTER_SUBMIT_MESSAGE} ${error.trim()}`;
+  const published = readPublicActionError(error);
+  if (published?.formError && isRenderablePublicMessage(published.formError)) {
+    return published.formError;
   }
+  if (typeof error === "string" && isRenderablePublicMessage(error)) return error.trim();
   return FEATURED_AFTER_SUBMIT_MESSAGE;
 }
 

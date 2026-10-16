@@ -1,5 +1,13 @@
 import { imageKitSignatureTtlSeconds } from "@/lib/media/config";
 import { parseImageKitEndpoint, signImageKitRelativePath } from "@/lib/media/imagekit-sign";
+import { isStagingTestRuntime } from "@/lib/deployment/staging-test-runtime";
+import { assertManagedMediaMutation } from "@/lib/media/managed-policy";
+
+function assertStagingStoragePath(filePath: string, env: NodeJS.ProcessEnv) {
+  if (/^\/iommarket-dev-disposable\/[A-Za-z0-9_./-]+$/.test(filePath) &&
+    !filePath.includes("..") && !filePath.includes("//")) return;
+  assertManagedMediaMutation(filePath, env);
+}
 
 function imageKitConfig(env: NodeJS.ProcessEnv = process.env) {
   const privateKey = env.IMAGEKIT_PRIVATE_KEY ?? "";
@@ -94,9 +102,16 @@ export async function deleteImageKitFile(input: {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }) {
+  const env = input.env ?? process.env;
+  const staging = isStagingTestRuntime(env);
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({ mediaIds: [input.fileId] });
-  const env = input.env ?? process.env;
+  if (staging) {
+    const observed = await getImageKitFileDetails(input);
+    if (!observed) return;
+    if (observed.fileId !== input.fileId) throw new Error("ImageKit delete identity does not match.");
+    assertStagingStoragePath(observed.filePath, env);
+  }
   const config = imageKitConfig(env);
   const response = await (input.fetchImpl ?? fetch)(
     `https://api.imagekit.io/v1/files/${encodeURIComponent(input.fileId)}`,
@@ -112,14 +127,19 @@ export async function purgeImageKitUrl(input: {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }) {
+  const env = input.env ?? process.env;
+  const staging = isStagingTestRuntime(env);
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({ mediaIds: [input.url] });
-  const env = input.env ?? process.env;
   const config = imageKitConfig(env);
   const endpoint = parseImageKitEndpoint(env.IMAGEKIT_URL_ENDPOINT);
   const target = new URL(input.url);
   if (target.origin !== endpoint.origin || !target.pathname.startsWith(`${endpoint.basePath}/`)) {
     throw new Error("Refusing to purge a URL outside the ImageKit endpoint.");
+  }
+  if (staging) {
+    const relative = target.pathname.slice(endpoint.basePath.length).replace(/^\/tr:[^/]+\//, "/");
+    assertStagingStoragePath(relative, env);
   }
   const response = await (input.fetchImpl ?? fetch)("https://api.imagekit.io/v1/files/purge", {
     method: "POST",

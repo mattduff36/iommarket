@@ -10,13 +10,12 @@ interface AdminTableProps extends HTMLAttributes<HTMLTableElement> {
 export function AdminTable({
   children,
   className,
-  minWidth = "standard",
+  minWidth: _minWidth,
   ...props
 }: AdminTableProps) {
   return (
     <Table
       className={cn(
-        minWidth === "wide" ? "min-w-[900px]" : "min-w-[720px]",
         "[&_th]:h-9 [&_th]:px-3 [&_th]:text-[11px] [&_th]:tracking-wide",
         "[&_td]:px-3 [&_td]:py-2.5 [&_tbody_tr]:focus-within:bg-surface-elevated",
         className,

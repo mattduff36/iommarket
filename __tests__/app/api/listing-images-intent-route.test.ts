@@ -74,6 +74,7 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: "Sign in again to continue this photo upload.", code: "unauthorized" });
     expect(issueListingImageUploadIntent).not.toHaveBeenCalled();
   });
 
@@ -88,6 +89,7 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "Accept the required account policy before uploading listing photos.", code: "forbidden" });
     expect(issueListingImageUploadIntent).not.toHaveBeenCalled();
   });
 
@@ -141,7 +143,7 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
       }),
     );
     expect(intent.status).toBe(403);
-    await expect(intent.json()).resolves.toEqual({
+    await expect(intent.json()).resolves.toMatchObject({
       error: ADMIN_OWNED_LISTING_ERROR,
     });
     expect(issueListingImageUploadIntent).not.toHaveBeenCalled();
@@ -187,8 +189,9 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "The uploaded file does not match this request.",
+    await expect(response.json()).resolves.toMatchObject({
+      error: "This photo doesn't match the upload you started. Select the photo again.",
+      code: "conflict",
     });
   });
 
@@ -205,6 +208,9 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(500);
+    const payload = await response.json();
+    expect(payload.error).toContain("We couldn't verify this upload right now.");
+    expect(payload.error).not.toContain("Not authorized");
     expect(issueListingImageUploadIntent).not.toHaveBeenCalled();
   });
 
@@ -226,6 +232,7 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "Accept the required account policy before uploading listing photos.", code: "forbidden" });
     expect(finalizeListingImageUploadIntent).not.toHaveBeenCalled();
   });
 
@@ -247,6 +254,7 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: "Sign in again to continue this photo upload.", code: "unauthorized" });
     expect(finalizeListingImageUploadIntent).not.toHaveBeenCalled();
   });
 
@@ -270,6 +278,9 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     );
 
     expect(response.status).toBe(500);
+    const payload = await response.json();
+    expect(payload.error).toContain("We couldn't verify this upload right now.");
+    expect(payload.error).not.toContain("Not authorized");
     expect(finalizeListingImageUploadIntent).not.toHaveBeenCalled();
   });
 

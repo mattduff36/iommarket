@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { ForgotPasswordForm } from "./forgot-password-form";
 import { Button } from "@/components/ui/button";
 

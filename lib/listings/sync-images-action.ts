@@ -1,5 +1,7 @@
+import { captureWithoutMasking } from "@/lib/forms/public-error";
 import { revalidatePath } from "next/cache";
 import { captureBusinessEvent, captureException } from "@/lib/monitoring";
+import { LISTING_PHOTO_UNKNOWN, listingUnknownResult } from "@/lib/listings/save-public-error";
 import { expireAbandonedListingImageIntents, processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import {
   syncListingImagesForUser,
@@ -24,7 +26,7 @@ export async function runSyncListingImagesAction(
   const parsed = syncListingImagesActionSchema.safeParse({ listingId, input });
   if (!parsed.success) {
     if (hasUnexpectedPhotoSyncContractDrift(parsed.error.issues)) {
-      await captureBusinessEvent({
+      await captureWithoutMasking(() => captureBusinessEvent({
         source: "BUSINESS",
         severity: "LOW",
         title: "Listing photo client contract drift",
@@ -38,7 +40,7 @@ export async function runSyncListingImagesAction(
           issueCodes: [...new Set(parsed.error.issues.map((issue) => issue.code))].join(","),
           issueCount: parsed.error.issues.length,
         },
-      });
+      }));
     }
     return { error: "Invalid photo update." };
   }
@@ -57,7 +59,7 @@ export async function runSyncListingImagesAction(
       await expireAbandonedListingImageIntents();
       await processListingImageCleanupJobs();
     } catch (cleanupError) {
-      await captureException({
+      await captureWithoutMasking(() => captureException({
         source: "SERVER",
         error: cleanupError,
         action: "syncListingImagesCleanup",
@@ -66,7 +68,7 @@ export async function runSyncListingImagesAction(
         userId: user.id,
         userEmail: user.email,
         tags: { listingId: validated.listingId },
-      });
+      }));
     }
 
     revalidatePath(`/listings/${validated.listingId}`);
@@ -74,18 +76,16 @@ export async function runSyncListingImagesAction(
     revalidatePath("/dealer/dashboard");
     return result;
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
+    return listingUnknownResult(err, {
       action: "syncListingImages",
       route: `/listings/${validated.listingId}`,
-      requestPath: `/listings/${validated.listingId}`,
       userId: user.id,
       userEmail: user.email,
-      tags: { listingId: validated.listingId, imageCount: validated.input.photos.length },
-    });
-    const message = err instanceof Error ? err.message : "Failed to update images";
-    return { error: message };
+      tags: {
+        listingId: validated.listingId,
+        imageCount: String(validated.input.photos.length),
+      },
+    }, LISTING_PHOTO_UNKNOWN);
   }
 }
 

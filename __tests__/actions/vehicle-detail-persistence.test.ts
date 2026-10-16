@@ -319,7 +319,7 @@ describe("motorhome and van detail persistence", () => {
         categoryId: vanCategoryId,
         attributes: requiredVan,
       }),
-    ).resolves.toEqual({ error: "Not authorized to edit this listing" });
+    ).resolves.toEqual({ error: "This listing isn't available for that action." });
     expect(mockDb.$transaction).not.toHaveBeenCalled();
     expect(updateDraftRevisionMock).not.toHaveBeenCalled();
   });

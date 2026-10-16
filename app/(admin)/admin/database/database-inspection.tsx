@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveTableFrame } from "@/components/ui/responsive-table-frame";
 import { useState, useTransition } from "react";
 import { loadDatabaseSyncPreflight } from "@/actions/admin/database-sync";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export function DatabaseInspection({ initialReport }: { initialReport: Inspectio
         <section className="overflow-x-auto rounded-lg border border-border bg-surface p-5" aria-labelledby="db-counts">
           <h2 id="db-counts" className="text-lg font-semibold text-text-primary">Selected table counts</h2>
           <p className="mt-1 text-sm text-text-secondary">Counts describe the latest completed inspection only. They do not approve a copy.</p>
-          <table className="mt-4 w-full text-left text-sm">
+          <ResponsiveTableFrame><table className="mt-4 w-full text-left text-sm">
             <thead><tr className="border-b border-border text-text-secondary"><th className="py-2">Table</th><th className="py-2 text-right">Production</th><th className="py-2 text-right">Development</th></tr></thead>
             <tbody>{report.rows.map((row) => (
               <tr key={row.table} className="border-b border-border/50 last:border-0">
@@ -79,7 +80,7 @@ export function DatabaseInspection({ initialReport }: { initialReport: Inspectio
                 <td className="py-2 text-right tabular-nums">{row.development.toLocaleString()}</td>
               </tr>
             ))}</tbody>
-          </table>
+          </table></ResponsiveTableFrame>
         </section>
       ) : null}
     </div>

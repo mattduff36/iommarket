@@ -17,7 +17,7 @@ export function BrandedSpinner({ size = "md", className }: BrandedSpinnerProps) 
   return (
     <span
       className={cn(
-        "inline-block animate-spin rounded-full bg-center bg-contain bg-no-repeat",
+        "inline-block animate-spin motion-reduce:animate-none rounded-full bg-center bg-contain bg-no-repeat",
         SIZE_CLASS[size],
         className
       )}

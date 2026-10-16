@@ -1,3 +1,4 @@
+import Link from "@/components/navigation/link";
 import { cn } from "@/lib/cn";
 
 const RANGES = ["7d", "30d", "90d"] as const;
@@ -8,7 +9,7 @@ export function AnalyticsRangeControl({ current }: { current: string }) {
       {RANGES.map((option) => {
         const active = current === option;
         return (
-          <a
+          <Link
             key={option}
             href={`/admin/analytics?range=${option}`}
             aria-current={active ? "page" : undefined}
@@ -20,7 +21,7 @@ export function AnalyticsRangeControl({ current }: { current: string }) {
             )}
           >
             {option}
-          </a>
+          </Link>
         );
       })}
     </div>

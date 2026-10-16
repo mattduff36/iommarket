@@ -2,7 +2,8 @@
  * Rerun only the last failed deterministic finalise step.
  * Does not repair commit, push, migrations, or unknown steps.
  */
-import { spawnSync } from "child_process";
+import { runCommand } from "./finalise/git";
+import { runVerifiedTests } from "./finalise/test-receipt";
 import {
   clearFinaliseFailureArtifact,
   getFinaliseFailurePath,
@@ -51,15 +52,9 @@ function main() {
   }
 
   process.stdout.write(`Rerunning failed finalise step only: ${repair.rendered}\n`);
-  const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", repair.args, {
-    cwd: REPO_ROOT,
-    env: process.env,
-    shell: process.platform === "win32",
-    stdio: "inherit",
-  });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
+  const run = () => { runCommand(REPO_ROOT, "npm", repair.args); };
+  if (artifact.failedStep === "test-run") runVerifiedTests(REPO_ROOT, run);
+  else run();
   clearFinaliseFailureArtifact(REPO_ROOT);
   process.stdout.write("Targeted finalise repair passed. Run the original finalise command once for closure.\n");
 }

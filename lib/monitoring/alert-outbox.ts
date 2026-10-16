@@ -159,7 +159,15 @@ export async function processMonitoringAlertOutbox(options: {
       continue;
     }
     try {
-      if (delivery.channel === "EMAIL") {
+      const { captureStagingTestEffect } = await import("@/lib/deployment/staging-test-effects");
+      const captured = await captureStagingTestEffect({
+        kind: delivery.channel === "EMAIL" ? "EMAIL" : "WEBHOOK",
+        entityId: delivery.id,
+        payload: { target: delivery.target, ...payload },
+      });
+      if (captured) {
+        // Complete the local outbox state below without provider configuration or DNS.
+      } else if (delivery.channel === "EMAIL") {
         await sendEmail({
           to: delivery.target.split(",").map((item) => item.trim()).filter(Boolean),
           subject: payload.subject,

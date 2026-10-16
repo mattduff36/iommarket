@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { isPrivateListingFreeForUser } from "@/lib/config/marketplace";
@@ -47,7 +47,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
     redirect("/account/listings?status=DRAFT");
   }
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
       {isFreeForUser ? <FreeListingWelcomeDialog /> : null}
       <Breadcrumbs
         items={[
@@ -82,6 +82,7 @@ export default async function SellPrivatePage({ searchParams }: Props) {
         enforceListingNs={getPolicyFlags().enforceListingNs}
         listingFeePence={pricing.privateListingPence}
         featuredUpgradePricePence={pricing.featuredUpgradePence}
+        userId={user.id}
       />
     </div>
   );

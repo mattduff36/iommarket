@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { Button } from "@/components/ui/button";

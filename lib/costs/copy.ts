@@ -16,7 +16,7 @@ export const COST_SECTION_HELP: Record<string, string> = {
   "Development (Cursor)":
     "Daily Cursor usage used to build and maintain iTrader. Matching entries are combined and net amounts below £0.01 are hidden.",
   "Website hosting (Vercel)":
-    "Vercel services used by iTrader, including the daily Pro membership share and any apportioned team-level charges. Matching service charges are combined and net amounts below £0.01 are hidden.",
+    "Vercel services used by iTrader. Matching service charges are combined and net amounts below £0.01 are hidden.",
   Database:
     "Database services used by iTrader. Matching charges are combined and net amounts below £0.01 are hidden.",
   Other:

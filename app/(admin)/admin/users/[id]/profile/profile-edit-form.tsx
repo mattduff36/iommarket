@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { saveAdminProfile, type AdminProfileEditorData } from "@/actions/admin/profile-edit";
 import { AdminActionButton, AdminActionTextarea } from "@/components/admin/admin-action-controls";
 import {

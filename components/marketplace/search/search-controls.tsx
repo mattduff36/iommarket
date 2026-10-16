@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { ChevronDown, ChevronUp, Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,10 @@ import {
 import { RangeSlider } from "@/components/ui/range-slider";
 import { AdvancedSearchModal } from "./advanced-search-modal";
 import { buildSearchUrl, type SearchParams } from "@/lib/search/search-url";
+import {
+  knownVehicleCategorySlug,
+  scopeCategorySearchRecord,
+} from "@/lib/search/category-filters";
 import {
   MILEAGE_MAX,
   MILEAGE_MIN,
@@ -49,6 +53,9 @@ export interface SearchControlsProps {
   /** Exposes a trigger so the parent can open the advanced modal from outside */
   advancedModalOpen?: boolean;
   onAdvancedModalOpenChange?: (open: boolean) => void;
+  /** Homepage tab category. When set, search keeps it through reset and modal apply. */
+  category?: string;
+  onCategoryChange?: (category: string) => void;
 }
 
 export function SearchControls({
@@ -63,6 +70,8 @@ export function SearchControls({
   showAdvancedInline = false,
   advancedModalOpen: externalModalOpen,
   onAdvancedModalOpenChange,
+  category,
+  onCategoryChange,
 }: SearchControlsProps) {
   const router = useRouter();
   const currentYear = getCurrentYear();
@@ -94,9 +103,35 @@ export function SearchControls({
   const setModalOpen = onAdvancedModalOpenChange ?? setInternalModalOpen;
 
   const [advancedParams, setAdvancedParams] = React.useState<SearchParams>({});
+  const [trackedCategory, setTrackedCategory] = React.useState(category);
+  const makeRef = React.useRef(make);
+  const modelRef = React.useRef(model);
+  const modelChangeIsUser = React.useRef(false);
+
+  if (category && category !== trackedCategory) {
+    setTrackedCategory(category);
+    makeRef.current = "";
+    modelRef.current = "";
+    setMake("");
+    setModel("");
+    setAdvancedParams((current) =>
+      scopeCategorySearchRecord(
+        {
+          ...current,
+          category,
+          make: undefined,
+          model: undefined,
+        },
+        knownVehicleCategorySlug(category),
+      ),
+    );
+  }
 
   React.useEffect(() => {
-    setMake(initial.make ?? "");
+    const nextMake = initial.make ?? "";
+    makeRef.current = nextMake;
+    modelRef.current = initial.model ?? "";
+    setMake(nextMake);
     setModel(initial.model ?? "");
     setRegion(initial.region ?? "");
     setPriceRange(parseBoundedRange(initial.minPrice, initial.maxPrice, PRICE_MIN, PRICE_MAX));
@@ -112,9 +147,23 @@ export function SearchControls({
 
   const modelsForMake = make ? (modelsByMake[make] ?? []) : [];
 
+  function acceptedMake(value: string | undefined): string | undefined {
+    if (!category) return value || undefined;
+    if (!value || !makes.some((option) => option.value === value)) return undefined;
+    return value;
+  }
+
+  function acceptedModel(makeValue: string | undefined, modelValue: string | undefined): string | undefined {
+    const nextMake = acceptedMake(makeValue);
+    if (!category) return modelValue || undefined;
+    if (!nextMake || !modelValue) return undefined;
+    return (modelsByMake[nextMake] ?? []).includes(modelValue) ? modelValue : undefined;
+  }
+
   function getAllParams(): SearchParams {
     return {
       ...advancedParams,
+      ...(category ? { category } : {}),
       make: make || undefined,
       model: model || undefined,
       region: region || undefined,
@@ -142,6 +191,9 @@ export function SearchControls({
 
   function handleMakeChange(value: string) {
     const v = value === "any" ? "" : value;
+    if (v === makeRef.current) return;
+    makeRef.current = v;
+    modelRef.current = "";
     setMake(v);
     setModel("");
     instantNav({ make: v || undefined, model: undefined });
@@ -149,6 +201,11 @@ export function SearchControls({
 
   function handleModelChange(value: string) {
     const v = value === "any" ? "" : value;
+    const retained = modelRef.current;
+    const retainedIsValid = Boolean(retained && (modelsByMake[makeRef.current] ?? []).includes(retained));
+    if (!v && retainedIsValid && !modelChangeIsUser.current) return;
+    modelChangeIsUser.current = false;
+    modelRef.current = v;
     setModel(v);
     instantNav({ model: v || undefined });
   }
@@ -183,28 +240,52 @@ export function SearchControls({
   function handleAdvancedApply(values: SearchParams) {
     if (mode === "instant") {
       router.push(buildSearchUrl({}, values));
-    } else {
-      setAdvancedParams(values);
-      setMake(values.make ?? "");
-      setModel(values.model ?? "");
-      setRegion(values.region ?? "");
-      setPriceRange(
-        parseBoundedRange(values.minPrice, values.maxPrice, PRICE_MIN, PRICE_MAX),
-      );
-      setMileageRange(
-        parseBoundedRange(values.minMileage, values.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
-      );
-      setYearRange(parseYearRange(values.minYear, values.maxYear));
+      return;
     }
+    const nextCategory = knownVehicleCategorySlug(values.category);
+    const activeCategory = category && onCategoryChange && nextCategory ? nextCategory : category || values.category;
+    const categoryChanged = Boolean(category && activeCategory !== category);
+    if (categoryChanged && activeCategory) {
+      setTrackedCategory(activeCategory);
+      onCategoryChange?.(activeCategory);
+    }
+    const scoped = scopeCategorySearchRecord(
+      {
+        ...values,
+        category: activeCategory,
+        make: categoryChanged ? undefined : acceptedMake(values.make),
+        model: categoryChanged ? undefined : acceptedModel(values.make, values.model),
+      },
+      knownVehicleCategorySlug(activeCategory),
+    );
+    setAdvancedParams(scoped);
+    makeRef.current = scoped.make ?? "";
+    modelRef.current = scoped.model ?? "";
+    setMake(scoped.make ?? "");
+    setModel(scoped.model ?? "");
+    setRegion(scoped.region ?? "");
+    setPriceRange(
+      parseBoundedRange(scoped.minPrice, scoped.maxPrice, PRICE_MIN, PRICE_MAX),
+    );
+    setMileageRange(
+      parseBoundedRange(scoped.minMileage, scoped.maxMileage, MILEAGE_MIN, MILEAGE_MAX),
+    );
+    setYearRange(parseYearRange(scoped.minYear, scoped.maxYear));
   }
 
   function handleResetFilters() {
+    makeRef.current = "";
+    modelRef.current = "";
     setMake("");
     setModel("");
     setRegion("");
     setPriceRange([PRICE_MIN, PRICE_MAX]);
     setMileageRange([MILEAGE_MIN, MILEAGE_MAX]);
     setYearRange([YEAR_MIN, currentYear]);
+    if (category) {
+      setAdvancedParams({ category });
+      return;
+    }
     setAdvancedParams({});
     router.push("/search");
   }
@@ -248,7 +329,17 @@ export function SearchControls({
                 <SelectValue placeholder="Any" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="any">Any</SelectItem>
+                <SelectItem
+                  value="any"
+                  onPointerDown={() => {
+                    modelChangeIsUser.current = true;
+                  }}
+                  onKeyDown={() => {
+                    modelChangeIsUser.current = true;
+                  }}
+                >
+                  Any
+                </SelectItem>
                 {modelsForMake.map((m) => {
                   const count = modelCountsByMake?.[make]?.[m];
                   return (

@@ -1,3 +1,4 @@
+import { NavigationProvider } from "@/components/navigation/navigation-pending";
 import type { Metadata, Viewport } from "next";
 import { Inter, Orbitron } from "next/font/google";
 import { ThemeProvider } from "@once-ui-system/core";
@@ -12,6 +13,7 @@ import { getCanonicalBaseUrl } from "@/lib/seo/structured-data";
 import { defaultSocialImage, resolvePageRobots } from "@/lib/seo/page-metadata";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
 import "./globals.css";
+import "../styles/responsive-tables.css";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -71,7 +73,7 @@ export default function RootLayout({
     >
       <body className="min-h-screen antialiased bg-canvas text-text-primary">
         <ThemeProvider theme="dark" brand="blue" accent="indigo">
-          {children}
+          <NavigationProvider>{children}</NavigationProvider>
           {process.env.VERCEL_ENV === "preview" ? null : (
             <PreviewArrival
               opensAt={PUBLIC_LAUNCH_AT}

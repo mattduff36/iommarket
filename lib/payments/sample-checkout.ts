@@ -1,7 +1,58 @@
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import type { Prisma, SampleCheckout } from "@prisma/client";
+import { isStagingTestRuntime, StagingIdentityError } from "@/lib/deployment/staging-test-effects";
 import { assertSampleCheckoutEnabled, isSampleCheckoutEnabled, SAMPLE_MAX_ATTEMPTS } from "./sample-checkout-config";
+
+const REAL_SUBSCRIPTION_ERROR =
+  "This account has a real subscription. Use another preview account to test sample subscriptions.";
+const CLONED_SUBSCRIPTION_SCAN_LIMIT = 25;
+
+function verifiedStagingMayIgnoreCopiedSubscriptions() {
+  try {
+    return isStagingTestRuntime();
+  } catch (error) {
+    if (error instanceof StagingIdentityError) return false;
+    throw error;
+  }
+}
+
+async function assertNoGenuineRealSubscription(
+  tx: Prisma.TransactionClient,
+  where: Prisma.SubscriptionWhereInput,
+) {
+  if (!verifiedStagingMayIgnoreCopiedSubscriptions()) {
+    const real = await tx.subscription.findFirst({ where });
+    if (real) throw new Error(REAL_SUBSCRIPTION_ERROR);
+    return;
+  }
+
+  const { externalEffectBlocked } = await import("@/lib/database-sync/effects");
+  const excluded: string[] = [];
+  for (let scanned = 0; scanned < CLONED_SUBSCRIPTION_SCAN_LIMIT; scanned += 1) {
+    const candidate = await tx.subscription.findFirst({
+      where: excluded.length ? { AND: [where, { id: { notIn: excluded } }] } : where,
+      select: { id: true },
+    });
+    if (!candidate) return;
+    let copied = false;
+    try {
+      copied = await externalEffectBlocked(
+        { tables: [{ table: "Subscription", rowKey: candidate.id }] },
+        (sql) => tx.$queryRaw<Array<Record<string, unknown>>>(sql),
+      );
+    } catch {
+      throw new Error(REAL_SUBSCRIPTION_ERROR);
+    }
+    if (!copied) throw new Error(REAL_SUBSCRIPTION_ERROR);
+    excluded.push(candidate.id);
+  }
+  const overflow = await tx.subscription.findFirst({
+    where: { AND: [where, { id: { notIn: excluded } }] },
+    select: { id: true },
+  });
+  if (overflow) throw new Error(REAL_SUBSCRIPTION_ERROR);
+}
 
 export type SampleCheckoutKind = "listing_payment" | "listing_and_featured" | "featured_upgrade" | "dealer_subscription";
 export type SampleCheckoutView = {
@@ -29,11 +80,10 @@ export async function assertSampleTarget(tx: Prisma.TransactionClient, row: {
     const dealer = await tx.dealerProfile.findFirst({ where: { id: row.targetId, userId: row.userId } });
     if (!dealer) throw new Error("Dealer profile not found.");
     // A fake decline must never change or mask a genuine recurring subscription.
-    const real = await tx.subscription.findFirst({ where: {
+    await assertNoGenuineRealSubscription(tx, {
       dealerId: row.targetId, paymentProvider: { not: "DEV" }, source: "PAYMENT",
       OR: [{ status: { in: ["ACTIVE", "PAST_DUE"] } }, { providerLifecycle: { in: ["ACTIVE", "PAUSED"] } }],
-    } });
-    if (real) throw new Error("This account has a real subscription. Use another preview account to test sample subscriptions.");
+    });
     const activeSample = await tx.subscription.findFirst({ where: {
       dealerId: row.targetId, paymentProvider: "DEV", status: "ACTIVE", currentPeriodEnd: { gt: new Date() },
     } });

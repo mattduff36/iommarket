@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { useRouter } from "next/navigation";
 import { updateMyProfile, deactivateMyAccount } from "@/actions/account";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";

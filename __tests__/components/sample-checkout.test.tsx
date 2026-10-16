@@ -154,4 +154,19 @@ describe("SampleCheckout", () => {
     await user.click(screen.getByRole("radio", { name: /successful payment/i }));
     expect(payButton).toBeEnabled();
   });
+
+  it.each(["response", "transport"])("requires a server status reload after uncertain %s", async (kind) => {
+    const user = userEvent.setup();
+    if (kind === "transport") submitMock.mockRejectedValueOnce(new Error("private-provider-token"));
+    else submitMock.mockResolvedValueOnce({ error: "Check payment status before paying again.", code: "unknown", retryable: false });
+    render(<SampleCheckout checkout={checkout()} />);
+    await user.click(screen.getByRole("radio", { name: /successful payment/i }));
+    await user.click(screen.getByRole("button", { name: "Pay using Card" }));
+    expect(await screen.findByRole("link", { name: "Reload payment status" })).toHaveAttribute("href", `/sample-checkout/${checkout().id}`);
+    expect(screen.queryByRole("button", { name: "Pay using Card" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel payment" })).toBeDisabled();
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(document.body).not.toHaveTextContent("private-provider-token");
+  });
+
 });

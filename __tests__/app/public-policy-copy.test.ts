@@ -46,8 +46,8 @@ describe("public policy copy", () => {
     expect(signUp).not.toContain("Private selling stays available");
     expect(signUp).not.toContain("post a private listing at any time");
     expect(signUp).toContain("does not also post private listings");
-    expect(account).toContain("Start a dealer listing");
-    expect(account).toContain("Start selling privately");
+    expect(account).toContain("Your dealer account advertises through dealer listings");
+    expect(account).toContain("Your private account can advertise a vehicle");
   });
 
   it("POL-DASH-001 offers the dashboard on Starter and Pro", () => {

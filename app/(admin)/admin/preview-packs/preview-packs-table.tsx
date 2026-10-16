@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { Badge } from "@/components/ui/badge";
 import {
   TableHeader,
@@ -32,7 +32,7 @@ export function PreviewPacksTable({
   current: Record<string, string | undefined>;
 }) {
   return (
-    <AdminTable className="min-w-[920px]">
+    <AdminTable>
       <TableHeader>
         <TableRow>
           {PREVIEW_PACK_TABLE_COLUMNS.map((column) => (

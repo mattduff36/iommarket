@@ -1,3 +1,5 @@
+import { resolveIomModelIdentity } from "./iom-model-identity";
+import { vehicleLookupPublicError } from "./vehicle-lookup-public-error";
 import {
   createAuctionHistoryApiService,
   type AuctionHistoryEntry,
@@ -204,16 +206,15 @@ function buildIomVehicleRecord(
   previousUkVehicle: DVLAVehicleData | null,
   motHistory: VehicleMotHistory | null
 ): VehicleRecord {
+  const identity = resolveIomModelIdentity(iomVehicle, previousUkVehicle, motHistory);
   return {
     registrationNumber: iomVehicle.registrationNumber,
     displayRegistrationNumber: formatRegistrationForDisplay(registrationNumber),
     lookupPath: "iom",
     make: iomVehicle.make ?? previousUkVehicle?.make ?? null,
-    model:
-      iomVehicle.modelVariant ??
-      iomVehicle.model ??
-      previousUkVehicle?.model ??
-      null,
+    model: identity.model,
+    modelVariant: identity.variant,
+    modelSource: identity.source,
     colour: iomVehicle.colour ?? previousUkVehicle?.colour ?? null,
     fuelType: iomVehicle.fuelType ?? previousUkVehicle?.fuelType ?? null,
     taxStatus: iomVehicle.taxStatus,
@@ -247,12 +248,8 @@ function buildIomVehicleRecord(
   };
 }
 
-function formatLookupWarning(error: unknown, fallback: string): string {
-  if (isVehicleLookupError(error)) {
-    return error.message;
-  }
-
-  return error instanceof Error ? error.message : fallback;
+function formatLookupWarning(error: unknown, _fallback: string): string {
+  return vehicleLookupPublicError(error).message;
 }
 
 async function lookupUkVehicle(registrationNumber: string): Promise<VehicleCheckResult> {
@@ -385,6 +382,9 @@ async function lookupIomVehicle(registrationNumber: string): Promise<VehicleChec
     motHistoryResult,
     previousUkRegistration ? normalizeRegistration(previousUkRegistration) : null
   );
+
+  const identity = resolveIomModelIdentity(iomVehicle, previousUkVehicle, motHistory);
+  if (identity.warning) warnings.push(identity.warning);
 
   const sourceNotes: VehicleLookupSourceNote[] = [
     { id: "iom", label: "gov.im", detail: "Current Manx vehicle and tax data" },

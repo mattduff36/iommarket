@@ -46,7 +46,7 @@ describe("checkSignupRateLimit", () => {
         clientAddress: "203.0.113.10",
         now: new Date("2026-09-29T22:00:00.000Z"),
       }),
-    ).resolves.toEqual({ allowed: true });
+    ).resolves.toEqual({ allowed: true, resetAt: new Date("2026-09-29T22:15:00.000Z") });
 
     expect(dbMocks.executeRaw).toHaveBeenCalledTimes(1);
     expect(dbMocks.queryRaw).toHaveBeenCalledTimes(2);
@@ -63,7 +63,7 @@ describe("checkSignupRateLimit", () => {
         email: "member@example.com",
         clientAddress: "203.0.113.10",
       }),
-    ).resolves.toEqual({ allowed: false });
+    ).resolves.toEqual({ allowed: false, resetAt: new Date("2026-09-29T22:15:00.000Z") });
 
     expect(dbMocks.queryRaw).toHaveBeenCalledTimes(1);
   });
@@ -78,7 +78,7 @@ describe("checkSignupRateLimit", () => {
         email: "member@example.com",
         clientAddress: "203.0.113.10",
       }),
-    ).resolves.toEqual({ allowed: false });
+    ).resolves.toEqual({ allowed: false, resetAt: new Date("2026-09-29T22:15:00.000Z") });
   });
 
   it("fails closed when a bucket cannot be recorded", async () => {

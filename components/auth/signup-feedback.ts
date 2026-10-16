@@ -21,6 +21,7 @@ export function signupFailureMessage(
   const safe = publicAuthErrorMessage(
     trimmed,
     hasFieldErrors ? SIGNUP_FIELD_RETRY_MESSAGE : SIGNUP_PROVIDER_RETRY_MESSAGE,
+    { discloseExistingAccount: true },
   );
   if (!hasFieldErrors && /highlighted fields/i.test(safe)) {
     return SIGNUP_PROVIDER_RETRY_MESSAGE;

@@ -1,3 +1,4 @@
+import { externalEffectBlocked } from "@/lib/database-sync/effects";
 import { MANAGED_IMPORT_ABANDONED_REASON, MANAGED_IMPORT_GRACE_MS } from "@/lib/media/managed-import";
 import { MEDIA_RETENTION_HOLD } from "@/lib/media/retention-receipts";
 import { processManagedCleanupReceipt, MANAGED_ABANDONED_REASON, MANAGED_ABANDONED_DELAY_MS } from "@/lib/media/managed-cleanup";
@@ -27,6 +28,7 @@ export async function enqueueListingImageCleanup({
 }
 
 const CLEANUP_PROCESSING_MARKER = "__PROCESSING_LISTING_IMAGE_CLEANUP__";
+const PRESERVED_ORIGINAL_MARKER = "preserved-original";
 const CLEANUP_CLAIM_TTL_MS = 5 * 60 * 1000;
 const DEALER_PACK_PRODUCTION_SYNC_REASON_PREFIX = "dealer-pack-production-sync:";
 export const DEALER_PACK_PRODUCTION_CLEANUP_HOLD_MS = 30 * 24 * 60 * 60 * 1000;
@@ -74,6 +76,16 @@ function cleanupClaimWhere(now: Date) {
       },
     ],
   };
+}
+
+function cleanupMediaIds(job: {
+  publicId: string;
+  imageKitFileId: string | null;
+  imageKitFilePath: string | null;
+}) {
+  return [job.publicId, job.imageKitFileId, job.imageKitFilePath].filter(
+    (value): value is string => Boolean(value),
+  );
 }
 
 function assertSafeCleanupTarget(job: { publicId: string; deliveryType: string }) {
@@ -130,6 +142,14 @@ export async function processListingImageCleanupJobs(limit = 20) {
     processed += 1;
 
     try {
+      // Copied clone rows reference production files. Finish locally before any provider read or delete.
+      if (await externalEffectBlocked({ mediaIds: cleanupMediaIds(job) })) {
+        await db.listingImageCleanupJob.updateMany({
+          where: { id: job.id, attempts: job.attempts + 1, lastError: CLEANUP_PROCESSING_MARKER },
+          data: { status: "COMPLETED", completedAt: new Date(), lastError: PRESERVED_ORIGINAL_MARKER },
+        });
+        continue;
+      }
       if (job.deliveryType === MANAGED_IMAGEKIT_DELIVERY_TYPE) {
         const outcome = await processManagedCleanupReceipt(job, now);
         await db.listingImageCleanupJob.updateMany({

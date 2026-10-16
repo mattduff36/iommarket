@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "@/components/navigation/link";
+import { useSearchParams } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { signUpWithPolicyAcceptance } from "@/actions/auth/sign-up";
 import { SignupVerificationWait } from "@/components/auth/signup-verification-wait";
 import { Button } from "@/components/ui/button";

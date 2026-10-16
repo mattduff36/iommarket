@@ -43,7 +43,7 @@ describe("PaymentReturnActions", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByText(/checking that this payment is linked/i)).toBeInTheDocument();
+    expect(screen.getByText(/checking whether this payment is linked/i)).toBeInTheDocument();
     expect(closeSpy).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -88,5 +88,25 @@ describe("PaymentReturnActions", () => {
     expect(closeSpy).not.toHaveBeenCalled();
     expect(JSON.parse(window.localStorage.getItem("iomarket-payment-return") ?? "{}").status).toBe("failed");
     closeSpy.mockRestore();
+  });
+
+  it("does not treat a cancel query as permission to pay again", async () => {
+    readLinkMock.mockResolvedValue({ status: "review", context: "listing", listingId: "listing-1" });
+    render(
+      <PaymentReturnActions
+        returnHref="/account/listings"
+        status="cancel"
+        context="listing"
+        listingId="listing-1"
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const text = screen.getByRole("status").textContent ?? "";
+    expect(text).toMatch(/haven't confirmed the payment result/i);
+    expect(text).not.toMatch(/not charged|wasn't completed|try again when you are ready|cancelled/i);
+    expect(screen.queryByRole("button", { name: /pay again/i })).toBeNull();
   });
 });

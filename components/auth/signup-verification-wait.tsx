@@ -1,8 +1,10 @@
 "use client";
 
+import { BrandedSpinner } from "@/components/ui/branded-spinner";
+
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/navigation/link";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -122,7 +124,7 @@ export function SignupVerificationWait({
 
   return (
     <div className="mx-auto max-w-sm space-y-4 py-20 text-center">
-      <h2 className="text-2xl font-bold text-text-primary">{heading}</h2>
+      <h2 className="text-2xl font-bold text-text-primary">{phase === "waiting" ? <BrandedSpinner size="sm" className="mr-2" /> : null}{heading}</h2>
       <p className="text-text-secondary" role="status">
         {phase === "waiting" ? (
           <>

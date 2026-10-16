@@ -1,4 +1,5 @@
 "use server";
+import { knownOperationMessage } from "@/lib/forms/operation-error-messages";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -24,6 +25,8 @@ import {
   deliverDealerUpgradeOffer,
 } from "@/lib/dealers/upgrade-offers";
 import { captureException } from "@/lib/monitoring";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import { purgePublicMessage } from "@/lib/forms/known-domain-messages";
 import { sendDealerAccessRevokedEmail } from "@/lib/email/dealer-access-revoked";
 import { hasActiveLegalHold } from "@/lib/privacy/account-deletion";
 import {
@@ -32,7 +35,6 @@ import {
   deleteAuthUser,
   loadPublicTables,
   purgeUserAccountRecords,
-  PurgeUserError,
 } from "@/lib/privacy/purge-user-account";
 import {
   listUsersSchema,
@@ -610,17 +612,17 @@ export async function setUserDisabled(input: SetUserDisabledInput) {
     revalidateDealerAccessPaths(userId);
     return { data: user };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "setUserDisabled",
       route: "/admin/users",
-      requestPath: "/admin/users",
       userId: admin.id,
       tags: { userId, disabled },
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to update user finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update user";
-    return { error: message };
   }
 }
 
@@ -682,28 +684,38 @@ export async function deleteUser(input: DeleteUserInput) {
     revalidatePath("/search");
     return { data: { success: true } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
-      error: err,
-      action: "deleteUser",
-      route: "/admin/users",
-      requestPath: "/admin/users",
-      userId: admin.id,
-      tags: { userId },
-    }).catch(() => null);
+    if (profileRemoved || loginRemoved) {
+      await captureException({
+        source: "SERVER",
+        error: err,
+        action: "deleteUser",
+        route: "/admin/users",
+        requestPath: "/admin/users",
+        userId: admin.id,
+        tags: { userId },
+      }).catch(() => null);
+    }
     if (profileRemoved) {
-      // Postcommit cleanup cannot undo deletion or leave a remaining profile.
       return { data: { success: true } };
     }
-    if (err instanceof PurgeUserError && !loginRemoved) return { error: err.message };
     if (loginRemoved) {
       return {
         error:
           "The login was removed, but profile deletion failed. The error has been recorded for investigation; the database issue must be resolved before retrying.",
       };
     }
-    const message = err instanceof Error ? err.message : "Failed to delete user";
-    return { error: message };
+    const known = purgePublicMessage(err);
+    if (known) return { error: known };
+    return journeyUnknownResult({
+      error: err,
+      journey: "dealer-admin",
+      action: "deleteUser",
+      route: "/admin/users",
+      kind: "destructive",
+      message: "We couldn't confirm that this account was deleted. Check the account before trying again.",
+      userId: admin.id,
+      tags: { userId },
+    });
   }
 }
 
@@ -748,8 +760,16 @@ export async function restoreUser(input: RestoreUserInput) {
     revalidatePath(`/admin/users/${user.id}`);
     return { data: user };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to restore user";
-    return { error: message };
+    const knownReason = knownOperationMessage(err, "restoreUser");
+    if (knownReason) return { error: knownReason, data: undefined };
+    return journeyUnknownResult({
+      error: err,
+      action: "restoreUser",
+      route: "/admin",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to restore user finished. Check the administration page before trying again."
+    });
   }
 }
 
@@ -779,16 +799,16 @@ export async function setUserRegion(input: SetUserRegionInput) {
     revalidatePath(`/admin/users/${userId}`);
     return { data: user };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+
+    return journeyUnknownResult({
       error: err,
       action: "setUserRegion",
       route: "/admin/users",
-      requestPath: "/admin/users",
       userId: admin.id,
       tags: { userId, regionId: regionId ?? "null" },
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update region finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to update region";
-    return { error: message };
   }
 }

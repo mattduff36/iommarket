@@ -12,6 +12,11 @@ const details = { fileId: "file-1", filePath: path, isPrivateFile: true, size: 1
 describe("managed ImageKit I/O guards", () => {
   beforeEach(() => vi.restoreAllMocks());
 
+  it("rejects provider dimensions below the listing minimum", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({ ...details, width: 385, height: 294 }));
+    await expect(requireManagedFileDetails({ fileId: "file-1", filePath: path, env, fetchImpl })).rejects.toThrow("Images must be at least 800×480px.");
+  });
+
   it("requires observed private identity and never accepts a substituted path", async () => {
     const fetchImpl = vi.fn(async () => Response.json(details));
     await expect(requireManagedFileDetails({ fileId: "file-1", filePath: path, env, fetchImpl })).resolves.toEqual(details);

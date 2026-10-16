@@ -47,6 +47,7 @@ export function CreateListingAttributeFields({
   enforceListingNs,
   getFieldError,
   onAttributeChange,
+  layout = "grouped",
 }: {
   categorySlug: string;
   visibleAttributes: Array<{
@@ -58,12 +59,8 @@ export function CreateListingAttributeFields({
   enforceListingNs?: boolean;
   getFieldError: (fieldName: string) => string | undefined;
   onAttributeChange: (attribute: ListingAttributeDef, value: string) => void;
+  layout?: "grouped" | "plain";
 }) {
-  const partitioned = partitionByDetailGroup(
-    categorySlug,
-    visibleAttributes,
-    (field) => field.attr.slug,
-  );
   const fieldProps = {
     categorySlug,
     attributeValues,
@@ -72,6 +69,22 @@ export function CreateListingAttributeFields({
     getFieldError,
     onAttributeChange,
   };
+
+  if (layout === "plain") {
+    return (
+      <div className="min-w-0 space-y-4">
+        {visibleAttributes.map((field) => (
+          <ListingAttributeControl key={field.attr.id} field={field} {...fieldProps} />
+        ))}
+      </div>
+    );
+  }
+
+  const partitioned = partitionByDetailGroup(
+    categorySlug,
+    visibleAttributes,
+    (field) => field.attr.slug,
+  );
 
   return (
     <div className="min-w-0 space-y-4">

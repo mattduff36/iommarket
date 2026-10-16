@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 /**
  * Dev-only server actions that simulate payment-provider webhook effects.
  * These actions are guarded against production use.
@@ -53,8 +55,14 @@ export async function devActivateDealerSubscription() {
     revalidatePath("/dealer/dashboard");
     return { data: { success: true } };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to activate subscription";
-    return { error: message };
+    return journeyUnknownResult({
+      error: err,
+      action: "devActivateDealerSubscription",
+      route: "/",
+      journey: "dealer",
+      kind: "write",
+      message: "We couldn't confirm whether the request to activate subscription finished. Check the current page before trying again."
+    });
   }
 }
 
@@ -99,7 +107,13 @@ export async function devMarkListingFeatured(listingId: string) {
     revalidatePath(`/listings/${listingId}`);
     return { data: { success: true } };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to mark as featured";
-    return { error: message };
+    return journeyUnknownResult({
+      error: err,
+      action: "devMarkListingFeatured",
+      route: "/",
+      journey: "dealer",
+      kind: "write",
+      message: "We couldn't confirm whether the request to mark as featured finished. Check the current page before trying again."
+    });
   }
 }

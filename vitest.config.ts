@@ -48,6 +48,8 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      // These tests execute server modules in Node; Next enforces the real application boundary.
+      { find: /^server-only$/, replacement: fileURLToPath(new URL("./node_modules/next/dist/compiled/server-only/empty.js", import.meta.url)) },
       { find: /^vitest$/, replacement: vitestShim },
       { find: "@", replacement: root },
       {

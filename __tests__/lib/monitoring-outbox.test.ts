@@ -4,6 +4,8 @@ const findMany = vi.fn();
 const updateMany = vi.fn();
 const update = vi.fn();
 const recordAlertSuccess = vi.fn();
+const captureStagingTestEffect = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/deployment/staging-test-effects", () => ({ captureStagingTestEffect }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -20,9 +22,29 @@ vi.mock("@/lib/monitoring/health", () => ({
 describe("monitoring alert outbox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    captureStagingTestEffect.mockResolvedValue(null);
     updateMany.mockResolvedValue({ count: 1 });
     update.mockResolvedValue({});
     recordAlertSuccess.mockResolvedValue(undefined);
+  });
+
+  it("captures a queued staging webhook without signing settings, DNS or delivery", async () => {
+    captureStagingTestEffect.mockResolvedValue({ id: "sim_capture" });
+    findMany.mockResolvedValue([{
+      id: "staging-delivery", issueId: null, channel: "WEBHOOK", kind: "CANARY",
+      target: "https://customer.example/hook", attempts: 0, status: "PENDING",
+      payload: { subject: "test", text: "test", webhookBody: { type: "test" } },
+    }]);
+    const lookupHost = vi.fn();
+    const notifyWebhook = vi.fn();
+    const { processMonitoringAlertOutbox } = await import("@/lib/monitoring/alert-outbox");
+    expect(await processMonitoringAlertOutbox({ webhookSecret: "", lookupHost, notifyWebhook }))
+      .toEqual({ processed: 1, sent: 1, failed: 0 });
+    expect(lookupHost).not.toHaveBeenCalled();
+    expect(notifyWebhook).not.toHaveBeenCalled();
+    expect(captureStagingTestEffect).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "WEBHOOK", entityId: "staging-delivery",
+    }));
   });
 
   it("claims a dry-run canary and marks it sent without a network call", async () => {

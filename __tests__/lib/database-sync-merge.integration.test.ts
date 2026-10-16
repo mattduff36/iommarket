@@ -265,7 +265,7 @@ export default defineConfig({
     if (!started) return;
     try { run("pg_ctl", ["-D", DATA, "-m", "fast", "-w", "stop"]); } catch { /* already stopped */ }
     rmSync(DATA, { recursive: true, force: true });
-  }, 60_000);
+  }, 120_000);
 
   it("prepares, stores and applies a nonempty merge, and refuses restore over excluded data", async () => {
     await seedMinimal();

@@ -28,13 +28,14 @@ export const LISTING_TABLE_SORT: AdminSortFallback = {
 
 export const USER_TABLE_COLUMNS = columns([
   { id: "user", label: "User", defaultDirection: "asc", pinned: true },
-  { id: "access", label: "Access", defaultDirection: "asc" },
-  { id: "region", label: "Region", defaultDirection: "asc" },
-  { id: "dealer", label: "Dealer", defaultDirection: "asc" },
+  { id: "access", label: "Account", defaultDirection: "asc" },
+  { id: "details", label: "Details" },
+  { id: "region", label: "Region", defaultDirection: "asc", defaultVisible: false },
+  { id: "dealer", label: "Dealer", defaultDirection: "asc", defaultVisible: false },
   { id: "listings", label: "Listings", defaultDirection: "desc", align: "end" },
   { id: "joined", label: "Joined", defaultDirection: "desc" },
   { id: "phone", label: "Phone", defaultDirection: "asc", defaultVisible: false },
-  { id: "updated", label: "Updated", defaultDirection: "desc" },
+  { id: "updated", label: "Updated", defaultDirection: "desc", defaultVisible: false },
   { id: "actions", label: "Actions", pinned: true, headerClassName: adminActionsCellClass },
 ]);
 
@@ -46,13 +47,13 @@ export const USER_TABLE_SORT: AdminSortFallback = {
 export const DEALER_TABLE_COLUMNS = columns([
   { id: "dealer", label: "Dealer", defaultDirection: "asc", pinned: true },
   { id: "owner", label: "Owner", defaultDirection: "asc" },
-  { id: "verified", label: "Verified", defaultDirection: "desc" },
-  { id: "plan", label: "Plan & access" },
+  { id: "plan", label: "Status & access" },
+  { id: "verified", label: "Verified", defaultDirection: "desc", defaultVisible: false },
   { id: "listings", label: "Listings", defaultDirection: "desc", align: "end" },
   { id: "joined", label: "Joined", defaultDirection: "desc" },
   { id: "tier", label: "Tier", defaultDirection: "asc", defaultVisible: false },
   { id: "access-ends", label: "Access ends", defaultVisible: false },
-  { id: "updated", label: "Updated", defaultDirection: "desc" },
+  { id: "updated", label: "Updated", defaultDirection: "desc", defaultVisible: false },
   { id: "actions", label: "Actions", pinned: true, headerClassName: adminActionsCellClass },
 ]);
 

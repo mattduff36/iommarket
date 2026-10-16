@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
@@ -55,15 +57,16 @@ export async function updateMyProfile(input: UpdateMyProfileInput) {
     revalidatePath("/account/profile");
     return { data: updated };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "updateMyProfile",
       route: "/account/profile",
       userId: user.id,
+      journey: "accounts",
+      kind: "write",
+      message: "We couldn't confirm whether the request to update profile finished. Check the account page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to update profile";
-    return { error: message };
   }
 }
 
@@ -170,19 +173,8 @@ export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput)
     }
     return { data: result.data };
   } catch (err) {
-    await reportHandledException({
-      error: err,
-      action: "updateMyDealerProfile",
-      route: "/dealer/profile",
-      userId: user.id,
-    });
-    const message =
-      err instanceof Error && err.message.includes("Dealer profile address is permanently reserved")
-        ? "This public profile address is already in use"
-        : err instanceof Error
-          ? err.message
-          : "Failed to update dealer profile";
-    return { error: message };
+    if (err instanceof Error && err.message.includes("Dealer profile address is permanently reserved")) return { error: "This public profile address is already in use", data: undefined };
+    return journeyUnknownResult({ error: err, action: "updateMyDealerProfile", route: "/dealer/profile", userId: user.id, journey: "accounts", kind: "write", message: "We could not confirm your dealer profile changes. Reload the profile before saving again." });
   }
 }
 
@@ -238,14 +230,15 @@ export async function deactivateMyAccount(input: DeactivateMyAccountInput) {
     revalidatePath("/search");
     return { data: { success: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "deactivateMyAccount",
       route: "/account",
       userId: user.id,
+      journey: "accounts",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to deactivate account finished. Check the account page before trying again."
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to deactivate account";
-    return { error: message };
   }
 }

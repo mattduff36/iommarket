@@ -1,5 +1,7 @@
 "use server";
 
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -70,13 +72,15 @@ export async function upsertContentPage(input: UpsertContentPageInput) {
     revalidatePath(`/${page.slug}`);
     return { data: page };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "upsertContentPage",
       route: "/admin/pages",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to save page finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to save page";
-    return { error: message };
   }
 }
 
@@ -106,13 +110,15 @@ export async function deleteContentPage(id: string) {
     revalidatePath("/admin/pages");
     return { data: { deleted: true } };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "deleteContentPage",
       route: "/admin/pages",
+      journey: "dealer-admin",
+      kind: "destructive",
+      message: "We couldn't confirm whether the request to delete page finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to delete page";
-    return { error: message };
   }
 }
 
@@ -139,12 +145,14 @@ export async function restoreContentPage(id: string) {
     revalidatePath("/admin/pages");
     return { data: page };
   } catch (err) {
-    await reportHandledException({
+
+    return journeyUnknownResult({
       error: err,
       action: "restoreContentPage",
       route: "/admin/pages",
+      journey: "dealer-admin",
+      kind: "write",
+      message: "We couldn't confirm whether the request to restore page finished. Check the administration page before trying again."
     });
-    const message = err instanceof Error ? err.message : "Failed to restore page";
-    return { error: message };
   }
 }

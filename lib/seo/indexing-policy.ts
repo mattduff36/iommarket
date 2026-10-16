@@ -31,6 +31,8 @@ const UTILITY_NOINDEX_PREFIXES = [
   "/dealer/profile",
   "/dealer/onboarding",
   "/dealer/correspondence",
+  "/dealer/trade",
+  "/trade-exchange-terms",
 ] as const;
 
 function matchesPath(pathname: string, prefix: string): boolean {

@@ -1,7 +1,10 @@
 "use client";
 
+import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
+
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import Link from "@/components/navigation/link";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import {
   AdminActionBar,
   AdminActionButton,
@@ -24,6 +27,7 @@ import {
 } from "@/actions/admin/dealer-upgrade-offers";
 import { setDealerTier } from "@/actions/admin/dealer-tier";
 import type { DealerTier, UserRole } from "@prisma/client";
+import { Button } from "@/components/ui/button";
 import { DealerAccessDialog } from "./dealer-access-dialog";
 
 interface UserActionsProps {
@@ -37,6 +41,7 @@ interface UserActionsProps {
   currentTier?: DealerTier | null;
   hasActivePaidSubscription?: boolean;
   redirectOnDelete?: string;
+  tradeMembershipId?: string | null;
   variant?: "row" | "detail";
 }
 
@@ -68,11 +73,13 @@ export function UserActions({
   currentTier = null,
   hasActivePaidSubscription = false,
   redirectOnDelete,
+  tradeMembershipId = null,
   variant = "detail",
 }: UserActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const recovery = useMutationRecovery();
   const [success, setSuccess] = useState<string | null>(null);
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [isDealerAccessDialogOpen, setIsDealerAccessDialogOpen] = useState(false);
@@ -80,7 +87,7 @@ export function UserActions({
   const [requestedRole, setRequestedRole] = useState<UserRole | null>(null);
   const [requestedTier, setRequestedTier] = useState<DealerTier | null>(null);
   const actionInFlight = useRef(false);
-  const isWorking = isPending || pendingLabel !== null;
+  const isWorking = isPending || pendingLabel !== null || recovery.blocked;
   const isDealerCapableRole =
     currentRole === "DEALER" || currentRole === "ADMIN";
 
@@ -98,12 +105,12 @@ export function UserActions({
     setPendingLabel(label);
     startTransition(async () => {
       try {
-        const result = await action();
+        const result = await recovery.run(() => action());
         if (result.error) {
           setError(readError(result.error, fallback));
           return;
         }
-        setSuccess(readError(result.warning, successMessage));
+        setSuccess(readError("warning" in result ? result.warning : undefined, successMessage));
         onSuccess?.();
         if (redirectOnDelete && label === "Deleting…") {
           router.push(redirectOnDelete);
@@ -203,6 +210,14 @@ export function UserActions({
       label: "View account",
       href: `/admin/users/${userId}`,
     },
+    tradeMembershipId
+      ? {
+          kind: "link" as const,
+          id: "review-trade",
+          label: "Review Trade application",
+          href: `/admin/trade/applications/${tradeMembershipId}`,
+        }
+      : null,
     {
       kind: "menu",
       id: "role",
@@ -371,6 +386,13 @@ export function UserActions({
               Revoke free access
             </AdminActionButton>
           ) : null}
+          {tradeMembershipId ? (
+            <Button asChild size="sm" variant="ghost">
+              <Link href={`/admin/trade/applications/${tradeMembershipId}`}>
+                Review Trade application
+              </Link>
+            </Button>
+          ) : null}
           {pendingDealerUpgradeOfferId ? (
             <>
               <AdminActionButton
@@ -409,6 +431,7 @@ export function UserActions({
           {success}
         </p>
       ) : null}
+      {recovery.blocked ? <a href={`/admin/users/${userId}`} className="block text-sm underline">Reload and check status</a> : null}
 
       <DealerAccessDialog
         userId={userId}

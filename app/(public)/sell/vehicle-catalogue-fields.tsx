@@ -33,6 +33,7 @@ interface Props {
   makes: VehicleMakeOption[];
   makeValue: string;
   modelValue: string;
+  variantHint?: string;
   makeError?: string;
   modelError?: string;
   required: boolean;
@@ -88,6 +89,16 @@ function parseModelValue(
   return best ? { model: best.model, variant: best.variant } : null;
 }
 
+function splitVariantHint(value: string, hint?: string) {
+  const variant = cleanCatalogueName(hint ?? "");
+  const model = cleanCatalogueName(value);
+  const suffix = ` ${variant}`;
+  if (variant && model.toLowerCase().endsWith(suffix.toLowerCase())) {
+    return { model: model.slice(0, -suffix.length), variant };
+  }
+  return { model, variant: "" };
+}
+
 function joinModelValue(model: string, variant: string) {
   return cleanCatalogueName([model, variant].filter(Boolean).join(" "));
 }
@@ -105,6 +116,7 @@ export function VehicleCatalogueFields({
   makes,
   makeValue,
   modelValue,
+  variantHint,
   makeError,
   modelError,
   required,
@@ -121,9 +133,10 @@ export function VehicleCatalogueFields({
   const [models, setModels] = useState<VehicleModelOption[]>([]);
   const [modelsPending, setModelsPending] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
-  const [modelText, setModelText] = useState(modelValue);
-  const [variant, setVariant] = useState("");
-  const [variantVisible, setVariantVisible] = useState(false);
+  const initialParts = splitVariantHint(modelValue, variantHint);
+  const [modelText, setModelText] = useState(initialParts.model);
+  const [variant, setVariant] = useState(initialParts.variant);
+  const [variantVisible, setVariantVisible] = useState(Boolean(initialParts.variant));
   const cacheRef = useRef(new Map<string, VehicleModelOption[]>());
   const requestTokenRef = useRef(0);
   const lastEmittedMakeRef = useRef(makeValue);
@@ -187,12 +200,14 @@ export function VehicleCatalogueFields({
   useEffect(() => {
     if (modelValue === lastEmittedModelRef.current) return;
     modelEditedRef.current = false;
-    modelTextRef.current = modelValue;
-    variantRef.current = "";
-    setModelText(modelValue);
-    setVariant("");
-    setVariantVisible(false);
-  }, [modelValue]);
+    const parts = splitVariantHint(modelValue, variantHint);
+    lastEmittedModelRef.current = modelValue;
+    modelTextRef.current = parts.model;
+    variantRef.current = parts.variant;
+    setModelText(parts.model);
+    setVariant(parts.variant);
+    setVariantVisible(Boolean(parts.variant));
+  }, [modelValue, variantHint]);
 
   useEffect(() => {
     onSelectionChange({
@@ -200,12 +215,13 @@ export function VehicleCatalogueFields({
       modelMode,
       canonicalMake: selectedMake?.name,
       canonicalModel: parsedModel?.model.name,
-      variant: parsedModel?.variant || undefined,
+      variant: (modelMode === "manual" ? variant : parsedModel?.variant) || undefined,
     });
   }, [
     makeMode,
     modelMode,
     onSelectionChange,
+    variant,
     parsedModel,
     selectedMake,
   ]);

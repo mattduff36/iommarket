@@ -18,6 +18,11 @@ import {
   getSubscriptionDisplayId,
 } from "@/lib/payments/records";
 import { captureException } from "@/lib/monitoring";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import {
+  attachUnmatchedPublicMessage,
+  reconciliationPublicMessage,
+} from "@/lib/forms/known-domain-messages";
 import {
   searchPaymentsSchema,
   refundPaymentSchema,
@@ -32,18 +37,12 @@ import {
   type AttachUnmatchedListingInput,
   type ReconcileRipplePaymentInput,
 } from "@/lib/validations/admin";
-import {
-  AttachUnmatchedListingError,
-  attachUnmatchedListingPayment,
-} from "@/lib/payments/attach-unmatched-listing";
+import { attachUnmatchedListingPayment } from "@/lib/payments/attach-unmatched-listing";
 import type { Prisma } from "@prisma/client";
 import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { applySamplePaymentVisibility } from "@/lib/listings/sample-related-visibility";
 import { resolveVisibleAdminPaymentWhere } from "@/lib/payments/payment-visibility";
-import {
-  PaymentReconciliationError,
-  reconcileListingPayment,
-} from "@/lib/payments/reconcile-payment";
+import { reconcileListingPayment } from "@/lib/payments/reconcile-payment";
 
 export async function searchPayments(input: SearchPaymentsInput) {
   await requireRole("ADMIN");
@@ -130,21 +129,19 @@ export async function adminRefundPayment(input: RefundPaymentInput) {
     revalidatePath("/admin/revenue");
     return { data: { refunded: true } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    return journeyUnknownResult({
       error: err,
+      journey: "dealer-admin",
       action: "adminRefundPayment",
       route: "/admin/payments",
-      requestPath: "/admin/payments",
+      kind: "destructive",
+      message: "We couldn't confirm that this refund finished. Check the payment before trying again.",
       userId: admin.id,
       tags: {
         paymentId: payment.id,
         paymentProvider: payment.paymentProvider,
-        providerPaymentId: getPaymentDisplayId(payment),
       },
     });
-    const message = err instanceof Error ? err.message : "Failed to process refund";
-    return { error: message };
   }
 }
 
@@ -276,21 +273,19 @@ export async function adminRefundSubscriptionPayment(
     revalidatePath("/admin/revenue");
     return outcome;
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    return journeyUnknownResult({
       error: err,
+      journey: "dealer-admin",
       action: "adminRefundSubscriptionPayment",
       route: "/admin/payments",
-      requestPath: "/admin/payments",
+      kind: "destructive",
+      message: "We couldn't confirm that this refund finished. Check the payment before trying again.",
       userId: admin.id,
       tags: {
         subscriptionId: sub.id,
         paymentProvider: sub.paymentProvider,
-        providerSubscriptionId: getSubscriptionDisplayId(sub),
       },
     });
-    const message = err instanceof Error ? err.message : "Failed to process refund";
-    return { error: message };
   }
 }
 
@@ -340,21 +335,19 @@ export async function adminCancelSubscription(input: CancelSubscriptionInput) {
     revalidatePath("/admin/revenue");
     return { data: { cancelled: true } };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    return journeyUnknownResult({
       error: err,
+      journey: "dealer-admin",
       action: "adminCancelSubscription",
       route: "/admin/payments",
-      requestPath: "/admin/payments",
+      kind: "destructive",
+      message: "We couldn't confirm that this cancellation finished. Check the subscription before trying again.",
       userId: admin.id,
       tags: {
         subscriptionId: sub.id,
         paymentProvider: sub.paymentProvider,
-        providerSubscriptionId: getSubscriptionDisplayId(sub),
       },
     });
-    const message = err instanceof Error ? err.message : "Failed to cancel subscription";
-    return { error: message };
   }
 }
 
@@ -416,24 +409,17 @@ export async function adminAttachUnmatchedListing(
     revalidatePath(`/listings/${result.listingId}`);
     return { data: result };
   } catch (err) {
-    await captureException({
-      source: "SERVER",
+    const known = attachUnmatchedPublicMessage(err);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error: err,
+      journey: "dealer-admin",
       action: "adminAttachUnmatchedListing",
       route: "/admin/payments",
-      requestPath: "/admin/payments",
+      kind: "destructive",
+      message: "We couldn't confirm that this payment attachment finished. Check the payment before trying again.",
       userId: admin.id,
-      tags: {
-        inboxId: parsed.data.inboxId,
-        listingId: parsed.data.listingId,
-      },
     });
-    if (err instanceof AttachUnmatchedListingError) {
-      return { error: err.message };
-    }
-    const message =
-      err instanceof Error ? err.message : "Failed to attach unmatched payment";
-    return { error: message };
   }
 }
 
@@ -481,20 +467,16 @@ export async function adminReconcileRipplePayment(
     revalidatePath(`/listings/${result.listingId}`);
     return { data: result };
   } catch (error) {
-    await captureException({
-      source: "SERVER",
+    const known = reconciliationPublicMessage(error);
+    if (known) return { error: known };
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "adminReconcileRipplePayment",
       route: "/admin/payments",
-      requestPath: "/admin/payments",
+      kind: "destructive",
+      message: "We couldn't confirm that this reconciliation finished. Check the payment before trying again.",
       userId: admin.id,
-      tags: { paymentId: parsed.data.paymentId },
     });
-    return {
-      error:
-        error instanceof PaymentReconciliationError
-          ? error.message
-          : "Failed to reconcile Ripple payment",
-    };
   }
 }

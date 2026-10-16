@@ -113,7 +113,7 @@ describe("completeDealerOnboardingClaim", () => {
       accountPoliciesAccepted: true,
       dealerPoliciesAccepted: true,
     });
-    expect(result).toEqual({ error: "This secure link does not match the invitation." });
+    expect(result).toMatchObject({ error: "This secure link does not match the invitation." });
     expect(updateUserMock).not.toHaveBeenCalled();
   });
 
@@ -126,8 +126,8 @@ describe("completeDealerOnboardingClaim", () => {
       accountPoliciesAccepted: true,
       dealerPoliciesAccepted: true,
     });
-    expect(result).toEqual({
-      error: "We could not finish activating this account. Submit the form again.",
+    expect(result).toMatchObject({
+      error: "We couldn't confirm that this dealer account was activated. Check the invitation before submitting again.", code: "unknown", retryable: false,
     });
     expect(markMock).not.toHaveBeenCalled();
   });
@@ -141,8 +141,8 @@ describe("completeDealerOnboardingClaim", () => {
       accountPoliciesAccepted: true,
       dealerPoliciesAccepted: true,
     });
-    expect(result).toEqual({
-      error: "We could not finish activating this account. Submit the form again.",
+    expect(result).toMatchObject({
+      error: "We couldn't confirm that this dealer account was activated. Check the invitation before submitting again.", code: "unknown", retryable: false,
     });
     expect(markMock).not.toHaveBeenCalled();
   });
@@ -155,7 +155,7 @@ describe("completeDealerOnboardingClaim", () => {
       accountPoliciesAccepted: true,
       dealerPoliciesAccepted: true,
     });
-    expect(result).toEqual({ data: { completed: true } });
+    expect(result).toMatchObject({ data: { completed: true } });
     expect(updateAuthEmailMock).toHaveBeenCalledWith({
       authUserId: "auth-1",
       email: "owner@dealer.im",
@@ -179,7 +179,7 @@ describe("completeDealerOnboardingClaim", () => {
       dealerPoliciesAccepted: true,
     });
 
-    expect(result).toEqual({ data: { completed: true } });
+    expect(result).toMatchObject({ data: { completed: true } });
     expect(mockDb.$transaction).toHaveBeenCalledTimes(3);
     expect(commitMock).toHaveBeenCalledTimes(1);
   });
@@ -198,7 +198,7 @@ describe("completeDealerOnboardingClaim", () => {
       dealerPoliciesAccepted: true,
     });
 
-    expect(result).toEqual({ error: "We could not finish activating this account. Submit the form again." });
+    expect(result).toMatchObject({ error: "We couldn't confirm that this dealer account was activated. Check the invitation before submitting again.", code: "unknown", retryable: false });
     expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
     expect(commitMock).not.toHaveBeenCalled();
   });

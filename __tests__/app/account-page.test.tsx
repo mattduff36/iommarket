@@ -112,13 +112,13 @@ describe("AccountDashboardPage", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /Your Account/i,
+        name: /Welcome back, Buyer Member/i,
       })
     ).toBeTruthy();
-    expect(screen.getByText(/Save favourites, keep searches handy/i)).toBeTruthy();
+    expect(screen.getByText(/Your private account can advertise/i)).toBeTruthy();
     expect(screen.getAllByRole("heading", { name: /Saved listings/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: /Saved searches/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: /Trusted dealer reviews/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Dealer reviews/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open saved listings" }).getAttribute("href")).toBe(
       "/account/favourites",
     );
@@ -126,15 +126,13 @@ describe("AccountDashboardPage", () => {
       "/account/saved-searches",
     );
     expect(screen.getByRole("link", { name: "Browse dealer profiles" }).getAttribute("href")).toBe(
-      "/",
+      "/dealers",
     );
     expect(
       screen.getByRole("link", { name: "Open saved listings" }).querySelector("a, button"),
     ).toBeNull();
-    expect(screen.getByRole("link", { name: /Start selling privately/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /View listing history/i })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /Become a dealer/i }).closest("a")).toBeNull();
-    expect(screen.getByRole("heading", { name: /Become a dealer/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /New listing/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Compare plans/i })).toHaveAttribute("href", "/pricing");
     expect(getSellLandingPathMock).toHaveBeenCalledWith("USER");
     expect(dbMock.favourite.count).toHaveBeenCalledWith({
       where: {
@@ -194,7 +192,7 @@ describe("AccountDashboardPage", () => {
     expect(
       screen.getAllByRole("link", { name: /Review dealer upgrade/i }).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /Start selling privately/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /New listing/i })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Choose Starter/i })).toBeNull();
   });
 
@@ -212,9 +210,9 @@ describe("AccountDashboardPage", () => {
 
     render(await AccountDashboardPage());
 
-    expect(screen.getByRole("heading", { name: /Admin tools/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Admin area/i })).toHaveAttribute("href", "/admin");
     expect(screen.queryByRole("heading", { name: /Dealer tools/i })).toBeNull();
     expect(screen.queryByRole("heading", { name: /Become a dealer/i })).toBeNull();
-    expect(screen.getByRole("link", { name: /Open admin area/i })).toBeTruthy();
+
   });
 });

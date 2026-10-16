@@ -116,28 +116,19 @@ describe("RetryCheckoutButton private acceptance", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("shows rejected checkout requests and allows a deliberate retry", async () => {
-    payForListingMock
-      .mockRejectedValueOnce(new Error("Connection lost"))
-      .mockResolvedValueOnce({
-        data: { checkoutUrl: "https://checkout.example/recovered" },
-      });
-    render(<RetryCheckoutButton listingId="listing-1" flow="private" />);
-    fireEvent.click(
-      screen.getByRole("checkbox", {
-        name: /I expressly accept the current Private Seller Terms/i,
-      }),
-    );
 
-    const retry = screen.getByRole("button", { name: "Open payment in new tab" });
-    fireEvent.click(retry);
-    expect(await screen.findByText(/couldn't confirm the checkout request/i)).toBeInTheDocument();
+  it.each(["response", "transport"])("requires status review after uncertain %s", async (kind) => {
+    if (kind === "transport") payForListingMock.mockRejectedValueOnce(new Error("private-provider-token"));
+    else payForListingMock.mockResolvedValueOnce({ error: "Check payment status before paying again.", code: "unknown", retryable: false });
+    render(<RetryCheckoutButton listingId="listing-1" flow="dealer" />);
+    const button = screen.getByRole("button", { name: "Open payment in new tab" });
+    fireEvent.click(button);
+    expect(await screen.findByRole("link", { name: "Check payment status" })).toHaveAttribute("href", "/sell/checkout?listing=listing-1");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(payForListingMock).toHaveBeenCalledTimes(1);
     expect(replaceMock).not.toHaveBeenCalled();
-    await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(false));
-
-    fireEvent.click(retry);
-    await waitFor(() => expect(payForListingMock).toHaveBeenCalledTimes(2));
-    expect(screen.queryByText(/couldn't confirm the checkout request/i)).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("private-provider-token");
   });
 
   it("LST-REDIRECT-001 uses replace for automatic success navigation", async () => {

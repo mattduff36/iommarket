@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitActionError } from "@/lib/rate-limit-result";
 import { captureException } from "@/lib/monitoring";
+import { journeyUnknownResult } from "@/lib/forms/journey-public-error";
+import { onboardingPublicMessage } from "@/lib/forms/known-domain-messages";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveOnboardingOrigin } from "@/lib/dealers/onboarding/deployment-origin";
 import {
@@ -203,9 +205,8 @@ export async function completeDealerOnboardingClaim(input: {
     }
     return { data: { completed: true as const } };
   } catch (error) {
-    if (error instanceof OnboardingClaimError) {
-      return { error: error.message };
-    }
+    const known = onboardingPublicMessage(error);
+    if (known) return { error: known };
     const lastError = sanitizeOnboardingError(error);
     if (leaseToken) {
       await db.dealerOnboardingInvite.updateMany({
@@ -217,18 +218,16 @@ export async function completeDealerOnboardingClaim(input: {
         data: { lastError, leaseToken: null, leaseExpiresAt: null },
       }).catch(() => undefined);
     }
-    await captureException({
-      source: "SERVER",
+    return journeyUnknownResult({
       error,
+      journey: "dealer-admin",
       action: "completeDealerOnboardingClaim",
       route: "/dealer/onboarding/accept",
-      requestPath: "/dealer/onboarding/accept",
+      kind: "write",
+      message: "We couldn't confirm that this dealer account was activated. Check the invitation before submitting again.",
       userId: invite.userId,
       tags: { inviteId: invite.id },
     });
-    return {
-      error: "We could not finish activating this account. Submit the form again.",
-    };
   }
 }
 

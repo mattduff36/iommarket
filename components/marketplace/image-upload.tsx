@@ -42,9 +42,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/cn";
 import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
-import { LISTING_IMAGE_ACCEPT } from "@/lib/images/constraints";
-import { uploadListingImageFile, validateListingImageFile } from "@/lib/images/client-upload";
+import { IMAGE_CONSTRAINTS, LISTING_IMAGE_ACCEPT } from "@/lib/images/constraints";
+import { preflightListingImageFile, presentClientUploadError, uploadListingImageFile } from "@/lib/images/client-upload";
 import type { ListingPhotoSource } from "@/lib/images/photo";
+import { useListingDraftPhotoBackup } from "@/app/(public)/sell/listing-draft-photos";
 
 export interface UploadedImage extends ListingPhotoSource {
   uploadIntentId: string;
@@ -56,6 +57,7 @@ interface ImageUploadProps {
   onImagesChange: React.Dispatch<React.SetStateAction<UploadedImage[]>>;
   onBusyChange?: (isBusy: boolean) => void;
   maxImages?: number;
+  hideAddButton?: boolean;
 }
 
 interface PendingSlot {
@@ -72,6 +74,7 @@ function createClientId() {
 }
 
 export function ImageUpload({
+  hideAddButton = false,
   images,
   onImagesChange,
   onBusyChange,
@@ -84,6 +87,7 @@ export function ImageUpload({
   const [pending, setPending] = React.useState<PendingSlot[]>([]);
   const [announcement, setAnnouncement] = React.useState("");
   const [focalImage, setFocalImage] = React.useState<UploadedImage | null>(null);
+  const backupListingPhoto = useListingDraftPhotoBackup();
   const isBusy = pending.length > 0;
 
   React.useEffect(() => {
@@ -151,17 +155,21 @@ export function ImageUpload({
       setError(null);
     }
 
-    const validEntries = filesToProcess.flatMap((file) => {
-      const slot = {
-        clientId: `${file.name}-${file.lastModified}-${createClientId()}`,
-        fileName: file.name,
-      };
-      const validationError = validateListingImageFile(file);
-      if (validationError) {
-        setError(validationError);
+    const checked = await Promise.all(
+      filesToProcess.map(async (file) => {
+        const slot = {
+          clientId: `${file.name}-${file.lastModified}-${createClientId()}`,
+          fileName: file.name,
+        };
+        return { file, slot, validationError: await preflightListingImageFile(file) };
+      }),
+    );
+    const validEntries = checked.flatMap((entry) => {
+      if (entry.validationError) {
+        setError(entry.validationError);
         return [];
       }
-      return [{ file, slot }];
+      return [{ file: entry.file, slot: entry.slot }];
     });
     if (validEntries.length === 0) return;
 
@@ -183,6 +191,7 @@ export function ImageUpload({
                 url: uploaded.url,
               }),
             } satisfies UploadedImage;
+            backupListingPhoto?.(image.uploadIntentId, file);
             if (isMountedRef.current) {
               setPending((current) =>
                 current.map((item) =>
@@ -192,8 +201,7 @@ export function ImageUpload({
             }
             return image;
           } catch (uploadError) {
-            const message =
-              uploadError instanceof Error ? uploadError.message : "Could not upload this image.";
+            const message = presentClientUploadError(uploadError);
             if (isMountedRef.current) {
               setPending((current) =>
                 current.map((item) =>
@@ -294,12 +302,18 @@ export function ImageUpload({
 
       {images.length < maxImages && (
         <>
+          <p id="listing-photo-requirements" className="text-xs text-text-tertiary">
+            Upload up to {maxImages} photos. JPG, PNG, WebP, HEIC or HEIF, up to 10MB each. Photos
+            need a long edge of at least {IMAGE_CONSTRAINTS.minLongEdge} pixels and a short edge of
+            at least {IMAGE_CONSTRAINTS.minShortEdge} pixels.
+          </p>
           <input
             ref={inputRef}
             type="file"
             accept={LISTING_IMAGE_ACCEPT}
             multiple
             className="hidden"
+            aria-describedby="listing-photo-requirements"
             onChange={handleFileSelection}
           />
           <Button
@@ -308,7 +322,7 @@ export function ImageUpload({
             disabled={isBusy || images.length >= maxImages}
             loading={isBusy}
             onClick={() => inputRef.current?.click()}
-            className="w-full"
+            className={hideAddButton ? "hidden" : "w-full border border-white/30 bg-white/5 text-text-primary hover:bg-white/10"}
           >
             {isBusy ? (
               "Uploading..."
@@ -328,8 +342,7 @@ export function ImageUpload({
         </p>
       ) : null}
       <p className="text-xs text-text-tertiary">
-        Upload up to {maxImages} photos. JPG, PNG, WebP, HEIC or HEIF, max 10MB each. The first
-        photo is the cover photo. Drag photos or use the move controls to change the order.
+        The first photo is the cover photo. Drag photos or use the move controls to change the order.
       </p>
       <div className="sr-only" aria-live="polite">
         {announcement}

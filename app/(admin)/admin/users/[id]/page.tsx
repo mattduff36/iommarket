@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import type { TradeMembershipStatus } from "@prisma/client";
+import Link from "@/components/navigation/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -22,7 +23,10 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TradeMembershipBadge } from "@/components/admin/trade-admin-ui";
 import { UserActions } from "../user-actions";
+import { hasTradeProEntitlement } from "@/lib/trade-exchange/entitlement";
+import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import {
   getProviderLabel,
   getSubscriptionDisplayId,
@@ -62,6 +66,7 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "error" | "neutral" |
 
 export default async function AdminUserDetailPage({ params }: Props) {
   const { id } = await params;
+  const tradeEnabled = isTradeExchangeEnabled();
   const sampleVisibility = await getSampleVisibility();
   const visibleListings = applySampleListingVisibility({}, sampleVisibility);
 
@@ -71,7 +76,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
       region: true,
       dealerProfile: {
         include: {
-          subscriptions: { orderBy: { createdAt: "desc" }, take: 5 },
+          subscriptions: { orderBy: { createdAt: "desc" } },
           _count: { select: { listings: { where: visibleListings } } },
         },
       },
@@ -121,6 +126,20 @@ export default async function AdminUserDetailPage({ params }: Props) {
     : [null, null];
   const adminGrantState = getAdminGrantState(adminGrant);
   const pendingUpgrade = user.dealerUpgradeOffers[0] ?? null;
+  const tradeMembership = tradeEnabled && user.dealerProfile
+    ? await db.tradeMembership.findUnique({
+        where: { dealerId: user.dealerProfile.id },
+        select: { id: true, status: true },
+      })
+    : null;
+  const proActive = user.dealerProfile
+    ? hasTradeProEntitlement({
+        tier: user.dealerProfile.tier,
+        subscriptions: user.dealerProfile.subscriptions,
+        now,
+      })
+    : false;
+  const accountLabel = user.deletedAt ? "Deleted" : user.disabledAt ? "Disabled" : "Active";
 
   const recentListings = await db.listing.findMany({
     where: applySampleListingVisibility({ userId: id }, sampleVisibility),
@@ -139,10 +158,18 @@ export default async function AdminUserDetailPage({ params }: Props) {
             <Badge variant={user.role === "ADMIN" ? "error" : user.role === "DEALER" ? "info" : "neutral"}>
               {user.role}
             </Badge>
-            {user.deletedAt ? <Badge variant="error">Deleted</Badge> : null}
-            {user.disabledAt && !user.deletedAt ? (
-              <Badge variant="error">Disabled</Badge>
-            ) : null}
+            {tradeEnabled ? (
+              <Badge variant={user.disabledAt || user.deletedAt ? "error" : "success"}>
+                {accountLabel}
+              </Badge>
+            ) : (
+              <>
+                {user.deletedAt ? <Badge variant="error">Deleted</Badge> : null}
+                {user.disabledAt && !user.deletedAt ? (
+                  <Badge variant="error">Disabled</Badge>
+                ) : null}
+              </>
+            )}
             {pendingUpgrade ? (
               <Badge variant="warning">Dealer offer pending</Badge>
             ) : null}
@@ -176,6 +203,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
           currentTier={user.dealerProfile?.tier ?? null}
           hasActivePaidSubscription={Boolean(paidSubscription)}
           redirectOnDelete="/admin/users"
+          tradeMembershipId={tradeMembership?.id ?? null}
         />
       </div>
 
@@ -309,11 +337,22 @@ export default async function AdminUserDetailPage({ params }: Props) {
               </Badge>
             </div>
             <div className="flex gap-2">
-              <span className="text-text-secondary w-32">Verified:</span>
+              <span className="text-text-secondary w-32">
+                {tradeEnabled ? "Public badge:" : "Verified:"}
+              </span>
               <Badge variant={user.dealerProfile.verified ? "success" : "neutral"}>
-                {user.dealerProfile.verified ? "Yes" : "No"}
+                {tradeEnabled
+                  ? user.dealerProfile.verified
+                    ? "Public verified"
+                    : "Public unverified"
+                  : user.dealerProfile.verified
+                    ? "Yes"
+                    : "No"}
               </Badge>
             </div>
+            {tradeEnabled ? (
+              <TradeApplicationRow membership={tradeMembership} proActive={proActive} />
+            ) : null}
             <div className="flex gap-2">
               <span className="text-text-secondary w-32">Dealer Listings:</span>
               <span className="text-text-primary">{user.dealerProfile._count.listings}</span>
@@ -352,7 +391,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
             {user.dealerProfile.subscriptions.length > 0 && (
               <div className="mt-4">
                 <p className="text-sm font-medium text-text-primary mb-2">Subscriptions</p>
-                {user.dealerProfile.subscriptions.map((sub) => (
+                {user.dealerProfile.subscriptions.slice(0, 5).map((sub) => (
                   <div key={sub.id} className="flex items-center gap-3 text-xs text-text-secondary">
                     <Badge variant={sub.status === "ACTIVE" ? "success" : sub.status === "PAST_DUE" ? "warning" : "error"}>
                       {sub.status}
@@ -416,6 +455,36 @@ export default async function AdminUserDetailPage({ params }: Props) {
           )}
         </TableBody>
       </AdminTable>
+    </>
+  );
+}
+
+function TradeApplicationRow({
+  membership,
+  proActive,
+}: {
+  membership: { id: string; status: TradeMembershipStatus } | null;
+  proActive: boolean;
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-32 text-text-secondary">Trade application:</span>
+        {membership ? (
+          <TradeMembershipBadge status={membership.status} />
+        ) : (
+          <>
+            <Badge variant="neutral">Not applied</Badge>
+            <Link href="/admin/trade/applications" className="text-neon-blue-400 hover:underline">
+              Applications
+            </Link>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-32 text-text-secondary">Active Pro:</span>
+        <Badge variant={proActive ? "success" : "warning"}>{proActive ? "Active" : "Required"}</Badge>
+      </div>
     </>
   );
 }

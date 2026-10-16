@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("admin navigation client boundary", () => {
   it("keeps lucide icons inside the client link and passes serializable items", () => {
-    const layout = readFileSync("app/(admin)/layout.tsx", "utf8");
+    const layout = readFileSync("components/admin/admin-area.tsx", "utf8");
     const mobile = readFileSync("components/admin/admin-mobile-nav.tsx", "utf8");
     const link = readFileSync("components/admin/admin-nav-link.tsx", "utf8");
 
