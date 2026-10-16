@@ -26,7 +26,7 @@ describe("navigation feedback", () => {
     fireEvent.click(screen.getByText("Native"), { ctrlKey: true });
     expect(screen.queryByText("Loading page…")).toBeNull();
     fireEvent.click(screen.getByText("Native"));
-    expect(screen.getByText("Loading page…")).toBeVisible();
+    expect(screen.getByText("Loading page…")).toHaveClass("sr-only");
   });
 
   it("hides old content immediately during a suspended route transition, retains shell and clears on completion", async () => {
@@ -42,7 +42,7 @@ describe("navigation feedback", () => {
     await act(async () => { fireEvent.click(screen.getByText("Navigate")); });
     expect(screen.getByText("Site shell")).toBeVisible();
     expect(screen.getByText("Private content")).not.toBeVisible();
-    expect(screen.getByText("Loading page…")).toBeVisible();
+    expect(screen.getByText("Loading page…")).toHaveClass("sr-only");
     await act(async () => { resolve("New page"); await data; });
     expect(await screen.findByText("New page")).toBeVisible();
     expect(screen.queryByText("Loading page…")).toBeNull();
@@ -51,7 +51,7 @@ describe("navigation feedback", () => {
   it("keeps private content hidden for the whole sign-out request and restores it only on failure", () => {
     render(<NavigationProvider><Actions /><NavigationContent><p>Private content</p></NavigationContent></NavigationProvider>);
     fireEvent.click(screen.getByText("Sign out"));
-    expect(screen.getByText("Signing out…")).toBeVisible();
+    expect(screen.getByText("Signing out…")).toHaveClass("sr-only");
     expect(screen.getByText("Private content")).not.toBeVisible();
     fireEvent.click(screen.getByText("Failed sign out"));
     expect(screen.getByText("Private content")).toBeVisible();

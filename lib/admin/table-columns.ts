@@ -28,7 +28,8 @@ export const LISTING_TABLE_SORT: AdminSortFallback = {
 
 export const USER_TABLE_COLUMNS = columns([
   { id: "user", label: "User", defaultDirection: "asc", pinned: true },
-  { id: "access", label: "Account details", defaultDirection: "asc" },
+  { id: "access", label: "Account", defaultDirection: "asc" },
+  { id: "details", label: "Details" },
   { id: "region", label: "Region", defaultDirection: "asc", defaultVisible: false },
   { id: "dealer", label: "Dealer", defaultDirection: "asc", defaultVisible: false },
   { id: "listings", label: "Listings", defaultDirection: "desc", align: "end" },

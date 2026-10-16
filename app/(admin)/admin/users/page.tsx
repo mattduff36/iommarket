@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import type { TradeMembershipStatus } from "@prisma/client";
 import Link from "@/components/navigation/link";
 import { db } from "@/lib/db";
-import { Badge } from "@/components/ui/badge";
 import {
   TableHeader,
   TableBody,
@@ -30,11 +29,10 @@ import {
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
 import { UserAccountStatusBadge } from "@/components/admin/user-account-status-badge";
-import { TradeMembershipBadge } from "@/components/admin/trade-admin-ui";
+import { tradeMembershipLabel } from "@/components/admin/trade-admin-ui";
 import { UserActions } from "./user-actions";
 import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { getPaidSubscriptionEntitlementWhere } from "@/lib/dealers/entitlement";
-import { getDealerPackageLabel } from "@/lib/config/dealer-tiers";
 import { formatAdminDate } from "@/lib/admin/format";
 import { buildAdminUsersWhere } from "@/lib/admin/query";
 import {
@@ -58,17 +56,7 @@ interface Props {
   }>;
 }
 
-const ROLE_BADGE: Record<string, "neutral" | "info" | "warning" | "error"> = {
-  USER: "neutral",
-  DEALER: "info",
-  ADMIN: "error",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  USER: "User",
-  DEALER: "Dealer",
-  ADMIN: "Admin",
-};
+const ROLE_LABEL: Record<string, string> = { USER: "User", DEALER: "Dealer", ADMIN: "Admin" };
 
 const PAGE_SIZE = 25;
 
@@ -77,24 +65,14 @@ function TradeApplicationStatus({
 }: {
   membership: { id: string; status: TradeMembershipStatus } | null;
 }) {
-  if (!membership) {
-    return (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-text-secondary">Trade application</span>
-        <Badge variant="neutral">Not applied</Badge>
-        <Link href="/admin/trade/applications" className="text-xs text-neon-blue-400 hover:underline">
-          Applications
-        </Link>
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      <span className="text-xs text-text-secondary">Trade application</span>
-      <TradeMembershipBadge status={membership.status} />
-    </span>
-  );
+  const status = membership?.status;
+  const tone = status === "APPROVED" ? "text-[#66c69b]"
+    : status === "REJECTED" || status === "REVOKED" ? "text-[#ef9b9b]"
+    : status === "PENDING" || status === "SUSPENDED" ? "text-[#e4be70]"
+    : status === "NEEDS_INFO" ? "text-neon-blue-400" : "text-text-secondary";
+  return <Link href="/admin/trade/applications" className={`${tone} hover:underline`}>
+    {status ? tradeMembershipLabel(status) : "Not applied"}
+  </Link>;
 }
 
 export default async function AdminUsersPage({ searchParams }: Props) {
@@ -266,7 +244,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
               ? tradeByDealerId.get(user.dealerProfile.id) ?? null
               : null;
             return (
-            <TableRow key={user.id}>
+            <TableRow key={user.id} style={user.role === "ADMIN" ? { backgroundColor: "rgba(239, 68, 68, 0.15)" } : undefined}>
               <TableCell data-column="user">
                 <AdminDataCell
                   title={
@@ -277,7 +255,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       {user.name ?? "Unnamed user"}
                     </Link>
                   }
-                  subtitle={<span className="block max-w-56 truncate">{user.email}</span>}
+                  subtitle={<>
+                    {user.dealerProfile ? <div className="flex flex-wrap items-baseline gap-x-1">
+                      <Link href={`/admin/dealers?id=${user.dealerProfile.id}`} className="text-neon-blue-400 hover:underline break-words">
+                        {user.dealerProfile.name}
+                      </Link>
+                      {user.region?.name ? <span>· {user.region.name}</span> : null}
+                    </div> : user.region?.name ? <div>{user.region.name}</div> : null}
+                    <span className="block break-all">{user.email}</span>
+                  </>}
                   badges={
                     <UserAccountStatusBadge
                       deletedAt={user.deletedAt}
@@ -287,61 +273,31 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                 />
               </TableCell>
               <TableCell data-column="access">
-                <div className="flex max-w-48 flex-wrap gap-1.5">
-                  <Badge variant={ROLE_BADGE[user.role] ?? "neutral"}>
-                    {ROLE_LABEL[user.role] ?? user.role}
-                  </Badge>
-                  {user.dealerProfile ? (
-                    <Badge variant={user.dealerProfile.tier === "PRO" ? "info" : "neutral"}>
-                      {getDealerPackageLabel(user.dealerProfile.tier)}
-                    </Badge>
-                  ) : null}
-                  {user.dealerProfile?.subscriptions.some(
-                    (subscription) => subscription.source === "PAYMENT",
-                  ) ? (
-                    <Badge variant="success">Paid</Badge>
-                  ) : user.dealerProfile?.subscriptions.some(
-                      (subscription) => subscription.source === "ADMIN_GRANT",
-                    ) ? (
-                    <Badge variant="warning">Free grant</Badge>
-                  ) : null}
-                  {user.dealerUpgradeOffers.length > 0 ? (
-                    <Badge variant="warning">Dealer offer pending</Badge>
-                  ) : null}
+                <div className="flex flex-wrap gap-1.5">
+                  {user.role === "ADMIN" ? <span className="inline-flex rounded border border-white bg-transparent px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">ADMIN</span> : null}
+                  {user.dealerProfile ? <span className="inline-flex rounded border border-[#d88b8b]/[.28] bg-[#d88b8b]/[.08] px-2 py-0.5 text-[11px] font-semibold text-[#d88b8b]">
+                    {user.dealerProfile.tier === "PRO" ? "Dealer Pro" : "Dealer Starter"}
+                  </span> : user.role !== "ADMIN" ? <span className={user.role === "DEALER"
+                    ? "inline-flex rounded border border-[#d88b8b]/[.28] bg-[#d88b8b]/[.08] px-2 py-0.5 text-[11px] font-semibold text-[#d88b8b]"
+                    : "inline-flex rounded border border-[#284361] bg-[#101c2c] px-2 py-0.5 text-[11px] font-semibold text-[#8cc1ff]"}>
+                    {user.role === "DEALER" ? "Dealer" : "User"}
+                  </span> : null}
                 </div>
-                {user.region?.name ? (
-                  <div className="mt-2 text-xs text-text-secondary">Region: {user.region.name}</div>
+                {user.dealerProfile?.subscriptions.some((subscription) => subscription.source === "PAYMENT") ? (
+                  <div className="mt-1.5 text-xs text-text-secondary">Paid</div>
+                ) : user.dealerProfile?.subscriptions.some((subscription) => subscription.source === "ADMIN_GRANT") ? (
+                  <div className="mt-1.5 text-xs text-text-secondary">Free grant</div>
                 ) : null}
-                {user.dealerProfile ? (
-                  <div className="mt-2">
-                  <AdminDataCell
-                    title={
-                      <Link
-                        href={`/admin/dealers?id=${user.dealerProfile.id}`}
-                        className="block max-w-44 truncate text-neon-blue-400 hover:underline"
-                      >
-                        {user.dealerProfile.name}
-                      </Link>
-                    }
-                    badges={
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant={user.dealerProfile.verified ? "success" : "neutral"}>
-                          {tradeEnabled
-                            ? user.dealerProfile.verified
-                              ? "Public verified"
-                              : "Public unverified"
-                            : user.dealerProfile.verified
-                              ? "Verified"
-                              : "Unverified"}
-                        </Badge>
-                        {tradeEnabled ? (
-                          <TradeApplicationStatus membership={tradeMembership} />
-                        ) : null}
-                      </span>
-                    }
-                  />
-                  </div>
-                ) : null}
+                {user.dealerUpgradeOffers.length > 0 ? <div className="mt-2 text-xs text-[#e4be70]">Dealer offer pending</div> : null}
+              </TableCell>
+              <TableCell data-column="details">
+                {user.dealerProfile ? <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-text-secondary">Public</dt>
+                  <dd className={user.dealerProfile.verified ? "text-[#66c69b]" : "text-text-secondary"}>
+                    {user.dealerProfile.verified ? "Verified" : "Unverified"}
+                  </dd>
+                  {tradeEnabled ? <><dt className="text-text-secondary">Trade</dt><dd><TradeApplicationStatus membership={tradeMembership} /></dd></> : null}
+                </dl> : <span className="text-text-secondary" aria-label="No additional details">—</span>}
               </TableCell>
               <TableCell data-column="region">{user.region?.name ?? "Not assigned"}</TableCell>
               <TableCell data-column="dealer">{user.dealerProfile?.name ?? "\u2014"}</TableCell>

@@ -13,8 +13,8 @@ export function skeletonKind(path: string): PageSkeletonKind {
 
 export function PageSkeleton({ kind = "page", label = "Loading page…" }: { kind?: PageSkeletonKind; label?: string }) {
   return (
-    <section className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6" aria-busy="true" aria-label={label} data-page-skeleton={kind}>
-      <p role="status" className="text-sm text-text-secondary">{label}</p>
+    <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6" aria-busy="true" aria-label={label} data-page-skeleton={kind}>
+      <span role="status" className="sr-only">{label}</span>
       <div aria-hidden="true" className="space-y-6">
         <Skeleton className="h-8 w-2/5 max-w-sm motion-reduce:animate-none" />
         <Skeleton className="h-4 w-3/5 max-w-lg motion-reduce:animate-none" />

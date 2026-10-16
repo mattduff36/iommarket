@@ -284,8 +284,10 @@ describe("trade admin integration", () => {
     ]);
     const { default: Page } = await import("@/app/(admin)/admin/users/page");
     render(await Page({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByText("Public verified")).toBeInTheDocument();
-    expect(screen.getByText("Trade application")).toBeInTheDocument();
+    expect(screen.getByText("Public")).toBeInTheDocument();
+    expect(screen.getByText("Trade")).toBeInTheDocument();
+    expect(screen.getByText("Verified")).toBeInTheDocument();
+    expect(screen.getByText("Dealer Pro")).toBeInTheDocument();
     expect(screen.getByText("Waiting")).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Actions for Test Motors" }));
