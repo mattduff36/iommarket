@@ -58,13 +58,14 @@ describe("trade dealer usability", () => {
     dealerFindMany.mockReset();
   });
 
-  it("marks the current trade section and keeps a dashboard exit", () => {
+  it("marks the current section and keeps stock actions alongside sidebar navigation", () => {
     pathname.mockReturnValue("/dealer/trade/stock");
     render(<TradeNav />);
-    expect(screen.getByRole("link", { name: "My stock" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Browse" })).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dealer/dashboard");
-    expect(screen.getByRole("navigation", { name: "Trade Exchange" })).toHaveClass("flex-wrap");
+    expect(screen.getByText("My stock")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Trade Exchange" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "New listing" })).toHaveAttribute("href", "/dealer/trade/new");
+    expect(screen.getByRole("link", { name: "Import stock" })).toHaveAttribute("href", "/dealer/trade/import");
+    expect(screen.getByRole("navigation", { name: "Trade Exchange" })).toHaveClass("flex-col");
   });
 
   it("keeps browse pagination on real filter URLs and finite pages", () => {
@@ -123,7 +124,7 @@ describe("trade dealer usability", () => {
     await waitFor(() => expect(rethrow).toHaveBeenCalledWith(redirectError));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(caught).toContain(redirectError);
+    await waitFor(() => expect(caught).toContain(redirectError));
     window.removeEventListener("error", onError);
     process.off("unhandledRejection", onRejection);
     consoleError.mockRestore();

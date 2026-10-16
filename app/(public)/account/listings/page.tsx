@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { db } from "@/lib/db";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ListingOwnerStatusBadges } from "@/components/listings/owner-status-badges";
 import {
   Table,
@@ -19,6 +19,7 @@ import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { isRipplePreviewRuntime } from "@/lib/payments/ripple-config";
 import { isSampleCheckoutEnabled } from "@/lib/payments/sample-checkout-config";
 import { Button } from "@/components/ui/button";
+import { getSellLandingPath } from "@/lib/navigation";
 import { findListingsInAttributeOrder } from "@/lib/search/attribute-sort";
 import {
   SELLER_LISTING_SORT_OPTIONS,
@@ -42,6 +43,12 @@ const STATUS_FILTERS = [
 ] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+function statusLabel(status: StatusFilter) {
+  if (status === "ALL") return "All";
+  if (status === "TAKEN_DOWN") return "Taken down";
+  return `${status.charAt(0)}${status.slice(1).toLowerCase()}`;
+}
 
 function buildHref({
   status,
@@ -133,63 +140,61 @@ export default async function AccountListingsPage({ searchParams }: Props) {
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const sellHref = getSellLandingPath(user.role) ?? "/sell";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-          My Listing History
-        </h1>
-        <p className="mt-2 text-sm text-text-secondary">
-          View all listings you have created, with latest lifecycle updates.
-        </p>
-        <p className="mt-2 text-sm text-text-secondary">
-          Once a vehicle sells, use <span className="font-medium text-text-primary">Mark as sold</span> to inform itrader.im and remove it from live results.
-        </p>
-        <p className="mt-2 text-sm text-text-secondary">
-          A listing awaiting review cannot be edited. Withdraw its submission first
-          to return it to Draft.
-        </p>
-        <p className="mt-2 text-sm text-text-secondary">
-          Feature a listing that is awaiting review or live. Featured placement starts after approval.
-        </p>
+    <div>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
+            My listings
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+            Listings you have created, with the latest lifecycle updates. Mark a vehicle as sold to tell itrader.im and remove it from live results. A listing awaiting review cannot be edited until you withdraw it back to Draft. You can feature a listing that is awaiting review or live; featured placement starts after approval.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href={sellHref}>New listing</Link>
+        </Button>
       </div>
 
       <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          {STATUS_FILTERS.map((item) => (
-            <Link
-              key={item}
-              href={buildHref({ status: item, sort, page: 1 })}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium border ${
-                status === item
-                  ? "border-neon-blue-500 bg-neon-blue-500/10 text-neon-blue-400"
-                  : "border-border text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {item}
-            </Link>
-          ))}
-          <form action="/account/listings" className="ml-auto flex items-center gap-2">
-            {status !== "ALL" ? <input type="hidden" name="status" value={status} /> : null}
-            <label className="flex items-center gap-2 text-sm text-text-secondary">
-              Sort by
-              <select
-                name="sort"
-                defaultValue={sort}
-                className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-text-primary"
+        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-wrap gap-2" role="group" aria-label="Listing status">
+            {STATUS_FILTERS.map((item) => (
+              <Link
+                key={item}
+                href={buildHref({ status: item, sort, page: 1 })}
+                aria-current={status === item ? "page" : undefined}
+                className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                  status === item
+                    ? "border-neon-blue-500 bg-neon-blue-500/10 text-neon-blue-400"
+                    : "border-border text-text-secondary hover:text-text-primary"
+                }`}
               >
-                {SELLER_LISTING_SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                {statusLabel(item)}
+              </Link>
+            ))}
+          </div>
+          <form action="/account/listings" className="flex min-w-0 flex-wrap items-center gap-2">
+            {status !== "ALL" ? <input type="hidden" name="status" value={status} /> : null}
+            <label htmlFor="account-listings-sort" className="text-sm text-text-secondary">
+              Sort
             </label>
-            <Button type="submit" size="sm">
+            <select
+              id="account-listings-sort"
+              name="sort"
+              aria-label="Sort listings"
+              defaultValue={sort}
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text-primary"
+            >
+              {SELLER_LISTING_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Button type="submit" size="sm" variant="ghost" className="border border-border">
               Apply
             </Button>
           </form>
@@ -197,6 +202,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
       </Card>
 
       {listings.length > 0 ? (
+        <div className="w-full min-w-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -262,6 +268,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
             ))}
           </TableBody>
         </Table>
+        </div>
       ) : (
         <p className="text-sm text-text-secondary">
           No listings found for this filter.

@@ -55,16 +55,18 @@ export default async function FavouritesPage() {
   })).map((dealer) => dealer.id) : []);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-        Saved Listings
-      </h1>
-      <p className="mt-3 text-sm text-text-secondary">
-        {favourites.length} favourite{favourites.length === 1 ? "" : "s"}
-      </p>
+    <div>
+      <div className="mb-6">
+        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
+          Saved Listings
+        </h1>
+        <p className="mt-2 text-sm text-text-secondary">
+          {favourites.length} favourite{favourites.length === 1 ? "" : "s"}
+        </p>
+      </div>
 
       {favourites.length > 0 ? (
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+        <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 sm:gap-6">
           {favourites.map(({ id, listing }) => {
             const available = isListingPubliclyVisible({
               status: listing.status,
@@ -88,13 +90,12 @@ export default async function FavouritesPage() {
           })}
         </div>
       ) : (
-        <p className="mt-8 text-sm text-text-secondary">
-          You have not saved any listings yet.{" "}
-          <Link href="/search" className="text-text-trust hover:underline">
+        <div className="rounded-lg border border-border bg-surface p-6">
+          <p className="text-sm text-text-secondary">You have not saved any listings yet.</p>
+          <Link href="/search" className="mt-3 inline-flex text-sm text-text-trust hover:underline">
             Browse listings
           </Link>
-          .
-        </p>
+        </div>
       )}
     </div>
   );

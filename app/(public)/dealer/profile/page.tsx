@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { requireAcceptedUser } from "@/lib/policy/gate";
 import { hasDealerDashboardAccess } from "@/lib/dealers/access";
 import { hasOperationalDealerAccess } from "@/lib/dealers/entitlement";
-import { Button } from "@/components/ui/button";
 import { DealerProfileForm } from "./dealer-profile-form";
 
 export default async function DealerProfileManagePage() {
@@ -16,24 +15,22 @@ export default async function DealerProfileManagePage() {
   if (!(await hasOperationalDealerAccess(user))) redirect("/dealer/subscribe");
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+    <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-            Manage Dealer Profile
+          <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
+            Dealer profile
           </h1>
-          <p className="mt-2 text-sm text-text-secondary">
+          <p className="mt-2 max-w-2xl text-sm text-text-secondary">
             Update your public dealer profile details and contact information.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/dealer/dashboard">Back to Dashboard</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={`/dealers/${user.dealerProfile.slug}`}>View Public Profile</Link>
-          </Button>
-        </div>
+        <Link
+          href={`/dealers/${user.dealerProfile.slug}`}
+          className="text-sm text-text-secondary hover:text-text-primary hover:underline"
+        >
+          View public profile
+        </Link>
       </div>
 
       <DealerProfileForm

@@ -19,32 +19,34 @@ export default async function SavedSearchesPage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="section-heading-accent text-2xl sm:text-3xl font-bold text-text-primary font-heading">
-        Saved Searches
-      </h1>
-      <p className="mt-3 text-sm text-text-secondary">
-        Re-run your favourite filters in one click.
-      </p>
+    <div>
+      <div className="mb-6">
+        <h1 className="section-heading-accent font-heading text-2xl font-bold text-text-primary sm:text-3xl">
+          Saved Searches
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+          Re-run your favourite filters in one click.
+        </p>
+      </div>
 
       {savedSearches.length > 0 ? (
-        <div className="mt-6 space-y-3">
+        <div className="space-y-3">
           {savedSearches.map((saved) => {
             const params = saved.queryParamsJson as SearchParams;
             const href = buildSearchUrl(params, {});
             return (
               <div
                 key={saved.id}
-                className="relative flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4"
+                className="relative flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <CardOverlayLink href={href} label={`Open ${saved.name}`} />
-                <div>
-                  <p className="font-medium text-text-primary">{saved.name}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words font-medium text-text-primary">{saved.name}</p>
                   <p className="text-xs text-text-secondary">
                     Saved {saved.createdAt.toLocaleDateString("en-GB")}
                   </p>
                 </div>
-                <div className={CARD_OVERLAY_CONTROL_CLASS}>
+                <div className={`${CARD_OVERLAY_CONTROL_CLASS} shrink-0 self-end sm:self-auto`}>
                   <SavedSearchActions
                     savedSearchId={saved.id}
                     name={saved.name}
@@ -56,13 +58,12 @@ export default async function SavedSearchesPage() {
           })}
         </div>
       ) : (
-        <p className="mt-8 text-sm text-text-secondary">
-          No saved searches yet.{" "}
-          <Link href="/search" className="text-text-trust hover:underline">
+        <div className="rounded-lg border border-border bg-surface p-6">
+          <p className="text-sm text-text-secondary">No saved searches yet.</p>
+          <Link href="/search" className="mt-3 inline-flex text-sm text-text-trust hover:underline">
             Start searching
           </Link>
-          .
-        </p>
+        </div>
       )}
     </div>
   );

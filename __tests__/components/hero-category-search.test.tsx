@@ -44,7 +44,7 @@ vi.mock("@/components/marketplace/search/advanced-search-modal", () => ({
               model: "320",
               region: "douglas",
               minPrice: "5000",
-              wheelbase: "L2",
+              wheelbase: "Medium",
             })
           }
         >
@@ -106,7 +106,7 @@ describe("homepage category search", () => {
     expect(push).toHaveBeenCalledWith("/search?category=car");
   });
 
-  it("keeps the tab category through modal apply, category switches, and reset", async () => {
+  it("synchronises modal category changes and clears incompatible filters when switching tabs", async () => {
     const user = userEvent.setup();
     renderHero();
 
@@ -115,22 +115,18 @@ describe("homepage category search", () => {
 
     await user.click(screen.getByRole("button", { name: "Apply mock advanced" }));
 
-    expect(screen.getByRole("tab", { name: "Cars" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("modal-category")).toHaveTextContent("car");
-    expect(screen.getByTestId("modal-make")).toHaveTextContent("BMW");
-    expect(screen.getByTestId("modal-model")).toHaveTextContent("320");
+    expect(screen.getByRole("tab", { name: "Vans" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("modal-category")).toHaveTextContent("van");
+    expect(screen.getByTestId("modal-make").textContent).toBe("");
+    expect(screen.getByTestId("modal-model").textContent).toBe("");
     expect(screen.getByTestId("modal-region")).toHaveTextContent("douglas");
     expect(screen.getByTestId("modal-min-price")).toHaveTextContent("5000");
-    expect(screen.getByTestId("modal-wheelbase")).toHaveTextContent("");
+    expect(screen.getByTestId("modal-wheelbase")).toHaveTextContent("Medium");
 
+    await user.click(screen.getByRole("tab", { name: "Cars" }));
+    expect(screen.getByTestId("modal-wheelbase").textContent).toBe("");
     await user.click(screen.getByRole("tab", { name: "Vans" }));
-
-    expect(screen.getByRole("tab", { name: "Vans" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("shared-category")).toHaveTextContent("van");
-    expect(screen.getByTestId("modal-category")).toHaveTextContent("van");
-    expect(screen.getByTestId("modal-make")).toHaveTextContent("");
-    expect(screen.getByTestId("modal-model")).toHaveTextContent("");
-    expect(screen.getByTestId("modal-wheelbase")).toHaveTextContent("");
     expect(screen.getByTestId("modal-region")).toHaveTextContent("douglas");
     expect(screen.getByTestId("modal-min-price")).toHaveTextContent("5000");
 
