@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   localComparisonOrigin: vi.fn(() => "http://127.0.0.1:3310"),
   resolveLedgerAccess: vi.fn(() => ({ mode: "local" as const })),
   accountsReaderRequested: vi.fn(() => true),
+  accountsDashboardRequested: vi.fn(() => true),
   fetchAccountsCostDashboard: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ vi.mock("@/lib/costs/accounts-comparison", () => ({
 vi.mock("@/lib/costs/ledger-access", () => ({
   resolveLedgerAccess: mocks.resolveLedgerAccess,
   accountsReaderRequested: mocks.accountsReaderRequested,
+  accountsDashboardRequested: mocks.accountsDashboardRequested,
 }));
 vi.mock("@/lib/costs/accounts-reader", () => ({
   fetchAccountsCostDashboard: mocks.fetchAccountsCostDashboard,
@@ -143,6 +145,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.isCostsEnabled.mockReturnValue(true);
   mocks.accountsReaderRequested.mockReturnValue(true);
+  mocks.accountsDashboardRequested.mockReturnValue(true);
   mocks.localComparisonOrigin.mockReturnValue("http://127.0.0.1:3310");
 });
 
@@ -266,7 +269,54 @@ describe("Accounts reader summary", () => {
     render(view);
     expect(mocks.requireRole).toHaveBeenCalledWith("ADMIN");
     expect(mocks.fetchAccountsCostDashboard).not.toHaveBeenCalled();
+    expect(mocks.accountsDashboardRequested).not.toHaveBeenCalled();
     expect(mocks.getCostDashboard).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
     expect(screen.getAllByText("Costs disabled").length).toBeGreaterThan(0);
+  });
+
+  it("renders Accounts for the dashboard selector while the reader role stays off", async () => {
+    mocks.accountsReaderRequested.mockReturnValue(false);
+    mocks.accountsDashboardRequested.mockReturnValue(true);
+    mocks.fetchAccountsCostDashboard.mockResolvedValue(successDashboard());
+    const view = await AdminCostsPage();
+    render(view);
+    expect(mocks.requireRole).toHaveBeenCalledWith("ADMIN");
+    expect(mocks.accountsDashboardRequested).toHaveBeenCalledOnce();
+    expect(mocks.fetchAccountsCostDashboard).toHaveBeenCalledOnce();
+    expect(mocks.resolveLedgerAccess).not.toHaveBeenCalled();
+    expect(mocks.getCostDashboard).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "How costs built up" })).not.toBeNull();
+  });
+
+  it("shows the Accounts unavailable state without falling back to the legacy dashboard", async () => {
+    mocks.accountsDashboardRequested.mockReturnValue(true);
+    mocks.fetchAccountsCostDashboard.mockResolvedValue({ available: false });
+    const view = await AdminCostsPage();
+    render(view);
+    expect(screen.getByText("Project costs are unavailable.")).not.toBeNull();
+    expect(mocks.getCostDashboard).not.toHaveBeenCalled();
+    expect(mocks.resolveLedgerAccess).not.toHaveBeenCalled();
+    expect(mocks.fetchRemoteCostDashboard).not.toHaveBeenCalled();
+  });
+
+  it("keeps the legacy selector when the Accounts dashboard is not requested", async () => {
+    mocks.accountsDashboardRequested.mockReturnValue(false);
+    mocks.localComparisonOrigin.mockReturnValue("");
+    mocks.resolveLedgerAccess.mockReturnValue({ mode: "local" });
+    mocks.getCostDashboard.mockResolvedValue({ ...disabledDashboard(), enabled: true, projectedTotalLabel: "£1.00" });
+    const view = await AdminCostsPage();
+    render(view);
+    expect(mocks.fetchAccountsCostDashboard).not.toHaveBeenCalled();
+    expect(mocks.resolveLedgerAccess).toHaveBeenCalledOnce();
+    expect(mocks.getCostDashboard).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }));
+    expect(screen.getAllByText("£1.00").length).toBeGreaterThan(0);
+  });
+
+  it("does not load Accounts when admin authorization fails", async () => {
+    mocks.requireRole.mockRejectedValueOnce(new Error("unauthorized"));
+    await expect(AdminCostsPage()).rejects.toThrow("unauthorized");
+    expect(mocks.accountsDashboardRequested).not.toHaveBeenCalled();
+    expect(mocks.fetchAccountsCostDashboard).not.toHaveBeenCalled();
+    expect(mocks.isCostsEnabled).not.toHaveBeenCalled();
   });
 });

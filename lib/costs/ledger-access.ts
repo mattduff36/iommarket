@@ -52,3 +52,7 @@ export function resolveLedgerAccess(env: RuntimeEnv = process.env): LedgerAccess
   return { mode: "remote", origin };
 }
 
+/** Presentation opt-in only. Does not change writer eligibility or resolveLedgerAccess. */
+export function accountsDashboardRequested(env: RuntimeEnv = process.env): boolean {
+  return env.COST_DASHBOARD_SOURCE === "accounts" || accountsReaderRequested(env);
+}
