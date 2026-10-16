@@ -67,7 +67,7 @@ export function FeaturedUpgradeButton({
 
   if (variant === "inline") {
     return (
-      <div className="inline-flex items-center gap-2">
+      <div className="inline-flex max-w-full flex-wrap items-center gap-2 [&>p]:basis-full">
         <Button
           type="button"
           variant="ghost"

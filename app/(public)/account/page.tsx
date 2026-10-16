@@ -317,7 +317,7 @@ export default async function AccountDashboardPage() {
                   recentListings.map((listing) => (
                     <div
                       key={listing.id}
-                      className="relative flex items-center justify-between rounded-md border border-border p-3"
+                      className="relative flex flex-col gap-3 rounded-md border border-border p-3"
                     >
                       <CardOverlayLink
                         href={`/listings/${listing.id}`}
