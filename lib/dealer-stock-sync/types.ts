@@ -1,5 +1,7 @@
 export const UNPUBLISH_AFTER_ABSENCES = 2;
 
+export type DealerStockCategorySlug = "car" | "van" | "motorbike" | "motorhome";
+
 export interface OwnedListingImage {
   publicId: string;
   url: string;
@@ -24,7 +26,7 @@ export interface InventoryVehicle {
   skipReason: string | null;
   title: string | null;
   description: string | null;
-  categorySlug: "car" | "van" | "motorbike" | null;
+  categorySlug: DealerStockCategorySlug | null;
   attributes: Record<string, string> | null;
   ownedImages: OwnedListingImage[];
   remoteImageCount: number;
@@ -90,7 +92,7 @@ export interface CreatePlanAction extends PlanBase {
   title: string;
   description: string;
   pricePence: number;
-  categorySlug: "car" | "van" | "motorbike";
+  categorySlug: DealerStockCategorySlug;
   attributes: Record<string, string>;
   ownedImages: OwnedListingImage[];
   sourceImageUrls?: string[];

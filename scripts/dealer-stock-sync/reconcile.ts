@@ -1,6 +1,83 @@
+import { classifyLocation } from "../import-ocean-inventory/locations";
 import { identityFor, vehicleContentHash } from "./identity";
 import { uniqueImageUrls } from "./image-urls";
 import type { CanonicalVehicle, ReconciledVehicle, SourceListResult } from "./types";
+
+const OCEAN_DEALER_KEY = "ocean-motor-village";
+
+export type OceanScopeDecision =
+  | { kind: "include"; canonical: string }
+  | { kind: "exclude"; reason: string }
+  | { kind: "unknown"; reason: string };
+
+export function classifyOceanScope(locationName: string | null | undefined): OceanScopeDecision {
+  const decision = classifyLocation(locationName);
+  if (decision.kind === "include") return { kind: "include", canonical: decision.canonical };
+  if (decision.reason.startsWith("excluded-location:")) {
+    return { kind: "exclude", reason: decision.reason };
+  }
+  const label = locationName?.trim() || "missing-location";
+  return { kind: "unknown", reason: `unknown-ocean-location:${label}` };
+}
+
+function withCanonicalOceanLocation(vehicle: CanonicalVehicle): CanonicalVehicle {
+  if (vehicle.dealerKey !== OCEAN_DEALER_KEY) return vehicle;
+  const scope = classifyOceanScope(vehicle.locationName);
+  if (scope.kind !== "include") return vehicle;
+  return { ...vehicle, locationName: scope.canonical };
+}
+
+function recordsForOceanScope(records: CanonicalVehicle[]): CanonicalVehicle[] | null {
+  const ocean = records.filter((record) => record.dealerKey === OCEAN_DEALER_KEY);
+  if (ocean.length === 0) return records;
+  const kinds = new Set(ocean.map((record) => classifyOceanScope(record.locationName).kind));
+  if (kinds.size !== 1 || !kinds.has("include")) return null;
+  return records.map(withCanonicalOceanLocation);
+}
+
+export function oceanScopeBlockers(sourceResults: SourceListResult[]) {
+  const reasons = new Set<string>();
+  const groups = new Map<string, { kinds: Set<OceanScopeDecision["kind"]>; labels: Set<string> }>();
+
+  for (const result of sourceResults) {
+    if (result.status !== "ok") continue;
+    for (const vehicle of result.vehicles) {
+      if (vehicle.dealerKey !== OCEAN_DEALER_KEY) continue;
+      const scope = classifyOceanScope(vehicle.locationName);
+      if (scope.kind === "unknown") reasons.add(scope.reason);
+      const identity = identityFor(vehicle);
+      const key = identity?.key ?? `ungrouped:${vehicle.sourceKey}:${vehicle.detailUrl ?? ""}`;
+      const group = groups.get(key) ?? { kinds: new Set(), labels: new Set<string>() };
+      group.kinds.add(scope.kind);
+      group.labels.add(vehicle.locationName?.trim() || "missing-location");
+      groups.set(key, group);
+    }
+  }
+
+  for (const group of groups.values()) {
+    if (group.kinds.has("include") && group.kinds.has("exclude")) {
+      reasons.add(`ambiguous-ocean-location:${[...group.labels].sort().join(" | ")}`);
+    }
+  }
+
+  return [...reasons].sort();
+}
+
+export function guardOceanScope(sourceResults: SourceListResult[]) {
+  const blockers = oceanScopeBlockers(sourceResults);
+  if (blockers.length === 0) return { sourceResults, blocked: false };
+  const error = blockers.join("; ");
+  return {
+    blocked: true,
+    sourceResults: sourceResults.map((source) => {
+      const oceanSource =
+        source.dealerKey === OCEAN_DEALER_KEY ||
+        source.vehicles.some((vehicle) => vehicle.dealerKey === OCEAN_DEALER_KEY);
+      if (!oceanSource || source.status !== "ok") return source;
+      return { ...source, status: "failed" as const, error };
+    }),
+  };
+}
 
 function completeness(vehicle: CanonicalVehicle) {
   return (
@@ -90,9 +167,11 @@ export function reconcileDealerVehicles(sourceResults: SourceListResult[]): Reco
 
   const reconciled: ReconciledVehicle[] = [];
   for (const [identityKey, group] of groups) {
-    const conflictReason = conflictingStableIds(group.records);
+    const scopedRecords = recordsForOceanScope(group.records);
+    if (!scopedRecords) continue;
+    const conflictReason = conflictingStableIds(scopedRecords);
     if (conflictReason) {
-      for (const [index, record] of group.records.entries()) {
+      for (const [index, record] of scopedRecords.entries()) {
         reconciled.push({
           identityKey: `${identityKey}#keep-${index}`,
           identityKind: group.kind,
@@ -108,14 +187,14 @@ export function reconcileDealerVehicles(sourceResults: SourceListResult[]): Reco
       continue;
     }
 
-    const merged = mergeVehicles(group.records);
+    const merged = mergeVehicles(scopedRecords);
     reconciled.push({
       identityKey,
       identityKind: group.kind,
-      sources: [...new Set(group.records.map((record) => record.sourceKey))],
+      sources: [...new Set(scopedRecords.map((record) => record.sourceKey))],
       preferredSource: merged.sourceKey,
       vehicle: merged,
-      priceMismatch: pricesMismatch(group.records),
+      priceMismatch: pricesMismatch(scopedRecords),
       identityConflict: false,
       conflictReason: null,
       contentHash: vehicleContentHash(merged),
@@ -123,16 +202,19 @@ export function reconcileDealerVehicles(sourceResults: SourceListResult[]): Reco
   }
 
   for (const [index, vehicle] of ungrouped.entries()) {
+    const scoped = recordsForOceanScope([vehicle]);
+    const eligible = scoped?.[0];
+    if (!eligible) continue;
     reconciled.push({
-      identityKey: `ungrouped:${vehicle.dealerKey}:${vehicle.sourceKey}:${index}`,
+      identityKey: `ungrouped:${eligible.dealerKey}:${eligible.sourceKey}:${index}`,
       identityKind: "composite",
-      sources: [vehicle.sourceKey],
-      preferredSource: vehicle.sourceKey,
-      vehicle,
+      sources: [eligible.sourceKey],
+      preferredSource: eligible.sourceKey,
+      vehicle: eligible,
       priceMismatch: false,
       identityConflict: false,
       conflictReason: null,
-      contentHash: vehicleContentHash(vehicle),
+      contentHash: vehicleContentHash(eligible),
     });
   }
 

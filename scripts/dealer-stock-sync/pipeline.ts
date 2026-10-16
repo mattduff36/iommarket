@@ -1,7 +1,44 @@
 import { getConnector } from "./connectors/detect";
 import { sleep } from "./rate-limit";
-import { reconcileDealerVehicles, reconcileSourceCounts, successfulRawCount } from "./reconcile";
-import type { DealerRecord, PipelineResult, ProbeResult, SourceListResult } from "./types";
+import { guardOceanScope, reconcileDealerVehicles, reconcileSourceCounts, successfulRawCount } from "./reconcile";
+import type { CanonicalVehicle, DealerRecord, PipelineResult, ProbeResult, SourceListResult } from "./types";
+
+function cloneVehicle(vehicle: CanonicalVehicle): CanonicalVehicle {
+  return {
+    ...vehicle,
+    imageUrls: [...vehicle.imageUrls],
+    provenance: {
+      ...vehicle.provenance,
+      sourceKeys: [...vehicle.provenance.sourceKeys],
+      rawIdentityHints: [...vehicle.provenance.rawIdentityHints],
+    },
+  };
+}
+
+function cloneSourceResults(sourceResults: SourceListResult[]): SourceListResult[] {
+  return sourceResults.map((source) => ({
+    ...source,
+    vehicles: source.vehicles.map(cloneVehicle),
+  }));
+}
+
+export function pipelineResultFromSources(input: {
+  dealer: DealerRecord;
+  sourceResults: SourceListResult[];
+  scrapeStartedAt: string;
+  scrapeFinishedAt: string;
+}): PipelineResult {
+  const sourceResults = cloneSourceResults(input.sourceResults);
+  const guarded = guardOceanScope(sourceResults);
+  return {
+    dealer: input.dealer,
+    sourceResults: guarded.sourceResults,
+    reconciled: reconcileDealerVehicles(sourceResults),
+    canArchive: !guarded.blocked && sourceResults.some((result) => result.status === "ok"),
+    scrapeStartedAt: input.scrapeStartedAt,
+    scrapeFinishedAt: input.scrapeFinishedAt,
+  };
+}
 
 export async function probeDealer(dealer: DealerRecord): Promise<ProbeResult> {
   const source = dealer.sources[0];
@@ -66,15 +103,12 @@ export async function runDealerPipeline(
     await sleep(delayMs);
   }
 
-  const reconciled = reconcileDealerVehicles(sourceResults);
-  return {
+  return pipelineResultFromSources({
     dealer,
     sourceResults,
-    reconciled,
-    canArchive: sourceResults.some((result) => result.status === "ok"),
     scrapeStartedAt,
     scrapeFinishedAt: new Date().toISOString(),
-  };
+  });
 }
 
 export function pipelineWarnings(result: PipelineResult) {
