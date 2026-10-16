@@ -23,3 +23,9 @@ When the user says `finalise`, `/finalise`, `fap`, `/fap`, `finalise-full`, `/ff
 - State the branch and a short summary before any push
 - Push changes to `staging` first. Direct pushes targeting `main` are rejected by finalise and the installed pre-push hook.
 - Production changes go through an approved `staging` to `main` pull request. Never bypass the safeguards as a routine shortcut.
+
+## Reuse successful tests
+
+- Do not rerun a successful full test suite solely for finalise closure after repair. The registered scripts automatically reuse a local success receipt for identical inputs for up to 24 hours.
+- Reuse requires matching tracked and nonignored untracked file contents, root environment files, dependency lockfiles, runtime and relevant environment. Failed, interrupted, stale, malformed or changed-input runs require fresh tests. No receipt is created if inputs change during the run.
+- Typecheck, lint and build retain their existing gates. Never fabricate a receipt or manually bypass checks. Set `FINALISE_FORCE_TESTS=1` to explicitly request a fresh suite when investigating nondeterminism.

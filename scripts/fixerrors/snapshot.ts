@@ -20,6 +20,7 @@ import {
   FIXERRORS_SNAPSHOT_VERSION,
   type OpenIssueSnapshot,
   type PgClientLike,
+  type QueueStatusCounts,
   type SnapshotEvent,
   type SnapshotIssue,
 } from "./types";
@@ -76,7 +77,7 @@ export function writeAndVerifyTextArtifactAtomic(path: string, content: string):
 }
 
 function canonicalSnapshotPayload(snapshot: Omit<OpenIssueSnapshot, "checksum" | "manifestChecksum">) {
-  return JSON.stringify({
+  const payload: Record<string, unknown> = {
     version: snapshot.version,
     commandId: snapshot.commandId,
     safetyContract: snapshot.safetyContract,
@@ -86,7 +87,11 @@ function canonicalSnapshotPayload(snapshot: Omit<OpenIssueSnapshot, "checksum" |
     expiresAt: snapshot.expiresAt,
     issues: snapshot.issues,
     analysis: snapshot.analysis,
-  });
+  };
+  if (snapshot.queueStatusCounts) {
+    payload.queueStatusCounts = snapshot.queueStatusCounts;
+  }
+  return JSON.stringify(payload);
 }
 
 export function sealSnapshot(
@@ -130,6 +135,7 @@ export function verifySnapshot(snapshot: OpenIssueSnapshot): OpenIssueSnapshot {
     expiresAt: snapshot.expiresAt,
     issues: snapshot.issues,
     analysis: snapshot.analysis,
+    ...(snapshot.queueStatusCounts ? { queueStatusCounts: snapshot.queueStatusCounts } : {}),
   });
   if (resealed.checksum !== snapshot.checksum || resealed.manifestChecksum !== snapshot.manifestChecksum) {
     throw new Error("Snapshot checksum verification failed");
@@ -186,8 +192,31 @@ function normalizeEvent(row: Record<string, unknown>): SnapshotEvent {
     requestPath: row.requestPath == null ? null : redactFreeText(String(row.requestPath)),
     digest: safeCorrelationValue(row.digest),
     traceId: safeCorrelationValue(row.traceId),
-    occurredAt: toIso(row.occurredAt, "occurredAt"),
+    occurredAt: toPreciseIso(row.occurredAt, "occurredAt"),
   };
+}
+
+const QUEUE_STATUS_COUNTS: QueueStatusCounts = {
+  OPEN: 0,
+  ACKNOWLEDGED: 0,
+  MUTED: 0,
+  RESOLVED: 0,
+};
+
+function normalizeQueueStatusCounts(rows: Array<Record<string, unknown>>): QueueStatusCounts {
+  const counts: QueueStatusCounts = { ...QUEUE_STATUS_COUNTS };
+  for (const row of rows) {
+    const status = String(row.status);
+    const count = Number(row.count);
+    if (
+      (status === "OPEN" || status === "ACKNOWLEDGED" || status === "MUTED" || status === "RESOLVED")
+      && Number.isInteger(count)
+      && count >= 0
+    ) {
+      counts[status] = count;
+    }
+  }
+  return counts;
 }
 
 export async function fetchOpenIssueSnapshot(
@@ -197,9 +226,11 @@ export async function fetchOpenIssueSnapshot(
 ): Promise<OpenIssueSnapshot> {
   await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
+    // Prisma stores these columns as UTC timestamp without time zone. Format
+    // them directly so neither pg's parser nor the SQL session timezone shifts them.
     const issuesResult = await client.query(
       `SELECT id, fingerprint, title, status, severity, source,
-              to_char("lastSeenAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
+              to_char("lastSeenAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
               occurrences,
               "sampleMessage", "sampleRoute", "sampleAction", "sampleComponent"
        FROM "MonitoringIssue"
@@ -219,10 +250,11 @@ export async function fetchOpenIssueSnapshot(
            WHERE "issueId" = ANY($1::text[])
          )
          SELECT id, "issueId", source, severity, environment, message, stack, route, action,
-                component, "requestPath", digest, "traceId", "occurredAt"
+                component, "requestPath", digest, "traceId",
+                to_char("occurredAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt"
          FROM ranked_events
          WHERE issue_event_rank <= $2
-         ORDER BY "issueId", "occurredAt" DESC, id DESC`,
+         ORDER BY "issueId", ranked_events."occurredAt" DESC, id DESC`,
         [issueIds, EVENTS_PER_ISSUE],
       );
       for (const row of eventsResult.rows) {
@@ -232,6 +264,12 @@ export async function fetchOpenIssueSnapshot(
         eventsByIssue.set(issueId, list);
       }
     }
+    const statusCounts = await client.query(
+      `SELECT status::text AS status, COUNT(*)::int AS count
+       FROM "MonitoringIssue"
+       GROUP BY status`,
+    );
+    const queueStatusCounts = normalizeQueueStatusCounts(statusCounts.rows);
     await client.query("COMMIT");
 
     const issues = issuesResult.rows.map((row) =>
@@ -256,6 +294,7 @@ export async function fetchOpenIssueSnapshot(
         reportOnlyIssueIds: [],
         codeBaseline: null,
       },
+      queueStatusCounts,
     });
   } catch (error) {
     await client.query("ROLLBACK");

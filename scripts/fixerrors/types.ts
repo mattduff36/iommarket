@@ -5,6 +5,8 @@ export const ERROR_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 export const EVENTS_PER_ISSUE = 10;
 
 export type MonitoringIssueStatus = "OPEN" | "ACKNOWLEDGED" | "MUTED" | "RESOLVED";
+
+export type QueueStatusCounts = Record<MonitoringIssueStatus, number>;
 export type ErrorClusterLane = "fast" | "standard" | "guarded" | "critical" | "report-only";
 export type ErrorClusterAction = "fix" | "investigate" | "report-only" | "critical-gates";
 
@@ -104,6 +106,7 @@ export type OpenIssueSnapshot = {
   manifestChecksum: string;
   issues: SnapshotIssue[];
   analysis: SnapshotAnalysis;
+  queueStatusCounts?: QueueStatusCounts;
 };
 
 export type ResolveConfirmation = {

@@ -51,6 +51,7 @@ describe("TradeForm feedback", () => {
     render(<TradeForm action={action} submitLabel="Save decision"> </TradeForm>);
     submit("Save decision");
     expect(await screen.findByRole("status")).toHaveTextContent("Saved.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save decision" })).toBeEnabled());
     submit("Save decision");
     expect(await screen.findByRole("alert")).toHaveTextContent("Choose a reason.");
     expect(screen.queryByRole("status")).not.toBeInTheDocument();

@@ -20,6 +20,7 @@ import {
   pushCurrentBranch,
   runCommand,
 } from "./finalise/git";
+import { runVerifiedTests } from "./finalise/test-receipt";
 import { getFinaliseVerifySteps } from "./finalise/steps";
 import { summarizeFinaliseChanges } from "./finalise/summary";
 import { getFinaliseModeKey, getPushModeDescription, getTrustedOperationalAction } from "./finalise/trusted-actions";
@@ -154,7 +155,11 @@ function main() {
     runDeterministicStep({
       mode,
       task: step.task,
-      action: () => runCommand(REPO_ROOT, "npm", step.args),
+      action: () => {
+        const run = () => { runCommand(REPO_ROOT, "npm", step.args); };
+        if (step.task === "test-run") runVerifiedTests(REPO_ROOT, run);
+        else run();
+      },
     });
   }
 

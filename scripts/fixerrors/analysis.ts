@@ -1,11 +1,12 @@
 import { clusterRepairBlockReason, suggestClusterDisposition } from "./decision";
-import { extractSourceFilesForIssue } from "./source-extraction";
+import { extractSourceFilesForIssue, isOpaqueScriptError } from "./source-extraction";
 import type {
   CodeBaseline,
   ErrorClusterAction,
   ErrorClusterLane,
   ErrorPattern,
   ErrorRootCauseCluster,
+  QueueStatusCounts,
   SnapshotIssue,
 } from "./types";
 
@@ -61,11 +62,29 @@ export function groupOpenIssues(
   return Array.from(patternMap.values()).sort((a, b) => b.occurrences - a.occurrences);
 }
 
+function classifyMoneyFamily(text: string): string | null {
+  if (!/\b(payment|billing|invoice|money|charge|ripple)\b/u.test(text)) return null;
+  if (/\bunknown product\b/u.test(text)) return "money-billing:unknown-product";
+  if (/\bcurrency validation\b/u.test(text)) return "money-billing:currency-validation";
+  return "money-billing";
+}
+
+function isCriticalRootCauseFamily(rootCauseFamily: string): boolean {
+  return (
+    rootCauseFamily === "auth-permissions-security" ||
+    rootCauseFamily === "database-persistence" ||
+    rootCauseFamily === "money-billing" ||
+    rootCauseFamily.startsWith("money-billing:") ||
+    rootCauseFamily === "concurrency-transaction"
+  );
+}
+
 function classifyRootCauseFamily(pattern: ErrorPattern): string {
   const text = [pattern.errorType, pattern.component, pattern.normalizedMessage, ...pattern.affectedPages]
     .join(" ")
     .toLowerCase()
     .replace(/_/gu, " ");
+  if (isOpaqueScriptError(pattern.normalizedMessage)) return "opaque-script-error";
   if (/\b(rls|row level|auth|jwt|permission|forbidden|unauthori[sz]ed|access control)\b/u.test(text)) {
     return "auth-permissions-security";
   }
@@ -75,9 +94,8 @@ function classifyRootCauseFamily(pattern: ErrorPattern): string {
   if (/react error #?441|server components render/u.test(text)) {
     return "react-server-components-digest";
   }
-  if (/\b(payment|billing|invoice|money|charge|ripple)\b/u.test(text)) {
-    return "money-billing";
-  }
+  const moneyFamily = classifyMoneyFamily(text);
+  if (moneyFamily) return moneyFamily;
   if (/\b(deadlock|race condition|concurren|transaction conflict)\b/u.test(text)) {
     return "concurrency-transaction";
   }
@@ -97,15 +115,10 @@ function classifyCluster(
   rootCauseFamily: string,
   patterns: ErrorPattern[],
 ): { lane: ErrorClusterLane; action: ErrorClusterAction } {
-  if (
-    rootCauseFamily === "auth-permissions-security" ||
-    rootCauseFamily === "database-persistence" ||
-    rootCauseFamily === "money-billing" ||
-    rootCauseFamily === "concurrency-transaction"
-  ) {
+  if (isCriticalRootCauseFamily(rootCauseFamily)) {
     return { lane: "critical", action: "critical-gates" };
   }
-  if (rootCauseFamily === "react-server-components-digest") {
+  if (rootCauseFamily === "opaque-script-error" || rootCauseFamily === "react-server-components-digest") {
     return { lane: "report-only", action: "report-only" };
   }
   if (rootCauseFamily === "external-network" || rootCauseFamily === "user-input") {
@@ -160,18 +173,26 @@ export function describeCodeBaseline(baseline: CodeBaseline | null): string[] {
   return lines;
 }
 
+export function formatQueueStatusCounts(counts: QueueStatusCounts): string {
+  return `OPEN ${counts.OPEN} | ACKNOWLEDGED ${counts.ACKNOWLEDGED} | MUTED ${counts.MUTED} | RESOLVED ${counts.RESOLVED}`;
+}
+
 export function generateAnalysisReport(
   issues: SnapshotIssue[],
   patterns: ErrorPattern[],
   clusters: ErrorRootCauseCluster[],
   baseline: CodeBaseline | null = null,
   history: string[] = [],
+  queueStatusCounts?: QueueStatusCounts,
 ): string {
   const lines = [
     "# Monitoring Error Analysis Report",
     "",
     `> **Generated:** ${new Date().toISOString()}`,
     `> **OPEN issues:** ${issues.length} | **Patterns:** ${patterns.length} | **Clusters:** ${clusters.length}`,
+    ...(queueStatusCounts
+      ? [`> **Queue statuses:** ${formatQueueStatusCounts(queueStatusCounts)} (export and mutation scope is OPEN only)`]
+      : []),
     "",
     "This file is overwritten each time `npm run fixerrors` runs.",
     "Use it as context for Cursor to analyze and fix codebase issues.",

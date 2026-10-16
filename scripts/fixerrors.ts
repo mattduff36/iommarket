@@ -25,7 +25,7 @@ import {
   recallOpenIssues,
   renderAlertHistory,
 } from "./fixerrors/alert-log";
-import { clusterErrorPatterns, generateAnalysisReport, groupOpenIssues, summarizeClusterLanes } from "./fixerrors/analysis";
+import { clusterErrorPatterns, formatQueueStatusCounts, generateAnalysisReport, groupOpenIssues, summarizeClusterLanes } from "./fixerrors/analysis";
 import { assertBindingMatches, formatSnapshotBinding, getArgumentValue, readSnapshotBinding } from "./fixerrors/binding";
 import { closeSnapshotIssues, readCloseManifest } from "./fixerrors/close-out";
 import { commitVerifiedCluster, readClusterReview } from "./fixerrors/commit-cluster";
@@ -261,6 +261,7 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
     clusters,
     baseline,
     renderAlertHistory(recalls),
+    snapshot.queueStatusCounts,
   );
   appendAlertLog(newSeenEvents(snapshot.issues, history));
   writeAndVerifyTextArtifactAtomic(ERROR_ANALYSIS_PATH, report);
@@ -276,6 +277,9 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
   writeAndVerifySnapshot(snapshot, resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}.json`));
 
   console.log(`  OPEN issues: ${snapshot.issues.length}`);
+  if (snapshot.queueStatusCounts) {
+    console.log(`  Queue status counts: ${formatQueueStatusCounts(snapshot.queueStatusCounts)}`);
+  }
   console.log(`  Patterns: ${patterns.length}`);
   console.log(`  Clusters: ${clusters.length}`);
   if (baseline) {

@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { clusterErrorPatterns, describeCodeBaseline, generateAnalysisReport, groupOpenIssues } from "@/scripts/fixerrors/analysis";
+import { clusterErrorPatterns, describeCodeBaseline, formatQueueStatusCounts, generateAnalysisReport, groupOpenIssues } from "@/scripts/fixerrors/analysis";
 import { assertAutoRepairDecision, buildFixerrorsDecisions, clusterRepairBlockReason } from "@/scripts/fixerrors/decision";
 import { assessExplicitRepairPaths, compareRepairPaths } from "@/scripts/fixerrors/git-policy";
 import { extractSourceFilesForIssue, parseStackTrace } from "@/scripts/fixerrors/source-extraction";
@@ -173,6 +173,107 @@ describe("FXMON-ROUTING-002 cluster routing", () => {
     })]));
     expect(clusters[0]).toMatchObject({ rootCauseFamily: "database-persistence", lane: "critical", action: "critical-gates" });
   });
+
+  it("keeps opaque Script errors report-only and does not attribute the homepage to an admin layout", () => {
+    const scriptError = makeIssue({
+      id: "script-home",
+      fingerprint: "fp-script",
+      source: "CLIENT",
+      sampleMessage: "Script error.",
+      sampleRoute: "/",
+      sampleAction: "renderHome",
+      sampleComponent: null,
+      events: [{
+        id: "script-event",
+        source: "CLIENT",
+        severity: "HIGH",
+        environment: "production",
+        message: "Script error.",
+        stack: null,
+        route: "/",
+        action: null,
+        component: null,
+        requestPath: "/",
+        occurredAt: "2026-08-16T12:00:00.000Z",
+      }],
+    });
+    const refs = extractSourceFilesForIssue(scriptError);
+    expect(refs).toEqual([]);
+    const clusters = clusterErrorPatterns(groupOpenIssues([scriptError]));
+    expect(clusters[0]).toMatchObject({
+      rootCauseFamily: "opaque-script-error",
+      lane: "report-only",
+      action: "report-only",
+    });
+    expect(buildFixerrorsDecisions(clusters)[0]?.action).toBe("needs-person");
+
+    const homepage = makeIssue({
+      id: "home-widget",
+      fingerprint: "fp-home",
+      sampleMessage: "Widget blew up on the homepage",
+      sampleRoute: "/",
+      sampleAction: "renderHome",
+      events: [{
+        id: "home-event",
+        source: "SERVER",
+        severity: "HIGH",
+        environment: "production",
+        message: "Widget blew up on the homepage",
+        stack: null,
+        route: "/",
+        action: null,
+        component: null,
+        requestPath: "/",
+        occurredAt: "2026-08-16T12:00:00.000Z",
+      }],
+    });
+    expect(extractSourceFilesForIssue(homepage).map((ref) => ref.file)).toEqual(["app/(public)/page.tsx"]);
+  });
+
+  it("separates repeated payment mechanisms without dropping critical gates", () => {
+    const clusters = clusterErrorPatterns(groupOpenIssues([
+      makeIssue({
+        id: "unknown-1",
+        fingerprint: "fp-unknown-1",
+        sampleMessage: "Unknown Ripple product UNKNOWN_PRODUCT",
+        occurrences: 3,
+      }),
+      makeIssue({
+        id: "unknown-2",
+        fingerprint: "fp-unknown-2",
+        sampleMessage: "Ripple application failure UNKNOWN_PRODUCT",
+        occurrences: 2,
+      }),
+      makeIssue({
+        id: "currency-1",
+        fingerprint: "fp-currency",
+        sampleMessage: "Ripple webhook failed currency validation before persist.",
+        occurrences: 4,
+      }),
+      makeIssue({
+        id: "currency-2",
+        fingerprint: "fp-currency-2",
+        sampleMessage: "Ripple webhook failed currency validation before persist.",
+        occurrences: 1,
+      }),
+    ]));
+    const unknown = clusters.find((cluster) => cluster.issueIds.includes("unknown-1"));
+    const currency = clusters.find((cluster) => cluster.issueIds.includes("currency-1"));
+    expect(unknown?.issueIds.sort()).toEqual(["unknown-1", "unknown-2"]);
+    expect(currency?.issueIds.sort()).toEqual(["currency-1", "currency-2"]);
+    expect(unknown).toMatchObject({
+      rootCauseFamily: "money-billing:unknown-product",
+      lane: "critical",
+      action: "critical-gates",
+    });
+    expect(currency).toMatchObject({
+      rootCauseFamily: "money-billing:currency-validation",
+      lane: "critical",
+      action: "critical-gates",
+    });
+    expect(unknown?.id).not.toBe(currency?.id);
+    expect(buildFixerrorsDecisions(clusters).every((decision) => decision.action === "pause-for-approval")).toBe(true);
+  });
 });
 
 describe("FXMON-REVIEW-001 selected issue subsets", () => {
@@ -198,6 +299,17 @@ describe("FXMON-REVIEW-001 selected issue subsets", () => {
 
   it("still blocks decisions that are not unblocked auto-repairs", () => {
     expect(() => assertAutoRepairDecision([{ ...decision, action: "needs-person", blockReason: "needs review" }], "cluster-4", ["issue-a"])).toThrow(/needs review/);
+  });
+});
+
+describe("queue status reporting", () => {
+  it("prints other queue statuses while the issue list stays the OPEN export", () => {
+    const counts = { OPEN: 2, ACKNOWLEDGED: 5, MUTED: 1, RESOLVED: 8 };
+    const openIssue = makeIssue({ id: "open-only" });
+    const report = generateAnalysisReport([openIssue], [], [], null, [], counts);
+    expect(report).toContain(`> **Queue statuses:** ${formatQueueStatusCounts(counts)} (export and mutation scope is OPEN only)`);
+    expect(report).toContain("### open-only");
+    expect(report).not.toContain("### acknowledged-hidden");
   });
 });
 

@@ -70,6 +70,14 @@ function findExistingSourceFile(preferredFile: string, repoRoot: string): string
   return null;
 }
 
+export function isOpaqueScriptError(message: string): boolean {
+  return /^script error\.?$/iu.test(message.trim());
+}
+
+function isSharedLayoutFile(file: string): boolean {
+  return /(?:^|\/)layout\.(?:tsx|ts|jsx|js)$/u.test(normalizeSourceFilePath(file));
+}
+
 function routePathFromAppFile(file: string): string | null {
   const normalized = normalizeSourceFilePath(file);
   const match = normalized.match(/^app\/(.+)\/(?:page|layout|route)\.(?:tsx|ts|jsx|js)$/);
@@ -150,12 +158,13 @@ function inferSourceRefsFromRoute(
 ): SourceFileRef[] {
   const pagePath = getPagePath(route);
   if (!pagePath) return [];
-  const refs: SourceFileRef[] = [];
-  const seen = new Set<string>();
+  const matches: string[] = [];
   for (const file of collectSourceFiles(repoRoot)) {
-    if (routePathFromAppFile(file) === pagePath) addSourceRef(refs, seen, { file });
+    if (isSharedLayoutFile(file)) continue;
+    if (routePathFromAppFile(file) === pagePath) matches.push(file);
   }
-  return refs;
+  const [onlyMatch] = matches;
+  return matches.length === 1 && onlyMatch ? [{ file: onlyMatch }] : [];
 }
 
 function inferFromAction(action: string | null | undefined): SourceFileRef[] {
@@ -211,7 +220,7 @@ export function extractSourceFilesForIssue(
     if (refs.length === 0) {
       for (const ref of inferFromAction(event.action)) addSourceRef(refs, seen, ref);
     }
-    if (refs.length === 0) {
+    if (refs.length === 0 && !isOpaqueScriptError(event.message)) {
       for (const ref of inferSourceRefsFromRoute(event.route ?? event.requestPath, repoRoot)) {
         addSourceRef(refs, seen, ref);
       }
