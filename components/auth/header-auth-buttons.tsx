@@ -112,6 +112,7 @@ export function HeaderAuthButtons({ authState }: Props) {
 
       {/* Desktop: full dropdown */}
       <DropdownMenu
+        modal={false}
         open={accountMenuOpen}
         onOpenChange={(open) => {
           setAccountMenuOpen(open);
