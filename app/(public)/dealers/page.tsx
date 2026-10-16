@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { DealerDirectory } from "@/components/dealers/dealer-directory";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { db } from "@/lib/db";

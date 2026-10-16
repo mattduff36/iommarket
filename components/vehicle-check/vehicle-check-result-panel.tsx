@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { getStatusVariant, getDueDateVariant, getPositionVariant, vehicleStatusClasses, type VehicleStatusTone } from "@/lib/utils/vehicle-check-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

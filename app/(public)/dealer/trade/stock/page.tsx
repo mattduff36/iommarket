@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { notFound } from "next/navigation";
 import { TradeNav } from "@/components/trade/trade-nav";
 import { listOwnTradeStock } from "@/lib/trade-exchange/listings";

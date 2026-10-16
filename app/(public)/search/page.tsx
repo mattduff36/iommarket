@@ -22,7 +22,7 @@ import {
 import { categoryLandingCopy } from "@/lib/seo/category-copy";
 import { publicPageMetadata } from "@/lib/seo/page-metadata";
 import { buildCategorySearchPath } from "@/lib/navigation-paths";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { findListingsInAttributeOrder } from "@/lib/search/attribute-sort";
 import {

@@ -1,7 +1,9 @@
 "use client";
 
+import { NavigationContent } from "@/components/navigation/navigation-pending";
+
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
@@ -218,7 +220,7 @@ function AccountMobileNav({
         </DialogTrigger>
         <span className="truncate text-sm font-semibold text-text-primary">{title}</span>
       </div>
-      <DialogContent className="fixed left-0 top-0 flex h-dvh max-h-dvh w-[224px] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none p-0 pt-[env(safe-area-inset-top)] data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left [&>button]:right-[calc(1rem+env(safe-area-inset-right))] [&>button]:top-[calc(1rem+env(safe-area-inset-top))]">
+      <DialogContent overlayClassName="bg-black/25 backdrop-blur-[2px]" className="fixed left-0 top-0 flex h-dvh max-h-dvh w-[224px] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none p-0 pt-[env(safe-area-inset-top)] data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left [&>button]:right-[calc(1rem+env(safe-area-inset-right))] [&>button]:top-[calc(1rem+env(safe-area-inset-top))]">
         <DialogTitle className="sr-only">Account navigation</DialogTitle>
         <DialogDescription className="sr-only">
           Browse account, dealer, and trade links.
@@ -275,7 +277,7 @@ export function AccountShell({
           dealerSlug={dealerSlug}
           showPublicProfile={showPublicProfile}
         />
-        <div className={styles.content}>{children}</div>
+        <NavigationContent className={styles.content}>{children}</NavigationContent>
       </div>
     </div>
   );

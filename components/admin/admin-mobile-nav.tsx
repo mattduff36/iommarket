@@ -32,7 +32,7 @@ export function AdminMobileNav({ items: navigation = ADMIN_NAV.filter((item) => 
         <span className="text-sm font-semibold text-text-primary">Admin</span>
       </div>
 
-      <DialogContent className="fixed left-0 top-0 flex h-dvh max-h-dvh w-64 max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none p-0 pt-[env(safe-area-inset-top)] data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left [&>button]:right-[calc(1rem+env(safe-area-inset-right))] [&>button]:top-[calc(1rem+env(safe-area-inset-top))]">
+      <DialogContent overlayClassName="bg-black/25 backdrop-blur-[2px]" className="fixed left-0 top-0 flex h-dvh max-h-dvh w-64 max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none p-0 pt-[env(safe-area-inset-top)] data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left [&>button]:right-[calc(1rem+env(safe-area-inset-right))] [&>button]:top-[calc(1rem+env(safe-area-inset-top))]">
         <DialogTitle className="sr-only">Admin Navigation</DialogTitle>
         <DialogDescription className="sr-only">
           Browse the admin navigation links.

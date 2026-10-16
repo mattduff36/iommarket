@@ -3,8 +3,8 @@
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useRef, useState, useTransition } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/navigation/link";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import {
   AdminActionBar,
   AdminActionButton,

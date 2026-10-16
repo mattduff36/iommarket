@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { DealerCard } from "@/components/dealers/dealer-card";
 import type { DealerSpotlight } from "@/lib/dealers/spotlights";
 

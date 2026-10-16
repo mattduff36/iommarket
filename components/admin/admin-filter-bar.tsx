@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { cn } from "@/lib/cn";
 
 interface AdminFilterBarProps {

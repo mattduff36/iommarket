@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { MonitoringOriginalError, monitoringErrorCopy } from "@/components/admin/monitoring-readable-error";
 import { Badge } from "@/components/ui/badge";

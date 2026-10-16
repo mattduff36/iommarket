@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { notFound } from "next/navigation";
 import { AdminProfileEditForm } from "./profile-edit-form";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";

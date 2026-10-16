@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { AlertTriangle, ArrowUpRight, Ban, Bug, ClipboardList, Clock, Star, type LucideIcon } from "lucide-react";
 import type { AdminActionQueueItem } from "./admin-action-queue";
 import styles from "./admin-action-queue-mobile.module.css";

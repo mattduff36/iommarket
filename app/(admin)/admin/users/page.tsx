@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import type { TradeMembershipStatus } from "@prisma/client";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import {

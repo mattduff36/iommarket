@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { continueEarlyAccessClaim } from "@/actions/early-access";
 import { Button } from "@/components/ui/button";
 

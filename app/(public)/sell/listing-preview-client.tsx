@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { Button } from "@/components/ui/button";
 import { ListingImageGallery } from "../listings/[id]/listing-image-gallery";
 import { ExpandableDescription } from "../listings/[id]/expandable-description";

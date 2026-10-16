@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { HoldingHeader } from "@/components/layout/holding-header";
 import { Button } from "@/components/ui/button";
 import { resolveEarlyAccessInvite } from "@/lib/waitlist/early-access/invite";

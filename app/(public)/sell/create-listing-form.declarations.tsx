@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LISTING_DECLARATION_LABEL } from "@/lib/listings/write-off-category";
 

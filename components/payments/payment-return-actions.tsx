@@ -1,7 +1,9 @@
 "use client";
 
+import { BrandedSpinner } from "@/components/ui/branded-spinner";
+
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { readHostedCheckoutLink } from "@/actions/hosted-payment-return";
 import { useCheckoutWindowHandoff } from "@/components/payments/checkout-window-handoff";
 import { Button } from "@/components/ui/button";
@@ -98,7 +100,7 @@ export function PaymentReturnActions({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-text-secondary" role="status">{detail}</p>
+      <p className="flex items-center gap-2 text-sm text-text-secondary" role="status">{waiting ? <BrandedSpinner size="sm" /> : null}{detail}</p>
       {showReturnFallback || !confirmed ? (
         <>
           <Button asChild>

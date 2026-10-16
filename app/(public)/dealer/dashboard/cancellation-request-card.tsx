@@ -3,7 +3,7 @@
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { requestDealerCancellation } from "@/actions/dealer/cancellation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

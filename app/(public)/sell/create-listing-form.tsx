@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { paymentOutcomeReview, UNCERTAIN_CHECKOUT_MESSAGE, listingOutcomeReview, UNCERTAIN_LISTING_MESSAGE, type OutcomeReview } from "@/lib/forms/outcome-uncertainty";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import {
   RippleDemoCheckoutDialog,
   useRippleDemoCheckout,

@@ -5,13 +5,13 @@
   "semantic_display_verified_count": 474,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1141,
+    "displayed": 1138,
     "internal-only": 1300,
     "duplicate": 793,
-    "irrelevant": 135
+    "irrelevant": 138
   },
   "rule_counts": {
-    "ast-public-return": 544,
+    "ast-public-return": 541,
     "ast-no-public-sink": 858,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
@@ -23,7 +23,7 @@
     "ast-throw-replaced": 8,
     "ast-branch-condition": 7,
     "ast-enclosing-public-function": 61,
-    "ast-type-or-import": 101,
+    "ast-type-or-import": 104,
     "ast-public-sink": 235,
     "ast-jsx-consumer": 129,
     "ast-jsx-close": 10,
@@ -75,9 +75,9 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1236,
+    "public-sink": 1233,
     "raw-message": 166,
-    "fragment": 583,
+    "fragment": 586,
     "static-literal": 297,
     "thrown": 892,
     "monitoring": 81,
@@ -184,18 +184,18 @@
       "classification": "displayed"
     },
     {
-      "id": "displayed:ast-public-return:listings-b-public-boundary:public-sink",
-      "count": 49,
-      "example": "actions/listings.ts:134",
-      "rule_id": "ast-public-return",
-      "classification": "displayed"
-    },
-    {
       "id": "irrelevant:ast-type-or-import:deferred-c:fragment",
       "count": 49,
       "example": "actions/admin/profile-edit.ts:62",
       "rule_id": "ast-type-or-import",
       "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-public-return:listings-b-public-boundary:public-sink",
+      "count": 46,
+      "example": "actions/listings.ts:134",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
     },
     {
       "id": "displayed:ast-throw-forwarded:deferred-c:raw-message",
@@ -457,6 +457,13 @@
       "classification": "duplicate"
     },
     {
+      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:fragment",
+      "count": 10,
+      "example": "app/(public)/sell/create-listing-form.lookup.ts:42",
+      "rule_id": "ast-type-or-import",
+      "classification": "irrelevant"
+    },
+    {
       "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:public-sink",
       "count": 9,
       "example": "actions/admin/payments.ts:52",
@@ -545,13 +552,6 @@
       "count": 7,
       "example": "actions/listings.ts:115",
       "rule_id": "ast-binding",
-      "classification": "irrelevant"
-    },
-    {
-      "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:fragment",
-      "count": 7,
-      "example": "app/(public)/sell/create-listing-submit.ts:81",
-      "rule_id": "ast-type-or-import",
       "classification": "irrelevant"
     },
     {

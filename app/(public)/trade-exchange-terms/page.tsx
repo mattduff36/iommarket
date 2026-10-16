@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 
 export const metadata: Metadata = {
   title: "Trade Exchange terms (draft)",

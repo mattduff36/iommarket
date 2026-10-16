@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { TableHead } from "@/components/ui/table";
 import {

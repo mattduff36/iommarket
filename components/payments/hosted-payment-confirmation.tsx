@@ -1,7 +1,9 @@
 "use client";
 
+import { BrandedSpinner } from "@/components/ui/branded-spinner";
+
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { confirmHostedListingPayment } from "@/actions/hosted-payment-return";
 import { useCheckoutWindowHandoff } from "@/components/payments/checkout-window-handoff";
 import { Button } from "@/components/ui/button";
@@ -79,7 +81,7 @@ export function HostedPaymentConfirmation({ paymentJobRef }: { paymentJobRef: st
         <p className="text-sm text-text-secondary">Your payment has been linked to your listing. Continue to see its status and any remaining steps.</p>
         {showReturnFallback ? <Button asChild><Link href={`/sell/checkout?listing=${encodeURIComponent(result.listingId)}`}>Continue to my listing</Link></Button> : <p className="text-sm text-text-secondary">Returning to your original itrader tab…</p>}
       </> : result.status === "waiting" ? <>
-        <h2 className="text-lg font-semibold">Confirming your payment</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold"><BrandedSpinner size="sm" />Confirming your payment</h2>
         <p className="text-sm text-text-secondary">We’re checking your payment confirmation. This can take a moment. Please don’t pay again.</p>
       </> : result.status === "sign-in" ? <>
         <h2 className="text-lg font-semibold">Sign in to finish checking your payment</h2>

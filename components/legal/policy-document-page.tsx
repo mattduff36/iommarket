@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { MarkdownRenderer } from "@/components/cms/markdown-renderer";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getPolicyDocument } from "@/lib/policies/loader";

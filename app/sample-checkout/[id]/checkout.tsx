@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { isUncertainActionResult, UNCERTAIN_SAMPLE_MESSAGE } from "@/lib/forms/outcome-uncertainty";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { CreditCard } from "lucide-react";
 import {
   cancelSamplePayment,

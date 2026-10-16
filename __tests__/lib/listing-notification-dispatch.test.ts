@@ -26,6 +26,8 @@ vi.mock("@/lib/monitoring", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    user: { findFirst: vi.fn().mockResolvedValue({ id: "notification-user" }) },
+    userNotificationSettings: { findUnique: vi.fn().mockResolvedValue(null) },
     listing: {
       findUnique: listingFindUnique,
     },

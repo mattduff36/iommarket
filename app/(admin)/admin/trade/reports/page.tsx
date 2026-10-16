@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { AdminPager } from "@/components/admin/admin-pager";
 import { adminTotalPages, parseAdminPage } from "@/lib/admin/query";
 import { notFound } from "next/navigation";

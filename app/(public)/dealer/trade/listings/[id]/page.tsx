@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { notFound } from "next/navigation";
 import { removeTradePhotoAction, reportTradeListingAction, uploadTradePhotoAction } from "@/actions/trade/listings";
 import { sendTradeEnquiryAction } from "@/actions/trade/enquiries";

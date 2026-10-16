@@ -1,5 +1,5 @@
 import type { DealerEntitlement } from "@/lib/dealers/entitlement";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { redirect } from "next/navigation";
 import { Star } from "lucide-react";
 import { AccountListingActions } from "@/components/account/account-listing-actions";

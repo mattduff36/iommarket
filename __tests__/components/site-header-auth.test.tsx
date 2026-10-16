@@ -9,6 +9,8 @@ const authMocks = vi.hoisted(() => ({
   pathname: "/",
   getSession: vi.fn(),
   signOut: vi.fn(),
+  beginSignOut: vi.fn(),
+  cancelSignOut: vi.fn(),
   unsubscribe: vi.fn(),
   authStateChangeCallback: null as null | ((
     event: string,
@@ -19,6 +21,11 @@ const authMocks = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => authMocks.pathname,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
+vi.mock("@/components/navigation/navigation-pending", () => ({
+  useTrackedNavigation: () => undefined,
+  useSignOutLoading: () => ({ begin: authMocks.beginSignOut, cancel: authMocks.cancelSignOut }),
 }));
 
 vi.mock("next/dynamic", () => ({ default: () => ({ listingId, open }: { listingId: string; open: boolean }) => open ? <section role="dialog">Admin editor for {listingId}</section> : null }));
@@ -43,6 +50,7 @@ vi.mock("@/components/auth/header-auth-buttons", () => ({
     authState,
   }: {
     authState: {
+      handleSignOut: () => void;
       displayName: string | null;
       loading: boolean;
       role: string | null;
@@ -54,6 +62,7 @@ vi.mock("@/components/auth/header-auth-buttons", () => ({
       </span>
       <span data-testid="header-auth-name">{authState.displayName}</span>
       <span data-testid="header-auth-role">{authState.role}</span>
+      <button onClick={authState.handleSignOut}>Test sign out</button>
     </>
   ),
 }));
@@ -96,6 +105,8 @@ describe("SiteHeader auth initialization", () => {
     authMocks.pathname = "/";
     authMocks.getSession.mockReset();
     authMocks.signOut.mockReset();
+    authMocks.beginSignOut.mockReset();
+    authMocks.cancelSignOut.mockReset();
     authMocks.unsubscribe.mockReset();
     authMocks.authStateChangeCallback = null;
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
@@ -107,6 +118,19 @@ describe("SiteHeader auth initialization", () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("conceals content before awaiting sign-out and restores access with an error when auth fails", async () => {
+    authMocks.getSession.mockResolvedValue({ data: { session: null } });
+    let finish!: (value: { error: Error }) => void;
+    authMocks.signOut.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<SiteHeader />);
+    await userEvent.click(screen.getAllByText("Test sign out")[0]);
+    expect(authMocks.beginSignOut).toHaveBeenCalledOnce();
+    expect(authMocks.cancelSignOut).not.toHaveBeenCalled();
+    await act(async () => finish({ error: new Error("Offline") }));
+    expect(authMocks.cancelSignOut).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not sign out");
   });
 
   it("handles an aborted session request without logging an error", async () => {

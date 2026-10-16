@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { db } from "@/lib/db";
 import { buildCategorySearchPath } from "@/lib/navigation-paths";

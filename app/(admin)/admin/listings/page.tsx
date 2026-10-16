@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import type { ReactNode } from "react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { SignUpWithPlans } from "@/components/auth/sign-up-with-plans";
 import { Button } from "@/components/ui/button";

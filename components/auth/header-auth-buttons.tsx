@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import { Button } from "@/components/ui/button";
 import { getAccountNavItems, getRoleLabel, type AuthRole } from "@/lib/navigation";
 import {

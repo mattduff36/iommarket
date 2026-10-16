@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/link";
 import type { ReactNode } from "react";
 import { CircleSlash2, Clock3, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
