@@ -57,6 +57,7 @@ interface ImageUploadProps {
   onImagesChange: React.Dispatch<React.SetStateAction<UploadedImage[]>>;
   onBusyChange?: (isBusy: boolean) => void;
   maxImages?: number;
+  hideAddButton?: boolean;
 }
 
 interface PendingSlot {
@@ -73,6 +74,7 @@ function createClientId() {
 }
 
 export function ImageUpload({
+  hideAddButton = false,
   images,
   onImagesChange,
   onBusyChange,
@@ -320,7 +322,7 @@ export function ImageUpload({
             disabled={isBusy || images.length >= maxImages}
             loading={isBusy}
             onClick={() => inputRef.current?.click()}
-            className="w-full"
+            className={hideAddButton ? "hidden" : "w-full border border-white/30 bg-white/5 text-text-primary hover:bg-white/10"}
           >
             {isBusy ? (
               "Uploading..."

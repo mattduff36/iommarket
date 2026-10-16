@@ -11,8 +11,8 @@ export function ListingPreviewButton({ scope, snapshot, disabled }: {
   disabled?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
-  return <div className="mb-3">
-    <Button asChild variant="ghost" className="w-full">
+  return <div className="min-w-0">
+    <Button asChild variant="ghost" className="h-12 max-w-full whitespace-normal border border-white/30 bg-white/5 px-2 text-xs text-text-primary hover:bg-white/10 sm:px-6 sm:text-sm">
       <a href="/sell/preview" target="_blank" rel="noopener noreferrer" aria-disabled={disabled}
         onClick={(event) => {
           if (disabled) { event.preventDefault(); return; }

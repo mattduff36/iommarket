@@ -351,7 +351,7 @@ export function GuidedListingStepPanels({
         <p className="text-sm text-text-secondary">
           Add between 2 and {maxImages} photos. Use a clean first image and include exterior and interior shots.
         </p>
-        <ImageUpload
+        <ImageUpload hideAddButton
           images={uploadedImages}
           onImagesChange={onImagesChange}
           onBusyChange={onPhotoBusyChange}

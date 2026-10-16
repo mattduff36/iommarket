@@ -681,6 +681,9 @@ export function CreateListingForm({
               attention={attention}
               onSelect={selectStep}
               actions={<CreateListingActions
+                onAddPhotos={() => formRef.current?.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
+                canAddPhotos={uploadedImages.length < maxImages}
+                addingPhotosBusy={photoUploadsBusy}
                 step={step} error={error} outcomeReview={outcomeReview} userId={userId} mode={mode}
                 draftCatalog={draftCatalog} unsavedSnapshot={unsavedSnapshot} photoBusy={photoBusy}
                 isPending={isPending} recovering={localDraft.recovering} prevStep={prevStep} nextStep={nextStep}
