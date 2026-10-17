@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseSupabaseConnectionIdentity } from "@/lib/db/supabase-identity";
 import { resolveDesktopGate } from "@/lib/dealer-stock-sync/desktop-config";
@@ -204,8 +205,11 @@ describe("staging desktop provisioning", () => {
 
   it("pins recovery outside the repo and keeps DPAPI scripts free of secret literals", () => {
     expect(privateTreeIgnored("/private/\n")).toBe(true);
-    expect(provisioningStatePath("D:/Websites/iommarket").replaceAll("\\", "/")).toBe(
-      "D:/Websites/iommarket/private/stock-update-desktop-build/provisioning/staging-shared.dpapi",
+    const repoRoot = path.resolve("stock-provisioning-fixture");
+    const statePath = provisioningStatePath(repoRoot);
+    expect(path.isAbsolute(statePath)).toBe(true);
+    expect(path.relative(repoRoot, statePath).replaceAll("\\", "/")).toBe(
+      "private/stock-update-desktop-build/provisioning/staging-shared.dpapi",
     );
     expect(DPAPI_SCRIPTS.protect).toContain("ProtectedData");
     expect(DPAPI_SCRIPTS.protect).toContain("CurrentUser");
