@@ -51,16 +51,11 @@ describe("homepage sold visibility", () => {
     dbMock.listingAttributeValue.findMany.mockResolvedValue([]);
   });
 
-  it("excludes disabled and hidden sellers from the SOLD count", async () => {
+  it("does not fetch a SOLD count after the homepage banner is removed", async () => {
     const { default: HomePage } = await import("@/app/(public)/page");
 
     await HomePage();
 
-    const soldWhere = JSON.stringify(dbMock.listing.count.mock.calls[0][0].where);
-    expect(soldWhere).toContain('"status":"SOLD"');
-    expect(soldWhere).toContain('"disabledAt":null');
-    expect(soldWhere).toContain('"deletedAt":null');
-    expect(soldWhere).toContain('"previewPackId":null');
-    expect(soldWhere).toContain('"isAdminPreview":false');
+    expect(dbMock.listing.count).not.toHaveBeenCalled();
   });
 });
