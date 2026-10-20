@@ -15,11 +15,7 @@ import { ArrowRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { expireStaleLiveListings } from "@/lib/listings/expiry";
 import { marketplaceListingWhereWithSettings } from "@/lib/listings/marketplace";
-import {
-  applySampleListingVisibility,
-  getSampleVisibility,
-} from "@/lib/listings/sample-visibility";
-import { publicListingSellerWhere } from "@/lib/listings/dealer-visibility";
+import { getSampleVisibility } from "@/lib/listings/sample-visibility";
 import { listingPhotoSelect, toListingPhotoSource } from "@/lib/images/photo";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -63,7 +59,7 @@ export default async function HomePage() {
   const sampleVisibility = await getSampleVisibility();
   const liveWhere = await marketplaceListingWhereWithSettings({ viewer: currentUser });
   /* Fetch categories and dealer/search datasets */
-  const [categories, regions, makeDefs, modelDefs, dealerResults, soldCount, pricing] = await Promise.all([
+  const [categories, regions, makeDefs, modelDefs, dealerResults, pricing] = await Promise.all([
     db.category.findMany({
       where: { active: true, parentId: null },
       orderBy: { sortOrder: "asc" },
@@ -86,14 +82,6 @@ export default async function HomePage() {
     db.dealerProfile.findMany(
       getMarketplaceDealerSpotlightQuery(liveWhere, currentUser, sampleVisibility),
     ),
-    db.listing.count({
-      where: {
-        AND: [
-          applySampleListingVisibility({ status: "SOLD" }, sampleVisibility),
-          publicListingSellerWhere(undefined, sampleVisibility),
-        ],
-      },
-    }),
     getMarketplacePricing(),
   ]);
   const dealers = shuffleDealerSpotlights(dealerResults);
@@ -251,20 +239,6 @@ export default async function HomePage() {
         <HomeVehicleCheck />
       </section>
 
-      {/* ============ SOLD STAT ============ */}
-      {soldCount > 0 && (
-        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-6 py-4">
-            <span className="inline-flex items-center justify-center rounded-full bg-emerald-500 text-white font-bold text-xs px-2.5 py-0.5">
-              SOLD
-            </span>
-            <p className="text-sm text-text-secondary">
-              <span className="font-bold text-text-primary text-base">{soldCount.toLocaleString()}</span>{" "}
-              vehicle{soldCount !== 1 ? "s" : ""} advertised on itrader.im
-            </p>
-          </div>
-        </section>
-      )}
     </>
     </HomeCategoryProvider>
   );
