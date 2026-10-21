@@ -157,7 +157,7 @@ export default async function AdminCancellationsPage({
               <TableCell data-column="processed" className={adminDateCellClass}>
                 {formatAdminDate(request.processedAt)}
               </TableCell>
-              <TableCell data-column="actions" className={`${adminActionsCellClass} min-w-[220px]`}>
+              <TableCell data-column="actions" className={adminActionsCellClass}>
                 <CancellationActions
                   requestId={request.id}
                   status={request.status}

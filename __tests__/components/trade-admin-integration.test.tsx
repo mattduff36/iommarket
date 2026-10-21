@@ -318,9 +318,11 @@ describe("trade admin integration", () => {
     const { default: Page } = await import("@/app/(admin)/admin/dealers/page");
     render(await Page({ searchParams: Promise.resolve({}) }));
     expect(screen.getAllByText("Public unverified").length).toBeGreaterThan(0);
-    expect(screen.getByText("Trade application")).toBeInTheDocument();
+    expect(screen.getByText("Trade")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Account" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Details" })).toBeInTheDocument();
     expect(screen.getByText("Not applied")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Applications" })).toHaveAttribute("href", "/admin/trade/applications");
+    expect(screen.getByRole("link", { name: "Not applied" })).toHaveAttribute("href", "/admin/trade/applications");
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Actions for Test Motors" }));
     expect(screen.queryByRole("menuitem", { name: "Review Trade application" })).not.toBeInTheDocument();

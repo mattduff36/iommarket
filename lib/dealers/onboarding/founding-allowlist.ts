@@ -45,6 +45,20 @@ export const FOUNDING_DEALERS = [
     website: "https://www.manxcarwarehouse.im/",
     regionSlug: "iom-south",
   },
+  {
+    key: "skillannaylor-car-company",
+    displayName: "SkillanNaylor Car Company",
+    email: "skillannaylor@itrader.im.preview",
+    website: "https://sncc.im/",
+    regionSlug: "iom-east",
+  },
+  {
+    key: "dw-cars",
+    displayName: "DW Cars",
+    email: "dwcars@itrader.im.preview",
+    website: "https://www.dwcars.info/",
+    regionSlug: "iom-east",
+  },
 ] as const;
 
 export type FoundingDealerKey = (typeof FOUNDING_DEALERS)[number]["key"];

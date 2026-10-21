@@ -31,7 +31,7 @@ describe("error candidate inventory rules", () => {
     const provenance = readFileSync(join(root, "docs/error-messages/candidates.jsonl"), "utf8");
     const rows = parseProvenance(provenance);
     const records = classifyCandidates(rows, root);
-    const inventory = readFileSync(join(root, "docs/error-messages/inventory.jsonl"), "utf8").trim().split("\n");
+    const inventory = readFileSync(join(root, "docs/error-messages/inventory.jsonl"), "utf8").trim().split(/\r?\n/);
     expect(rows).toHaveLength(3369);
     expect(records).toHaveLength(3369);
     expect(inventory).toHaveLength(3369);

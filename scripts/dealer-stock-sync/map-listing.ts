@@ -1,4 +1,5 @@
 import { FUEL_TYPE_OPTIONS } from "../../lib/constants/fuel-types";
+import type { DealerStockCategorySlug } from "../../lib/dealer-stock-sync/types";
 import { uniqueImageUrls } from "./image-urls";
 import type { CanonicalVehicle, ReconciledVehicle } from "./types";
 
@@ -15,7 +16,7 @@ export interface MappedArchiveListing {
   title: string;
   description: string;
   pricePence: number;
-  categorySlug: "car" | "van" | "motorbike";
+  categorySlug: DealerStockCategorySlug;
   attributes: Record<string, string>;
   imageUrls: string[];
 }
@@ -57,7 +58,39 @@ export function mapTransmission(value: string | null | undefined) {
   return null;
 }
 
-export function resolveCategorySlug(vehicle: CanonicalVehicle): "car" | "van" | "motorbike" {
+const MOTORHOME_PHRASES = [
+  "motorhome",
+  "motor home",
+  "campervan",
+  "camper van",
+  "coachman",
+  "travelmaster",
+  "elddis",
+  "accordo",
+  "roller team",
+  "zefiro",
+  "auto trail",
+  "dethleffs",
+] as const;
+
+function motorhomeText(vehicle: CanonicalVehicle) {
+  return [vehicle.model, vehicle.derivative, vehicle.bodyType, vehicle.vehicleType]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isMotorhomeStock(vehicle: CanonicalVehicle) {
+  const text = motorhomeText(vehicle);
+  if (/\b\d+\s+berth\b/.test(text)) return true;
+  return MOTORHOME_PHRASES.some((phrase) => text.includes(phrase));
+}
+
+export function resolveCategorySlug(vehicle: CanonicalVehicle): DealerStockCategorySlug {
+  if (isMotorhomeStock(vehicle)) return "motorhome";
   const type = vehicle.vehicleType?.toLowerCase() ?? "";
   const source = vehicle.sourceKey?.toLowerCase() ?? "";
   const location = (vehicle.locationName ?? "").toLowerCase();

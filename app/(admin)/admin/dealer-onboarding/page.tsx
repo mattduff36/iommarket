@@ -7,6 +7,7 @@ import {
   LAUNCH_PROMOTION_KEY,
 } from "@/lib/dealers/onboarding/campaign-window";
 import { onboardingEligibleDealerWhere } from "@/lib/dealers/onboarding/eligible-dealers";
+import { resolveOnboardingOfferTerms } from "@/lib/dealers/onboarding/offer-terms";
 import {
   ONBOARDING_PRO_END_LABEL,
   planPromotionGrant,
@@ -86,6 +87,7 @@ export default async function AdminDealerOnboardingPage({
       subscriptions: dealer.subscriptions,
       now,
       campaignId: campaign?.id ?? null,
+      preparedEmail: dealer.user.email,
     });
     const activeGrant = dealer.subscriptions.find(
       (subscription) =>
@@ -112,7 +114,9 @@ export default async function AdminDealerOnboardingPage({
               : "Blocked by conflicting complimentary access"
           : grant.kind === "preserve"
             ? formatIsleOfManDateTime(grant.endsAt)
-            : ONBOARDING_PRO_END_LABEL,
+            : resolveOnboardingOfferTerms(dealer.user.email) === "calendar-month"
+              ? "One calendar month from acceptance, then paid Dealer Pro checkout"
+              : ONBOARDING_PRO_END_LABEL,
     };
   });
 

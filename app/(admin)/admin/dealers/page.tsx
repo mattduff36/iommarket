@@ -1,3 +1,4 @@
+import { DealerAccountBadge } from "@/components/admin/dealer-account-badge";
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -30,7 +31,7 @@ import {
   adminDateCellClass,
   adminNumericCellClass,
 } from "@/components/admin/admin-table";
-import { TradeMembershipBadge } from "@/components/admin/trade-admin-ui";
+import { tradeMembershipLabel } from "@/components/admin/trade-admin-ui";
 import { DealerActions } from "./dealer-actions";
 import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
@@ -293,7 +294,11 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
               {dealer.name}
             </AdminRecordLink>
           }
-          subtitle={dealer.slug}
+          subtitle={<>
+            {dealer.user.name && dealer.user.name !== dealer.name ? <Link href={`/admin/users/${dealer.user.id}`} className="block text-neon-blue-400 hover:underline">{dealer.user.name}</Link> : null}
+            <span className="block break-all">{dealer.user.email}</span>
+          </>}
+          badges={dealer.user.disabledAt ? <Badge variant="error">Disabled</Badge> : null}
         />
       </TableCell>
       <TableCell data-column="owner">
@@ -315,50 +320,26 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
         />
       </TableCell>
       <TableCell data-column="plan">
-        <div className="flex max-w-56 flex-col items-start gap-1.5">
-          <Badge variant={dealer.verified ? "success" : "neutral"}>
-            {tradeEnabled
-              ? dealer.verified
-                ? "Public verified"
-                : "Public unverified"
-              : dealer.verified
-                ? "Verified"
-                : "Unverified"}
-          </Badge>
-          {tradeEnabled ? (
-            dealer.tradeMembership ? (
-              <span className="inline-flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-text-secondary">Trade application</span>
-                <TradeMembershipBadge status={dealer.tradeMembership.status} />
-              </span>
-            ) : (
-              <span className="inline-flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-text-secondary">Trade application</span>
-                <Badge variant="neutral">Not applied</Badge>
-                <Link href="/admin/trade/applications" className="text-xs text-neon-blue-400 hover:underline">
-                  Applications
-                </Link>
-              </span>
-            )
-          ) : null}
-        </div>
-        <div className="mt-2 flex max-w-48 flex-wrap gap-1.5">
-          <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
-            {getDealerPackageLabel(dealer.tier)}
-          </Badge>
-          <Badge variant={access ? (access.source === "ADMIN_GRANT" ? "warning" : "success") : "neutral"}>
-            {access ? (access.source === "ADMIN_GRANT" ? "Free grant" : "Paid") : "No access"}
-          </Badge>
-        </div>
-        {access ? (
-          <p className="mt-1 text-xs tabular-nums text-text-tertiary">
-            Ends{" "}
-            {(access.source === "ADMIN_GRANT"
-              ? access.grantEndsAt
-              : access.currentPeriodEnd
-            )?.toLocaleDateString("en-GB") ?? "not set"}
-          </p>
-        ) : null}
+        <DealerAccountBadge>{getDealerPackageLabel(dealer.tier)}</DealerAccountBadge>
+        <p className="mt-1.5 text-xs text-text-secondary">
+          {access ? (access.source === "ADMIN_GRANT" ? "Free grant" : "Paid") : "No access"}
+        </p>
+        {accessEnds ? <p className="mt-1 text-xs tabular-nums text-text-tertiary">Ends {formatAdminDate(accessEnds)}</p> : null}
+      </TableCell>
+      <TableCell data-column="details">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 whitespace-nowrap text-xs">
+          <dt className="text-text-secondary">Public</dt>
+          <dd className={dealer.verified ? "text-[#66c69b]" : "text-text-secondary"}>{dealer.verified ? "Verified" : "Unverified"}</dd>
+          {tradeEnabled ? <>
+            <dt className="text-text-secondary">Trade</dt>
+            <dd><Link href="/admin/trade/applications" className={
+              dealer.tradeMembership?.status === "APPROVED" ? "text-[#66c69b] hover:underline"
+              : dealer.tradeMembership?.status === "REJECTED" || dealer.tradeMembership?.status === "REVOKED" ? "text-[#ef9b9b] hover:underline"
+              : dealer.tradeMembership?.status === "PENDING" || dealer.tradeMembership?.status === "SUSPENDED" ? "text-[#e4be70] hover:underline"
+              : dealer.tradeMembership?.status === "NEEDS_INFO" ? "text-neon-blue-400 hover:underline" : "text-text-secondary hover:underline"
+            }>{dealer.tradeMembership ? tradeMembershipLabel(dealer.tradeMembership.status) : "Not applied"}</Link></dd>
+          </> : null}
+        </dl>
       </TableCell>
       <TableCell data-column="verified">
         <Badge variant={dealer.verified ? "success" : "neutral"}>{dealer.verified ? "Verified" : "Unverified"}</Badge>
@@ -370,9 +351,7 @@ function DealerRow({ dealer, tradeEnabled }: DealerRowProps) {
         {formatAdminDate(dealer.createdAt)}
       </TableCell>
       <TableCell data-column="tier">
-        <Badge variant={dealer.tier === "PRO" ? "info" : "neutral"}>
-          {getDealerPackageLabel(dealer.tier)}
-        </Badge>
+        <DealerAccountBadge>{getDealerPackageLabel(dealer.tier)}</DealerAccountBadge>
       </TableCell>
       <TableCell data-column="access-ends" className={adminDateCellClass}>
         {formatAdminDate(accessEnds)}

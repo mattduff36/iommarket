@@ -1,3 +1,4 @@
+import { DealerAccountBadge } from "@/components/admin/dealer-account-badge";
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -275,9 +276,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
               <TableCell data-column="access">
                 <div className="flex flex-wrap gap-1.5">
                   {user.role === "ADMIN" ? <span className="inline-flex rounded border border-white bg-transparent px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">ADMIN</span> : null}
-                  {user.dealerProfile ? <span className="inline-flex rounded border border-[#d88b8b]/[.28] bg-[#d88b8b]/[.08] px-2 py-0.5 text-[11px] font-semibold text-[#d88b8b]">
+                  {user.dealerProfile ? <DealerAccountBadge>
                     {user.dealerProfile.tier === "PRO" ? "Dealer Pro" : "Dealer Starter"}
-                  </span> : user.role !== "ADMIN" ? <span className={user.role === "DEALER"
+                  </DealerAccountBadge> : user.role !== "ADMIN" ? <span className={user.role === "DEALER"
                     ? "inline-flex rounded border border-[#d88b8b]/[.28] bg-[#d88b8b]/[.08] px-2 py-0.5 text-[11px] font-semibold text-[#d88b8b]"
                     : "inline-flex rounded border border-[#284361] bg-[#101c2c] px-2 py-0.5 text-[11px] font-semibold text-[#8cc1ff]"}>
                     {user.role === "DEALER" ? "Dealer" : "User"}

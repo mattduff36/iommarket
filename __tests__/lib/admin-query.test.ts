@@ -230,6 +230,8 @@ describe("admin table sorting", () => {
 
   it("ignores corrupt or pinned column preferences", () => {
     expect(parseStoredColumnVisibility("{", LISTING_TABLE_COLUMNS)).toEqual([
+      "category",
+      "approved",
       "region",
       "featured",
       "views",

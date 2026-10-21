@@ -16,6 +16,7 @@ const eventCreate = vi.fn();
 
 const invite = {
   id: "invite-1",
+  originalEmail: "temporary@itrader.im.preview",
   tokenHash: "a".repeat(64),
   recipientEmailNorm: "owner@dealer.im",
   status: "SENT" as "SENT" | "FINALIZING_AUTH" | "COMPLETED",
@@ -90,6 +91,7 @@ describe("dealer onboarding activation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     invite.status = "SENT";
+    invite.originalEmail = "temporary@itrader.im.preview";
     dealer.listings = Array.from({ length: 90 }, (_, index) => ({
       id: `listing-${index + 1}`,
       userId: "user-1",
@@ -111,6 +113,26 @@ describe("dealer onboarding activation", () => {
     dealerUpdate.mockResolvedValue({});
     subscriptionUpdateMany.mockResolvedValue({ count: 1 });
     eventCreate.mockResolvedValue({});
+  });
+
+  it("creates DW's month grant from the frozen identity and does not renew on a completed retry", async () => {
+    invite.originalEmail = "dwcars@itrader.im.preview";
+    dealer.subscriptions = [];
+    const input = {
+      inviteId: invite.id, tokenHash: invite.tokenHash, leaseToken: "lease-dw",
+      now: new Date("2026-10-15T09:00:00.000Z"),
+      leaseExpiresAt: new Date("2026-10-15T09:02:00.000Z"),
+      recipientEmailNorm: invite.recipientEmailNorm, actorUserId: "user-1",
+    };
+    await commitOnboardingClaim(tx() as never, input);
+    expect(subscriptionCreate).toHaveBeenCalledWith({ data: expect.objectContaining({
+      source: "ADMIN_GRANT", paymentProvider: "ADMIN",
+      grantStartsAt: input.now, grantEndsAt: new Date("2026-11-15T10:00:00.000Z"),
+    }) });
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
+    invite.status = "COMPLETED";
+    expect(await commitOnboardingClaim(tx() as never, input)).toEqual({kind: "already-complete"});
+    expect(subscriptionCreate).toHaveBeenCalledTimes(1);
   });
 
   it("reuses the existing active admin grant without inserting a conflicting grant", async () => {

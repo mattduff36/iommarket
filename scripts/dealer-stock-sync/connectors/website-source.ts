@@ -135,6 +135,12 @@ function toListResult(
     /We do not have any matching vehicles in stock at present\./i.test(
       html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " "),
     );
+  const visibleText = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const advertised = context.source.connectorKey === "click-dealer"
+    ? visibleText.match(/Showing\s+[\d,]+\s*-\s*[\d,]+\s+vehicles\s+of\s+([\d,]+)/i)
+    : null;
+  const advertisedCount = confirmedEmpty ? 0 : advertised ? Number(advertised[1].replace(/,/g, "")) : null;
   return {
     dealerKey: context.dealer.key,
     sourceKey: context.source.key,
@@ -143,7 +149,7 @@ function toListResult(
     error: vehicles.length > 0 || confirmedEmpty ? null : "No structured public stock records found",
     startUrl,
     pagesFetched,
-    advertisedCount: confirmedEmpty ? 0 : null,
+    advertisedCount,
     rawCount: vehicles.length > 0 ? vehicles.length : null,
     vehicles,
     rawRecords: raw,
@@ -227,7 +233,9 @@ export function createWebsiteConnector(input: {
       return { vehicles, detailMissing };
       };
       if (context.source.connectorKey === "click-dealer" && !context.fetchImpl && context.source.startUrl && frozen.length) {
+        const { sleep } = await import("../rate-limit");
         return withPublicPage(context.source.startUrl, async page => enrich(async url => {
+          await sleep(Math.max(700, context.delayMs ?? 800));
           const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
           if (!response?.ok()) throw new Error("Vehicle detail page was unavailable");
           return page.content();
@@ -302,7 +310,8 @@ export async function fetchWebsiteList(
           } catch { failedPage = true; }
         }
         const listed = toListResult(context, startUrl, raw, pagesFetched, firstHtml);
-        const withPagination = { ...listed, paginationUncertain: failedPage || queue.length > 0 || listed.vehicles.length !== raw.length };
+        const withPagination = { ...listed, paginationUncertain: failedPage || queue.length > 0 || listed.vehicles.length !== raw.length ||
+          (listed.advertisedCount != null && listed.vehicles.length < listed.advertisedCount) };
         if (listed.status === "ok" || preferBrowser === false) return withPagination;
       } catch (error) {
         if (preferBrowser === false) {
@@ -328,7 +337,8 @@ export async function fetchWebsiteList(
           const nextUrl = queue.shift();
           if (!nextUrl || visited.has(nextUrl.replace(/\/$/, ""))) continue;
           visited.add(nextUrl.replace(/\/$/, ""));
-          await page.goto(nextUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+          const response = await page.goto(nextUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+          if (!response?.ok()) throw new Error("Stock pagination page was unavailable");
           if (waitForSelector) {
             await page.locator(waitForSelector).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
           }
@@ -389,9 +399,11 @@ export async function fetchWebsiteList(
         // Keep captured payloads / fall through to rendered HTML.
       }
     }
+    const listed = toListResult(context, startUrl, raw, pages.length, pages.join("\n"));
     return {
-      ...toListResult(context, startUrl, raw, pages.length, pages.join("\n")),
-      paginationUncertain: Boolean(capturedJson.paginationUncertain) || raw.some(item => !normalizeWebsiteVehicle(item, context)),
+      ...listed,
+      paginationUncertain: Boolean(capturedJson.paginationUncertain) || raw.some(item => !normalizeWebsiteVehicle(item, context)) ||
+        (listed.advertisedCount != null && listed.vehicles.length < listed.advertisedCount),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
