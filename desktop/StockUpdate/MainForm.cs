@@ -22,7 +22,7 @@ public sealed class MainForm : Form
     private readonly Button _check = new() { Text = "Check connection", AutoSize = true };
     private readonly Button _start = new() { Text = "Start worker", AutoSize = true };
     private readonly Button _stop = new() { Text = "Stop safely", AutoSize = true };
-    private readonly Button _admin = new() { Text = "Open dealer admin", AutoSize = true };
+    private readonly Button _reviews = new() { Text = "Open stock reviews", AutoSize = true };
     private readonly Button _devices = new() { Text = "Manage devices", AutoSize = true };
     private readonly Button _signOut = new() { Text = "Sign out", AutoSize = true };
     private readonly Button _copy = new() { Text = "Copy redacted diagnostics", AutoSize = true };
@@ -46,7 +46,7 @@ public sealed class MainForm : Form
         var info = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8, 0, 8, 0) };
         info.Controls.AddRange([_account, new Label { Text = "   ", AutoSize = true }, _status]);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8) };
-        buttons.Controls.AddRange([_signIn, _cancel, _check, _start, _stop, _admin, _devices, _signOut, _copy]);
+        buttons.Controls.AddRange([_signIn, _cancel, _check, _start, _stop, _reviews, _devices, _signOut, _copy]);
         Controls.Add(_activity);
         Controls.Add(buttons);
         Controls.Add(info);
@@ -58,7 +58,7 @@ public sealed class MainForm : Form
         _check.Click += async (_, _) => await StartModeAsync("check", confirmProduction: false);
         _start.Click += async (_, _) => await StartModeAsync("watch", confirmProduction: true);
         _stop.Click += async (_, _) => await StopAsync();
-        _admin.Click += (_, _) => OpenFixed("/admin/dealers", null);
+        _reviews.Click += (_, _) => OpenFixed("/admin/stock-reviews", null);
         _devices.Click += (_, _) => OpenFixed("/admin/stock-worker", null);
         _signOut.Click += async (_, _) => await SignOutAsync();
         _copy.Click += (_, _) => CopyDiagnostics();

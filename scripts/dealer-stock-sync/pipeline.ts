@@ -3,6 +3,20 @@ import { sleep } from "./rate-limit";
 import { guardOceanScope, reconcileDealerVehicles, reconcileSourceCounts, successfulRawCount } from "./reconcile";
 import type { CanonicalVehicle, DealerRecord, PipelineResult, ProbeResult, SourceListResult } from "./types";
 
+export async function withSourceTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Timed out after 90s")), 90_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function cloneVehicle(vehicle: CanonicalVehicle): CanonicalVehicle {
   return {
     ...vehicle,
@@ -70,12 +84,7 @@ export async function runDealerPipeline(
     const connector = getConnector(source.connectorKey);
     const context = { dealer, source, fetchImpl: options.fetchImpl, delayMs };
     try {
-      const listed = await Promise.race([
-        connector.fetchList(context),
-        sleep(90_000).then(() => {
-          throw new Error("Timed out after 90s");
-        }),
-      ]);
+      const listed = await withSourceTimeout(connector.fetchList(context));
       if (listed.status === "ok") {
         const enriched = await connector.fetchDetails(context, listed.vehicles);
         sourceResults.push({

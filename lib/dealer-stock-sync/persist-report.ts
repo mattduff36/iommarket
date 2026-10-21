@@ -71,11 +71,13 @@ export async function persistCompleteScrape(
     data: { status: "SUPERSEDED", supersededAt: new Date() },
   });
   for (const patch of input.patches) {
+    // The identity key is immutable; the restricted worker may update stock fields only.
+    const { sourceIdentityKey, ...mutableFields } = patch;
     await client.dealerStockSourceIdentity.upsert({
       where: {
         dealerId_sourceIdentityKey: {
           dealerId: input.dealerId,
-          sourceIdentityKey: patch.sourceIdentityKey,
+          sourceIdentityKey,
         },
       },
       create: {
@@ -83,7 +85,7 @@ export async function persistCompleteScrape(
         dealerId: input.dealerId,
         ...patch,
       },
-      update: patch,
+      update: mutableFields,
     });
   }
   const report = await client.dealerStockSyncReport.create({

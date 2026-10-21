@@ -216,7 +216,7 @@ export function createWebsiteConnector(input: {
           vehicles.push({
             ...vehicle,
             description: extractDescriptionFromHtml(html) || vehicle.description,
-            imageUrls: scopedGallery
+            imageUrls: context.dealer.key === "mikes-motors" ? detailImages : scopedGallery
               ? mergeOwnerImageUrls(detailImages, vehicle.imageUrls)
               : mergeOwnerImageUrls(vehicle.imageUrls, detailImages),
             mileage: vehicle.mileage ?? specs.mileage,

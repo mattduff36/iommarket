@@ -384,7 +384,15 @@ export function extractWebsiteDetailImages(
     const id = options.detailUrl?.match(/-(\d+)\/?$/)?.[1];
     if (!id) return [];
     const urls = html.match(/https:\/\/images\.clickdealer\.co\.uk\/[^"'\s<>]+\.(?:jpg|jpeg|png|webp)/gi) ?? [];
-    return uniqueImageUrls(urls.filter(url => new URL(url).pathname.includes(`/${id}/full/`)), FEATURED_LISTING_PHOTO_LIMIT);
+    const photos = new Map<string, string>();
+    for (const url of urls) {
+      const path = new URL(url).pathname;
+      const match = path.match(new RegExp(`^/vehicles/\\d+/${id}/(full|large1)/([^/]+)$`, "i"));
+      if (!match) continue;
+      // Use only observed owner-gallery URLs; never manufacture a larger variant.
+      if (!photos.has(match[2]) || match[1].toLowerCase() === "full") photos.set(match[2], url);
+    }
+    return uniqueImageUrls([...photos.values()], FEATURED_LISTING_PHOTO_LIMIT);
   }
   if (options.dealerKey === "bcc-cars") {
     return extractBccGalleryFromHtml(html, origin);
