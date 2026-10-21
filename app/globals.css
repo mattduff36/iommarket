@@ -123,6 +123,12 @@ body {
   overflow-x: hidden;
 }
 
+/* Clip horizontal overflow without creating a body scroll container that traps
+   the admin sidebar's sticky positioning. The document remains the scroller. */
+body:has(.admin-area-shell) {
+  overflow-x: clip;
+}
+
 html {
   scroll-behavior: smooth;
   color-scheme: dark;

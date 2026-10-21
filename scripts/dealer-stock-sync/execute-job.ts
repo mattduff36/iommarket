@@ -2,16 +2,15 @@ import type { uploadPreviewPackImages } from "../../lib/preview-packs/upload";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { assertWorkerEnabled } from "../../lib/dealer-stock-sync/worker-guard";
-import { getDealerListingCap } from "../../lib/config/dealer-tiers";
 import { applyFrozenPlan, type ApplyWriter } from "../../lib/dealer-stock-sync/apply";
 import { scrapeFailureReason, type SourceCompleteness } from "../../lib/dealer-stock-sync/completeness";
 import { dealerSyncBlockReason } from "../../lib/dealer-stock-sync/eligibility";
 import { fingerprintSnapshot, type FingerprintSnapshot } from "../../lib/dealer-stock-sync/fingerprint";
+import { loadStockSyncSnapshot } from "../../lib/dealer-stock-sync/snapshot";
 import { LEASE_JOB_SQL } from "../../lib/dealer-stock-sync/lease";
 import { buildStockSyncPlan } from "../../lib/dealer-stock-sync/plan";
 import { persistCompleteScrape, persistFailedScrape } from "../../lib/dealer-stock-sync/persist-report";
 import { getDealerStockRegistryOption } from "../../lib/dealer-stock-sync/registry-catalog";
-import type { SyncIdentity, SyncListing } from "../../lib/dealer-stock-sync/types";
 import { db } from "../../lib/db";
 import { getDealer } from "./registry";
 import { takeDownManagedListing } from "./take-down";
@@ -19,121 +18,10 @@ import { inventoryFromReconciled } from "./to-inventory";
 import type { PipelineResult } from "./types";
 
 const LEASE_MS = 15 * 60 * 1000;
-const CAP_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
 function safeError(error: unknown) {
   if (error instanceof Error && error.name === "StalePlanError") return error.message;
   return "Stock sync job failed.";
-}
-
-function mileageOf(values: Array<{ value: string; attributeDefinition: { slug: string } }>) {
-  const raw = values.find((value) => value.attributeDefinition.slug === "mileage")?.value;
-  return raw && /^\d+$/.test(raw) ? Number(raw) : null;
-}
-
-async function loadSnapshot(
-  dealerId: string,
-  actions: FingerprintSnapshot["actions"],
-  client: Prisma.TransactionClient = db,
-): Promise<FingerprintSnapshot | null> {
-  const dealer = await client.dealerProfile.findUnique({
-    where: { id: dealerId },
-    select: {
-      id: true,
-      tier: true,
-      isAdminPreview: true,
-      userId: true,
-      stockSourceBinding: {
-        select: {
-          id: true,
-          registryKey: true,
-          enabled: true,
-          verifiedAt: true,
-          identities: true,
-        },
-      },
-      user: { select: { role: true, disabledAt: true, deletedAt: true, regionId: true } },
-    },
-  });
-  if (!dealer?.stockSourceBinding) return null;
-  const [listings, activeListingCount] = await Promise.all([
-    client.listing.findMany({
-      where: { dealerId, retentionPurgedAt: null, previewPackId: null },
-      select: {
-        id: true,
-        updatedAt: true,
-        userId: true,
-        title: true,
-        description: true,
-        status: true,
-        price: true,
-        featured: true,
-        expiresAt: true,
-        soldAt: true,
-        lifecycleRevision: true,
-        photoRevision: true,
-        reviewSourceIdentity: true,
-        slug: true,
-        previewPackId: true,
-        attributeValues: { select: { value: true, attributeDefinition: { select: { slug: true } } } },
-        revisions: { where: { status: { in: ["DRAFT", "PENDING"] } }, select: { id: true } },
-      },
-    }),
-    client.listing.count({
-      where: { dealerId, retentionPurgedAt: null, status: { in: [...CAP_STATUSES] } },
-    }),
-  ]);
-  const syncListings: SyncListing[] = listings.map((listing) => ({
-    id: listing.id,
-    updatedAt: listing.updatedAt.toISOString(),
-    userId: listing.userId,
-    title: listing.title,
-    description: listing.description,
-    status: listing.status,
-    price: listing.price,
-    mileage: mileageOf(listing.attributeValues),
-    featured: listing.featured,
-    expiresAt: listing.expiresAt?.toISOString() ?? null,
-    soldAt: listing.soldAt?.toISOString() ?? null,
-    lifecycleRevision: listing.lifecycleRevision,
-    photoRevision: listing.photoRevision,
-    reviewSourceIdentity: listing.reviewSourceIdentity,
-    slug: listing.slug,
-    previewPackId: listing.previewPackId,
-    openRevision: listing.revisions.length > 0,
-  }));
-  const identities: SyncIdentity[] = dealer.stockSourceBinding.identities.map((identity) => ({
-    sourceIdentityKey: identity.sourceIdentityKey,
-    listingId: identity.listingId,
-    absenceCount: identity.absenceCount,
-    lastAbsenceRunId: identity.lastAbsenceRunId,
-    lastSeenRunId: identity.lastSeenRunId,
-    baselinePricePence: identity.baselinePricePence,
-    baselineMileage: identity.baselineMileage,
-  }));
-  return {
-    dealer: {
-      id: dealer.id,
-      userId: dealer.userId,
-      regionId: dealer.user.regionId,
-      tier: dealer.tier,
-      isAdminPreview: dealer.isAdminPreview,
-      role: dealer.user.role,
-      disabledAt: dealer.user.disabledAt?.toISOString() ?? null,
-      deletedAt: dealer.user.deletedAt?.toISOString() ?? null,
-    },
-    binding: {
-      id: dealer.stockSourceBinding.id,
-      registryKey: dealer.stockSourceBinding.registryKey,
-      enabled: dealer.stockSourceBinding.enabled,
-      verifiedAt: dealer.stockSourceBinding.verifiedAt?.toISOString() ?? null,
-    },
-    activeListingCount,
-    listingCap: getDealerListingCap(dealer.tier),
-    listings: syncListings,
-    identities,
-    actions,
-  };
 }
 
 function completenessFrom(result: PipelineResult): SourceCompleteness[] {
@@ -220,7 +108,7 @@ async function scrapeJob(
     return;
   }
   await withLease(job, async (tx) => {
-    const current = await loadSnapshot(job.dealerId, [], tx);
+    const current = await loadStockSyncSnapshot(job.dealerId, [], tx);
     if (!current || current.binding.registryKey !== binding.registryKey || !current.binding.verifiedAt ||
       dealerSyncBlockReason({ ...current.dealer, role: current.dealer.role as "USER" | "DEALER" | "ADMIN" })) throw new Error("Binding changed during check");
     const plan = buildStockSyncPlan({
@@ -285,7 +173,7 @@ async function applyJob(job: LeasedJob, upload?: typeof uploadPreviewPackImages)
   const payload = job.payload as { fingerprint?: string };
   if (payload.fingerprint !== report.fingerprint) throw new Error("Stale stock sync plan");
   const actions = (report.plan as { actions?: FingerprintSnapshot["actions"] }).actions ?? [];
-  const snapshot = await loadSnapshot(job.dealerId, actions);
+  const snapshot = await loadStockSyncSnapshot(job.dealerId, actions);
   if (!snapshot || fingerprintSnapshot(snapshot) !== report.fingerprint) throw new Error("Stale stock sync plan");
   const { prepareStockImages, cleanupStockImages } = await import("./stock-images");
   const staged = await prepareStockImages(snapshot, job.id, upload);
@@ -294,7 +182,7 @@ async function applyJob(job: LeasedJob, upload?: typeof uploadPreviewPackImages)
       const freshReport = await tx.dealerStockSyncReport.findUniqueOrThrow({ where: { id: report.id } });
       const actor = await tx.user.findUnique({ where: { id: report.approvedById! }, select: { role: true, disabledAt: true, deletedAt: true } });
       if (!actor || actor.role !== "ADMIN" || actor.disabledAt || actor.deletedAt) throw new Error("Approver is unavailable");
-      const fresh = await loadSnapshot(job.dealerId, actions, tx);
+      const fresh = await loadStockSyncSnapshot(job.dealerId, actions, tx);
       if (!fresh) throw new Error("Missing snapshot");
       const { claimManagedImportsForAttachment } = await import("../../lib/media/managed-import");
       await claimManagedImportsForAttachment(tx, staged.uploaded);

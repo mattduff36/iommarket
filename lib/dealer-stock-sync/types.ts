@@ -80,10 +80,30 @@ export interface IdentityPatch {
   baselineMileage: number | null;
 }
 
+export interface ReviewedActionEvidence {
+  displayTitle: string;
+  fuel?: string | null;
+  transmission?: string | null;
+  flags: string[];
+  pricePence: number | null;
+  mileage: number | null;
+  year: number | null;
+  categorySlug: DealerStockCategorySlug | null;
+  sourceUrl: string | null;
+  safePhotoUrls: string[];
+  availability: "available" | "reserved" | "sold" | "unknown";
+  provenance: string[];
+  sourceHash: string;
+  capturedAt: string;
+  coverageWarning: string | null;
+  capacityWarning: string | null;
+}
+
 interface PlanBase {
   displayTitle?: string;
   sourceIdentityKey: string | null;
   listingId: string | null;
+  review?: ReviewedActionEvidence;
 }
 
 export interface CreatePlanAction extends PlanBase {

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { AdminNavLink } from "@/components/admin/admin-nav-link";
+import { AdminSidebarScroll } from "@/components/admin/admin-sidebar-scroll";
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from "@/lib/admin/nav";
 import { isAdminChecklistEnabled } from "@/lib/admin/checklist-feature";
 import { isTradeExchangeEnabled } from "@/lib/trade-exchange/flag";
@@ -25,10 +26,10 @@ export async function AdminArea({
   );
 
   return (
-    <div className="flex min-w-0 flex-1">
+    <div className="admin-area-shell flex min-w-0 flex-1">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block w-64 shrink-0 border-r border-border bg-surface">
-          <div className="px-4 py-4 space-y-5 overflow-y-auto max-h-[calc(100vh-4rem)]">
+          <AdminSidebarScroll>
             {ADMIN_NAV_GROUPS.map((group) => {
               const items = navigation.filter((i) => i.group === group.key);
               if (items.length === 0) return null;
@@ -49,7 +50,7 @@ export async function AdminArea({
                 </div>
               );
             })}
-          </div>
+          </AdminSidebarScroll>
         </aside>
 
         {/* Content */}
