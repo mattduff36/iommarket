@@ -7,7 +7,6 @@ import {
   revokeDealerOnboardingInvite,
   sendDealerOnboardingInvite,
 } from "@/actions/admin/dealer-onboarding";
-import { ONBOARDING_PRO_END_LABEL } from "@/lib/dealers/onboarding/grant-plan";
 import { dealerAdminHref } from "@/lib/admin/record-href";
 import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import {
@@ -87,7 +86,7 @@ export function OnboardingManager({
       <section className="rounded-lg border border-neon-blue-500/20 bg-neon-blue-500/5 p-4 sm:p-5">
         <h2 className="text-base font-semibold text-text-primary">Complimentary Pro</h2>
         <p className="mt-1 text-sm leading-6 text-text-secondary">
-          Pro access starts when the dealer accepts the invitation and ends at {ONBOARDING_PRO_END_LABEL}.
+          Pro access starts when the dealer accepts the invitation. Check the selected dealer’s offer below before sending.
         </p>
       </section>
 

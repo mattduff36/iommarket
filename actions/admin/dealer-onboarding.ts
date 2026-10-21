@@ -74,6 +74,7 @@ export async function sendDealerOnboardingInvite(input: {
       dealerName: prepared.dealerName,
       claimUrl,
       expiresAt: prepared.expiresAt,
+      preparedEmail: prepared.preparedIdentityEmail,
     });
 
     let sent: { id: string };
@@ -293,10 +294,18 @@ async function prepareInvite(input: {
   }
 
   const now = new Date();
+  const existing = await db.dealerOnboardingInvite.findFirst({
+    where: {
+      dealerId: dealer.id,
+      status: { in: [...LIVE_ONBOARDING_STATUSES] },
+    },
+  });
+  const preparedIdentityEmail = (existing?.originalEmail ?? dealer.user.email).trim();
   const grant = planPromotionGrant({
     subscriptions: dealer.subscriptions,
     now,
     campaignId: campaign.id,
+    preparedEmail: preparedIdentityEmail,
   });
   if ("blocked" in grant) {
     return {
@@ -346,12 +355,6 @@ async function prepareInvite(input: {
   const token = createOnboardingToken();
   const tokenHash = hashOnboardingToken(token);
   const expiresAt = new Date(now.getTime() + ONBOARDING_INVITE_TTL_MS);
-  const existing = await db.dealerOnboardingInvite.findFirst({
-    where: {
-      dealerId: dealer.id,
-      status: { in: [...LIVE_ONBOARDING_STATUSES] },
-    },
-  });
   if (existing?.status === "FINALIZING_AUTH") {
     return { error: "This dealer has already started activation." };
   }
@@ -410,6 +413,7 @@ async function prepareInvite(input: {
       campaignEndsAt: lockedCampaign.endsAt,
       expiresAt,
       dealerName: dealer.name,
+      preparedIdentityEmail,
       previousStatus: existing?.status ?? "SEND_FAILED",
       resent: Boolean(existing),
     };

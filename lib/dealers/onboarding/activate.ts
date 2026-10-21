@@ -145,6 +145,7 @@ export async function commitOnboardingClaim(
     subscriptions: dealer.subscriptions as PromotionGrantSnapshot[],
     now: input.now,
     campaignId: invite.campaignId,
+    preparedEmail: invite.originalEmail,
   });
   if ("blocked" in grant) {
     throw new OnboardingClaimError(

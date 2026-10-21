@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { readOnboardingClaimCookie } from "@/lib/dealers/onboarding/claim-cookie";
 import { ONBOARDING_PRO_END_LABEL } from "@/lib/dealers/onboarding/grant-plan";
+import { resolveOnboardingOfferTerms } from "@/lib/dealers/onboarding/offer-terms";
 import { hashOnboardingToken, onboardingTokenMatches } from "@/lib/dealers/onboarding/tokens";
 import { OnboardingAcceptForm } from "./onboarding-accept-form";
 
@@ -64,7 +65,9 @@ export default async function DealerOnboardingAcceptPage() {
     <div className="mx-auto max-w-xl px-4 py-12">
       <h1 className="text-2xl font-bold text-text-primary">Activate {invite.dealer.name}</h1>
       <p className="mt-3 text-sm text-text-secondary">
-        Complimentary Dealer Pro starts when you accept and ends at {ONBOARDING_PRO_END_LABEL}. Your existing dealer profile and listings stay on this account.
+        {resolveOnboardingOfferTerms(invite.originalEmail) === "calendar-month"
+          ? "Complimentary Dealer Pro starts when you accept and lasts for one calendar month. After that month, Dealer Pro requires paid checkout."
+          : `Complimentary Dealer Pro starts when you accept and ends at ${ONBOARDING_PRO_END_LABEL}.`} Your existing dealer profile and listings stay on this account.
       </p>
       <div className="mt-6">
         <OnboardingAcceptForm />

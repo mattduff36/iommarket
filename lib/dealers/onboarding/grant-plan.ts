@@ -1,3 +1,8 @@
+import {
+  calendarMonthEndFromAcceptance,
+  resolveOnboardingOfferTerms,
+} from "@/lib/dealers/onboarding/offer-terms";
+
 export const ONBOARDING_PRO_ENDS_AT = new Date("2027-01-01T00:00:00.000Z");
 export const ONBOARDING_PRO_END_LABEL = "23:59 on 31 December 2026 (Isle of Man time)";
 
@@ -50,7 +55,10 @@ export function planPromotionGrant(input: {
   subscriptions: PromotionGrantSnapshot[];
   now: Date;
   campaignId: string | null;
+  /** Stable prepared identity. Omit, or pass a non-DW address, for year-end terms. */
+  preparedEmail?: string;
 }): OnboardingGrantPlan {
+  const offer = resolveOnboardingOfferTerms(input.preparedEmail ?? "");
   if (input.now.getTime() >= ONBOARDING_PRO_ENDS_AT.getTime()) {
     return { blocked: "promotion-ended" };
   }
@@ -63,6 +71,16 @@ export function planPromotionGrant(input: {
       subscription.source === "ADMIN_GRANT" &&
       subscription.status === "ACTIVE",
   );
+  if (offer === "calendar-month") {
+    if (activeAdminGrants.length > 0) {
+      return { blocked: "conflicting-admin-grant" };
+    }
+    return {
+      kind: "create",
+      startsAt: input.now,
+      endsAt: calendarMonthEndFromAcceptance(input.now),
+    };
+  }
   if (activeAdminGrants.length === 0) {
     return {
       kind: "create",

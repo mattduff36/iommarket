@@ -12,12 +12,22 @@ vi.mock("@/actions/admin/dealer-onboarding", () => ({
 }));
 
 describe("dealer onboarding manager", () => {
-  it("shows the fixed complimentary end and no launch-date control", () => {
+  it("requires checking each dealer offer and has no launch-date control", () => {
     render(<OnboardingManager dealers={[]} invites={[]} selectedDealerId={null} />);
-    expect(screen.getByText(/23:59 on 31 December 2026/)).toBeTruthy();
+    expect(screen.getByText(/Check the selected dealer’s offer/)).toBeTruthy();
     expect(screen.getByText(/Preview Packs/)).toBeTruthy();
     expect(screen.queryByText(/Launch date/i)).toBeNull();
     expect(screen.getByRole("button", { name: /send onboarding email/i })).toBeDisabled();
+  });
+
+  it("shows DW's one-month offer without promising year-end access", () => {
+    render(<OnboardingManager selectedDealerId="dw" invites={[]} dealers={[{
+      id: "dw", name: "DW Cars", currentEmail: "dwcars@itrader.im.preview",
+      tier: "PRO", accessLabel: "No active complimentary grant",
+      resultingEndLabel: "One calendar month from acceptance, then paid Dealer Pro checkout",
+    }]} />);
+    expect(screen.getByText(/One calendar month from acceptance/)).toBeTruthy();
+    expect(screen.queryByText(/31 December 2026/)).toBeNull();
   });
 
   it("lists only the dealers supplied by the eligibility query", () => {
