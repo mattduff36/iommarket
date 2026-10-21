@@ -38,9 +38,19 @@ Preview configuration deliberately fails closed if copied to production. Product
 
 `accountsDashboardRequested` chooses the existing Accounts project summary page. It is presentation only. It does not change `accountsReaderRequested`, `resolveLedgerAccess`, canonical writer eligibility, cost APIs, or cron.
 
-Set `COST_DASHBOARD_SOURCE` to the exact value `accounts` to show that page, including on a canonical production deployment. `COST_LEDGER_ROLE=accounts-reader` still selects it through the existing reader check. Any other value, including unset, spaced, or differently cased text, keeps the existing ledger selector.
+Set `COST_DASHBOARD_SOURCE` to the exact value `accounts` to show that page, including on a canonical production deployment. `COST_LEDGER_ROLE=accounts-reader` still selects it through the existing reader check. Any other value, including unset, spaced, or differently cased text, keeps the existing ledger selector. That dashboard flag does not change deployment sync or cron; the exact reader role below does.
 
 Admin authorization and `COSTS_ENABLED` still run first. A disabled costs page stays the legacy disabled dashboard. When the Accounts page is selected and Accounts cannot be read, the page shows the existing unavailable state and does not fall back to the local ledger. The Accounts read still needs `COST_ACCOUNTS_READ_TOKEN`; do not print or commit that token. Setting the dashboard source does not by itself approve a production cutover.
+
+## Read-only Accounts role
+
+`COST_LEDGER_ROLE` selects this path only when it is exactly `accounts-reader`. Other values, including `accounts-preview`, canonical, and remote readers, keep their existing deployment and cron behaviour.
+
+`POST /api/internal/cost-sync` still requires its bearer secret before any other check. This role skips canonical writer eligibility. When costs are disabled it returns `data.status` `skipped` and does not contact Accounts. Otherwise it still requires a JSON `deploymentUrl`, verifies that deployment, and skips a verified preview deployment without reading Accounts. Only a verified production deployment calls `fetchAccountsCostDashboard`, the same billing contract as the cost UI.
+
+A readable billing response returns HTTP 200 with `data.status` `succeeded`, `source` `accounts`, `asOf`, and `sourceUpdatedAt`. Amounts, sections, history, and credentials are omitted. An unavailable or thrown read returns HTTP 502 with `data.status` `failed` and `source` `accounts`. The route does not treat an unavailable source as success. It never calls `runCostSync` or writes the local ledger, so historical ledger rows stay unchanged.
+
+`GET /api/cron/cost-maintenance` still requires its cron bearer first. For this role the JSON is `{ data: { sync, emails: 0 } }`, where `sync` is the same object as the deployment `data` body. Email retries stay at zero, including when the read fails. Canonical sync and email retry remain in place for every other role.
 
 ## Comparison views
 
