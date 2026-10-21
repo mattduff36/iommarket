@@ -16,7 +16,12 @@ import {
   type FieldErrors,
 } from "@/lib/forms/action-error";
 import { emailField } from "@/lib/validations/email";
-import { getSafeNextPath } from "@/lib/auth/return-path";
+
+function getSafeNextPath(nextPath: string | null): string | null {
+  if (!nextPath) return null;
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return null;
+  return nextPath;
+}
 
 function getDealerTierIntent(value: unknown): "STARTER" | "PRO" | null {
   if (value === "STARTER" || value === "PRO") return value;
@@ -83,7 +88,7 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
         if (res.ok) {
           const me = await res.json();
           if (me.role === "ADMIN") {
-            router.push(next ?? "/admin");
+            router.push("/admin");
             router.refresh();
             return;
           }

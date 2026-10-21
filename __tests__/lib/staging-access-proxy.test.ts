@@ -13,7 +13,6 @@ const { createClientMock, getUserMock, getSessionMock, findUniqueMock } = vi.hoi
 vi.mock("@supabase/ssr", () => ({ createServerClient: createClientMock }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: findUniqueMock } } }));
 
-import { getSafeNextPath } from "@/lib/auth/return-path";
 import { proxy } from "@/proxy";
 
 const ENV_KEYS = [
@@ -60,7 +59,7 @@ describe("staging access proxy", () => {
   it("redirects anonymous page requests to the admin sign-in and marks the response private", async () => {
     const response = await proxy(new NextRequest("https://itrader.dev/admin"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://itrader.dev/staging-access?next=%2Fadmin");
+    expect(response.headers.get("location")).toBe("https://itrader.dev/staging-access");
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("x-robots-tag")).toBe("noindex");
   });
@@ -159,7 +158,7 @@ describe("staging access proxy", () => {
   it("sends an anonymous root visit to the administrator gate and keeps it private", async () => {
     const response = await proxy(new NextRequest("https://itrader.dev/"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://itrader.dev/staging-access?next=%2F");
+    expect(response.headers.get("location")).toBe("https://itrader.dev/staging-access");
     expect(response.headers.get("x-robots-tag")).toBe("noindex");
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
@@ -179,31 +178,7 @@ describe("staging access proxy", () => {
     const deleted = await proxy(new NextRequest("https://itrader.dev/admin"));
     expect(disabled.status).toBe(403);
     expect(deleted.status).toBe(307);
-    expect(deleted.headers.get("location")).toBe("https://itrader.dev/staging-access?next=%2Fadmin");
-  });
-
-  it("keeps the desktop pairing code on the staging sign-in return path", async () => {
-    const response = await proxy(new NextRequest("https://itrader.dev/admin/stock-worker?code=ABCDEFGH"));
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "https://itrader.dev/staging-access?next=%2Fadmin%2Fstock-worker%3Fcode%3DABCDEFGH",
-    );
-  });
-});
-
-describe("safe return paths", () => {
-  it.each([
-    ["https://evil.example/admin", null],
-    ["//evil.example/admin", null],
-    ["/\\evil.example", null],
-    ["/%2F%2Fevil.example", null],
-    ["/%5C%5Cevil.example", null],
-    ["/%252F%252Fevil.example", null],
-    ["/admin/%0d%0aLocation:%20https://evil.example", null],
-    ["javascript:alert(1)", null],
-    ["/admin/stock-worker?code=ABCDEFGH", "/admin/stock-worker?code=ABCDEFGH"],
-  ])("accepts only a local path for %s", (input, expected) => {
-    expect(getSafeNextPath(input)).toBe(expected);
+    expect(deleted.headers.get("location")).toBe("https://itrader.dev/staging-access");
   });
 });
 

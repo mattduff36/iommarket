@@ -33,21 +33,6 @@ describe("dealer stock sync environment isolation", () => {
     expect(getDealerStockSyncAvailability({ ...preview, DATABASE_URL: `postgresql://postgres.${previewRef}:fixture@aws-0-eu-west-1.pooler.supabase.com:6543/postgres` }).enabled).toBe(true);
     expect(getDealerStockSyncAvailability({ ...preview, DATABASE_URL: `postgresql://postgres:${previewRef}@db.${prodRef}.supabase.co:5432/postgres?application_name=${previewRef}` }).enabled).toBe(false);
   });
-  it("accepts a dedicated pooler role only for the matching project", () => {
-    const role = `stock_worker.${previewRef}`;
-    expect(getDealerStockSyncAvailability({
-      ...preview,
-      DATABASE_URL: `postgresql://${role}:fixture@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`,
-    }).enabled).toBe(true);
-    expect(getDealerStockSyncAvailability({
-      ...preview,
-      DATABASE_URL: `postgresql://stock_worker.${prodRef}:fixture@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`,
-    }).enabled).toBe(false);
-    expect(getDealerStockSyncAvailability({
-      ...preview,
-      DATABASE_URL: `postgresql://${role}:fixture@db.${prodRef}.supabase.co:5432/postgres`,
-    }).enabled).toBe(false);
-  });
   it("rejects mismatched app, auth and explicit worker targets", () => {
     for (const overrides of [{ NEXT_PUBLIC_APP_URL: "https://itrader.im" }, { NEXT_PUBLIC_SUPABASE_URL: `https://${prodRef}.supabase.co` }, { DEALER_STOCK_SYNC_TARGET: "production" }]) {
       expect(getDealerStockSyncAvailability({ ...preview, ...overrides }).enabled).toBe(false);

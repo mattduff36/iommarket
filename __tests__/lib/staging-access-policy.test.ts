@@ -75,17 +75,3 @@ describe("staging administrator access", () => {
     expect(isStagingMachineRequest("/api/dev-auth", "POST", false)).toBe(false);
   });
 });
-
-
-describe("desktop stock-worker machine route", () => {
-  it("allows only the exact self-authenticating POST without a server action", () => {
-    expect(isStagingMachineRequest("/api/stock-worker", "POST", false)).toBe(true);
-    for (const method of ["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]) {
-      expect(isStagingMachineRequest("/api/stock-worker", method, false)).toBe(false);
-    }
-    expect(isStagingMachineRequest("/api/stock-worker", "POST", true)).toBe(false);
-    for (const path of ["/api/stock-worker/admin", "/api/stock-workers", "/admin/stock-worker", "/api/"]) {
-      expect(isStagingMachineRequest(path, "POST", false)).toBe(false);
-    }
-  });
-});
