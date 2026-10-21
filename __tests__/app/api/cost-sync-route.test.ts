@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { runCostSync, verifyProductionDeployment, CostDeploymentError } = vi.hoisted(() => {
+const { runCostSync, verifyProductionDeployment, CostDeploymentError, readAccountsReaderSync } = vi.hoisted(() => {
   class CostDeploymentError extends Error {
     constructor(message: string) {
       super(message);
@@ -14,11 +14,19 @@ const { runCostSync, verifyProductionDeployment, CostDeploymentError } = vi.hois
     runCostSync: vi.fn(),
     verifyProductionDeployment: vi.fn(),
     CostDeploymentError,
+    readAccountsReaderSync: vi.fn(),
   };
 });
 
 vi.mock("@/lib/costs/sync", () => ({
   runCostSync,
+}));
+
+vi.mock("@/lib/costs/accounts-health", () => ({
+  readAccountsReaderSync,
+  closedAccountsReaderSync: (
+    sync: { status: "succeeded" | "failed"; source: "accounts" } | null,
+  ) => sync ?? { status: "failed" as const, source: "accounts" as const },
 }));
 
 vi.mock("@/lib/costs/vercel", async () => {
@@ -61,6 +69,12 @@ describe("internal cost sync route T3", () => {
     delete process.env.COST_CANONICAL_VERCEL_PROJECT_ID;
     process.env.VERCEL_ENV = "development";
     runCostSync.mockResolvedValue({ status: "succeeded", runId: "run_1" });
+    readAccountsReaderSync.mockResolvedValue({
+      status: "succeeded",
+      source: "accounts",
+      asOf: "2026-10-21T09:00:00.000Z",
+      sourceUpdatedAt: "2026-10-20T08:00:00.000Z",
+    });
     verifyProductionDeployment.mockResolvedValue({
       status: "production",
       uid: "dpl_ready",
@@ -137,6 +151,7 @@ describe("internal cost sync route T3", () => {
       }),
     );
     expect(response.status).toBe(200);
+    expect(readAccountsReaderSync).not.toHaveBeenCalled();
     expect(runCostSync).toHaveBeenCalledWith({
       trigger: "DEPLOYMENT",
       eventId: "dpl_ready",
@@ -210,4 +225,161 @@ describe("internal cost sync route T3", () => {
     );
     expect(response.status).toBe(502);
   });
+
+  it("keeps accounts-preview on the canonical writer gate", async () => {
+    process.env.COST_LEDGER_ROLE = "accounts-preview";
+    const { POST } = await import("@/app/api/internal/cost-sync/route");
+    const response = await POST(authorizedDeploymentRequest());
+    expect(response.status).toBe(403);
+    expect(verifyProductionDeployment).not.toHaveBeenCalled();
+    expect(readAccountsReaderSync).not.toHaveBeenCalled();
+    expect(runCostSync).not.toHaveBeenCalled();
+  });
+
+  describe("accounts-reader", () => {
+    beforeEach(() => {
+      process.env.COST_LEDGER_ROLE = "accounts-reader";
+    });
+
+    it("rejects unauthorized POSTs before reading Accounts", async () => {
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(
+        new NextRequest("http://localhost:4000/api/internal/cost-sync", {
+          method: "POST",
+          body: JSON.stringify({ deploymentUrl: "https://iommarket.vercel.app" }),
+        }),
+      );
+      expect(response.status).toBe(401);
+      expect(readAccountsReaderSync).not.toHaveBeenCalled();
+      expect(runCostSync).not.toHaveBeenCalled();
+    });
+
+    it("does not read Accounts when costs are disabled", async () => {
+      process.env.COSTS_ENABLED = "false";
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(authorizedDeploymentRequest());
+      expect(response.status).toBe(200);
+      expect(verifyProductionDeployment).not.toHaveBeenCalled();
+      expect(readAccountsReaderSync).not.toHaveBeenCalled();
+      await expect(response.json()).resolves.toEqual({ data: { status: "skipped" } });
+    });
+
+    it("requires a deployment URL before reading Accounts", async () => {
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(
+        new NextRequest("http://localhost:4000/api/internal/cost-sync", {
+          method: "POST",
+          headers: {
+            authorization: "Bearer sync-secret",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ target: "production" }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(verifyProductionDeployment).not.toHaveBeenCalled();
+      expect(readAccountsReaderSync).not.toHaveBeenCalled();
+      expect(runCostSync).not.toHaveBeenCalled();
+    });
+
+    it("rejects invalid JSON before reading Accounts", async () => {
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(
+        new NextRequest("http://localhost:4000/api/internal/cost-sync", {
+          method: "POST",
+          headers: {
+            authorization: "Bearer sync-secret",
+            "content-type": "application/json",
+          },
+          body: "{",
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(readAccountsReaderSync).not.toHaveBeenCalled();
+      expect(runCostSync).not.toHaveBeenCalled();
+    });
+
+    it("skips a verified preview deployment without reading Accounts", async () => {
+      verifyProductionDeployment.mockResolvedValue({
+        status: "preview",
+        uid: "dpl_preview",
+        projectId: "prj_TFAfJkG9P0osjQpsH2gaNrSPWbCr",
+      });
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(authorizedDeploymentRequest("https://iommarket-git-preview.vercel.app"));
+      expect(response.status).toBe(200);
+      expect(readAccountsReaderSync).not.toHaveBeenCalled();
+      expect(runCostSync).not.toHaveBeenCalled();
+      await expect(response.json()).resolves.toEqual({ data: { status: "skipped" } });
+    });
+
+    it("does not read Accounts when deployment verification fails", async () => {
+      verifyProductionDeployment.mockRejectedValue(
+        new CostDeploymentError("Deployment could not be verified."),
+      );
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(authorizedDeploymentRequest("https://unknown.vercel.app"));
+      expect(response.status).toBe(400);
+      expect(readAccountsReaderSync).not.toHaveBeenCalled();
+      expect(runCostSync).not.toHaveBeenCalled();
+    });
+
+    it("returns succeeded metadata after a verified production deployment", async () => {
+      readAccountsReaderSync.mockImplementation(async () => {
+        expect(verifyProductionDeployment).toHaveBeenCalled();
+        return {
+          status: "succeeded",
+          source: "accounts",
+          asOf: "2026-10-21T09:00:00.000Z",
+          sourceUpdatedAt: "2026-10-20T08:00:00.000Z",
+        };
+      });
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(authorizedDeploymentRequest());
+      expect(response.status).toBe(200);
+      expect(readAccountsReaderSync).toHaveBeenCalledTimes(1);
+      expect(runCostSync).not.toHaveBeenCalled();
+      await expect(response.json()).resolves.toEqual({
+        data: {
+          status: "succeeded",
+          source: "accounts",
+          asOf: "2026-10-21T09:00:00.000Z",
+          sourceUpdatedAt: "2026-10-20T08:00:00.000Z",
+        },
+      });
+    });
+
+    it("fails closed when Accounts billing is unavailable", async () => {
+      readAccountsReaderSync.mockResolvedValue({ status: "failed", source: "accounts" });
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(authorizedDeploymentRequest());
+      expect(response.status).toBe(502);
+      expect(runCostSync).not.toHaveBeenCalled();
+      await expect(response.json()).resolves.toEqual({
+        data: { status: "failed", source: "accounts" },
+      });
+    });
+
+    it("fails closed when the Accounts read returns nothing", async () => {
+      readAccountsReaderSync.mockResolvedValue(null);
+      const { POST } = await import("@/app/api/internal/cost-sync/route");
+      const response = await POST(authorizedDeploymentRequest());
+      expect(response.status).toBe(502);
+      expect(runCostSync).not.toHaveBeenCalled();
+      await expect(response.json()).resolves.toEqual({
+        data: { status: "failed", source: "accounts" },
+      });
+    });
+  });
 });
+
+function authorizedDeploymentRequest(deploymentUrl = "https://iommarket.vercel.app"): NextRequest {
+  return new NextRequest("http://localhost:4000/api/internal/cost-sync", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer sync-secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ deploymentUrl }),
+  });
+}

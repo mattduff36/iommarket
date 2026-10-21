@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { closedAccountsReaderSync, readAccountsReaderSync } from "@/lib/costs/accounts-health";
+import { accountsReaderRequested } from "@/lib/costs/ledger-access";
 import {
   CostConfigError,
   isBearerSecretAuthorized,
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertCanonicalLedgerWriter();
+    if (!accountsReaderRequested()) assertCanonicalLedgerWriter();
   } catch (error) {
     if (error instanceof CostConfigError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
@@ -61,6 +63,11 @@ export async function POST(request: NextRequest) {
     const deployment = await verifyProductionDeployment({ deploymentUrl });
     if (deployment.status === "preview") {
       return NextResponse.json({ data: { status: "skipped" } });
+    }
+
+    if (accountsReaderRequested()) {
+      const sync = closedAccountsReaderSync(await readAccountsReaderSync());
+      return NextResponse.json({ data: sync }, { status: syncStatusCode(sync.status) });
     }
 
     const result = await runCostSync({
