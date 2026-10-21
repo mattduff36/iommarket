@@ -28,7 +28,7 @@ export async function AdminArea({
     <div className="flex min-w-0 flex-1">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block w-64 shrink-0 border-r border-border bg-surface">
-          <div className="px-4 py-4 space-y-5 overflow-y-auto max-h-[calc(100vh-4rem)]">
+          <div className="sticky top-0 max-h-dvh overflow-y-auto overscroll-contain px-4 py-4 space-y-5">
             {ADMIN_NAV_GROUPS.map((group) => {
               const items = navigation.filter((i) => i.group === group.key);
               if (items.length === 0) return null;
