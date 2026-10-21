@@ -1,3 +1,5 @@
+import { parseSupabaseConnectionIdentity } from "@/lib/db/supabase-identity";
+
 type Environment = "preview" | "production" | "local";
 type Env = Record<string, string | undefined>;
 
@@ -33,8 +35,10 @@ function databaseMatches(raw: string, environment: Environment): boolean {
     if (environment === "local") return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
     if (url.port && !["5432", "6543"].includes(url.port)) return false;
     const ref = PROJECTS[environment];
-    return url.hostname === `db.${ref}.supabase.co` ||
-      (url.hostname.endsWith(".pooler.supabase.com") && decodeURIComponent(url.username) === `postgres.${ref}`);
+    const identity = parseSupabaseConnectionIdentity(raw);
+    if (!identity || identity.projectRef !== ref) return false;
+    if (identity.kind === "direct") return url.hostname === `db.${ref}.supabase.co`;
+    return identity.kind === "pooler" && url.hostname.endsWith(".pooler.supabase.com");
   } catch {
     return false;
   }

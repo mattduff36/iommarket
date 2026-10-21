@@ -1,19 +1,14 @@
+import { parseSupabaseConnectionIdentity } from "@/lib/db/supabase-identity";
+
 const PREVIEW_PROJECT = "syneonzucehwlghqmfbg";
 const PRODUCTION_PROJECT = "snlqivvogfqesxpbjiei";
 const DATABASE_KEYS = ["POSTGRES_URL", "POSTGRES_URL_NON_POOLING", "DATABASE_URL"] as const;
 
 export function mediaDatabaseIdentity(value: string): string | null {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") return null;
-    if (url.hostname === "127.0.0.1" || url.hostname === "localhost") return "local";
-    const direct = /^db\.([a-z0-9]+)\.supabase\.co$/i.exec(url.hostname)?.[1];
-    if (direct) return direct.toLowerCase();
-    if (!url.hostname.endsWith(".pooler.supabase.com")) return null;
-    return /^postgres\.([a-z0-9]+)$/i.exec(decodeURIComponent(url.username))?.[1]?.toLowerCase() ?? null;
-  } catch {
-    return null;
-  }
+  const identity = parseSupabaseConnectionIdentity(value);
+  if (!identity) return null;
+  if (identity.kind === "loopback") return "local";
+  return identity.projectRef;
 }
 
 /** No production credential may enable a development media write, even on localhost. */

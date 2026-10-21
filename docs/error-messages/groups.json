@@ -5,8 +5,8 @@
   "semantic_display_verified_count": 474,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1138,
-    "internal-only": 1300,
+    "displayed": 1139,
+    "internal-only": 1299,
     "duplicate": 793,
     "irrelevant": 138
   },
@@ -16,9 +16,9 @@
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 52,
-    "ast-throw-caller-sink": 104,
+    "ast-throw-caller-sink": 105,
     "ast-binding": 19,
-    "ast-throw-unrendered": 353,
+    "ast-throw-unrendered": 352,
     "ast-diagnostic-call": 71,
     "ast-throw-replaced": 8,
     "ast-branch-condition": 7,
@@ -94,7 +94,7 @@
     },
     {
       "id": "internal-only:ast-throw-unrendered:deferred-c:thrown",
-      "count": 267,
+      "count": 266,
       "example": "actions/dealer-reviews.ts:61",
       "rule_id": "ast-throw-unrendered",
       "classification": "internal-only"
@@ -157,7 +157,7 @@
     },
     {
       "id": "displayed:ast-throw-caller-sink:deferred-c:thrown",
-      "count": 92,
+      "count": 93,
       "example": "actions/dealer-onboarding.ts:256",
       "rule_id": "ast-throw-caller-sink",
       "classification": "displayed"
