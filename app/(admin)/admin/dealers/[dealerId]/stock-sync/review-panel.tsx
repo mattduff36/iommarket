@@ -1,7 +1,10 @@
+import Link from "@/components/navigation/link";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
+import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
 import { actionLabel, stockSyncReason, stockSyncStatus } from "@/lib/dealer-stock-sync/review";
 import { ApproveStockReportButton } from "./approve-button";
+import { StockReviewEditButton } from "./review-edit-button";
 
 function changesFor(action: PlanAction) {
   if (action.kind !== "update" && action.kind !== "conflict" && action.kind !== "create") return [];
@@ -59,13 +62,28 @@ function Evidence({ review }: { review: ReviewedActionEvidence }) {
   );
 }
 
-function Row({ action }: { action: PlanAction }) {
+function Row({
+  action,
+  reportId,
+  fingerprint,
+  allowEdit,
+}: {
+  action: PlanAction;
+  reportId: string;
+  fingerprint: string;
+  allowEdit: boolean;
+}) {
+  const editable = allowEdit && canEditStockReviewAction(action);
+  const linked = Boolean(action.listingId) && (action.kind === "blocked" || action.kind === "conflict");
+  const corrected = action.review?.provenance.includes("admin-corrected") ?? false;
+  const label = action.displayTitle || action.review?.displayTitle || "vehicle";
   return (
     <li className="rounded-md border border-border px-3 py-2 text-sm">
       <p className="font-medium text-text-primary">
         {actionLabel(action)}
         {action.displayTitle ? ` - ${action.displayTitle}` : ""}
       </p>
+      {corrected ? <p className="text-text-secondary">Corrected by admin.{allowEdit ? " Still pending approval." : ""}</p> : null}
       {action.kind === "blocked" || action.kind === "conflict" ? (
         <p className="text-text-secondary">{stockSyncReason(action.reason)}</p>
       ) : null}
@@ -85,6 +103,20 @@ function Row({ action }: { action: PlanAction }) {
         </p>
       ))}
       {action.review ? <Evidence review={action.review} /> : null}
+      {editable && action.sourceIdentityKey ? (
+        <StockReviewEditButton
+          reportId={reportId}
+          fingerprint={fingerprint}
+          sourceIdentityKey={action.sourceIdentityKey}
+          label={label}
+          override={action.kind === "blocked"}
+        />
+      ) : null}
+      {linked ? (
+        <Link href={`/listings/${action.listingId}?adminReview=1`} className="mt-2 inline-block text-neon-blue-400 hover:underline">
+          Open listing editor
+        </Link>
+      ) : null}
     </li>
   );
 }
@@ -137,7 +169,13 @@ export function StockSyncReviewPanel(input: {
           ) : (
             <ul className="space-y-2">
               {actions.map((action, index) => (
-                <Row key={`${action.kind}-${action.sourceIdentityKey ?? "none"}-${index}`} action={action} />
+                <Row
+                  key={`${action.kind}-${action.sourceIdentityKey ?? "none"}-${index}`}
+                  action={action}
+                  reportId={input.reportId}
+                  fingerprint={input.fingerprint}
+                  allowEdit={input.status === "PENDING_REVIEW" && title !== "Sold excluded"}
+                />
               ))}
             </ul>
           )}
