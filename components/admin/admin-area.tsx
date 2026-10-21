@@ -25,7 +25,7 @@ export async function AdminArea({
   );
 
   return (
-    <div className="flex min-w-0 flex-1">
+    <div className="admin-area-shell flex min-w-0 flex-1">
         {/* Desktop sidebar */}
         <aside className="hidden lg:block w-64 shrink-0 border-r border-border bg-surface">
           <div className="sticky top-0 max-h-dvh overflow-y-auto overscroll-contain px-4 py-4 space-y-5">
