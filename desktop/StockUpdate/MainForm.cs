@@ -308,9 +308,12 @@ public sealed class MainForm : Form, IWorkerControlUi
                     if (!ReferenceEquals(_runner, observed)) return;
                     _runner = null;
                     var expected = _control?.State.StopWorker == true || _control?.State.RuntimeState is "stopping" or "stopped";
-                    _control?.State.ObserveExit();
-                    SetStatus(expected ? "Worker stopped" : "Worker needs attention");
-                    Note(expected
+                    if (mode == "check") _control?.State.MarkStopped();
+                    else _control?.State.ObserveExit();
+                    SetStatus(_control?.State.Paused == true ? "Connection lost. Click Sign in to reconnect."
+                        : mode == "check" ? "Connection check finished — see the diagnostic result"
+                        : expected ? "Worker stopped" : "Worker needs attention");
+                    Note(mode == "check" ? "Read-only connection check ended. The diagnostic output above records its result." : expected
                         ? "Worker stopped. The app stays connected so the website can start it again."
                         : "The worker process exited and was not restarted. Review the activity. A generic finished line is not verified success.");
                     UpdateButtons();
