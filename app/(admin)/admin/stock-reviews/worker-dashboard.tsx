@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 import { commandWorker, getWorkerDashboard } from "./worker-actions";
 import { StockWorkerCompletion, stockJobFinished, stockJobOutcome } from "./worker-completion";
@@ -129,7 +130,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
     <div ref={bar} hidden={!online} className="fixed inset-x-3 bottom-3 z-40 overflow-hidden rounded-xl border border-neon-blue-500/40 bg-surface shadow-2xl sm:inset-x-5 lg:left-72">
       <div className="h-1 bg-neon-blue-500/10" aria-hidden="true"><div className={`h-full bg-neon-blue-500 ${busy ? "w-1/3 motion-safe:animate-pulse" : online ? "w-full opacity-40" : "w-0"}`} /></div>
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <span className="mr-1 text-xl font-bold tracking-tight text-neon-blue-400">iTrader<span className="font-normal text-text-primary">.</span></span>
+        <Image src="/images/logo-itrader-hq.png" alt="iTrader" width={220} height={74} className="mr-1 h-9 w-auto shrink-0" />
         <div className="min-w-0 flex-1"><p role="status" className="text-sm font-semibold text-text-primary">{title}</p>
           <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "No tasks running. Click Start worker to run queued work." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
         <div className="flex flex-wrap gap-2">{buttons}</div>

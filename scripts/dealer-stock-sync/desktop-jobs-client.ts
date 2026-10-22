@@ -101,6 +101,7 @@ export function createDesktopJobsClient(environment: DesktopEnvironment, accessT
         if (response.status === 401 || response.status === 403) throw new DesktopJobError("unauthorised");
         if (response.status === 409) throw new DesktopJobError("conflict");
         if (response.status === 429) throw new DesktopJobError("rate-limited");
+        if (response.status === 400) throw new DesktopJobError("invalid-request");
         if (!response.ok || response.redirected || (response.url && response.url !== url)) throw new DesktopJobError("unavailable");
         if (!isJsonUtf8(response.headers.get("content-type")) || !response.body) throw new DesktopJobError("invalid-response");
         reader = response.body.getReader();

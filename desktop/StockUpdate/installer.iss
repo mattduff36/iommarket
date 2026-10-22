@@ -73,6 +73,9 @@ Name: "{autoprograms}\iTrader\Stock Update"; Filename: "{app}\StockUpdate.exe"; 
 Name: "{autodesktop}\iTrader Stock Update"; Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 Name: "{autoprograms}\iTrader\Uninstall Stock Update"; Filename: "{uninstallexe}"
 
+[Run]
+Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"; Description: "Open iTrader Stock Update"; Flags: nowait postinstall skipifsilent
+
 [UninstallDelete]
 ; App-owned encrypted sessions only. This is NOT server credential revocation.
 Type: filesandordirs; Name: "{localappdata}\iTrader\StockUpdate"

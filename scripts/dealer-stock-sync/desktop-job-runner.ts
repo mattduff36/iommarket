@@ -28,7 +28,7 @@ export function desktopScrapeSubmission(result: PipelineResult) {
     detailMissing: source.detailMissing, paginationUncertain: source.paginationUncertain,
     vehicles: source.vehicles.map(vehicle => ({
       ...Object.fromEntries(VEHICLE_FIELDS.map(key => [key, vehicle[key]])),
-      imageUrls: vehicle.imageUrls.slice(0, 20),
+      imageUrls: [...new Set(vehicle.imageUrls)].slice(0, 20),
       provenance: {
         startUrl: vehicle.provenance.startUrl,
         sourceKeys: [...vehicle.provenance.sourceKeys],
@@ -89,7 +89,17 @@ export async function runDesktopWatch(options: DesktopWatchOptions): Promise<voi
       await client.fail(job, "incomplete");
       throw new DesktopJobError("job-failed");
     }
-    const status = await client.submit(job, submission);
+    let status: Awaited<ReturnType<DesktopJobsClient["submit"]>>;
+    try { status = await client.submit(job, submission); }
+    catch (error) {
+      // A definite rejection has not saved a report. Finish this owned job so
+      // the page can show failure; ambiguous transport outcomes stay untouched.
+      if (error instanceof DesktopJobError && error.reason === "invalid-request") {
+        await client.fail(job, "incomplete");
+        throw new DesktopJobError("job-failed");
+      }
+      throw error;
+    }
     if (status !== "succeeded") throw new DesktopJobError("job-failed");
     jobEvent(job, "processing-finished", "The scan was processed. Check Stock Reviews for the report and any required approval.");
   }

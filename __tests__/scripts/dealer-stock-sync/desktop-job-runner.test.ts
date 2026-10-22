@@ -79,6 +79,14 @@ describe("desktop raw submission", () => {
     expect(body.sourceResults[0].paginationUncertain).toBeUndefined();
     expect(parseDesktopScrapeSubmission("mikes-motors", body).canArchive).toBe(false);
   });
+  it("deduplicates repeated gallery photos before the photo limit and server validation", () => {
+    const result = pipeline();
+    const photos = Array.from({ length: 21 }, (_, i) => `https://images.clickdealer.co.uk/vehicles/8324/8324646/full/${i}.jpg`);
+    result.sourceResults[0].vehicles[0].imageUrls = [photos[0], ...photos];
+    const body = desktopScrapeSubmission(result);
+    expect(body.sourceResults[0].vehicles[0].imageUrls).toEqual(photos.slice(0, 20));
+    expect(() => parseDesktopScrapeSubmission("mikes-motors", body)).not.toThrow();
+  });
   it("rejects oversize inventory or body and retains missing-photo evidence", () => {
     const result = pipeline();
     const vehicle = result.sourceResults[0].vehicles[0];
@@ -148,6 +156,15 @@ describe("desktop manual loop", () => {
     await expect(runDesktopWatch(f.options)).rejects.toMatchObject({ reason: "job-failed" });
     expect(f.client.fail).toHaveBeenCalledWith(f.job, "incomplete");
     expect(f.client.submit).not.toHaveBeenCalled();
+  });
+  it("finishes a definitely rejected submission as failed without retrying or announcing success", async () => {
+    const f = watch();
+    f.client.submit.mockRejectedValue(new DesktopJobError("invalid-request"));
+    await expect(runDesktopWatch(f.options)).rejects.toMatchObject({ reason: "job-failed" });
+    expect(f.client.submit).toHaveBeenCalledTimes(1);
+    expect(f.client.fail).toHaveBeenCalledWith(f.job, "incomplete");
+    expect(f.client.lease).toHaveBeenCalledTimes(1);
+    expect(f.events.some(event => event.state === "processing-finished")).toBe(false);
   });
   it.each(["submit", "step"] as const)("does not retry ambiguous %s or emit false success", async operation => {
     const f = watch(operation === "step" ? "APPLY" : "SCRAPE");

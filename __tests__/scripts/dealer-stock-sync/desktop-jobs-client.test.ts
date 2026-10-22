@@ -258,7 +258,7 @@ describe("desktop jobs client response contracts", () => {
     [403, "unauthorised", UNAUTHORISED],
     [409, "conflict", CONFLICT],
     [429, "rate-limited", RATE_LIMITED],
-    [400, "unavailable", GENERIC],
+    [400, "invalid-request", GENERIC],
     [500, "unavailable", GENERIC],
     [503, "unavailable", GENERIC],
     [302, "unavailable", GENERIC],
