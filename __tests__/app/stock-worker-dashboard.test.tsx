@@ -12,6 +12,13 @@ beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); dashboard.mockResolve
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 async function tick() { await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); }
 describe("Stock Reviews live worker", () => {
+ it("shows indeterminate progress only while work is active", () => {
+  const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
+  const view = render(<StockWorkerDashboard initial={connected()} jobs={[job]} readyCount={0} />);
+  expect(screen.getByRole("progressbar", { name: "Stock update in progress" })).not.toHaveAttribute("aria-valuenow");
+  view.rerender(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
+  expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+ });
  it("announces a completed scan once and keeps its finished state visible", async () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
   const ui = (status: string) => <StockWorkerDashboard initial={connected()} jobs={[{...job, status, reportStatus: status === "SUCCEEDED" ? "PENDING_REVIEW" : null}]} readyCount={1} />;

@@ -1,0 +1,17 @@
+.moving {
+  width: 25%;
+  animation: stock-progress 1.8s linear infinite;
+}
+
+@keyframes stock-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moving {
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
+}
