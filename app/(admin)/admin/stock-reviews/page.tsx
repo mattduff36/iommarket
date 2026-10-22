@@ -3,12 +3,14 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "@/components/navigation/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { stockSyncReason, stockSyncStatus } from "@/lib/dealer-stock-sync/review";
+import { stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Stock reviews | Admin" };
+
+import { StockDealerPicker } from "./dealer-picker";
 
 const RECENT_LIMIT = 20;
 
@@ -140,7 +142,9 @@ function dealerGroups(outstanding: ReportRow[], recentReports: ReportRow[], jobs
 }
 
 function ReportCard({ report, dealerId }: { report: ReportRow; dealerId: string }) {
-  const actions = actionsOf(report.plan);
+  const allActions = actionsOf(report.plan);
+  const actions = allActions.filter(action => !isSoldStockReviewAction(action));
+  const visibleCount = Math.max(0, report.inventoryCount - allActions.filter(isSoldStockReviewAction).length);
   const warning = warningOf(report.plan);
   const actionable = actions.filter((action) => action.kind === "create" || action.kind === "update").length;
   const blocked = actions.filter((action) => action.kind === "blocked" || action.kind === "conflict").length;
@@ -150,10 +154,10 @@ function ReportCard({ report, dealerId }: { report: ReportRow; dealerId: string 
   return (
     <li className="rounded-md border border-border px-4 py-3 text-sm">
       <p className="font-medium text-text-primary">
-        {outcome} · {report.inventoryCount} vehicles
+        {outcome} · {visibleCount} vehicles
       </p>
       <p className="text-text-secondary">
-        {actionable} actionable · {blocked} blocked or sold{removals ? ` · ${removals}` : ""} · {when}
+        {actionable} actionable · {blocked} blocked{removals ? ` · ${removals}` : ""} · {when}
       </p>
       {outcome === "No change" ? <p className="text-text-secondary">Nothing to approve. Listings were not changed.</p> : null}
       {report.status === "APPROVED" ? <p className="text-text-secondary">Approval queues processing and does not apply listings by itself.</p> : null}
@@ -170,10 +174,11 @@ function ReportCard({ report, dealerId }: { report: ReportRow; dealerId: string 
 
 export default async function AdminStockReviewsPage() {
   await requireRole("ADMIN");
-  const [outstanding, recentReports, jobs] = await Promise.all([
+  const [outstanding, recentReports, jobs, bindings] = await Promise.all([
     loadReports(["PENDING_REVIEW", "APPROVED"]),
     loadReports(["APPLIED", "FAILED"], RECENT_LIMIT),
     loadJobs(),
+    db.dealerStockSourceBinding.findMany({ where: { verifiedAt: { not: null } }, select: { dealer: { select: { id: true, name: true } } }, orderBy: { dealer: { name: "asc" } } }),
   ]);
   const dealers = dealerGroups(outstanding, recentReports, jobs);
 
@@ -183,6 +188,7 @@ export default async function AdminStockReviewsPage() {
         title="Stock reviews"
         description="Outstanding website-stock reviews and recent worker runs. Approve changes on the dealer stock review page. A finished job is not proof that listings were applied."
       />
+      <StockDealerPicker dealers={bindings.map(binding => binding.dealer)} />
       <p className="text-sm text-text-secondary">
         Every pending and approved review is listed. Recent history is the latest {RECENT_LIMIT} applied or failed reports and the latest {RECENT_LIMIT} jobs.
       </p>

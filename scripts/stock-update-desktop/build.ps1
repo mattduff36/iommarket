@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$version = '1.1.0'
+$version = '1.1.1'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
@@ -92,7 +92,7 @@ if ($testProcess.ExitCode -ne 0 -or -not [IO.File]::Exists($selfReport)) { throw
 if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed during the build.' }
 
 @'
-iTrader Stock Update - private internal release 1.1.0 (unsigned)
+iTrader Stock Update - private internal release 1.1.1 (unsigned)
 
 This installer includes the application, its runtimes and browser. You do not need Git, Node.js, .NET, Cursor or repository access.
 

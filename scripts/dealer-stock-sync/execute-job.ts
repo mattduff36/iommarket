@@ -14,6 +14,8 @@ import { getDealerStockRegistryOption } from "../../lib/dealer-stock-sync/regist
 import { db } from "../../lib/db";
 import { getDealer } from "./registry";
 import { takeDownManagedListing } from "./take-down";
+import { liveReviewEvidence } from "./live-review-evidence";
+import { withReviewEvidence } from "./reviewed-source";
 import { inventoryFromReconciled } from "./to-inventory";
 import type { PipelineResult } from "./types";
 
@@ -133,6 +135,18 @@ async function scrapeJob(
       if (index === -1) identities.push(patch);
       else identities[index] = patch;
     }
+    const evidence = liveReviewEvidence({
+      reconciled: result.reconciled,
+      capturedAt: result.scrapeFinishedAt,
+    });
+    const actions = withReviewEvidence(plan.actions, evidence, null).map((action) => {
+      if (action.displayTitle?.trim()) return action;
+      return {
+        ...action,
+        displayTitle: inventory.find((vehicle) => vehicle.sourceIdentityKey === action.sourceIdentityKey)?.title ??
+          current.listings.find((listing) => listing.id === action.listingId)?.title ?? "Vehicle requiring review",
+      };
+    });
     await persistCompleteScrape(tx, {
       bindingId: job.bindingId,
       dealerId: job.dealerId,
@@ -140,10 +154,7 @@ async function scrapeJob(
       jobId: job.id,
       patches: plan.patches,
       inventoryCount: plan.inventoryCount,
-      snapshot: { ...current, identities, actions: plan.actions.map(action => ({ ...action,
-        displayTitle: inventory.find(vehicle => vehicle.sourceIdentityKey === action.sourceIdentityKey)?.title ??
-          current.listings.find(listing => listing.id === action.listingId)?.title ?? "Vehicle requiring review",
-      })) },
+      snapshot: { ...current, identities, actions },
     });
   });
 }

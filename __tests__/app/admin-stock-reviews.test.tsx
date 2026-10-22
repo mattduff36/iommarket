@@ -6,12 +6,15 @@ const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
 
+vi.mock("@/app/(admin)/admin/stock-reviews/dealer-picker", () => ({ StockDealerPicker: () => null }));
+
 vi.mock("@/lib/auth", () => ({
   requireRole: (...args: unknown[]) => requireRole(...args),
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
+    dealerStockSourceBinding: { findMany: vi.fn().mockResolvedValue([]) },
     dealerStockSyncReport: { findMany: (...args: unknown[]) => reportFindMany(...args) },
     dealerStockSyncJob: { findMany: (...args: unknown[]) => jobFindMany(...args) },
   },

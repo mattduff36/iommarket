@@ -289,6 +289,39 @@ describe("dealer stock sync rules", () => {
     expect(fingerprintSnapshot(base)).not.toBe(fingerprintSnapshot(edited));
   });
 
+  it("blocks a new sold vehicle as seen source-sold and still counts a real absence", () => {
+    const photos = ["https://dealer.example/sold.jpg"];
+    const sold = vehicle({
+      sourceIdentityKey: "sourceVehicleId:sold",
+      availability: "sold",
+      title: "2020 Ford Focus",
+      sourceImageUrls: photos,
+    });
+    const created = plan({ vehicles: [sold], identities: [], listings: [] });
+    expect(created.actions).toContainEqual(expect.objectContaining({
+      kind: "blocked",
+      reason: "source-sold",
+      section: "new",
+      sourceIdentityKey: "sourceVehicleId:sold",
+      listingId: null,
+    }));
+    expect(created.actions.some((action) => action.kind === "create")).toBe(false);
+    expect(created.patches[0]).toMatchObject({
+      sourceIdentityKey: "sourceVehicleId:sold",
+      absenceCount: 0,
+      lastAbsenceRunId: null,
+      lastSeenRunId: "run-1",
+    });
+
+    const matched = plan({ vehicles: [vehicle({ availability: "sold" })] });
+    expect(matched.actions[0]).toMatchObject({ kind: "blocked", reason: "source-sold", listingId: "listing-1" });
+    expect(matched.patches[0]).toMatchObject({ absenceCount: 0, lastSeenRunId: "run-1", listingId: "listing-1" });
+
+    const absent = plan({ vehicles: [] });
+    expect(absent.patches[0]?.absenceCount).toBe(1);
+    expect(absent.actions.some((action) => action.kind === "missing_once")).toBe(true);
+  });
+
   it("excludes preview, disabled, deleted, and non-dealer accounts", () => {
     expect(isEligibleDealer({ isAdminPreview: false, role: "DEALER", disabledAt: null, deletedAt: null })).toBe(true);
     expect(isEligibleDealer({ isAdminPreview: true, role: "DEALER", disabledAt: null, deletedAt: null })).toBe(false);

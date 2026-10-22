@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.1.1"
 #endif
 #define ProductName "iTrader Stock Update"
 
