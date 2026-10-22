@@ -23,12 +23,12 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children }: {
-  initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, initialNow = 0 }: {
+  initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
 }) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initial);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(initialNow);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [pending, setPending] = useState(false);
@@ -88,7 +88,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children }: {
     try {
       const result = await commandWorker({ deviceId: device.deviceId, instanceId: device.instanceId, action });
       if (!mounted.current) return;
-      setMessage(result.ok ? `${action === "start" ? "Start" : "Safe stop"} requested. Waiting for the app to confirm.` :
+      setMessage(result.ok ? `${action === "start" ? "Start" : "Safe stop"} requested. The current worker state is shown above.` :
         result.error === "conflict" ? "The app is no longer connected. Reopen it and sign in." : "The request was not accepted. Check the connection and try again.");
       setSnapshot(await getWorkerDashboard());
     } catch { if (mounted.current) setMessage("The request outcome is uncertain. Check the worker state before trying again."); }

@@ -50,8 +50,8 @@ export function StockDealerPicker({ dealers, unavailable = [] }: { dealers: { id
         {pending ? "Queuingâ€¦" : "Queue selected dealers"}
       </button>
       {unavailable.length ? <details className="text-sm text-text-secondary">
-        <summary className="cursor-pointer py-2">Other dealer profiles ({unavailable.length}) — why they are unavailable</summary>
-        <ul className="mt-2 space-y-2">{unavailable.map(dealer => <li key={dealer.id}><span className="font-medium">{dealer.name}</span> · {dealer.reason}</li>)}</ul>
+        <summary className="cursor-pointer py-2">Other dealer profiles ({unavailable.length}) â€” why they are unavailable</summary>
+        <ul className="mt-2 space-y-2">{unavailable.map(dealer => <li key={dealer.id}><span className="font-medium">{dealer.name}</span> Â· {dealer.reason}</li>)}</ul>
       </details> : null}
       {message ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
     </section>

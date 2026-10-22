@@ -449,7 +449,7 @@ public sealed class MainForm : Form, IWorkerControlUi
 
     void IWorkerControlUi.OnConnected()
     {
-        if (_runner is not { IsRunning: true }) SetStatus("Connected — use Stock Reviews to start work");
+        if (_runner is not { IsRunning: true }) SetStatus("Connected â€” use Stock Reviews to start work");
         UpdateButtons();
     }
 
