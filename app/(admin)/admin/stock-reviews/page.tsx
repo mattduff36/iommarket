@@ -193,6 +193,7 @@ export default async function AdminStockReviewsPage({ searchParams }: {
   ]);
   const availableProfiles = profiles.filter(profile => !profile.isAdminPreview && !profile.user.disabledAt && profile.stockSourceBinding?.verifiedAt);
   const unavailableProfiles = profiles.filter(profile => !availableProfiles.some(available => available.id === profile.id)).map(profile => ({ id: profile.id, name: profile.name, reason: profile.isAdminPreview ? "Preview/demo profile — an active dealer account is required" : profile.user.disabledAt ? "Dealer account disabled" : "Website source needs setup" }));
+  const reportsByRun = new Map([...outstanding, ...recentReports].map(report => [report.scrapeRunId, report]));
   const dealers = dealerGroups(outstanding, recentReports, jobs);
   const selectedReport = [...outstanding, ...recentReports].find(report => report.id === query.report);
   const readyCount = outstanding.filter(report => report.status === "PENDING_REVIEW" && needsReview(actionsOf(report.plan).filter(action => !isSoldStockReviewAction(action)))).length;
@@ -204,7 +205,7 @@ export default async function AdminStockReviewsPage({ searchParams }: {
         description="Choose dealers, follow the worker live, then review and approve the proposed changes here. Listings change only after approval and successful processing."
       />
       <StockWorkerPairing code={typeof query.code === "string" ? query.code : ""} status={typeof query.status === "string" ? query.status : ""} />
-      <StockWorkerDashboard initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, startedAt: job.startedAt?.toISOString() ?? null }))}>
+      <StockWorkerDashboard initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt?.toISOString() ?? null }))}>
       <StockDealerPicker dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <p id="stock-review-results" className="text-sm text-text-secondary">
         Every pending and approved review is listed. Recent history is the latest {RECENT_LIMIT} applied or failed reports and the latest {RECENT_LIMIT} jobs.

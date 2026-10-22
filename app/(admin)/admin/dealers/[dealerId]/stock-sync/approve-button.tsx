@@ -45,6 +45,7 @@ export function ApproveStockReportButton({
       >
         Reject
       </button>
+      {isPending ? <p role="status" className="w-full text-sm text-text-secondary">Updating review…</p> : null}
       {error ? (
         <p className="w-full text-sm text-text-error" role="alert">
           {error}

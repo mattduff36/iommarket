@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
+const { dashboardProps } = vi.hoisted(() => ({ dashboardProps: vi.fn() }));
 
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: vi.fn().mockResolvedValue({ok:true,devices:[]}) }));
-vi.mock("@/app/(admin)/admin/stock-reviews/worker-dashboard", () => ({ StockWorkerDashboard: ({children}: {children: import("react").ReactNode}) => children }));
+vi.mock("@/app/(admin)/admin/stock-reviews/worker-dashboard", () => ({ StockWorkerDashboard: (props: {children: import("react").ReactNode}) => { dashboardProps(props); return props.children; } }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-pairing", () => ({ StockWorkerPairing: () => null }));
 vi.mock("@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-panel", () => ({ StockSyncReviewPanel: () => null }));
 vi.mock("@/app/(admin)/admin/stock-reviews/dealer-picker", () => ({ StockDealerPicker: () => null }));
@@ -86,6 +87,10 @@ async function renderPage(outstanding: unknown[], recent: unknown[] = [], jobs: 
 }
 
 describe("admin stock reviews", () => {
+  it("associates scrape report outcomes by run id when the job has no report relation", async () => {
+    await renderPage([], [report({ status: "FAILED", scrapeRunId: "scan", inventoryCount: 0 })], [job({ id: "scan", status: "SUCCEEDED" })]);
+    expect(dashboardProps).toHaveBeenCalledWith(expect.objectContaining({ jobs: [expect.objectContaining({ id: "scan", reportStatus: "FAILED" })] }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     requireRole.mockResolvedValue({ id: "admin-1" });

@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$version = '1.1.2'
+$version = '1.1.3'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
@@ -93,7 +93,7 @@ if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed dur
 
 Invoke-Checked $systemNode @((Join-Path $PSScriptRoot 'online-dependencies.mjs'), '--tools', $ToolRoot, '--out', $BuildRoot, '--worker', (Join-Path $BuildRoot 'payload\x64\worker')) 'online-dependencies'
 @'
-iTrader Stock Update - private internal release 1.1.2 (unsigned)
+iTrader Stock Update - private internal release 1.1.3 (unsigned)
 
 This installer includes the application and its reviewed worker packages. Setup downloads the matching official Node.js runtime and the pinned browser components, so an internet connection is required. A cancelled or failed download, checksum or extraction leaves any existing installation unchanged. You do not need Git, npm, .NET, Cursor or repository access. Setup downloads both Chromium modes needed by the configured dealer websites.
 
@@ -104,7 +104,7 @@ Use Preview - itrader.dev. Production needs separate approval and is not enabled
 3. Keep the app open. Stock Reviews shows Connected when ready. The app never starts a job just by signing in.
 4. Open Stock Reviews. Queue the intended dealer scan, then click Start worker on Stock Reviews. Leave the computer awake and connected.
 5. Review the completed report on the website. Check all proposed changes and source photos. Approve only the report you intend to apply. Incomplete scans and missing photos must be resolved, not bypassed.
-6. With the worker running, the server stages the approved photos and applies the whole approved report together. Confirm the report outcome and listings in Stock Reviews.
+6. After approval, click Start worker again. The worker stops automatically when the queue is empty. The server stages the approved photos and applies the whole approved report together. Confirm the report outcome and listings in Stock Reviews.
 7. Click Stop safely on Stock Reviews or in the app when finished. It finishes the current job, takes no next job and then stops. Wait for it before closing.
 
 There is no scheduled scan, startup worker or automatic approval. Any already queued eligible work for the selected environment may be processed while the worker runs.

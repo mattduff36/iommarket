@@ -103,6 +103,57 @@ export function extractSelectPropertyListings(html: string, origin: string) {
   });
 }
 
+function dwDivTexts(chunk: string, className: string) {
+  return [...chunk.matchAll(new RegExp(String.raw`class="${className}">([\s\S]*?)<\/div>`, "gi"))].map((match) =>
+    decodeListingText(match[1] ?? ""),
+  );
+}
+
+function dwStockPrice(stockLine: string) {
+  const match = stockLine.match(/£\s*([\d,]+(?:\.\d{2})?)/);
+  if (!match?.[1]) return null;
+  const price = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(price) ? price : null;
+}
+
+function dwFuel(spec: string) {
+  const petrol = /\bpetrol\b/i.test(spec) || /\bpet\b/i.test(spec);
+  const diesel = /\bdiesel\b/i.test(spec);
+  const hybrid = /\bhyb(?:rid)?\b/i.test(spec);
+  const electric = /\belectric\b/i.test(spec);
+  if ((petrol && diesel) || (electric && (petrol || diesel || hybrid))) return null;
+  if (hybrid && petrol) return "Petrol Hybrid";
+  if (hybrid && diesel) return "Diesel Hybrid";
+  if (hybrid) return "Hybrid";
+  if (electric) return "Electric";
+  if (petrol) return "Petrol";
+  if (diesel) return "Diesel";
+  return null;
+}
+
+function dwTransmission(spec: string) {
+  const automatic = /\bauto(?:matic)?\b/i.test(spec);
+  const manual = /\bmanual\b/i.test(spec);
+  if (automatic === manual) return null;
+  return automatic ? "Automatic" : "Manual";
+}
+
+function dwAvailability(stockLine: string) {
+  if (/\bsold\b/i.test(stockLine)) return "sold";
+  if (/\breserv/i.test(stockLine)) return "reserved";
+  return "available";
+}
+
+function dwCardImage(chunk: string, origin: string) {
+  const src = chunk.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1];
+  if (!src || /^(?:data:|javascript:)/i.test(src)) return null;
+  try {
+    return new URL(src, `${origin}/`).href;
+  } catch {
+    return null;
+  }
+}
+
 export function extractDwCarViews(html: string, origin: string) {
   if (!html.includes("car-view1-wrapper")) return [];
   const chunks = html.split(/class="car-view1-wrapper"/i).slice(1);
@@ -111,18 +162,24 @@ export function extractDwCarViews(html: string, origin: string) {
     if (!title) return [];
     const parsed = parseYearMakeModel(title);
     if (!parsed.make || !parsed.model) return [];
-    const spec = decodeListingText(chunk.match(/class="txt6">([\s\S]*?)<\/div>/gi)?.[1] ?? "");
-    const specBits = decodeListingText(chunk.match(/11000 Miles|[\d,]+ Miles[\s\S]{0,80}?20\d{2}/i)?.[0] ?? chunk);
+    const stockLine = dwDivTexts(chunk, "txt6").find((line) => /\b(?:in stock|sold|reserved)\b/i.test(line)) ?? "";
+    const spec = dwDivTexts(chunk, "txt6").find((line) => /\b(?:19|20)\d{2}\b/.test(line)) ?? "";
     const detailFile = chunk.match(/href=["'](details_\d+\.html)["']/i)?.[1];
+    const availability = dwAvailability(stockLine);
     return [
       {
-        url: detailFile ? new URL(detailFile, origin).href : null,
+        url: detailFile ? new URL(detailFile, `${origin}/`).href : null,
+        sourceVehicleId: detailFile?.replace(/\.html$/i, "") ?? null,
+        image: dwCardImage(chunk, origin),
+        description: dwDivTexts(chunk, "txt4")[0] ?? "",
         ...parsed,
-        year: parsed.year ?? yearFrom(chunk),
-        price: priceFrom(chunk) ?? priceFrom(spec),
-        mileage: milesFrom(chunk) ?? milesFrom(specBits),
-        transmission: chunk.match(/\b(Manual|Automatic)\b/i)?.[1] ?? null,
-        fuel: chunk.match(/\b(Petrol|Diesel|Hybrid|Electric)\b/i)?.[1] ?? null,
+        year: parsed.year ?? yearFrom(spec) ?? yearFrom(chunk),
+        price: dwStockPrice(stockLine),
+        mileage: milesFrom(dwDivTexts(chunk, "txt5")[0] ?? "") ?? milesFrom(spec),
+        transmission: dwTransmission(spec),
+        fuel: dwFuel(spec),
+        // An explicit "available" value is normalised to unknown. Omit the in-stock default.
+        ...(availability === "available" ? {} : { availability }),
       },
     ];
   });

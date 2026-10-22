@@ -12,6 +12,43 @@ beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); dashboard.mockResolve
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 async function tick() { await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); }
 describe("Stock Reviews live worker", () => {
+ it("announces a completed scan once and keeps its finished state visible", async () => {
+  const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
+  const ui = (status: string) => <StockWorkerDashboard initial={connected()} jobs={[{...job, status, reportStatus: status === "SUCCEEDED" ? "PENDING_REVIEW" : null}]} readyCount={1} />;
+  const view = render(ui("LEASED"));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  view.rerender(ui("SUCCEEDED"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+  expect(screen.getByRole("dialog", { name: "Island Motors: finished — ready for review" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+  view.rerender(ui("SUCCEEDED"));
+  await tick();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByText("No tasks running. Click Start worker to run queued work.")).toBeInTheDocument();
+ });
+ it("does not announce old history, and defers new failure notices while editing", async () => {
+  const old = { id: "old", dealerName: "Old dealer", kind: "APPLY", status: "SUCCEEDED", reportStatus: "APPLIED", startedAt: null };
+  const ui = (extra: typeof old[]) => <StockWorkerDashboard initial={connected()} jobs={[old,...extra]} readyCount={0} />;
+  const view = render(ui([]));
+  await tick(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  const editor = document.createElement("div"); editor.dataset.stockReviewEditing = "true"; document.body.append(editor);
+  view.rerender(ui([{...old,id:"new",status:"FAILED",reportStatus:"APPROVED"}]));
+  await tick(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  editor.remove();
+  await tick();
+  expect(screen.getByRole("dialog", { name: "Old dealer: task failed — check the saved result" })).toBeInTheDocument();
+ });
+ it("shows a pending command until the request resolves and prevents repeat submissions", async () => {
+  let finish!: (value: { ok: true }) => void;
+  command.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  render(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
+  fireEvent.click(screen.getByRole("button", { name: "Start worker" }));
+  expect(screen.getByRole("button", { name: "Sending request…" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Sending request…" }));
+  expect(command).toHaveBeenCalledTimes(1);
+  await act(async () => { finish({ ok: true }); });
+  expect(screen.getByRole("button", { name: "Start worker" })).toBeEnabled();
+ });
  it("refreshes server results while preserving dealer selection and shows completion", async () => {
   const ui = (readyCount: number) => <StockWorkerDashboard initial={connected()} jobs={[]} readyCount={readyCount}><StockDealerPicker dealers={[{ id: "dealer", name: "Island Motors" }]} /></StockWorkerDashboard>;
   const view = render(ui(0));

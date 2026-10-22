@@ -59,6 +59,20 @@ function fuelFromEngine(value: string) {
   return petrol ? "Petrol" : diesel ? "Diesel" : electric ? "Electric" : null;
 }
 
+export function extractDwDetailImages(html: string, origin: string) {
+  const images: string[] = [];
+  for (const match of html.matchAll(/src=["'](images\/carpix\/details\/slider_[^"']+\.(?:jpe?g|png|webp))["']/gi)) {
+    const src = match[1];
+    if (!src) continue;
+    try {
+      images.push(new URL(src, `${origin}/`).href);
+    } catch {
+      // Ignore a malformed gallery path and keep the other observed slides.
+    }
+  }
+  return [...new Set(images)];
+}
+
 export function extractDetailSpecs(html: string, detailUrl?: string | null) {
   const engineField = html.match(/<(li|div)\b[^>]*class=["']car_engine["'][^>]*>([\s\S]*?)<\/\1>/i)?.[2];
   const visible = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");

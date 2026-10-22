@@ -92,6 +92,16 @@ describe("desktop raw submission", () => {
 });
 
 describe("desktop manual loop", () => {
+  it("drains queued jobs and stops automatically after the final job", async () => {
+    const f = watch();
+    f.client.lease.mockReset();
+    f.client.lease.mockResolvedValueOnce(f.job).mockResolvedValueOnce({ ...f.job, id: "second-job" }).mockResolvedValue(null);
+    await runDesktopWatch(f.options);
+    expect(f.client.submit).toHaveBeenCalledTimes(2);
+    expect(f.client.lease).toHaveBeenCalledTimes(3);
+    expect(f.options.wait).not.toHaveBeenCalled();
+    expect(f.events.at(-1)?.state).toBe("stopped");
+  });
   it("takes no lease when already stopped", async () => {
     const f = watch(); f.stop(); await runDesktopWatch(f.options);
     expect(f.client.lease).not.toHaveBeenCalled();
@@ -114,12 +124,13 @@ describe("desktop manual loop", () => {
     expect(f.options.scrape).not.toHaveBeenCalled();
     expect(f.events.filter(e => e.state === "applied")).toHaveLength(1);
   });
-  it("idles with a responsive stop and does not submit or step without a job", async () => {
+  it("stops automatically when the queue is empty without submitting or polling", async () => {
     const f = watch();
     f.client.lease.mockResolvedValue(null);
     f.options.wait.mockImplementation(async () => { f.stop(); });
     await runDesktopWatch(f.options);
-    expect(f.options.wait).toHaveBeenCalledWith(250);
+    expect(f.options.wait).not.toHaveBeenCalled();
+    expect(f.events.at(-1)?.state).toBe("stopped");
     expect(f.client.lease).toHaveBeenCalledTimes(1);
     expect(f.client.submit).not.toHaveBeenCalled(); expect(f.client.step).not.toHaveBeenCalled();
   });

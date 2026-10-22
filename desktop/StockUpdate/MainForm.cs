@@ -51,6 +51,15 @@ public sealed class MainForm : Form, IWorkerControlUi
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 9f);
+        foreach (var button in new[] { _stop, _simpleStop })
+        {
+            button.BackColor = Color.FromArgb(220, 38, 38);
+            button.ForeColor = Color.White;
+            button.FlatStyle = FlatStyle.Flat;
+        }
+        _start.BackColor = Color.FromArgb(37, 99, 235);
+        _start.ForeColor = Color.White;
+        _start.FlatStyle = FlatStyle.Flat;
         var menu = new MenuStrip();
         var view = new ToolStripMenuItem("View");
         view.DropDownItems.Add(_debugLayout);

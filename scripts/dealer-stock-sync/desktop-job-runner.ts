@@ -55,7 +55,6 @@ export interface DesktopWatchOptions {
 /** A stop drains the one already leased job, including every approved photo step. */
 export async function runDesktopWatch(options: DesktopWatchOptions): Promise<void> {
   const { client, scrape, isStopped, emit } = options;
-  const wait = options.wait ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
   const jobEvent = (job: DesktopLease, state: string, message: string) =>
     emit({ type: "job", state, message, jobId: job.id });
 
@@ -99,11 +98,7 @@ export async function runDesktopWatch(options: DesktopWatchOptions): Promise<voi
   while (!isStopped()) {
     const job = await client.lease(isStopped);
     if (!job) {
-      if (isStopped()) break;
-      emit({ type: "status", state: "waiting", message: "Waiting for queued jobs. Weekly scheduling is off." });
-      // Keep idle safe-stop responsive without aborting an in-flight lease.
-      for (let elapsed = 0; elapsed < 5_000 && !isStopped(); elapsed += 250) await wait(250);
-      continue;
+      break; // A manual run drains the queue, then stops without polling for future work.
     }
     jobEvent(job, "processing", "Processing a queued stock job.");
     if (job.kind === "SCRAPE") await scrapeJob(job);

@@ -51,7 +51,7 @@ Device revocation is available at /admin/stock-worker. Revoking this new app's t
 3. Keep the app open and wait for Stock Reviews to show Connected. Signing in does not start jobs. Debug layout retains the read-only Check connection diagnostic.
 4. Open Stock Reviews and queue the intended dealer scan. Click Start worker on Stock Reviews and keep the computer awake and online.
 5. Review the resulting report, all proposed changes and source photos on the website. Resolve incomplete scans or missing photos. Approve only the report intended for application.
-6. Leave the worker running while server steps stage the approved photos and apply the entire report. Verify the report outcome and listings in Stock Reviews.
+6. After approving the report, click Start worker again. The worker stops automatically when no queued jobs remain. Server steps stage the approved photos and apply the entire report. Verify the report outcome and listings in Stock Reviews.
 7. Click Stop safely and wait for it to stop before closing.
 
 Use Sign out or Manage devices to revoke a device that should no longer have access. An interrupted connection can leave a completed server operation without a received client response; inspect Stock Reviews before trying again.
@@ -80,10 +80,12 @@ Development-PC installer acceptance must include upgrade/fresh installation, sec
 
 Signing is explicitly out of scope for this private release. Do not disable Windows security to work around an installer block. Production activation remains separately authorised work.
 
-## Version 1.1.2
+## Version 1.1.3
 
 The default Windows view contains Sign in / Open Stock Reviews and Stop safely when running. The View menu exposes Debug layout, off at every launch, with the previous controls and diagnostics. A saved Preview session reconnects presence only; it never starts job processing automatically. Sign in opens Stock Reviews for explicit computer approval.
 
 Stock Reviews polls presence and refreshes saved results every five seconds while visible, deferring refresh during edits or dialogs. Dealer selections remain local. Its sticky iTrader bar shows connection, current job, elapsed time, and bounded safe activity. Website Start and Stop commands are tied to a short-lived connected instance. Network failure safely stops the worker and requires explicit reconnection; it never silently restarts. No database or storage credentials are sent to the app.
 
 The online unsigned installer downloads pinned, SHA-256-verified Node and headless Chromium dependencies before changing an existing installation. Internet access is required. Staging dealer choices exclude demo, disabled and deleted accounts; unavailable profiles have a visible explanation. Weekly scheduling is unchanged.
+
+The worker drains the queue and stops automatically. Start is blue and Stop safely is red. Stock Reviews announces new task completion in a persistent dialog, including failed outcomes, and shows explicit finished status.

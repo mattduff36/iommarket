@@ -105,7 +105,8 @@ public static class WorkerProcess
                 "staging-photos" when type == "job" => "The server is preparing approved photos and applying the reviewed report.",
                 "applied" when type == "job" => "iTrader confirmed that the approved stock report was applied.",
                 "stopping" => "Stopping after the current job finishes.",
-                "stopped" => "Worker stopped.",
+                "stopped" => "Worker stopped. Start it again from Stock Reviews when ready.",
+                "processing-finished" when type == "job" => "Scan finished. Check the saved result in Stock Reviews.",
                 "unauthorised" => "Desktop access expired or was revoked. Sign in again.",
                 "unavailable" or "invalid-response" or "invalid-request" => "The request outcome could not be verified. Check Stock Reviews before starting again; it may have completed.",
                 "job-failed" => "The stock job failed. Check Stock Reviews before starting again.",
@@ -127,7 +128,7 @@ public static class WorkerProcess
     public static string ActivityCode(string type, string state) => state switch
     {
         "checking" or "ready" or "waiting" or "processing" or "stopping" or "stopped" => state,
-        "staging-photos" or "applied" when type == "job" => state,
+        "staging-photos" or "processing-finished" or "applied" when type == "job" => state,
         "unauthorised" or "unavailable" or "invalid-response" or "invalid-request" or "job-failed"
             or "conflict" or "rate-limited" or "failed" => "error",
         _ => ""

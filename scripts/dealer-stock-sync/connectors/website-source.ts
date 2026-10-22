@@ -13,8 +13,53 @@ import {
   extractNextDataVehicles,
   extractStructuredHtml,
 } from "./html-extract";
-import { extractDetailSpecs } from "./named-html-more";
+import { extractDetailSpecs, extractDwDetailImages } from "./named-html-more";
 import type { CanonicalVehicle, ConnectorKey, SourceListResult } from "../types";
+
+const PUBLIC_BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+
+class ConfirmedAbsentDetailError extends Error {
+  constructor() {
+    super("Vehicle detail page is not published");
+    this.name = "ConfirmedAbsentDetailError";
+  }
+}
+
+function detailIsConfirmedAbsent(status: number, location: string | null) {
+  if (status === 404) return true;
+  if (status < 300 || status >= 400 || !location) return false;
+  try {
+    const target = new URL(location);
+    return target.protocol === "https:" && target.hostname === "freeola.com" &&
+      target.pathname === "/errors/e.php" && target.searchParams.get("ec") === "404";
+  } catch { return false; }
+}
+
+function hasCompleteDwCard(vehicle: CanonicalVehicle) {
+  return vehicle.availability === "available" && Boolean(vehicle.sourceVehicleId && vehicle.make && vehicle.model &&
+    vehicle.year && vehicle.mileage != null && vehicle.pricePence != null && vehicle.pricePence > 0 &&
+    vehicle.fuel && vehicle.transmission && vehicle.description && vehicle.imageUrls.some(url => {
+      try { const image = new URL(url); return image.protocol === "https:" && image.hostname === "www.dwcars.info" && image.pathname.startsWith("/images/carpix/listings/"); }
+      catch { return false; }
+    }));
+}
+
+async function loadPublishedDwDetail(url: string, fetchImpl: typeof fetch) {
+  const response = await fetchImpl(url, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      accept: "text/html,application/xhtml+xml",
+      "user-agent": PUBLIC_BROWSER_UA,
+    },
+  });
+  if (detailIsConfirmedAbsent(response.status, response.headers.get("location"))) {
+    throw new ConfirmedAbsentDetailError();
+  }
+  if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  return response.text();
+}
 
 function blockedStatus(message: string) {
   return /403|401|cloudflare|captcha|access denied|blocked/i.test(message)
@@ -206,11 +251,15 @@ export function createWebsiteConnector(input: {
           const html = await load(vehicle.detailUrl);
           const origin = new URL(vehicle.detailUrl).origin;
           const specs = extractDetailSpecs(html, vehicle.detailUrl);
-          const detailImages = extractWebsiteDetailImages(html, origin, {
-            dealerKey: context.dealer.key,
-            detailUrl: vehicle.detailUrl,
-          });
+          const dwGallery = context.dealer.key === "dw-cars" ? extractDwDetailImages(html, origin) : [];
+          const detailImages = dwGallery.length > 0
+            ? dwGallery
+            : extractWebsiteDetailImages(html, origin, {
+              dealerKey: context.dealer.key,
+              detailUrl: vehicle.detailUrl,
+            });
           const scopedGallery =
+            dwGallery.length > 0 ||
             context.dealer.key === "swift-motors" ||
             (isNextInventoryDetailUrl(vehicle.detailUrl) && html.includes("__NEXT_DATA__"));
           vehicles.push({
@@ -225,8 +274,10 @@ export function createWebsiteConnector(input: {
             fuel: vehicle.fuel ?? specs.fuel ?? null,
             transmission: vehicle.transmission ?? specs.transmission ?? null,
           });
-        } catch {
-          detailMissing += 1;
+        } catch (error) {
+          // A verified stock card is an alternate source only when it contains
+          // all required facts and an owner photo. Never hide incomplete cards.
+          if (!(error instanceof ConfirmedAbsentDetailError && hasCompleteDwCard(vehicle))) detailMissing += 1;
           vehicles.push(vehicle);
         }
       }
@@ -241,7 +292,11 @@ export function createWebsiteConnector(input: {
           return page.content();
         }), { headed: false, settleMs: 1000 });
       }
-      return enrich(url => fetchPageHtml(url, context.fetchImpl));
+      return enrich((url) =>
+        context.dealer.key === "dw-cars"
+          ? loadPublishedDwDetail(url, context.fetchImpl ?? fetch)
+          : fetchPageHtml(url, context.fetchImpl),
+      );
     },
     normalize(raw, context) {
       return normalizeWebsiteVehicle(raw, context);
