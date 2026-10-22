@@ -6,6 +6,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: dashboard, commandWorker: command }));
 import { StockWorkerDashboard } from "@/app/(admin)/admin/stock-reviews/worker-dashboard";
 import { StockDealerPicker } from "@/app/(admin)/admin/stock-reviews/dealer-picker";
+import progressStyles from "@/app/(admin)/admin/stock-reviews/worker-progress.module.css";
 vi.mock("@/actions/admin/dealer-stock-sync", () => ({ enqueueDealerStockScrape: vi.fn() }));
 const connected = () => ({ ok: true as const, devices: [{ deviceId: "dev_test", deviceName: "Test computer", environment: "preview" as const, instanceId: "instance", state: "connected" as const, online: true, lastSeenAt: new Date().toISOString(), activity: [], pendingCommand: null }] });
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); dashboard.mockResolvedValue(connected()); command.mockResolvedValue({ ok: true }); });
@@ -16,6 +17,13 @@ describe("Stock Reviews live worker", () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
   const view = render(<StockWorkerDashboard initial={connected()} jobs={[job]} readyCount={0} />);
   expect(screen.getByRole("progressbar", { name: "Stock update in progress" })).not.toHaveAttribute("aria-valuenow");
+  expect(document.querySelector(`.${progressStyles.moving}`)).toBeTruthy();
+  expect(screen.getByRole("img", { name: "iTrader" })).toHaveAttribute("src", expect.stringContaining("logo-itrader-hq.png"));
+  expect(document.querySelector("[data-stock-worker-dock]")?.className).toContain(progressStyles.dock);
+  expect(document.querySelector("[data-stock-worker-backdrop]")?.className).toContain(progressStyles.backdrop);
+  const panel = document.querySelector("[data-stock-worker-panel]");
+  expect(panel?.className).toContain("bg-surface");
+  expect(panel?.className).not.toContain("bg-surface/");
   view.rerender(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
  });
@@ -77,6 +85,8 @@ describe("Stock Reviews live worker", () => {
  it("disables commands offline and sends only the selected instance when online", async () => {
   const view = render(<StockWorkerDashboard initial={{ok:true,devices:[]}} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("button", {name:"Start worker"})).not.toBeInTheDocument();
+  expect(screen.queryByRole("img", {name:"iTrader"})).not.toBeInTheDocument();
+  expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("hidden");
   expect(screen.getAllByText("Start the Stock Update worker app").length).toBeGreaterThan(0);
   await tick();
   await act(async () => { fireEvent.click(screen.getByRole("button", {name:"Start worker"})); });

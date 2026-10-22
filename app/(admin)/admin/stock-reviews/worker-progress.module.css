@@ -1,3 +1,25 @@
+.dock {
+  position: fixed;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: 0.75rem;
+  background-color: rgba(2, 6, 23, 0.82);
+  background-color: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+}
+
 .moving {
   width: 25%;
   animation: stock-progress 1.8s linear infinite;
