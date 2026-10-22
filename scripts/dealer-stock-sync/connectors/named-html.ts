@@ -113,9 +113,10 @@ export function extractDwCarViews(html: string, origin: string) {
     if (!parsed.make || !parsed.model) return [];
     const spec = decodeListingText(chunk.match(/class="txt6">([\s\S]*?)<\/div>/gi)?.[1] ?? "");
     const specBits = decodeListingText(chunk.match(/11000 Miles|[\d,]+ Miles[\s\S]{0,80}?20\d{2}/i)?.[0] ?? chunk);
+    const detailFile = chunk.match(/href=["'](details_\d+\.html)["']/i)?.[1];
     return [
       {
-        url: resolveMaybeUrl(chunk.match(/href="(details_[^"]+)"/i)?.[1] ?? null, origin),
+        url: detailFile ? new URL(detailFile, origin).href : null,
         ...parsed,
         year: parsed.year ?? yearFrom(chunk),
         price: priceFrom(chunk) ?? priceFrom(spec),
@@ -204,7 +205,17 @@ export function extractBudgetInventoryCards(html: string, origin: string) {
   return cards;
 }
 
-export function extractSnccCarItems(html: string, origin: string) {
+export function extractSnccCarItems(html: string, origin: string): Record<string, unknown>[] {
+  const sections = html.split(/<div\b[^>]*class=["'][^"']*\bcar-item(?=\s|["'])[^"']*["'][^>]*>/i).slice(1);
+  if (sections.length === 0) return extractSnccRows(html, origin);
+  return sections.flatMap(section => {
+    const label = decodeListingText(section.match(/<span\b[^>]*class=["'][^"']*\bcar-status\b[^"']*["'][^>]*>([^<]*)</i)?.[1] ?? "");
+    const availability = /\bsold\b/i.test(label) ? "sold" : /\breserved\b/i.test(label) ? "reserved" : label ? "unknown" : "available";
+    return extractSnccRows(section, origin).map(row => ({ ...row, availability }));
+  });
+}
+
+function extractSnccRows(html: string, origin: string) {
   if (!html.includes("new-price") || !html.includes("/cars/")) return [];
   const chunks = html.split(/href="([^"]*\/cars\/(?:20|19)\d{2}-[^"]+)"/i);
   const cards: Record<string, unknown>[] = [];

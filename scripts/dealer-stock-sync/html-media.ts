@@ -344,6 +344,31 @@ export function extractFranklinGalleryFromHtml(
   return extractImageAttributes(html, origin, (value) => isFranklinStockImage(value, stockId));
 }
 
+function extractSnccGalleryFromHtml(html: string) {
+  const gallery = html.match(
+    /<div\b[^>]*\bclass=["'][^"']*\bdetail-big-car-gallery\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
+  )?.[1];
+  if (!gallery) return [];
+  const found: string[] = [];
+  for (const match of gallery.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = match[0];
+    const classes = tag.match(/\sclass=["']([^"']*)["']/i)?.[1]?.split(/\s+/) ?? [];
+    if (!classes.includes("ps-car-listing")) continue;
+    const raw = tag.match(/\sdata-src=["']([^"']+)["']/i)?.[1]
+      ?? tag.match(/\ssrc=["']([^"']+)["']/i)?.[1];
+    if (!raw) continue;
+    try {
+      const url = new URL(decodeImageAttribute(raw));
+      if (url.origin !== "https://sncc.im" || url.username || url.password) continue;
+      if (!/^\/wp-content\/uploads\/.+\.(?:jpe?g|png|webp)$/i.test(url.pathname)) continue;
+      found.push(url.href);
+    } catch {
+      // Invalid owner-gallery URLs remain unavailable for review.
+    }
+  }
+  return uniqueImageUrls(found, FEATURED_LISTING_PHOTO_LIMIT);
+}
+
 export function extractSwiftGalleryFromHtml(html: string, origin?: string | null) {
   const gallery = html.match(/<bsk-gallery\b[^>]*\bimages=["']([^"']+)["']/i)?.[1];
   if (!gallery) return [];
@@ -393,6 +418,9 @@ export function extractWebsiteDetailImages(
       if (!photos.has(match[2]) || match[1].toLowerCase() === "full") photos.set(match[2], url);
     }
     return uniqueImageUrls([...photos.values()], FEATURED_LISTING_PHOTO_LIMIT);
+  }
+  if (options.dealerKey === "skillannaylor-car-company") {
+    return extractSnccGalleryFromHtml(html);
   }
   if (options.dealerKey === "bcc-cars") {
     return extractBccGalleryFromHtml(html, origin);

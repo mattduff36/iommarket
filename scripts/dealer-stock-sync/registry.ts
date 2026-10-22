@@ -531,7 +531,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     groupKey: null,
     locations: [],
     sources: [
-      source("used-cars", "SkillanNaylor used cars", "https://sncc.im/cars/", "html-structured"),
+      source("used-cars", "SkillanNaylor used cars", "https://sncc.im/cars/", "html-structured", { maxPages: 10 }),
     ],
     notes: "Official used list is sncc.im/cars/ (Car Dealer theme new-price cards).",
     lastVerifiedAt: "2026-08-22",

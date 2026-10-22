@@ -45,7 +45,22 @@ function firstVehicleMiles(visible: string) {
   return unique.length === 1 ? unique[0] : null;
 }
 
+function fuelFromEngine(value: string) {
+  const fuel = decodeListingText(value).toLowerCase();
+  const petrol = /\b(?:petrol|gasoline)\b/.test(fuel);
+  const diesel = /\bdiesel\b/.test(fuel);
+  const electric = /\belectric\b/.test(fuel);
+  if (petrol && diesel) return null;
+  if (/\bhybrid\b/.test(fuel)) {
+    if (!petrol && !diesel) return null;
+    return (diesel ? "Diesel" : "Petrol") + (/\bplug[ -]?in\b/.test(fuel) ? " Plug-in Hybrid" : " Hybrid");
+  }
+  if (electric && (petrol || diesel)) return null;
+  return petrol ? "Petrol" : diesel ? "Diesel" : electric ? "Electric" : null;
+}
+
 export function extractDetailSpecs(html: string, detailUrl?: string | null) {
+  const engineField = html.match(/<(li|div)\b[^>]*class=["']car_engine["'][^>]*>([\s\S]*?)<\/\1>/i)?.[2];
   const visible = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");
   const decodedVisible = decodeListingText(visible);
   const mileageStrong = html.match(/class="car_mileage"[\s\S]{0,160}?<strong[^>]*>\s*([\d,]+)/i)?.[1];
@@ -95,7 +110,7 @@ export function extractDetailSpecs(html: string, detailUrl?: string | null) {
       decodeListingText(html.match(/\b(?:VRM|Reg(?:istration)?)\b[\s\S]{0,80}>([A-Z0-9 ]{5,10})</i)?.[1] ?? ""),
     ),
     fuel:
-      decodeListingText(html.match(/class="car_engine"[\s\S]{0,200}?<strong[^>]*>([^<]+)/i)?.[1] ?? "") ||
+      fuelFromEngine(engineField?.match(/<strong[^>]*>([^<]+)/i)?.[1] ?? "") ||
       decodeListingText(html.match(/class=['"]detail fuel['"][\s\S]{0,80}?<\/i>\s*([^<]+)/i)?.[1] ?? "") ||
       null,
     transmission:
