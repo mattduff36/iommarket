@@ -22,6 +22,7 @@ public sealed class WorkerApiClient : IDisposable
 
     public WorkerApiClient(AppEnvironment environment, HttpMessageHandler handler, bool ownsHandler = true)
     {
+        if (!Enum.IsDefined(environment)) throw new ArgumentOutOfRangeException(nameof(environment));
         Environment = environment;
         _handler = handler;
         _ownsHandler = ownsHandler;
@@ -70,7 +71,7 @@ public sealed class WorkerApiClient : IDisposable
         if (!call.Ok || call.Value is null) return ApiCall<WorkerSession?>.Fail(call.ErrorCode);
         if (call.Value.StatusCode == 202)
             return HasStatus(call.Value.Json, "pending") ? ApiCall<WorkerSession?>.Success(null) : ApiCall<WorkerSession?>.Fail("invalid_response");
-        if (call.Value.StatusCode == 200 && call.Value.Json is not null && SessionParser.TryParse(call.Value.Json, Environment, false, out var session))
+        if (call.Value.StatusCode == 200 && call.Value.Json is not null && SessionParser.TryParse(call.Value.Json, Environment, out var session))
             return ApiCall<WorkerSession?>.Success(session);
         return ApiCall<WorkerSession?>.Fail(call.Value.StatusCode is >= 300 and < 400 ? "redirect_rejected" : MapStatus(call.Value));
     }
@@ -90,13 +91,13 @@ public sealed class WorkerApiClient : IDisposable
         return ApiCall<WorkerSession>.Fail("expired");
     }
 
-    public async Task<ApiCall<WorkerSession>> SessionAsync(string accessToken, bool includeConfig, CancellationToken cancellationToken)
+    public async Task<ApiCall<WorkerSession>> SessionAsync(string accessToken, CancellationToken cancellationToken)
     {
         if (!TokenShapes.Base64Url(accessToken, 43)) return ApiCall<WorkerSession>.Fail("invalid_request");
-        var body = JsonSerializer.Serialize(new { op = "session", includeConfig });
+        var body = JsonSerializer.Serialize(new { op = "session" });
         var call = await PostAsync(body, accessToken, cancellationToken);
         if (!call.Ok || call.Value is null) return ApiCall<WorkerSession>.Fail(call.ErrorCode);
-        if (call.Value.StatusCode == 200 && call.Value.Json is not null && SessionParser.TryParse(call.Value.Json, Environment, includeConfig, out var session) && session.AccessToken == accessToken)
+        if (call.Value.StatusCode == 200 && call.Value.Json is not null && SessionParser.TryParse(call.Value.Json, Environment, out var session) && session.AccessToken == accessToken)
             return ApiCall<WorkerSession>.Success(session);
         return ApiCall<WorkerSession>.Fail(call.Value.StatusCode is >= 300 and < 400 ? "redirect_rejected" : MapStatus(call.Value));
     }
@@ -118,7 +119,7 @@ public sealed class WorkerApiClient : IDisposable
         if (json is null) return false;
         try {
             using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.ValueKind == JsonValueKind.Object &&
+            return SessionParser.ExactFields(doc.RootElement, "status") &&
                 doc.RootElement.TryGetProperty("status", out var status) &&
                 status.ValueKind == JsonValueKind.String && status.GetString() == expected;
         } catch (JsonException) { return false; }
@@ -131,7 +132,7 @@ public sealed class WorkerApiClient : IDisposable
         {
             using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 6 });
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return false;
+            if (!SessionParser.ExactFields(root, "deviceCode", "userCode", "verificationUri", "expiresIn", "interval")) return false;
             if (!root.TryGetProperty("interval", out var interval) || !interval.TryGetInt32(out var seconds) || seconds != 5 ||
                 !root.TryGetProperty("expiresIn", out var expires) || !expires.TryGetInt32(out var lifetime) || lifetime != 600) return false;
             var device = root.TryGetProperty("deviceCode", out var d) ? d.GetString() : null;
@@ -192,7 +193,8 @@ public sealed class WorkerApiClient : IDisposable
             read += n;
         }
         if (read > 65536) return null;
-        return Encoding.UTF8.GetString(buffer, 0, read);
+        try { return new UTF8Encoding(false, true).GetString(buffer, 0, read); }
+        catch (DecoderFallbackException) { return null; }
     }
 
     private static string MapStatus(RawReply reply)

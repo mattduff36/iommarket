@@ -29,7 +29,6 @@ public sealed class MainForm : Form
     private readonly List<string> _lines = new();
     private CancellationTokenSource _http = new();
     private WorkerSession? _session;
-    private Dictionary<string, string>? _config;
     private WorkerRunner? _runner;
     private bool _busy;
     private bool _closing;
@@ -77,7 +76,6 @@ public sealed class MainForm : Form
     private void LoadEnvironment()
     {
         Text = "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")";
-        _config = null;
         _session = _store.TryLoad(Selected);
         _account.Text = _session is null ? "Not signed in" : _session.Account.Name + " (" + _session.Account.Email + ")";
         SetStatus(_session is null ? "Idle" : "Signed in");
@@ -125,17 +123,16 @@ public sealed class MainForm : Form
                 return;
             }
             var session = polled.Value;
-            var full = await api.SessionAsync(session.AccessToken, true, token);
-            if (!full.Ok || full.Value?.Config is null)
+            var full = await api.SessionAsync(session.AccessToken, token);
+            if (!full.Ok || full.Value is null)
             {
-                Note(SafeText.MapError(full.ErrorCode.Length == 0 ? "missing_config" : full.ErrorCode));
+                Note(SafeText.MapError(full.ErrorCode));
                 return;
             }
             session = full.Value;
             if (_closing || IsDisposed || token.IsCancellationRequested) return;
             _store.Save(session);
             _session = session;
-            _config = new Dictionary<string, string>(session.Config, StringComparer.Ordinal);
             _account.Text = session.Account.Name + " (" + session.Account.Email + ")";
             SetStatus("Signed in");
             Note("Signed in to " + Targets.WireName(environment) + ".");
@@ -169,12 +166,13 @@ public sealed class MainForm : Form
         UpdateButtons();
         try
         {
-            if (!await RefreshConfigAsync()) return;
+            if (!await RefreshSessionAsync()) return;
             // Closing or cancelling while the connection request was completing
             // must not start a new worker that keeps the window alive.
-            if (!WorkerProcess.CanStartWorker(_closing, IsDisposed, _http.IsCancellationRequested, _session is not null)) return;
+            var session = _session;
+            if (!WorkerProcess.CanStartWorker(_closing, IsDisposed, _http.IsCancellationRequested, session is not null) || session is null) return;
             var root = Path.GetFullPath(AppContext.BaseDirectory);
-            if (!WorkerProcess.TryCreatePlan(root, Selected, _session.AccessToken, _config!, mode, ParentEnvironment(), out var plan, out var error))
+            if (!WorkerProcess.TryCreatePlan(root, Selected, session.AccessToken, mode, ParentEnvironment(), out var plan, out var error))
             {
                 Note(SafeText.MapError(error));
                 return;
@@ -218,31 +216,24 @@ public sealed class MainForm : Form
         }
     }
 
-    private async Task<bool> RefreshConfigAsync()
+    private async Task<bool> RefreshSessionAsync()
     {
         if (_session is null) return false;
         RestartHttp();
         using var api = WorkerApiClient.Create(Selected);
-        var full = await api.SessionAsync(_session.AccessToken, true, _http.Token);
+        var full = await api.SessionAsync(_session.AccessToken, _http.Token);
         if (!full.Ok || full.Value is null)
         {
             if (full.ErrorCode is "unauthorized" or "forbidden")
             {
                 _store.Clear(Selected);
                 _session = null;
-                _config = null;
                 _account.Text = "Not signed in";
             }
             Note(SafeText.MapError(full.ErrorCode));
             return false;
         }
-        if (full.Value.Config is null)
-        {
-            Note(SafeText.MapError("missing_config"));
-            return false;
-        }
         _session = full.Value;
-        _config = new Dictionary<string, string>(full.Value.Config, StringComparer.Ordinal);
         _store.Save(full.Value);
         return true;
     }
@@ -278,7 +269,6 @@ public sealed class MainForm : Form
         }
         _store.Clear(environment);
         _session = null;
-        _config = null;
         _account.Text = "Not signed in";
         SetStatus("Signed out");
         Note(revoked
@@ -314,7 +304,7 @@ public sealed class MainForm : Form
             "Environment: " + Targets.WireName(Selected),
             "Signed in: " + (_session is not null),
             "Account: " + (_session is null ? "none" : SafeText.Email(_session.Account.Email)),
-            "Device: " + (_session is null ? "none" : "dev_ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"),
+            "Device: " + (_session is null ? "none" : "dev_[redacted]"),
             "Worker: " + (running ? "running" : "idle"),
             "Activity:"
         }.Concat(_lines));

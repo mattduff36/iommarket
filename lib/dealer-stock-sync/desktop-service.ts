@@ -141,14 +141,13 @@ function gateOf(deps: DesktopDependencies): DesktopGate | null {
   return resolved.ok ? resolved.gate : null;
 }
 
-function issuedBody(tokenValue: string, session: SessionRecord, account: DesktopAccount, config?: Record<string, string>) {
+function issuedBody(tokenValue: string, session: SessionRecord, account: DesktopAccount) {
   return {
     accessToken: tokenValue,
     deviceId: session.deviceId,
     expiresAt: session.expiresAt,
     environment: session.environment,
     account: publicAccount(account),
-    ...(config ? { config } : {}),
   };
 }
 
@@ -282,6 +281,29 @@ async function authorisedSession(
   return { token: tokenValue, session, account, gate };
 }
 
+export interface DesktopPrincipal {
+  adminId: string;
+  deviceId: string;
+  environment: DesktopEnvironment;
+}
+
+/** Bearer auth for later API jobs. The principal has no token and no worker config. */
+export async function authoriseDesktopRequest(
+  deps: DesktopDependencies,
+  authorization: string | null,
+): Promise<{ ok: true; principal: DesktopPrincipal } | DesktopFailure> {
+  const auth = await authorisedSession(deps, authorization);
+  if (!("token" in auth)) return auth;
+  return {
+    ok: true,
+    principal: {
+      adminId: auth.account.id,
+      deviceId: auth.session.deviceId,
+      environment: auth.session.environment,
+    },
+  };
+}
+
 async function session(deps: DesktopDependencies, body: Record<string, unknown>, authorization: string | null): Promise<DesktopResponse> {
   const keys = Object.keys(body);
   const allowed = keys.length === 1 || (keys.length === 2 && keys.includes("includeConfig"));
@@ -289,13 +311,8 @@ async function session(deps: DesktopDependencies, body: Record<string, unknown>,
   if ("includeConfig" in body && typeof body.includeConfig !== "boolean") return failure(400, "invalid_request");
   const auth = await authorisedSession(deps, authorization);
   if (!("token" in auth)) return auth;
-  const config = body.includeConfig === true ? auth.gate.configs[auth.account.id] : undefined;
-  if (body.includeConfig === true && !config) return failure(503, "unavailable");
-  return {
-    ok: true,
-    status: 200,
-    body: issuedBody(auth.token, auth.session, auth.account, config ? { ...config } : undefined),
-  };
+  if (body.includeConfig === true) return failure(400, "invalid_request");
+  return { ok: true, status: 200, body: issuedBody(auth.token, auth.session, auth.account) };
 }
 
 async function revoke(deps: DesktopDependencies, body: Record<string, unknown>, authorization: string | null): Promise<DesktopResponse> {

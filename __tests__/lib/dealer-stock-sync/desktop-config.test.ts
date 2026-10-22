@@ -129,4 +129,54 @@ describe("desktop worker config", () => {
     expect(resolveDesktopGate(crossed).ok).toBe(false);
     expect(resolveDesktopGate(desktopEnv({ [ADMIN_A]: production })).ok).toBe(true);
   });
+
+  it("keeps legacy config validation and fails closed in API-only mode without returning configs", () => {
+    const worker = workerEnv("preview", "worker-secret");
+    const legacy = desktopEnv({ [ADMIN_A]: worker });
+    delete legacy.DEALER_STOCK_DESKTOP_CONFIG_JSON;
+    expect(resolveDesktopGate(legacy)).toMatchObject({ ok: false, reason: "config" });
+
+    const api = desktopEnv({ [ADMIN_A]: worker, [ADMIN_B]: workerEnv("preview", "other-worker") }, {
+      DEALER_STOCK_DESKTOP_API_ONLY: "1",
+    });
+    const opened = resolveDesktopGate(api);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    expect(opened.gate.configs).toEqual({});
+    expect(opened.gate.environment).toBe("preview");
+    expect(opened.gate.origin).toBe("https://itrader.dev");
+    const encoded = JSON.stringify(opened);
+    expect(encoded).not.toContain(PRIVATE_KEY);
+    expect(encoded).not.toContain("worker-secret");
+    expect(encoded).not.toContain("other-worker");
+    expect(encoded).not.toContain("app-secret");
+    expect(encoded).not.toContain("IMAGEKIT_PRIVATE_KEY");
+    expect(encoded).not.toContain("DATABASE_URL");
+
+    delete api.DEALER_STOCK_DESKTOP_CONFIG_JSON;
+    expect(resolveDesktopGate(api).ok).toBe(true);
+
+    expect(resolveDesktopGate({ ...api, DEALER_STOCK_DESKTOP_ENABLED: undefined })).toMatchObject({ ok: false, reason: "disabled" });
+    expect(resolveDesktopGate({ ...api, DEALER_STOCK_DESKTOP_ALLOWED_ADMIN_IDS: "" })).toMatchObject({ ok: false, reason: "allowlist" });
+    expect(resolveDesktopGate({ ...api, NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co" })).toMatchObject({ ok: false, reason: "server" });
+    const badOrigin = resolveDesktopGate({ ...api, NEXT_PUBLIC_APP_URL: "https://not-itrader.example" });
+    expect(badOrigin.ok).toBe(false);
+    if (!badOrigin.ok) expect(["origin", "server"]).toContain(badOrigin.reason);
+    expect(JSON.stringify(badOrigin)).not.toContain(PRIVATE_KEY);
+
+    const production = desktopEnv({ [ADMIN_A]: workerEnv("production", "worker-secret") }, {
+      DEALER_STOCK_DESKTOP_API_ONLY: "1",
+      DEALER_STOCK_SYNC_PRODUCTION_ENABLED: undefined,
+    });
+    delete production.DEALER_STOCK_DESKTOP_CONFIG_JSON;
+    expect(resolveDesktopGate(production)).toMatchObject({ ok: false, reason: "production_flag" });
+    expect(JSON.stringify(resolveDesktopGate(production))).not.toContain("worker-secret");
+    production.DEALER_STOCK_SYNC_PRODUCTION_ENABLED = "1";
+    const productionGate = resolveDesktopGate(production);
+    expect(productionGate.ok).toBe(true);
+    if (!productionGate.ok) return;
+    expect(productionGate.gate.environment).toBe("production");
+    expect(productionGate.gate.configs).toEqual({});
+    expect(JSON.stringify(productionGate)).not.toContain(PRIVATE_KEY);
+  });
 });

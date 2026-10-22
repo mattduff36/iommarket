@@ -13,7 +13,7 @@ public enum AppEnvironment
 
 public static class Targets
 {
-    public const string ClientVersion = "1.0.1";
+    public const string ClientVersion = "1.1.0";
     public const string PreviewHost = "itrader.dev";
     public const string ProductionHost = "itrader.im";
 
@@ -61,8 +61,7 @@ public sealed record WorkerSession(
     string DeviceId,
     DateTimeOffset ExpiresAt,
     AppEnvironment Environment,
-    AccountInfo Account,
-    IReadOnlyDictionary<string, string>? Config);
+    AccountInfo Account);
 
 public static class TokenShapes
 {
@@ -110,7 +109,7 @@ public static class JsonOpts
     public static readonly JsonSerializerOptions Camel = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
+        PropertyNameCaseInsensitive = false,
         MaxDepth = 8
     };
 }
@@ -145,7 +144,6 @@ public static class SafeText
         "cancelled" => "The operation was cancelled.",
         "expired" => "Sign-in expired. Start sign-in again.",
         "missing_payload" => "Installation is incomplete. The bundled Node runtime or worker files are missing. Reinstall Stock Update. This app will not use another Node, Git, or npm.",
-        "missing_config" => "Worker configuration is not available. Sign in again.",
         "already_running" => "A worker is already running.",
         "not_signed_in" => "Sign in before starting the worker.",
         _ => "The operation failed."
@@ -154,33 +152,27 @@ public static class SafeText
 
 public static class SessionParser
 {
-    public static bool TryParse(string json, AppEnvironment expected, bool keepConfig, out WorkerSession session)
+    public static bool TryParse(string json, AppEnvironment expected, out WorkerSession session)
     {
         session = null!;
         try
         {
             using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 8, CommentHandling = JsonCommentHandling.Disallow });
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return false;
+            if (!ExactFields(root, "accessToken", "deviceId", "expiresAt", "environment", "account")) return false;
             if (!TokenShapes.Base64Url(Read(root, "accessToken"), 43)) return false;
             if (!TokenShapes.DeviceId(Read(root, "deviceId"))) return false;
             if (!Targets.TryParse(Read(root, "environment"), out var environment) || environment != expected) return false;
             if (!root.TryGetProperty("expiresAt", out var exp) || exp.ValueKind != JsonValueKind.String) return false;
             if (!DateTimeOffset.TryParse(exp.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var expires)) return false;
             if (expires.UtcDateTime <= DateTime.UtcNow) return false;
-            if (!root.TryGetProperty("account", out var account) || account.ValueKind != JsonValueKind.Object) return false;
+            if (!root.TryGetProperty("account", out var account) || !ExactFields(account, "id", "name", "email")) return false;
             var id = Read(account, "id");
             var name = Read(account, "name");
             var email = Read(account, "email");
             if (id is null || name is null || email is null || id.Length is 0 or > 80 || name.Length is 0 or > 120 || email.Length is 0 or > 160)
                 return false;
-            IReadOnlyDictionary<string, string>? config = null;
-            if (keepConfig)
-            {
-                if (!root.TryGetProperty("config", out var cfg) || !TryConfig(cfg, out var parsed)) return false;
-                config = parsed;
-            }
-            session = new WorkerSession(Read(root, "accessToken")!, Read(root, "deviceId")!, expires, environment, new AccountInfo(id, name, email), config);
+            session = new WorkerSession(Read(root, "accessToken")!, Read(root, "deviceId")!, expires, environment, new AccountInfo(id, name, email));
             return true;
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
@@ -195,7 +187,7 @@ public static class SessionParser
         try
         {
             using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 4 });
-            if (!doc.RootElement.TryGetProperty("error", out var err) || err.ValueKind != JsonValueKind.String) return false;
+            if (!ExactFields(doc.RootElement, "error") || !doc.RootElement.TryGetProperty("error", out var err) || err.ValueKind != JsonValueKind.String) return false;
             var value = err.GetString();
             if (value is "invalid_request" or "invalid_grant" or "unauthorized" or "forbidden" or "rate_limited" or "unavailable")
             {
@@ -210,18 +202,13 @@ public static class SessionParser
         }
     }
 
-    public static bool TryConfig(JsonElement cfg, out Dictionary<string, string> parsed)
+    public static bool ExactFields(JsonElement element, params string[] fields)
     {
-        parsed = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (cfg.ValueKind != JsonValueKind.Object || cfg.EnumerateObject().Count() > 64) return false;
-        foreach (var prop in cfg.EnumerateObject())
-        {
-            if (prop.Name.Length is 0 or > 64 || prop.Value.ValueKind != JsonValueKind.String) return false;
-            var value = prop.Value.GetString() ?? "";
-            if (value.Length > 16000) return false;
-            parsed[prop.Name] = value;
-        }
-        return true;
+        if (element.ValueKind != JsonValueKind.Object) return false;
+        var remaining = new HashSet<string>(fields, StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+            if (!remaining.Remove(property.Name)) return false;
+        return remaining.Count == 0;
     }
 
     private static string? Read(JsonElement element, string name) =>

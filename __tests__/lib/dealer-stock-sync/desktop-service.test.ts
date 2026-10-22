@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { browserOriginAllowed } from "@/lib/dealer-stock-sync/desktop-config";
 import {
   approveDesktopDevice,
+  authoriseDesktopRequest,
   handleDesktopPost,
   listDesktopDevices,
   memoryDesktopDependencies,
@@ -90,6 +91,17 @@ function post(deps: DesktopDependencies, body: unknown, authorization: string | 
   return handleDesktopPost(deps, { body, authorization, ip: "203.0.113.10", hasQuery: false });
 }
 
+function expectNoWorkerMaterial(value: unknown): void {
+  const encoded = JSON.stringify(value);
+  expect(encoded).not.toContain(PRIVATE_A);
+  expect(encoded).not.toContain(PRIVATE_B);
+  expect(encoded).not.toContain("worker-secret");
+  expect(encoded).not.toContain("app-secret");
+  expect(encoded).not.toContain("IMAGEKIT_PRIVATE_KEY");
+  expect(encoded).not.toContain("DATABASE_URL");
+  expect(encoded).not.toContain("\"config\"");
+}
+
 async function paired(deps: DesktopDependencies) {
   const secret = verifier();
   const started = await post(deps, {
@@ -122,15 +134,28 @@ describe("desktop worker service", () => {
     const rejected = [first, second].filter((result) => !result.ok);
     expect(issued).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-    const token = String(issued[0]?.ok ? issued[0].body.accessToken : "");
-    const session = await post(deps, { op: "session", includeConfig: true }, `Bearer ${token}`);
+    const issuedBody = issued[0]?.ok ? issued[0].body : {};
+    const token = String(issuedBody.accessToken ?? "");
+    expect(issuedBody).not.toHaveProperty("config");
+    expectNoWorkerMaterial(issued[0]);
+    const refused = await post(deps, { op: "session", includeConfig: true, config: { IMAGEKIT_PRIVATE_KEY: PRIVATE_A } }, `Bearer ${token}`);
+    expect(refused).toMatchObject({ ok: false, status: 400, error: "invalid_request" });
+    expectNoWorkerMaterial(refused);
+    const session = await post(deps, { op: "session", includeConfig: false }, `Bearer ${token}`);
     expect(session.ok).toBe(true);
     if (!session.ok) return;
     expect(session.body.environment).toBe("preview");
     expect(session.body.account).toEqual({ id: ADMIN_A, name: "Stock Admin", email: "stock-admin@example.com" });
-    expect(session.body.config).toMatchObject({ IMAGEKIT_PRIVATE_KEY: PRIVATE_A });
-    expect(JSON.stringify(session.body.config)).not.toContain(PRIVATE_B);
-    expect(JSON.stringify(session.body.config)).not.toContain("app-secret");
+    expect(session.body).not.toHaveProperty("config");
+    expectNoWorkerMaterial(session);
+    const omitted = await post(deps, { op: "session" }, `Bearer ${token}`);
+    expect(omitted.ok).toBe(true);
+    if (!omitted.ok) return;
+    expect(omitted.body).not.toHaveProperty("config");
+    const revoked = await post(deps, { op: "revoke" }, `Bearer ${token}`);
+    expect(revoked).toMatchObject({ ok: true, body: { status: "revoked" } });
+    expect(revoked.ok && revoked.body).not.toHaveProperty("config");
+    expectNoWorkerMaterial(revoked);
     const replay = await post(deps, body);
     expect(replay).toMatchObject({ ok: false, error: "invalid_grant" });
     expect(JSON.stringify(replay)).not.toContain(token);
@@ -299,5 +324,91 @@ describe("desktop worker service", () => {
       origin: "https://itrader.dev", host: "itrader.dev", forwardedHost: null, adminId: ADMIN_A, deviceId,
     })).toMatchObject({ ok: true });
     expect(await post(deps, { op: "session" }, `Bearer ${String(issued.body.accessToken)}`)).toMatchObject({ error: "unauthorized" });
+  });
+
+  it("returns a secret-free principal and fails closed for API-only, revoked, disabled, and foreign sessions", async () => {
+    const users = new Map<string, DesktopAccount>([[ADMIN_A, account(ADMIN_A)]]);
+    let now = Date.parse("2026-10-16T12:00:00.000Z");
+    const project = "syneonzucehwlghqmfbg";
+    const env: Record<string, string | undefined> = {
+      DEALER_STOCK_DESKTOP_API_ONLY: "1",
+      DEALER_STOCK_DESKTOP_ENABLED: "1",
+      DEALER_STOCK_DESKTOP_ALLOWED_ADMIN_IDS: `${ADMIN_A},${ADMIN_B}`,
+      DEALER_STOCK_DESKTOP_CONFIG_JSON: JSON.stringify({ [ADMIN_A]: workerEnv(PRIVATE_A), [ADMIN_B]: workerEnv(PRIVATE_B) }),
+      VERCEL_ENV: "preview",
+      DEALER_STOCK_SYNC_TARGET: "preview",
+      NEXT_PUBLIC_APP_URL: "https://itrader.dev",
+      NEXT_PUBLIC_SUPABASE_URL: `https://${project}.supabase.co`,
+      DATABASE_URL: databaseUrl(project, "app-secret"),
+      POSTGRES_URL: databaseUrl(project, "app-secret"),
+      POSTGRES_URL_NON_POOLING: databaseUrl(project, "app-secret"),
+    };
+    const deps = memoryDesktopDependencies(env, () => now, { async findById(id) { return users.get(id) ?? null; } });
+    const { secret, started } = await paired(deps);
+    expectNoWorkerMaterial(started);
+    await approveDesktopDevice(deps, {
+      origin: "https://itrader.dev", host: "itrader.dev", forwardedHost: null, adminId: ADMIN_A, userCode: String(started.body.userCode),
+    });
+    const issued = await post(deps, { op: "poll", deviceCode: started.body.deviceCode, codeVerifier: secret });
+    expect(issued.ok).toBe(true);
+    if (!issued.ok) return;
+    expect(issued.body).not.toHaveProperty("config");
+    expectNoWorkerMaterial(issued);
+    const token = String(issued.body.accessToken);
+    const authorised = await authoriseDesktopRequest(deps, `Bearer ${token}`);
+    expect(authorised).toEqual({
+      ok: true,
+      principal: { adminId: ADMIN_A, deviceId: issued.body.deviceId, environment: "preview" },
+    });
+    if (!authorised.ok) return;
+    expect(Object.keys(authorised.principal)).toEqual(["adminId", "deviceId", "environment"]);
+    expectNoWorkerMaterial(authorised);
+
+    users.set(ADMIN_A, account(ADMIN_A, { disabledAt: "2026-10-16T00:00:00.000Z" }));
+    const disabled = await authoriseDesktopRequest(deps, `Bearer ${token}`);
+    expect(disabled).toMatchObject({ ok: false, status: 403, error: "forbidden" });
+    expectNoWorkerMaterial(disabled);
+    users.set(ADMIN_A, account(ADMIN_A));
+
+    const malicious = await post(deps, { op: "session", includeConfig: true }, `Bearer ${token}`);
+    expect(malicious).toMatchObject({ ok: false, status: 400, error: "invalid_request" });
+    expectNoWorkerMaterial(malicious);
+
+    expect(await post(deps, { op: "revoke" }, `Bearer ${token}`)).toMatchObject({ ok: true, body: { status: "revoked" } });
+    const revoked = await authoriseDesktopRequest(deps, `Bearer ${token}`);
+    expect(revoked).toMatchObject({ ok: false, status: 401, error: "unauthorized" });
+    expectNoWorkerMaterial(revoked);
+
+    const replacement = await paired(deps);
+    await approveDesktopDevice(deps, {
+      origin: "https://itrader.dev", host: "itrader.dev", forwardedHost: null, adminId: ADMIN_A, userCode: String(replacement.started.body.userCode),
+    });
+    const second = await post(deps, { op: "poll", deviceCode: replacement.started.body.deviceCode, codeVerifier: replacement.secret });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    const production = "snlqivvogfqesxpbjiei";
+    Object.assign(env, {
+      VERCEL_ENV: "production",
+      DEALER_STOCK_SYNC_TARGET: "production",
+      DEALER_STOCK_SYNC_PRODUCTION_ENABLED: "1",
+      NEXT_PUBLIC_APP_URL: "https://itrader.im",
+      NEXT_PUBLIC_SUPABASE_URL: `https://${production}.supabase.co`,
+      DATABASE_URL: databaseUrl(production, "app-secret"),
+      POSTGRES_URL: databaseUrl(production, "app-secret"),
+      POSTGRES_URL_NON_POOLING: databaseUrl(production, "app-secret"),
+    });
+    const foreign = await authoriseDesktopRequest(deps, `Bearer ${String(second.body.accessToken)}`);
+    expect(foreign).toMatchObject({ ok: false, status: 401, error: "unauthorized" });
+    expectNoWorkerMaterial(foreign);
+    const foreignSession = await post(deps, { op: "session", includeConfig: true }, `Bearer ${String(second.body.accessToken)}`);
+    expect(foreignSession).toMatchObject({ ok: false, error: "unauthorized" });
+    expectNoWorkerMaterial(foreignSession);
+
+    env.DEALER_STOCK_DESKTOP_ENABLED = "0";
+    const closed = await post(deps, {
+      op: "begin", deviceName: "Front Desk", codeChallenge: challenge(verifier()), environment: "production", clientVersion: "1.2.0",
+    });
+    expect(closed).toMatchObject({ ok: false, status: 503, error: "unavailable" });
+    expectNoWorkerMaterial(closed);
   });
 });

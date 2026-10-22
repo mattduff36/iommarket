@@ -77,15 +77,15 @@ describe("staging administrator access", () => {
 });
 
 
-describe("desktop stock-worker machine route", () => {
-  it("allows only the exact self-authenticating POST without a server action", () => {
-    expect(isStagingMachineRequest("/api/stock-worker", "POST", false)).toBe(true);
+describe("desktop stock-worker machine routes", () => {
+  it.each(["/api/stock-worker", "/api/stock-worker/jobs"])("allows only exact self-authenticating POST %s without a server action", path => {
+    expect(isStagingMachineRequest(path, "POST", false)).toBe(true);
     for (const method of ["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]) {
-      expect(isStagingMachineRequest("/api/stock-worker", method, false)).toBe(false);
+      expect(isStagingMachineRequest(path, method, false)).toBe(false);
     }
-    expect(isStagingMachineRequest("/api/stock-worker", "POST", true)).toBe(false);
-    for (const path of ["/api/stock-worker/admin", "/api/stock-workers", "/admin/stock-worker", "/api/"]) {
-      expect(isStagingMachineRequest(path, "POST", false)).toBe(false);
-    }
+    expect(isStagingMachineRequest(path, "POST", true)).toBe(false);
+  });
+  it.each(["/api/stock-worker/admin", "/api/stock-worker/jobs/extra", "/api/stock-worker/jobs/", "/api/stock-workers", "/admin/stock-worker", "/api/"])("does not exempt neighbouring route %s", path => {
+    expect(isStagingMachineRequest(path, "POST", false)).toBe(false);
   });
 });

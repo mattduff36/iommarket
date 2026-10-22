@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.1"
+  #define AppVersion "1.1.0"
 #endif
 #define ProductName "iTrader Stock Update"
 
@@ -33,11 +33,16 @@ Compression=lzma2/normal
 SolidCompression=yes
 WizardStyle=modern
 SetupLogging=yes
-; Signing is deliberately not faked. Release tooling signs separately when a real
-; publisher certificate is available. This build remains an unsigned test build.
+; Unsigned private internal release. Signing is explicitly outside this release scope.
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
+
+[InstallDelete]
+; Replace obsolete app-owned code on upgrade. Encrypted sessions live elsewhere.
+Type: filesandordirs; Name: "{app}\worker"
+Type: filesandordirs; Name: "{app}\runtime"
+Type: filesandordirs; Name: "{app}\browsers"
 
 [Files]
 Source: "{#BuildRoot}\payload\x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".dependency-fingerprint,*.pdb"; Check: not IsArm64
@@ -59,7 +64,7 @@ function InitializeSetup(): Boolean;
 begin
   Result := True;
   if WizardSilent then Exit;
-  Result := MsgBox('This is an unsigned test build of iTrader Stock Update.' + #13#10 + #13#10 +
-    'It includes both Preview and Production. Choose the environment explicitly in the app. This internal test is Preview only; Production is not authorised. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
+  Result := MsgBox('This is an unsigned private internal release of iTrader Stock Update.' + #13#10 + #13#10 +
+    'It includes both Preview and Production. Choose the environment explicitly in the app. This internal release is Preview only; Production is not authorised. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
     'Continue with installation?', mbConfirmation, MB_YESNO) = IDYES;
 end;

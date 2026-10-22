@@ -5,15 +5,19 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, copyFileSync, statSync, rmSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CLIENT_VERSION, assertRuntimeSource, assertRuntimePackage, assertRuntimeLock, verifyRuntimePayload, verifyNoPrivateFiles } from "./runtime-boundary.mjs";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8", windowsHide: true }).trim();
+const sourceHead = git("rev-parse", "HEAD");
+const startedDirty = Boolean(git("status", "--porcelain"));
 const args = process.argv.slice(2);
 function option(name, fallback) { const i = args.indexOf(name); return i < 0 ? fallback : args[i + 1]; }
 const arch = option("--arch", "x64");
 if (!new Set(["x64", "arm64"]).has(arch)) throw new Error("Choose x64 or arm64.");
-const buildRoot = resolve(option("--out", resolve(repo, "private/stock-update-desktop-build")));
+const buildRoot = resolve(option("--out", resolve(repo, "private/stock-update-release-1.1.0")));
 if (buildRoot === repo || !buildRoot.startsWith(resolve(repo, "private") + sep)) {
   throw new Error("Build output must be a dedicated directory beneath repository private/.");
 }
@@ -30,6 +34,9 @@ const NODE_SHA256 = {
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
 const writeJson = (path, value) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, JSON.stringify(value, null, 2) + "\n"); };
+// Each architecture gets a clean export; old app/config files cannot survive a rebuild.
+rmSync(payload, { recursive: true, force: true });
+if (arch === "x64") rmSync(browserRoot, { recursive: true, force: true });
 for (const path of [cache, payload, worker, browserRoot, resolve(buildRoot, "logs"), resolve(toolRoot, "npm-cache"), resolve(toolRoot, "tmp")]) mkdirSync(path, { recursive: true });
 
 const osKeys = new Set(["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "SYSTEMDRIVE", "USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "PROGRAMDATA", "HOMEDRIVE", "HOMEPATH", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS"]);
@@ -39,8 +46,6 @@ Object.assign(childEnv, {
   npm_config_cache: resolve(toolRoot, "npm-cache"), npm_config_registry: "https://registry.npmjs.org/",
   npm_config_audit: "false", npm_config_fund: "false", npm_config_update_notifier: "false",
   PLAYWRIGHT_BROWSERS_PATH: browserRoot, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1",
-  DATABASE_URL: "postgresql://unused:unused@127.0.0.1:1/unused",
-  CHECKPOINT_DISABLE: "1", PRISMA_GENERATE_SKIP_AUTOINSTALL: "1",
 });
 function run(exe, parameters, cwd, label, extraEnv = {}) {
   console.log(label);
@@ -59,8 +64,11 @@ async function nodeDistribution(target) {
     writeFileSync(zip, Buffer.from(await response.arrayBuffer()));
   }
   if (sha(readFileSync(zip)) !== NODE_SHA256[target]) throw new Error(`Node ${target} checksum mismatch.`);
-  const home = resolve(cache, name);
-  if (!existsSync(resolve(home, "node.exe"))) execFileSync("tar.exe", ["-xf", zip, "-C", cache], { windowsHide: true });
+  // Always derive executables from the verified ZIP, never trust extracted cache bytes.
+  const extraction = resolve(buildRoot, "verified-node");
+  const home = resolve(extraction, name);
+  rmSync(home, { recursive: true, force: true }); mkdirSync(extraction, { recursive: true });
+  execFileSync("tar.exe", ["-xf", zip, "-C", extraction], { windowsHide: true });
   return home;
 }
 const buildNodeHome = await nodeDistribution("x64");
@@ -72,7 +80,7 @@ copyFileSync(resolve(targetNodeHome, "node.exe"), resolve(payload, "runtime/node
 copyFileSync(resolve(targetNodeHome, "LICENSE"), resolve(payload, "runtime/LICENSE.node.txt"));
 
 const sourceFiles = new Set();
-const packages = new Set(["tsx", "prisma", "@prisma/client", "sharp", "@playwright/test"]);
+const packages = new Set(["tsx", "sharp", "@playwright/test"]);
 const builtins = new Set(builtinModules.map((name) => name.replace(/^node:/, "")));
 function resolveLocal(specifier, from) {
   const base = specifier.startsWith("@/") ? resolve(repo, specifier.slice(2)) : resolve(dirname(from), specifier);
@@ -88,10 +96,13 @@ function resolveLocal(specifier, from) {
 function dependency(specifier, from) {
   if (specifier.startsWith("node:") || builtins.has(specifier)) return;
   if (specifier.startsWith(".") || specifier.startsWith("@/")) return trace(resolveLocal(specifier, from));
-  packages.add(specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0]);
+  const name = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
+  assertRuntimePackage(name);
+  packages.add(name);
 }
 function trace(path) {
   if (sourceFiles.has(path)) return;
+  assertRuntimeSource(relative(repo, path), readFileSync(path, "utf8"));
   sourceFiles.add(path);
   if (!/\.[cm]?[jt]sx?$/.test(path)) return;
   const ast = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
@@ -123,23 +134,16 @@ for (const name of [...packages].sort()) {
   if (!pinned || installed.version !== pinned) throw new Error(`Installed dependency is not the locked revision: ${name}`);
   dependencies[name] = pinned;
 }
-const manifest = { name: "itrader-stock-worker-runtime", version: "1.0.1", private: true, type: "module", engines: { node: ">=22.12.0" }, dependencies, overrides: rootPackage.overrides };
-const dependencyFingerprint = sha(Buffer.from(JSON.stringify({ manifest, arch, rootLock: sha(readFileSync(resolve(repo, "package-lock.json"))) })));
-const marker = resolve(payload, ".dependency-fingerprint");
-if (!existsSync(marker) || readFileSync(marker, "utf8") !== dependencyFingerprint || !existsSync(resolve(worker, "node_modules/tsx/package.json"))) {
-  writeJson(resolve(worker, "package.json"), manifest);
-  const seeded = structuredClone(rootLock);
-  seeded.name = manifest.name; seeded.version = manifest.version;
-  seeded.packages[""] = { name: manifest.name, version: manifest.version, dependencies, engines: manifest.engines };
-  writeJson(resolve(worker, "package-lock.json"), seeded);
-  run(buildNode, [npmCli, "install", "--package-lock-only", "--ignore-scripts", "--omit=dev", `--cpu=${arch}`, "--os=win32", "--no-audit", "--no-fund"], worker, "resolve-runtime-lock");
-  run(buildNode, [npmCli, "ci", "--ignore-scripts", "--omit=dev", `--cpu=${arch}`, "--os=win32", "--no-audit", "--no-fund"], worker, "install-runtime-packages");
-  writeFileSync(marker, dependencyFingerprint);
-}
-// Refresh only traced source files on subsequent builds; never copy the checkout.
-for (const subtree of ["lib", "scripts", "data", "prisma", "app", "components"]) {
-  rmSync(resolve(worker, subtree), { recursive: true, force: true });
-}
+const manifest = { name: "itrader-stock-worker-runtime", version: CLIENT_VERSION, private: true, type: "module", engines: { node: ">=22.12.0" }, dependencies, overrides: rootPackage.overrides };
+writeJson(resolve(worker, "package.json"), manifest);
+const seeded = structuredClone(rootLock);
+seeded.name = manifest.name; seeded.version = manifest.version;
+seeded.packages[""] = { name: manifest.name, version: manifest.version, dependencies, engines: manifest.engines };
+writeJson(resolve(worker, "package-lock.json"), seeded);
+run(buildNode, [npmCli, "install", "--package-lock-only", "--ignore-scripts", "--omit=dev", `--cpu=${arch}`, "--os=win32", "--no-audit", "--no-fund"], worker, "resolve-runtime-lock");
+assertRuntimeLock(json(resolve(worker, "package-lock.json")));
+run(buildNode, [npmCli, "ci", "--ignore-scripts", "--omit=dev", `--cpu=${arch}`, "--os=win32", "--no-audit", "--no-fund"], worker, "install-runtime-packages");
+// Copy only the reviewed concrete import closure; never the checkout.
 const hashes = {};
 for (const path of [...sourceFiles].sort()) {
   const rel = relative(repo, path);
@@ -147,14 +151,11 @@ for (const path of [...sourceFiles].sort()) {
   const destination = resolve(worker, rel); mkdirSync(dirname(destination), { recursive: true }); copyFileSync(path, destination);
   hashes[rel.split(sep).join("/")] = sha(readFileSync(path));
 }
-mkdirSync(resolve(worker, "prisma"), { recursive: true });
-copyFileSync(resolve(repo, "prisma/schema.prisma"), resolve(worker, "prisma/schema.prisma"));
 writeJson(resolve(worker, "tsconfig.json"), { compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "Bundler", baseUrl: ".", paths: { "@/*": ["./*"] }, esModuleInterop: true, resolveJsonModule: true } });
-writeFileSync(resolve(worker, "prisma-build.config.mjs"), 'export default { schema: "prisma/schema.prisma" };\n');
-run(buildNode, [resolve(worker, "node_modules/prisma/build/index.js"), "generate", "--config", resolve(worker, "prisma-build.config.mjs")], worker, "generate-isolated-prisma-client");
+verifyRuntimePayload(worker, hashes);
 if (arch === "x64") {
   run(buildNode, [resolve(worker, "node_modules/playwright/cli.js"), "install", "chromium"], worker, "bundle-matching-chromium", { PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "0" });
-  const smoke = `const w=await import('./scripts/dealer-stock-sync/desktop-worker.ts'); if(typeof w.runDesktop!=='function')throw Error('Entry export'); await import('./scripts/dealer-stock-sync/worker-cli.ts'); await import('./scripts/dealer-stock-sync/execute-job.ts'); await import('./scripts/dealer-stock-sync/pipeline.ts'); await import('./scripts/dealer-stock-sync/registry.ts'); const sharp=(await import('sharp')).default; await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>')).png().toBuffer(); const {chromium}=await import('@playwright/test'); const b=await chromium.launch({headless:true}); try{const p=await b.newPage();await p.setContent('<title>packaged worker</title>');if(await p.title()!=='packaged worker')throw Error('Browser');}finally{await b.close();} console.log('Standalone Node entry, sharp and Chromium passed; no database or website requests.');`;
+  const smoke = `const w=await import('./scripts/dealer-stock-sync/desktop-worker.ts'); if(typeof w.runDesktop!=='function')throw Error('Entry export'); const api=await import('./scripts/dealer-stock-sync/desktop-jobs-client.ts'); if(typeof api.createDesktopJobsClient!=='function')throw Error('API client'); await import('./scripts/dealer-stock-sync/pipeline.ts'); await import('./scripts/dealer-stock-sync/registry.ts'); const sharp=(await import('sharp')).default; await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>')).png().toBuffer(); const {chromium}=await import('@playwright/test'); const b=await chromium.launch({headless:true}); try{const p=await b.newPage();await p.setContent('<title>packaged worker</title>');if(await p.title()!=='packaged worker')throw Error('Browser');}finally{await b.close();} console.log('Standalone Node entry, sharp and Chromium passed; no database or website requests.');`;
   run(resolve(payload, "runtime/node.exe"), ["--import", "tsx", "--input-type=module", "-e", smoke], worker, "offline-runtime-smoke");
 }
 // node_modules packages retain their licence files; include a discoverable inventory.
@@ -163,11 +164,18 @@ for (const [path, entry] of Object.entries(json(resolve(worker, "package-lock.js
   if (path) notices.push({ packagePath: path, version: entry.version, license: entry.license ?? "See package licence files", integrity: entry.integrity });
 }
 writeJson(resolve(payload, "THIRD-PARTY-NOTICES.json"), notices);
-let head = "unavailable";
-try { head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8", windowsHide: true }).trim(); } catch { /* Explicit unknown, not fabricated revision. */ }
+if (git("rev-parse", "HEAD") !== sourceHead) throw new Error("Source commit changed during runtime export.");
+for (const [rel, digest] of Object.entries(hashes)) {
+  if (sha(readFileSync(resolve(repo, rel))) !== digest) throw new Error("Source changed during runtime export: " + rel);
+}
+const sourceDirty = startedDirty || Boolean(git("status", "--porcelain"));
+verifyNoPrivateFiles(payload);
+verifyNoPrivateFiles(browserRoot);
+verifyRuntimePayload(worker, hashes);
 writeJson(resolve(payload, "runtime-manifest.json"), {
-  version: "1.0.1", architecture: arch, nodeVersion: NODE_VERSION, nodeArchiveSha256: NODE_SHA256[arch],
-  sourceHead: head, sourceFiles: hashes, sourceFingerprint: sha(Buffer.from(JSON.stringify(hashes))), dependencies,
+  version: CLIENT_VERSION, architecture: arch, nodeVersion: NODE_VERSION, nodeArchiveSha256: NODE_SHA256[arch],
+  nodeExecutableSha256: sha(readFileSync(resolve(payload, "runtime/node.exe"))),
+  sourceHead, sourceDirty, sourceFiles: hashes, sourceFingerprint: sha(Buffer.from(JSON.stringify(hashes))), dependencies,
   browser: { platform: "win64", playwright: dependencies["@playwright/test"], armHardwareVerified: false },
   credentialsIncluded: false, generatedAt: new Date().toISOString(),
 });

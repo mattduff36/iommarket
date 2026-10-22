@@ -1,51 +1,81 @@
-# iTrader Stock Update for Windows
+# iTrader Stock Update for Windows 1.1.0
 
 ## Scope and security boundary
 
-A manually started, per-user Windows 11 desktop application runs the existing dealer stock worker. The installer includes both Preview (`https://itrader.dev`) and Production (`https://itrader.im`), a private Node.js runtime, the generated Prisma client, required runtime dependencies and the Playwright-matched browser. The client does not need Git, repository access, npm, Cursor or a separate .NET installation.
+This unsigned application is for the agreed private internal use by Matt and the client. This release is Preview/staging only, at https://itrader.dev. The existing explicit Preview/Production selector and server production gates remain; production activation requires separate approval. Signing is out of scope.
 
-There is no service, Windows startup task, scheduled scrape, automatic approval, database migration or automatic production enablement. Already queued eligible jobs in the selected environment can be processed while Start is active. The computer must stay awake and online. Safe stop drains the current job before exit; it does not cancel an approved apply transaction midway.
+The Windows application runs Chromium scraping locally. It receives only an environment-scoped, revocable device session token. The server retains database credentials, ImageKit private keys, report generation, approvals, database writes and all media operations. Neither installation nor authorisation sends database/provider credentials or general server configuration to the computer.
 
-This is a trusted-computer architecture: the running worker has dedicated direct database and ImageKit credentials. Windows DPAPI CurrentUser encrypts the stored device session. Worker configuration is retrieved over authenticated HTTPS, remains in memory, and is passed to the bundled process over its stdin pipe, not command-line arguments, log files or a plaintext configuration file. A user with sufficient access to the running process can still extract credentials. Account/device revocation prevents further work by the supported app; it does not invalidate an extracted database password or ImageKit key. Revoke/rotate those underlying credentials following loss or compromise.
+The installer includes the native app, private Node.js runtime, the reviewed scraping source closure, Sharp and the Playwright-matched browser. It does not include Prisma, PostgreSQL clients, server media modules, repository access, configuration secrets or saved sessions. Git, npm, Cursor, a separate .NET installation and development tools are not required on the client.
 
-## Browser authorisation
+The app starts work only when the operator clicks Start worker. There is no service, startup registration, scheduled scrape or automatic approval. Eligible queued work in the explicitly selected environment can be processed while the worker runs. The computer must remain awake and connected. Stop safely finishes the current job and takes no next job; it does not cancel a server apply halfway through.
 
-The app creates a random verifier and S256 challenge, requests a ten-minute pairing, and opens the system browser at the selected canonical iTrader origin. The signed-in administrator must explicitly approve the named computer and environment. A GET never approves a pairing. No user password is collected by the desktop application.
+## Authorisation and jobs
 
-The API at `POST /api/stock-worker` accepts `begin`, `poll`, `session` and `revoke` operations. It returns no-store JSON. An opaque device token, sent only in the Authorization header, lasts 30 days. Expiry requires a new browser pairing. Redis holds hashed codes/tokens in separate preview/production namespaces and uses atomic claims so a pairing cannot issue two sessions. Redis failures or lost state fail closed. There is no in-memory fallback in the live service.
+Browser pairing uses a random verifier with S256 and an expiring, single-use claim. A signed-in, allowlisted administrator explicitly approves the named device and environment. The app does not collect the user's password. Windows DPAPI CurrentUser encrypts the saved session, and the bearer token is passed to the child only over stdin.
 
-Each session check revalidates the current internal user: role ADMIN, not disabled/deleted, and explicitly allowlisted. The worker performs a fresh online check before leasing another job. The staging proxy permits only the exact POST API path without a server action to reach this independently authenticated endpoint. No broad API/page exemption is added.
+The pairing route is POST /api/stock-worker. Session responses contain only the session/account fields; includeConfig:true is rejected. Each authenticated request rechecks the administrator's current role, enabled status, allowlist and environment. Redis stores hashed tokens/codes in separate Preview and Production namespaces; live Redis failure fails closed. Session expiry requires pairing again.
 
-## Server provisioning — never included in the installer
+POST /api/stock-worker/jobs supports check, lease, heartbeat, submit, fail and step. It has strict JSON/UTF-8 and 2 MiB request limits, no query credentials, no-store responses, a per-device limit of 60 requests per minute, and fresh session/environment authorisation on every operation. The client uses only the fixed canonical HTTPS endpoint, rejects redirects, bounds response size and time, and does not retry ambiguous mutations.
 
-The existing server must be released with the new endpoint/page and configured independently in each environment. Do not put production values in Preview.
+Leases last 15 minutes and are bound to environment, administrator, device and a random lease token. A unique busy-owner compare-and-set fences each submit/fail/step. Expired, foreign and replayed leases cannot mutate the job. Local scraping sends a heartbeat every 60 seconds; apply steps authorise separately and do not run a competing heartbeat.
 
-- `DEALER_STOCK_DESKTOP_ENABLED=1` enables this dedicated endpoint.
-- `DEALER_STOCK_DESKTOP_ALLOWED_ADMIN_IDS` contains one or two comma-separated **internal User IDs** for the approved Matt/Dave admin accounts. Resolve them from the correct environment; do not guess IDs or substitute the existing broader staging-email allowlist.
-- `DEALER_STOCK_DESKTOP_CONFIG_JSON` is an object mapping exactly those admin IDs to separately provisioned, reviewed worker configuration. The endpoint must not fall back to the website's broad environment variables.
-- The existing Upstash REST URL and token must be configured. Namespaces are `itrader:stock-desktop:preview` and `itrader:stock-desktop:production`. TTL state loss requires sign-in again; it does not alter stock.
-- Existing stock-update environment, schema, ImageKit and production activation gates remain enforced. This feature adds no SQL schema migration and does not activate existing stock tables/features automatically.
+The server selects the trusted registry key. The client submits raw source results and timestamps only, within 2,000 vehicles and 20 candidate image URLs per vehicle. The server validates the exact configured sources, source/photo hosts and completeness, then rebuilds reconciliation, the review plan and its fingerprint. Missing completeness, missing usable photos and partial inventories remain blocking safeguards. The client cannot supply a plan, approval, report fingerprint or arbitrary image host.
 
-Allowed worker keys are the ones explicitly listed in `desktop-config.ts` / `desktop-worker.ts`: environment/worker flags, canonical app and Supabase origins, one or more matching database URLs, the verified database CA, and the existing ImageKit media settings. Unknown executable/environment injection keys such as `NODE_OPTIONS`, `PATH` or TLS-disable flags are rejected. Preview image uploads require its existing explicit staging identity. A database URL's existence is not proof its permissions are sufficiently restricted: provision and test the minimum permissions on the required tables/functions before client acceptance.
+Stock Reviews remains the approval interface. APPLY validates the stored approved report, binding, dealer, active approver and approved fingerprint; the actual enqueue payload contains only reportId and fingerprint. Each step stages at most one approved source photo, with strict public-address DNS pinning, redirect rejection, byte/time limits, raster validation and managed ownership/cleanup receipts. Server-only progress is tied to the job/report/action/photo index and server-generated upload attempt.
 
-Never email credentials, embed them in the installer, copy the general `.env.local`, expose provider secrets to browser HTML, or provision credentials through an unreviewed live action. Administrative device revocation is at `/admin/stock-worker`. Website sign-out and desktop-session sign-out are deliberately distinct.
+After all required photos are staged, the server revalidates approval and fingerprint and atomically applies the entire frozen report together with the ownership receipt claims. It never commits one vehicle at a time. Lost lease ownership cannot delete photos now needed by another executor. Ambiguous/crashed work retains managed cleanup receipts for recovery. The client reports applied success only after an actual successful terminal server result.
 
-## Build
+Ordinary requests have a 60-second deadline; photo steps have a 240-second deadline under the 300-second route limit. If the response is lost after the server acts, the worker stops and directs the operator to Stock Reviews. Inspect the actual report/job state before restarting or queuing again.
 
-Run `scripts/stock-update-desktop/build.ps1` on the authorised Windows build host. Defaults use private SDK/compiler caches under `D:\Tools\itrader-stock-update-build`; no system PATH change is required. Outputs go beneath `private/stock-update-desktop-build`.
+## Staging configuration and legacy credential retirement
 
-Pinned runtime: Node v22.23.3, using the official x64/ARM64 archive hashes in the exporter. Playwright/browser and other runtime versions derive from the repository's installed, locked packages. The exporter walks concrete runtime imports (including literal dynamic imports and `@/` aliases), emits only the necessary local source closure, generates a private runtime lock, installs the matching architecture-specific dependencies and generates Prisma in that isolated payload. It never reads `.env`, copies `.git`/private files, or connects to a database while building. Generated payload manifests identify source hashes and dependency versions; third-party package licence files remain included.
+Configure only the Preview target scoped to the staging branch. Do not copy Preview values to Production.
 
-The .NET 10 app is published self-contained for win-x64 and win-arm64. The single Inno installer selects the OS architecture and includes a matching private Node runtime. The Playwright Windows browser is currently win64; on ARM that browser path relies on Windows x64 emulation and still requires hardware acceptance. Compilation for ARM does not establish successful execution there.
+- DEALER_STOCK_DESKTOP_ENABLED=1 and the existing explicit internal administrator allowlist remain required.
+- DEALER_STOCK_DESKTOP_API_ONLY=1 selects the credential-free jobs path. The new path does not read DEALER_STOCK_DESKTOP_CONFIG_JSON; remove that obsolete staging value after the complete new path is ready.
+- Existing server/database identity, canonical origin, Redis and stock-update environment checks remain in force. Production requires its separate explicit activation.
+- Server-side media uses the website's reviewed media configuration and managed ownership system. No new desktop provider credential is issued.
+- No schema migration or new database grant is needed.
 
-The installer refuses Windows versions before Windows 11, installs without elevation, creates Start-menu/optional desktop shortcuts, and checks the application's named mutex before installation/uninstallation. It neither force-closes an active worker nor adds a startup registration. Upgrades preserve encrypted sessions stored outside the install directory. Uninstall removes only this user's app-owned session/cache directory; it is not server-side revocation.
+Removing an environment variable does not remove secrets retained by earlier deployments. After proving the new API workflow and confirming there are no active jobs, disable LOGIN on the exact obsolete staging role itrader_stock_worker and verify the result. Inspect/terminate only any surviving sessions of that obsolete role.
 
-A publisher certificate is not automatically acquired or fabricated. Without a real signing certificate, the produced EXE is an **unsigned test build**. Signing must be completed by the release owner before normal client distribution; signing itself does not guarantee the absence of SmartScreen warnings. Never disable Windows security to make installation work.
+Retire the old desktop ImageKit key only after verifying its provider identity and that it is dedicated, distinct from the website's shared key. If that identity cannot be established, stop that operation and obtain the narrow missing information. Never revoke a shared website key or touch production credentials. Do not rerun the old provisioning --apply command as rotation; it reuses saved credentials. Never decrypt provisioning recovery files into logs or distribute them.
 
-## Verification and acceptance
+Device revocation is available at /admin/stock-worker. Revoking this new app's token prevents further authorised API operations; no database/provider credentials are present on the new client to rotate.
 
-Local automated tests cover account/configuration restrictions, pairing replay, bad PKCE, expiration/revocation, exact machine-route handling, bounded messages, fail-closed worker authorisation, safe stop, native DTO/DPAPI handling and the private Node/browser/image runtime. A Redis adapter contract test is not a hosted Redis/Lua execution test. See actual build logs and review receipts for commands, candidate hashes and results.
+## Operator instructions
 
-Before handing the application to Dave as ready to use, demonstrate installation on a clean Windows 11 account without development tools; launch/check/close and upgrade/uninstall; browser sign-in against the deployed Preview endpoint; explicit Preview scrape, report review and approval; owned photos and final stock result; expired/revoked access and interrupted connectivity; and physical ARM execution if that architecture is required. Production needs its separately reviewed deployment/configuration and supervised acceptance. Do not treat compilation, offline tests or a generic 'finished processing' event as proof those gates passed.
+1. Install and open iTrader Stock Update. Leave Preview — itrader.dev selected.
+2. Click Sign in, use the existing administrator account in the browser, and approve the named computer for Preview.
+3. Click Check connection. This authorises the session, checks server readiness and exercises the bundled browser and image runtime locally. It does not queue, lease, approve, apply or upload.
+4. Open Stock Reviews and queue the intended dealer scan. Click Start worker and keep the computer awake and online.
+5. Review the resulting report, all proposed changes and source photos on the website. Resolve incomplete scans or missing photos. Approve only the report intended for application.
+6. Leave the worker running while server steps stage the approved photos and apply the entire report. Verify the report outcome and listings in Stock Reviews.
+7. Click Stop safely and wait for it to stop before closing.
 
-Check connection is non-mutating: it validates the app session, makes a read-only stock-table access probe, opens the bundled browser on local HTML and exercises native image processing. It never queues, leases, approves, applies or uploads stock. ImageKit upload credentials and database write permissions are proven only by the supervised end-to-end test, not by the read-only check.
+Use Sign out or Manage devices to revoke a device that should no longer have access. An interrupted connection can leave a completed server operation without a received client response; inspect Stock Reviews before trying again.
+
+## Building and payload verification
+
+Run scripts/stock-update-desktop/build.ps1 on the authorised Windows build host after the required repository gates have committed the release. The default private output is private/stock-update-release-1.1.0; tool caches remain under D:\Tools\itrader-stock-update-build. Earlier 1.0.0 and 1.0.1 installers must be preserved.
+
+A final installer requires a clean, committed checkout. The runtime manifests must identify that same source commit, the correct version/architecture and an unmodified export. Native binaries are always published afresh from that checkout, version-checked and followed by the offline self-test. The build rechecks source provenance before and after installer compilation and writes the installer SHA256 and release manifest. The standalone package-runtime.mjs exporter can run on dirty development source, but records sourceDirty:true and cannot supply a final installer build.
+
+Node v22.23.3 comes from the pinned official x64/ARM64 ZIP checksums. Each export freshly extracts the verified archive before using or copying Node, and records the executable hash. The exporter traces concrete runtime imports, rejects computed/unreviewed imports and server packages, and permits only the reviewed scraping sources plus tsx, Sharp and Playwright as direct dependencies. The generated runtime lock is derived from installed repository-locked versions.
+
+Each architecture payload is rebuilt cleanly. The exporter checks actual copied source hashes and rejects forbidden private/session/environment files and links, including outside the worker directory. The build repeats payload checks after native publishing. Builds do not load .env, connect to the database or perform website/media operations. The x64 smoke check uses local HTML and generated image data. Third-party package licence files and a dependency inventory are included.
+
+The self-contained .NET 10 app and private Node payload are produced for win-x64 and win-arm64. The single installer detects the architecture. The Playwright browser is win64, so ARM relies on Windows x64 emulation and requires separate physical hardware testing. An ARM cross-build does not prove ARM execution. This release's required execution acceptance is x64.
+
+The installer requires Windows 11, installs per user without elevation and creates Start-menu/optional desktop shortcuts. The existing named mutex prevents installation over a running app. Upgrades remove old app-owned worker/runtime/browser directories before installing the new payload, so obsolete database/media code cannot remain. Encrypted sessions outside the installation directory are preserved during upgrade. Uninstall removes the user's local app data but does not revoke the server-side session.
+
+## Acceptance evidence and limits
+
+The repository tests cover credential-free responses, strict authentication and inventory boundaries, actual APPLY enqueue payloads, route/integration behavior, device-bound leases, concurrent/replayed/expired mutations, DNS/private-address/redirect/time limits, staged-photo cleanup races, atomic receipt/listing commits, token-only HTTP/bootstrap handling, safe stop and ambiguous failures. Native offline tests cover session DTOs, DPAPI, bounded strict parsing, child bootstrap/environment isolation, late cancellation and fixed status messages.
+
+These automated results establish only their tested scope. Hosted acceptance must separately demonstrate the exact staging deployment, new app sign-in/check, real scrape → review/approval → photo staging → atomic apply, owned photos/receipts/audits, and a repeat scan without repeated changes. Never approve a zero-action plan or bypass missing-photo/incomplete-scrape safeguards to force a pass. A labelled isolated staging fixture requires its scope to be reviewed first if no genuine eligible listing remains.
+
+Development-PC installer acceptance must include upgrade/fresh installation, second launch, safe stop, controlled network failure and uninstall cleanup, preserving any encrypted owner session safely. The Surface installation is deliberately retained for the owner's manual tests; do not uninstall, reset or reboot it without permission. Historical Surface 1.0.1 evidence is not evidence for this redesign. Report unavailable device access, authentication, hardware tests or reboot tests honestly.
+
+Signing is explicitly out of scope for this private release. Do not disable Windows security to work around an installer block. Production activation remains separately authorised work.

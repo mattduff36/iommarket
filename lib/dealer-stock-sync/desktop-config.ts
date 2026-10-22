@@ -180,8 +180,14 @@ function configsFor(
   return ids.every((id) => configs[id]) ? configs : null;
 }
 
-/** Fail closed. Worker credentials come only from the dedicated JSON map. */
-export function resolveDesktopGate(env: Record<string, string | undefined>): DesktopGateResult {
+interface OpenDesktopGate {
+  environment: DesktopEnvironment;
+  origin: string;
+  allowlist: readonly string[];
+}
+
+/** Shared fail-closed checks. API-only mode stops here and never reads worker config. */
+function openDesktopGate(env: Record<string, string | undefined>): { ok: true; gate: OpenDesktopGate } | DesktopGateResult {
   if (env.DEALER_STOCK_DESKTOP_ENABLED !== "1") return fail("disabled");
   const ids = allowlist(env.DEALER_STOCK_DESKTOP_ALLOWED_ADMIN_IDS);
   if (!ids) return fail("allowlist");
@@ -193,9 +199,23 @@ export function resolveDesktopGate(env: Record<string, string | undefined>): Des
   if (!server.enabled) return fail("server");
   const origin = canonicalOrigin(server.environment, env.NEXT_PUBLIC_APP_URL);
   if (!origin) return fail("origin");
-  const configs = configsFor(env.DEALER_STOCK_DESKTOP_CONFIG_JSON, ids, server.environment);
+  return { ok: true, gate: { environment: server.environment, origin, allowlist: ids } };
+}
+
+/**
+ * Fail closed. Legacy provisioning still requires the dedicated worker JSON map.
+ * `DEALER_STOCK_DESKTOP_API_ONLY=1` validates the same gate except that map, and
+ * returns no configs.
+ */
+export function resolveDesktopGate(env: Record<string, string | undefined>): DesktopGateResult {
+  const opened = openDesktopGate(env);
+  if (!opened.ok) return opened;
+  if (env.DEALER_STOCK_DESKTOP_API_ONLY === "1") {
+    return { ok: true, gate: { ...opened.gate, configs: {} } };
+  }
+  const configs = configsFor(env.DEALER_STOCK_DESKTOP_CONFIG_JSON, opened.gate.allowlist, opened.gate.environment);
   if (!configs) return fail("config");
-  return { ok: true, gate: { environment: server.environment, origin, allowlist: ids, configs } };
+  return { ok: true, gate: { ...opened.gate, configs } };
 }
 
 export function desktopAccountEnabled(env: Record<string, string | undefined>, adminId: string): boolean {

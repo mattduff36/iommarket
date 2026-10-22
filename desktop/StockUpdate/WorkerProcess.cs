@@ -20,7 +20,7 @@ public static class WorkerProcess
 
     private static readonly string[] AllowedParent =
     [
-        "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+        "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
         "COMSPEC", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "OS",
         "USERNAME", "USERDOMAIN", "SYSTEMDRIVE"
     ];
@@ -32,7 +32,6 @@ public static class WorkerProcess
         string appRoot,
         AppEnvironment environment,
         string accessToken,
-        IReadOnlyDictionary<string, string> config,
         string mode,
         IReadOnlyDictionary<string, string> parentEnvironment,
         out WorkerLaunchPlan plan,
@@ -40,6 +39,7 @@ public static class WorkerProcess
     {
         plan = null!;
         error = "missing_payload";
+        if (!Enum.IsDefined(environment)) { error = "invalid_request"; return false; }
         if (mode is not ("check" or "watch")) { error = "invalid_request"; return false; }
         if (!TokenShapes.Base64Url(accessToken, 43)) { error = "not_signed_in"; return false; }
         var root = Path.GetFullPath(appRoot);
@@ -57,12 +57,13 @@ public static class WorkerProcess
                 env[key] = value;
         }
         if (!env.ContainsKey("SYSTEMROOT")) return false;
+        env["PATH"] = string.Join(";", Path.GetDirectoryName(node), Path.Combine(env["SYSTEMROOT"], "System32"), env["SYSTEMROOT"]);
+        env["NODE_ENV"] = "production";
         env["PLAYWRIGHT_BROWSERS_PATH"] = browsers;
         var stdin = JsonSerializer.Serialize(new
         {
             environment = Targets.WireName(environment),
-            accessToken,
-            config
+            accessToken
         });
         plan = new WorkerLaunchPlan(
             node,
@@ -101,10 +102,15 @@ public static class WorkerProcess
                 "ready" => "Manual worker ready. Already queued jobs may be processed.",
                 "waiting" => "Waiting for queued work. Weekly scheduling is off.",
                 "processing" => "Processing a queued stock job.",
+                "staging-photos" when type == "job" => "The server is preparing approved photos and applying the reviewed report.",
+                "applied" when type == "job" => "iTrader confirmed that the approved stock report was applied.",
                 "stopping" => "Stopping after the current job finishes.",
                 "stopped" => "Worker stopped.",
                 "unauthorised" => "Desktop access expired or was revoked. Sign in again.",
-                "unavailable" or "invalid-response" => "Desktop access could not be verified. No new job was started.",
+                "unavailable" or "invalid-response" or "invalid-request" => "The request outcome could not be verified. Check Stock Reviews before starting again; it may have completed.",
+                "job-failed" => "The stock job failed. Check Stock Reviews before starting again.",
+                "conflict" => "The job lease is no longer available. Check Stock Reviews before starting again.",
+                "rate-limited" => "iTrader asked this device to pause. Wait a minute before starting again.",
                 "failed" => "Checks or processing failed. Review the connection and iTrader job result.",
                 _ => null
             };

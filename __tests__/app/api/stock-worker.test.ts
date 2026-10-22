@@ -129,7 +129,7 @@ describe("POST /api/stock-worker", () => {
     await expect(missing.json()).resolves.toEqual({ error: "unauthorized" });
   });
 
-  it("returns config only on an authorised session and fails closed without redis", async () => {
+  it("never returns configuration after authorisation and fails closed without redis", async () => {
     const deps = install();
     const secret = randomBytes(32).toString("base64url");
     const challenge = createHash("sha256").update(secret).digest("base64url");
@@ -150,11 +150,13 @@ describe("POST /api/stock-worker", () => {
     expect(plainBody).not.toHaveProperty("config");
     expect(JSON.stringify(plainBody)).not.toContain(PRIVATE_KEY);
     const configured = await POST(request({ op: "session", includeConfig: true }, undefined, { authorization: `Bearer ${token}` }));
-    const configuredBody = await configured.json() as { config: { DATABASE_URL: string; IMAGEKIT_PRIVATE_KEY: string } };
+    const configuredBody = await configured.json() as Record<string, unknown>;
+    expect(configured.status).toBe(400);
     expect(configured.headers.get("cache-control")).toContain("no-store");
-    expect(configuredBody.config.IMAGEKIT_PRIVATE_KEY).toBe(PRIVATE_KEY);
-    expect(configuredBody.config.DATABASE_URL).toContain("worker-secret");
-    expect(configuredBody.config.DATABASE_URL).not.toContain("app-secret");
+    expect(configuredBody).toEqual({ error: "invalid_request" });
+    expect(JSON.stringify(configuredBody)).not.toContain(PRIVATE_KEY);
+    expect(JSON.stringify(configuredBody)).not.toContain("worker-secret");
+    expect(JSON.stringify(configuredBody)).not.toContain("app-secret");
 
     install(unavailableDesktopStore());
     const down = await POST(request({

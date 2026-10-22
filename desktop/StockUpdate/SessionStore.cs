@@ -38,15 +38,15 @@ public sealed class SessionStore
         {
             if (new FileInfo(target).Length > 65536) { Delete(target); return null; }
             var plain = ProtectedData.Unprotect(File.ReadAllBytes(target), null, DataProtectionScope.CurrentUser);
-            var json = Encoding.UTF8.GetString(plain);
-            if (!SessionParser.TryParse(json, environment, keepConfig: false, out var session))
+            var json = new UTF8Encoding(false, true).GetString(plain);
+            if (!SessionParser.TryParse(json, environment, out var session))
             {
                 Delete(target);
                 return null;
             }
             return session;
         }
-        catch (Exception ex) when (ex is CryptographicException or JsonException or IOException or UnauthorizedAccessException or FormatException)
+        catch (Exception ex) when (ex is CryptographicException or JsonException or IOException or UnauthorizedAccessException or FormatException or DecoderFallbackException)
         {
             Delete(target);
             return null;

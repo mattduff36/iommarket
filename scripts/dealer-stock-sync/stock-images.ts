@@ -11,7 +11,7 @@ export async function cleanupStockImages(uploaded: PreviewUploadedImage[]) {
 }
 
 export async function prepareStockImages(snapshot: FingerprintSnapshot, jobId: string,
-  upload = uploadPreviewPackImages) {
+  upload = uploadPreviewPackImages, cleanup = cleanupStockImages) {
   const uploaded: PreviewUploadedImage[] = [];
   const images: Record<string, OwnedListingImage[]> = {};
   try {
@@ -27,5 +27,5 @@ export async function prepareStockImages(snapshot: FingerprintSnapshot, jobId: s
       images[action.sourceIdentityKey] = owned;
     }
     return { uploaded, images };
-  } catch (error) { await cleanupStockImages(uploaded); throw error; }
+  } catch (error) { await cleanup(uploaded); throw error; }
 }

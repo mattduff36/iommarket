@@ -2,12 +2,12 @@
 param(
   [string]$ToolRoot = 'D:\Tools\itrader-stock-update-build',
   [string]$BuildRoot,
-  [switch]$SkipRuntime,
-  [switch]$SkipPublish
+  [switch]$SkipRuntime
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-if (-not $BuildRoot) { $BuildRoot = Join-Path $repo 'private\stock-update-desktop-build' }
+$version = '1.1.0'
+if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
 if (-not $BuildRoot.StartsWith($privateRoot, [StringComparison]::OrdinalIgnoreCase)) {
@@ -15,9 +15,17 @@ if (-not $BuildRoot.StartsWith($privateRoot, [StringComparison]::OrdinalIgnoreCa
 }
 $dotnet = Join-Path $ToolRoot 'dotnet\dotnet.exe'
 $iscc = Join-Path $ToolRoot 'inno\ISCC.exe'
-$buildNode = Join-Path $ToolRoot 'downloads\node-v22.23.3-win-x64\node.exe'
 $systemNode = (Get-Command node.exe -ErrorAction Stop).Source
 foreach ($file in @($dotnet, $iscc)) { if (-not [IO.File]::Exists($file)) { throw "Missing private build tool: $file" } }
+
+function Get-SourceCommit {
+  $head = & git -C $repo rev-parse HEAD
+  if ($LASTEXITCODE -ne 0) { throw 'Cannot read the source commit.' }
+  $dirty = & git -C $repo status --porcelain
+  if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'An installer requires a clean, committed checkout. Use the runtime exporter alone for development checks.' }
+  return $head.Trim()
+}
+$sourceCommit = Get-SourceCommit
 [IO.Directory]::CreateDirectory((Join-Path $BuildRoot 'logs')) | Out-Null
 [IO.Directory]::CreateDirectory((Join-Path $BuildRoot 'release')) | Out-Null
 [IO.Directory]::CreateDirectory((Join-Path $ToolRoot 'tmp')) | Out-Null
@@ -30,13 +38,36 @@ $env:TMP = $env:TEMP
 
 function Invoke-Checked([string]$Executable, [string[]]$Parameters, [string]$Label) {
   Write-Host $Label
-  # Child stderr is logged, not interpreted as a PowerShell terminating error.
   $oldPreference = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   & $Executable @Parameters > (Join-Path $BuildRoot "logs\$Label.log") 2>&1
   $code = $LASTEXITCODE
   $ErrorActionPreference = $oldPreference
   if ($code -ne 0) { throw "$Label failed with exit code $code. See the corresponding build log." }
+}
+function Assert-NoPrivateFiles([string]$Directory) {
+  foreach ($item in Get-ChildItem -LiteralPath $Directory -Force -Recurse) {
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        $item.Name -match '^(?:\.git|private|sessions|provisioning)$|^\.env(?:\.|$)|\.dpapi$|^(?:preview|production|session|sessions|credentials)\.(?:bin|json)$') {
+      throw "Forbidden private file or link in release payload: $($item.Name)"
+    }
+  }
+}
+function Assert-Runtime([string]$Architecture) {
+  $destination = Join-Path $BuildRoot "payload\$Architecture"
+  $manifestPath = Join-Path $destination 'runtime-manifest.json'
+  if (-not [IO.File]::Exists($manifestPath)) { throw "Runtime for $Architecture is missing." }
+  $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+  if ($manifest.version -ne $version -or $manifest.architecture -ne $Architecture -or
+      $manifest.sourceHead -ne $sourceCommit -or $manifest.sourceDirty -ne $false -or
+      $manifest.credentialsIncluded -ne $false) {
+    throw "Runtime for $Architecture does not match the clean release commit."
+  }
+  $guard = "import {readFileSync} from 'node:fs'; import {resolve} from 'node:path'; import {verifyRuntimePayload} from './scripts/stock-update-desktop/runtime-boundary.mjs'; const p=process.argv[1]; const m=JSON.parse(readFileSync(resolve(p,'runtime-manifest.json'),'utf8')); verifyRuntimePayload(resolve(p,'worker'),m.sourceFiles);"
+  Push-Location $repo
+  try { Invoke-Checked $systemNode @('--input-type=module', '-e', $guard, $destination) "verify-runtime-$Architecture" }
+  finally { Pop-Location }
+  Assert-NoPrivateFiles $destination
 }
 
 if (-not $SkipRuntime) {
@@ -45,46 +76,64 @@ if (-not $SkipRuntime) {
   }
 }
 foreach ($architecture in @('x64','arm64')) {
+  Assert-Runtime $architecture
   $destination = Join-Path $BuildRoot "payload\$architecture"
-  if (-not [IO.File]::Exists((Join-Path $destination 'runtime-manifest.json'))) { throw "Runtime for $architecture is missing." }
-  if (-not $SkipPublish) {
-    Invoke-Checked $dotnet @('publish', (Join-Path $repo 'desktop\StockUpdate\StockUpdate.csproj'), '-c', 'Release', '-r', "win-$architecture", '--self-contained', 'true', '-o', $destination, '--nologo') "publish-$architecture"
-  }
-  if (-not [IO.File]::Exists((Join-Path $destination 'StockUpdate.exe'))) { throw "Native application for $architecture is missing." }
+  # Always publish the native app from this commit; never reuse an earlier binary.
+  Invoke-Checked $dotnet @('publish', (Join-Path $repo 'desktop\StockUpdate\StockUpdate.csproj'), '-c', 'Release', '-r', "win-$architecture", '--self-contained', 'true', '-o', $destination, '--nologo') "publish-$architecture"
+  $native = Join-Path $destination 'StockUpdate.exe'
+  if (-not [IO.File]::Exists($native) -or [Diagnostics.FileVersionInfo]::GetVersionInfo($native).FileVersion -ne "$version.0") { throw "Native application for $architecture has the wrong version." }
+  Assert-Runtime $architecture
 }
+Assert-NoPrivateFiles (Join-Path $BuildRoot 'browsers')
 $selfReport = Join-Path $BuildRoot 'desktop-self-test.json'
+if ([IO.File]::Exists($selfReport)) { Remove-Item -LiteralPath $selfReport -Force }
 $testProcess = Start-Process -FilePath (Join-Path $BuildRoot 'payload\x64\StockUpdate.exe') -ArgumentList @('--self-test', ('"' + $selfReport + '"')) -Wait -PassThru
 if ($testProcess.ExitCode -ne 0 -or -not [IO.File]::Exists($selfReport)) { throw 'Native offline self-test failed or did not produce a report.' }
+if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed during the build.' }
 
 @'
-iTrader Stock Update - test build 1.0.1
+iTrader Stock Update - private internal release 1.1.0 (unsigned)
 
 This installer includes the application, its runtimes and browser. You do not need Git, Node.js, .NET, Cursor or repository access.
 
-The application includes both Preview (itrader.dev) and Production (itrader.im). Choose the environment explicitly in the window. This internal test is Preview only. Production is not authorised.
+Use Preview - itrader.dev. Production needs separate approval and is not enabled by this release.
 
-1. Open iTrader Stock Update from the Start menu.
-2. Leave Preview - itrader.dev selected. Do not select Production - itrader.im.
-3. Click Sign in and use your existing administrator account in the browser. Approve this computer and Preview. The app does not ask for a password.
-4. Click Check connection. This does not queue, approve or apply stock changes.
-5. Click Open stock reviews only to view the website. Do not queue, approve or apply stock changes for this internal test.
-6. Leave Start worker unused. If a job is already running, click Stop safely and let the current job finish before closing the application.
-7. Use Sign out or Manage devices on the website if this computer should not keep access.
+1. Open iTrader Stock Update from the Start menu and leave Preview selected.
+2. Click Sign in. In your browser, use your administrator account and approve this computer for Preview. The app does not collect your password.
+3. Click Check connection. This checks your session, server readiness and the local browser/image runtime without taking a job.
+4. Open Stock Reviews. Queue the intended dealer scan, then click Start worker in the app. Leave the computer awake and connected.
+5. Review the completed report on the website. Check all proposed changes and source photos. Approve only the report you intend to apply. Incomplete scans and missing photos must be resolved, not bypassed.
+6. With the worker running, the server stages the approved photos and applies the whole approved report together. Confirm the report outcome and listings in Stock Reviews.
+7. Click Stop safely when finished. It finishes the current job, takes no next job and then stops. Wait for it before closing.
 
-The computer must remain awake and connected while a worker is started. This tool does not run at Windows startup or schedule scrapes. Already queued eligible work in the explicitly selected environment can be processed while the worker is started. Do not start the worker for this internal test.
+There is no scheduled scan, startup worker or automatic approval. Any already queued eligible work for the selected environment may be processed while the worker runs.
 
-This is an unsigned test build. Do not disable Windows security. Contact Matt if Windows blocks installation. An unavailable sign-in is not fixed by reinstalling Node.js.
+If a connection, authorisation or processing error appears, the worker stops. Check the actual job/report outcome in Stock Reviews before restarting or queuing anything again; a response can be lost after a server operation succeeds.
 
-Use Sign out or the Manage devices website to revoke access before uninstalling. Uninstall removes this Windows user's local encrypted app sessions; it does not revoke server-side tokens or underlying database/image-service credentials. Report a lost computer to Matt so those credentials can be revoked or rotated.
+The app receives only a revocable session token. It never receives database credentials or ImageKit private keys. Windows encrypts the saved session for this Windows user. Sign out or use Manage devices to revoke this computer before handing it to someone else.
+
+Upgrades replace the application runtime and preserve encrypted sessions. Uninstall removes this user's local app data; it does not revoke the server session. Use Manage devices to revoke access after loss or uninstall.
+
+This is an unsigned application for the agreed private internal use. Signing is out of scope. Do not disable Windows security. Contact Matt if Windows blocks installation.
 '@ | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'client-readme.txt')
-Invoke-Checked $iscc @("/Qp", ("/DBuildRoot=" + $BuildRoot), '/DAppVersion=1.0.1', (Join-Path $repo 'desktop\StockUpdate\installer.iss')) 'compile-installer'
-$installer = Join-Path $BuildRoot 'release\iTrader Stock Update Setup-1.0.1.exe'
+Invoke-Checked $iscc @('/Qp', ("/DBuildRoot=" + $BuildRoot), ("/DAppVersion=" + $version), (Join-Path $repo 'desktop\StockUpdate\installer.iss')) 'compile-installer'
+$installer = Join-Path $BuildRoot "release\iTrader Stock Update Setup-$version.exe"
 if (-not [IO.File]::Exists($installer)) { throw 'Compiler did not produce the expected installer.' }
+if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed during installer compilation.' }
 $stream = [IO.File]::OpenRead($installer)
 try { $digest = [Security.Cryptography.SHA256]::Create().ComputeHash($stream) }
 finally { $stream.Dispose() }
 $sha = ([BitConverter]::ToString($digest)).Replace('-','').ToLowerInvariant()
-[IO.File]::WriteAllText(($installer + '.sha256'), ($sha + '  ' + [IO.Path]::GetFileName($installer) + "`r`n"))
+[IO.File]::WriteAllText(($installer + '.sha256'), ($sha + '  ' + [IO.Path]::GetFileName($installer) + [Environment]::NewLine))
+$release = [ordered]@{
+  version = $version; sourceCommit = $sourceCommit; unsigned = $true
+  installer = [IO.Path]::GetFileName($installer); installerSha256 = $sha
+  installerBytes = (Get-Item -LiteralPath $installer).Length
+  architectures = @('x64','arm64'); armHardwareVerified = $false
+  builtAt = [DateTime]::UtcNow.ToString('o')
+}
+$release | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'release\release-manifest.json')
 Write-Host "Installer: $installer"
 Write-Host "SHA256: $sha"
-Write-Host 'Unsigned test build. ARM runtime execution, clean-machine acceptance and hosted stock-update checks are separate release gates.'
+Write-Host "Source commit: $sourceCommit"
+Write-Host 'Unsigned internal release. Hosted workflow and physical device acceptance are separate gates.'

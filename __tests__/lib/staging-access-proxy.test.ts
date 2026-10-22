@@ -182,6 +182,31 @@ describe("staging access proxy", () => {
     expect(deleted.headers.get("location")).toBe("https://itrader.dev/staging-access?next=%2Fadmin");
   });
 
+  it.each(["/api/stock-worker", "/api/stock-worker/jobs"])("lets the exact desktop POST %s authenticate its own bearer without a browser cookie", async path => {
+    const response = await proxy(new NextRequest("https://itrader.dev" + path, { method: "POST" }));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(getUserMock).not.toHaveBeenCalled();
+    expect(findUniqueMock).not.toHaveBeenCalled();
+    expect(response.headers.get("cache-control")).toContain("no-store");
+  });
+
+  it("keeps desktop jobs GET, subpaths and server actions behind the browser gate", async () => {
+    for (const request of [
+      new NextRequest("https://itrader.dev/api/stock-worker/jobs"),
+      new NextRequest("https://itrader.dev/api/stock-worker/jobs/extra", { method: "POST" }),
+      new NextRequest("https://itrader.dev/api/stock-worker/jobs", { method: "POST", headers: { "next-action": "action-id" } }),
+    ]) {
+      expect((await proxy(request)).status).toBe(401);
+    }
+  });
+
+  it("refuses desktop jobs when staging points at a production database", async () => {
+    process.env.DATABASE_URL = "postgresql://postgres@production.example:5432/postgres";
+    const response = await proxy(new NextRequest("https://itrader.dev/api/stock-worker/jobs", { method: "POST" }));
+    expect(response.status).toBe(503);
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
+
   it("keeps the desktop pairing code on the staging sign-in return path", async () => {
     const response = await proxy(new NextRequest("https://itrader.dev/admin/stock-worker?code=ABCDEFGH"));
     expect(response.status).toBe(307);

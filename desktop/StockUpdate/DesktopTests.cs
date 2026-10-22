@@ -36,10 +36,11 @@ public static class DesktopTests
         });
         Check("session-dto-and-cross-target", () =>
         {
-            Assert(SessionParser.TryParse(SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddDays(1), true), AppEnvironment.Preview, true, out var session));
-            Assert(session.Config is not null && session.Config["FEED"] == "one");
-            Assert(!SessionParser.TryParse(SessionJson(AppEnvironment.Production, DateTimeOffset.UtcNow.AddDays(1), false), AppEnvironment.Preview, false, out _));
-            Assert(!SessionParser.TryParse(SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddMinutes(-5), false), AppEnvironment.Preview, false, out _));
+            Assert(SessionParser.TryParse(SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddDays(1), false), AppEnvironment.Preview, out var session));
+            Assert(session.AccessToken == Token());
+            Assert(!SessionParser.TryParse(SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddDays(1), true), AppEnvironment.Preview, out _));
+            Assert(!SessionParser.TryParse(SessionJson(AppEnvironment.Production, DateTimeOffset.UtcNow.AddDays(1), false), AppEnvironment.Preview, out _));
+            Assert(!SessionParser.TryParse(SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddMinutes(-5), false), AppEnvironment.Preview, out _));
             Assert(SessionParser.TryErrorCode("{\"error\":\"invalid_grant\"}", out var code) && code == "invalid_grant");
             Assert(!SessionParser.TryErrorCode("<html>secret-body</html>", out _));
         });
@@ -70,7 +71,7 @@ public static class DesktopTests
                 Content = new StringContent("<html>secret-body</html>", Encoding.UTF8, "text/html")
             });
             using var htmlApi = new WorkerApiClient(AppEnvironment.Preview, html, ownsHandler: false);
-            var hidden = htmlApi.SessionAsync(Token(), false, CancellationToken.None).GetAwaiter().GetResult();
+            var hidden = htmlApi.SessionAsync(Token(), CancellationToken.None).GetAwaiter().GetResult();
             Assert(!hidden.Ok && hidden.ErrorCode == "unavailable");
         });
         Check("begin-rejects-foreign-verification-uri", () =>
@@ -118,7 +119,7 @@ public static class DesktopTests
             var session = Parse(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddDays(2));
             store.Save(session);
             var loaded = store.TryLoad(AppEnvironment.Preview);
-            Assert(loaded is not null && loaded.AccessToken == session.AccessToken && loaded.Config is null);
+            Assert(loaded is not null && loaded.AccessToken == session.AccessToken);
             File.WriteAllBytes(store.PathFor(AppEnvironment.Preview), [1, 2, 3, 4, 5]);
             Assert(store.TryLoad(AppEnvironment.Preview) is null);
             Assert(!File.Exists(store.PathFor(AppEnvironment.Preview)));
@@ -145,9 +146,12 @@ public static class DesktopTests
                 ["SYSTEMROOT"] = @"C:\Windows",
                 ["NODE_OPTIONS"] = "--experimental-bad",
                 ["NODE_TLS_REJECT_UNAUTHORIZED"] = "0",
-                ["AWS_SECRET_ACCESS_KEY"] = "secret-value"
+                ["AWS_SECRET_ACCESS_KEY"] = "secret-value",
+                ["DATABASE_URL"] = "secret-value",
+                ["IMAGEKIT_PRIVATE_KEY"] = "secret-value",
+                ["HTTPS_PROXY"] = "secret-value"
             };
-            Assert(WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, new Dictionary<string, string> { ["FEED"] = "one" }, "check", parent, out var plan, out _));
+            Assert(WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, "check", parent, out var plan, out _));
             Assert(plan.NodePath == Path.Combine(root, "runtime", "node.exe"));
             Assert(plan.WorkingDirectory == Path.Combine(root, "worker"));
             Assert(string.Join(" ", plan.Arguments) == "--import tsx scripts/dealer-stock-sync/desktop-worker.ts --mode check");
@@ -157,11 +161,18 @@ public static class DesktopTests
             Assert(!plan.Environment.ContainsKey("NODE_OPTIONS"));
             Assert(!plan.Environment.ContainsKey("NODE_TLS_REJECT_UNAUTHORIZED"));
             Assert(!plan.Environment.ContainsKey("AWS_SECRET_ACCESS_KEY"));
+            Assert(!plan.Environment.ContainsKey("DATABASE_URL"));
+            Assert(!plan.Environment.ContainsKey("IMAGEKIT_PRIVATE_KEY"));
+            Assert(!plan.Environment.ContainsKey("HTTPS_PROXY"));
+            Assert(plan.Environment["PATH"].StartsWith(Path.Combine(root, "runtime") + ";", StringComparison.Ordinal));
+            Assert(plan.Environment["NODE_ENV"] == "production");
             using var stdin = JsonDocument.Parse(plan.StdinJson);
+            Assert(SessionParser.ExactFields(stdin.RootElement, "environment", "accessToken"));
             Assert(stdin.RootElement.GetProperty("accessToken").GetString() == token);
             Assert(stdin.RootElement.GetProperty("environment").GetString() == "preview");
+            Assert(!WorkerProcess.TryCreatePlan(root, (AppEnvironment)99, token, "check", parent, out _, out _));
             File.Delete(plan.NodePath);
-            Assert(!WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, new Dictionary<string, string>(), "watch", parent, out _, out var error));
+            Assert(!WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, "watch", parent, out _, out var error));
             Assert(error == "missing_payload");
             Assert(WorkerProcess.TryInterpret("{\"type\":\"job\",\"state\":\"done\",\"message\":\"finished processing listings\"}", out var output));
             Assert(output.UnverifiedFinish && output.Display == WorkerProcess.UnverifiedFinishMessage);
@@ -204,6 +215,64 @@ public static class DesktopTests
             Assert(!reply.Ok && reply.ErrorCode == "invalid_response");
         });
 
+
+        Check("strict-session-fields-reject-extra-duplicates-and-case-variants", () =>
+        {
+            var valid = SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddDays(1), false);
+            foreach (var prefix in new[]
+            {
+                "\"config\":{},", "\"Config\":{},", "\"DATABASE_URL\":\"synthetic\",",
+                "\"IMAGEKIT_PRIVATE_KEY\":\"synthetic\",", "\"accessToken\":\"" + Token() + "\","
+            })
+                Assert(!SessionParser.TryParse("{" + prefix + valid[1..], AppEnvironment.Preview, out _));
+            var accountExtra = valid.Replace("\"email\":", "\"config\":{},\"email\":", StringComparison.Ordinal);
+            Assert(!SessionParser.TryParse(accountExtra, AppEnvironment.Preview, out _));
+        });
+        Check("session-http-is-token-only-and-rejects-secret-response", () =>
+        {
+            var calls = 0;
+            using var api = new WorkerApiClient(AppEnvironment.Preview, new ScriptHandler(request =>
+            {
+                calls++;
+                Assert(request.RequestUri!.AbsoluteUri == Targets.Api(AppEnvironment.Preview));
+                Assert(request.Headers.Authorization?.Scheme == "Bearer");
+                Assert(request.Headers.Authorization?.Parameter == Token());
+                using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                Assert(SessionParser.ExactFields(body.RootElement, "op"));
+                Assert(body.RootElement.GetProperty("op").GetString() == "session");
+                return Json(HttpStatusCode.OK, SessionJson(AppEnvironment.Preview, DateTimeOffset.UtcNow.AddDays(1), calls == 2));
+            }));
+            Assert(api.SessionAsync(Token(), CancellationToken.None).GetAwaiter().GetResult().Ok);
+            Assert(!api.SessionAsync(Token(), CancellationToken.None).GetAwaiter().GetResult().Ok);
+            Assert(calls == 2);
+        });
+        Check("strict-utf8-response-and-byte-limit", () =>
+        {
+            foreach (var bytes in new[] { new byte[] { 0xff, 0xfe, 0x7b }, new byte[65537] })
+            {
+                using var api = new WorkerApiClient(AppEnvironment.Preview, new ScriptHandler(_ =>
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
+                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                    return response;
+                }));
+                var reply = api.SessionAsync(Token(), CancellationToken.None).GetAwaiter().GetResult();
+                Assert(!reply.Ok && reply.ErrorCode == "invalid_response");
+            }
+        });
+        Check("new-job-states-use-fixed-safe-text-and-no-false-network-outcome", () =>
+        {
+            foreach (var state in new[] { "staging-photos", "applied", "job-failed", "conflict", "rate-limited", "unavailable", "invalid-response" })
+            {
+                var line = JsonSerializer.Serialize(new { type = "job", state, message = Token() });
+                Assert(WorkerProcess.TryInterpret(line, out var output));
+                Assert(!output.Display.Contains(Token(), StringComparison.Ordinal));
+                Assert(!output.Display.Contains("No new job", StringComparison.Ordinal));
+                Assert(!output.UnverifiedFinish);
+            }
+            Assert(!WorkerProcess.TryInterpret("{\"type\":\"status\",\"state\":\"applied\",\"message\":\"anything\"}", out _));
+        });
+
         var passed = results.All(result => result.Passed);
         var report = JsonSerializer.Serialize(new { passed, results }, new JsonSerializerOptions { WriteIndented = true });
         if (!string.IsNullOrWhiteSpace(reportPath))
@@ -224,10 +293,10 @@ public static class DesktopTests
 
     private static WorkerSession Parse(AppEnvironment environment, DateTimeOffset expires) 
     {
-        Assert(SessionParser.TryParse(SessionJson(environment, expires, false), environment, false, out var session) || expires <= DateTimeOffset.UtcNow);
+        Assert(SessionParser.TryParse(SessionJson(environment, expires, false), environment, out var session) || expires <= DateTimeOffset.UtcNow);
         if (expires <= DateTimeOffset.UtcNow)
         {
-            return new WorkerSession(Token(), "dev_" + new string('b', 22), expires, environment, new AccountInfo("acct", "Ada", "ada@example.com"), null);
+            return new WorkerSession(Token(), "dev_" + new string('b', 22), expires, environment, new AccountInfo("acct", "Ada", "ada@example.com"));
         }
         return session;
     }
