@@ -154,28 +154,44 @@ async function withLease<T>(
   job: LeasedJob,
   work: (tx: Prisma.TransactionClient) => Promise<T>,
   guard: DealerStockSyncGuard = assertWorkerEnabled,
+  timeoutMs: 30_000 | 180_000 = 30_000,
 ) {
   guard();
-  return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT "id" FROM "DealerStockSourceBinding" WHERE "id" = ${job.bindingId} FOR UPDATE`;
-    const binding = await tx.dealerStockSourceBinding.findUnique({ where: { id: job.bindingId } });
-    if (!binding || binding.dealerId !== job.dealerId || !binding.verifiedAt ||
-      (job.kind === "SCRAPE" && binding.registryKey !== (job.payload as { registryKey?: string }).registryKey)) {
-      throw new Error("Source binding changed while the job was running");
-    }
-    const fence = await tx.dealerStockSyncJob.updateMany({
-      where: { id: job.id, status: "LEASED", leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: new Date() } },
-      data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
+  const startedAt = Date.now();
+  try {
+    const result = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "DealerStockSourceBinding" WHERE "id" = ${job.bindingId} FOR UPDATE`;
+      const binding = await tx.dealerStockSourceBinding.findUnique({ where: { id: job.bindingId } });
+      if (!binding || binding.dealerId !== job.dealerId || !binding.verifiedAt ||
+        (job.kind === "SCRAPE" && binding.registryKey !== (job.payload as { registryKey?: string }).registryKey)) {
+        throw new Error("Source binding changed while the job was running");
+      }
+      const fence = await tx.dealerStockSyncJob.updateMany({
+        where: { id: job.id, status: "LEASED", leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: new Date() } },
+        data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
+      });
+      if (fence.count !== 1) throw new Error("Lease lost");
+      await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
+      const result = await work(tx);
+      await tx.dealerStockSyncJob.update({ where: { id: job.id }, data: {
+        status: "SUCCEEDED", finishedAt: new Date(), leaseExpiresAt: null, error: null,
+      }});
+      return result;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: timeoutMs });
+    if (job.kind === "APPLY") console.info("Stock sync atomic transaction completed.", {
+      jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs,
     });
-    if (fence.count !== 1) throw new Error("Lease lost");
-    await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
-    await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
-    const result = await work(tx);
-    await tx.dealerStockSyncJob.update({ where: { id: job.id }, data: {
-      status: "SUCCEEDED", finishedAt: new Date(), leaseExpiresAt: null, error: null,
-    }});
     return result;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
+  } catch (error) {
+    const failureCode = error instanceof Prisma.PrismaClientKnownRequestError &&
+      ["P2028", "P2034", "P2002"].includes(error.code) ? error.code :
+      error instanceof Error && error.name === "StalePlanError" ? "STALE_PLAN" : "UNKNOWN";
+    console.error("Stock sync atomic transaction failed.", {
+      jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs, failureCode,
+    });
+    throw error;
+  }
 }
 
 async function applyJob(
@@ -183,6 +199,7 @@ async function applyJob(
   upload?: typeof uploadPreviewPackImages,
   guard: DealerStockSyncGuard = assertWorkerEnabled,
   cleanupPreparedImages?: DealerStockImageCleanup,
+  transactionTimeoutMs: 30_000 | 180_000 = 30_000,
 ) {
   guard();
   if (!job.reportId) throw new Error("Missing report");
@@ -213,7 +230,7 @@ async function applyJob(
         actorId: report.approvedById!, jobId: job.id, now: new Date(), stagedImages: staged.images,
         takeDown: (request) => takeDownManagedListing(tx, request),
       });
-    }, guard);
+    }, guard, transactionTimeoutMs);
   } catch (error) {
     await cleanup(staged.uploaded);
     throw error;
@@ -236,6 +253,7 @@ export async function runLeasedJob(
   upload?: typeof uploadPreviewPackImages,
   guard: DealerStockSyncGuard = assertWorkerEnabled,
   cleanupPreparedImages?: DealerStockImageCleanup,
+  execution: { applyTransactionTimeoutMs?: 180_000 } = {},
 ) {
   guard();
   const job = await db.dealerStockSyncJob.findUnique({ where: { id: lease.id } });
@@ -247,7 +265,7 @@ export async function runLeasedJob(
   }, 60000);
   try {
     if (job.kind === "SCRAPE") await scrapeJob(job, scrape, guard);
-    if (job.kind === "APPLY") await applyJob(job, upload, guard, cleanupPreparedImages);
+    if (job.kind === "APPLY") await applyJob(job, upload, guard, cleanupPreparedImages, execution.applyTransactionTimeoutMs);
   } catch (error) {
     await db.dealerStockSyncJob.updateMany({ where: { id: job.id, status: "LEASED", leaseOwner: lease.owner, leaseExpiresAt: { gt: new Date() } },
       data: { status: "FAILED", finishedAt: new Date(), leaseExpiresAt: null, error: safeError(error) },

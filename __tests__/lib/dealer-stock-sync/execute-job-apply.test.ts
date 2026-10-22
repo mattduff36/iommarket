@@ -1,5 +1,6 @@
 /* @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 const mocks = vi.hoisted(() => ({
   find: vi.fn(), update: vi.fn(), transaction: vi.fn(), report: vi.fn(), snapshot: vi.fn(),
   cleanup: vi.fn(), attached: vi.fn(), claim: vi.fn(), apply: vi.fn(),
@@ -74,13 +75,21 @@ function fixture() {
 }
 
 describe("stock executor with persisted desktop photos", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
 
-  it("claims all receipts and applies the whole report in one transaction", async () => {
+  it.each([
+    ["legacy", undefined, 30_000],
+    ["desktop-step", { applyTransactionTimeoutMs: 180_000 as const }, 180_000],
+  ] as const)("claims all receipts and applies the whole report in one transaction for %s", async (_kind, execution, timeout) => {
     const current = fixture();
-    await runLeasedJob({ id: "job", owner: "busy" }, vi.fn(), current.upload, vi.fn(), async () => undefined);
+    await runLeasedJob({ id: "job", owner: "busy" }, vi.fn(), current.upload, vi.fn(), async () => undefined, execution);
     expect(mocks.transaction).toHaveBeenCalledOnce();
-    expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable", timeout: 30000 });
+    expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable", timeout });
     expect(mocks.claim).toHaveBeenCalledExactlyOnceWith(current.tx, current.images);
     expect(mocks.apply).toHaveBeenCalledOnce();
     expect(mocks.apply.mock.calls[0]![0]).toMatchObject({
@@ -88,6 +97,23 @@ describe("stock executor with persisted desktop photos", () => {
     });
     expect(current.job.status).toBe("SUCCEEDED");
     expect(mocks.cleanup).not.toHaveBeenCalled();
+  });
+
+  it("reports a transaction failure without exposing raw database details or claiming success", async () => {
+    const current = fixture();
+    mocks.transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "sensitive connection detail must never be logged", { code: "P2028", clientVersion: "test" },
+    ));
+    await runLeasedJob({ id: "job", owner: "busy" }, vi.fn(), current.upload, vi.fn(), async () => undefined,
+      { applyTransactionTimeoutMs: 180_000 });
+    expect(current.job.status).toBe("FAILED");
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledExactlyOnceWith("Stock sync atomic transaction failed.", {
+      jobId: "job", elapsedMs: expect.any(Number), timeoutMs: 180_000, failureCode: "P2028",
+    });
+    expect(console.info).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("sensitive connection");
   });
 
   it("does not clean shared photos or fail a successor when ownership changes before the transaction", async () => {

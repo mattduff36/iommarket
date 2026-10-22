@@ -130,6 +130,7 @@ describe("bounded desktop APPLY staging", () => {
     expect(mocks.run).toHaveBeenCalledOnce();
     expect(api.state.received.map(images => images.length)).toEqual([8, 2]);
     expect(mocks.run.mock.calls[0]?.[4]).toEqual(expect.any(Function));
+    expect(mocks.run.mock.calls[0]?.[5]).toEqual({ applyTransactionTimeoutMs: 180_000 });
     await mocks.run.mock.calls[0]![4]!(api.progress().photos.map(photo => photo.image));
     expect(mocks.cleanup).not.toHaveBeenCalled();
   });

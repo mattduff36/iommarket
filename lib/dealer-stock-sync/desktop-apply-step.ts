@@ -177,7 +177,7 @@ export async function runDesktopApplyStep(
     // These images are durable job progress, shared with a successor after lease expiry.
     // Only this step's terminal owner fence may enqueue their failure cleanup.
     await runLeasedJob({ id: input.jobId, owner: input.busyOwner }, async () => { throw new Error(SAFE_FAILURE); },
-      stagedUpload, guard, async () => undefined);
+      stagedUpload, guard, async () => undefined, { applyTransactionTimeoutMs: 180_000 });
     const terminal = await db.dealerStockSyncJob.findUnique({
       where: { id: input.jobId }, select: { status: true, leaseOwner: true },
     });
