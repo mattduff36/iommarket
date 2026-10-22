@@ -69,7 +69,7 @@ describe("Stock Reviews live worker", () => {
  });
  it("disables commands offline and sends only the selected instance when online", async () => {
   const view = render(<StockWorkerDashboard initial={{ok:true,devices:[]}} jobs={[]} readyCount={0} />);
-  expect(screen.getByRole("button", {name:"Start worker"})).toBeDisabled();
+  expect(screen.queryByRole("button", {name:"Start worker"})).not.toBeInTheDocument();
   expect(screen.getAllByText("Start the Stock Update worker app").length).toBeGreaterThan(0);
   await tick();
   await act(async () => { fireEvent.click(screen.getByRole("button", {name:"Start worker"})); });
@@ -80,7 +80,7 @@ describe("Stock Reviews live worker", () => {
   dashboard.mockRejectedValue(new Error("offline"));
   render(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
   await tick();
-  expect(screen.getByRole("button",{name:"Start worker"})).toBeDisabled();
+  expect(screen.queryByRole("button",{name:"Start worker"})).not.toBeInTheDocument();
   expect(screen.getAllByText("Connection status unavailable").length).toBeGreaterThan(0);
  });
 });

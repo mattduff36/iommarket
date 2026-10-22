@@ -125,8 +125,8 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
       <p className="text-xs text-text-tertiary">Updates automatically every few seconds. Reviews and approval stay under your control.</p>
     </section>
     {children}
-    <div aria-hidden="true" style={{ height: barHeight }} />
-    <div ref={bar} className="fixed inset-x-3 bottom-3 z-40 overflow-hidden rounded-xl border border-neon-blue-500/40 bg-surface shadow-2xl sm:inset-x-5 lg:left-72">
+    <div aria-hidden="true" style={{ height: online ? barHeight : 0 }} />
+    <div ref={bar} hidden={!online} className="fixed inset-x-3 bottom-3 z-40 overflow-hidden rounded-xl border border-neon-blue-500/40 bg-surface shadow-2xl sm:inset-x-5 lg:left-72">
       <div className="h-1 bg-neon-blue-500/10" aria-hidden="true"><div className={`h-full bg-neon-blue-500 ${busy ? "w-1/3 motion-safe:animate-pulse" : online ? "w-full opacity-40" : "w-0"}`} /></div>
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <span className="mr-1 text-xl font-bold tracking-tight text-neon-blue-400">iTrader<span className="font-normal text-text-primary">.</span></span>
