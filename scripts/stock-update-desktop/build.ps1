@@ -57,26 +57,28 @@ $testProcess = Start-Process -FilePath (Join-Path $BuildRoot 'payload\x64\StockU
 if ($testProcess.ExitCode -ne 0 -or -not [IO.File]::Exists($selfReport)) { throw 'Native offline self-test failed or did not produce a report.' }
 
 @'
-iTrader Stock Update â€” test build 1.0.0
+iTrader Stock Update - test build 1.0.1
 
 This installer includes the application, its runtimes and browser. You do not need Git, Node.js, .NET, Cursor or repository access.
 
+The application includes both Preview (itrader.dev) and Production (itrader.im). Choose the environment explicitly in the window. This internal test is Preview only. Production is not authorised.
+
 1. Open iTrader Stock Update from the Start menu.
-2. Choose Preview or Production. They are separately authorised.
-3. Click Sign in with iTrader and use your existing administrator account in the browser. Check the computer and environment before approving.
+2. Leave Preview - itrader.dev selected. Do not select Production - itrader.im.
+3. Click Sign in and use your existing administrator account in the browser. Approve this computer and Preview. The app does not ask for a password.
 4. Click Check connection. This does not queue, approve or apply stock changes.
-5. Click Start worker and leave the application open. Use Open dealer admin to queue the existing dealer website scrape. Review and approve the exact plan on the website.
-6. Wait for the website to show the final result. A finished-processing message alone is not proof that changes were applied.
-7. Click Stop safely and let the current job finish before closing the application or shutting down your laptop.
+5. Click Open stock reviews only to view the website. Do not queue, approve or apply stock changes for this internal test.
+6. Leave Start worker unused. If a job is already running, click Stop safely and let the current job finish before closing the application.
+7. Use Sign out or Manage devices on the website if this computer should not keep access.
 
-The computer must remain awake and connected. This tool does not run at Windows startup or schedule scrapes. Already queued eligible work in the selected environment can be processed while it is started.
+The computer must remain awake and connected while a worker is started. This tool does not run at Windows startup or schedule scrapes. Already queued eligible work in the explicitly selected environment can be processed while the worker is started. Do not start the worker for this internal test.
 
-This is an unsigned test build. Do not disable Windows security. Contact Matt if Windows blocks installation. Preview and Production require corresponding server configuration; an unavailable sign-in is not fixed by reinstalling Node.js.
+This is an unsigned test build. Do not disable Windows security. Contact Matt if Windows blocks installation. An unavailable sign-in is not fixed by reinstalling Node.js.
 
 Use Sign out or the Manage devices website to revoke access before uninstalling. Uninstall removes this Windows user's local encrypted app sessions; it does not revoke server-side tokens or underlying database/image-service credentials. Report a lost computer to Matt so those credentials can be revoked or rotated.
 '@ | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'client-readme.txt')
-Invoke-Checked $iscc @("/Qp", ("/DBuildRoot=" + $BuildRoot), '/DAppVersion=1.0.0', (Join-Path $repo 'desktop\StockUpdate\installer.iss')) 'compile-installer'
-$installer = Join-Path $BuildRoot 'release\iTrader Stock Update Setup-1.0.0.exe'
+Invoke-Checked $iscc @("/Qp", ("/DBuildRoot=" + $BuildRoot), '/DAppVersion=1.0.1', (Join-Path $repo 'desktop\StockUpdate\installer.iss')) 'compile-installer'
+$installer = Join-Path $BuildRoot 'release\iTrader Stock Update Setup-1.0.1.exe'
 if (-not [IO.File]::Exists($installer)) { throw 'Compiler did not produce the expected installer.' }
 $stream = [IO.File]::OpenRead($installer)
 try { $digest = [Security.Cryptography.SHA256]::Create().ComputeHash($stream) }

@@ -123,7 +123,7 @@ for (const name of [...packages].sort()) {
   if (!pinned || installed.version !== pinned) throw new Error(`Installed dependency is not the locked revision: ${name}`);
   dependencies[name] = pinned;
 }
-const manifest = { name: "itrader-stock-worker-runtime", version: "1.0.0", private: true, type: "module", engines: { node: ">=22.12.0" }, dependencies, overrides: rootPackage.overrides };
+const manifest = { name: "itrader-stock-worker-runtime", version: "1.0.1", private: true, type: "module", engines: { node: ">=22.12.0" }, dependencies, overrides: rootPackage.overrides };
 const dependencyFingerprint = sha(Buffer.from(JSON.stringify({ manifest, arch, rootLock: sha(readFileSync(resolve(repo, "package-lock.json"))) })));
 const marker = resolve(payload, ".dependency-fingerprint");
 if (!existsSync(marker) || readFileSync(marker, "utf8") !== dependencyFingerprint || !existsSync(resolve(worker, "node_modules/tsx/package.json"))) {
@@ -166,7 +166,7 @@ writeJson(resolve(payload, "THIRD-PARTY-NOTICES.json"), notices);
 let head = "unavailable";
 try { head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8", windowsHide: true }).trim(); } catch { /* Explicit unknown, not fabricated revision. */ }
 writeJson(resolve(payload, "runtime-manifest.json"), {
-  version: "1.0.0", architecture: arch, nodeVersion: NODE_VERSION, nodeArchiveSha256: NODE_SHA256[arch],
+  version: "1.0.1", architecture: arch, nodeVersion: NODE_VERSION, nodeArchiveSha256: NODE_SHA256[arch],
   sourceHead: head, sourceFiles: hashes, sourceFingerprint: sha(Buffer.from(JSON.stringify(hashes))), dependencies,
   browser: { platform: "win64", playwright: dependencies["@playwright/test"], armHardwareVerified: false },
   credentialsIncluded: false, generatedAt: new Date().toISOString(),

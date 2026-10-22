@@ -12,7 +12,19 @@ The existing desktop app/runtime and backend are implemented. Earlier evidence r
 
 The new staging provisioner has been independently reviewed and its pure validation tests run. Its actual non-mutating check passed against the staging database and Vercel: two active approved admins, no queued/leased stock jobs, restricted worker role still NOLOGIN, existing applicable Redis settings, valid dedicated ImageKit input and accepted proposed configuration. A separate real Windows test passed DPAPI CurrentUser encryption/decryption, restrictive file ACL and corrupt-state rejection using non-secret data.
 
-**Credential activation/transfer was blocked by tool safety before execution.** No dedicated password was created, no Vercel settings were written, and no installer was rebuilt. The operator must execute the reviewed setup directly; this utility does not evade tool approval, reduce privileges, or expose secrets.
+That initial setup blocker was resolved on 21 October 2026. Staging provisioning completed, the restricted worker login is active, and Preview configuration was deployed. Do not rerun provisioning as a routine resume step. Production configuration remains untouched.
+
+### Connected acceptance recorded 22 October 2026
+
+- Source commit `09ed785` passed typecheck and 3,672 project tests (six skipped). Its Preview deployment was verified at `itrader.dev`.
+- The native x64 app restored its saved Preview session and opened Stock Reviews. Its actual connection check passed with the restricted login, bundled Chromium and image processing.
+- Mike's Motors report `cmvjbcn6a000w18zjlns5zj42` was approved through the website and applied by job `cmvjbdpd1000108l6l77etgo5`. Two listings were created at the reviewed prices; each has a verified private ImageKit file under `/iommarket-media/staging/imports/`, a completed image receipt and an administrator-attributed create audit.
+- Both new listing pages delivered their photos successfully. No production listings or media were changed.
+- Repeat report `cmvjbhvug002i18zjioyx30mk` contains 29 unchanged vehicles and three missing-photo blocks, with no actionable changes or removals.
+- Safe stop during that repeat scan drained the current job and stopped. Website revocation caused the app to reject its saved access and require sign-in. Fresh browser authorisation restored access; the subsequent read-only connection check passed.
+- At the end of connected checks there were no queued/leased jobs, all weekly bindings were disabled, and the desktop app was closed.
+
+Detailed local evidence is in `private/stock-update-acceptance-20261021/`: `applied-proof.json`, `repeat-review.json`, `connected-acceptance-end.json` and browser screenshots. The distinct 1.0.1 installer build and Surface acceptance are the next gates. The Surface is confirmed x64; no Surface result or ARM hardware execution is claimed. Live network-drop interruption and pairing expiry/replay coverage must be distinguished from the existing invalid-pairing and offline failure checks.
 
 A real Franklin review contains seven unchanged listings and a blocked new Mazda, source ID 1933318. Inspection of the public dealer detail page confirmed an empty structured image field and only `/asset/images/noimage.jpg`. The block is correct. Do not use that vehicle as the successful photo-import acceptance case or remove the safeguard.
 
@@ -66,4 +78,4 @@ The build currently has no publisher signing certificate. Label internal unsigne
 
 ## Completion evidence and stop condition
 
-Record exact commit, configuration target, deployment/alias, tests and limitations, job/report/listing IDs for the controlled staging run, photo verification, final installer version/hash and Surface outcome. Never include passwords, tokens, whole environments or provider credentials. All connected stages above remain outstanding until their own receipts show success. No Production activation is included in this plan.
+Record exact commit, configuration target, deployment/alias, tests and limitations, job/report/listing IDs for the controlled staging run, photo verification, final installer version/hash and Surface outcome. Never include passwords, tokens, whole environments or provider credentials. The connected results recorded above are complete only to their stated scope; installer, independent-machine and remaining failure-scenario results need their own evidence. No Production activation is included in this plan.

@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.0.1"
 #endif
 #define ProductName "iTrader Stock Update"
 
@@ -60,6 +60,6 @@ begin
   Result := True;
   if WizardSilent then Exit;
   Result := MsgBox('This is an unsigned test build of iTrader Stock Update.' + #13#10 + #13#10 +
-    'It includes both Preview and Production, but the selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
+    'It includes both Preview and Production. Choose the environment explicitly in the app. This internal test is Preview only; Production is not authorised. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
     'Continue with installation?', mbConfirmation, MB_YESNO) = IDYES;
 end;
