@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$version = '1.1.1'
+$version = '1.1.2'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
@@ -87,24 +87,25 @@ foreach ($architecture in @('x64','arm64')) {
 Assert-NoPrivateFiles (Join-Path $BuildRoot 'browsers')
 $selfReport = Join-Path $BuildRoot 'desktop-self-test.json'
 if ([IO.File]::Exists($selfReport)) { Remove-Item -LiteralPath $selfReport -Force }
-$testProcess = Start-Process -FilePath (Join-Path $BuildRoot 'payload\x64\StockUpdate.exe') -ArgumentList @('--self-test', ('"' + $selfReport + '"')) -Wait -PassThru
+$testProcess = Start-Process -FilePath (Join-Path $BuildRoot 'payload\x64\StockUpdate.exe') -ArgumentList @('--self-test', ('"' + $selfReport + '"')) -WindowStyle Hidden -Wait -PassThru
 if ($testProcess.ExitCode -ne 0 -or -not [IO.File]::Exists($selfReport)) { throw 'Native offline self-test failed or did not produce a report.' }
 if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed during the build.' }
 
+Invoke-Checked $systemNode @((Join-Path $PSScriptRoot 'online-dependencies.mjs'), '--tools', $ToolRoot, '--out', $BuildRoot, '--worker', (Join-Path $BuildRoot 'payload\x64\worker')) 'online-dependencies'
 @'
-iTrader Stock Update - private internal release 1.1.1 (unsigned)
+iTrader Stock Update - private internal release 1.1.2 (unsigned)
 
-This installer includes the application, its runtimes and browser. You do not need Git, Node.js, .NET, Cursor or repository access.
+This installer includes the application and its reviewed worker packages. Setup downloads the matching official Node.js runtime and the pinned browser components, so an internet connection is required. A cancelled or failed download, checksum or extraction leaves any existing installation unchanged. You do not need Git, npm, .NET, Cursor or repository access. Setup downloads both Chromium modes needed by the configured dealer websites.
 
 Use Preview - itrader.dev. Production needs separate approval and is not enabled by this release.
 
 1. Open iTrader Stock Update from the Start menu and leave Preview selected.
 2. Click Sign in. In your browser, use your administrator account and approve this computer for Preview. The app does not collect your password.
-3. Click Check connection. This checks your session, server readiness and the local browser/image runtime without taking a job.
-4. Open Stock Reviews. Queue the intended dealer scan, then click Start worker in the app. Leave the computer awake and connected.
+3. Keep the app open. Stock Reviews shows Connected when ready. The app never starts a job just by signing in.
+4. Open Stock Reviews. Queue the intended dealer scan, then click Start worker on Stock Reviews. Leave the computer awake and connected.
 5. Review the completed report on the website. Check all proposed changes and source photos. Approve only the report you intend to apply. Incomplete scans and missing photos must be resolved, not bypassed.
 6. With the worker running, the server stages the approved photos and applies the whole approved report together. Confirm the report outcome and listings in Stock Reviews.
-7. Click Stop safely when finished. It finishes the current job, takes no next job and then stops. Wait for it before closing.
+7. Click Stop safely on Stock Reviews or in the app when finished. It finishes the current job, takes no next job and then stops. Wait for it before closing.
 
 There is no scheduled scan, startup worker or automatic approval. Any already queued eligible work for the selected environment may be processed while the worker runs.
 
@@ -112,7 +113,7 @@ If a connection, authorisation or processing error appears, the worker stops. Ch
 
 The app receives only a revocable session token. It never receives database credentials or ImageKit private keys. Windows encrypts the saved session for this Windows user. Sign out or use Manage devices to revoke this computer before handing it to someone else.
 
-Upgrades replace the application runtime and preserve encrypted sessions. Uninstall removes this user's local app data; it does not revoke the server session. Use Manage devices to revoke access after loss or uninstall.
+Upgrades replace the application, worker and runtime only after those downloads have been verified. Encrypted sessions are preserved. Uninstall removes this user's local app data; it does not revoke the server session. Use Manage devices to revoke access after loss or uninstall.
 
 This is an unsigned application for the agreed private internal use. Signing is out of scope. Do not disable Windows security. Contact Matt if Windows blocks installation.
 '@ | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'client-readme.txt')

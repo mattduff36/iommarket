@@ -11,7 +11,7 @@ public sealed record WorkerLaunchPlan(
     IReadOnlyDictionary<string, string> Environment,
     string StdinJson);
 
-public readonly record struct OutputEvent(string Display, bool UnverifiedFinish);
+public readonly record struct OutputEvent(string Display, bool UnverifiedFinish, string Code = "");
 
 public static class WorkerProcess
 {
@@ -91,7 +91,7 @@ public static class WorkerProcess
             if (message is null || message.Length > 300) return false;
             if (state == "processing-finished" || message.Contains("finished processing", StringComparison.OrdinalIgnoreCase))
             {
-                output = new OutputEvent(UnverifiedFinishMessage, true);
+                output = new OutputEvent(UnverifiedFinishMessage, true, "processing-finished");
                 return true;
             }
             // Never echo arbitrary child JSON messages into diagnostics. Only
@@ -115,7 +115,7 @@ public static class WorkerProcess
                 _ => null
             };
             if (safe is null) return false;
-            output = new OutputEvent(safe, false);
+            output = new OutputEvent(safe, false, ActivityCode(type, state));
             return true;
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
@@ -123,6 +123,15 @@ public static class WorkerProcess
             return false;
         }
     }
+
+    public static string ActivityCode(string type, string state) => state switch
+    {
+        "checking" or "ready" or "waiting" or "processing" or "stopping" or "stopped" => state,
+        "staging-photos" or "applied" when type == "job" => state,
+        "unauthorised" or "unavailable" or "invalid-response" or "invalid-request" or "job-failed"
+            or "conflict" or "rate-limited" or "failed" => "error",
+        _ => ""
+    };
 
     private static string? Str(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -133,13 +142,19 @@ public sealed class WorkerRunner
     private readonly Process _process;
     private Task _completed = Task.CompletedTask;
     private readonly object _outputLock = new();
-    private readonly List<string> _pending = new();
+    private readonly List<OutputEvent> _pending = new();
     private Action<string>? _sink;
+    private Action<OutputEvent>? _activitySink;
     private int _disposed;
     public event Action<string>? LineReceived
     {
-        add { lock (_outputLock) { _sink += value; foreach (var line in _pending) value?.Invoke(line); _pending.Clear(); } }
+        add { lock (_outputLock) { _sink += value; foreach (var item in _pending) value?.Invoke(item.Display); _pending.Clear(); } }
         remove { lock (_outputLock) { _sink -= value; } }
+    }
+    public event Action<OutputEvent>? ActivityReceived
+    {
+        add { lock (_outputLock) { _activitySink += value; foreach (var item in _pending) if (item.Code.Length > 0) value?.Invoke(item); } }
+        remove { lock (_outputLock) { _activitySink -= value; } }
     }
     public bool IsRunning
     {
@@ -228,7 +243,8 @@ public sealed class WorkerRunner
         if (string.IsNullOrEmpty(line)) return;
         if (WorkerProcess.TryInterpret(line, out var output)) {
             lock (_outputLock) {
-                if (_sink is null) { if (_pending.Count >= 40) _pending.RemoveAt(0); _pending.Add(output.Display); }
+                if (output.Code.Length > 0) _activitySink?.Invoke(output);
+                if (_sink is null) { if (_pending.Count >= 40) _pending.RemoveAt(0); _pending.Add(output); }
                 else _sink.Invoke(output.Display);
             }
         }

@@ -82,8 +82,9 @@ async function readiness(isStopped: () => boolean) {
   const { chromium } = await import("@playwright/test");
   const [major, minor] = process.versions.node.split(".").map(Number);
   if (major < 22 || (major === 22 && minor < 12) ||
-      !existsSync(resolve(workerRoot, "node_modules/tsx/package.json")) ||
-      !existsSync(chromium.executablePath())) throw new Error("The bundled runtime is incomplete.");
+      !existsSync(resolve(workerRoot, "node_modules/tsx/package.json"))) throw new Error("The installed runtime is incomplete.");
+  // A headless launch uses Chromium's headless shell; executablePath() instead
+  // names the optional full browser. The real launch below verifies readiness.
   if (isStopped()) return;
   const browser = await chromium.launch({ headless: true, timeout: 30_000 });
   try {

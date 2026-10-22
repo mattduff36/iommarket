@@ -6,9 +6,9 @@ This unsigned application is for the agreed private internal use by Matt and the
 
 The Windows application runs Chromium scraping locally. It receives only an environment-scoped, revocable device session token. The server retains database credentials, ImageKit private keys, report generation, approvals, database writes and all media operations. Neither installation nor authorisation sends database/provider credentials or general server configuration to the computer.
 
-The installer includes the native app, private Node.js runtime, the reviewed scraping source closure, Sharp and the Playwright-matched browser. It does not include Prisma, PostgreSQL clients, server media modules, repository access, configuration secrets or saved sessions. Git, npm, Cursor, a separate .NET installation and development tools are not required on the client.
+The installer includes the native app and the reviewed scraping source closure with its Sharp and Playwright packages. During setup it downloads the matching official Node.js runtime and the pinned Playwright headless shell, FFmpeg and Winldd archives. Setup downloads both Chromium modes needed by the configured dealer websites. An internet connection is required for installation. The private build still exports the complete runtime and browser tree for audit and the offline build-host smoke test; that copy is not what the installer ships. It does not include Prisma, PostgreSQL clients, server media modules, repository access, configuration secrets or saved sessions. Git, npm, Cursor, a separate .NET installation and development tools are not required on the client. See docs/stock-update-online-installer.md.
 
-The app starts work only when the operator clicks Start worker. There is no service, startup registration, scheduled scrape or automatic approval. Eligible queued work in the explicitly selected environment can be processed while the worker runs. The computer must remain awake and connected. Stop safely finishes the current job and takes no next job; it does not cancel a server apply halfway through.
+The app starts work only when the operator clicks Start worker on Stock Reviews. There is no service, startup registration, scheduled scrape or automatic approval. Eligible queued work in the explicitly selected environment can be processed while the worker runs. The computer must remain awake and connected. Stop safely finishes the current job and takes no next job; it does not cancel a server apply halfway through.
 
 ## Authorisation and jobs
 
@@ -48,8 +48,8 @@ Device revocation is available at /admin/stock-worker. Revoking this new app's t
 
 1. Install and open iTrader Stock Update. Leave Preview — itrader.dev selected.
 2. Click Sign in, use the existing administrator account in the browser, and approve the named computer for Preview.
-3. Click Check connection. This authorises the session, checks server readiness and exercises the bundled browser and image runtime locally. It does not queue, lease, approve, apply or upload.
-4. Open Stock Reviews and queue the intended dealer scan. Click Start worker and keep the computer awake and online.
+3. Keep the app open and wait for Stock Reviews to show Connected. Signing in does not start jobs. Debug layout retains the read-only Check connection diagnostic.
+4. Open Stock Reviews and queue the intended dealer scan. Click Start worker on Stock Reviews and keep the computer awake and online.
 5. Review the resulting report, all proposed changes and source photos on the website. Resolve incomplete scans or missing photos. Approve only the report intended for application.
 6. Leave the worker running while server steps stage the approved photos and apply the entire report. Verify the report outcome and listings in Stock Reviews.
 7. Click Stop safely and wait for it to stop before closing.
@@ -68,7 +68,7 @@ Each architecture payload is rebuilt cleanly. The exporter checks actual copied 
 
 The self-contained .NET 10 app and private Node payload are produced for win-x64 and win-arm64. The single installer detects the architecture. The Playwright browser is win64, so ARM relies on Windows x64 emulation and requires separate physical hardware testing. An ARM cross-build does not prove ARM execution. This release's required execution acceptance is x64.
 
-The installer requires Windows 11, installs per user without elevation and creates Start-menu/optional desktop shortcuts. The existing named mutex prevents installation over a running app. Upgrades remove old app-owned worker/runtime/browser directories before installing the new payload, so obsolete database/media code cannot remain. Encrypted sessions outside the installation directory are preserved during upgrade. Uninstall removes the user's local app data but does not revoke the server-side session.
+The installer requires Windows 11, installs per user without elevation and creates Start-menu/optional desktop shortcuts. The existing named mutex prevents installation over a running app. Setup downloads and verifies the pinned archives before it removes old app-owned worker, runtime or browser directories, including a silent install. A failed download, checksum, extraction or cancellation stops setup and leaves the previous installation in place. Encrypted sessions outside the installation directory are preserved during upgrade. Uninstall removes the user's local app data but does not revoke the server-side session.
 
 ## Acceptance evidence and limits
 
@@ -79,3 +79,11 @@ These automated results establish only their tested scope. Hosted acceptance mus
 Development-PC installer acceptance must include upgrade/fresh installation, second launch, safe stop, controlled network failure and uninstall cleanup, preserving any encrypted owner session safely. The Surface installation is deliberately retained for the owner's manual tests; do not uninstall, reset or reboot it without permission. Historical Surface 1.0.1 evidence is not evidence for this redesign. Report unavailable device access, authentication, hardware tests or reboot tests honestly.
 
 Signing is explicitly out of scope for this private release. Do not disable Windows security to work around an installer block. Production activation remains separately authorised work.
+
+## Version 1.1.2
+
+The default Windows view contains Sign in / Open Stock Reviews and Stop safely when running. The View menu exposes Debug layout, off at every launch, with the previous controls and diagnostics. A saved Preview session reconnects presence only; it never starts job processing automatically. Sign in opens Stock Reviews for explicit computer approval.
+
+Stock Reviews polls presence and refreshes saved results every five seconds while visible, deferring refresh during edits or dialogs. Dealer selections remain local. Its sticky iTrader bar shows connection, current job, elapsed time, and bounded safe activity. Website Start and Stop commands are tied to a short-lived connected instance. Network failure safely stops the worker and requires explicit reconnection; it never silently restarts. No database or storage credentials are sent to the app.
+
+The online unsigned installer downloads pinned, SHA-256-verified Node and headless Chromium dependencies before changing an existing installation. Internet access is required. Staging dealer choices exclude demo, disabled and deleted accounts; unavailable profiles have a visible explanation. Weekly scheduling is unchanged.

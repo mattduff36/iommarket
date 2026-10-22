@@ -6,6 +6,10 @@ const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
 
+vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: vi.fn().mockResolvedValue({ok:true,devices:[]}) }));
+vi.mock("@/app/(admin)/admin/stock-reviews/worker-dashboard", () => ({ StockWorkerDashboard: ({children}: {children: import("react").ReactNode}) => children }));
+vi.mock("@/app/(admin)/admin/stock-reviews/worker-pairing", () => ({ StockWorkerPairing: () => null }));
+vi.mock("@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-panel", () => ({ StockSyncReviewPanel: () => null }));
 vi.mock("@/app/(admin)/admin/stock-reviews/dealer-picker", () => ({ StockDealerPicker: () => null }));
 
 vi.mock("@/lib/auth", () => ({
@@ -14,6 +18,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    dealerProfile: { findMany: vi.fn().mockResolvedValue([]) },
     dealerStockSourceBinding: { findMany: vi.fn().mockResolvedValue([]) },
     dealerStockSyncReport: { findMany: (...args: unknown[]) => reportFindMany(...args) },
     dealerStockSyncJob: { findMany: (...args: unknown[]) => jobFindMany(...args) },
@@ -113,7 +118,7 @@ describe("admin stock reviews", () => {
     expect(screen.getByText("Approved, not applied yet · 4 vehicles")).toBeInTheDocument();
     expect(screen.getByText("Approval queues processing and does not apply listings by itself.")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Open dealer stock review" }).every((link) =>
-      link.getAttribute("href") === "/admin/dealers/dealer-1/stock-sync" || link.getAttribute("href") === "/admin/dealers/dealer-2/stock-sync",
+      link.getAttribute("href")?.startsWith("/admin/stock-reviews?report="),
     )).toBe(true);
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
@@ -154,7 +159,7 @@ describe("admin stock reviews", () => {
     expect(screen.getByText(/2 removals/)).toBeInTheDocument();
     expect(screen.getByText("Listings from this approved plan were applied.")).toBeInTheDocument();
     expect(screen.queryByText(/succeeded/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open dealer stock review" })).toHaveAttribute("href", "/admin/dealers/dealer-1/stock-sync");
+    expect(screen.getByRole("link", { name: "Open dealer stock review" })).toHaveAttribute("href", "/admin/stock-reviews?report=applied-1#stock-review-detail");
   });
 
   it("shows queued and processing jobs and a no-change review", async () => {

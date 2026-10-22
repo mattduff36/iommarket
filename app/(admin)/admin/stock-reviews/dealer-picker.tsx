@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueDealerStockScrape } from "@/actions/admin/dealer-stock-sync";
 
-export function StockDealerPicker({ dealers }: { dealers: { id: string; name: string }[] }) {
+export function StockDealerPicker({ dealers, unavailable = [] }: { dealers: { id: string; name: string }[]; unavailable?: { id: string; name: string; reason: string }[] }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("");
@@ -27,13 +27,13 @@ export function StockDealerPicker({ dealers }: { dealers: { id: string; name: st
         }
       }
       setSelected(current => current.filter(id => !queued.includes(id)));
-      setMessage(`${queued.length} dealer scan${queued.length === 1 ? "" : "s"} queued.${failures.length ? ` ${failures.join(" ")}` : " Start the desktop worker when ready."}`);
+      setMessage(`${queued.length} dealer scan${queued.length === 1 ? "" : "s"} queued.${failures.length ? ` ${failures.join(" ")}` : " Use Start worker below when ready, or leave the connected worker running."}`);
       router.refresh();
     });
   }
 
   return (
-    <section className="space-y-3 rounded-lg border border-border p-4">
+    <section data-stock-review-editing={pending ? "true" : undefined} className="space-y-3 rounded-lg border border-border p-4">
       <h2 className="text-lg font-semibold text-text-primary">Choose dealers to scrape</h2>
       <p className="text-sm text-text-secondary">Select the dealers you want to check. Only selected dealers are queued. The desktop worker processes queued jobs; weekly scheduling is separate.</p>
       <fieldset disabled={pending} className="flex flex-wrap gap-4">
@@ -49,6 +49,10 @@ export function StockDealerPicker({ dealers }: { dealers: { id: string; name: st
       <button type="button" disabled={pending || selected.length === 0} onClick={queue} className="rounded-md bg-neon-blue-500 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
         {pending ? "Queuingâ€¦" : "Queue selected dealers"}
       </button>
+      {unavailable.length ? <details className="text-sm text-text-secondary">
+        <summary className="cursor-pointer py-2">Other dealer profiles ({unavailable.length}) — why they are unavailable</summary>
+        <ul className="mt-2 space-y-2">{unavailable.map(dealer => <li key={dealer.id}><span className="font-medium">{dealer.name}</span> · {dealer.reason}</li>)}</ul>
+      </details> : null}
       {message ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
     </section>
   );

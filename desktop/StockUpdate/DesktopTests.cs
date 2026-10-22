@@ -272,6 +272,11 @@ public static class DesktopTests
             }
             Assert(!WorkerProcess.TryInterpret("{\"type\":\"status\",\"state\":\"applied\",\"message\":\"anything\"}", out _));
         });
+        Check("control-transport-rejects-malformed-oversize-and-redirect", WorkerControlTests.Transport);
+        Check("control-request-identity-and-command-shape", WorkerControlTests.Identity);
+        Check("control-dedupes-prunes-and-ignores-old-or-replayed-commands", WorkerControlTests.StateRules);
+        Check("control-loss-stops-work-and-local-stop-beats-start", WorkerControlTests.Races);
+        Check("worker-output-codes-are-bounded", WorkerControlTests.OutputCodes);
 
         var passed = results.All(result => result.Passed);
         var report = JsonSerializer.Serialize(new { passed, results }, new JsonSerializerOptions { WriteIndented = true });

@@ -11,12 +11,17 @@ import { db } from "@/lib/db";
 export const metadata: Metadata = { title: "Stock reviews | Admin" };
 
 import { StockDealerPicker } from "./dealer-picker";
+import { StockWorkerDashboard } from "./worker-dashboard";
+import { StockWorkerPairing } from "./worker-pairing";
+import { getWorkerDashboard } from "./worker-actions";
+import { StockSyncReviewPanel } from "../dealers/[dealerId]/stock-sync/review-panel";
 
 const RECENT_LIMIT = 20;
 
 const reportSelect = {
   id: true,
   scrapeRunId: true,
+  fingerprint: true,
   status: true,
   inventoryCount: true,
   failureReason: true,
@@ -87,21 +92,23 @@ function loadReports(statuses: Array<"PENDING_REVIEW" | "APPROVED" | "APPLIED" |
   });
 }
 
-function loadJobs() {
-  return db.dealerStockSyncJob.findMany({
-    orderBy: { createdAt: "desc" },
-    take: RECENT_LIMIT,
-    select: {
+async function loadJobs() {
+  const select = {
       id: true,
       kind: true,
       status: true,
       error: true,
       createdAt: true,
+      startedAt: true,
       reportId: true,
       binding: { select: { dealer: { select: { id: true, name: true } } } },
       report: { select: { id: true, status: true } },
-    },
-  });
+  } as const;
+  const [active, recent] = await Promise.all([
+    db.dealerStockSyncJob.findMany({ where: { status: { in: ["QUEUED", "LEASED"] } }, orderBy: { createdAt: "asc" }, select }),
+    db.dealerStockSyncJob.findMany({ orderBy: { createdAt: "desc" }, take: RECENT_LIMIT, select }),
+  ]);
+  return [...new Map([...active, ...recent].map(job => [job.id, job])).values()];
 }
 
 function dealerGroups(outstanding: ReportRow[], recentReports: ReportRow[], jobs: JobRow[]) {
@@ -141,7 +148,7 @@ function dealerGroups(outstanding: ReportRow[], recentReports: ReportRow[], jobs
   return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function ReportCard({ report, dealerId }: { report: ReportRow; dealerId: string }) {
+function ReportCard({ report }: { report: ReportRow }) {
   const allActions = actionsOf(report.plan);
   const actions = allActions.filter(action => !isSoldStockReviewAction(action));
   const visibleCount = Math.max(0, report.inventoryCount - allActions.filter(isSoldStockReviewAction).length);
@@ -165,33 +172,47 @@ function ReportCard({ report, dealerId }: { report: ReportRow; dealerId: string 
       {report.status === "FAILED" && report.failureReason ? <p className="text-text-secondary">{stockSyncReason(report.failureReason)}</p> : null}
       {warning?.coverageWarning ? <p className="text-text-secondary">{warning.coverageWarning}</p> : null}
       {warning?.capacityWarning ? <p className="text-text-secondary">{warning.capacityWarning}</p> : null}
-      <Link href={`/admin/dealers/${dealerId}/stock-sync`} className="text-neon-blue-400 hover:underline">
+      <Link href={`/admin/stock-reviews?report=${report.id}#stock-review-detail`} className="text-neon-blue-400 hover:underline">
         Open dealer stock review
       </Link>
     </li>
   );
 }
 
-export default async function AdminStockReviewsPage() {
+export default async function AdminStockReviewsPage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
   await requireRole("ADMIN");
-  const [outstanding, recentReports, jobs, bindings] = await Promise.all([
+  const query = await searchParams ?? {};
+  const [outstanding, recentReports, jobs, profiles, dashboard] = await Promise.all([
     loadReports(["PENDING_REVIEW", "APPROVED"]),
     loadReports(["APPLIED", "FAILED"], RECENT_LIMIT),
     loadJobs(),
-    db.dealerStockSourceBinding.findMany({ where: { verifiedAt: { not: null } }, select: { dealer: { select: { id: true, name: true } } }, orderBy: { dealer: { name: "asc" } } }),
+    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, isAdminPreview: true, user: { select: { disabledAt: true } }, stockSourceBinding: { select: { verifiedAt: true } } }, orderBy: { name: "asc" } }),
+    getWorkerDashboard(),
   ]);
+  const availableProfiles = profiles.filter(profile => !profile.isAdminPreview && !profile.user.disabledAt && profile.stockSourceBinding?.verifiedAt);
+  const unavailableProfiles = profiles.filter(profile => !availableProfiles.some(available => available.id === profile.id)).map(profile => ({ id: profile.id, name: profile.name, reason: profile.isAdminPreview ? "Preview/demo profile — an active dealer account is required" : profile.user.disabledAt ? "Dealer account disabled" : "Website source needs setup" }));
   const dealers = dealerGroups(outstanding, recentReports, jobs);
+  const selectedReport = [...outstanding, ...recentReports].find(report => report.id === query.report);
+  const readyCount = outstanding.filter(report => report.status === "PENDING_REVIEW" && needsReview(actionsOf(report.plan).filter(action => !isSoldStockReviewAction(action)))).length;
 
   return (
     <div className="space-y-8">
       <AdminPageHeader
         title="Stock reviews"
-        description="Outstanding website-stock reviews and recent worker runs. Approve changes on the dealer stock review page. A finished job is not proof that listings were applied."
+        description="Choose dealers, follow the worker live, then review and approve the proposed changes here. Listings change only after approval and successful processing."
       />
-      <StockDealerPicker dealers={bindings.map(binding => binding.dealer)} />
-      <p className="text-sm text-text-secondary">
+      <StockWorkerPairing code={typeof query.code === "string" ? query.code : ""} status={typeof query.status === "string" ? query.status : ""} />
+      <StockWorkerDashboard initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, startedAt: job.startedAt?.toISOString() ?? null }))}>
+      <StockDealerPicker dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
+      <p id="stock-review-results" className="text-sm text-text-secondary">
         Every pending and approved review is listed. Recent history is the latest {RECENT_LIMIT} applied or failed reports and the latest {RECENT_LIMIT} jobs.
       </p>
+      {selectedReport ? <section id="stock-review-detail" className="space-y-4 scroll-mt-6 rounded-xl border border-neon-blue-500/30 p-4">
+        <h2 className="text-xl font-semibold text-text-primary">{selectedReport.binding.dealer.name}</h2>
+        <StockSyncReviewPanel reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} />
+      </section> : null}
       {dealers.length === 0 ? (
         <p className="text-sm text-text-tertiary">No pending or approved stock reviews and no recent worker runs.</p>
       ) : (
@@ -205,7 +226,7 @@ export default async function AdminStockReviewsPage() {
             {dealer.outstanding.length > 0 ? (
               <ul className="space-y-2">
                 {dealer.outstanding.map((report) => (
-                  <ReportCard key={report.id} report={report} dealerId={dealer.dealerId} />
+                  <ReportCard key={report.id} report={report} />
                 ))}
               </ul>
             ) : null}
@@ -214,7 +235,7 @@ export default async function AdminStockReviewsPage() {
                 <h3 className="text-sm font-semibold text-text-primary">Recent runs</h3>
                 <ul className="space-y-2">
                   {dealer.recentReports.map((report) => (
-                    <ReportCard key={report.id} report={report} dealerId={dealer.dealerId} />
+                    <ReportCard key={report.id} report={report} />
                   ))}
                   {dealer.jobs.map((job) => (
                     <li key={job.id} className="rounded-md border border-border px-4 py-3 text-sm">
@@ -232,6 +253,7 @@ export default async function AdminStockReviewsPage() {
           </section>
         ))
       )}
+      </StockWorkerDashboard>
     </div>
   );
 }

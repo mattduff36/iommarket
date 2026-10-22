@@ -173,7 +173,7 @@ export function StockReviewEditButton({
   const source = safeHttps(data?.draft.sourceUrl ?? null);
 
   return (
-    <div className="mt-2">
+    <div data-stock-review-editing={data || isPending ? "true" : undefined} className="mt-2">
       {data ? (
         <form
           className="space-y-3 rounded-md border border-border p-3"
