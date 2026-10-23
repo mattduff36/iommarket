@@ -93,7 +93,9 @@ export function parseGenericVehicle(rawValue: unknown, origin: string | null) {
     ? "sold"
     : availabilityValue.includes("reserv")
       ? "reserved"
-      : availabilityValue
+      : ["available", "in stock", "instock"].includes(availabilityValue)
+        ? "available"
+        : availabilityValue
         ? "unknown"
         : "available";
   return {

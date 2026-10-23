@@ -272,13 +272,16 @@ export function extractDealerWebsitesCards(html: string, origin: string) {
     if (!parsed.make || !parsed.model) continue;
     seen.add(href);
     const derivative = decodeListingText(chunk.match(/class="derivative[^"]*">([\s\S]*?)<\/span>/i)?.[1] ?? "");
+    const priceText = decodeListingText(chunk.match(/class="totalPrice[^"]*">([\s\S]*?)<\/span>/i)?.[1] ?? "");
     cards.push({
       url: resolveMaybeUrl(href, origin),
       sourceVehicleId: href.split("/").filter(Boolean).at(-1),
       ...parsed,
       derivative,
       year: parsed.year ?? yearFrom(derivative),
-      price: priceFrom(chunk),
+      price: priceFrom(priceText),
+      availability: /\bsold\b/i.test(priceText) ? "sold" : /\breserved\b/i.test(priceText) ? "reserved" : "available",
+      isPoa: /\bPOA\b|price on application/i.test(priceText),
       mileage: milesFrom(chunk.match(/class="r25">([^<]*Miles)/i)?.[1] ?? ""),
     });
   }

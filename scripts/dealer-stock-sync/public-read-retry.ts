@@ -7,7 +7,7 @@ export class PublicReadStatusError extends Error {
 }
 
 function transient(error: unknown) {
-  if (error instanceof PublicReadStatusError) return [408, 429].includes(error.status) || error.status >= 500;
+  if (error instanceof PublicReadStatusError) return [403, 408, 429].includes(error.status) || error.status >= 500;
   if (!(error instanceof Error)) return false;
   return ["TimeoutError", "AbortError"].includes(error.name) ||
     /fetch failed|network|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ERR_CONNECTION|ERR_TIMED_OUT|timeout.*exceeded/i.test(error.message);

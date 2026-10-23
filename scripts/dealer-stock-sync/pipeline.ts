@@ -98,7 +98,14 @@ export async function runDealerPipeline(
     const connector = getConnector(source.connectorKey);
     const context = { dealer, source, fetchImpl: options.fetchImpl, delayMs };
     try {
-      const listed = await withSourceTimeout(connector.fetchList(context));
+      let listed = await withSourceTimeout(connector.fetchList(context));
+      // A rendered public list can briefly contain no stock while the site is
+      // loading. Retry only a completed, closed read, never an ongoing timeout.
+      for (let retry = 0; retry < 2 && listed.status === "failed" &&
+        listed.error === "No structured public stock records found"; retry++) {
+        await sleep(1_000 * (retry + 1));
+        listed = await withSourceTimeout(connector.fetchList(context));
+      }
       if (listed.status === "ok") {
         const needsDetails = listed.vehicles.filter((vehicle) => !soldListCardWithSourceId(vehicle));
         const enriched = needsDetails.length === 0
