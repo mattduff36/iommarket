@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
-const { dashboardProps } = vi.hoisted(() => ({ dashboardProps: vi.fn() }));
+const { dashboardProps, pickerProps, profileFindMany } = vi.hoisted(() => ({ dashboardProps: vi.fn(), pickerProps: vi.fn(), profileFindMany: vi.fn().mockResolvedValue([]) }));
 
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: vi.fn().mockResolvedValue({ok:true,devices:[]}) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-dashboard", () => ({ StockWorkerDashboard: (props: {children: import("react").ReactNode}) => { dashboardProps(props); return props.children; } }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-pairing", () => ({ StockWorkerPairing: () => null }));
 vi.mock("@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-panel", () => ({ StockSyncReviewPanel: () => null }));
-vi.mock("@/app/(admin)/admin/stock-reviews/dealer-picker", () => ({ StockDealerPicker: () => null }));
+vi.mock("@/app/(admin)/admin/stock-reviews/dealer-picker", () => ({ StockDealerPicker: (props: unknown) => { pickerProps(props); return null; } }));
 
 vi.mock("@/lib/auth", () => ({
   requireRole: (...args: unknown[]) => requireRole(...args),
@@ -19,7 +19,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
-    dealerProfile: { findMany: vi.fn().mockResolvedValue([]) },
+    dealerProfile: { findMany: profileFindMany },
     dealerStockSourceBinding: { findMany: vi.fn().mockResolvedValue([]) },
     dealerStockSyncReport: { findMany: (...args: unknown[]) => reportFindMany(...args) },
     dealerStockSyncJob: { findMany: (...args: unknown[]) => jobFindMany(...args) },
@@ -195,7 +195,7 @@ describe("admin stock reviews", () => {
     reportFindMany.mockResolvedValue([]);
     jobFindMany.mockResolvedValue([]);
     render(await AdminStockReviewsPage());
-    expect(screen.getByText("No pending or approved stock reviews and no recent worker runs.")).toBeInTheDocument();
+    expect(screen.getByText("No dealer scrapes yet.")).toBeInTheDocument();
   });
 
   it("does not read reviews when the admin guard rejects", async () => {
@@ -218,4 +218,16 @@ describe("admin stock reviews", () => {
     expect(screen.getByText("No change · 4 vehicles")).toBeInTheDocument();
     expect(screen.queryByText(/Finished processing/)).not.toBeInTheDocument();
   });
+});
+
+
+it("excludes preview profiles from unavailable dealers and preserves real reasons", async () => {
+  profileFindMany.mockResolvedValueOnce([
+    {id:"preview",name:"Preview pack",isAdminPreview:true,user:{disabledAt:null},stockSourceBinding:null},
+    {id:"ready",name:"Ready dealer",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:when}},
+    {id:"setup",name:"Setup dealer",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:null},
+    {id:"disabled",name:"Disabled dealer",isAdminPreview:false,user:{disabledAt:when},stockSourceBinding:null},
+  ]);
+  await renderPage([]);
+  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers:[{id:"ready",name:"Ready dealer"}], unavailable:[{id:"setup",name:"Setup dealer",reason:"Website source needs setup"},{id:"disabled",name:"Disabled dealer",reason:"Dealer account disabled"}]}));
 });

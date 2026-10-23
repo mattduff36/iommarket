@@ -8,7 +8,7 @@ import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Stock reviews | Admin" };
+export const metadata: Metadata = { title: "Dealer scrapes | Admin" };
 
 import { StockDealerPicker } from "./dealer-picker";
 import { DownloadStockWorker } from "./download-worker";
@@ -194,7 +194,7 @@ export default async function AdminStockReviewsPage({ searchParams }: {
     getWorkerDashboard(),
   ]);
   const availableProfiles = profiles.filter(profile => !profile.isAdminPreview && !profile.user.disabledAt && profile.stockSourceBinding?.verifiedAt);
-  const unavailableProfiles = profiles.filter(profile => !availableProfiles.some(available => available.id === profile.id)).map(profile => ({ id: profile.id, name: profile.name, reason: profile.isAdminPreview ? "Preview/demo profile — an active dealer account is required" : profile.user.disabledAt ? "Dealer account disabled" : "Website source needs setup" }));
+  const unavailableProfiles = profiles.filter(profile => !profile.isAdminPreview && !availableProfiles.some(available => available.id === profile.id)).map(profile => ({ id: profile.id, name: profile.name, reason: profile.isAdminPreview ? "Preview/demo profile — an active dealer account is required" : profile.user.disabledAt ? "Dealer account disabled" : "Website source needs setup" }));
   const reportsByRun = new Map([...outstanding, ...recentReports].map(report => [report.scrapeRunId, report]));
   const dealers = dealerGroups(outstanding, recentReports, jobs);
   const selectedReport = [...outstanding, ...recentReports].find(report => report.id === query.report);
@@ -203,22 +203,22 @@ export default async function AdminStockReviewsPage({ searchParams }: {
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        title="Stock reviews"
-        description="Choose dealers, follow the worker live, then review and approve the proposed changes here. Listings change only after approval and successful processing."
+        title="Dealer scrapes"
+        description="Review and approve changes before listings update."
       />
-      <StockWorkerPairing code={typeof query.code === "string" ? query.code : ""} status={typeof query.status === "string" ? query.status : ""} />
-      {isStagingOnlyFeatureEnabled() ? <DownloadStockWorker /> : null}
-      <StockWorkerDashboard initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt?.toISOString() ?? null }))}>
+      {typeof query.code === "string" && query.code ? <StockWorkerPairing code={query.code} status="" /> : null}
+      <StockWorkerDashboard dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={<>
+        <StockWorkerPairing code="" status={typeof query.status === "string" ? query.status : ""} />
+        {isStagingOnlyFeatureEnabled() ? <DownloadStockWorker /> : null}
+      </>} initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt?.toISOString() ?? null }))}>
       <StockDealerPicker dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
-      <p id="stock-review-results" className="text-sm text-text-secondary">
-        Every pending and approved review is listed. Recent history is the latest {RECENT_LIMIT} applied or failed reports and the latest {RECENT_LIMIT} jobs.
-      </p>
+      <h2 id="stock-review-results" className="text-xl font-semibold text-text-primary">Results</h2>
       {selectedReport ? <section id="stock-review-detail" className="space-y-4 scroll-mt-6 rounded-xl border border-neon-blue-500/30 p-4">
         <h2 className="text-xl font-semibold text-text-primary">{selectedReport.binding.dealer.name}</h2>
         <StockSyncReviewPanel reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} />
       </section> : null}
       {dealers.length === 0 ? (
-        <p className="text-sm text-text-tertiary">No pending or approved stock reviews and no recent worker runs.</p>
+        <p className="text-sm text-text-tertiary">No dealer scrapes yet.</p>
       ) : (
         dealers.map((dealer) => (
           <section key={dealer.dealerId} className="space-y-3">

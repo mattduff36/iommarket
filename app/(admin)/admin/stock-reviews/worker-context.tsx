@@ -15,6 +15,7 @@ export type StockWorkerControlDevice = {
 };
 
 export type StockWorkerControl = {
+  target: string | null;
   online: boolean;
   running: boolean;
   pending: boolean;
@@ -24,7 +25,7 @@ export type StockWorkerControl = {
   message: string;
   tryAcquire: () => boolean;
   release: () => void;
-  dispatch: (action: StockWorkerCommandAction) => Promise<StockWorkerCommandOutcome>;
+  dispatch: (action: StockWorkerCommandAction, expectedTarget?: string | null) => Promise<StockWorkerCommandOutcome>;
   command: (action: StockWorkerCommandAction) => void;
 };
 
@@ -42,7 +43,7 @@ export function stockWorkerCommandLabel(input: { pending: boolean; pendingComman
 }
 
 export function stockWorkerCommandClass(running: boolean) {
-  return `min-h-10 rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50 ${running ? "bg-neon-red-500" : "bg-neon-blue-500"}`;
+  return `min-h-11 rounded-md px-4 text-sm font-semibold text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-blue-400 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${running ? "bg-neon-red-600 enabled:hover:bg-neon-red-500" : "bg-neon-blue-600 enabled:hover:bg-neon-blue-500"}`;
 }
 
 export function StockWorkerControlProvider({ value, children }: { value: StockWorkerControl; children: ReactNode }) {
@@ -91,10 +92,10 @@ export function useStockWorkerCommands(
     if (mounted.current) setPending(false);
   }
 
-  async function dispatch(action: StockWorkerCommandAction): Promise<StockWorkerCommandOutcome> {
+  async function dispatch(action: StockWorkerCommandAction, expectedTarget?: string | null): Promise<StockWorkerCommandOutcome> {
     const current = deviceRef.current;
     if (!mounted.current) return "skipped";
-    if (!current?.instanceId || !onlineRef.current) {
+    if (!current?.instanceId || !onlineRef.current || (expectedTarget !== undefined && expectedTarget !== `${current.deviceId}:${current.instanceId}`)) {
       setMessage("The app is no longer connected. Reopen it and sign in.");
       return "skipped";
     }
@@ -131,5 +132,5 @@ export function useStockWorkerCommands(
     })();
   }
 
-  return { online, running, pending, stopping, canCommand, pendingCommand, message, tryAcquire, release, dispatch, command };
+  return { target: device?.instanceId ? `${device.deviceId}:${device.instanceId}` : null, online, running, pending, stopping, canCommand, pendingCommand, message, tryAcquire, release, dispatch, command };
 }

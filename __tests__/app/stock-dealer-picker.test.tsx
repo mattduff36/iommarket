@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 const { enqueue, refresh, dashboard, command } = vi.hoisted(() => ({ enqueue: vi.fn(), refresh: vi.fn(), dashboard: vi.fn(), command: vi.fn() }));
 vi.mock("@/actions/admin/dealer-stock-sync", () => ({ enqueueDealerStockScrape: enqueue }));
@@ -7,6 +7,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: dashboard, commandWorker: command }));
 import { StockDealerPicker } from "@/app/(admin)/admin/stock-reviews/dealer-picker";
 import { StockWorkerDashboard } from "@/app/(admin)/admin/stock-reviews/worker-dashboard";
+
+import { useStockWorkerCommands } from "@/app/(admin)/admin/stock-reviews/worker-context";
 
 const dealers = [{ id: "a", name: "Alpha" }, { id: "b", name: "Beta" }];
 const device = (overrides: Record<string, unknown> = {}) => ({
@@ -17,7 +19,7 @@ const connected = (devices = [device()]) => ({ ok: true as const, devices });
 
 function renderPicker(initial = connected()) {
   dashboard.mockResolvedValue(initial);
-  return render(<StockWorkerDashboard initial={initial} jobs={[]} readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
+  return render(<StockWorkerDashboard dealers={dealers} initial={initial} jobs={[]} readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
 }
 function picker() {
   const section = screen.getByRole("heading", { name: "Choose dealers to scrape" }).closest("section");
@@ -33,12 +35,11 @@ it("queues only selected dealers and starts once after those queues succeed", as
   command.mockImplementation(async (input: { action: string }) => { order.push(input.action); return { ok: true }; });
   renderPicker();
   expect(picker().getByRole("button", { name: "Start worker" })).toBeDisabled();
-  expect(screen.getByText(/worker starts after those queues succeed/)).toBeInTheDocument();
   fireEvent.click(picker().getByLabelText("Beta"));
   fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
   await waitFor(() => expect(order).toEqual(["queue:b", "start"]));
   expect(command).toHaveBeenCalledExactlyOnceWith({ deviceId: "dev_test", instanceId: "instance", action: "start" });
-  await waitFor(() => expect(picker().getByRole("status")).toHaveTextContent("1 dealer scan queued"));
+  await waitFor(() => expect(picker().getByLabelText("Beta")).not.toBeChecked());
   expect(picker().getByLabelText("Beta")).not.toBeChecked();
   expect(picker().getByLabelText("Alpha")).not.toBeChecked();
 });
@@ -66,7 +67,7 @@ it("does not start when every queue fails and keeps partial failures when one su
   fireEvent.click(picker().getByLabelText("Beta"));
   fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
-  expect(picker().getByRole("status")).toHaveTextContent("1 dealer scan queued. Alpha: Website source needs setup");
+  expect(picker().getByRole("status")).toHaveTextContent("Alpha: Website source needs setup");
   expect(picker().getByLabelText("Alpha")).toBeChecked();
   expect(picker().getByLabelText("Beta")).not.toBeChecked();
 });
@@ -118,9 +119,37 @@ it("hides controls offline and disables start while awaiting acknowledgement or 
 
   const waiting = renderPicker(connected([device({ pendingCommand: { id: "cmd", instanceId: "instance", action: "start" } })]));
   expect(picker().getByRole("button", { name: "Waiting for app…" })).toBeDisabled();
-  expect(picker().getByText("Start is awaiting acknowledgement from the app.")).toBeInTheDocument();
   waiting.unmount();
 
   renderPicker(connected([device({ state: "stopping" })]));
   expect(picker().getByRole("button", { name: "Stopping…" })).toBeDisabled();
+});
+
+
+it("keeps both start controls in sync and starts selected dealers from the dock", async () => {
+  renderPicker();
+  const starts = screen.getAllByRole("button", { name: "Start worker" });
+  starts.forEach(button => expect(button).toBeDisabled());
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  starts.forEach(button => expect(button).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+  starts.forEach(button => expect(button).toBeDisabled());
+  fireEvent.click(screen.getByLabelText("Beta"));
+  fireEvent.click(starts[1]);
+  await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
+  expect(enqueue).toHaveBeenCalledExactlyOnceWith({ dealerId: "b" });
+  await waitFor(() => starts.forEach(button => expect(button).toBeDisabled()));
+});
+
+
+it("does not start a replacement app instance after queueing", async () => {
+  const snapshot = vi.fn();
+  const hook = renderHook(({instanceId}) => useStockWorkerCommands(device({instanceId}), true, snapshot), {initialProps:{instanceId:"first"}});
+  const originalTarget = hook.result.current.target;
+  hook.rerender({instanceId:"replacement"});
+  let outcome;
+  await act(async () => { outcome = await hook.result.current.dispatch("start", originalTarget); });
+  expect(outcome).toBe("skipped");
+  expect(command).not.toHaveBeenCalled();
+  expect(hook.result.current.message).toMatch(/no longer connected/);
 });

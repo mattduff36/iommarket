@@ -43,7 +43,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Regions", href: "/admin/regions", icon: "regions", group: "core" },
   { label: "Reports", href: "/admin/reports", icon: "reports", group: "operations" },
   { label: "Reviews", href: "/admin/reviews", icon: "reviews", group: "operations" },
-  { label: "Stock reviews", href: "/admin/stock-reviews", icon: "reviews", group: "operations" },
+  { label: "Dealer scrapes", href: "/admin/stock-reviews", icon: "reviews", group: "operations" },
   { label: "Waitlist", href: "/admin/waitlist", icon: "waitlist", group: "operations" },
   { label: "Checklist", href: "/admin/checklist", icon: "checklist", group: "operations" },
   { label: "Payments", href: "/admin/payments", icon: "payments", group: "operations" },

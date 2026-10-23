@@ -15,7 +15,7 @@ async function tick() { await act(async () => { await vi.advanceTimersByTimeAsyn
 describe("Stock Reviews live worker", () => {
  it("hides offline controls while keeping saved reviews and restores controls on connection", async () => {
   const offline = { ok: true as const, devices: connected().devices.map(device => ({ ...device, online: false })) };
-  render(<StockWorkerDashboard initial={offline} jobs={[]} readyCount={6}>
+  render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={offline} jobs={[]} readyCount={6}>
     <StockDealerPicker dealers={[{ id: "dealer", name: "Island Motors" }]} />
     <p>Saved dealer review</p>
   </StockWorkerDashboard>);
@@ -33,7 +33,7 @@ describe("Stock Reviews live worker", () => {
  });
  it("shows indeterminate progress only while work is active", () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
-  const view = render(<StockWorkerDashboard initial={connected()} jobs={[job]} readyCount={0} />);
+  const view = render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[job]} readyCount={0} />);
   expect(screen.getByRole("progressbar", { name: "Stock update in progress" })).not.toHaveAttribute("aria-valuenow");
   expect(document.querySelector(`.${progressStyles.moving}`)).toBeTruthy();
   expect(screen.getByRole("img", { name: "iTrader" })).toHaveAttribute("src", expect.stringContaining("logo-itrader-hq.png"));
@@ -42,12 +42,12 @@ describe("Stock Reviews live worker", () => {
   const panel = document.querySelector("[data-stock-worker-panel]");
   expect(panel?.className).toContain("bg-surface");
   expect(panel?.className).not.toContain("bg-surface/");
-  view.rerender(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
+  view.rerender(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
  });
  it("announces a completed scan once and keeps its finished state visible", async () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
-  const ui = (status: string) => <StockWorkerDashboard initial={connected()} jobs={[{...job, status, reportStatus: status === "SUCCEEDED" ? "PENDING_REVIEW" : null}]} readyCount={1} />;
+  const ui = (status: string) => <StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[{...job, status, reportStatus: status === "SUCCEEDED" ? "PENDING_REVIEW" : null}]} readyCount={1} />;
   const view = render(ui("LEASED"));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   view.rerender(ui("SUCCEEDED"));
@@ -57,11 +57,11 @@ describe("Stock Reviews live worker", () => {
   view.rerender(ui("SUCCEEDED"));
   await tick();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(screen.getByText("No tasks running. Click Start worker to run queued work.")).toBeInTheDocument();
+  expect(screen.getByText("Run complete. Review the results below.")).toBeInTheDocument();
  });
  it("does not announce old history, and defers new failure notices while editing", async () => {
   const old = { id: "old", dealerName: "Old dealer", kind: "APPLY", status: "SUCCEEDED", reportStatus: "APPLIED", startedAt: null };
-  const ui = (extra: typeof old[]) => <StockWorkerDashboard initial={connected()} jobs={[old,...extra]} readyCount={0} />;
+  const ui = (extra: typeof old[]) => <StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[old,...extra]} readyCount={0} />;
   const view = render(ui([]));
   await tick(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   const editor = document.createElement("div"); editor.dataset.stockReviewEditing = "true"; document.body.append(editor);
@@ -74,16 +74,16 @@ describe("Stock Reviews live worker", () => {
  it("shows a pending command until the request resolves and prevents repeat submissions", async () => {
   let finish!: (value: { ok: true }) => void;
   command.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
-  render(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
-  fireEvent.click(screen.getByRole("button", { name: "Start worker" }));
+  render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={{...connected(), devices: connected().devices.map(d => ({...d,state:"running" as const}))}} jobs={[]} readyCount={0} />);
+  fireEvent.click(screen.getByRole("button", { name: "Stop safely" }));
   expect(screen.getByRole("button", { name: "Sending request…" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Sending request…" }));
   expect(command).toHaveBeenCalledTimes(1);
   await act(async () => { finish({ ok: true }); });
-  expect(screen.getByRole("button", { name: "Start worker" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Start worker" })).toBeDisabled();
  });
  it("refreshes server results while preserving dealer selection and shows completion", async () => {
-  const ui = (readyCount: number) => <StockWorkerDashboard initial={connected()} jobs={[]} readyCount={readyCount}><StockDealerPicker dealers={[{ id: "dealer", name: "Island Motors" }]} /></StockWorkerDashboard>;
+  const ui = (readyCount: number) => <StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={readyCount}><StockDealerPicker dealers={[{ id: "dealer", name: "Island Motors" }]} /></StockWorkerDashboard>;
   const view = render(ui(0));
   fireEvent.click(screen.getByRole("checkbox", { name: "Island Motors" }));
   await tick();
@@ -93,29 +93,43 @@ describe("Stock Reviews live worker", () => {
   expect(screen.getAllByText("Ready for review").length).toBeGreaterThan(0);
  });
  it("defers refresh during edits and dialogs, then resumes", async () => {
-  render(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
+  render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   const editor = document.createElement("div"); editor.dataset.stockReviewEditing = "true"; document.body.append(editor);
   await tick(); expect(refresh).not.toHaveBeenCalled(); editor.remove();
   const dialog = document.createElement("div"); dialog.setAttribute("role", "dialog"); document.body.append(dialog);
   await tick(); expect(refresh).not.toHaveBeenCalled(); dialog.remove();
   await tick(); expect(refresh).toHaveBeenCalled();
  });
- it("disables commands offline and sends only the selected instance when online", async () => {
-  const view = render(<StockWorkerDashboard initial={{ok:true,devices:[]}} jobs={[]} readyCount={0} />);
+ it("keeps start disabled until dealers are selected after reconnect", async () => {
+  const view = render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={{ok:true,devices:[]}} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("button", {name:"Start worker"})).not.toBeInTheDocument();
   expect(screen.queryByRole("img", {name:"iTrader"})).not.toBeInTheDocument();
   expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("hidden");
   expect(screen.getAllByText("Start the Stock Update worker app").length).toBeGreaterThan(0);
   await tick();
   await act(async () => { fireEvent.click(screen.getByRole("button", {name:"Start worker"})); });
-  expect(command).toHaveBeenCalledWith({deviceId:"dev_test",instanceId:"instance",action:"start"});
+  expect(command).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", {name:"Start worker"})).toBeDisabled();
   view.unmount();
  });
  it("treats failed status retrieval as unavailable and disables start", async () => {
   dashboard.mockRejectedValue(new Error("offline"));
-  render(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
+  render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   await tick();
   expect(screen.queryByRole("button",{name:"Start worker"})).not.toBeInTheDocument();
   expect(screen.getAllByText("Connection status unavailable").length).toBeGreaterThan(0);
  });
+});
+
+
+it("shows installer and pairing status only while offline, including reconnects", async () => {
+  const offline = {ok:true as const,devices:[]};
+  render(<StockWorkerDashboard initial={offline} jobs={[]} readyCount={0} offlineContent={<><button>Download worker</button><p>Computer authorised</p></>} />);
+  expect(screen.getByRole("button",{name:"Download worker"})).toBeVisible();
+  await tick();
+  expect(screen.queryByRole("button",{name:"Download worker"})).not.toBeInTheDocument();
+  expect(screen.queryByText("Computer authorised")).not.toBeInTheDocument();
+  dashboard.mockResolvedValue(offline);
+  await tick();
+  expect(screen.getByRole("button",{name:"Download worker"})).toBeVisible();
 });

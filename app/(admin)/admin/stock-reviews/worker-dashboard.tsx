@@ -7,6 +7,7 @@ import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-
 import { getWorkerDashboard } from "./worker-actions";
 import { StockWorkerCompletion, stockJobFinished, stockJobOutcome } from "./worker-completion";
 import { StockWorkerControlProvider, stockWorkerCommandClass, stockWorkerCommandLabel, useStockWorkerCommands } from "./worker-context";
+import { StockDealerSelectionProvider, useDealerSelection, type StockDealer } from "./worker-selection";
 import progressStyles from "./worker-progress.module.css";
 
 export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null }
@@ -27,8 +28,8 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children, initialNow = 0 }: {
-  initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, initialNow = 0 }: {
+  dealers?: StockDealer[]; offlineContent?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
 }) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initial);
@@ -42,6 +43,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
   const online = snapshot.ok && Boolean(device && fresh(device, now));
   const controls = useStockWorkerCommands(device, online, setSnapshot);
   const { pending, message, running } = controls;
+  const selection = useDealerSelection(dealers, controls);
   const activeJobs = jobs.filter(job => job.status === "LEASED");
   const queued = jobs.filter(job => job.status === "QUEUED").length;
   const active = activeJobs[0];
@@ -87,31 +89,30 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
   }, []);
 
   const buttons = <>
-    <button type="button" onClick={() => controls.command(running ? "stop" : "start")}
-      disabled={!controls.canCommand}
+    <button type="button" onClick={selection.startOrStop}
+      disabled={!selection.canAct}
       className={stockWorkerCommandClass(running)}>
       {stockWorkerCommandLabel({ pending, pendingCommand: Boolean(device?.pendingCommand), stopping: device?.state === "stopping", running })}
     </button>
     <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls="stock-worker-activity"
-      className="min-h-10 rounded-md border border-border px-3 text-sm text-text-primary">{expanded ? "Hide activity" : "Show activity"}</button>
+      className="min-h-11 rounded-md border border-border px-3 text-sm text-text-primary hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">{expanded ? "Hide activity" : "Show activity"}</button>
   </>;
 
-  return <StockWorkerControlProvider value={controls}>
+  return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
+    {!online ? offlineContent : null}
     <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock Update</p>
-          <h2 className="mt-1 text-lg font-semibold text-text-primary">{title}</h2></div>
+        <div><h2 className="text-lg font-semibold text-text-primary">{title}</h2></div>
         <span className={`rounded-full border px-3 py-1 text-xs font-medium ${online ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border text-text-secondary"}`}>{online ? "Connected" : snapshot.ok ? "Not connected" : "Unavailable"}</span>
       </div>
-      <p className="text-sm text-text-secondary">{!snapshot.ok ? "Live status could not be loaded. Retrying automatically; check the app before starting more work." :
-        !online ? "Open version 1.1.2 or later on your computer, click Sign in, and keep it open. This page will connect automatically." :
-        `${device?.deviceName} · ${device?.environment === "preview" ? "Preview — itrader.dev" : "Production — itrader.im"}. Select dealers below, then start the worker. Selected dealers are queued as part of that start.`}</p>
+      <p className="text-sm text-text-secondary">{!snapshot.ok ? "Retrying connection. Check the app before starting more work." :
+        !online ? "Open the app and sign in to connect." :
+        `${device?.deviceName} · ${device?.environment === "preview" ? "Preview — itrader.dev" : "Production — itrader.im"}`}</p>
       {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>
         {devices.map(row => <option key={row.deviceId} value={row.deviceId}>{row.deviceName}{fresh(row, now) ? " — connected" : " — offline"}</option>)}
       </select></label> : null}
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"><span>{queued} queued</span><span>{activeJobs.length} processing</span><a href="#stock-review-results" className="text-neon-blue-400 hover:underline">{readyCount} ready for review</a></div>
-      <p className="text-xs text-text-tertiary">Updates automatically every few seconds. Reviews and approval stay under your control.</p>
       </> : null}
     </section>
     {children}
@@ -126,17 +127,17 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
       <div className="flex flex-wrap items-center gap-4 px-5 py-4">
         <Image src="/images/logo-itrader-hq.png" alt="iTrader" width={220} height={74} className="mr-1 h-9 w-auto shrink-0" />
         <div className="min-w-0 flex-1"><p role="status" className="text-sm font-semibold text-text-primary">{title}</p>
-          <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "No tasks running. Click Start worker to run queued work." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
+          <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "Run complete. Review the results below." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
         <div className="flex flex-wrap gap-2">{buttons}</div>
       </div>
       {message ? <p role="status" className="px-4 pb-3 text-sm text-text-secondary">{message}</p> : null}
       {device?.pendingCommand ? <p className="px-4 pb-3 text-xs text-text-secondary">{device.pendingCommand.action === "start" ? "Start" : "Safe stop"} is awaiting acknowledgement from the app.</p> : null}
       {expanded ? <div id="stock-worker-activity" className="max-h-[35vh] overflow-y-auto border-t border-border px-4 py-3">
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Recent worker activity</h3>
-        {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{device.activity.map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">Activity will appear when the worker connects.</p>}
+        {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{device.activity.map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
       </div> : null}
       </div>
     </div>
     <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} />
-  </StockWorkerControlProvider>;
+  </StockDealerSelectionProvider></StockWorkerControlProvider>;
 }
