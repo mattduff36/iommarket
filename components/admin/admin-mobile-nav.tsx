@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import styles from "./admin-mobile-nav.module.css";
 import {
   Dialog,
   DialogContent,
@@ -15,24 +17,44 @@ import { AdminNavLink } from "@/components/admin/admin-nav-link";
 
 export function AdminMobileNav({ items: navigation = ADMIN_NAV.filter((item) => item.icon !== "checklist") }: { items?: AdminNavItem[] }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [dockOffset, setDockOffset] = useState(0);
+
+  useEffect(() => {
+    setMounted(true);
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const breakpoint = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", breakpoint);
+    // Keep the trigger above the optional stock progress dock on mobile.
+    let dock: Element | null = null;
+    const measure = () => {
+      const visibleDock = dock instanceof HTMLElement && !dock.hidden && !desktop.matches ? dock : null;
+      setDockOffset(visibleDock ? Math.max(0, window.innerHeight - visibleDock.getBoundingClientRect().top + 12) : 0);
+    };
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    const syncDock = () => {
+      const next = document.querySelector("[data-stock-worker-dock]");
+      if (next !== dock) { if (dock) resize?.unobserve(dock); dock = next; if (dock) resize?.observe(dock); }
+      measure();
+    };
+    const changes = new MutationObserver(syncDock);
+    changes.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    window.addEventListener("resize", measure);
+    syncDock();
+    return () => { desktop.removeEventListener("change", breakpoint); window.removeEventListener("resize", measure); resize?.disconnect(); changes.disconnect(); };
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <div className="sticky top-16 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4 sm:top-20 lg:hidden">
-        <DialogTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Open admin menu"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </DialogTrigger>
-        <span className="text-sm font-semibold text-text-primary">Admin</span>
-      </div>
+      {mounted ? createPortal(<DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" aria-label="Open admin menu"
+          title="Admin menu" className={styles.trigger}
+          style={dockOffset ? { bottom: dockOffset } : undefined}>
+          <Menu className="h-6 w-6" aria-hidden="true" />
+        </Button>
+      </DialogTrigger>, document.body) : null}
 
-      <DialogContent overlayClassName="bg-black/25 backdrop-blur-[2px]" className="fixed left-0 top-0 flex h-dvh max-h-dvh w-64 max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none p-0 pt-[env(safe-area-inset-top)] data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left [&>button]:right-[calc(1rem+env(safe-area-inset-right))] [&>button]:top-[calc(1rem+env(safe-area-inset-top))]">
+      <DialogContent overlayClassName="bg-black/25 backdrop-blur-[2px]" className={`${styles.drawer} fixed left-0 top-0 flex h-dvh max-h-dvh w-64 max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none p-0 pt-[env(safe-area-inset-top)] [&>button]:right-[calc(1rem+env(safe-area-inset-right))] [&>button]:top-[calc(1rem+env(safe-area-inset-top))] [&>button]:flex [&>button]:size-11 [&>button]:items-center [&>button]:justify-center`}>
         <DialogTitle className="sr-only">Admin Navigation</DialogTitle>
         <DialogDescription className="sr-only">
           Browse the admin navigation links.
