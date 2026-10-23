@@ -25,7 +25,12 @@ internal static class Program
         var listener = WindowActivation.Listen(activation, form);
         try { Application.Run(form); }
         finally { listener.Unregister(null); }
-        GC.KeepAlive(mutex);
+        mutex.ReleaseMutex();
+        if (form.PendingInstaller is string installer)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer) { UseShellExecute = true }); }
+            catch (System.ComponentModel.Win32Exception) { MessageBox.Show("Could not open the update installer. Your installed version is unchanged. Reopen Stock Update to try again.", "iTrader Stock Update"); }
+        }
         return 0;
     }
 }

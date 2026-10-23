@@ -11,6 +11,8 @@ import { db } from "@/lib/db";
 export const metadata: Metadata = { title: "Stock reviews | Admin" };
 
 import { StockDealerPicker } from "./dealer-picker";
+import { DownloadStockWorker } from "./download-worker";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { StockWorkerDashboard } from "./worker-dashboard";
 import { StockWorkerPairing } from "./worker-pairing";
 import { getWorkerDashboard } from "./worker-actions";
@@ -205,6 +207,7 @@ export default async function AdminStockReviewsPage({ searchParams }: {
         description="Choose dealers, follow the worker live, then review and approve the proposed changes here. Listings change only after approval and successful processing."
       />
       <StockWorkerPairing code={typeof query.code === "string" ? query.code : ""} status={typeof query.status === "string" ? query.status : ""} />
+      {isStagingOnlyFeatureEnabled() ? <DownloadStockWorker /> : null}
       <StockWorkerDashboard initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt?.toISOString() ?? null }))}>
       <StockDealerPicker dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <p id="stock-review-results" className="text-sm text-text-secondary">

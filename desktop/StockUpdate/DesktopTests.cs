@@ -278,6 +278,8 @@ public static class DesktopTests
         Check("control-loss-stops-work-and-local-stop-beats-start", WorkerControlTests.Races);
         Check("worker-output-codes-are-bounded", WorkerControlTests.OutputCodes);
 
+        Check("update-signed-manifest-and-channel", UpdateTests.Manifest);
+        Check("update-download-hash-size-redirect-cancel", UpdateTests.Download);
         var passed = results.All(result => result.Passed);
         var report = JsonSerializer.Serialize(new { passed, results }, new JsonSerializerOptions { WriteIndented = true });
         if (!string.IsNullOrWhiteSpace(reportPath))

@@ -17,7 +17,7 @@ const args = process.argv.slice(2);
 function option(name, fallback) { const i = args.indexOf(name); return i < 0 ? fallback : args[i + 1]; }
 const arch = option("--arch", "x64");
 if (!new Set(["x64", "arm64"]).has(arch)) throw new Error("Choose x64 or arm64.");
-const buildRoot = resolve(option("--out", resolve(repo, "private/stock-update-release-1.1.5")));
+const buildRoot = resolve(option("--out", resolve(repo, "private/stock-update-release-1.1.6")));
 if (buildRoot === repo || !buildRoot.startsWith(resolve(repo, "private") + sep)) {
   throw new Error("Build output must be a dedicated directory beneath repository private/.");
 }

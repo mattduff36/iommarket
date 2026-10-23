@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace StockUpdate;
 
-public sealed class MainForm : Form, IWorkerControlUi
+public sealed partial class MainForm : Form, IWorkerControlUi
 {
     private readonly SessionStore _store = new();
     private readonly RadioButton _preview = new() { Text = "Preview - itrader.dev", Checked = true, AutoSize = true };
@@ -114,7 +114,7 @@ public sealed class MainForm : Form, IWorkerControlUi
         ApplyChrome();
         LoadEnvironment();
         Note("Manual controls only. A finished-processing line is not treated as success.");
-        Shown += (_, _) => LaunchControl();
+        Shown += async (_, _) => await LaunchWithUpdateAsync();
     }
 
     private AppEnvironment Selected => _production.Checked ? AppEnvironment.Production : AppEnvironment.Preview;
@@ -150,14 +150,6 @@ public sealed class MainForm : Form, IWorkerControlUi
         UpdateButtons();
     }
 
-    private void LaunchControl()
-    {
-        if (_launchControlStarted) return;
-        _launchControlStarted = true;
-        if (_control is null && _session is not null && Selected == AppEnvironment.Preview)
-            StartControl(_session);
-    }
-
     private void UpdateButtons()
     {
         var running = _runner is { IsRunning: true };
@@ -189,6 +181,7 @@ public sealed class MainForm : Form, IWorkerControlUi
             try
             {
                 if (!await RefreshSessionAsync() || _session is null || _shuttingDown || IsDisposed) return;
+                if (!await CheckUpdateAsync(_session)) return;
                 StartControl(_session);
                 OpenFixed("/admin/stock-reviews", null);
                 Note("Signed in to " + Targets.WireName(Selected) + ".");
@@ -232,6 +225,7 @@ public sealed class MainForm : Form, IWorkerControlUi
             _session = session;
             _account.Text = session.Account.Name + " (" + session.Account.Email + ")";
             SetStatus("Signed in");
+            if (!await CheckUpdateAsync(session)) return;
             StartControl(session);
             Note("Signed in to " + Targets.WireName(environment) + ".");
         }

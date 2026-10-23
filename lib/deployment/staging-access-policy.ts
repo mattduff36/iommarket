@@ -23,6 +23,7 @@ const MACHINE_PATHS = new Set([
   "/api/stock-worker", // These exact POST endpoints authenticate desktop tokens themselves.
   "/api/stock-worker/jobs",
   "/api/stock-worker/control",
+  "/api/stock-worker/update",
   "/api/auth/send-email",
   "/api/cron/preview-mirror",
   "/api/webhooks/payments", "/api/webhooks/ripple", "/api/webhooks/ripple-staging",

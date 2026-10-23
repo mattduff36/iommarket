@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$version = '1.1.5'
+$version = '1.1.6'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
@@ -93,7 +93,7 @@ if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed dur
 
 Invoke-Checked $systemNode @((Join-Path $PSScriptRoot 'online-dependencies.mjs'), '--tools', $ToolRoot, '--out', $BuildRoot, '--worker', (Join-Path $BuildRoot 'payload\x64\worker')) 'online-dependencies'
 @'
-iTrader Stock Update - private internal release 1.1.5 (unsigned)
+iTrader Stock Update - private internal release 1.1.6 (unsigned)
 
 This installer includes the application and its reviewed worker packages. Setup downloads the matching official Node.js runtime and the pinned browser components, so an internet connection is required. A cancelled or failed download, checksum or extraction leaves any existing installation unchanged. You do not need Git, npm, .NET, Cursor or repository access. Setup downloads both Chromium modes needed by the configured dealer websites.
 
