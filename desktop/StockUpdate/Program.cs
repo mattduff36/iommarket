@@ -26,6 +26,7 @@ internal static class Program
         try { Application.Run(form); }
         finally { listener.Unregister(null); }
         mutex.ReleaseMutex();
+        mutex.Dispose();
         if (form.PendingInstaller is string installer)
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer) { UseShellExecute = true }); }

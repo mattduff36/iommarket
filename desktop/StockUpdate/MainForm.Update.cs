@@ -24,6 +24,10 @@ public sealed partial class MainForm
             prompt.AcceptButton = yes;
             prompt.CancelButton = no;
             if (prompt.ShowDialog(this) != DialogResult.Yes) return true;
+            // A modal may remain open beyond the signed URL's ten-minute lifetime.
+            var fresh = await UpdateClient.CheckAsync(session, _http.Token);
+            if (fresh is null || fresh.Manifest != update.Manifest) throw new InvalidDataException();
+            update = fresh;
             SetStatus("Downloading verified update");
             using var client = UpdateDownload.CreateClient();
             var progress = new Progress<int>(value => { if (!IsDisposed) SetStatus($"Downloading update… {value}%"); });
