@@ -322,6 +322,13 @@ export function extractBettridgeMotorCards(html: string, origin: string) {
 
 export function extractClickDealerListings(html: string, origin: string) {
   if (!html.includes("results-spec__label") || !/listing[^"']*veh-/i.test(html)) return [];
+  // The sales heading also contains derivatives and sometimes whole paragraphs.
+  // Use the site's model filter data as identity evidence, never execute its JS.
+  const modelData = html.match(/\bmodelItems\s*=\s*\[([\s\S]*?)\]\s*;?\s*(?:function|var|let|const|<\/script>)/)?.[1] ?? "";
+  const models = [...modelData.matchAll(/\[\s*\d+\s*,\s*\d+\s*,\s*'([^'\r\n]+)'\s*\]/g)]
+    .map(match => decodeListingText(match[1]!.replace(/\(\d+\)$/, "")))
+    .filter(model => model.length > 0 && model.length <= 80)
+    .sort((a, b) => b.length - a.length);
   const chunks = html.split(/class="listing[^"]*veh-/i).slice(1);
   return chunks.flatMap((chunk) => {
     const href = chunk.match(/href="(\/used-[^"#]+)"/i)?.[1];
@@ -330,6 +337,9 @@ export function extractClickDealerListings(html: string, origin: string) {
       decodeListingText(chunk.match(/title="((?:20|19)\d{2} [^"]+)"/i)?.[1] ?? "");
     const parsed = parseYearMakeModel(title.split(" - ")[0] ?? title);
     if (!parsed.make || !parsed.model) return [];
+    const model = models.find(candidate => parsed.model.toLowerCase() === candidate.toLowerCase() ||
+      parsed.model.toLowerCase().startsWith(candidate.toLowerCase() + " "));
+    const derivative = model ? parsed.model.slice(model.length).trim() : "";
     const spec = (label: string) =>
       decodeListingText(
         chunk.match(new RegExp(`results-spec__label">${label}</span>\\s*<span class="results-spec__stat">([^<]+)`, "i"))?.[1] ??
@@ -340,6 +350,7 @@ export function extractClickDealerListings(html: string, origin: string) {
         url: resolveMaybeUrl(href ?? null, origin),
         sourceVehicleId: href?.split("-").at(-1) ?? chunk.match(/^(\d+)/)?.[1],
         ...parsed,
+        ...(model ? { model, derivative: derivative.length <= 120 ? derivative || null : null, description: title } : {}),
         year: parsed.year ?? yearFrom(spec("Year")),
         mileage: milesFrom(spec("Mileage")) ?? milesFrom(chunk),
         fuel: spec("Fuel Type") || null,

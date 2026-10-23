@@ -300,7 +300,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     groupKey: null,
     locations: ["Douglas"],
     sources: [
-      source("used-cars", "Ingear used cars", "https://www.ingearcarsales.co.uk/", "dealer-websites"),
+      source("used-cars", "Ingear used cars", "https://www.ingearcarsales.co.uk/", "dealer-websites", { maxPages: 10 }),
     ],
     notes: "Site identifies Dealer Websites as platform/provider.",
     lastVerifiedAt: null,

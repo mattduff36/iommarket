@@ -19,15 +19,21 @@ export function stockJobOutcome(job: LiveStockJob) {
 
 export function StockWorkerCompletion({ jobs, canShow }: { jobs: LiveStockJob[]; canShow: () => boolean }) {
   // Existing history is a baseline, not a new completion notification.
-  const seen = useRef(new Map(jobs.map(job => [job.id, job.status])));
-  const waiting = useRef<LiveStockJob[]>([]);
-  const [notice, setNotice] = useState<LiveStockJob | null>(null);
+  const seen = useRef(new Set(jobs.map(job => job.id)));
+  const run = useRef(new Map(jobs.filter(job => !stockJobFinished(job)).map(job => [job.id, job])));
+  const waiting = useRef<LiveStockJob[][]>([]);
+  const [notice, setNotice] = useState<LiveStockJob[] | null>(null);
 
   useEffect(() => {
     for (const job of jobs) {
-      const previous = seen.current.get(job.id);
-      if (stockJobFinished(job) && previous !== job.status) waiting.current.push(job);
-      seen.current.set(job.id, job.status);
+      if (!seen.current.has(job.id) || run.current.has(job.id) || !stockJobFinished(job)) run.current.set(job.id, job);
+      seen.current.add(job.id);
+    }
+    // Retain observed jobs beyond the recent-history limit. An active job that
+    // disappears is not evidence of completion.
+    if (run.current.size && [...run.current.values()].every(stockJobFinished)) {
+      waiting.current.push([...run.current.values()]);
+      run.current.clear();
     }
   }, [jobs]);
 
@@ -43,11 +49,13 @@ export function StockWorkerCompletion({ jobs, canShow }: { jobs: LiveStockJob[];
 
   return <Dialog open={notice !== null} onOpenChange={open => { if (!open) setNotice(null); }}>
     <DialogContent onPointerDownOutside={event => event.preventDefault()}>
-      <DialogTitle>{notice ? stockJobOutcome(notice) : "Stock Update result"}</DialogTitle>
+      <DialogTitle>Stock Update run finished</DialogTitle>
       <DialogDescription className="mt-3">
-        This task has ended. Check its saved result below before taking further action.
-        The worker can remain connected for more queued work; this does not mean this task is still running.
+        All {notice?.length ?? 0} tasks in this run have ended. Review the results below. Failed tasks need attention; successful scans still require your approval before listings change.
       </DialogDescription>
+      <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm">
+        {notice?.map(job => <li key={job.id}>{stockJobOutcome(job)}</li>)}
+      </ul>
       <button type="button" className="mt-4 rounded-md bg-neon-blue-500 px-4 py-2 text-sm font-semibold text-white" onClick={() => setNotice(null)}>Got it</button>
     </DialogContent>
   </Dialog>;

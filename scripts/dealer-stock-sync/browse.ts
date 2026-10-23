@@ -1,6 +1,15 @@
 import { chromium, type Page } from "@playwright/test";
 import { extractDescriptionFromHtml, extractNetDirectorGalleryFromHtml } from "./html-media";
 import { sleep } from "./rate-limit";
+import { PublicReadStatusError, retryPublicRead } from "./public-read-retry";
+
+export async function gotoPublicPage(page: Page, url: string) {
+  return retryPublicRead(async () => {
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+    if (response && !response.ok()) throw new PublicReadStatusError(response.status());
+    return response;
+  });
+}
 
 export interface CapturedRequest {
   url: string;
@@ -108,7 +117,7 @@ export async function withPublicPage<T>(
         );
       });
     }
-    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await gotoPublicPage(page, startUrl);
     await dismissCookies(page);
     if (options.waitForSelector) {
       await page.locator(options.waitForSelector).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
@@ -133,16 +142,17 @@ export async function capturePublicListRequest(
 }
 
 export async function fetchPageHtml(url: string, fetchImpl: typeof fetch = fetch) {
-  const response = await fetchImpl(url, {
-    headers: {
-      accept: "text/html,application/xhtml+xml",
-      "user-agent": BROWSER_UA,
-    },
+  return retryPublicRead(async () => {
+    const response = await fetchImpl(url, {
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": BROWSER_UA,
+      },
+    });
+    if (!response.ok) throw new PublicReadStatusError(response.status);
+    return response.text();
   });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`);
-  }
-  return response.text();
 }
 
 export async function fetchClassicVehicleDetail(detailUrl: string, fetchImpl: typeof fetch = fetch) {

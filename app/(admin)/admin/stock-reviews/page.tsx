@@ -120,7 +120,7 @@ function dealerGroups(outstanding: ReportRow[], recentReports: ReportRow[], jobs
     const shown = Boolean(reportId && shownReportIds.has(reportId));
     if (job.status === "QUEUED" || job.status === "LEASED") return true;
     // A failed apply leaves its report approved: never hide that failure behind the report.
-    if (job.status === "FAILED") return true;
+    if (job.status === "FAILED") return job.kind === "APPLY" || !shown;
     if (job.status === "SUCCEEDED" || job.status === "CANCELLED") return !shown;
     return false;
   });

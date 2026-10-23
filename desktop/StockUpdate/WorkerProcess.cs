@@ -102,6 +102,7 @@ public static class WorkerProcess
                 "ready" => "Manual worker ready. Already queued jobs may be processed.",
                 "waiting" => "Waiting for queued work. Weekly scheduling is off.",
                 "processing" => "Processing a queued stock job.",
+                "job-failed" when type == "job" => "This job failed. Continuing with the remaining queued jobs.",
                 "staging-photos" when type == "job" => "The server is preparing approved photos and applying the reviewed report.",
                 "applied" when type == "job" => "iTrader confirmed that the approved stock report was applied.",
                 "stopping" => "Stopping after the current job finishes.",
@@ -127,6 +128,7 @@ public static class WorkerProcess
 
     public static string ActivityCode(string type, string state) => state switch
     {
+        "job-failed" when type == "job" => "processing",
         "checking" or "ready" or "waiting" or "processing" or "stopping" or "stopped" => state,
         "staging-photos" or "processing-finished" or "applied" when type == "job" => state,
         "unauthorised" or "unavailable" or "invalid-response" or "invalid-request" or "job-failed"

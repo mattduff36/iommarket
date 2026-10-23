@@ -22,6 +22,8 @@ const CONNECTOR_PHOTO_CDNS: Partial<Record<ConnectorKey, readonly DesktopUrlRule
 };
 
 const DEALER_PHOTO_CDNS: Readonly<Record<string, readonly DesktopUrlRule[]>> = {
+  "ingear-car-sales": [{ host: "api.dealerwebsites.co.uk", pathPrefixes: ["/images/"] }],
+  "manx-car-warehouse": [{ host: "smgmedia.blob.core.windows.net", pathPrefixes: ["/images/130519/"] }],
   franklins: [{ host: "img-uk3.cd5.uk" }, { host: "assets.cd5.uk" }],
   "swift-motors": [{ host: "bluesky.cdn.imgeng.in", pathPrefixes: ["/cogstock-images/"] }],
 };

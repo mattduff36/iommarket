@@ -622,6 +622,12 @@ describe("desktop jobs", () => {
     });
     expect(apply.state.failCalls).toHaveLength(0);
   });
+  it("labels rejected worker data separately from a website failure", async () => {
+    const leaseToken = token();
+    const api = harness({ job: ownedJob(leaseToken) });
+    await api.post({ op: "fail", jobId: JOB_ID, leaseToken, reason: "incomplete" });
+    expect(api.state.failCalls[0]?.failureReason).toBe("submission-invalid");
+  });
 
   it("fails closed on apply steps, restores only a continuing owner, and ignores a false terminal claim", async () => {
     const leaseToken = token();

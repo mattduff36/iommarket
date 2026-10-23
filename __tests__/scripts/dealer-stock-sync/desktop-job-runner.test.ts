@@ -100,6 +100,20 @@ describe("desktop raw submission", () => {
 });
 
 describe("desktop manual loop", () => {
+  it("continues after failed scrape and apply jobs to the remaining dealer", async () => {
+    const f = watch();
+    f.client.lease.mockReset();
+    f.client.lease.mockResolvedValueOnce(f.job)
+      .mockResolvedValueOnce({ ...f.job, id: "failed-apply", kind: "APPLY" })
+      .mockResolvedValueOnce({ ...f.job, id: "next-dealer" }).mockResolvedValue(null);
+    f.client.submit.mockResolvedValueOnce("failed").mockResolvedValueOnce("succeeded");
+    f.client.step.mockResolvedValueOnce("failed");
+    await runDesktopWatch(f.options);
+    expect(f.client.lease).toHaveBeenCalledTimes(4);
+    expect(f.events.filter(e => e.state === "job-failed")).toHaveLength(2);
+    expect(f.events.find(e => e.jobId === "next-dealer" && e.state === "processing-finished")).toBeDefined();
+    expect(f.events.at(-1)?.state).toBe("stopped");
+  });
   it("drains queued jobs and stops automatically after the final job", async () => {
     const f = watch();
     f.client.lease.mockReset();
@@ -142,9 +156,9 @@ describe("desktop manual loop", () => {
     expect(f.client.lease).toHaveBeenCalledTimes(1);
     expect(f.client.submit).not.toHaveBeenCalled(); expect(f.client.step).not.toHaveBeenCalled();
   });
-  it("records a generic scraper failure once, then stops", async () => {
+  it("records a generic scraper failure once and honours safe stop", async () => {
     const f = watch(); f.options.scrape.mockRejectedValue(new Error("private internal detail"));
-    await expect(runDesktopWatch(f.options)).rejects.toMatchObject({ reason: "job-failed" });
+    await expect(runDesktopWatch(f.options)).resolves.toBeUndefined();
     expect(f.client.fail).toHaveBeenCalledWith(f.job, "source_unavailable");
     expect(f.client.submit).not.toHaveBeenCalled(); expect(f.client.lease).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(f.events)).not.toContain("private");
@@ -153,14 +167,14 @@ describe("desktop manual loop", () => {
     const f = watch(); const result = pipeline();
     result.sourceResults[0].vehicles = Array.from({ length: 2001 }, () => result.sourceResults[0].vehicles[0]);
     f.options.scrape.mockResolvedValue(result);
-    await expect(runDesktopWatch(f.options)).rejects.toMatchObject({ reason: "job-failed" });
+    await expect(runDesktopWatch(f.options)).resolves.toBeUndefined();
     expect(f.client.fail).toHaveBeenCalledWith(f.job, "incomplete");
     expect(f.client.submit).not.toHaveBeenCalled();
   });
   it("finishes a definitely rejected submission as failed without retrying or announcing success", async () => {
     const f = watch();
     f.client.submit.mockRejectedValue(new DesktopJobError("invalid-request"));
-    await expect(runDesktopWatch(f.options)).rejects.toMatchObject({ reason: "job-failed" });
+    await expect(runDesktopWatch(f.options)).resolves.toBeUndefined();
     expect(f.client.submit).toHaveBeenCalledTimes(1);
     expect(f.client.fail).toHaveBeenCalledWith(f.job, "incomplete");
     expect(f.client.lease).toHaveBeenCalledTimes(1);
@@ -173,9 +187,9 @@ describe("desktop manual loop", () => {
     expect(f.client[operation]).toHaveBeenCalledTimes(1); expect(f.client.fail).not.toHaveBeenCalled();
     expect(f.events.some(e => e.state === "applied" || e.state === "processing-finished")).toBe(false);
   });
-  it.each(["submit", "step"] as const)("stops on actual failed %s state", async operation => {
+  it.each(["submit", "step"] as const)("records actual failed %s state without announcing success", async operation => {
     const f = watch(operation === "step" ? "APPLY" : "SCRAPE"); f.client[operation].mockResolvedValue("failed");
-    await expect(runDesktopWatch(f.options)).rejects.toMatchObject({ reason: "job-failed" });
+    await expect(runDesktopWatch(f.options)).resolves.toBeUndefined();
     expect(f.client.lease).toHaveBeenCalledTimes(1); expect(f.events.some(e => e.state === "applied")).toBe(false);
   });
   it("awaits the pending scrape heartbeat before submitting, even after safe stop", async () => {

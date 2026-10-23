@@ -111,13 +111,20 @@ export async function runDesktopWatch(options: DesktopWatchOptions): Promise<voi
       break; // A manual run drains the queue, then stops without polling for future work.
     }
     jobEvent(job, "processing", "Processing a queued stock job.");
-    if (job.kind === "SCRAPE") await scrapeJob(job);
-    else {
-      jobEvent(job, "staging-photos", "The server is preparing approved photos and applying the reviewed report.");
-      let result: Awaited<ReturnType<DesktopJobsClient["step"]>>;
-      do { result = await client.step(job); } while (result === "continue");
-      if (result !== "succeeded") throw new DesktopJobError("job-failed");
-      jobEvent(job, "applied", "iTrader confirmed that the approved stock report was applied.");
+    try {
+      if (job.kind === "SCRAPE") await scrapeJob(job);
+      else {
+        jobEvent(job, "staging-photos", "The server is preparing approved photos and applying the reviewed report.");
+        let result: Awaited<ReturnType<DesktopJobsClient["step"]>>;
+        do { result = await client.step(job); } while (result === "continue");
+        if (result !== "succeeded") throw new DesktopJobError("job-failed");
+        jobEvent(job, "applied", "iTrader confirmed that the approved stock report was applied.");
+      }
+    } catch (error) {
+      // A confirmed terminal failure belongs to this job, not the whole queue.
+      // Uncertain writes and lost authorisation still require reconciliation.
+      if (!(error instanceof DesktopJobError) || error.reason !== "job-failed") throw error;
+      jobEvent(job, "job-failed", "This job failed. Continuing with the remaining queued jobs.");
     }
   }
   emit({ type: "status", state: "stopped", message: "Worker stopped. No further job will be taken." });

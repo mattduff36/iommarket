@@ -34,7 +34,7 @@ describe("Stock Reviews live worker", () => {
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   view.rerender(ui("SUCCEEDED"));
   await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
-  expect(screen.getByRole("dialog", { name: "Island Motors: finished — ready for review" })).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "Stock Update run finished" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Got it" }));
   view.rerender(ui("SUCCEEDED"));
   await tick();
@@ -51,7 +51,7 @@ describe("Stock Reviews live worker", () => {
   await tick(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   editor.remove();
   await tick();
-  expect(screen.getByRole("dialog", { name: "Old dealer: task failed — check the saved result" })).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "Stock Update run finished" })).toBeInTheDocument();
  });
  it("shows a pending command until the request resolves and prevents repeat submissions", async () => {
   let finish!: (value: { ok: true }) => void;

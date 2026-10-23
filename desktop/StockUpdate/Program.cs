@@ -14,13 +14,17 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
+        using var activation = new EventWaitHandle(false, EventResetMode.AutoReset, WindowActivation.EventName);
         using var mutex = new Mutex(true, SingleInstanceMutexName, out var created);
         if (!created)
         {
-            MessageBox.Show("iTrader Stock Update is already running.", "iTrader Stock Update");
-            return 1;
+            WindowActivation.Signal(activation);
+            return 0;
         }
-        Application.Run(new MainForm());
+        using var form = new MainForm();
+        var listener = WindowActivation.Listen(activation, form);
+        try { Application.Run(form); }
+        finally { listener.Unregister(null); }
         GC.KeepAlive(mutex);
         return 0;
     }

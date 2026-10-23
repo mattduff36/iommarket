@@ -16,7 +16,6 @@ export const DESKTOP_JOB_RATE_WINDOW_SECONDS = 60;
 
 const JOB_ID = /^[a-z0-9]{8,40}$/;
 const LEASE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
-const SCRAPE_FAILURE_REASON = "source-failed";
 const FAIL_REASONS = ["source_unavailable", "browser_failed", "timed_out", "incomplete"] as const;
 
 const jobId = z.string().regex(JOB_ID);
@@ -481,7 +480,7 @@ async function fail(
       busyOwner: busy,
       bindingId: binding.id,
       dealerId: owned.job.dealerId,
-      failureReason: SCRAPE_FAILURE_REASON,
+      failureReason: body.reason === "incomplete" ? "submission-invalid" : "source-failed",
       registryKey: binding.registryKey,
       expiresAt: expiresAt(deps.now()),
     });

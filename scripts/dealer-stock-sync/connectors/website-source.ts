@@ -15,6 +15,7 @@ import {
 } from "./html-extract";
 import { extractDetailSpecs, extractDwDetailImages } from "./named-html-more";
 import type { CanonicalVehicle, ConnectorKey, SourceListResult } from "../types";
+import { PublicReadStatusError, retryPublicRead } from "../public-read-retry";
 
 const PUBLIC_BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -46,19 +47,21 @@ function hasCompleteDwCard(vehicle: CanonicalVehicle) {
 }
 
 async function loadPublishedDwDetail(url: string, fetchImpl: typeof fetch) {
-  const response = await fetchImpl(url, {
-    redirect: "manual",
-    signal: AbortSignal.timeout(30_000),
-    headers: {
-      accept: "text/html,application/xhtml+xml",
-      "user-agent": PUBLIC_BROWSER_UA,
-    },
+  return retryPublicRead(async () => {
+    const response = await fetchImpl(url, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(30_000),
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": PUBLIC_BROWSER_UA,
+      },
+    });
+    if (detailIsConfirmedAbsent(response.status, response.headers.get("location"))) {
+      throw new ConfirmedAbsentDetailError();
+    }
+    if (!response.ok) throw new PublicReadStatusError(response.status);
+    return response.text();
   });
-  if (detailIsConfirmedAbsent(response.status, response.headers.get("location"))) {
-    throw new ConfirmedAbsentDetailError();
-  }
-  if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
-  return response.text();
 }
 
 function blockedStatus(message: string) {
@@ -237,7 +240,7 @@ export function createWebsiteConnector(input: {
       });
     },
     async fetchDetails(context, frozen) {
-      const { fetchPageHtml, withPublicPage } = await import("../browse");
+      const { fetchPageHtml, withPublicPage, gotoPublicPage } = await import("../browse");
       const enrich = async (load: (url: string) => Promise<string>) => {
       let detailMissing = 0;
       const vehicles: CanonicalVehicle[] = [];
@@ -287,10 +290,10 @@ export function createWebsiteConnector(input: {
         const { sleep } = await import("../rate-limit");
         return withPublicPage(context.source.startUrl, async page => enrich(async url => {
           await sleep(Math.max(700, context.delayMs ?? 800));
-          const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+          const response = await gotoPublicPage(page, url);
           if (!response?.ok()) throw new Error("Vehicle detail page was unavailable");
           return page.content();
-        }), { headed: false, settleMs: 1000 });
+        }), { headed: context.source.headed ?? input.headed, settleMs: 1000 });
       }
       return enrich((url) =>
         context.dealer.key === "dw-cars"
@@ -333,7 +336,7 @@ export async function fetchWebsiteList(
   }
 
   try {
-    const { withPublicPage, fetchPageHtml } = await import("../browse");
+    const { withPublicPage, fetchPageHtml, gotoPublicPage } = await import("../browse");
     const origin = new URL(startUrl).origin;
     const preferBrowser = context.source.preferBrowser ?? options.preferBrowser;
     const headed = context.source.headed ?? options.headed ?? process.env.DEALER_STOCK_HEADED === "1";
@@ -387,22 +390,25 @@ export async function fetchWebsiteList(
         const htmls = [await page.content()];
         const visited = new Set([page.url().replace(/\/$/, "")]);
         const queue = discoverStockPageUrls(htmls[0] ?? "", page.url());
+        let failedPage = false;
         const { sleep } = await import("../rate-limit");
         while (htmls.length < maxPages && queue.length > 0) {
           const nextUrl = queue.shift();
           if (!nextUrl || visited.has(nextUrl.replace(/\/$/, ""))) continue;
           visited.add(nextUrl.replace(/\/$/, ""));
-          const response = await page.goto(nextUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-          if (!response?.ok()) throw new Error("Stock pagination page was unavailable");
-          if (waitForSelector) {
-            await page.locator(waitForSelector).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
-          }
-          await sleep(settleMs);
-          const nextHtml = await page.content();
-          htmls.push(nextHtml);
-          for (const extra of discoverStockPageUrls(nextHtml, nextUrl)) {
-            if (!visited.has(extra.replace(/\/$/, "")) && !queue.includes(extra)) queue.push(extra);
-          }
+          try {
+            const response = await gotoPublicPage(page, nextUrl);
+            if (!response?.ok()) throw new Error("Stock pagination page was unavailable");
+            if (waitForSelector) {
+              await page.locator(waitForSelector).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+            }
+            await sleep(settleMs);
+            const nextHtml = await page.content();
+            htmls.push(nextHtml);
+            for (const extra of discoverStockPageUrls(nextHtml, nextUrl)) {
+              if (!visited.has(extra.replace(/\/$/, "")) && !queue.includes(extra)) queue.push(extra);
+            }
+          } catch { failedPage = true; }
         }
         return {
           jsonRequest,
@@ -410,7 +416,7 @@ export async function fetchWebsiteList(
           htmls,
           jsonPayloads,
           htmlPayloads,
-          paginationUncertain: queue.length > 0,
+          paginationUncertain: failedPage || queue.length > 0,
         };
       },
       {
