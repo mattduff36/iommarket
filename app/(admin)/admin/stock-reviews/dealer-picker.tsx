@@ -57,6 +57,8 @@ export function StockDealerPicker({ dealers, unavailable = [] }: { dealers: { id
     })();
   }
 
+  if (!controls.online) return null;
+
   return (
     <section data-stock-review-editing={controls.pending ? "true" : undefined} className="space-y-3 rounded-lg border border-border p-4">
       <h2 className="text-lg font-semibold text-text-primary">Choose dealers to scrape</h2>

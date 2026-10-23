@@ -38,7 +38,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
   const [barHeight, setBarHeight] = useState(112);
   const bar = useRef<HTMLDivElement>(null);
   const devices = snapshot.ok ? snapshot.devices : [];
-  const device = devices.find(row => row.deviceId === selected) ?? devices.find(row => fresh(row, now)) ?? devices[0];
+  const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
   const online = snapshot.ok && Boolean(device && fresh(device, now));
   const controls = useStockWorkerCommands(device, online, setSnapshot);
   const { pending, message, running } = controls;
@@ -106,11 +106,13 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
       <p className="text-sm text-text-secondary">{!snapshot.ok ? "Live status could not be loaded. Retrying automatically; check the app before starting more work." :
         !online ? "Open version 1.1.2 or later on your computer, click Sign in, and keep it open. This page will connect automatically." :
         `${device?.deviceName} · ${device?.environment === "preview" ? "Preview — itrader.dev" : "Production — itrader.im"}. Select dealers below, then start the worker. Selected dealers are queued as part of that start.`}</p>
+      {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>
         {devices.map(row => <option key={row.deviceId} value={row.deviceId}>{row.deviceName}{fresh(row, now) ? " — connected" : " — offline"}</option>)}
       </select></label> : null}
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"><span>{queued} queued</span><span>{activeJobs.length} processing</span><a href="#stock-review-results" className="text-neon-blue-400 hover:underline">{readyCount} ready for review</a></div>
       <p className="text-xs text-text-tertiary">Updates automatically every few seconds. Reviews and approval stay under your control.</p>
+      </> : null}
     </section>
     {children}
     <div aria-hidden="true" style={{ height: online ? barHeight : 0 }} />

@@ -140,9 +140,15 @@ export async function capturePublicListRequest(
   startUrl: string,
   match: (request: CapturedRequest) => boolean,
 ) {
+  // NetDirector's public stock pages require the normal visible browser mode.
   return withPublicPage(startUrl, async (_page, captured) => {
+    for (let attempt = 0; attempt < 48; attempt += 1) {
+      const request = captured.find(match);
+      if (request) return request;
+      await sleep(250);
+    }
     return captured.find(match) ?? null;
-  });
+  }, { headed: true });
 }
 
 export async function fetchPageHtml(url: string, fetchImpl: typeof fetch = fetch) {

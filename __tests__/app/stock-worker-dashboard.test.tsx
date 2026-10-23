@@ -13,6 +13,24 @@ beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); dashboard.mockResolve
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 async function tick() { await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); }
 describe("Stock Reviews live worker", () => {
+ it("hides offline controls while keeping saved reviews and restores controls on connection", async () => {
+  const offline = { ok: true as const, devices: connected().devices.map(device => ({ ...device, online: false })) };
+  render(<StockWorkerDashboard initial={offline} jobs={[]} readyCount={6}>
+    <StockDealerPicker dealers={[{ id: "dealer", name: "Island Motors" }]} />
+    <p>Saved dealer review</p>
+  </StockWorkerDashboard>);
+  expect(screen.getByText("Saved dealer review")).toBeInTheDocument();
+  expect(screen.queryByText("Choose dealers to scrape")).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByText("6 ready for review")).not.toBeInTheDocument();
+  await tick();
+  expect(screen.getByRole("checkbox", { name: "Island Motors" })).toBeInTheDocument();
+  expect(screen.getByText("Saved dealer review")).toBeInTheDocument();
+  dashboard.mockResolvedValue(offline);
+  await tick();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+ });
  it("shows indeterminate progress only while work is active", () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };
   const view = render(<StockWorkerDashboard initial={connected()} jobs={[job]} readyCount={0} />);

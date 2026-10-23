@@ -108,9 +108,10 @@ it("stops without a selection and does not enqueue", async () => {
   expect(picker().getByLabelText("Alpha")).toBeChecked();
 });
 
-it("disables start while offline, awaiting acknowledgement, or stopping", () => {
+it("hides controls offline and disables start while awaiting acknowledgement or stopping", () => {
   const offline = renderPicker(connected([]));
-  expect(picker().getByRole("button", { name: "Start worker" })).toBeDisabled();
+  expect(screen.queryByRole("heading", { name: "Choose dealers to scrape" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Start worker" })).not.toBeInTheDocument();
   expect(screen.queryByRole("img", { name: "iTrader" })).not.toBeInTheDocument();
   expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("hidden");
   offline.unmount();
