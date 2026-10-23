@@ -35,7 +35,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
   const [now, setNow] = useState(initialNow);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [barHeight, setBarHeight] = useState(112);
+  const [barHeight, setBarHeight] = useState(176);
   const bar = useRef<HTMLDivElement>(null);
   const devices = snapshot.ok ? snapshot.devices : [];
   const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
@@ -81,7 +81,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
   useEffect(() => {
     const element = bar.current;
     if (!element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => setBarHeight(Math.ceil(element.getBoundingClientRect().height) + 24));
+    const observer = new ResizeObserver(() => setBarHeight(Math.ceil(element.getBoundingClientRect().height) + 48));
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -123,7 +123,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, init
         aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
         <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : online ? "w-full opacity-40" : "w-0"}`} />
       </div>
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-4 px-5 py-4">
         <Image src="/images/logo-itrader-hq.png" alt="iTrader" width={220} height={74} className="mr-1 h-9 w-auto shrink-0" />
         <div className="min-w-0 flex-1"><p role="status" className="text-sm font-semibold text-text-primary">{title}</p>
           <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "No tasks running. Click Start worker to run queued work." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>

@@ -101,7 +101,7 @@ export function useStockWorkerCommands(
     try {
       const result = await commandWorker({ deviceId: current.deviceId, instanceId: current.instanceId, action });
       if (!mounted.current) return result.ok ? "ok" : "failed";
-      setMessage(result.ok ? `${action === "start" ? "Start" : "Safe stop"} requested. The current worker state is shown above.` :
+      setMessage(result.ok ? "" :
         result.error === "conflict" ? "The app is no longer connected. Reopen it and sign in." : "The request was not accepted. Check the connection and try again.");
       const next = await getWorkerDashboard();
       if (mounted.current) snapshotRef.current(next);
