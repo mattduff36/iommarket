@@ -6,17 +6,20 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { ADMIN_NAV } from "@/lib/admin/nav";
 
 describe("AdminMobileNav", () => {
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  });
   it("keeps every navigation group in an independently scrollable menu region", async () => {
     render(<AdminMobileNav items={ADMIN_NAV} />);
 
-    const adminBar = screen.getByRole("button", { name: "Open admin menu" }).parentElement;
-    expect(adminBar?.className).toContain("top-16");
-    expect(adminBar?.className).toContain("sm:top-20");
+    const trigger = screen.getByRole("button", { name: "Open admin menu" });
+    expect(trigger.parentElement).toBe(document.body);
+    expect(trigger.className).not.toContain("sticky");
 
     fireEvent.click(screen.getByRole("button", { name: "Open admin menu" }));
 
