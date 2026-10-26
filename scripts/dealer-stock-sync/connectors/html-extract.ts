@@ -165,17 +165,17 @@ export function discoverStockPageUrls(html: string, currentUrl: string) {
   const origin = new URL(currentUrl).origin;
   const found = new Set<string>();
   for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
-    const absolute = resolveMaybeUrl(match[1], origin);
-    if (!absolute) continue;
     try {
-      const url = new URL(absolute);
+      const href = match[1].replace(/&amp;|&#0*38;/gi, "&");
+      const url = new URL(href, currentUrl);
       if (url.origin !== origin) continue;
-      if (url.searchParams.get("page") === "1") continue;
+      if (url.searchParams.get("page") === "1" || /^\/cars\/page\/1\/?$/i.test(url.pathname)) continue;
       if (
         /\/used-cars\/\d+\/?$/i.test(url.pathname) ||
         /\/used-vans\/\d+\/?$/i.test(url.pathname) ||
         /\/used-bikes\/\d+\/?$/i.test(url.pathname) ||
         /\/used-cars\/page\/\d+/i.test(url.pathname) ||
+        /^\/cars\/page\/\d+\/?$/i.test(url.pathname) ||
         /\/page-\d+\//i.test(url.pathname) ||
         /[?&]page=\d+/i.test(url.search)
       ) {

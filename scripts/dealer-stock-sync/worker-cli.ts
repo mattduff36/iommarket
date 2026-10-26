@@ -44,9 +44,12 @@ export async function processTick(input: {
   leaseOneJob: () => Promise<{ id: string; owner: string } | null>;
   runJob: (job: { id: string; owner: string }) => Promise<void>;
   write: (line: string) => void;
+  authorise?: () => Promise<void>;
 }): Promise<boolean> {
   if (input.isStopped()) return false;
   assertWorkerEnabled(input.env);
+  await input.authorise?.();
+  if (input.isStopped()) return false;
   if (!input.manual) await input.enqueueWeekly();
   if (input.isStopped()) return false;
   const job = await input.leaseOneJob();
@@ -103,8 +106,17 @@ function isDirectRun() {
   return resolve(entry) === resolve(fileURLToPath(import.meta.url));
 }
 
-async function main() {
-  const mode = workerMode(process.argv.slice(2));
+export interface WorkerRuntimeOptions {
+  authorise?: () => Promise<void>;
+  isStopped?: () => boolean;
+  write?: (line: string) => void;
+}
+
+export async function runWorker(
+  argv: readonly string[] = process.argv.slice(2),
+  options: WorkerRuntimeOptions = {},
+) {
+  const mode = workerMode(argv);
   if (mode.error) {
     process.stderr.write(mode.error);
     process.exitCode = 1;
@@ -116,28 +128,33 @@ async function main() {
   const { getDealer } = await import("./registry");
   const { enqueueDueWeeklyScrapes } = await import("../../lib/dealer-stock-sync/enqueue");
   const { db } = await import("../../lib/db");
-  const stop = bindStop((line) => process.stdout.write(line));
-  process.on("SIGINT", () => stop.requestStop());
-  process.on("SIGTERM", () => stop.requestStop());
+  const write = options.write ?? ((line: string) => { process.stdout.write(line); });
+  const stop = bindStop(write);
+  const isStopped = () => stop.isStopped() || options.isStopped?.() === true;
+  const requestStop = () => stop.requestStop();
+  process.on("SIGINT", requestStop);
+  process.on("SIGTERM", requestStop);
   const stopOnInputEnd = () => stop.requestStop();
   if (mode.manual && !process.stdin.isTTY) {
     process.stdin.on("end", stopOnInputEnd);
+    if (process.stdin.readableEnded || process.stdin.destroyed) stop.requestStop();
     process.stdin.resume();
   }
   try {
     await runWatchLoop({
       manual: mode.manual,
       once: mode.once,
-      isStopped: stop.isStopped,
-      write: (line) => process.stdout.write(line),
-      pause: (ms) => pause(ms, stop.isStopped),
+      isStopped,
+      write,
+      pause: (ms) => pause(ms, isStopped),
       tick: () => processTick({
         env: process.env,
         manual: mode.manual,
-        isStopped: stop.isStopped,
+        authorise: options.authorise,
+        isStopped,
         enqueueWeekly: () => enqueueDueWeeklyScrapes(),
         leaseOneJob: () => leaseOneJob(),
-        write: (line) => process.stdout.write(line),
+        write,
         runJob: async (jobId) => {
           await runLeasedJob(jobId, async (registryKey) => {
             const dealer = getDealer(registryKey);
@@ -150,6 +167,8 @@ async function main() {
       }),
     });
   } finally {
+    process.off("SIGINT", requestStop);
+    process.off("SIGTERM", requestStop);
     process.stdin.off("end", stopOnInputEnd);
     process.stdin.pause();
     await db.$disconnect();
@@ -157,7 +176,7 @@ async function main() {
 }
 
 if (isDirectRun()) {
-  main().catch(() => {
+  runWorker().catch(() => {
     process.stderr.write("Stock worker stopped. Check the worker configuration and try again.\n");
     process.exitCode = 1;
   });

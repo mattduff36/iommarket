@@ -300,7 +300,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     groupKey: null,
     locations: ["Douglas"],
     sources: [
-      source("used-cars", "Ingear used cars", "https://www.ingearcarsales.co.uk/", "dealer-websites"),
+      source("used-cars", "Ingear used cars", "https://www.ingearcarsales.co.uk/", "dealer-websites", { maxPages: 10 }),
     ],
     notes: "Site identifies Dealer Websites as platform/provider.",
     lastVerifiedAt: null,
@@ -351,9 +351,10 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
         "Manx Car Warehouse stock",
         "https://www.manxcarwarehouse.im/stock/used-cars-in-ballasalla-isle-of-man/1",
         "html-structured",
+        { preferBrowser: true },
       ),
     ],
-    notes: "Public stock list verified on the canonical .im site.",
+    notes: "Public stock list verified on the canonical .im site. Browser runs only after plain HTTP does not return an ok list.",
     lastVerifiedAt: "2026-09-28",
   }),
   dealer({
@@ -531,7 +532,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
     groupKey: null,
     locations: [],
     sources: [
-      source("used-cars", "SkillanNaylor used cars", "https://sncc.im/cars/", "html-structured"),
+      source("used-cars", "SkillanNaylor used cars", "https://sncc.im/cars/", "html-structured", { maxPages: 10 }),
     ],
     notes: "Official used list is sncc.im/cars/ (Car Dealer theme new-price cards).",
     lastVerifiedAt: "2026-08-22",

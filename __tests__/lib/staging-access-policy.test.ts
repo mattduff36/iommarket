@@ -65,6 +65,9 @@ describe("staging administrator access", () => {
     expect(isStagingEntryRequest("/preview", "GET", false)).toBe(false);
   });
   it("only exempts exact authenticated machine endpoints and never arbitrary cron or shared passwords", () => {
+    expect(isStagingMachineRequest("/api/stock-worker/control", "POST", false)).toBe(true);
+    expect(isStagingMachineRequest("/api/stock-worker/control", "GET", false)).toBe(false);
+    expect(isStagingMachineRequest("/api/stock-worker/control", "POST", true)).toBe(false);
     expect(isStagingMachineRequest("/api/cron/preview-mirror", "POST", false)).toBe(true);
     expect(isStagingMachineRequest("/api/cron/preview-mirror", "GET", false)).toBe(false);
     expect(isStagingMachineRequest("/api/cron/preview-mirror", "POST", true)).toBe(false);
@@ -73,5 +76,19 @@ describe("staging administrator access", () => {
     expect(isStagingMachineRequest("/api/webhooks/ripple-staging", "POST", true)).toBe(false);
     expect(isStagingMachineRequest("/api/cron/account-deletion", "GET", false)).toBe(false);
     expect(isStagingMachineRequest("/api/dev-auth", "POST", false)).toBe(false);
+  });
+});
+
+
+describe("desktop stock-worker machine routes", () => {
+  it.each(["/api/stock-worker", "/api/stock-worker/jobs"])("allows only exact self-authenticating POST %s without a server action", path => {
+    expect(isStagingMachineRequest(path, "POST", false)).toBe(true);
+    for (const method of ["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]) {
+      expect(isStagingMachineRequest(path, method, false)).toBe(false);
+    }
+    expect(isStagingMachineRequest(path, "POST", true)).toBe(false);
+  });
+  it.each(["/api/stock-worker/admin", "/api/stock-worker/jobs/extra", "/api/stock-worker/jobs/", "/api/stock-workers", "/admin/stock-worker", "/api/"])("does not exempt neighbouring route %s", path => {
+    expect(isStagingMachineRequest(path, "POST", false)).toBe(false);
   });
 });

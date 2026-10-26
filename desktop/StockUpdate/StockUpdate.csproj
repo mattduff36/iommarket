@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\private\stock-update-desktop-build\obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)..\..\private\stock-update-desktop-build\bin\</BaseOutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.1.7</Version>
+    <AssemblyVersion>1.1.7.0</AssemblyVersion>
+    <FileVersion>1.1.7.0</FileVersion>
+    <Product>iTrader Stock Update</Product>
+    <AssemblyName>StockUpdate</AssemblyName>
+    <RootNamespace>StockUpdate</RootNamespace>
+    <ApplicationIcon>..\..\app\favicon.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <ItemGroup>
+    <EmbeddedResource Include="update-public-key.txt" LogicalName="StockUpdate.update-public-key.pem" />
+  </ItemGroup>
+</Project>

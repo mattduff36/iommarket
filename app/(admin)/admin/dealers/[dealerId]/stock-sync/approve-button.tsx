@@ -28,7 +28,7 @@ export function ApproveStockReportButton({
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div data-stock-review-editing={isPending ? "true" : undefined} className="flex flex-wrap gap-2">
       <button
         type="button"
         className="rounded-md bg-neon-blue-500 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
@@ -45,6 +45,7 @@ export function ApproveStockReportButton({
       >
         Reject
       </button>
+      {isPending ? <p role="status" className="w-full text-sm text-text-secondary">Updating review…</p> : null}
       {error ? (
         <p className="w-full text-sm text-text-error" role="alert">
           {error}

@@ -275,6 +275,7 @@ function newVehicleAction(
       patch,
     };
   }
+  if (vehicle.availability === "sold") return { action: blocked("source-sold"), patch };
   if (!vehicle.importable || !vehicle.title || !vehicle.description || !vehicle.categorySlug) {
     return { action: blocked(vehicle.skipReason ?? "not-importable"), patch };
   }

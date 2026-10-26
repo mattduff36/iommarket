@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { getImgProps } from "next/dist/shared/lib/get-img-props";
-import { imageConfigDefault, type ImageConfigComplete } from "next/dist/shared/lib/image-config";
+import { imageConfigDefault, prepareImageConfig, type PreparedImageConfig } from "next/dist/shared/lib/image-config";
 import type { ListingPhotoFrame } from "@/lib/images/constraints";
 import {
   LISTING_PHOTO_BLUR_WIDTH,
@@ -54,7 +54,7 @@ export function deliveryWidthsForPhoto(
 
 export function providerListingPhotoConfig(
   widths: readonly number[],
-): ImageConfigComplete {
+): PreparedImageConfig {
   const imageSizes = widths.filter((width) => width < 640);
   const deviceSizes = widths.filter((width) => width >= 640);
   const safeDeviceSizes = deviceSizes.length > 0
@@ -63,12 +63,12 @@ export function providerListingPhotoConfig(
   const safeImageSizes = deviceSizes.length > 0
     ? imageSizes
     : widths.filter((width) => width !== safeDeviceSizes[0]);
-  return {
+  return prepareImageConfig({
     ...imageConfigDefault,
     deviceSizes: [...safeDeviceSizes],
     imageSizes: [...safeImageSizes],
     qualities: [...(imageConfigDefault.qualities ?? [75])],
-  };
+  });
 }
 
 const PROP_ORDER = [

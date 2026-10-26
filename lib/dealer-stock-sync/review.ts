@@ -1,5 +1,12 @@
 import type { PlanAction } from "./types";
 
+/** Sold identities remain in plans for absence safety, but never in the review queue. */
+export function isSoldStockReviewAction(action: PlanAction): boolean {
+  return action.review?.availability === "sold" ||
+    Boolean(action.review?.flags.includes("sold-exclude-from-live-import")) ||
+    (action.kind === "blocked" && ["sold", "source-sold", "sold-preserved", "sold-exclude-from-live-import"].includes(action.reason));
+}
+
 export interface ReviewSections {
   created: PlanAction[];
   changed: PlanAction[];
@@ -35,6 +42,7 @@ export function actionLabel(action: PlanAction) {
 const reasons: Record<string, string> = {
   "identity-uncertain": "Some website vehicle references were missing or conflicting. Existing listings are protected.",
   "source-failed": "One or more website sections could not be checked.",
+  "submission-invalid": "The worker returned data that could not be accepted. Update the app and retry; existing listings are protected.",
   "pagination-uncertain": "The website did not confirm that every stock page was checked.",
   "detail-uncertain": "Some vehicle details could not be checked.",
   "partial-inventory": "Fewer vehicles were returned than the website advertises.",

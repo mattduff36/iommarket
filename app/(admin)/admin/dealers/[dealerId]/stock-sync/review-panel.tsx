@@ -2,22 +2,13 @@ import Link from "@/components/navigation/link";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
-import { actionLabel, stockSyncReason, stockSyncStatus } from "@/lib/dealer-stock-sync/review";
+import { actionLabel, stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import { ApproveStockReportButton } from "./approve-button";
 import { StockReviewEditButton } from "./review-edit-button";
 
 function changesFor(action: PlanAction) {
   if (action.kind !== "update" && action.kind !== "conflict" && action.kind !== "create") return [];
   return action.changes;
-}
-
-function isSold(action: PlanAction) {
-  const review = action.review;
-  return action.kind === "blocked" && (
-    action.reason === "sold-exclude-from-live-import" ||
-    review?.availability === "sold" ||
-    Boolean(review?.flags.includes("sold-exclude-from-live-import"))
-  );
 }
 
 function safeHttps(url: string | null | undefined) {
@@ -128,16 +119,15 @@ export function StockSyncReviewPanel(input: {
   failureReason: string | null;
   actions: PlanAction[];
 }) {
-  const sold = input.actions.filter(isSold);
-  const actionable = input.actions.filter((action) => action.kind === "create" || action.kind === "update");
-  const blocked = input.actions.filter((action) =>
-    (action.kind === "blocked" || action.kind === "conflict") && !isSold(action));
-  const missing = input.actions.filter((action) => action.kind === "missing_once");
-  const unpublish = input.actions.filter((action) => action.kind === "unpublish");
-  const summary = input.actions.find((action) => action.review)?.review ?? null;
+  const visible = input.actions.filter(action => !isSoldStockReviewAction(action));
+  const actionable = visible.filter((action) => action.kind === "create" || action.kind === "update");
+  const blocked = visible.filter((action) =>
+    (action.kind === "blocked" || action.kind === "conflict"));
+  const missing = visible.filter((action) => action.kind === "missing_once");
+  const unpublish = visible.filter((action) => action.kind === "unpublish");
+  const summary = visible.find((action) => action.review)?.review ?? null;
   const groups = [
     ["Eligible additions and changes", [...actionable]],
-    ["Sold excluded", sold],
     ["Blocked", blocked],
     ["Missing once", missing],
     ["Proposed unpublish", unpublish],
@@ -146,10 +136,10 @@ export function StockSyncReviewPanel(input: {
     <section className="space-y-4">
       <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>
       <p className="text-sm text-text-secondary">
-        Status: {stockSyncStatus(input.status)}. {actionable.length} actionable, {blocked.length} blocked, {sold.length} sold excluded.
+        Status: {stockSyncStatus(input.status)}. {actionable.length} actionable, {blocked.length} blocked.
         Approving queues processing. It does not publish listings immediately.
       </p>
-      {summary ? (
+      {summary && Number.isFinite(Date.parse(summary.capturedAt)) ? (
         <div className="rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
           <p>Saved scan captured {new Date(summary.capturedAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}.</p>
           {summary.coverageWarning ? <p role="status">{summary.coverageWarning}</p> : null}
@@ -174,7 +164,7 @@ export function StockSyncReviewPanel(input: {
                   action={action}
                   reportId={input.reportId}
                   fingerprint={input.fingerprint}
-                  allowEdit={input.status === "PENDING_REVIEW" && title !== "Sold excluded"}
+                  allowEdit={input.status === "PENDING_REVIEW"}
                 />
               ))}
             </ul>

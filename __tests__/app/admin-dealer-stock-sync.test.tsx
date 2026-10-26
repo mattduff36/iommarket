@@ -71,3 +71,16 @@ describe("stock sync review", () => {
     expect(screen.getByRole("button", { name: "Approve exact plan" })).toBeInTheDocument();
   });
 });
+
+it("shows live photo/spec evidence and hides every sold row", () => {
+  const review = { displayTitle: "Available Focus", fuel: "Petrol", transmission: "Manual", flags: [], pricePence: 100000, mileage: 12000, year: 2020, categorySlug: "car" as const, sourceUrl: "https://dealer.example/focus", safePhotoUrls: ["https://dealer.example/focus.jpg"], availability: "available" as const, provenance: [], sourceHash: "hash", capturedAt: "2026-10-22T19:00:00Z", coverageWarning: null, capacityWarning: null };
+  const visible = { ...actions[0]!, displayTitle: "Available Focus", review };
+  const sold: PlanAction[] = ["sold", "source-sold", "sold-preserved", "sold-exclude-from-live-import"].map(reason => ({ kind: "blocked", sourceIdentityKey: reason, listingId: null, reason, section: "new", displayTitle: "Hidden sold vehicle" }));
+  render(<StockSyncReviewPanel reportId="r" status="PENDING_REVIEW" fingerprint="f" failureReason={null} actions={[visible, ...sold]} />);
+  expect(screen.getByRole("img", { name: "Available Focus" })).toHaveAttribute("src", "https://dealer.example/focus.jpg");
+  expect(screen.getByText(/Petrol.*Manual/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Source listing" })).toHaveAttribute("href", review.sourceUrl);
+  expect(screen.queryByText(/Hidden sold vehicle/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Sold excluded" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument();
+});

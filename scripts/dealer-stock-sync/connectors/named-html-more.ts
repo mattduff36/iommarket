@@ -45,7 +45,36 @@ function firstVehicleMiles(visible: string) {
   return unique.length === 1 ? unique[0] : null;
 }
 
+function fuelFromEngine(value: string) {
+  const fuel = decodeListingText(value).toLowerCase();
+  const petrol = /\b(?:petrol|gasoline)\b/.test(fuel);
+  const diesel = /\bdiesel\b/.test(fuel);
+  const electric = /\belectric\b/.test(fuel);
+  if (petrol && diesel) return null;
+  if (/\bhybrid\b/.test(fuel)) {
+    if (!petrol && !diesel) return null;
+    return (diesel ? "Diesel" : "Petrol") + (/\bplug[ -]?in\b/.test(fuel) ? " Plug-in Hybrid" : " Hybrid");
+  }
+  if (electric && (petrol || diesel)) return null;
+  return petrol ? "Petrol" : diesel ? "Diesel" : electric ? "Electric" : null;
+}
+
+export function extractDwDetailImages(html: string, origin: string) {
+  const images: string[] = [];
+  for (const match of html.matchAll(/src=["'](images\/carpix\/details\/slider_[^"']+\.(?:jpe?g|png|webp))["']/gi)) {
+    const src = match[1];
+    if (!src) continue;
+    try {
+      images.push(new URL(src, `${origin}/`).href);
+    } catch {
+      // Ignore a malformed gallery path and keep the other observed slides.
+    }
+  }
+  return [...new Set(images)];
+}
+
 export function extractDetailSpecs(html: string, detailUrl?: string | null) {
+  const engineField = html.match(/<(li|div)\b[^>]*class=["']car_engine["'][^>]*>([\s\S]*?)<\/\1>/i)?.[2];
   const visible = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");
   const decodedVisible = decodeListingText(visible);
   const mileageStrong = html.match(/class="car_mileage"[\s\S]{0,160}?<strong[^>]*>\s*([\d,]+)/i)?.[1];
@@ -95,7 +124,7 @@ export function extractDetailSpecs(html: string, detailUrl?: string | null) {
       decodeListingText(html.match(/\b(?:VRM|Reg(?:istration)?)\b[\s\S]{0,80}>([A-Z0-9 ]{5,10})</i)?.[1] ?? ""),
     ),
     fuel:
-      decodeListingText(html.match(/class="car_engine"[\s\S]{0,200}?<strong[^>]*>([^<]+)/i)?.[1] ?? "") ||
+      fuelFromEngine(engineField?.match(/<strong[^>]*>([^<]+)/i)?.[1] ?? "") ||
       decodeListingText(html.match(/class=['"]detail fuel['"][\s\S]{0,80}?<\/i>\s*([^<]+)/i)?.[1] ?? "") ||
       null,
     transmission:
@@ -243,13 +272,16 @@ export function extractDealerWebsitesCards(html: string, origin: string) {
     if (!parsed.make || !parsed.model) continue;
     seen.add(href);
     const derivative = decodeListingText(chunk.match(/class="derivative[^"]*">([\s\S]*?)<\/span>/i)?.[1] ?? "");
+    const priceText = decodeListingText(chunk.match(/class="totalPrice[^"]*">([\s\S]*?)<\/span>/i)?.[1] ?? "");
     cards.push({
       url: resolveMaybeUrl(href, origin),
       sourceVehicleId: href.split("/").filter(Boolean).at(-1),
       ...parsed,
       derivative,
       year: parsed.year ?? yearFrom(derivative),
-      price: priceFrom(chunk),
+      price: priceFrom(priceText),
+      availability: /\bsold\b/i.test(priceText) ? "sold" : /\breserved\b/i.test(priceText) ? "reserved" : "available",
+      isPoa: /\bPOA\b|price on application/i.test(priceText),
       mileage: milesFrom(chunk.match(/class="r25">([^<]*Miles)/i)?.[1] ?? ""),
     });
   }
@@ -293,6 +325,13 @@ export function extractBettridgeMotorCards(html: string, origin: string) {
 
 export function extractClickDealerListings(html: string, origin: string) {
   if (!html.includes("results-spec__label") || !/listing[^"']*veh-/i.test(html)) return [];
+  // The sales heading also contains derivatives and sometimes whole paragraphs.
+  // Use the site's model filter data as identity evidence, never execute its JS.
+  const modelData = html.match(/\bmodelItems\s*=\s*\[([\s\S]*?)\]\s*;?\s*(?:function|var|let|const|<\/script>)/)?.[1] ?? "";
+  const models = [...modelData.matchAll(/\[\s*\d+\s*,\s*\d+\s*,\s*'([^'\r\n]+)'\s*\]/g)]
+    .map(match => decodeListingText(match[1]!.replace(/\(\d+\)$/, "")))
+    .filter(model => model.length > 0 && model.length <= 80)
+    .sort((a, b) => b.length - a.length);
   const chunks = html.split(/class="listing[^"]*veh-/i).slice(1);
   return chunks.flatMap((chunk) => {
     const href = chunk.match(/href="(\/used-[^"#]+)"/i)?.[1];
@@ -301,6 +340,9 @@ export function extractClickDealerListings(html: string, origin: string) {
       decodeListingText(chunk.match(/title="((?:20|19)\d{2} [^"]+)"/i)?.[1] ?? "");
     const parsed = parseYearMakeModel(title.split(" - ")[0] ?? title);
     if (!parsed.make || !parsed.model) return [];
+    const model = models.find(candidate => parsed.model.toLowerCase() === candidate.toLowerCase() ||
+      parsed.model.toLowerCase().startsWith(candidate.toLowerCase() + " "));
+    const derivative = model ? parsed.model.slice(model.length).trim() : "";
     const spec = (label: string) =>
       decodeListingText(
         chunk.match(new RegExp(`results-spec__label">${label}</span>\\s*<span class="results-spec__stat">([^<]+)`, "i"))?.[1] ??
@@ -311,6 +353,7 @@ export function extractClickDealerListings(html: string, origin: string) {
         url: resolveMaybeUrl(href ?? null, origin),
         sourceVehicleId: href?.split("-").at(-1) ?? chunk.match(/^(\d+)/)?.[1],
         ...parsed,
+        ...(model ? { model, derivative: derivative.length <= 120 ? derivative || null : null, description: title } : {}),
         year: parsed.year ?? yearFrom(spec("Year")),
         mileage: milesFrom(spec("Mileage")) ?? milesFrom(chunk),
         fuel: spec("Fuel Type") || null,

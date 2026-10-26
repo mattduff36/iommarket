@@ -1,4 +1,4 @@
-import type { uploadPreviewPackImages } from "../../lib/preview-packs/upload";
+import type { uploadPreviewPackImages, PreviewUploadedImage } from "../../lib/preview-packs/upload";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { assertWorkerEnabled } from "../../lib/dealer-stock-sync/worker-guard";
@@ -14,14 +14,44 @@ import { getDealerStockRegistryOption } from "../../lib/dealer-stock-sync/regist
 import { db } from "../../lib/db";
 import { getDealer } from "./registry";
 import { takeDownManagedListing } from "./take-down";
+import { liveReviewEvidence } from "./live-review-evidence";
+import { withReviewEvidence } from "./reviewed-source";
 import { inventoryFromReconciled } from "./to-inventory";
 import type { PipelineResult } from "./types";
 
 const LEASE_MS = 15 * 60 * 1000;
 
+/** CLI calls omit this and keep assertWorkerEnabled. The jobs API passes a closed-over environment check. */
+export type DealerStockSyncGuard = () => void;
+/** Server-owned cleanup policy for images already persisted by the step API. */
+export type DealerStockImageCleanup = (images: PreviewUploadedImage[]) => Promise<void>;
+
 function safeError(error: unknown) {
   if (error instanceof Error && error.name === "StalePlanError") return error.message;
   return "Stock sync job failed.";
+}
+
+function failedScrapeReportId(result: unknown) {
+  if (!result || typeof result !== "object" || (result as { status?: unknown }).status !== "FAILED") return null;
+  const id = (result as { id?: unknown }).id;
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+    throw new Error("Stock sync job failed.");
+  }
+  return id;
+}
+
+function terminalJobData(result: unknown, finishedAt: Date) {
+  const reportId = failedScrapeReportId(result);
+  if (!reportId) return { status: "SUCCEEDED" as const, finishedAt, leaseExpiresAt: null, error: null };
+  return { status: "FAILED" as const, finishedAt, leaseExpiresAt: null, error: "Stock sync job failed.", reportId };
+}
+
+function scrapeDiagnostics(result: PipelineResult) {
+  return result.sourceResults.map((source) => ({
+    sourceKey: source.sourceKey,
+    status: source.status,
+    count: source.vehicles.length,
+  }));
 }
 
 function completenessFrom(result: PipelineResult): SourceCompleteness[] {
@@ -38,7 +68,10 @@ function completenessFrom(result: PipelineResult): SourceCompleteness[] {
 async function scrapeJob(
   job: LeasedJob,
   scrape: (registryKey: string) => Promise<PipelineResult>,
+  guard: DealerStockSyncGuard = assertWorkerEnabled,
 ) {
+  guard();
+  const fenced = <T>(work: (tx: Prisma.TransactionClient) => Promise<T>) => withLease(job, work, guard);
   const binding = await db.dealerStockSourceBinding.findUnique({
     where: { id: job.bindingId },
     select: {
@@ -62,7 +95,7 @@ async function scrapeJob(
     deletedAt: binding.dealer.user.deletedAt,
   });
   if (block || !getDealerStockRegistryOption(binding.registryKey)) {
-    await withLease(job, (tx) =>
+    await fenced((tx) =>
       persistFailedScrape(tx, {
         bindingId: job.bindingId,
         dealerId: job.dealerId,
@@ -75,7 +108,7 @@ async function scrapeJob(
   }
   const dealer = getDealer(binding.registryKey);
   if (dealer.status !== "confirmed" || !dealer.sources.some((source) => source.startUrl)) {
-    await withLease(job, (tx) =>
+    await fenced((tx) =>
       persistFailedScrape(tx, {
         bindingId: job.bindingId,
         dealerId: job.dealerId,
@@ -88,7 +121,7 @@ async function scrapeJob(
   }
   const result = await scrape(binding.registryKey).catch(() => null);
   if (!result) {
-    await withLease(job, tx => persistFailedScrape(tx, { bindingId: job.bindingId, dealerId: job.dealerId,
+    await fenced(tx => persistFailedScrape(tx, { bindingId: job.bindingId, dealerId: job.dealerId,
       scrapeRunId: job.id, jobId: job.id, failureReason: "source-failed" }));
     return;
   }
@@ -98,16 +131,16 @@ async function scrapeJob(
     result.reconciled.some(vehicle => vehicle.identityConflict);
   const failure = scrapeFailureReason(completenessFrom(result)) ?? (uncertainIdentity ? "identity-uncertain" : null);
   if (failure) {
-    await withLease(job, async tx => {
+    await fenced(async tx => {
       const seen = keys.filter((key): key is string => Boolean(key));
       await tx.dealerStockSourceIdentity.updateMany({ where: { bindingId: job.bindingId, sourceIdentityKey: { in: seen } },
         data: { absenceCount: 0, lastAbsenceRunId: null, lastSeenRunId: job.id } });
       return persistFailedScrape(tx, { bindingId: job.bindingId, dealerId: job.dealerId,
-        scrapeRunId: job.id, failureReason: failure, jobId: job.id });
+        scrapeRunId: job.id, failureReason: failure, jobId: job.id, diagnostics: scrapeDiagnostics(result) });
     });
     return;
   }
-  await withLease(job, async (tx) => {
+  await fenced(async (tx) => {
     const current = await loadStockSyncSnapshot(job.dealerId, [], tx);
     if (!current || current.binding.registryKey !== binding.registryKey || !current.binding.verifiedAt ||
       dealerSyncBlockReason({ ...current.dealer, role: current.dealer.role as "USER" | "DEALER" | "ADMIN" })) throw new Error("Binding changed during check");
@@ -125,6 +158,18 @@ async function scrapeJob(
       if (index === -1) identities.push(patch);
       else identities[index] = patch;
     }
+    const evidence = liveReviewEvidence({
+      reconciled: result.reconciled,
+      capturedAt: result.scrapeFinishedAt,
+    });
+    const actions = withReviewEvidence(plan.actions, evidence, null).map((action) => {
+      if (action.displayTitle?.trim()) return action;
+      return {
+        ...action,
+        displayTitle: inventory.find((vehicle) => vehicle.sourceIdentityKey === action.sourceIdentityKey)?.title ??
+          current.listings.find((listing) => listing.id === action.listingId)?.title ?? "Vehicle requiring review",
+      };
+    });
     await persistCompleteScrape(tx, {
       bindingId: job.bindingId,
       dealerId: job.dealerId,
@@ -132,41 +177,66 @@ async function scrapeJob(
       jobId: job.id,
       patches: plan.patches,
       inventoryCount: plan.inventoryCount,
-      snapshot: { ...current, identities, actions: plan.actions.map(action => ({ ...action,
-        displayTitle: inventory.find(vehicle => vehicle.sourceIdentityKey === action.sourceIdentityKey)?.title ??
-          current.listings.find(listing => listing.id === action.listingId)?.title ?? "Vehicle requiring review",
-      })) },
+      snapshot: { ...current, identities, actions },
     });
   });
 }
 
 type LeasedJob = Awaited<ReturnType<typeof db.dealerStockSyncJob.findUniqueOrThrow>>;
 
-async function withLease<T>(job: LeasedJob, work: (tx: Prisma.TransactionClient) => Promise<T>) {
-  assertWorkerEnabled();
-  return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT "id" FROM "DealerStockSourceBinding" WHERE "id" = ${job.bindingId} FOR UPDATE`;
-    const binding = await tx.dealerStockSourceBinding.findUnique({ where: { id: job.bindingId } });
-    if (!binding || binding.dealerId !== job.dealerId || !binding.verifiedAt ||
-      (job.kind === "SCRAPE" && binding.registryKey !== (job.payload as { registryKey?: string }).registryKey)) {
-      throw new Error("Source binding changed while the job was running");
-    }
-    const fence = await tx.dealerStockSyncJob.updateMany({
-      where: { id: job.id, status: "LEASED", leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: new Date() } },
-      data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
+async function withLease<T>(
+  job: LeasedJob,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+  guard: DealerStockSyncGuard = assertWorkerEnabled,
+  timeoutMs: 30_000 | 180_000 = 30_000,
+) {
+  guard();
+  const startedAt = Date.now();
+  try {
+    const result = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "DealerStockSourceBinding" WHERE "id" = ${job.bindingId} FOR UPDATE`;
+      const binding = await tx.dealerStockSourceBinding.findUnique({ where: { id: job.bindingId } });
+      if (!binding || binding.dealerId !== job.dealerId || !binding.verifiedAt ||
+        (job.kind === "SCRAPE" && binding.registryKey !== (job.payload as { registryKey?: string }).registryKey)) {
+        throw new Error("Source binding changed while the job was running");
+      }
+      const fence = await tx.dealerStockSyncJob.updateMany({
+        where: { id: job.id, status: "LEASED", leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: new Date() } },
+        data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
+      });
+      if (fence.count !== 1) throw new Error("Lease lost");
+      await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
+      const result = await work(tx);
+      await tx.dealerStockSyncJob.update({
+        where: { id: job.id },
+        data: terminalJobData(result, new Date()),
+      });
+      return result;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: timeoutMs });
+    if (job.kind === "APPLY") console.info("Stock sync atomic transaction completed.", {
+      jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs,
     });
-    if (fence.count !== 1) throw new Error("Lease lost");
-    await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
-    await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
-    const result = await work(tx);
-    await tx.dealerStockSyncJob.update({ where: { id: job.id }, data: {
-      status: "SUCCEEDED", finishedAt: new Date(), leaseExpiresAt: null, error: null,
-    }});
     return result;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
+  } catch (error) {
+    const failureCode = error instanceof Prisma.PrismaClientKnownRequestError &&
+      ["P2028", "P2034", "P2002"].includes(error.code) ? error.code :
+      error instanceof Error && error.name === "StalePlanError" ? "STALE_PLAN" : "UNKNOWN";
+    console.error("Stock sync atomic transaction failed.", {
+      jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs, failureCode,
+    });
+    throw error;
+  }
 }
 
-async function applyJob(job: LeasedJob, upload?: typeof uploadPreviewPackImages) {
+async function applyJob(
+  job: LeasedJob,
+  upload?: typeof uploadPreviewPackImages,
+  guard: DealerStockSyncGuard = assertWorkerEnabled,
+  cleanupPreparedImages?: DealerStockImageCleanup,
+  transactionTimeoutMs: 30_000 | 180_000 = 30_000,
+) {
+  guard();
   if (!job.reportId) throw new Error("Missing report");
   const report = await db.dealerStockSyncReport.findUnique({ where: { id: job.reportId } });
   if (!report?.approvedById || report.status !== "APPROVED" || report.bindingId !== job.bindingId || report.dealerId !== job.dealerId) throw new Error("Missing approval");
@@ -176,10 +246,14 @@ async function applyJob(job: LeasedJob, upload?: typeof uploadPreviewPackImages)
   const snapshot = await loadStockSyncSnapshot(job.dealerId, actions);
   if (!snapshot || fingerprintSnapshot(snapshot) !== report.fingerprint) throw new Error("Stale stock sync plan");
   const { prepareStockImages, cleanupStockImages } = await import("./stock-images");
-  const staged = await prepareStockImages(snapshot, job.id, upload);
+  const cleanup = cleanupPreparedImages ?? cleanupStockImages;
+  const staged = await prepareStockImages(snapshot, job.id, upload, cleanup);
   try {
     await withLease(job, async (tx) => {
       const freshReport = await tx.dealerStockSyncReport.findUniqueOrThrow({ where: { id: report.id } });
+      if (freshReport.status !== "APPROVED" || freshReport.approvedById !== report.approvedById ||
+          freshReport.fingerprint !== report.fingerprint || freshReport.bindingId !== job.bindingId ||
+          freshReport.dealerId !== job.dealerId) throw new Error("Approval changed while photos were staged");
       const actor = await tx.user.findUnique({ where: { id: report.approvedById! }, select: { role: true, disabledAt: true, deletedAt: true } });
       if (!actor || actor.role !== "ADMIN" || actor.disabledAt || actor.deletedAt) throw new Error("Approver is unavailable");
       const fresh = await loadStockSyncSnapshot(job.dealerId, actions, tx);
@@ -191,15 +265,19 @@ async function applyJob(job: LeasedJob, upload?: typeof uploadPreviewPackImages)
         actorId: report.approvedById!, jobId: job.id, now: new Date(), stagedImages: staged.images,
         takeDown: (request) => takeDownManagedListing(tx, request),
       });
-    });
+    }, guard, transactionTimeoutMs);
   } catch (error) {
-    await cleanupStockImages(staged.uploaded);
+    await cleanup(staged.uploaded);
     throw error;
   }
 }
 
-export async function leaseOneJob(owner = randomUUID(), now = new Date()) {
-  assertWorkerEnabled();
+export async function leaseOneJob(
+  owner: string = randomUUID(),
+  now = new Date(),
+  guard: DealerStockSyncGuard = assertWorkerEnabled,
+) {
+  guard();
   const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(LEASE_JOB_SQL, owner, new Date(now.getTime() + LEASE_MS));
   return rows[0] ? { id: rows[0].id, owner } : null;
 }
@@ -208,8 +286,11 @@ export async function runLeasedJob(
   lease: { id: string; owner: string },
   scrape: (registryKey: string) => Promise<PipelineResult>,
   upload?: typeof uploadPreviewPackImages,
+  guard: DealerStockSyncGuard = assertWorkerEnabled,
+  cleanupPreparedImages?: DealerStockImageCleanup,
+  execution: { applyTransactionTimeoutMs?: 180_000 } = {},
 ) {
-  assertWorkerEnabled();
+  guard();
   const job = await db.dealerStockSyncJob.findUnique({ where: { id: lease.id } });
   if (!job || job.status !== "LEASED" || job.leaseOwner !== lease.owner || !job.leaseExpiresAt || job.leaseExpiresAt <= new Date()) return;
   const heartbeat = setInterval(() => {
@@ -218,10 +299,10 @@ export async function runLeasedJob(
     }, data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) } }).catch(() => undefined);
   }, 60000);
   try {
-    if (job.kind === "SCRAPE") await scrapeJob(job, scrape);
-    if (job.kind === "APPLY") await applyJob(job, upload);
+    if (job.kind === "SCRAPE") await scrapeJob(job, scrape, guard);
+    if (job.kind === "APPLY") await applyJob(job, upload, guard, cleanupPreparedImages, execution.applyTransactionTimeoutMs);
   } catch (error) {
-    await db.dealerStockSyncJob.updateMany({ where: { id: job.id, status: "LEASED", leaseOwner: lease.owner },
+    await db.dealerStockSyncJob.updateMany({ where: { id: job.id, status: "LEASED", leaseOwner: lease.owner, leaseExpiresAt: { gt: new Date() } },
       data: { status: "FAILED", finishedAt: new Date(), leaseExpiresAt: null, error: safeError(error) },
     });
   } finally { clearInterval(heartbeat); }

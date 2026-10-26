@@ -20,6 +20,7 @@ export type PinnedImageTransport = (input: {
   family: 4 | 6;
   maxBytes: number;
   timeoutMs: number;
+  signal?: AbortSignal;
 }) => Promise<SafeRemoteImageDownload>;
 
 export function detectSafeRasterContentType(bytes: Buffer) {
@@ -73,19 +74,20 @@ function publicIpv4(address: string) {
 
 export function isPublicIpAddress(raw: string) {
   const address = raw.toLowerCase().replace(/^\[|\]$/g, "");
-  if (address.startsWith("::ffff:")) return isPublicIpAddress(address.slice(7));
   const family = isIP(address);
   if (family === 4) return publicIpv4(address);
-  if (family !== 6) return false;
-  return !(
-    address === "::" ||
-    address === "::1" ||
-    address.startsWith("fc") ||
-    address.startsWith("fd") ||
-    /^fe[89ab]/u.test(address) ||
-    address.startsWith("ff") ||
-    address.startsWith("2001:db8")
-  );
+  if (family !== 6 || address.includes("%")) return false;
+  // Only native global-unicast space. Exclude mapped/translation/tunnel,
+  // local, multicast and special-use ranges (IANA IPv6 special registry).
+  const normalized = new URL("https://[" + address + "]/").hostname.slice(1, -1);
+  const parts = normalized.split(":");
+  const first = Number.parseInt(parts[0] ?? "", 16);
+  const second = Number.parseInt(parts[1] || "0", 16);
+  return first >= 0x2000 && first <= 0x3fff &&
+    !(first === 0x2001 && second < 0x0200) &&
+    !(first === 0x2001 && second === 0x0db8) &&
+    first !== 0x2002 &&
+    !(first === 0x3fff && second <= 0x0fff);
 }
 
 export function assertSafeRemoteImageUrl(raw: string) {
@@ -125,13 +127,22 @@ export async function resolvePublicImageAddresses(
 function pinnedHttpsDownload(input: Parameters<PinnedImageTransport>[0]) {
   return new Promise<SafeRemoteImageDownload>((resolve, reject) => {
     let settled = false;
+    let request: ReturnType<typeof https.get> | undefined = undefined;
+    const aborted = () => finish(new Error("Remote image download timed out."));
     const finish = (error?: Error, value?: SafeRemoteImageDownload) => {
       if (settled) return;
       settled = true;
-      if (error) reject(error);
-      else if (value) resolve(value);
+      input.signal?.removeEventListener("abort", aborted);
+      if (error) {
+        request?.destroy();
+        reject(error);
+      } else if (value) resolve(value);
     };
-    const request = https.get(
+    if (input.signal?.aborted) {
+      aborted();
+      return;
+    }
+    request = https.get(
       input.url,
       {
         family: input.family,
@@ -147,26 +158,24 @@ function pinnedHttpsDownload(input: Parameters<PinnedImageTransport>[0]) {
       (response) => {
         const status = response.statusCode ?? 500;
         if (status < 200 || status >= 300) {
-          response.resume();
           finish(new Error(
             status >= 300 && status < 400
               ? "Remote image redirects are not allowed."
-              : `Remote image download failed: ${status}`,
+              : "Remote image download failed.",
           ));
           return;
         }
         const declared = Number(response.headers["content-length"] ?? 0);
         if (Number.isFinite(declared) && declared > input.maxBytes) {
-          response.resume();
           finish(new Error("Remote image exceeds the maximum file size."));
           return;
         }
         const chunks: Buffer[] = [];
         let size = 0;
         response.on("data", (chunk: Buffer) => {
+          if (settled) return;
           size += chunk.length;
           if (size > input.maxBytes) {
-            request.destroy();
             finish(new Error("Remote image exceeds the maximum file size."));
             return;
           }
@@ -176,14 +185,14 @@ function pinnedHttpsDownload(input: Parameters<PinnedImageTransport>[0]) {
           bytes: Buffer.concat(chunks),
           contentType: response.headers["content-type"] ?? null,
         }));
-        response.on("error", (error) => finish(error));
+        response.on("aborted", () => finish(new Error("Remote image download was incomplete.")));
+        response.on("error", () => finish(new Error("Remote image download failed.")));
       },
     );
-    request.setTimeout(input.timeoutMs, () => {
-      request.destroy();
-      finish(new Error("Remote image download timed out."));
-    });
-    request.on("error", (error) => finish(error));
+    request.setTimeout(input.timeoutMs, aborted);
+    request.on("error", () => finish(new Error("Remote image download failed.")));
+    input.signal?.addEventListener("abort", aborted, { once: true });
+    if (input.signal?.aborted) aborted();
   });
 }
 
@@ -195,18 +204,38 @@ export async function downloadSafeRemoteImage(input: {
   timeoutMs?: number;
 }) {
   const url = assertSafeRemoteImageUrl(input.url);
-  const addresses = await resolvePublicImageAddresses(url.hostname, input.lookupImpl);
-  const target = addresses[0];
-  if (!target) throw new Error("Remote image host did not resolve.");
-  const downloaded = await (input.transport ?? pinnedHttpsDownload)({
-    url,
-    address: target.address,
-    family: target.family,
-    maxBytes: input.maxBytes ?? IMAGE_CONSTRAINTS.maxFileSizeBytes,
-    timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new Error("Remote image timeout is invalid.");
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Remote image download timed out."));
+    }, timeoutMs);
   });
-  return {
-    bytes: downloaded.bytes,
-    contentType: detectSafeRasterContentType(downloaded.bytes),
+  const download = async () => {
+    const addresses = await resolvePublicImageAddresses(url.hostname, input.lookupImpl);
+    // A resolver may settle after the deadline. Never start a late connection.
+    if (controller.signal.aborted) throw new Error("Remote image download timed out.");
+    const target = addresses[0];
+    if (!target) throw new Error("Remote image host did not resolve.");
+    const downloaded = await (input.transport ?? pinnedHttpsDownload)({
+      url,
+      address: target.address,
+      family: target.family,
+      maxBytes: input.maxBytes ?? IMAGE_CONSTRAINTS.maxFileSizeBytes,
+      timeoutMs,
+      signal: controller.signal,
+    });
+    return {
+      bytes: downloaded.bytes,
+      contentType: detectSafeRasterContentType(downloaded.bytes),
+    };
   };
+  try {
+    return await Promise.race([download(), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

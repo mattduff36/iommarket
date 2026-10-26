@@ -1,6 +1,20 @@
 import { chromium, type Page } from "@playwright/test";
 import { extractDescriptionFromHtml, extractNetDirectorGalleryFromHtml } from "./html-media";
 import { sleep } from "./rate-limit";
+import { PublicReadStatusError, retryPublicRead } from "./public-read-retry";
+
+export async function gotoPublicPage(page: Page, url: string, allowInitialBlockedDocument = false) {
+  return retryPublicRead(async () => {
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+    // Some public sites return 403 for the initial document, then render their
+    // normal list after JavaScript settles. List extraction still fails closed
+    // if no real stock appears; detail requests require a successful response.
+    if (response && !response.ok() && !(allowInitialBlockedDocument && response.status() === 403)) {
+      throw new PublicReadStatusError(response.status());
+    }
+    return response;
+  });
+}
 
 export interface CapturedRequest {
   url: string;
@@ -55,7 +69,6 @@ export async function withPublicPage<T>(
   const browser = await chromium.launch({ headless: !headed });
   try {
     const browserContext = await browser.newContext({
-      userAgent: BROWSER_UA,
       locale: "en-GB",
       viewport: { width: 1440, height: 1100 },
     });
@@ -108,7 +121,7 @@ export async function withPublicPage<T>(
         );
       });
     }
-    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await gotoPublicPage(page, startUrl, true);
     await dismissCookies(page);
     if (options.waitForSelector) {
       await page.locator(options.waitForSelector).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
@@ -127,22 +140,29 @@ export async function capturePublicListRequest(
   startUrl: string,
   match: (request: CapturedRequest) => boolean,
 ) {
+  // NetDirector's public stock pages require the normal visible browser mode.
   return withPublicPage(startUrl, async (_page, captured) => {
+    for (let attempt = 0; attempt < 48; attempt += 1) {
+      const request = captured.find(match);
+      if (request) return request;
+      await sleep(250);
+    }
     return captured.find(match) ?? null;
-  });
+  }, { headed: true });
 }
 
 export async function fetchPageHtml(url: string, fetchImpl: typeof fetch = fetch) {
-  const response = await fetchImpl(url, {
-    headers: {
-      accept: "text/html,application/xhtml+xml",
-      "user-agent": BROWSER_UA,
-    },
+  return retryPublicRead(async () => {
+    const response = await fetchImpl(url, {
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": BROWSER_UA,
+      },
+    });
+    if (!response.ok) throw new PublicReadStatusError(response.status);
+    return response.text();
   });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`);
-  }
-  return response.text();
 }
 
 export async function fetchClassicVehicleDetail(detailUrl: string, fetchImpl: typeof fetch = fetch) {

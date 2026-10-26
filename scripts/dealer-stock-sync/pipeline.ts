@@ -3,6 +3,20 @@ import { sleep } from "./rate-limit";
 import { guardOceanScope, reconcileDealerVehicles, reconcileSourceCounts, successfulRawCount } from "./reconcile";
 import type { CanonicalVehicle, DealerRecord, PipelineResult, ProbeResult, SourceListResult } from "./types";
 
+export async function withSourceTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Timed out after 90s")), 90_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function cloneVehicle(vehicle: CanonicalVehicle): CanonicalVehicle {
   return {
     ...vehicle,
@@ -58,6 +72,20 @@ export async function probeDealer(dealer: DealerRecord): Promise<ProbeResult> {
   return connector.probe({ dealer, source });
 }
 
+function soldListCardWithSourceId(vehicle: CanonicalVehicle) {
+  return vehicle.availability === "sold" && Boolean(vehicle.sourceVehicleId?.trim());
+}
+
+function mergeListedDetails(listed: CanonicalVehicle[], enriched: CanonicalVehicle[]) {
+  let index = 0;
+  return listed.map((vehicle) => {
+    if (soldListCardWithSourceId(vehicle)) return vehicle;
+    const next = enriched[index];
+    index += 1;
+    return next ?? vehicle;
+  });
+}
+
 export async function runDealerPipeline(
   dealer: DealerRecord,
   options: { fetchImpl?: typeof fetch; delayMs?: number } = {},
@@ -70,18 +98,23 @@ export async function runDealerPipeline(
     const connector = getConnector(source.connectorKey);
     const context = { dealer, source, fetchImpl: options.fetchImpl, delayMs };
     try {
-      const listed = await Promise.race([
-        connector.fetchList(context),
-        sleep(90_000).then(() => {
-          throw new Error("Timed out after 90s");
-        }),
-      ]);
+      let listed = await withSourceTimeout(connector.fetchList(context));
+      // A rendered public list can briefly contain no stock while the site is
+      // loading. Retry only a completed, closed read, never an ongoing timeout.
+      for (let retry = 0; retry < 2 && listed.status === "failed" &&
+        listed.error === "No structured public stock records found"; retry++) {
+        await sleep(1_000 * (retry + 1));
+        listed = await withSourceTimeout(connector.fetchList(context));
+      }
       if (listed.status === "ok") {
-        const enriched = await connector.fetchDetails(context, listed.vehicles);
+        const needsDetails = listed.vehicles.filter((vehicle) => !soldListCardWithSourceId(vehicle));
+        const enriched = needsDetails.length === 0
+          ? { vehicles: [], detailMissing: 0 }
+          : await connector.fetchDetails(context, needsDetails);
         sourceResults.push({
           ...listed,
-          vehicles: enriched.vehicles,
-          detailMissing: enriched.detailMissing,
+          vehicles: mergeListedDetails(listed.vehicles, enriched.vehicles),
+          detailMissing: (enriched.detailMissing ?? 0) + Math.abs(needsDetails.length - enriched.vehicles.length),
         });
       } else {
         sourceResults.push(listed);

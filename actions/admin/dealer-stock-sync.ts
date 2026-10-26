@@ -19,6 +19,7 @@ import {
 const SAFE_ERROR = "Website stock sync could not be updated.";
 
 function paths(dealerId: string) {
+  revalidatePath("/admin/stock-reviews");
   revalidatePath("/admin/dealers");
   revalidatePath(`/admin/dealers/${dealerId}/stock-sync`);
 }

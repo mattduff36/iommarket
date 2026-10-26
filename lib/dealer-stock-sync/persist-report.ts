@@ -1,6 +1,21 @@
 import { fingerprintSnapshot, type FingerprintSnapshot } from "./fingerprint";
 import type { IdentityPatch, PlanAction } from "./types";
 
+const DIAGNOSTIC_STATUSES = new Set(["ok", "failed", "blocked_requires_feed", "no_public_stock", "skipped"]);
+
+function failedScrapePlan(diagnostics: readonly unknown[] | undefined) {
+  const safe: Array<{ sourceKey: string; status: string; count: number }> = [];
+  for (const item of diagnostics ?? []) {
+    if (safe.length >= 20 || !item || typeof item !== "object") continue;
+    const source = item as { sourceKey?: unknown; status?: unknown; count?: unknown };
+    if (typeof source.sourceKey !== "string" || !/^[a-z0-9-]{1,64}$/i.test(source.sourceKey)) continue;
+    if (typeof source.status !== "string" || !DIAGNOSTIC_STATUSES.has(source.status)) continue;
+    if (typeof source.count !== "number" || !Number.isSafeInteger(source.count) || source.count < 0 || source.count > 100_000) continue;
+    safe.push({ sourceKey: source.sourceKey, status: source.status, count: source.count });
+  }
+  return safe.length > 0 ? { actions: [], patches: [], diagnostics: safe } : { actions: [], patches: [] };
+}
+
 interface PersistClient {
   dealerStockSyncReport: {
     updateMany(args: { where: object; data: object }): Promise<{ count: number }>;
@@ -22,6 +37,7 @@ export async function persistFailedScrape(
     scrapeRunId: string;
     failureReason: string;
     jobId: string;
+    diagnostics?: readonly unknown[];
   },
 ) {
   await client.dealerStockSyncReport.updateMany({
@@ -35,7 +51,7 @@ export async function persistFailedScrape(
       scrapeRunId: input.scrapeRunId,
       status: "FAILED",
       fingerprint: input.scrapeRunId,
-      plan: { actions: [], patches: [] },
+      plan: failedScrapePlan(input.diagnostics),
       inventoryCount: 0,
       failureReason: input.failureReason,
     },
@@ -50,7 +66,10 @@ export async function persistFailedScrape(
       after: { failureReason: input.failureReason },
     },
   });
-  return report;
+  if (typeof report.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(report.id)) {
+    throw new Error("Stock sync job failed.");
+  }
+  return { id: report.id, status: "FAILED" as const };
 }
 
 export async function persistCompleteScrape(
@@ -71,11 +90,13 @@ export async function persistCompleteScrape(
     data: { status: "SUPERSEDED", supersededAt: new Date() },
   });
   for (const patch of input.patches) {
+    // The identity key is immutable; the restricted worker may update stock fields only.
+    const { sourceIdentityKey, ...mutableFields } = patch;
     await client.dealerStockSourceIdentity.upsert({
       where: {
         dealerId_sourceIdentityKey: {
           dealerId: input.dealerId,
-          sourceIdentityKey: patch.sourceIdentityKey,
+          sourceIdentityKey,
         },
       },
       create: {
@@ -83,7 +104,7 @@ export async function persistCompleteScrape(
         dealerId: input.dealerId,
         ...patch,
       },
-      update: patch,
+      update: mutableFields,
     });
   }
   const report = await client.dealerStockSyncReport.create({
