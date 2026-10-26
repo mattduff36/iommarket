@@ -153,3 +153,25 @@ it("does not start a replacement app instance after queueing", async () => {
   expect(command).not.toHaveBeenCalled();
   expect(hook.result.current.message).toMatch(/no longer connected/);
 });
+
+it("starts an already approved queued job without selecting or rescraping a dealer", async () => {
+  const initial = connected([device({ state: "stopped" })]);
+  dashboard.mockResolvedValue(initial);
+  render(<StockWorkerDashboard dealers={dealers} initial={initial}
+    jobs={[{ id: "approved", dealerName: "Beta", kind: "APPLY", status: "QUEUED", startedAt: null, reportStatus: "APPROVED" }]}
+    readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
+  expect(picker().getByRole("button", { name: "Start worker" })).toBeEnabled();
+  fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
+  await waitFor(() => expect(command).toHaveBeenCalledExactlyOnceWith({ deviceId: "dev_test", instanceId: "instance", action: "start" }));
+  expect(enqueue).not.toHaveBeenCalled();
+});
+
+it("does not enable queued work when the app is awaiting acknowledgement", () => {
+  const initial = connected([device({ pendingCommand: { action: "start" } })]);
+  dashboard.mockResolvedValue(initial);
+  render(<StockWorkerDashboard dealers={dealers} initial={initial}
+    jobs={[{ id: "approved", dealerName: "Beta", kind: "APPLY", status: "QUEUED", startedAt: null }]}
+    readyCount={0}><StockDealerPicker dealers={dealers} /></StockWorkerDashboard>);
+  screen.getAllByRole("button", { name: "Waiting for app…" }).forEach(button => expect(button).toBeDisabled());
+  expect(command).not.toHaveBeenCalled();
+});

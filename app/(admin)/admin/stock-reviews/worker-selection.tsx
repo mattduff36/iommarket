@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { enqueueDealerStockScrape } from "@/actions/admin/dealer-stock-sync";
 import type { StockWorkerControl } from "./worker-context";
 export type StockDealer = { id: string; name: string };
-export function useDealerSelection(dealers: StockDealer[], controls: StockWorkerControl) {
+export function useDealerSelection(dealers: StockDealer[], controls: StockWorkerControl, hasQueuedWork = false) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const eligible = selected.filter(id => dealers.some(dealer => dealer.id === id));
-  const canAct = controls.canCommand && (controls.running || eligible.length > 0);
+  const canAct = controls.canCommand && (controls.running || eligible.length > 0 || hasQueuedWork);
   function startOrStop() {
     if (!canAct) return;
     if (controls.running) { controls.command("stop"); return; }
@@ -31,7 +31,7 @@ export function useDealerSelection(dealers: StockDealer[], controls: StockWorker
           }
         }
         setSelected(current => current.filter(id => !queued.includes(id)));
-        if (!queued.length) { setMessage(`No dealer scans were queued. ${failures.join(" ")}`); return; }
+        if (!queued.length && !(hasQueuedWork && chosen.length === 0)) { setMessage(`No dealer scans were queued. ${failures.join(" ")}`); return; }
         const outcome = await controls.dispatch("start", target);
         const issue = outcome === "ok" ? "" : outcome === "uncertain"
           ? "Start outcome is uncertain. Check the worker before retrying."
