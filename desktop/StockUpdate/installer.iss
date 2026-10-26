@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.7"
+  #define AppVersion "1.1.8"
 #endif
 #ifndef OnlineInclude
   #define OnlineInclude AddBackslash(BuildRoot) + "online-dependencies.iss"
@@ -40,6 +40,8 @@ RestartApplications=no
 DisableProgramGroupPage=yes
 DisableDirPage=no
 UsePreviousAppDir=yes
+UsePreviousTasks=yes
+UsePreviousGroup=yes
 UninstallDisplayIcon={app}\StockUpdate.exe
 SetupIconFile=..\..\app\favicon.ico
 OutputDir={#SetupOutputDir}
@@ -76,6 +78,8 @@ Name: "{autoprograms}\iTrader\Uninstall Stock Update"; Filename: "{uninstallexe}
 [Run]
 Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"; Description: "Open iTrader Stock Update"; Flags: nowait postinstall skipifsilent
 
+Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"; Flags: nowait; Check: IsAppUpdate
+
 [UninstallDelete]
 ; App-owned encrypted sessions only. This is NOT server credential revocation.
 Type: filesandordirs; Name: "{localappdata}\iTrader\StockUpdate"
@@ -83,6 +87,11 @@ Type: filesandordirs; Name: "{localappdata}\iTrader\StockUpdate"
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+
+function IsAppUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATEAPP|0}') = '1';
+end;
 
 procedure InitializeWizard;
 begin
@@ -136,7 +145,7 @@ begin
   DownloadPage.Add('{#OnlineHeadlessUrl}', 'headless.zip', '{#OnlineHeadlessSha}');
   DownloadPage.Add('{#OnlineFfmpegUrl}', 'ffmpeg.zip', '{#OnlineFfmpegSha}');
   DownloadPage.Add('{#OnlineWinlddUrl}', 'winldd.zip', '{#OnlineWinlddSha}');
-  DownloadPage.Show;
+  if not WizardSilent then DownloadPage.Show;
   try
     try
       DownloadPage.Download;
@@ -171,7 +180,7 @@ begin
         Result := GetExceptionMessage + ' The existing installation was not changed.';
     end;
   finally
-    DownloadPage.Hide;
+    if not WizardSilent then DownloadPage.Hide;
   end;
 end;
 
@@ -183,11 +192,27 @@ begin
 end;
 
 function InitializeSetup(): Boolean;
+var
+  ExistingDir: String;
+  ExitCode: Integer;
 begin
   Result := True;
   if WizardSilent then Exit;
+  // Older clients launch setup without arguments. Upgrade their registered
+  // installation unattended too; fresh installs retain the normal wizard.
+  if RegQueryStringValue(HKCU64,
+      'Software\Microsoft\Windows\CurrentVersion\Uninstall\{609BE835-6123-4C60-991E-0C33BB3811C8}_is1',
+      'Inno Setup: App Path', ExistingDir) and
+      (Pos('"', ExistingDir) = 0) and FileExists(ExistingDir + '\StockUpdate.exe') then begin
+    if not Exec(ExpandConstant('{srcexe}'),
+        '/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /UPDATEAPP=1 /DIR="' + ExistingDir + '"',
+        '', SW_HIDE, ewNoWait, ExitCode) then
+      MsgBox('Could not start the update. The existing app is unchanged.', mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
   Result := MsgBox('This is an unsigned private internal release of iTrader Stock Update.' + #13#10 + #13#10 +
     'Setup needs an internet connection to download the pinned Node.js runtime and browser components. If that download is cancelled or fails verification, any existing installation is left unchanged.' + #13#10 + #13#10 +
-    'It includes both Preview and Production. Choose the environment explicitly in the app. This internal release is Preview only; Production is not authorised. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
+    'It includes both Preview and Production. Choose the environment explicitly in the app. Production access is restricted to authorised administrators. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
     'Continue with installation?', mbConfirmation, MB_YESNO) = IDYES;
 end;

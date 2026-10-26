@@ -19,10 +19,9 @@ public static class UpdateClient
 
     public static async Task<AvailableUpdate?> CheckAsync(WorkerSession session, CancellationToken token)
     {
-        if (session.Environment != AppEnvironment.Preview) return null;
         using var client = UpdateDownload.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(20);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://itrader.dev/api/stock-worker/update");
+        using var request = new HttpRequestMessage(HttpMethod.Post, Targets.Api(session.Environment) + "/update");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         if (response.StatusCode != HttpStatusCode.OK) throw new InvalidDataException();
@@ -39,7 +38,7 @@ public static class UpdateClient
             bytes.Write(buffer, 0, count);
         }
         var json = new UTF8Encoding(false, true).GetString(bytes.ToArray());
-        var manifest = UpdateManifest.Verify(json, PublicKey());
+        var manifest = UpdateManifest.Verify(json, PublicKey(), session.Environment);
         if (!manifest.IsNewerThan(Targets.ClientVersion)) return null;
         using var document = JsonDocument.Parse(json);
         var url = document.RootElement.GetProperty("downloadUrl").GetString()!;

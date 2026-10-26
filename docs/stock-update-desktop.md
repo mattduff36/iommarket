@@ -2,7 +2,7 @@
 
 ## Scope and security boundary
 
-This unsigned application is for the agreed private internal use by Matt and the client. This release is Preview/staging only, at https://itrader.dev. The existing explicit Preview/Production selector and server production gates remain; production activation requires separate approval. Signing is out of scope.
+This unsigned application is for the agreed private internal use by Matt and the client. Preview and Production are supported through separate authorised sessions and update channels. The existing explicit Preview/Production selector and server production gates remain; production activation was authorised on 26 October 2026. Signing is out of scope.
 
 The Windows application runs Chromium scraping locally. It receives only an environment-scoped, revocable device session token. The server retains database credentials, ImageKit private keys, report generation, approvals, database writes and all media operations. Neither installation nor authorisation sends database/provider credentials or general server configuration to the computer.
 
@@ -46,7 +46,7 @@ Device revocation is available at /admin/stock-worker. Revoking this new app's t
 
 ## Operator instructions
 
-1. Install and open iTrader Stock Update. Leave Preview — itrader.dev selected.
+1. Install and open iTrader Stock Update. Select the intended Preview or Production environment.
 2. Click Sign in, use the existing administrator account in the browser, and approve the named computer for Preview.
 3. Keep the app open and wait for Stock Reviews to show Connected. Signing in does not start jobs. Debug layout retains the read-only Check connection diagnostic.
 4. Open Stock Reviews and queue the intended dealer scan. Click Start worker on Stock Reviews and keep the computer awake and online.
@@ -89,3 +89,11 @@ Stock Reviews polls presence and refreshes saved results every five seconds whil
 The online unsigned installer downloads pinned, SHA-256-verified Node and headless Chromium dependencies before changing an existing installation. Internet access is required. Staging dealer choices exclude demo, disabled and deleted accounts; unavailable profiles have a visible explanation. Weekly scheduling is unchanged.
 
 The worker drains the queue and stops automatically. Start is blue and Stop safely is red. Stock Reviews announces new task completion in a persistent dialog, including failed outcomes, and shows explicit finished status.
+
+## Version 1.1.8 production rollout
+
+Every app launch, including after an update, defaults to Preview. The bottom-right Switch to production site button requires a warning confirmation (No is the default); switching is disabled during sign-in or work. There is no direct radio-selector bypass. Returning to Preview does not need confirmation. This policy remains until the owner explicitly changes it.
+
+App-requested updates retain the install directory, shortcut settings and encrypted sessions, run without setup questions or a reboot, and reopen on Preview after success. Preview and Production validate separately signed release channels and exact environment storage hosts. The server retains all database and media credentials.
+
+The dealer picker and dashboard use current paid or complimentary Pro entitlement; Starter and expired/unentitled accounts appear under Unavailable dealers. This frontend selection policy does not rewrite historical reports or dealer subscriptions.

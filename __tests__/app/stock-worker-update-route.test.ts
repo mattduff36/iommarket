@@ -2,24 +2,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ staging: vi.fn(), role: vi.fn(), enabled: vi.fn(), auth: vi.fn(), rate: vi.fn(), release: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireRole: mocks.role }));
-vi.mock("@/lib/deployment/environment", () => ({ isStagingOnlyFeatureEnabled: mocks.staging }));
-vi.mock("@/lib/dealer-stock-sync/desktop-config", () => ({ desktopAccountEnabled: mocks.enabled }));
+vi.mock("@/lib/dealer-stock-sync/desktop-config", () => ({ desktopAccountEnabled: mocks.enabled, resolveDesktopGate: mocks.staging }));
 vi.mock("@/lib/dealer-stock-sync/desktop-service", () => ({ authoriseDesktopRequest: mocks.auth, liveDesktopDependencies: () => ({ store: { consumeRate: mocks.rate } }) }));
 vi.mock("@/lib/dealer-stock-sync/update-release", () => ({ getUpdateRelease: mocks.release }));
 import { GET, POST } from "@/app/api/stock-worker/update/route";
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.staging.mockReturnValue(true);
+  mocks.staging.mockReturnValue({ ok: true, gate: { environment: "preview" } });
   mocks.role.mockResolvedValue({ id: "admin" });
   mocks.enabled.mockReturnValue(true);
   mocks.auth.mockResolvedValue({ ok: true, principal: { deviceId: "device", environment: "preview" } });
   mocks.rate.mockResolvedValue(true);
   mocks.release.mockResolvedValue({ payload: "signed", signature: "signature", downloadUrl: "https://example.test/fresh" });
 });
-describe("private staging installer access", () => {
-  it("fails closed outside staging without accessing storage", async () => {
-    mocks.staging.mockReturnValue(false);
+describe("private environment-scoped installer access", () => {
+  it("fails closed when the desktop gate is disabled without accessing storage", async () => {
+    mocks.staging.mockReturnValue({ ok: false });
     expect((await GET(new Request("https://itrader.im/api/stock-worker/update"))).status).toBe(404);
     expect((await POST(new Request("https://itrader.im/api/stock-worker/update", { method: "POST" }))).status).toBe(404);
     expect(mocks.release).not.toHaveBeenCalled();
@@ -60,4 +59,12 @@ describe("private staging installer access", () => {
     mocks.auth.mockResolvedValue({ ok: true, principal: { environment: "production" } });
     expect((await POST(new Request("https://itrader.dev/api/stock-worker/update", { method: "POST" }))).status).toBe(403);
   });
+});
+
+it("serves production only after its own gate and device authorisation pass", async () => {
+  mocks.staging.mockReturnValue({ ok: true, gate: { environment: "production" } });
+  mocks.auth.mockResolvedValue({ ok: true, principal: { deviceId: "prod", environment: "production" } });
+  expect((await POST(new Request("https://itrader.im/api/stock-worker/update", { method: "POST" }))).status).toBe(200);
+  mocks.auth.mockResolvedValue({ ok: true, principal: { deviceId: "preview", environment: "preview" } });
+  expect((await POST(new Request("https://itrader.im/api/stock-worker/update", { method: "POST" }))).status).toBe(403);
 });
