@@ -1,3 +1,4 @@
+import { labelledDetailValue } from "./labelled-detail";
 import { resolveMaybeUrl } from "../json";
 import { decodeListingText, parseYearMakeModel } from "./named-html";
 
@@ -124,10 +125,12 @@ export function extractDetailSpecs(html: string, detailUrl?: string | null) {
       decodeListingText(html.match(/\b(?:VRM|Reg(?:istration)?)\b[\s\S]{0,80}>([A-Z0-9 ]{5,10})</i)?.[1] ?? ""),
     ),
     fuel:
+      labelledDetailValue(html, "Fuel Type") ||
       fuelFromEngine(engineField?.match(/<strong[^>]*>([^<]+)/i)?.[1] ?? "") ||
       decodeListingText(html.match(/class=['"]detail fuel['"][\s\S]{0,80}?<\/i>\s*([^<]+)/i)?.[1] ?? "") ||
       null,
     transmission:
+      labelledDetailValue(html, "Transmission") ||
       decodeListingText(html.match(/class="car_transmission"[\s\S]{0,160}?<strong[^>]*>([^<]+)/i)?.[1] ?? "") ||
       decodeListingText(html.match(/class=['"]detail transmission['"][\s\S]{0,80}?<\/i>\s*([^<]+)/i)?.[1] ?? "") ||
       null,

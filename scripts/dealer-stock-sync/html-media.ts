@@ -1,3 +1,4 @@
+import { isDealerPlaceholderImage } from "../../lib/images/dealer-placeholder";
 import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
 import { parseNextData } from "./connectors/html-extract";
 import {
@@ -262,7 +263,8 @@ export function extractGalleryFromHtml(html: string, origin?: string | null) {
   const resolved = found
     .map((raw) => resolveMaybeUrl(raw, origin) ?? normalizeImageUrl(raw))
     .filter((url): url is string => Boolean(url))
-    .filter((url) => !isIgnoredImageUrl(url));
+    .filter((url) => !isIgnoredImageUrl(url) || isDealerPlaceholderImage(url))
+    .filter((url, _index, urls) => !isDealerPlaceholderImage(url) || !urls.some(candidate => !isDealerPlaceholderImage(candidate)));
   return uniqueImageUrls(resolved, FEATURED_LISTING_PHOTO_LIMIT);
 }
 
@@ -395,7 +397,8 @@ export function extractSwiftGalleryFromHtml(html: string, origin?: string | null
       }
     })
     .filter((url): url is string => Boolean(url))
-    .filter((url) => !isIgnoredImageUrl(url));
+    .filter((url) => !isIgnoredImageUrl(url) || isDealerPlaceholderImage(url))
+    .filter((url, _index, urls) => !isDealerPlaceholderImage(url) || !urls.some(candidate => !isDealerPlaceholderImage(candidate)));
 
   return uniqueImageUrls(resolved, FEATURED_LISTING_PHOTO_LIMIT);
 }

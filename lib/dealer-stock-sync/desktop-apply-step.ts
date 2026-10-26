@@ -1,3 +1,4 @@
+import { dealerPlaceholderBytes } from "@/lib/images/dealer-placeholder-bytes";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -141,7 +142,7 @@ export async function runDesktopApplyStep(
       assertManagedUploadsConfigured();
       const attemptId = randomUUID();
       const publicId = previewImagePublicId(snapshot.binding.registryKey, task.identityKey, input.jobId + "-" + attemptId, task.photoIndex);
-      const downloaded = await downloadSafeRemoteImage({ url: task.sourceUrl });
+      const downloaded = await dealerPlaceholderBytes(task.sourceUrl) ?? await downloadSafeRemoteImage({ url: task.sourceUrl });
       guard();
       const image: PreviewUploadedImage = await uploadManagedImport({
         publicId, bytes: downloaded.bytes, contentType: downloaded.contentType ?? "", order: task.photoIndex,

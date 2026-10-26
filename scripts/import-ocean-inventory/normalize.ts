@@ -1,3 +1,4 @@
+import { isDealerPlaceholderImage } from "../../lib/images/dealer-placeholder";
 import { isIgnoredImageUrl, pickRecordImageUrl } from "../dealer-stock-sync/image-urls";
 import { mapEngineSize, normalizeImageUrl, poundsToPence } from "./map-vehicle";
 import type { OceanSourceKey } from "./sources";
@@ -82,7 +83,8 @@ function collectImages(raw: Record<string, unknown>, origin?: string | null) {
   return urls
     .map((url) => resolveMaybeUrl(url, origin) ?? normalizeImageUrl(url))
     .filter((url): url is string => Boolean(url))
-    .filter((url) => !isIgnoredImageUrl(url));
+    .filter((url) => !isIgnoredImageUrl(url) || isDealerPlaceholderImage(url))
+    .filter((url, _index, urls) => !isDealerPlaceholderImage(url) || !urls.some(candidate => !isDealerPlaceholderImage(candidate)));
 }
 
 function nested(record: Record<string, unknown>, path: string[]) {

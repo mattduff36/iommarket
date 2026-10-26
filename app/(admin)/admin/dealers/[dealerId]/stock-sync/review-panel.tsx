@@ -1,3 +1,5 @@
+import { DEALER_PLACEHOLDER_PATH, isDealerPlaceholderImage } from "@/lib/images/dealer-placeholder";
+import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
 import Link from "@/components/navigation/link";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit";
@@ -27,7 +29,8 @@ function priceText(pence: number | null | undefined) {
 }
 
 function Evidence({ review }: { review: ReviewedActionEvidence }) {
-  const photo = review.safePhotoUrls.map((url) => safeHttps(url)).find((url) => url != null) ?? null;
+  const sourcePhoto = review.safePhotoUrls.map((url) => safeHttps(url)).find((url) => url != null) ?? null;
+  const photo = sourcePhoto && isDealerPlaceholderImage(sourcePhoto) ? DEALER_PLACEHOLDER_PATH : sourcePhoto;
   const source = safeHttps(review.sourceUrl);
   return (
     <div className="mt-2 flex gap-3">
@@ -71,7 +74,7 @@ function Row({
   return (
     <li className="rounded-md border border-border px-3 py-2 text-sm">
       <p className="font-medium text-text-primary">
-        {actionLabel(action)}
+        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(action.kind)}>{actionLabel(action)}</span>
         {action.displayTitle ? ` - ${action.displayTitle}` : ""}
       </p>
       {corrected ? <p className="text-text-secondary">Corrected by admin.{allowEdit ? " Still pending approval." : ""}</p> : null}
@@ -136,7 +139,7 @@ export function StockSyncReviewPanel(input: {
     <section className="space-y-4">
       <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>
       <p className="text-sm text-text-secondary">
-        Status: {stockSyncStatus(input.status)}. {actionable.length} actionable, {blocked.length} blocked.
+        Status: <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(input.status)}>{stockSyncStatus(input.status)}</span>. {actionable.length} actionable, {blocked.length} blocked.
         Approving queues processing. It does not publish listings immediately.
       </p>
       {summary && Number.isFinite(Date.parse(summary.capturedAt)) ? (

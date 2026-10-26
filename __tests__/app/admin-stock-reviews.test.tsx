@@ -117,11 +117,11 @@ describe("admin stock reviews", () => {
     expect(outstandingQuery.where).toEqual({ status: { in: ["PENDING_REVIEW", "APPROVED"] } });
     expect(outstandingQuery.take).toBeUndefined();
     expect(screen.getByRole("heading", { name: "Island Motors" })).toBeInTheDocument();
-    expect(screen.getByText("Awaiting review · 4 vehicles")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting review").parentElement).toHaveTextContent("Awaiting review · 4 vehicles");
     expect(screen.getByText(/1 proposed removal/)).toBeInTheDocument();
     expect(screen.getAllByText("The website did not confirm every stock page.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("More vehicles were advertised than this check can hold.").length).toBeGreaterThan(0);
-    expect(screen.getByText("Approved, not applied yet · 4 vehicles")).toBeInTheDocument();
+    expect(screen.getByText("Approved, not applied yet").parentElement).toHaveTextContent("Approved, not applied yet · 4 vehicles");
     expect(screen.getByText("Approval queues processing and does not apply listings by itself.")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Open dealer stock review" }).every((link) =>
       link.getAttribute("href")?.startsWith("/admin/stock-reviews?report="),
@@ -161,7 +161,7 @@ describe("admin stock reviews", () => {
       job({ id: "apply-job", kind: "APPLY", status: "SUCCEEDED", reportId: "applied-1", report: { id: "applied-1", status: "APPLIED" } }),
     ]);
 
-    expect(screen.getByText("Applied · 6 vehicles")).toBeInTheDocument();
+    expect(screen.getByText("Applied").parentElement).toHaveTextContent("Applied · 6 vehicles");
     expect(screen.getByText(/2 removals/)).toBeInTheDocument();
     expect(screen.getByText("Listings from this approved plan were applied.")).toBeInTheDocument();
     expect(screen.queryByText(/succeeded/i)).not.toBeInTheDocument();
@@ -176,11 +176,11 @@ describe("admin stock reviews", () => {
       job({ id: "leased-job", status: "LEASED", kind: "APPLY", binding: { dealer: { id: "dealer-4", name: "Processing Cars" } } }),
     ]);
 
-    expect(screen.getByText("No change · 4 vehicles")).toBeInTheDocument();
+    expect(screen.getByText("No change").parentElement).toHaveTextContent("No change · 4 vehicles");
     expect(screen.getByText("Nothing to approve. Listings were not changed.")).toBeInTheDocument();
     expect(screen.getByText("Check queued")).toBeInTheDocument();
     expect(screen.getByText("Apply processing")).toBeInTheDocument();
-    expect(screen.queryByText("Awaiting review · 4 vehicles")).not.toBeInTheDocument();
+    expect(screen.queryByText("Awaiting review")).not.toBeInTheDocument();
   });
 
   it("shows a failed report and an empty history", async () => {
@@ -188,7 +188,7 @@ describe("admin stock reviews", () => {
       report({ id: "failed-report", status: "FAILED", inventoryCount: 0, failureReason: "source-failed", plan: { actions: [] } }),
     ]);
 
-    expect(screen.getByText("Failed · 0 vehicles")).toBeInTheDocument();
+    expect(screen.getByText("Failed").parentElement).toHaveTextContent("Failed · 0 vehicles");
     expect(screen.getByText("One or more website sections could not be checked.")).toBeInTheDocument();
     const recentQuery = reportFindMany.mock.calls.map((call) => call[0]).find((query) => query.where.status.in.includes("FAILED"));
     expect(recentQuery.take).toBe(20);
@@ -216,7 +216,7 @@ describe("admin stock reviews", () => {
 
   it("matches a scrape job to its report by scrapeRunId without claiming no report exists", async () => {
     await renderPage([report({ scrapeRunId: "scrape-job" })], [], [job({ id: "scrape-job", status: "SUCCEEDED" })]);
-    expect(screen.getByText("No change · 4 vehicles")).toBeInTheDocument();
+    expect(screen.getByText("No change").parentElement).toHaveTextContent("No change · 4 vehicles");
     expect(screen.queryByText(/Finished processing/)).not.toBeInTheDocument();
   });
 });
