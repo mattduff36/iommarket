@@ -47,7 +47,9 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     public MainForm()
     {
         Text = "iTrader Stock Update";
-        MinimumSize = new Size(460, 270);
+        SuspendLayout();
+        AutoScaleDimensions = new SizeF(96f, 96f);
+        ClientSize = new Size(520, 300);
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 9f);
@@ -78,7 +80,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         _debugRoot = debug;
 
         var brand = new Label { Text = "iTrader Stock Update", AutoSize = true, Font = new Font("Segoe UI", 16f, FontStyle.Bold) };
-        var simpleButtons = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        var simpleButtons = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false };
         simpleButtons.Controls.AddRange([_simpleSignIn, _simpleStop, _simpleCancel]);
         var simple = new FlowLayoutPanel
         {
@@ -93,7 +95,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
         Controls.Add(debug);
         Controls.Add(simple);
-        var siteBar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
+        var siteBar = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
         siteBar.Controls.Add(_switchSite);
         Controls.Add(siteBar);
         Controls.Add(menu);
@@ -115,6 +117,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         ApplyChrome();
         LoadEnvironment();
         Note("Manual controls only. A finished-processing line is not treated as success.");
+        ResumeLayout(true);
         Shown += async (_, _) => await LaunchWithUpdateAsync();
     }
 
@@ -125,12 +128,22 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         var debug = _debugLayout.Checked;
         _simpleRoot.Visible = !debug;
         _debugRoot.Visible = debug;
-        MinimumSize = debug ? new Size(760, 520) : new Size(460, 270);
-        if (debug && ClientSize.Width < 760) ClientSize = new Size(760, 520);
-        if (!debug && ClientSize.Height > 280) ClientSize = new Size(460, 270);
+        // Construction uses the 96-DPI design baseline. Once loaded, convert
+        // logical content sizes exactly once for the current monitor.
+        var contentSize = debug ? new Size(760, 520) : new Size(520, 300);
+        if (IsHandleCreated) contentSize = LogicalToDeviceUnits(contentSize);
+        MinimumSize = Size.Empty;
+        ClientSize = contentSize;
+        if (IsHandleCreated) MinimumSize = SizeFromClientSize(contentSize);
         Text = debug
             ? "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")"
             : "iTrader Stock Update";
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        ApplyChrome();
     }
 
     private void SwitchSite()

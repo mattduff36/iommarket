@@ -104,6 +104,20 @@ function fixture(actions: CreatePlanAction[] = [action("vehicle-one", 2)]) {
 describe("bounded desktop APPLY staging", () => {
   beforeEach(() => vi.resetAllMocks());
 
+  it("uploads iTrader artwork instead of downloading an approved dealer placeholder", async () => {
+    const item = { ...action("placeholder-car", 1), sourceImageUrls: [sourceUrl(0).replace("0.jpg", "no-pic.jpg")] };
+    const api = fixture([item]);
+    expect(await api.step()).toEqual({ outcome: "continue" });
+    expect(mocks.download).not.toHaveBeenCalled();
+    expect(mocks.upload).toHaveBeenCalledWith(expect.objectContaining({
+      contentType: "image/png", bytes: expect.any(Buffer), order: 0,
+    }));
+    const bytes = mocks.upload.mock.calls[0]![0].bytes as Buffer;
+    expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    expect(await api.step()).toEqual({ outcome: "succeeded" });
+    expect(mocks.run).toHaveBeenCalledOnce();
+  });
+
   it("stages exactly one approved photo with job-bound progress and no listing commit", async () => {
     const api = fixture();
     expect(await api.step()).toEqual({ outcome: "continue" });

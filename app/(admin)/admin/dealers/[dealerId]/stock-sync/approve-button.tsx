@@ -43,7 +43,7 @@ export function ApproveStockReportButton({
         disabled={isPending}
         onClick={() => run(() => rejectDealerStockReport({ reportId }))}
       >
-        Reject
+        Reject and clear
       </button>
       {isPending ? <p role="status" className="w-full text-sm text-text-secondary">Updating review…</p> : null}
       {error ? (

@@ -97,3 +97,13 @@ Every app launch, including after an update, defaults to Preview. The bottom-rig
 App-requested updates retain the install directory, shortcut settings and encrypted sessions, run without setup questions or a reboot, and reopen on Preview after success. Preview and Production validate separately signed release channels and exact environment storage hosts. The server retains all database and media credentials.
 
 The dealer picker and dashboard use current paid or complimentary Pro entitlement; Starter and expired/unentitled accounts appear under Unavailable dealers. This frontend selection policy does not rewrite historical reports or dealer subscriptions.
+
+## Version 1.1.9 stock-review quality
+
+Recognised dealer placeholder image URLs are replaced with iTrader's existing brand placeholder artwork before managed upload, for every dealer and both desktop/server import paths. Real photos take priority; an all-placeholder gallery retains one placeholder. URL recognition covers common placeholder names and encoded NetDirector keys, but cannot identify arbitrary opaque image names by appearance. The original source URL remains in the approved audit evidence; review thumbnails show the iTrader artwork.
+
+Manx's explicit label/value rows now supply fuel and transmission instead of leaving those fields unknown. Results use green completed/no-change labels, amber pending/conflict labels and red failed/blocked labels, alongside text. Clear completed results hides completed/no-change rows for the current administrator in that browser; Show cleared results restores them. Pending reviews and active jobs cannot be hidden by this action. Reject and clear dismisses an unapproved plan through the existing rejection action. Database audit history and listings are retained.
+
+The 1.1.8 Preview-on-launch and confirmed Production-switch policy remains unchanged.
+
+The main window opens with a standard 520 x 300 logical-pixel content area (760 x 520 in Debug layout), scaled for the current Windows display. The minimum window size includes the title bar and borders. Button rows shrink to their actual content height, avoiding unnecessary main-view scrollbars.

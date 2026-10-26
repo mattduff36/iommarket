@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { StockResultHistory, StockResultVisibility } from "./result-history";
+import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
 import type { Metadata } from "next";
 import Link from "@/components/navigation/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -164,7 +166,7 @@ function ReportCard({ report }: { report: ReportRow }) {
   return (
     <li className="rounded-md border border-border px-4 py-3 text-sm">
       <p className="font-medium text-text-primary">
-        {outcome} · {visibleCount} vehicles
+        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(outcome === "No change" ? "no_change" : report.status)}>{outcome}</span> · {visibleCount} vehicles
       </p>
       <p className="text-text-secondary">
         {actionable} actionable · {blocked} blocked{removals ? ` · ${removals}` : ""} · {when}
@@ -185,7 +187,7 @@ function ReportCard({ report }: { report: ReportRow }) {
 export default async function AdminStockReviewsPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 } = {}) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   const query = await searchParams ?? {};
   const [outstanding, recentReports, jobs, profiles, dashboard] = await Promise.all([
     loadReports(["PENDING_REVIEW", "APPROVED"]),
@@ -223,16 +225,16 @@ export default async function AdminStockReviewsPage({ searchParams }: {
         {resolveDesktopGate(process.env).ok ? <DownloadStockWorker /> : null}
       </>} initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt?.toISOString() ?? null }))}>
       <StockDealerPicker dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
-      <h2 id="stock-review-results" className="text-xl font-semibold text-text-primary">Results</h2>
-      {selectedReport ? <section id="stock-review-detail" className="space-y-4 scroll-mt-6 rounded-xl border border-neon-blue-500/30 p-4">
+      <StockResultHistory adminId={admin.id} clearableIds={[...recentReports.map(report => report.id), ...outstanding.filter(report => report.status === "PENDING_REVIEW" && !needsReview(actionsOf(report.plan))).map(report => report.id), ...jobs.filter(job => !["QUEUED", "LEASED"].includes(job.status)).map(job => job.id)]}>
+      {selectedReport ? <StockResultVisibility ids={[selectedReport.id]}><section id="stock-review-detail" className="space-y-4 scroll-mt-6 rounded-xl border border-neon-blue-500/30 p-4">
         <h2 className="text-xl font-semibold text-text-primary">{selectedReport.binding.dealer.name}</h2>
         <StockSyncReviewPanel reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} />
-      </section> : null}
+      </section></StockResultVisibility> : null}
       {dealers.length === 0 ? (
         <p className="text-sm text-text-tertiary">No dealer scrapes yet.</p>
       ) : (
         dealers.map((dealer) => (
-          <section key={dealer.dealerId} className="space-y-3">
+          <StockResultVisibility key={dealer.dealerId} ids={[...dealer.outstanding.map(report => report.id), ...dealer.recentReports.map(report => report.id), ...dealer.jobs.map(job => job.id)]}><section className="space-y-3">
             <h2 className="text-lg font-semibold text-text-primary">
               <Link href={`/admin/dealers/${dealer.dealerId}/stock-sync`} className="hover:underline">
                 {dealer.name}
@@ -241,7 +243,7 @@ export default async function AdminStockReviewsPage({ searchParams }: {
             {dealer.outstanding.length > 0 ? (
               <ul className="space-y-2">
                 {dealer.outstanding.map((report) => (
-                  <ReportCard key={report.id} report={report} />
+                  <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} /></StockResultVisibility>
                 ))}
               </ul>
             ) : null}
@@ -250,24 +252,25 @@ export default async function AdminStockReviewsPage({ searchParams }: {
                 <h3 className="text-sm font-semibold text-text-primary">Recent runs</h3>
                 <ul className="space-y-2">
                   {dealer.recentReports.map((report) => (
-                    <ReportCard key={report.id} report={report} />
+                    <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} /></StockResultVisibility>
                   ))}
                   {dealer.jobs.map((job) => (
-                    <li key={job.id} className="rounded-md border border-border px-4 py-3 text-sm">
-                      <p className="font-medium text-text-primary">{jobOutcome(job)}</p>
+                    <StockResultVisibility key={job.id} ids={[job.id]}><li className="rounded-md border border-border px-4 py-3 text-sm">
+                      <p className="font-medium text-text-primary"><span className={STOCK_STATUS_BADGE + " " + stockStatusColour(job.status)}>{jobOutcome(job)}</span></p>
                       <p className="text-text-secondary">{job.createdAt.toLocaleString("en-GB", { timeZone: "Europe/London" })}</p>
                       {job.status === "FAILED" && job.error ? <p className="text-text-secondary">{job.error}</p> : null}
                       <Link href={`/admin/dealers/${dealer.dealerId}/stock-sync`} className="text-neon-blue-400 hover:underline">
                         Open dealer stock review
                       </Link>
-                    </li>
+                    </li></StockResultVisibility>
                   ))}
                 </ul>
               </div>
             ) : null}
-          </section>
+          </section></StockResultVisibility>
         ))
       )}
+      </StockResultHistory>
       </StockWorkerDashboard>
     </div>
   );

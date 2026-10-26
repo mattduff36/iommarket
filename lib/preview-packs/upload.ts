@@ -1,3 +1,5 @@
+import { isDealerPlaceholderImage } from "@/lib/images/dealer-placeholder";
+import { dealerPlaceholderBytes } from "@/lib/images/dealer-placeholder-bytes";
 import { readMediaUploadProvider } from "@/lib/media/upload-provider";
 import { cleanupDeliveryForRemovedImage } from "@/lib/media/stored-image";
 import { readFile } from "fs/promises";
@@ -95,6 +97,7 @@ function isUsableCloudinaryPhoto(payload: {
 
 export function isUsablePreviewImageUrl(url: string) {
   const lower = url.toLowerCase();
+  if (isDealerPlaceholderImage(url)) return true;
   if (isIgnoredImageUrl(url)) return false;
   if (lower.includes("pinterest.com") || lower.includes("facebook.com") || lower.includes("twitter.com")) {
     return false;
@@ -264,9 +267,10 @@ async function uploadFreshSource(
   },
   publicId: string,
 ) {
-  const downloaded = input.source.localPath
+  const downloaded = await dealerPlaceholderBytes(input.source.url) ?? (input.source.localPath
     ? await readFile(input.source.localPath).then((bytes) => ({ bytes, contentType: detectSafeRasterContentType(bytes) }))
-    : await (input.downloadImpl ?? downloadSafeRemoteImage)({ url: input.source.url });
+    : await (input.downloadImpl ?? downloadSafeRemoteImage)({ url: input.source.url }));
+  if (!downloaded) throw new Error("The stock image could not be prepared.");
   if (readMediaUploadProvider() === "imagekit") {
     const { uploadManagedImport } = await import("@/lib/media/managed-import");
     return uploadManagedImport({ publicId, bytes: downloaded.bytes, contentType: downloaded.contentType ?? "", order: input.order });

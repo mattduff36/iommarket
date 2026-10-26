@@ -1,3 +1,4 @@
+import { isDealerPlaceholderImage } from "../../lib/images/dealer-placeholder";
 import { FEATURED_LISTING_PHOTO_LIMIT } from "../../lib/listings/photo-limits";
 
 const AUTOFS_NDSTOCK = "://s3-eu-west-1.amazonaws.com/autofs/ndstock/";
@@ -42,6 +43,7 @@ export function isIgnoredImageUrl(url: string) {
   const token = parseNetDirectorImageToken(url);
   const lower = (token?.key ?? url).toLowerCase();
   return (
+    isDealerPlaceholderImage(url) ||
     SEMANTIC_PLACEHOLDER.test(lower) ||
     lower.includes("logo") ||
     lower.includes("pixel") ||
@@ -261,7 +263,10 @@ export function uniqueImageUrls(urls: string[], max = FEATURED_LISTING_PHOTO_LIM
     }
     if (score > existing.score) best.set(identity, { url, score });
   }
-  return order.slice(0, max).map((identity) => canonicalizeImageUrl(best.get(identity)!.url));
+  const photos = order.slice(0, max).map((identity) => canonicalizeImageUrl(best.get(identity)!.url));
+  if (photos.length || max <= 0) return photos;
+  const placeholder = urls.map(normalizeHttpImageUrl).find(url => url && isDealerPlaceholderImage(url));
+  return placeholder ? [placeholder] : [];
 }
 
 export function uniqueImageSources<T extends { url: string }>(sources: T[], max: number) {
