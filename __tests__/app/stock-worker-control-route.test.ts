@@ -40,7 +40,7 @@ function apiEnv(): Record<string, string> {
 }
 
 function depsFor(): WorkerControlDependencies {
-  let now = Date.parse("2026-10-22T20:00:00.000Z");
+  const now = Date.parse("2026-10-22T20:00:00.000Z");
   const account: DesktopAccount = {
     id: ADMIN, name: "Stock Admin", email: "stock-admin@example.com", role: "ADMIN", disabledAt: null, deletedAt: null,
   };

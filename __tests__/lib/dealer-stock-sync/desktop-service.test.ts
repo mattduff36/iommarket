@@ -328,7 +328,7 @@ describe("desktop worker service", () => {
 
   it("returns a secret-free principal and fails closed for API-only, revoked, disabled, and foreign sessions", async () => {
     const users = new Map<string, DesktopAccount>([[ADMIN_A, account(ADMIN_A)]]);
-    let now = Date.parse("2026-10-16T12:00:00.000Z");
+    const now = Date.parse("2026-10-16T12:00:00.000Z");
     const project = "syneonzucehwlghqmfbg";
     const env: Record<string, string | undefined> = {
       DEALER_STOCK_DESKTOP_API_ONLY: "1",

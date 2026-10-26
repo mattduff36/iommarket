@@ -28,8 +28,7 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/components/navigation/link", () => ({
   default: ({ href, children }: { href: string; children: string }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href }, children);
+    return <a href={href}>{children}</a>;
   },
 }));
 

@@ -127,7 +127,7 @@ export async function resolvePublicImageAddresses(
 function pinnedHttpsDownload(input: Parameters<PinnedImageTransport>[0]) {
   return new Promise<SafeRemoteImageDownload>((resolve, reject) => {
     let settled = false;
-    let request: ReturnType<typeof https.get> | undefined;
+    let request: ReturnType<typeof https.get> | undefined = undefined;
     const aborted = () => finish(new Error("Remote image download timed out."));
     const finish = (error?: Error, value?: SafeRemoteImageDownload) => {
       if (settled) return;
