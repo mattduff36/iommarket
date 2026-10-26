@@ -105,3 +105,5 @@ Recognised dealer placeholder image URLs are replaced with iTrader's existing br
 Manx's explicit label/value rows now supply fuel and transmission instead of leaving those fields unknown. Results use green completed/no-change labels, amber pending/conflict labels and red failed/blocked labels, alongside text. Clear completed results hides completed/no-change rows for the current administrator in that browser; Show cleared results restores them. Pending reviews and active jobs cannot be hidden by this action. Reject and clear dismisses an unapproved plan through the existing rejection action. Database audit history and listings are retained.
 
 The 1.1.8 Preview-on-launch and confirmed Production-switch policy remains unchanged.
+
+The main window opens with a standard 520 x 300 logical-pixel content area (760 x 520 in Debug layout), scaled for the current Windows display. The minimum window size includes the title bar and borders. Button rows shrink to their actual content height, avoiding unnecessary main-view scrollbars.
