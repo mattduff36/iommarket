@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const entitlement = vi.hoisted(() => vi.fn().mockResolvedValue({ tier: "PRO" }));
 vi.mock("@/lib/dealers/entitlement", () => ({ getDealerEntitlement: entitlement }));
+vi.mock("@/actions/admin/stock-result-history", () => ({ changeStockResultHistory: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
@@ -21,6 +23,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    dealerStockSyncAudit: { findMany: vi.fn().mockResolvedValue([]) },
     dealerProfile: { findMany: profileFindMany },
     dealerStockSourceBinding: { findMany: vi.fn().mockResolvedValue([]) },
     dealerStockSyncReport: { findMany: (...args: unknown[]) => reportFindMany(...args) },
@@ -79,12 +82,12 @@ function warnings(actions: unknown[]) {
   };
 }
 
-async function renderPage(outstanding: unknown[], recent: unknown[] = [], jobs: unknown[] = []) {
+async function renderPage(outstanding: unknown[], recent: unknown[] = [], jobs: unknown[] = [], history = "active") {
   reportFindMany.mockImplementation(async (args: { where: { status: { in: string[] } } }) => {
     return args.where.status.in.includes("PENDING_REVIEW") ? outstanding : recent;
   });
   jobFindMany.mockResolvedValue(jobs);
-  render(await AdminStockReviewsPage());
+  render(await AdminStockReviewsPage({ searchParams: Promise.resolve({history}) }));
 }
 
 describe("admin stock reviews", () => {
@@ -114,7 +117,7 @@ describe("admin stock reviews", () => {
 
     expect(requireRole).toHaveBeenCalledWith("ADMIN");
     const outstandingQuery = reportFindMany.mock.calls.map((call) => call[0]).find((query) => query.where.status.in.includes("PENDING_REVIEW"));
-    expect(outstandingQuery.where).toEqual({ status: { in: ["PENDING_REVIEW", "APPROVED"] } });
+    expect(outstandingQuery.where).toEqual({ status: { in: ["PENDING_REVIEW", "APPROVED", "SUPERSEDED"] } });
     expect(outstandingQuery.take).toBeUndefined();
     expect(screen.getByRole("heading", { name: "Island Motors" })).toBeInTheDocument();
     expect(screen.getByText("Awaiting review").parentElement).toHaveTextContent("Awaiting review · 4 vehicles");
@@ -142,11 +145,11 @@ describe("admin stock reviews", () => {
       }),
     ]);
 
-    expect(screen.getByText("Check failed. No report was saved.")).toBeInTheDocument();
+    expect(screen.getByText("No report was saved.")).toBeInTheDocument();
     expect(screen.getByText("Stock sync job failed.")).toBeInTheDocument();
-    expect(screen.getByText("Finished processing. Open the dealer stock review to check the saved result.")).toBeInTheDocument();
+    expect(screen.getByText("Finished processing")).toBeInTheDocument();
     expect(screen.queryByText(/succeeded/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Applied/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Applied", {exact:true})).not.toBeInTheDocument();
   });
 
   it("shows an applied report from the saved report, including removals", async () => {
@@ -159,13 +162,13 @@ describe("admin stock reviews", () => {
       }),
     ], [
       job({ id: "apply-job", kind: "APPLY", status: "SUCCEEDED", reportId: "applied-1", report: { id: "applied-1", status: "APPLIED" } }),
-    ]);
+    ], "archived");
 
     expect(screen.getByText("Applied").parentElement).toHaveTextContent("Applied · 6 vehicles");
     expect(screen.getByText(/2 removals/)).toBeInTheDocument();
     expect(screen.getByText("Listings from this approved plan were applied.")).toBeInTheDocument();
     expect(screen.queryByText(/succeeded/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open dealer stock review" })).toHaveAttribute("href", "/admin/stock-reviews?report=applied-1#stock-review-detail");
+    expect(screen.getByRole("link", { name: "Open dealer stock review" })).toHaveAttribute("href", "/admin/stock-reviews?report=applied-1&history=archived#stock-review-detail");
   });
 
   it("shows queued and processing jobs and a no-change review", async () => {
@@ -191,7 +194,7 @@ describe("admin stock reviews", () => {
     expect(screen.getByText("Failed").parentElement).toHaveTextContent("Failed · 0 vehicles");
     expect(screen.getByText("One or more website sections could not be checked.")).toBeInTheDocument();
     const recentQuery = reportFindMany.mock.calls.map((call) => call[0]).find((query) => query.where.status.in.includes("FAILED"));
-    expect(recentQuery.take).toBe(20);
+    expect(recentQuery.take).toBe(100);
 
     reportFindMany.mockResolvedValue([]);
     jobFindMany.mockResolvedValue([]);
@@ -244,4 +247,22 @@ it("includes Pro dealers regardless of subscription or source setup and excludes
     id, name: id, reason: "Starter account",
   })) }));
   expect(dashboardProps).toHaveBeenLastCalledWith(expect.objectContaining({ dealers }));
+});
+
+
+it("automatically hides applied reports and does not leave their jobs behind", async () => {
+  await renderPage([], [report({id:"applied",status:"APPLIED"})], [job({id:"apply",kind:"APPLY",status:"SUCCEEDED",reportId:"applied",report:{id:"applied",status:"APPLIED"}})]);
+  expect(screen.queryByText("Applied", {exact:true})).not.toBeInTheDocument();
+  expect(screen.queryByText("Finished processing")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", {name:"Archived (1)"})).toBeInTheDocument();
+});
+it("keeps older no-change reports visible after a newer scrape supersedes them", async () => {
+  await renderPage([report({id:"old",status:"SUPERSEDED",plan:{actions:[{kind:"unchanged"}]}})]);
+  expect(screen.getByText("No change", {exact:true})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name:"Archive"})).toBeInTheDocument();
+});
+it("represents rejected reviews once in the archive instead of an orphan finished-job card", async () => {
+  await renderPage([], [report({id:"rejected",status:"REJECTED",scrapeRunId:"old-scan"})], [job({id:"old-scan",status:"SUCCEEDED"})], "archived");
+  expect(screen.getByText("rejected", {exact:true})).toBeInTheDocument();
+  expect(screen.queryByText("Finished processing")).not.toBeInTheDocument();
 });

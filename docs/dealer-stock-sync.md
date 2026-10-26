@@ -59,3 +59,14 @@ Hosted preview checks returned Franklin 8, Swift 39, Manx Car Warehouse 13, Mike
 The hosted upload check exposed a Prisma adapter incompatibility with the `void` result of `pg_advisory_xact_lock`; the importer now casts that result to text without changing locking behaviour. A diagnostic upload was queued for cleanup.
 
 Vercel environment exports omit protected ImageKit keys. The temporary local worker reads the existing verified account keys from `D:/Websites/imagekit-credentials/itrader.env`; the owner also requested a copy in the ignored `.env.local`. Neither file belongs in Git. Worker database configuration still comes from the explicitly verified preview environment, not `.env.local`.
+
+
+## Admin results and dealer selection (26 October 2026)
+
+Production stock sync is now enabled for the admin-reviewed desktop workflow described in `stock-update-desktop.md`; the original activation checklist above records the earlier preview rollout.
+
+The stock-reviews picker uses the real dealer account's stored tier. Disabled accounts and Starter accounts are unavailable. A missing or expired billing entitlement does not exclude an enabled Pro account from admin-managed scrapes. Preview-only placeholder profiles remain outside the real-dealer picker. Website binding setup is separate from account eligibility; a verified registry binding is still required before a job can run.
+
+Applied reports are automatically shown under Archived. Rejected and superseded actionable reviews are archived too; superseded No change reports remain Active until an admin dismisses them. Archive, Delete and Restore are per-result admin actions saved as RESULT_ARCHIVED, RESULT_DELETED and RESULT_RESTORED events in DealerStockSyncAudit. They affect results-history visibility across computers, not report status, worker job state or listings. Deleted results can be restored from the Deleted view. The old browser-only clear list is no longer used.
+
+Active jobs, approved work and actionable reviews awaiting a decision cannot be archived or deleted. Completed job cards are suppressed when their corresponding report is shown, including rejected reports, so one scrape is represented once. Status badges contain short labels; explanatory text is outside the badge.
