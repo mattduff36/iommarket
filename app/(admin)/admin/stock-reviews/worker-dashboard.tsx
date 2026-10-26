@@ -43,9 +43,9 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   const online = snapshot.ok && Boolean(device && fresh(device, now));
   const controls = useStockWorkerCommands(device, online, setSnapshot);
   const { pending, message, running } = controls;
-  const selection = useDealerSelection(dealers, controls);
   const activeJobs = jobs.filter(job => job.status === "LEASED");
   const queued = jobs.filter(job => job.status === "QUEUED").length;
+  const selection = useDealerSelection(dealers, controls, queued > 0);
   const active = activeJobs[0];
   const latestFinished = jobs.filter(stockJobFinished).sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""))[0];
   const phase = device?.activity.at(-1)?.text ?? "Connected and ready";
@@ -113,6 +113,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
         {devices.map(row => <option key={row.deviceId} value={row.deviceId}>{row.deviceName}{fresh(row, now) ? " — connected" : " — offline"}</option>)}
       </select></label> : null}
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"><span>{queued} queued</span><span>{activeJobs.length} processing</span><a href="#stock-review-results" className="text-neon-blue-400 hover:underline">{readyCount} ready for review</a></div>
+      {queued > 0 && !running ? <p className="text-sm text-text-secondary">Queued work is ready. Click Start worker without selecting dealers to process it; select dealers only for new scans.</p> : null}
       </> : null}
     </section>
     {children}
