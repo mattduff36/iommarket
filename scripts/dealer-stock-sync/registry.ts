@@ -351,9 +351,10 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
         "Manx Car Warehouse stock",
         "https://www.manxcarwarehouse.im/stock/used-cars-in-ballasalla-isle-of-man/1",
         "html-structured",
+        { preferBrowser: true },
       ),
     ],
-    notes: "Public stock list verified on the canonical .im site.",
+    notes: "Public stock list verified on the canonical .im site. Browser runs only after plain HTTP does not return an ok list.",
     lastVerifiedAt: "2026-09-28",
   }),
   dealer({

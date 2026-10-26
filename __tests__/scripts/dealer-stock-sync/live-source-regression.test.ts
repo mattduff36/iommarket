@@ -1,10 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
+import { scrapeFailureReason } from "@/lib/dealer-stock-sync/completeness";
 import { extractDwCarViews, extractSnccCarItems } from "@/scripts/dealer-stock-sync/connectors/named-html";
 import { extractDetailSpecs } from "@/scripts/dealer-stock-sync/connectors/named-html-more";
 import { discoverStockPageUrls } from "@/scripts/dealer-stock-sync/connectors/html-extract";
 import { fetchWebsiteList } from "@/scripts/dealer-stock-sync/connectors/website-source";
 import { extractWebsiteDetailImages } from "@/scripts/dealer-stock-sync/html-media";
 import { getDealer } from "@/scripts/dealer-stock-sync/registry";
+
+const browse = vi.hoisted(() => ({ withPublicPage: vi.fn() }));
+vi.mock("@/scripts/dealer-stock-sync/browse", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/scripts/dealer-stock-sync/browse")>();
+  return { ...actual, withPublicPage: browse.withPublicPage };
+});
+
+const manxListHtml = `<script type="application/ld+json">${JSON.stringify({
+  "@type": "Car", brand: { name: "Ford" }, model: "Focus", url: "https://www.manxcarwarehouse.im/stock/ford-focus",
+})}</script>`;
 
 function snccCard(id: string, status = "") {
   return `<div class="car-item gray-bg text-center">
@@ -96,5 +107,49 @@ describe("live stock source regressions", () => {
       ? new Response("", { status: 503 }) : new Response(pages[String(input)] ?? ""));
     const failed = await fetchWebsiteList({ dealer, source, fetchImpl: failedFetch as typeof fetch });
     expect(failed).toMatchObject({ pagesFetched: 1, paginationUncertain: true });
+  });
+
+  it("uses the browser for Manx Car Warehouse only after plain HTTP fails", async () => {
+    const previousHeaded = process.env.DEALER_STOCK_HEADED;
+    delete process.env.DEALER_STOCK_HEADED;
+    const dealer = getDealer("manx-car-warehouse");
+    const source = dealer.sources[0]!;
+    expect(source).toMatchObject({
+      key: "stock",
+      preferBrowser: true,
+      startUrl: "https://www.manxcarwarehouse.im/stock/used-cars-in-ballasalla-isle-of-man/1",
+    });
+    expect(source.headed).not.toBe(true);
+    const order: string[] = [];
+    const fetchImpl = vi.fn(async () => {
+      order.push("http");
+      return new Response("down", { status: 404 });
+    });
+    browse.withPublicPage.mockImplementation(async () => {
+      order.push("browser");
+      return { jsonRequest: null, html: manxListHtml, htmls: [manxListHtml], jsonPayloads: [], htmlPayloads: [], paginationUncertain: false };
+    });
+    try {
+      const failedHttp = await fetchWebsiteList({ dealer, source, fetchImpl: fetchImpl as typeof fetch });
+      expect(order).toEqual(["http", "browser"]);
+      expect(failedHttp).toMatchObject({ status: "ok", dealerKey: "manx-car-warehouse", sourceKey: "stock" });
+      expect(failedHttp.vehicles).toHaveLength(1);
+      expect(browse.withPublicPage).toHaveBeenCalledWith(source.startUrl, expect.any(Function), expect.objectContaining({ headed: false }));
+      browse.withPublicPage.mockClear();
+      const httpOk = await fetchWebsiteList({
+        dealer,
+        source,
+        fetchImpl: vi.fn(async () => new Response(manxListHtml, { status: 200 })) as typeof fetch,
+      });
+      expect(httpOk.status).toBe("ok");
+      expect(httpOk.vehicles).toHaveLength(1);
+      expect(browse.withPublicPage).not.toHaveBeenCalled();
+      expect(scrapeFailureReason([{ status: "ok", vehicleCount: 14, advertisedCount: 20, pagesFetched: 1, detailMissing: 0, paginationUncertain: false }])).toBe("partial-inventory");
+      expect(scrapeFailureReason([{ status: "ok", vehicleCount: 14, advertisedCount: null, pagesFetched: 1, detailMissing: 1, paginationUncertain: false }])).toBe("detail-uncertain");
+      expect(scrapeFailureReason([{ status: "ok", vehicleCount: 14, advertisedCount: null, pagesFetched: 1, detailMissing: 0, paginationUncertain: true }])).toBe("pagination-uncertain");
+    } finally {
+      if (previousHeaded === undefined) delete process.env.DEALER_STOCK_HEADED;
+      else process.env.DEALER_STOCK_HEADED = previousHeaded;
+    }
   });
 });

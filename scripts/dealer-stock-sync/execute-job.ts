@@ -31,6 +31,29 @@ function safeError(error: unknown) {
   return "Stock sync job failed.";
 }
 
+function failedScrapeReportId(result: unknown) {
+  if (!result || typeof result !== "object" || (result as { status?: unknown }).status !== "FAILED") return null;
+  const id = (result as { id?: unknown }).id;
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+    throw new Error("Stock sync job failed.");
+  }
+  return id;
+}
+
+function terminalJobData(result: unknown, finishedAt: Date) {
+  const reportId = failedScrapeReportId(result);
+  if (!reportId) return { status: "SUCCEEDED" as const, finishedAt, leaseExpiresAt: null, error: null };
+  return { status: "FAILED" as const, finishedAt, leaseExpiresAt: null, error: "Stock sync job failed.", reportId };
+}
+
+function scrapeDiagnostics(result: PipelineResult) {
+  return result.sourceResults.map((source) => ({
+    sourceKey: source.sourceKey,
+    status: source.status,
+    count: source.vehicles.length,
+  }));
+}
+
 function completenessFrom(result: PipelineResult): SourceCompleteness[] {
   return result.sourceResults.map((source) => ({
     status: source.status,
@@ -113,7 +136,7 @@ async function scrapeJob(
       await tx.dealerStockSourceIdentity.updateMany({ where: { bindingId: job.bindingId, sourceIdentityKey: { in: seen } },
         data: { absenceCount: 0, lastAbsenceRunId: null, lastSeenRunId: job.id } });
       return persistFailedScrape(tx, { bindingId: job.bindingId, dealerId: job.dealerId,
-        scrapeRunId: job.id, failureReason: failure, jobId: job.id });
+        scrapeRunId: job.id, failureReason: failure, jobId: job.id, diagnostics: scrapeDiagnostics(result) });
     });
     return;
   }
@@ -185,9 +208,10 @@ async function withLease<T>(
       await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
       await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
       const result = await work(tx);
-      await tx.dealerStockSyncJob.update({ where: { id: job.id }, data: {
-        status: "SUCCEEDED", finishedAt: new Date(), leaseExpiresAt: null, error: null,
-      }});
+      await tx.dealerStockSyncJob.update({
+        where: { id: job.id },
+        data: terminalJobData(result, new Date()),
+      });
       return result;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: timeoutMs });
     if (job.kind === "APPLY") console.info("Stock sync atomic transaction completed.", {

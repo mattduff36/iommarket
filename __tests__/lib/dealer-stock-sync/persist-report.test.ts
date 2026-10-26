@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { persistCompleteScrape } from "@/lib/dealer-stock-sync/persist-report";
+import { persistCompleteScrape, persistFailedScrape } from "@/lib/dealer-stock-sync/persist-report";
 import type { FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
 
 describe("restricted worker report persistence", () => {
@@ -36,5 +36,42 @@ describe("restricted worker report persistence", () => {
     });
     expect(client.dealerStockSyncReport.create).toHaveBeenCalledOnce();
     expect(client.dealerStockSyncAudit.create).toHaveBeenCalledOnce();
+  });
+
+  it("stores only source key, status and count on a failed report plan", async () => {
+    const create = vi.fn(async () => ({ id: "failed-report", fingerprint: "job" }));
+    const client = {
+      dealerStockSyncReport: { updateMany: vi.fn(async () => ({ count: 1 })), create },
+      dealerStockSourceIdentity: { upsert: vi.fn() },
+      dealerStockSyncAudit: { create: vi.fn(async () => ({ id: "audit" })) },
+    };
+    const report = await persistFailedScrape(client, {
+      bindingId: "binding", dealerId: "dealer", scrapeRunId: "job", jobId: "job", failureReason: "source-failed",
+      diagnostics: [
+        { sourceKey: "stock", status: "failed", count: 14, error: "token-must-not-persist" },
+        { sourceKey: "used-cars", status: "blocked_requires_feed", count: 0 },
+        { sourceKey: "../secret", status: "failed", count: 1 },
+        { sourceKey: "stock", status: "HTTP 500 body", count: 2 },
+        { sourceKey: "stock", status: "ok", count: 1.5 },
+      ],
+    });
+    expect(report).toEqual({ id: "failed-report", status: "FAILED" });
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      status: "FAILED",
+      failureReason: "source-failed",
+      plan: {
+        actions: [],
+        patches: [],
+        diagnostics: [
+          { sourceKey: "stock", status: "failed", count: 14 },
+          { sourceKey: "used-cars", status: "blocked_requires_feed", count: 0 },
+        ],
+      },
+    }) });
+    expect(JSON.stringify(create.mock.calls)).not.toContain("token-must-not-persist");
+    expect(JSON.stringify(client.dealerStockSyncAudit.create.mock.calls)).not.toContain("token-must-not-persist");
+    expect(client.dealerStockSyncReport.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "SUPERSEDED" }),
+    }));
   });
 });
