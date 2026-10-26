@@ -12,7 +12,7 @@ export function StockDealerPicker({ dealers, unavailable = [] }: { dealers: Stoc
       <span className="text-sm tabular-nums text-text-secondary">{selection.selected.length} selected</span>
     </div>
     <fieldset disabled={controls.pending} className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-      <legend className="sr-only">Dealers with a verified website source</legend>
+      <legend className="sr-only">Enabled dealers with a Pro account</legend>
       {dealers.map(dealer => <label key={dealer.id} className="relative cursor-pointer">
         <input type="checkbox" className="peer sr-only" checked={selection.selected.includes(dealer.id)} onChange={() => selection.toggle(dealer.id)} />
         <span className="flex min-h-12 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-3 text-sm font-medium text-text-primary transition-colors hover:border-neon-blue-400 peer-checked:border-neon-blue-400 peer-checked:bg-neon-blue-500/10 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-neon-blue-400 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 motion-reduce:transition-none">
