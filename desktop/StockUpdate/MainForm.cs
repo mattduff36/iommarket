@@ -5,8 +5,8 @@ namespace StockUpdate;
 public sealed partial class MainForm : Form, IWorkerControlUi
 {
     private readonly SessionStore _store = new();
-    private readonly RadioButton _preview = new() { Text = "Preview - itrader.dev", Checked = true, AutoSize = true };
-    private readonly RadioButton _production = new() { Text = "Production - itrader.im", AutoSize = true };
+    private readonly SiteSelection _site = new();
+    private readonly Button _switchSite = new() { Text = "Switch to production site", AutoSize = true };
     private readonly Label _account = new() { AutoSize = true, Text = "Not signed in" };
     private readonly Label _status = new() { AutoSize = true, Text = "Idle" };
     private readonly Label _simpleStatus = new() { AutoSize = true, Text = "Idle", MaximumSize = new Size(420, 0) };
@@ -47,7 +47,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     public MainForm()
     {
         Text = "iTrader Stock Update";
-        MinimumSize = new Size(400, 210);
+        MinimumSize = new Size(460, 270);
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 9f);
@@ -65,10 +65,8 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         view.DropDownItems.Add(_debugLayout);
         menu.Items.Add(view);
         MainMenuStrip = menu;
-        _debugLayout.CheckedChanged += (_, _) => ApplyChrome();
+        _debugLayout.CheckedChanged += (_, _) => { ApplyChrome(); new AppPreferences(_debugLayout.Checked).Save(); };
 
-        var env = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8) };
-        env.Controls.AddRange([new Label { Text = "Environment", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, _preview, _production]);
         var info = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8, 0, 8, 0) };
         info.Controls.AddRange([_account, new Label { Text = "   ", AutoSize = true }, _status]);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8) };
@@ -77,7 +75,6 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         debug.Controls.Add(_activity);
         debug.Controls.Add(buttons);
         debug.Controls.Add(info);
-        debug.Controls.Add(env);
         _debugRoot = debug;
 
         var brand = new Label { Text = "iTrader Stock Update", AutoSize = true, Font = new Font("Segoe UI", 16f, FontStyle.Bold) };
@@ -96,9 +93,13 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
         Controls.Add(debug);
         Controls.Add(simple);
+        var siteBar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
+        siteBar.Controls.Add(_switchSite);
+        Controls.Add(siteBar);
         Controls.Add(menu);
-        _preview.CheckedChanged += (_, _) => OnEnvironmentChanged();
-        _production.CheckedChanged += (_, _) => OnEnvironmentChanged();
+        _switchSite.Click += (_, _) => SwitchSite();
+        var preferences = AppPreferences.Load();
+        _debugLayout.Checked = preferences.DebugLayout;
         _cancel.Click += (_, _) => _http.Cancel();
         _simpleCancel.Click += (_, _) => _http.Cancel();
         _signIn.Click += async (_, _) => await SignInAsync();
@@ -117,31 +118,34 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         Shown += async (_, _) => await LaunchWithUpdateAsync();
     }
 
-    private AppEnvironment Selected => _production.Checked ? AppEnvironment.Production : AppEnvironment.Preview;
+    private AppEnvironment Selected => _site.Environment;
 
     private void ApplyChrome()
     {
         var debug = _debugLayout.Checked;
         _simpleRoot.Visible = !debug;
         _debugRoot.Visible = debug;
-        MinimumSize = debug ? new Size(760, 520) : new Size(400, 210);
+        MinimumSize = debug ? new Size(760, 520) : new Size(460, 270);
         if (debug && ClientSize.Width < 760) ClientSize = new Size(760, 520);
-        if (!debug && ClientSize.Height > 280) ClientSize = new Size(460, 220);
+        if (!debug && ClientSize.Height > 280) ClientSize = new Size(460, 270);
         Text = debug
             ? "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")"
             : "iTrader Stock Update";
     }
 
-    private void OnEnvironmentChanged()
+    private void SwitchSite()
     {
-        if (_runner is { IsRunning: true } || _busy) return;
+        if (!_site.TrySwitch(_busy || _shuttingDown, _runner is { IsRunning: true }, () =>
+            MessageBox.Show(this,
+                "Switch to the production site itrader.im? Approved changes here affect real dealer listings. Preview remains the default next time you open the app.",
+                "Confirm production site", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes)) return;
         ReplaceControl(null);
         LoadEnvironment();
     }
 
     private void LoadEnvironment()
     {
-        _environment.Text = (_production.Checked ? "Production - " : "Preview - ") + Targets.Host(Selected);
+        _environment.Text = (Selected == AppEnvironment.Production ? "Production - " : "Preview - ") + Targets.Host(Selected);
         if (_debugLayout.Checked)
             Text = "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")";
         _session = _store.TryLoad(Selected);
@@ -154,8 +158,8 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     {
         var running = _runner is { IsRunning: true };
         var stoppable = running || _control?.State.RuntimeState is "running" or "stopping";
-        _preview.Enabled = !running && !_busy;
-        _production.Enabled = !running && !_busy;
+        _switchSite.Enabled = !running && !_busy && !_shuttingDown;
+        _switchSite.Text = Selected == AppEnvironment.Preview ? "Switch to production site" : "Switch to preview site";
         _signIn.Enabled = !running && !_busy;
         _simpleSignIn.Enabled = !_busy;
         _simpleSignIn.Text = _session is not null && _control is not null && !_control.State.Paused ? "Open Stock Reviews" : "Sign in";

@@ -25,3 +25,10 @@ describe("installer release trust", () => {
     expect(() => verifyRelease(envelope(input), publicKey)).toThrow();
   });
 });
+
+it("accepts production only with the expected signed channel and exact path", () => {
+  const input = envelope({ channel: "production", objectKey: "production/1.1.6/iTrader-Stock-Update-1.1.6.exe" });
+  expect(verifyRelease(input, publicKey, "production").release.channel).toBe("production");
+  expect(() => verifyRelease(input, publicKey, "preview")).toThrow();
+  expect(() => verifyRelease(envelope(), publicKey, "production")).toThrow();
+});

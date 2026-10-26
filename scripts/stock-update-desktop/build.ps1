@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$version = '1.1.7'
+$version = '1.1.8'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
@@ -93,11 +93,11 @@ if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed dur
 
 Invoke-Checked $systemNode @((Join-Path $PSScriptRoot 'online-dependencies.mjs'), '--tools', $ToolRoot, '--out', $BuildRoot, '--worker', (Join-Path $BuildRoot 'payload\x64\worker')) 'online-dependencies'
 @'
-iTrader Stock Update - private internal release 1.1.7 (unsigned)
+iTrader Stock Update - private internal release 1.1.8 (unsigned)
 
 This installer includes the application and its reviewed worker packages. Setup downloads the matching official Node.js runtime and the pinned browser components, so an internet connection is required. A cancelled or failed download, checksum or extraction leaves any existing installation unchanged. You do not need Git, npm, .NET, Cursor or repository access. Setup downloads both Chromium modes needed by the configured dealer websites.
 
-Use Preview - itrader.dev. Production needs separate approval and is not enabled by this release.
+The app always starts on Preview - itrader.dev. Use the bottom-right Switch to production site button and confirm the warning to work on itrader.im. Closing or updating the app resets the selected site to Preview.
 
 1. Open iTrader Stock Update from the Start menu and leave Preview selected.
 2. Click Sign in. In your browser, use your administrator account and approve this computer for Preview. The app does not collect your password.
@@ -115,10 +115,13 @@ If the app is hidden or minimised, launch it again from the Start menu to restor
 
 The app receives only a revocable session token. It never receives database credentials or ImageKit private keys. Windows encrypts the saved session for this Windows user. Sign out or use Manage devices to revoke this computer before handing it to someone else.
 
-Upgrades replace the application, worker and runtime only after those downloads have been verified. Encrypted sessions are preserved. Uninstall removes this user's local app data; it does not revoke the server session. Use Manage devices to revoke access after loss or uninstall.
+App updates run unattended, preserve existing installer settings and sign-ins, and reopen on Preview. Upgrades replace the application, worker and runtime only after those downloads have been verified. Encrypted sessions are preserved. Uninstall removes this user's local app data; it does not revoke the server session. Use Manage devices to revoke access after loss or uninstall.
 
 This is an unsigned application for the agreed private internal use. Signing is out of scope. Do not disable Windows security. Contact Matt if Windows blocks installation.
 '@ | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'client-readme.txt')
+$bridgeCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+if (-not [IO.File]::Exists($bridgeCompiler)) { throw 'Windows .NET Framework compiler is required for the legacy update launcher.' }
+Invoke-Checked $bridgeCompiler @('/nologo', '/target:winexe', '/platform:anycpu', ('/out:' + (Join-Path $BuildRoot 'UpgradeBridge.exe')), (Join-Path $repo 'desktop\StockUpdate\UpgradeBridge.cs')) 'compile-upgrade-bridge'
 Invoke-Checked $iscc @('/Qp', ("/DBuildRoot=" + $BuildRoot), ("/DAppVersion=" + $version), (Join-Path $repo 'desktop\StockUpdate\installer.iss')) 'compile-installer'
 $installer = Join-Path $BuildRoot "release\iTrader Stock Update Setup-$version.exe"
 if (-not [IO.File]::Exists($installer)) { throw 'Compiler did not produce the expected installer.' }

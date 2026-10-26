@@ -3,13 +3,13 @@ namespace StockUpdate;
 public sealed partial class MainForm
 {
     public string? PendingInstaller { get; private set; }
-    private bool _updateChecked;
+    private AppEnvironment? _updateChecked;
 
     private async Task<bool> CheckUpdateAsync(WorkerSession session)
     {
-        if (_updateChecked || session.Environment != AppEnvironment.Preview) return true;
+        if (_updateChecked == session.Environment) return true;
         if (_runner is { IsRunning: true }) return false;
-        _updateChecked = true;
+        _updateChecked = session.Environment;
         SetStatus("Checking for an update");
         try
         {
@@ -49,7 +49,7 @@ public sealed partial class MainForm
     {
         if (_launchControlStarted) return;
         _launchControlStarted = true;
-        if (_session is null || Selected != AppEnvironment.Preview) return;
+        if (_session is null) return;
         _busy = true;
         UpdateButtons();
         try { if (await CheckUpdateAsync(_session) && !_shuttingDown) StartControl(_session); }

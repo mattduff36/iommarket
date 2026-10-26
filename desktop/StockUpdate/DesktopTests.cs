@@ -279,6 +279,8 @@ public static class DesktopTests
         Check("worker-output-codes-are-bounded", WorkerControlTests.OutputCodes);
 
         Check("update-signed-manifest-and-channel", UpdateTests.Manifest);
+        Check("update-unattended-settings-and-relaunch", UpdateTests.InstallArguments);
+        Check("preview-default-confirmed-production-switch", UpdateTests.SiteSwitch);
         Check("update-download-hash-size-redirect-cancel", UpdateTests.Download);
         var passed = results.All(result => result.Passed);
         var report = JsonSerializer.Serialize(new { passed, results }, new JsonSerializerOptions { WriteIndented = true });

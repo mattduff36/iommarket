@@ -2,6 +2,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const entitlement = vi.hoisted(() => vi.fn().mockResolvedValue({ tier: "PRO" }));
+vi.mock("@/lib/dealers/entitlement", () => ({ getDealerEntitlement: entitlement }));
 const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
@@ -229,4 +231,17 @@ it("excludes preview profiles from unavailable dealers and preserves real reason
   ]);
   await renderPage([]);
   expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers:[{id:"ready",name:"Ready dealer"}], unavailable:[{id:"setup",name:"Setup dealer",reason:"Website source needs setup"},{id:"disabled",name:"Disabled dealer",reason:"Dealer account disabled"}]}));
+});
+
+it("moves Starter, expired and unentitled dealers to unavailable in both picker and dashboard", async () => {
+  entitlement.mockImplementation(async (id: string) => id === "pro" || id === "grant" ? { tier: "PRO" } : id === "starter" ? { tier: "STARTER" } : null);
+  profileFindMany.mockResolvedValueOnce(["pro", "grant", "starter", "expired", "none"].map(id => ({
+    id, name: id, tier: "PRO", isAdminPreview: false, user: { disabledAt: null }, stockSourceBinding: { verifiedAt: when },
+  })));
+  await renderPage([]);
+  const dealers = [{ id: "pro", name: "pro" }, { id: "grant", name: "grant" }];
+  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({ dealers, unavailable: ["starter", "expired", "none"].map(id => ({
+    id, name: id, reason: "An active Dealer Pro account is required",
+  })) }));
+  expect(dashboardProps).toHaveBeenLastCalledWith(expect.objectContaining({ dealers }));
 });

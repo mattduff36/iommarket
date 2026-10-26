@@ -13,7 +13,10 @@ export function DownloadStockWorker() {
       if (!response.ok) throw new Error("The installer is unavailable. Please try again shortly.");
       const release = await response.json();
       const url = new URL(release.downloadUrl);
-      if (url.origin !== "https://syneonzucehwlghqmfbg.supabase.co" || !url.pathname.startsWith("/storage/v1/object/sign/stock-update-releases/preview/") || url.username || url.password || url.hash) throw new Error("The download could not be verified.");
+      const production = ["itrader.im", "www.itrader.im"].includes(window.location.hostname);
+      const origin = production ? "https://snlqivvogfqesxpbjiei.supabase.co" : "https://syneonzucehwlghqmfbg.supabase.co";
+      const channel = production ? "production" : "preview";
+      if (url.origin !== origin || !url.pathname.startsWith("/storage/v1/object/sign/stock-update-releases/" + channel + "/") || url.username || url.password || url.hash) throw new Error("The download could not be verified.");
       window.location.assign(url.href);
     } catch {
       setError("The installer is unavailable. Please try again shortly.");

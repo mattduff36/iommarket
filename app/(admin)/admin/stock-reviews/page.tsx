@@ -7,12 +7,13 @@ import { stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getDealerEntitlement } from "@/lib/dealers/entitlement";
+import { resolveDesktopGate } from "@/lib/dealer-stock-sync/desktop-config";
 
 export const metadata: Metadata = { title: "Dealer scrapes | Admin" };
 
 import { StockDealerPicker } from "./dealer-picker";
 import { DownloadStockWorker } from "./download-worker";
-import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { StockWorkerDashboard } from "./worker-dashboard";
 import { StockWorkerPairing } from "./worker-pairing";
 import { getWorkerDashboard } from "./worker-actions";
@@ -190,11 +191,21 @@ export default async function AdminStockReviewsPage({ searchParams }: {
     loadReports(["PENDING_REVIEW", "APPROVED"]),
     loadReports(["APPLIED", "FAILED"], RECENT_LIMIT),
     loadJobs(),
-    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, isAdminPreview: true, user: { select: { disabledAt: true } }, stockSourceBinding: { select: { verifiedAt: true } } }, orderBy: { name: "asc" } }),
+    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, user: { select: { disabledAt: true } }, stockSourceBinding: { select: { verifiedAt: true } } }, orderBy: { name: "asc" } }),
     getWorkerDashboard(),
   ]);
-  const availableProfiles = profiles.filter(profile => !profile.isAdminPreview && !profile.user.disabledAt && profile.stockSourceBinding?.verifiedAt);
-  const unavailableProfiles = profiles.filter(profile => !profile.isAdminPreview && !availableProfiles.some(available => available.id === profile.id)).map(profile => ({ id: profile.id, name: profile.name, reason: profile.isAdminPreview ? "Preview/demo profile — an active dealer account is required" : profile.user.disabledAt ? "Dealer account disabled" : "Website source needs setup" }));
+  const now = new Date();
+  const classified = await Promise.all(profiles.filter(profile => !profile.isAdminPreview).map(async profile => {
+    const entitlement = await getDealerEntitlement(profile.id, profile.tier, now);
+    const reason = profile.user.disabledAt ? "Dealer account disabled"
+      : entitlement?.tier !== "PRO" ? "An active Dealer Pro account is required"
+      : !profile.stockSourceBinding?.verifiedAt ? "Website source needs setup" : null;
+    return { ...profile, reason };
+  }));
+  const availableProfiles = classified.filter(profile => !profile.reason);
+  const unavailableProfiles = classified.filter(profile => profile.reason).map(profile => ({
+    id: profile.id, name: profile.name, reason: profile.reason!,
+  }));
   const reportsByRun = new Map([...outstanding, ...recentReports].map(report => [report.scrapeRunId, report]));
   const dealers = dealerGroups(outstanding, recentReports, jobs);
   const selectedReport = [...outstanding, ...recentReports].find(report => report.id === query.report);
@@ -209,7 +220,7 @@ export default async function AdminStockReviewsPage({ searchParams }: {
       {typeof query.code === "string" && query.code ? <StockWorkerPairing code={query.code} status="" /> : null}
       <StockWorkerDashboard dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={<>
         <StockWorkerPairing code="" status={typeof query.status === "string" ? query.status : ""} />
-        {isStagingOnlyFeatureEnabled() ? <DownloadStockWorker /> : null}
+        {resolveDesktopGate(process.env).ok ? <DownloadStockWorker /> : null}
       </>} initialNow={Date.now()} initial={dashboard} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt?.toISOString() ?? null }))}>
       <StockDealerPicker dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <h2 id="stock-review-results" className="text-xl font-semibold text-text-primary">Results</h2>
