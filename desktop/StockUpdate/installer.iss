@@ -63,6 +63,7 @@ Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\browsers"
 
 [Files]
+Source: "{#BuildRoot}\UpgradeBridge.exe"; Flags: dontcopy
 Source: "{#BuildRoot}\payload\x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".dependency-fingerprint,*.pdb,runtime\*"; Check: not IsArm64
 Source: "{#BuildRoot}\payload\arm64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".dependency-fingerprint,*.pdb,runtime\*"; Check: IsArm64
 Source: "{tmp}\online-runtime\node.exe"; DestDir: "{app}\runtime"; Flags: external ignoreversion
@@ -87,6 +88,8 @@ Type: filesandordirs; Name: "{localappdata}\iTrader\StockUpdate"
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+
+function GetCurrentProcessId: LongWord; external 'GetCurrentProcessId@kernel32.dll stdcall';
 
 function IsAppUpdate: Boolean;
 begin
@@ -204,10 +207,11 @@ begin
       'Software\Microsoft\Windows\CurrentVersion\Uninstall\{609BE835-6123-4C60-991E-0C33BB3811C8}_is1',
       'Inno Setup: App Path', ExistingDir) and
       (Pos('"', ExistingDir) = 0) and FileExists(ExistingDir + '\StockUpdate.exe') then begin
-    if not Exec(ExpandConstant('{srcexe}'),
-        '/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /UPDATEAPP=1 /DIR="' + ExistingDir + '"',
+    ExtractTemporaryFile('UpgradeBridge.exe');
+    if not Exec(ExpandConstant('{tmp}\UpgradeBridge.exe'),
+        '"' + ExpandConstant('{srcexe}') + '" ' + IntToStr(GetCurrentProcessId),
         '', SW_HIDE, ewNoWait, ExitCode) then
-      MsgBox('Could not start the update. The existing app is unchanged.', mbError, MB_OK);
+      MsgBox('Could not start the update. The existing app is unchanged. ' + SysErrorMessage(ExitCode), mbError, MB_OK);
     Result := False;
     Exit;
   end;

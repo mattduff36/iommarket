@@ -24,6 +24,7 @@
   </PropertyGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <ItemGroup>
+    <Compile Remove="UpgradeBridge.cs" />
     <EmbeddedResource Include="update-public-key.txt" LogicalName="StockUpdate.update-public-key.pem" />
   </ItemGroup>
 </Project>

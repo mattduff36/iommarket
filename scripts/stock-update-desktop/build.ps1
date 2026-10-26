@@ -119,6 +119,9 @@ App updates run unattended, preserve existing installer settings and sign-ins, a
 
 This is an unsigned application for the agreed private internal use. Signing is out of scope. Do not disable Windows security. Contact Matt if Windows blocks installation.
 '@ | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'client-readme.txt')
+$bridgeCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+if (-not [IO.File]::Exists($bridgeCompiler)) { throw 'Windows .NET Framework compiler is required for the legacy update launcher.' }
+Invoke-Checked $bridgeCompiler @('/nologo', '/target:winexe', '/platform:anycpu', ('/out:' + (Join-Path $BuildRoot 'UpgradeBridge.exe')), (Join-Path $repo 'desktop\StockUpdate\UpgradeBridge.cs')) 'compile-upgrade-bridge'
 Invoke-Checked $iscc @('/Qp', ("/DBuildRoot=" + $BuildRoot), ("/DAppVersion=" + $version), (Join-Path $repo 'desktop\StockUpdate\installer.iss')) 'compile-installer'
 $installer = Join-Path $BuildRoot "release\iTrader Stock Update Setup-$version.exe"
 if (-not [IO.File]::Exists($installer)) { throw 'Compiler did not produce the expected installer.' }
