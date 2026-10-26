@@ -225,23 +225,23 @@ describe("admin stock reviews", () => {
 it("excludes preview profiles from unavailable dealers and preserves real reasons", async () => {
   profileFindMany.mockResolvedValueOnce([
     {id:"preview",name:"Preview pack",isAdminPreview:true,user:{disabledAt:null},stockSourceBinding:null},
-    {id:"ready",name:"Ready dealer",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:when}},
-    {id:"setup",name:"Setup dealer",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:null},
-    {id:"disabled",name:"Disabled dealer",isAdminPreview:false,user:{disabledAt:when},stockSourceBinding:null},
+    {id:"ready",name:"Ready dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:when}},
+    {id:"setup",name:"Setup dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:null},
+    {id:"disabled",name:"Disabled dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:when},stockSourceBinding:null},
   ]);
   await renderPage([]);
-  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers:[{id:"ready",name:"Ready dealer"}], unavailable:[{id:"setup",name:"Setup dealer",reason:"Website source needs setup"},{id:"disabled",name:"Disabled dealer",reason:"Dealer account disabled"}]}));
+  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers:[{id:"ready",name:"Ready dealer"},{id:"setup",name:"Setup dealer"}], unavailable:[{id:"disabled",name:"Disabled dealer",reason:"Dealer account disabled"}]}));
 });
 
-it("moves Starter, expired and unentitled dealers to unavailable in both picker and dashboard", async () => {
+it("includes Pro dealers regardless of subscription or source setup and excludes Starter accounts", async () => {
   entitlement.mockImplementation(async (id: string) => id === "pro" || id === "grant" ? { tier: "PRO" } : id === "starter" ? { tier: "STARTER" } : null);
   profileFindMany.mockResolvedValueOnce(["pro", "grant", "starter", "expired", "none"].map(id => ({
-    id, name: id, tier: "PRO", isAdminPreview: false, user: { disabledAt: null }, stockSourceBinding: { verifiedAt: when },
+    id, name: id, tier: id === "starter" ? "STARTER" : "PRO", isAdminPreview: false, user: { disabledAt: null }, stockSourceBinding: { verifiedAt: when },
   })));
   await renderPage([]);
-  const dealers = [{ id: "pro", name: "pro" }, { id: "grant", name: "grant" }];
-  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({ dealers, unavailable: ["starter", "expired", "none"].map(id => ({
-    id, name: id, reason: "An active Dealer Pro account is required",
+  const dealers = ["pro", "grant", "expired", "none"].map(id => ({ id, name: id }));
+  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({ dealers, unavailable: ["starter"].map(id => ({
+    id, name: id, reason: "Starter account",
   })) }));
   expect(dashboardProps).toHaveBeenLastCalledWith(expect.objectContaining({ dealers }));
 });

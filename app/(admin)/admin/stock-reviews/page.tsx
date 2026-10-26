@@ -9,7 +9,6 @@ import { stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getDealerEntitlement } from "@/lib/dealers/entitlement";
 import { resolveDesktopGate } from "@/lib/dealer-stock-sync/desktop-config";
 
 export const metadata: Metadata = { title: "Dealer scrapes | Admin" };
@@ -193,16 +192,15 @@ export default async function AdminStockReviewsPage({ searchParams }: {
     loadReports(["PENDING_REVIEW", "APPROVED"]),
     loadReports(["APPLIED", "FAILED"], RECENT_LIMIT),
     loadJobs(),
-    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, user: { select: { disabledAt: true } }, stockSourceBinding: { select: { verifiedAt: true } } }, orderBy: { name: "asc" } }),
+    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, user: { select: { disabledAt: true } } }, orderBy: { name: "asc" } }),
     getWorkerDashboard(),
   ]);
-  const now = new Date();
-  const classified = await Promise.all(profiles.filter(profile => !profile.isAdminPreview).map(async profile => {
-    const entitlement = await getDealerEntitlement(profile.id, profile.tier, now);
-    const reason = profile.user.disabledAt ? "Dealer account disabled"
-      : entitlement?.tier !== "PRO" ? "An active Dealer Pro account is required"
-      : !profile.stockSourceBinding?.verifiedAt ? "Website source needs setup" : null;
-    return { ...profile, reason };
+  // Admin stock management follows the account tier, not billing entitlement.
+  // Source setup is handled separately and must not hide an enabled Pro dealer.
+  const classified = profiles.filter(profile => !profile.isAdminPreview).map(profile => ({
+    ...profile,
+    reason: profile.user.disabledAt ? "Dealer account disabled"
+      : profile.tier === "STARTER" ? "Starter account" : null,
   }));
   const availableProfiles = classified.filter(profile => !profile.reason);
   const unavailableProfiles = classified.filter(profile => profile.reason).map(profile => ({
