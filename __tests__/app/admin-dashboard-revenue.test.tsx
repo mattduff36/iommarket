@@ -30,12 +30,12 @@ describe("dashboard recognised revenue", () => {
     const page = await Page();
     expect(mocks.paymentAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ AND: expect.arrayContaining([expect.objectContaining({ status: "SUCCEEDED", refundedAt: null })]) }) }));
     expect(mocks.chargeAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ refundedAt: null, subscription: { is: expect.objectContaining({ AND: expect.arrayContaining([expect.objectContaining({ dealer: expect.any(Object) })]) }) } }) }));
-    expect(findStats(page)!.stats.find((stat: { label: string }) => stat.label === "Revenue").value).toBe("\u00a339.99");
-    expect(findStats(page)!.stats.find((stat: { label: string }) => stat.label === "Revenue").hint).toBe("3 payments (30d)");
+    expect(findStats(page)!.stats.find((stat: { label: string }) => stat.label === "Revenue")!.value).toBe("\u00a339.99");
+    expect(findStats(page)!.stats.find((stat: { label: string }) => stat.label === "Revenue")!.hint).toBe("3 payments (30d)");
     expect(mocks.chargeCount).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ refundedAt: null, eventTimestamp: { gte: expect.any(Date) } }) }));
   });
   it("handles empty payment and subscription ledgers", async () => {
     mocks.paymentAggregate.mockResolvedValue({ _sum: { amount: null } }); mocks.chargeAggregate.mockResolvedValue({ _sum: { amount: null } });
-    expect(findStats(await Page())!.stats.find((stat: { label: string }) => stat.label === "Revenue").value).toBe("\u00a30");
+    expect(findStats(await Page())!.stats.find((stat: { label: string }) => stat.label === "Revenue")!.value).toBe("\u00a30");
   });
 });
