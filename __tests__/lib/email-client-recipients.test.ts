@@ -70,5 +70,27 @@ describe("sendResendEmail recipients", () => {
         text: "Hello",
       }),
     ).rejects.toThrow("Recipient address was rejected.");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([undefined, "", "   "])("retries a lost response with a safe key when supplied key is %s", async (idempotencyKey) => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError("fetch failed"));
+    await sendResendEmail({ to: "ops@itrader.im", subject: "Alert", text: "Hello", idempotencyKey });
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls).toHaveLength(2);
+    const firstKey = new Headers(calls[0][1]?.headers).get("Idempotency-Key");
+    expect(firstKey).toBeTruthy();
+    expect(new Headers(calls[1][1]?.headers).get("Idempotency-Key")).toBe(firstKey);
+    expect(calls[1][1]?.body).toBe(calls[0][1]?.body);
+  });
+
+  it("preserves caller keys and reports persistent transport failure after two attempts", async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError("fetch failed"));
+    await expect(sendResendEmail({ to: "ops@itrader.im", subject: "Alert", text: "Hello", idempotencyKey: "event-1" }))
+      .rejects.toThrow("Unable to fetch data");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(fetch).mock.calls) {
+      expect(new Headers(call[1]?.headers).get("Idempotency-Key")).toBe("event-1");
+    }
   });
 });
