@@ -85,20 +85,18 @@ export async function importSignupAcceptances(
     return { imported: false as const };
   }
 
-  await recordAcceptance(client, {
-    userId,
-    acceptanceType: "AGE_18",
-    source: "SIGNUP",
-  });
-  await recordAcceptance(client, {
-    userId,
-    acceptanceType: "ACCOUNT_BUNDLE",
-    source: "SIGNUP",
-  });
-  await recordAcceptance(client, {
-    userId,
-    acceptanceType: "PRIVACY_NOTICE",
-    source: "SIGNUP",
+  // Preserve existing evidence while avoiding three sequential upserts inside
+  // the first-sign-in transaction.
+  const acceptanceTypes = ["AGE_18", "ACCOUNT_BUNDLE", "PRIVACY_NOTICE"] as const;
+  await client.policyAcceptance.createMany({
+    skipDuplicates: true,
+    data: acceptanceTypes.map((acceptanceType) => ({
+      userId,
+      acceptanceType,
+      bundleVersion: buildBundleVersion(acceptanceType),
+      policyVersions: policyVersionsForBundle(acceptanceType),
+      source: "SIGNUP" as const,
+    })),
   });
   return { imported: true as const };
 }

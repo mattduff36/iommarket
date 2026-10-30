@@ -156,8 +156,13 @@ export async function syncUser(
   name?: string,
   policyAcceptanceReceipt?: unknown
 ) {
+  // Load policy code before opening a transaction: cold module loading must
+  // not consume the database transaction's execution budget.
+  const acceptance = policyAcceptanceReceipt
+    ? await import("@/lib/policy/acceptance")
+    : null;
+  const parsedName = profileNameSchema.safeParse(name);
   const persist = () => db.$transaction(async (tx) => {
-    const parsedName = profileNameSchema.safeParse(name);
     const existing = await tx.user.findUnique({
       where: { authUserId },
       select: { id: true },
@@ -181,14 +186,11 @@ export async function syncUser(
           })
         : null;
     if (!user) throw new ProfileNameRequiredError();
-    if (policyAcceptanceReceipt) {
-      const { importSignupAcceptances } = await import(
-        "@/lib/policy/acceptance"
-      );
-      await importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
+    if (acceptance) {
+      await acceptance.importSignupAcceptances(tx, user.id, policyAcceptanceReceipt);
     }
     return user;
-  });
+  }, { maxWait: 5_000, timeout: 15_000 });
 
   try {
     return await persist();
