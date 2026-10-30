@@ -4,7 +4,7 @@ import type { AccountDeletionJob } from "@prisma/client";
 const { mockDb, deleteUserMock, deleteImageMock } = vi.hoisted(() => ({
   mockDb: {
     retentionLegalHold: { findFirst: vi.fn() },
-    accountDeletionJob: { updateMany: vi.fn(), findUnique: vi.fn() },
+    accountDeletionJob: { updateMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
     user: { findUnique: vi.fn(), update: vi.fn() },
     favourite: { deleteMany: vi.fn() },
     savedSearch: { deleteMany: vi.fn() },
@@ -35,6 +35,7 @@ import {
   anonymiseAccountAndComplete,
   canRestoreDeletedUser,
   processAccountDeletionJob,
+  runAccountDeletionWorker,
 } from "@/lib/privacy/account-deletion";
 
 function leasedJob(overrides: Partial<AccountDeletionJob> = {}): AccountDeletionJob {
@@ -54,6 +55,39 @@ function leasedJob(overrides: Partial<AccountDeletionJob> = {}): AccountDeletion
     ...overrides,
   };
 }
+
+describe("deletion worker transaction acquisition", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.accountDeletionJob.findFirst.mockResolvedValue(null);
+    mockDb.$transaction.mockImplementation(async callback => callback(mockDb));
+  });
+
+  it("recovers once when no transaction could be started", async () => {
+    mockDb.$transaction.mockRejectedValueOnce(Object.assign(
+      new Error("Transaction API error: Unable to start a transaction in the given time."),
+      { code: "P2028" },
+    ));
+    await expect(runAccountDeletionWorker()).resolves.toEqual({ processed: 0, skipped: false });
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(2);
+    expect(deleteUserMock).not.toHaveBeenCalled();
+  });
+
+  it("does not replay a transaction with an uncertain commit outcome", async () => {
+    mockDb.$transaction.mockRejectedValue(Object.assign(new Error("Transaction commit failed"), { code: "P2028" }));
+    await expect(runAccountDeletionWorker()).rejects.toThrow("Transaction commit failed");
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds retries when the pool remains unavailable", async () => {
+    mockDb.$transaction.mockRejectedValue(Object.assign(
+      new Error("Transaction API error: Unable to start a transaction in the given time."),
+      { code: "P2028" },
+    ));
+    await expect(runAccountDeletionWorker()).rejects.toThrow("Unable to start");
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("account deletion restore POL-PRIV-001", () => {
   it("allows restore when no deletion job exists", () => {

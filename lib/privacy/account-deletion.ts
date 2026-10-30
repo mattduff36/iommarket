@@ -158,7 +158,22 @@ async function leaseNextDeletionJob(now = new Date()) {
     });
     if (leased.count !== 1) return null;
     return tx.accountDeletionJob.findUniqueOrThrow({ where: { id: job.id } });
-  });
+  }, { maxWait: 5_000, timeout: 10_000 });
+}
+
+async function leaseDeletionJobWithRetry() {
+  try {
+    return await leaseNextDeletionJob();
+  } catch (error) {
+    // Retry only when Prisma confirms the transaction never started. Never
+    // replay deletion work or a transaction whose commit outcome is unknown.
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "P2028" ||
+      !error.message.includes("Unable to start a transaction in the given time")) {
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return leaseNextDeletionJob();
+  }
 }
 
 async function failJob(job: AccountDeletionJob, error: string) {
@@ -297,7 +312,7 @@ export async function runAccountDeletionWorker(limit = 10) {
 
   let processed = 0;
   for (let i = 0; i < limit; i += 1) {
-    const job = await leaseNextDeletionJob();
+    const job = await leaseDeletionJobWithRetry();
     if (!job) break;
     await processAccountDeletionJob(job);
     processed += 1;
