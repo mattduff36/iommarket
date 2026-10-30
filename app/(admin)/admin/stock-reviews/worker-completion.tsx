@@ -54,7 +54,15 @@ export function StockWorkerCompletion({ jobs, canShow }: { jobs: LiveStockJob[];
         All {notice?.length ?? 0} tasks in this run have ended. Review the results below. Failed tasks need attention; successful scans still require your approval before listings change.
       </DialogDescription>
       <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm">
-        {notice?.map(job => <li key={job.id}>{stockJobOutcome(job)}</li>)}
+        {notice?.map(job => {
+          const outcome = stockJobOutcome(job).slice(job.dealerName.length + 2);
+          const failed = job.status === "FAILED" || job.reportStatus === "FAILED";
+          return <li key={job.id}>
+            {job.dealerName}: {failed
+              ? <><span className="text-red-400">task failed</span> — check the saved result</>
+              : <span className={job.status === "SUCCEEDED" ? "text-emerald-400" : undefined}>{outcome}</span>}
+          </li>;
+        })}
       </ul>
       <button type="button" className="mt-4 rounded-md bg-neon-blue-500 px-4 py-2 text-sm font-semibold text-white" onClick={() => setNotice(null)}>Got it</button>
     </DialogContent>

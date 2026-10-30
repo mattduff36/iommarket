@@ -71,10 +71,12 @@ const MOTORHOME_PHRASES = [
   "zefiro",
   "auto trail",
   "dethleffs",
+  "burstner",
+  "euro mobil",
 ] as const;
 
 function motorhomeText(vehicle: CanonicalVehicle) {
-  return [vehicle.model, vehicle.derivative, vehicle.bodyType, vehicle.vehicleType]
+  return [vehicle.make, vehicle.model, vehicle.derivative, vehicle.bodyType, vehicle.vehicleType]
     .filter((part): part is string => Boolean(part?.trim()))
     .join(" ")
     .toLowerCase()
@@ -85,7 +87,7 @@ function motorhomeText(vehicle: CanonicalVehicle) {
 
 export function isMotorhomeStock(vehicle: CanonicalVehicle) {
   const text = motorhomeText(vehicle);
-  if (/\b\d+\s+berth\b/.test(text)) return true;
+  if (/\b(?:\d+\s+berth|camper)\b/.test(text)) return true;
   return MOTORHOME_PHRASES.some((phrase) => text.includes(phrase));
 }
 
@@ -103,7 +105,8 @@ export function resolveCategorySlug(vehicle: CanonicalVehicle): DealerStockCateg
   ) {
     return "motorbike";
   }
-  if (type.includes("van") || type.includes("commercial") || type === "lcv") return "van";
+  if (type.includes("van") || type.includes("commercial") || type === "lcv" ||
+    /(?:^|-)vans?(?:-|$)/.test(source) || /\bpick[ -]?up\b/i.test([vehicle.model, vehicle.derivative, vehicle.bodyType].join(" "))) return "van";
   if (location.includes("transit")) return "van";
   return "car";
 }
@@ -115,6 +118,12 @@ export function buildTitle(vehicle: CanonicalVehicle) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, MAX_TITLE);
+}
+
+export function hasSourceTransmissionConflict(vehicle: CanonicalVehicle) {
+  const heading = [vehicle.model, vehicle.derivative].filter(Boolean).join(" ");
+  return (/\bautomatic\b/i.test(heading) && /^manual$/i.test(vehicle.transmission ?? "")) ||
+    (/\bmanual\b/i.test(heading) && /^automatic$/i.test(vehicle.transmission ?? ""));
 }
 
 export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutcome {

@@ -153,6 +153,12 @@ describe("named HTML extractors", () => {
     });
   });
 
+  it("retains camper identity when a long ClickDealer title cannot fit its derivative", () => {
+    const title = "2018 VOLKSWAGEN TRANSPORTER 2.0 TDI T28 4 Berth Camper Van " + "Long source details ".repeat(15);
+    const [row] = extractClickDealerListings(`<script>var modelItems=[[1,2,'TRANSPORTER']]; function next(){}</script><div class="listing veh-8219839"><a href="/used-vw-8219839"></a><div class="results-summary__title">${title}</div><span class="results-spec__label">Year</span><span class="results-spec__stat">2018</span></div>`, "https://www.mikesmotors.im");
+    expect(row).toMatchObject({ model: "TRANSPORTER", derivative: null, description: title.trim(), vehicleType: "motorhome" });
+  });
+
   it("parses DW car-view cards and SNCC new-price rows", () => {
     const dw = extractDwCarViews(
       `<div class="car-view1-wrapper">
@@ -164,7 +170,7 @@ describe("named HTML extractors", () => {
       </div>`,
       "https://www.dwcars.info",
     );
-    expect(dw[0]).toMatchObject({ make: "Dacia", model: "DUSTER 1.3 TCe Extreme", year: 2024, price: 15350, mileage: 11000 });
+    expect(dw[0]).toMatchObject({ make: "Dacia", model: "DUSTER", derivative: "1.3 TCe Extreme", year: 2024, price: 15350, mileage: 11000 });
 
     const sncc = extractSnccCarItems(
       `<li><i class="fas fa-calendar-alt"></i> 2022</li>

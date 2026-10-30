@@ -1,6 +1,6 @@
 import type { ReviewedActionEvidence } from "../../lib/dealer-stock-sync/types";
 import { identityFor, vehicleContentHash } from "./identity";
-import { buildTitle, resolveCategorySlug } from "./map-listing";
+import { buildTitle, hasSourceTransmissionConflict, resolveCategorySlug } from "./map-listing";
 import type { CanonicalVehicle, ReconciledVehicle } from "./types";
 
 /**
@@ -28,7 +28,8 @@ function evidenceFor(vehicle: CanonicalVehicle, capturedAt: string): ReviewedAct
     displayTitle,
     fuel: textOrNull(vehicle.fuel),
     transmission: textOrNull(vehicle.transmission),
-    flags: vehicle.availability === "sold" ? ["sold-exclude-from-live-import"] : [],
+    flags: vehicle.availability === "sold" ? ["sold-exclude-from-live-import"] :
+      hasSourceTransmissionConflict(vehicle) ? ["source-transmission-conflict"] : [],
     pricePence: integerOrNull(vehicle.pricePence),
     mileage: integerOrNull(vehicle.mileage, true),
     year: integerOrNull(vehicle.year),

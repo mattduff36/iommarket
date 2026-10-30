@@ -357,6 +357,7 @@ export function extractClickDealerListings(html: string, origin: string) {
         sourceVehicleId: href?.split("-").at(-1) ?? chunk.match(/^(\d+)/)?.[1],
         ...parsed,
         ...(model ? { model, derivative: derivative.length <= 120 ? derivative || null : null, description: title } : {}),
+        vehicleType: /\b(?:\d+[ -]+berth|camper(?:van)?|motorhome)\b/i.test(title.slice(0, 220)) ? "motorhome" : null,
         year: parsed.year ?? yearFrom(spec("Year")),
         mileage: milesFrom(spec("Mileage")) ?? milesFrom(chunk),
         fuel: spec("Fuel Type") || null,

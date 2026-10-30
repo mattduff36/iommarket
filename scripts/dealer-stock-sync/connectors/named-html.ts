@@ -160,7 +160,13 @@ export function extractDwCarViews(html: string, origin: string) {
   return chunks.flatMap((chunk) => {
     const title = chunk.match(/class="txt1">([^<]+)/i)?.[1];
     if (!title) return [];
-    const parsed = parseYearMakeModel(title);
+    const parsedTitle = parseYearMakeModel(title);
+    // DW puts the engine, trim and sales notes in the same heading as the
+    // model. Keep that text as the derivative rather than an oversized model.
+    const engine = parsedTitle.model.match(/^(.+?)\s+(\d\.\d[\s\S]*)$/);
+    const parsed = engine
+      ? { ...parsedTitle, model: engine[1]!.trim(), derivative: engine[2]!.trim() }
+      : parsedTitle;
     if (!parsed.make || !parsed.model) return [];
     const stockLine = dwDivTexts(chunk, "txt6").find((line) => /\b(?:in stock|sold|reserved)\b/i.test(line)) ?? "";
     const spec = dwDivTexts(chunk, "txt6").find((line) => /\b(?:19|20)\d{2}\b/.test(line)) ?? "";

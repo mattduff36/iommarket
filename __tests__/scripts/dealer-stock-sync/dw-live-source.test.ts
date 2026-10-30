@@ -52,6 +52,14 @@ function dwFetch(detailStatus: "split" | "unavailable") {
 }
 
 describe("DW Cars live source", () => {
+  it("keeps long source headings intact while separating model from engine and trim", () => {
+    const heading = "Dacia DUSTER 1.3 Prestige Nav T130 *Manx from new* Heated seats * Picture example only*";
+    const [card] = extractDwCarViews(listHtml.replace("Kia SPORTAGE 1.6T", heading), "https://www.dwcars.info");
+    expect(card).toMatchObject({ make: "Dacia", model: "DUSTER", derivative: heading.slice("Dacia DUSTER ".length) });
+    expect([card!.make, card!.model, "derivative" in card! ? card.derivative : null].join(" ")).toBe(heading);
+    const [multi] = extractDwCarViews(listHtml.replace("Kia SPORTAGE 1.6T", "Toyota AYGO X 1.0 VVT-I EDGE"), "https://www.dwcars.info");
+    expect(multi).toMatchObject({ model: "AYGO X", derivative: "1.0 VVT-I EDGE" });
+  });
   it("does not treat an incomplete card or an unrelated redirect as verified fallback evidence", async () => {
     const dealer = getDealer("dw-cars");
     const source = dealer.sources[0]!;

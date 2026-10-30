@@ -107,3 +107,12 @@ Manx's explicit label/value rows now supply fuel and transmission instead of lea
 The 1.1.8 Preview-on-launch and confirmed Production-switch policy remains unchanged.
 
 The main window opens with a standard 520 x 300 logical-pixel content area (760 x 520 in Debug layout), scaled for the current Windows display. The minimum window size includes the title bar and borders. Button rows shrink to their actual content height, avoiding unnecessary main-view scrollbars.
+
+
+## Version 1.1.10 stock audit fixes
+
+DW Cars headings now separate the model from the engine and trim text, retaining the full heading without exceeding the server model limit. Contradictory explicit manual/automatic source claims are held for review rather than imported. The server retains completeness, ownership and approval checks.
+
+Completion notices colour only the failed outcome red and successful outcome green. Awaiting review badges are green. These colours indicate processing outcome; approval is still required before stock changes.
+
+Van source inventories, pickup headings and explicit camper/motorhome markers now inform review categories. SNCC vehicle overviews are retained (bounded to the submission contract); its explicit motorcycle introduction supplies the correct vehicle type. Existing live listing categories and prices remain subject to review.

@@ -23,6 +23,7 @@ const { dbMock, requireRole, expireStaleLiveListings, getSampleVisibility, resol
     dealerCancellationRequest: { count: vi.fn() },
     monitoringIssue: { count: vi.fn() },
     payment: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn() },
+    subscriptionCharge: { count: vi.fn(async () => 0), aggregate: vi.fn(async () => ({ _sum: { amount: 0 } })) },
   },
 }));
 
