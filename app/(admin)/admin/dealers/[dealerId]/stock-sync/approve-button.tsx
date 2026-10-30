@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
 import { approveDealerStockReport, rejectDealerStockReport } from "@/actions/admin/dealer-stock-sync";
 
 export function ApproveStockReportButton({
@@ -12,18 +13,23 @@ export function ApproveStockReportButton({
   fingerprint: string;
 }) {
   const router = useRouter();
+  const reloadSnapshot = useStockSnapshotRefresh();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   function run(action: () => Promise<{ error?: unknown }>) {
     setError(null);
     startTransition(async () => {
-      const result = await action();
-      if (result.error) {
-        setError(typeof result.error === "string" ? result.error : "Could not update this review.");
-        return;
+      try {
+        const result = await action();
+        if (result.error) {
+          setError(typeof result.error === "string" ? result.error : "Could not update this review.");
+          return;
+        }
+        if (reloadSnapshot) reloadSnapshot(); else router.refresh();
+      } catch {
+        setError("The update outcome is uncertain. Check the saved result before trying again.");
       }
-      router.refresh();
     });
   }
 

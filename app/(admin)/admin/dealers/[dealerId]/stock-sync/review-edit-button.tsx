@@ -2,6 +2,7 @@
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
 import { loadStockReviewVehicle, saveStockReviewVehicle } from "@/actions/admin/dealer-stock-review-edit";
 
 type AttributeDefinition = {
@@ -86,6 +87,7 @@ export function StockReviewEditButton({
   override?: boolean;
 }) {
   const router = useRouter();
+  const reloadSnapshot = useStockSnapshotRefresh();
   const [isPending, startTransition] = useTransition();
   const [data, setData] = useState<DraftData | null>(null);
   const [title, setTitle] = useState("");
@@ -114,16 +116,20 @@ export function StockReviewEditButton({
   function openEditor() {
     setErrors([]);
     startTransition(async () => {
-      const result = await loadStockReviewVehicle({ reportId, fingerprint, sourceIdentityKey });
-      if ("error" in result && result.error) {
-        setErrors(errorLines(result.error));
-        return;
+      try {
+        const result = await loadStockReviewVehicle({ reportId, fingerprint, sourceIdentityKey });
+        if ("error" in result && result.error) {
+          setErrors(errorLines(result.error));
+          return;
+        }
+        if (!("data" in result) || !result.data) {
+          setErrors(["Could not load this vehicle."]);
+          return;
+        }
+        applyDraft(result.data);
+      } catch {
+        setErrors(["Could not load this vehicle. Check the connection and try again."]);
       }
-      if (!("data" in result) || !result.data) {
-        setErrors(["Could not load this vehicle."]);
-        return;
-      }
-      applyDraft(result.data);
     });
   }
 
@@ -147,25 +153,29 @@ export function StockReviewEditButton({
     }
     setErrors([]);
     startTransition(async () => {
-      const result = await saveStockReviewVehicle({
-        reportId,
-        fingerprint,
-        sourceIdentityKey,
-        categorySlug,
-        title,
-        description,
-        price: pricePence,
-        attributes: Object.fromEntries(Object.entries(attributes).filter(([, value]) => value.trim())),
-        photoUrls,
-        reason,
-        confirmAvailable: true,
-      });
-      if ("error" in result && result.error) {
-        setErrors(errorLines(result.error));
-        return;
+      try {
+        const result = await saveStockReviewVehicle({
+          reportId,
+          fingerprint,
+          sourceIdentityKey,
+          categorySlug,
+          title,
+          description,
+          price: pricePence,
+          attributes: Object.fromEntries(Object.entries(attributes).filter(([, value]) => value.trim())),
+          photoUrls,
+          reason,
+          confirmAvailable: true,
+        });
+        if ("error" in result && result.error) {
+          setErrors(errorLines(result.error));
+          return;
+        }
+        setData(null);
+        if (reloadSnapshot) reloadSnapshot(); else router.refresh();
+      } catch {
+        setErrors(["The save outcome is uncertain. Your draft is still here. Check the saved result before trying again."]);
       }
-      setData(null);
-      router.refresh();
     });
   }
 

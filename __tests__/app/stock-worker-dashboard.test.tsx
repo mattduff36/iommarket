@@ -82,23 +82,23 @@ describe("Stock Reviews live worker", () => {
   await act(async () => { finish({ ok: true }); });
   expect(screen.getByRole("button", { name: "Start worker" })).toBeDisabled();
  });
- it("refreshes server results while preserving dealer selection and shows completion", async () => {
+ it("accepts updated results while preserving dealer selection without route refresh", async () => {
   const ui = (readyCount: number) => <StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={readyCount}><StockDealerPicker dealers={[{ id: "dealer", name: "Island Motors" }]} /></StockWorkerDashboard>;
   const view = render(ui(0));
   fireEvent.click(screen.getByRole("checkbox", { name: "Island Motors" }));
   await tick();
-  expect(refresh).toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
   view.rerender(ui(1));
   expect(screen.getByRole("checkbox", { name: "Island Motors" })).toBeChecked();
   expect(screen.getAllByText("Ready for review").length).toBeGreaterThan(0);
  });
- it("defers refresh during edits and dialogs, then resumes", async () => {
+ it("never refreshes the route during background status polling", async () => {
   render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   const editor = document.createElement("div"); editor.dataset.stockReviewEditing = "true"; document.body.append(editor);
   await tick(); expect(refresh).not.toHaveBeenCalled(); editor.remove();
   const dialog = document.createElement("div"); dialog.setAttribute("role", "dialog"); document.body.append(dialog);
   await tick(); expect(refresh).not.toHaveBeenCalled(); dialog.remove();
-  await tick(); expect(refresh).toHaveBeenCalled();
+  await tick(); expect(refresh).not.toHaveBeenCalled();
  });
  it("keeps start disabled until dealers are selected after reconnect", async () => {
   const view = render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={{ok:true,devices:[]}} jobs={[]} readyCount={0} />);

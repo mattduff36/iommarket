@@ -1,11 +1,13 @@
 "use client";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 import { enqueueDealerStockScrape } from "@/actions/admin/dealer-stock-sync";
 import type { StockWorkerControl } from "./worker-context";
 export type StockDealer = { id: string; name: string };
 export function useDealerSelection(dealers: StockDealer[], controls: StockWorkerControl, hasQueuedWork = false) {
   const router = useRouter();
+  const reloadSnapshot = useStockSnapshotRefresh();
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const eligible = selected.filter(id => dealers.some(dealer => dealer.id === id));
@@ -37,7 +39,7 @@ export function useDealerSelection(dealers: StockDealer[], controls: StockWorker
           ? "Start outcome is uncertain. Check the worker before retrying."
           : "The worker was not started. Check the connection before retrying.";
         setMessage([...failures, issue].filter(Boolean).join(" "));
-      } finally { controls.release(); router.refresh(); }
+      } finally { controls.release(); if (reloadSnapshot) reloadSnapshot(); else router.refresh(); }
     })();
   }
   return { selected: eligible, message, canAct, startOrStop,
