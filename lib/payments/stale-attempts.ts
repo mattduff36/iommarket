@@ -76,7 +76,7 @@ export async function detectStalePaymentAttempts(now = new Date()) {
           select: {
             id: true, kind: true, returnedAt: true,
             observations: { select: { providerPaymentId: true } },
-            payment: { select: { status: true, providerPaymentId: true } },
+            payment: { select: { status: true, providerPaymentId: true, lastProviderEventAt: true, providerClaim: { select: { id: true } } } },
           },
         });
         if (!stillStale) return false;
@@ -100,13 +100,15 @@ export async function detectStalePaymentAttempts(now = new Date()) {
         if (stillStale.kind !== "DEALER_SUBSCRIPTION" &&
           stillStale.returnedAt === null && observedProviderIds.length === 0 &&
           inboxCount === 0 && stillStale.payment?.status === "PENDING" &&
-          stillStale.payment.providerPaymentId === null) {
+          stillStale.payment.providerPaymentId === null &&
+          stillStale.payment.lastProviderEventAt === null &&
+          stillStale.payment.providerClaim === null) {
           await client.paymentCheckoutAttempt.updateMany({
             where: {
               id: attempt.id, status: "REVIEW", alertLeaseUntil: leaseUntil,
               returnedAt: null, observations: { none: {} },
               reconciliations: { none: {} }, providerClaims: { none: {} },
-              payment: { is: { status: "PENDING", providerPaymentId: null } },
+              payment: { is: { status: "PENDING", providerPaymentId: null, lastProviderEventAt: null, providerClaim: { is: null } } },
             },
             data: { status: "EXPIRED", alertLeaseUntil: null },
           });
