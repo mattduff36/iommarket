@@ -15,11 +15,13 @@ import {
   applySampleCancellationVisibility,
   applySampleDealerReviewVisibility,
   applySamplePaymentVisibility,
+  applySampleSubscriptionVisibility,
   applySampleReportVisibility,
   applySampleReviewDisputeVisibility,
   applySampleReviewResponseRevisionVisibility,
 } from "@/lib/listings/sample-related-visibility";
 import { OPEN_CANCELLATION_STATUSES } from "@/lib/policy/cancellation";
+import { recognisedListingPaymentWhere, recognisedSubscriptionChargeWhere } from "@/lib/payments/records";
 import { resolveVisibleAdminPaymentWhere } from "@/lib/payments/payment-visibility";
 import {
   AdminActionQueue,
@@ -62,7 +64,7 @@ export default async function AdminDashboardPage() {
     sampleVisibility,
   );
   const succeededPaymentWhere = applySamplePaymentVisibility(
-    { status: "SUCCEEDED" },
+    recognisedListingPaymentWhere(),
     sampleVisibility,
   );
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -85,9 +87,11 @@ export default async function AdminDashboardPage() {
     openCancellations,
     openMonitoringIssues,
     recentPayments,
+    recentSubscriptionPayments,
     totalUsers,
     newUsers7d,
     totalRevenuePence,
+    subscriptionRevenuePence,
     recentListings,
     recentUsers,
     recentReports,
@@ -133,9 +137,16 @@ export default async function AdminDashboardPage() {
     db.monitoringIssue.count({ where: { status: "OPEN" } }),
     db.payment.count({
       where: applySamplePaymentVisibility(
-        { status: "SUCCEEDED", createdAt: { gte: thirtyDaysAgo } },
+        { ...recognisedListingPaymentWhere(), createdAt: { gte: thirtyDaysAgo } },
         sampleVisibility,
       ),
+    }),
+    db.subscriptionCharge.count({
+      where: {
+        ...recognisedSubscriptionChargeWhere(),
+        eventTimestamp: { gte: thirtyDaysAgo },
+        subscription: { is: applySampleSubscriptionVisibility({}, sampleVisibility) },
+      },
     }),
     db.user.count({ where: userWhere }),
     db.user.count({
@@ -146,6 +157,13 @@ export default async function AdminDashboardPage() {
     }),
     db.payment.aggregate({
       where: succeededPaymentWhere,
+      _sum: { amount: true },
+    }),
+    db.subscriptionCharge.aggregate({
+      where: {
+        ...recognisedSubscriptionChargeWhere(),
+        subscription: { is: applySampleSubscriptionVisibility({}, sampleVisibility) },
+      },
       _sum: { amount: true },
     }),
     db.listing.findMany({
@@ -201,7 +219,7 @@ export default async function AdminDashboardPage() {
 
   const pendingReviews =
     pendingCustomerReviews + pendingResponses + openReviewDisputes;
-  const totalRevenue = (totalRevenuePence._sum.amount ?? 0) / 100;
+  const totalRevenue = ((totalRevenuePence._sum.amount ?? 0) + (subscriptionRevenuePence._sum.amount ?? 0)) / 100;
 
   const LISTING_STATUS_BADGE: Record<string, "success" | "warning" | "error" | "neutral" | "info"> = {
     DRAFT: "neutral",
@@ -285,7 +303,7 @@ export default async function AdminDashboardPage() {
           liveListings,
           totalListings,
           totalRevenue,
-          recentPayments,
+          recentPayments: recentPayments + recentSubscriptionPayments,
           totalDealers,
           verifiedDealers,
         })}

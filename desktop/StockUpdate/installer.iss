@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.9"
+  #define AppVersion "1.1.10"
 #endif
 #ifndef OnlineInclude
   #define OnlineInclude AddBackslash(BuildRoot) + "online-dependencies.iss"

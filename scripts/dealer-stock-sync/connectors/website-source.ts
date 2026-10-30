@@ -1,3 +1,4 @@
+import { extractSnccOverview } from "./sncc-overview";
 import { asNumber, asRecord, asString, nested, poundsToPence, resolveMaybeUrl } from "../json";
 import { emptyVehicle, validateCanonicalVehicle, type ConnectorContext, type StockConnector } from "./contract";
 import {
@@ -256,6 +257,10 @@ export function createWebsiteConnector(input: {
           const html = await load(vehicle.detailUrl);
           const origin = new URL(vehicle.detailUrl).origin;
           const specs = extractDetailSpecs(html, vehicle.detailUrl);
+          const overview = context.dealer.key === "skillannaylor-car-company" ? extractSnccOverview(html) : null;
+          const detailDescription = overview?.description || extractDescriptionFromHtml(html);
+          const description = context.source.connectorKey === "click-dealer" && vehicle.description.length > detailDescription.length
+            ? vehicle.description.slice(0, 4000) : detailDescription || vehicle.description;
           const dwGallery = context.dealer.key === "dw-cars" ? extractDwDetailImages(html, origin) : [];
           const detailImages = dwGallery.length > 0
             ? dwGallery
@@ -269,7 +274,8 @@ export function createWebsiteConnector(input: {
             (isNextInventoryDetailUrl(vehicle.detailUrl) && html.includes("__NEXT_DATA__"));
           vehicles.push({
             ...vehicle,
-            description: extractDescriptionFromHtml(html) || vehicle.description,
+            description,
+            vehicleType: overview?.vehicleType ?? vehicle.vehicleType,
             imageUrls: context.dealer.key === "mikes-motors" ? detailImages : scopedGallery
               ? mergeOwnerImageUrls(detailImages, vehicle.imageUrls)
               : mergeOwnerImageUrls(vehicle.imageUrls, detailImages),

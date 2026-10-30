@@ -20,6 +20,11 @@ function reconciled(overrides: Parameters<typeof vehicle>[0] = {}): ReconciledVe
 }
 
 describe("FDP-MAP-001 category mapping", () => {
+  it("holds contradictory source transmissions without misreading AUTO TRAIL as automatic", () => {
+    expect(inventoryFromReconciled([reconciled({ model: "PICANTO", derivative: "1.0 AUTOMATIC", transmission: "Manual" })])[0]?.skipReason).toBe("source-transmission-conflict");
+    expect(inventoryFromReconciled([reconciled({ model: "Polo Manual", transmission: "Automatic" })])[0]?.skipReason).toBe("source-transmission-conflict");
+    expect(inventoryFromReconciled([reconciled({ model: "AUTO TRAIL Cheyenne", transmission: "Manual" })])[0]?.skipReason).not.toBe("source-transmission-conflict");
+  });
   it("maps bikes to motorbike and keeps cars and vans", () => {
     expect(resolveCategorySlug(vehicle({ vehicleType: "Motorcycle", sourceKey: "used-bikes" }))).toBe(
       "motorbike",
@@ -27,6 +32,8 @@ describe("FDP-MAP-001 category mapping", () => {
     expect(resolveCategorySlug(vehicle({ vehicleType: "Bike", sourceKey: "used-bikes" }))).toBe("motorbike");
     expect(resolveCategorySlug(vehicle({ vehicleType: "Van", sourceKey: "used-vans" }))).toBe("van");
     expect(resolveCategorySlug(vehicle({ vehicleType: "Car", sourceKey: "used-cars" }))).toBe("car");
+    expect(resolveCategorySlug(vehicle({ model: "V80", vehicleType: null, sourceKey: "used-vans" }))).toBe("van");
+    expect(resolveCategorySlug(vehicle({ model: "HI-LUX", derivative: "Invincible X Pickup Double Cab", vehicleType: null, sourceKey: "used-cars" }))).toBe("van");
   });
 
   it("classifies clear motorhome and camper model tokens as motorhomes", () => {
@@ -38,6 +45,9 @@ describe("FDP-MAP-001 category mapping", () => {
       "SPRINTER 2.1 313 CDi Camper Van 2 Berth",
       "AUTO TRAIL Cheyenne 4 berth",
       "DETHLEFFS ESPRIT A-CLASS",
+      "BURSTNER Lyseo 744 Harmony Line",
+      "EURO-MOBIL FENDT K500",
+      "Crafter CR35 MWB High Roof 2.0 TDI 140 Trendline Camper",
     ];
     for (const model of models) {
       const outcome = mapReconciledVehicle(
@@ -55,6 +65,11 @@ describe("FDP-MAP-001 category mapping", () => {
       expect(outcome.listing?.categorySlug).toBe("motorhome");
       expect(outcome.listing?.attributes.transmission).toBeUndefined();
     }
+  });
+
+  it("recognises motorhome makers when they are split from the model", () => {
+    expect(resolveCategorySlug(vehicle({ make: "Burstner", model: "Lyseo 744 Harmony Line" }))).toBe("motorhome");
+    expect(resolveCategorySlug(vehicle({ make: "Euro-Mobil", model: "FENDT K500" }))).toBe("motorhome");
   });
 
   it("does not treat the base vehicle make as a motorhome", () => {

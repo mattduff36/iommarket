@@ -42,6 +42,7 @@ export function actionLabel(action: PlanAction) {
 const reasons: Record<string, string> = {
   "identity-uncertain": "Some website vehicle references were missing or conflicting. Existing listings are protected.",
   "source-failed": "One or more website sections could not be checked.",
+  "source-transmission-conflict": "The source title and specification disagree about the transmission. Verify with the dealer before importing.",
   "submission-invalid": "The worker returned data that could not be accepted. Update the app and retry; existing listings are protected.",
   "pagination-uncertain": "The website did not confirm that every stock page was checked.",
   "detail-uncertain": "Some vehicle details could not be checked.",

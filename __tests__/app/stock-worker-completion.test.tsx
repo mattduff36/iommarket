@@ -15,8 +15,8 @@ describe("whole-run completion", () => {
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
     view.rerender(<StockWorkerCompletion jobs={[job("B", "SUCCEEDED")]} canShow={canShow} />);
     await tick(); expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByText(/A: task failed/)).toBeTruthy();
-    expect(screen.getByText(/B: finished/)).toBeTruthy();
+    expect(screen.getByText("task failed").closest("li")).toHaveTextContent(/A: task failed/);
+    expect(screen.getByText(/finished.*check/).closest("li")).toHaveTextContent(/B: finished/);
     fireEvent.click(screen.getByText("Got it"));
     view.rerender(<StockWorkerCompletion jobs={[job("A", "FAILED"), job("B", "SUCCEEDED")]} canShow={canShow} />);
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
@@ -34,7 +34,7 @@ describe("whole-run completion", () => {
     view.rerender(<StockWorkerCompletion jobs={[job("new", "FAILED")]} canShow={canShow} />);
     await tick(); expect(screen.queryByRole("dialog")).toBeNull();
     visible = true; await tick();
-    expect(screen.getByText(/new: task failed/)).toBeTruthy();
+    expect(screen.getByText("task failed").closest("li")).toBeTruthy();
     expect(screen.queryByText(/old: finished/)).toBeNull();
   });
 });
