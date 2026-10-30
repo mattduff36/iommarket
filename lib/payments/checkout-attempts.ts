@@ -101,12 +101,13 @@ export async function persistCheckoutAttempt(
       if (!sameContract(existing, input)) {
         throw new Error("Existing checkout attempt does not match the payment contract");
       }
-      if (existing.status !== "OPEN" || existing.expiresAt > now) {
+      if (existing.status !== "EXPIRED" &&
+        (existing.status !== "OPEN" || existing.expiresAt > now)) {
         return existing;
       }
       return tx.paymentCheckoutAttempt.update({
         where: { id: existing.id },
-        data: { status: "OPEN", expiresAt },
+        data: { status: "OPEN", expiresAt, alertedAt: null, alertLeaseUntil: null },
       });
     }
 

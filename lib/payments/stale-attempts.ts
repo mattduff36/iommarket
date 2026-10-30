@@ -73,11 +73,15 @@ export async function detectStalePaymentAttempts(now = new Date()) {
             reconciliations: { none: {} },
             providerClaims: { none: {} },
           },
-          select: { id: true },
+          select: {
+            id: true, kind: true, returnedAt: true,
+            observations: { select: { providerPaymentId: true } },
+            payment: { select: { status: true, providerPaymentId: true } },
+          },
         });
         if (!stillStale) return false;
 
-        const observedProviderIds = attempt.observations.map(
+        const observedProviderIds = stillStale.observations.map(
           (observation) => observation.providerPaymentId,
         );
         const inboxCount = await client.paymentWebhookInbox.count({
@@ -90,6 +94,24 @@ export async function detectStalePaymentAttempts(now = new Date()) {
             ],
           },
         });
+        // Starting a checkout is not evidence of a charge. Expire only the
+        // listing checkout session, never the payment or a subscription.
+        // Late browser returns and verified webhooks can still reconcile it.
+        if (stillStale.kind !== "DEALER_SUBSCRIPTION" &&
+          stillStale.returnedAt === null && observedProviderIds.length === 0 &&
+          inboxCount === 0 && stillStale.payment?.status === "PENDING" &&
+          stillStale.payment.providerPaymentId === null) {
+          await client.paymentCheckoutAttempt.updateMany({
+            where: {
+              id: attempt.id, status: "REVIEW", alertLeaseUntil: leaseUntil,
+              returnedAt: null, observations: { none: {} },
+              reconciliations: { none: {} }, providerClaims: { none: {} },
+              payment: { is: { status: "PENDING", providerPaymentId: null } },
+            },
+            data: { status: "EXPIRED", alertLeaseUntil: null },
+          });
+          return false;
+        }
         const captured = await captureBusinessEvent({
           source: "BUSINESS",
           severity: "HIGH",
@@ -108,7 +130,7 @@ export async function detectStalePaymentAttempts(now = new Date()) {
           tags: {
             attemptId: attempt.id,
             checkoutKind: attempt.kind,
-            hasBrowserObservation: attempt.observations.length > 0,
+            hasBrowserObservation: observedProviderIds.length > 0,
             hasInboxReceipt: inboxCount > 0,
           },
           extra: { createdAt: attempt.createdAt.toISOString() },
