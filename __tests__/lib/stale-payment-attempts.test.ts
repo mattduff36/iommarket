@@ -60,7 +60,7 @@ describe("stale payment attempt monitoring", () => {
     ]);
     mocks.inboxCount.mockResolvedValue(0);
     mocks.updateMany.mockResolvedValue({ count: 1 });
-    mocks.findFirst.mockResolvedValue({ id: "attempt-1" });
+    mocks.findFirst.mockResolvedValue({ id: "attempt-1", kind: "FEATURED_UPGRADE", returnedAt: new Date(), observations: [] });
     mocks.capture.mockResolvedValue({});
   });
 
@@ -74,6 +74,41 @@ describe("stale payment attempt monitoring", () => {
         dedupeKey: "stale-payment-attempt:attempt-1",
       }),
     );
+  });
+
+  it("expires an abandoned listing checkout without claiming its payment failed", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "attempt-1", kind: "FEATURED_UPGRADE", returnedAt: null, observations: [], payment: { status: "PENDING", providerPaymentId: null, lastProviderEventAt: null, providerClaim: null } });
+    await expect(detectStalePaymentAttempts()).resolves.toEqual({ reviewed: 1, alerted: 0 });
+    expect(mocks.capture).not.toHaveBeenCalled();
+    expect(mocks.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "REVIEW", returnedAt: null, observations: { none: {} } }),
+      data: { status: "EXPIRED", alertLeaseUntil: null },
+    }));
+  });
+
+  it.each([
+    { kind: "DEALER_SUBSCRIPTION", returnedAt: null, observations: [], inbox: 0 },
+    { kind: "FEATURED_UPGRADE", returnedAt: null, observations: [{ providerPaymentId: "123", lastProviderEventAt: null, providerClaim: null }], inbox: 0 },
+    { kind: "FEATURED_UPGRADE", returnedAt: null, observations: [], inbox: 1 },
+  ])("retains review when a payment signal or subscription requires it: %j", async ({ inbox, ...fresh }) => {
+    mocks.findFirst.mockResolvedValue({ id: "attempt-1", payment: { status: "PENDING", providerPaymentId: null, lastProviderEventAt: null, providerClaim: null }, ...fresh });
+    mocks.inboxCount.mockResolvedValue(inbox);
+    await expect(detectStalePaymentAttempts()).resolves.toEqual({ reviewed: 1, alerted: 1 });
+    expect(mocks.capture).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMany.mock.calls.some(([arg]) => arg.data.status === "EXPIRED")).toBe(false);
+  });
+
+  it.each([
+    { returnedAt: new Date(), payment: { status: "PENDING", providerPaymentId: null, lastProviderEventAt: null, providerClaim: null } },
+    { returnedAt: null, payment: { status: "SUCCEEDED", providerPaymentId: null, lastProviderEventAt: null, providerClaim: null } },
+    { returnedAt: null, payment: { status: "PENDING", providerPaymentId: "123", lastProviderEventAt: null, providerClaim: null } },
+    { returnedAt: null, payment: { status: "PENDING", providerPaymentId: null, lastProviderEventAt: new Date(), providerClaim: null } },
+    { returnedAt: null, payment: { status: "PENDING", providerPaymentId: null, lastProviderEventAt: null, providerClaim: { id: "claim-1" } } },
+    { returnedAt: null, payment: null },
+  ])("does not expire a checkout with payment or return evidence: %j", async (evidence) => {
+    mocks.findFirst.mockResolvedValue({ id: "attempt-1", kind: "FEATURED_UPGRADE", observations: [], ...evidence });
+    await expect(detectStalePaymentAttempts()).resolves.toEqual({ reviewed: 1, alerted: 1 });
+    expect(mocks.updateMany.mock.calls.some(([arg]) => arg.data.status === "EXPIRED")).toBe(false);
   });
 
   it("classifies a newly stale attempt before alerting on a later run", async () => {
@@ -156,3 +191,4 @@ describe("stale payment attempt monitoring", () => {
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 });
+

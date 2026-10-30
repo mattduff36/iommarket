@@ -73,7 +73,7 @@ describe("payment checkout attempts", () => {
     },
   );
 
-  it("PAY-ATT-002 reuses a matching open attempt", async () => {
+  it.each(["OPEN", "EXPIRED"])("PAY-ATT-002 reuses or renews a matching %s attempt", async (status) => {
     const existing = {
       id: "attempt-1",
       userId: "user-1",
@@ -85,10 +85,11 @@ describe("payment checkout attempts", () => {
       amountPence: 500,
       currency: "gbp",
       tier: null,
-      status: "OPEN",
+      status,
       expiresAt: new Date(Date.now() + 60_000),
     };
     tx.paymentCheckoutAttempt.findUnique.mockResolvedValue(existing);
+    tx.paymentCheckoutAttempt.update.mockResolvedValue(existing);
 
     await expect(
       persistCheckoutAttempt({
@@ -102,13 +103,21 @@ describe("payment checkout attempts", () => {
       }),
     ).resolves.toBe(existing);
     expect(tx.paymentCheckoutAttempt.create).not.toHaveBeenCalled();
+    if (status === "EXPIRED") {
+      expect(tx.paymentCheckoutAttempt.update).toHaveBeenCalledWith({
+        where: { id: "attempt-1" },
+        data: { status: "OPEN", expiresAt: expect.any(Date), alertedAt: null, alertLeaseUntil: null },
+      });
+    } else {
+      expect(tx.paymentCheckoutAttempt.update).not.toHaveBeenCalled();
+    }
   });
 
-  it("PAY-RET-001 stores browser return as observation only", async () => {
+  it.each(["OPEN", "EXPIRED"])("PAY-RET-001 stores a late or current %s browser return as observation only", async (status) => {
     tx.paymentCheckoutAttempt.findUnique.mockResolvedValue({
       id: "attempt-1",
       userId: "user-1",
-      status: "OPEN",
+      status,
       returnedAt: null,
       observations: [],
     });

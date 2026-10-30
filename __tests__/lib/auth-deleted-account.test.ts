@@ -13,6 +13,7 @@ const { getAuthUser, signOut, mockDb } = vi.hoisted(() => ({
       upsert: vi.fn(),
       create: vi.fn(),
     },
+    policyAcceptance: { createMany: vi.fn() },
   },
 }));
 
@@ -50,6 +51,31 @@ describe("syncUser", () => {
     mockDb.$transaction.mockImplementation(
       async (callback: (tx: typeof mockDb) => unknown) => callback(mockDb),
     );
+  });
+
+  it("keeps signup consent in the same transaction with a bounded cold-start budget", async () => {
+    const { buildSignupAcceptanceReceipt } = await import("@/lib/policy/acceptance");
+    mockDb.user.findUnique.mockResolvedValue(null);
+    mockDb.user.create.mockResolvedValue({ id: "user-1" });
+    mockDb.policyAcceptance.createMany.mockResolvedValue({ count: 3 });
+    mockDb.$transaction.mockImplementation(async (callback, options) => {
+      // Reproduce the observed operation exceeding the former 5-second budget.
+      if (!options || options.timeout <= 5_427) throw new Error("expired transaction");
+      return callback(mockDb);
+    });
+    await expect(syncUser("auth-new", "member@example.com", "Member", buildSignupAcceptanceReceipt()))
+      .resolves.toEqual({ id: "user-1" });
+    expect(mockDb.policyAcceptance.createMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates consent persistence failures instead of accepting an incomplete signup", async () => {
+    const { buildSignupAcceptanceReceipt } = await import("@/lib/policy/acceptance");
+    mockDb.user.findUnique.mockResolvedValue(null);
+    mockDb.user.create.mockResolvedValue({ id: "user-1" });
+    mockDb.policyAcceptance.createMany.mockRejectedValueOnce(new Error("consent write failed"));
+    await expect(syncUser("auth-new", "member@example.com", "Member", buildSignupAcceptanceReceipt()))
+      .rejects.toThrow("consent write failed");
   });
 
   it("does not free a deleted email and create a new profile", async () => {

@@ -27,6 +27,63 @@
         "npx vitest run __tests__/actions/admin-users-server-boundary.test.ts"
       ],
       "recordedAt": "2026-10-02T14:24:44.368Z"
+    },
+    {
+      "fingerprint": "6c84cfbd3d5bde0f1ea2ad94c85341e1f521f1897bc3f5d337ce4488f4195f81",
+      "lane": "standard",
+      "outcome": "fixed",
+      "summary": "Reduce first-sign-in transaction work and preserve atomic consent writes",
+      "files": [
+        "lib/auth/index.ts",
+        "lib/policy/acceptance.ts",
+        "__tests__/lib/auth-deleted-account.test.ts",
+        "__tests__/lib/policy-acceptance.test.ts"
+      ],
+      "tests": [
+        "37 focused auth/policy/deletion tests passed",
+        "npm run typecheck passed",
+        "git diff --check passed"
+      ],
+      "issueFingerprints": [
+        "7b3f3621938f0f1050b7197d0990f97ef6cf5e2ee6b154fa90e322bc736d2ed6",
+        "73b5da15c64f8bdfd513d6624e7fe16b7c598d45b584d332d623d60044bc2c04"
+      ],
+      "recordedAt": "2026-10-30T21:50:41.446Z"
+    },
+    {
+      "fingerprint": "1c2b07c5e781eab93e2615938793f7608108dedb2bc1d7d239293c7a1f426e47",
+      "lane": "fast",
+      "outcome": "fixed",
+      "summary": "Retry only confirmed pre-start deletion transaction failures",
+      "files": [
+        "lib/privacy/account-deletion.ts",
+        "__tests__/lib/account-deletion.test.ts"
+      ],
+      "tests": [
+        "11 deletion tests passed including recovery, persistent failure and no replay on commit failure"
+      ],
+      "issueFingerprints": [
+        "405d43fd53f02579e250c973acf7d23f9941156ca97d480cce35f7d43b192009"
+      ],
+      "recordedAt": "2026-10-30T21:53:45.191Z"
+    },
+    {
+      "fingerprint": "8e4151d4000b8f4d436852e21b132803213746460fbead6527dd170cde88638e",
+      "lane": "standard",
+      "outcome": "fixed",
+      "summary": "Recover transient email transport failures with idempotent retry",
+      "files": [
+        "lib/email/client.ts",
+        "__tests__/lib/email-client-recipients.test.ts"
+      ],
+      "tests": [
+        "8 real-SDK mocked-fetch tests passed",
+        "listing notification dispatch tests passed"
+      ],
+      "issueFingerprints": [
+        "bf9d9b1f4375d951f227e9a635b5c31839f69803be3e9cce3f6779cb45a4c0f6"
+      ],
+      "recordedAt": "2026-10-30T21:54:16.064Z"
     }
   ]
 }

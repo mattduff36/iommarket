@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { randomUUID } from "node:crypto";
 
 export function getResendClient(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY;
@@ -73,21 +74,23 @@ export async function sendResendEmail(input: {
   const { assertExternalEffectAllowed } = await import("@/lib/database-sync/effects");
   await assertExternalEffectAllowed({ emails: recipients });
 
-  const result = await resend.emails.send(
-    {
-      from: getFromEmail(),
-      to: recipients,
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-      replyTo: input.replyTo,
-    },
-    input.idempotencyKey
-      ? { idempotencyKey: input.idempotencyKey }
-      : undefined,
-  );
-
-  if (result.error) {
-    throw new Error(result.error.message);
+  const message = {
+    from: getFromEmail(),
+    to: recipients,
+    subject: input.subject,
+    text: input.text,
+    html: input.html,
+    replyTo: input.replyTo,
+  };
+  // A lost response does not prove delivery failed. Reuse one key and payload
+  // so the provider cannot send a duplicate during this bounded retry.
+  const options = { idempotencyKey: input.idempotencyKey?.trim() || randomUUID() };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = await resend.emails.send(message, options);
+    if (!result.error) return;
+    const transportFailure = result.error.name === "application_error" &&
+      result.error.statusCode === null;
+    if (!transportFailure || attempt === 1) throw new Error(result.error.message);
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 }

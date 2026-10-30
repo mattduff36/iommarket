@@ -242,7 +242,8 @@ describe("Featured payment reconciliation", () => {
     expect(mocks.audit).toHaveBeenCalled();
   });
 
-  it("PAY-REC-001 records verified webhook provenance through the same core", async () => {
+  it.each(["REVIEW", "EXPIRED"])("PAY-REC-001 reconciles a verified webhook from %s through the same core", async (status) => {
+    attempt.status = status;
     await reconcileListingPayment({
       merchantReference: attempt.merchantReference as string,
       providerPaymentId,
@@ -288,6 +289,9 @@ describe("Featured payment reconciliation", () => {
       data: expect.objectContaining({ source: "VERIFIED_WEBHOOK" }),
     });
     expect(mocks.audit).not.toHaveBeenCalled();
+    expect(tx.paymentCheckoutAttempt.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "CONFIRMED" }),
+    }));
   });
 
   it("PAY-REC-002 returns the identical completed retry idempotently", async () => {
