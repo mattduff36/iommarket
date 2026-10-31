@@ -168,7 +168,6 @@ export function StockSyncReviewPanel(input: {
           Check incomplete: {stockSyncReason(input.failureReason)} Missing vehicles have not been counted.
         </ReportableError>
       ) : null}
-      {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}
       <fieldset disabled={busy} className="min-w-0 space-y-4">
       {groups.map(([title, actions]) => (
         <div key={title}>
@@ -198,6 +197,7 @@ export function StockSyncReviewPanel(input: {
         <p className="text-sm text-text-secondary">These items were not included in the approval. They become selectable again when processing finishes successfully. If processing fails, run a fresh stock check to recover an up-to-date review.</p>
         <ul className="space-y-2">{input.pendingActions!.filter(isSelectableStockAction).map((action, index) => <Row key={index} action={action} reportId={input.reportId} fingerprint={input.fingerprint} selected={false} onSelect={() => undefined} allowEdit={false} />)}</ul>
       </div>}
+      {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}
     </section>
   );
 }
