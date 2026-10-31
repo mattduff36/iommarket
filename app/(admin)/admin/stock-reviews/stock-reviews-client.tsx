@@ -122,10 +122,10 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
   const outcome = reportOutcome(report.status, actions);
   const when = new Date(report.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" });
   return (
-    <li className={`rounded-lg border px-4 py-3 text-sm transition-colors ${open ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border bg-surface"}`}>
+    <li className={`relative isolate rounded-lg border px-4 py-3 text-sm transition-colors ${open ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border bg-surface"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary">
         <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(outcome === "No change" ? "no_change" : report.status)}>{outcome}</span> · {visibleCount} vehicles
-      </p><StockResultActions id={report.id} /></div>
+      </p><div className="relative z-10"><StockResultActions id={report.id} /></div></div>
       <p className="text-text-secondary">
         {actionable} actionable · {blocked} blocked{removals ? ` · ${removals}` : ""} · {when}
       </p>
@@ -135,10 +135,10 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
       {report.status === "FAILED" && report.failureReason ? <p className="text-text-secondary">{stockSyncReason(report.failureReason)}</p> : null}
       {warning?.coverageWarning ? <p className="text-text-secondary">{warning.coverageWarning}</p> : null}
       {warning?.capacityWarning ? <p className="text-text-secondary">{warning.capacityWarning}</p> : null}
-      <button type="button" id={`review-toggle-${report.id}`} aria-expanded={open} aria-controls={open ? "stock-review-detail" : undefined} onClick={onToggle} className="mt-2 flex min-h-11 w-full items-center justify-between gap-3 text-left font-medium text-neon-blue-400 hover:underline">
+      <button type="button" id={`review-toggle-${report.id}`} aria-expanded={open} aria-controls={open ? "stock-review-detail" : undefined} onClick={onToggle} className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 text-left font-medium text-neon-blue-400 after:absolute after:inset-0 after:rounded-lg hover:underline">
         {open ? "Close dealer stock review" : "Open dealer stock review"}<span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
-      {detail && <div className="mt-3 border-t border-border pt-4">{detail}</div>}
+      {detail && <div className="relative z-10 mt-3 border-t border-border pt-4">{detail}</div>}
     </li>
   );
 }
@@ -218,14 +218,14 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
                     <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} open={selectedId === report.id} onToggle={() => toggle(report.id)} detail={!wide && selectedId === report.id ? detail : undefined} /></StockResultVisibility>
                   ))}
                   {dealer.jobs.map((job) => (
-                    <StockResultVisibility key={job.id} ids={[job.id]}><li className="rounded-md border border-border px-4 py-3 text-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary"><span className={STOCK_STATUS_BADGE + " " + stockStatusColour(job.status)}>{jobOutcome(job)}</span></p><StockResultActions id={job.id} /></div>
+                    <StockResultVisibility key={job.id} ids={[job.id]}><li className="relative isolate rounded-md border border-border px-4 py-3 text-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary"><span className={STOCK_STATUS_BADGE + " " + stockStatusColour(job.status)}>{jobOutcome(job)}</span></p><div className="relative z-10"><StockResultActions id={job.id} /></div></div>
                       {job.status === "SUCCEEDED" ? <p className="text-sm text-text-secondary">Open the dealer stock review to check the saved result.</p> : null}
                       {job.status === "FAILED" && !job.reportId ? <p className="text-sm text-text-secondary">No report was saved.</p> : null}
                       <p className="text-text-secondary">{new Date(job.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}</p>
                       {job.status === "FAILED" && job.error ? <p className="text-text-secondary">{job.error}</p> : null}
-                      <button type="button" id={`review-toggle-job:${job.id}`} aria-expanded={selectedJob?.id === job.id} aria-controls={selectedJob?.id === job.id ? "stock-review-detail" : undefined} onClick={() => toggle(`job:${job.id}`)} className="mt-2 flex min-h-11 w-full items-center justify-between gap-3 text-left font-medium text-neon-blue-400 hover:underline">{selectedJob?.id === job.id ? "Close dealer stock review" : "Open dealer stock review"}<span aria-hidden="true">{selectedJob?.id === job.id ? "−" : "+"}</span></button>
-                      {!wide && selectedJob?.id === job.id && <div className="mt-3 border-t border-border pt-4">{detail}</div>}
+                      <button type="button" id={`review-toggle-job:${job.id}`} aria-expanded={selectedJob?.id === job.id} aria-controls={selectedJob?.id === job.id ? "stock-review-detail" : undefined} onClick={() => toggle(`job:${job.id}`)} className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 text-left font-medium text-neon-blue-400 after:absolute after:inset-0 after:rounded-lg hover:underline">{selectedJob?.id === job.id ? "Close dealer stock review" : "Open dealer stock review"}<span aria-hidden="true">{selectedJob?.id === job.id ? "−" : "+"}</span></button>
+                      {!wide && selectedJob?.id === job.id && <div className="relative z-10 mt-3 border-t border-border pt-4">{detail}</div>}
                     </li></StockResultVisibility>
                   ))}
                 </ul>
