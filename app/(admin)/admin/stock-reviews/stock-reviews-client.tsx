@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import type { StockReviewSnapshot } from "./snapshot-loader";
 import { isStockReviewSnapshot } from "./snapshot-validation";
 import { useStockSnapshot, StockSnapshotRefreshProvider } from "./use-stock-snapshot";
@@ -15,7 +16,6 @@ import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { StockDealerPicker } from "./dealer-picker";
 import { DownloadStockWorker } from "./download-worker";
 import { StockWorkerDashboard } from "./worker-dashboard";
-import { StockWorkerPairing } from "./worker-pairing";
 import { StockSyncReviewPanel } from "../dealers/[dealerId]/stock-sync/review-panel";
 
 function actionsOf(plan: unknown): PlanAction[] {
@@ -140,7 +140,7 @@ function ReportCard({ report, historyView }: { report: ReportRow; historyView: R
   );
 }
 
-export function StockReviewsClient({ initial, query }: { initial: StockReviewSnapshot; query: Record<string, string | string[] | undefined> }) {
+export function StockReviewsClient({ initial, query, pairing, offlineStatus }: { initial: StockReviewSnapshot; query: Record<string, string | string[] | undefined>; pairing?: ReactNode; offlineStatus?: ReactNode }) {
   const { snapshot, connectionLost, reload } = useStockSnapshot(initial, canRefreshStockPage, isStockReviewSnapshot);
   const { outstanding, recentReports, jobs, profiles, dashboard, historyEntries } = snapshot;
   // Admin stock management follows the account tier, not billing entitlement.
@@ -171,9 +171,9 @@ export function StockReviewsClient({ initial, query }: { initial: StockReviewSna
         title="Dealer scrapes"
         description="Review and approve changes before listings update."
       />
-      {typeof query.code === "string" && query.code ? <StockWorkerPairing code={query.code} status="" /> : null}
+      {pairing}
       <StockWorkerDashboard dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={<>
-        <StockWorkerPairing code="" status={typeof query.status === "string" ? query.status : ""} />
+        {offlineStatus}
         {snapshot.desktopEnabled ? <DownloadStockWorker /> : null}
       </>} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt }))}>
       <StockDealerPicker retainOnDisconnect={connectionLost} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
