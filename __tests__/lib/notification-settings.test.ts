@@ -74,6 +74,7 @@ describe("notification preference defaults", () => {
     await expect(isNotificationEnabled("listingUpdates", { userId: "actor-1" })).resolves.toBe(true);
     expect(DEFAULT_NOTIFICATION_PREFERENCES).toEqual({
       listingUpdates: true,
+      draftListings: true,
       dealerReviews: true,
       tradeMessages: true,
       tradeListingUpdates: true,
@@ -126,14 +127,16 @@ describe("notification preference authorization", () => {
   });
 
   it("shows listing updates to everyone, reviews to dealers, and trade options to eligible members", () => {
-    expect(visiblePreferenceKeys({ role: "USER", tradeEligible: false })).toEqual(["listingUpdates"]);
-    expect(visiblePreferenceKeys({ role: "ADMIN", tradeEligible: false })).toEqual(["listingUpdates"]);
+    expect(visiblePreferenceKeys({ role: "USER", tradeEligible: false })).toEqual(["listingUpdates", "draftListings"]);
+    expect(visiblePreferenceKeys({ role: "ADMIN", tradeEligible: false })).toEqual(["listingUpdates", "draftListings"]);
     expect(visiblePreferenceKeys({ role: "DEALER", tradeEligible: false })).toEqual([
       "listingUpdates",
+      "draftListings",
       "dealerReviews",
     ]);
     expect(visiblePreferenceKeys({ role: "DEALER", tradeEligible: true })).toEqual([
       "listingUpdates",
+      "draftListings",
       "dealerReviews",
       "tradeMessages",
       "tradeListingUpdates",
@@ -152,6 +155,15 @@ describe("notification preference authorization", () => {
 
     expect(result.status).toBe("error");
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("saves draft opt-out without resetting other notification preferences", async () => {
+    requireAcceptedUserMock.mockResolvedValue(accountUser("DEALER"));
+    resolveTradeActorMock.mockResolvedValue({kind: "denied"});
+    const form = new FormData();
+    form.set("draftListings", "false");
+    expect((await updateNotificationSettings(initialNotificationSettingsState, form)).status).toBe("success");
+    expect(upsert).toHaveBeenCalledWith({where:{userId:"actor-1"},create:{userId:"actor-1",draftListings:false},update:{draftListings:false}});
   });
 
   it("rejects hidden preference fields instead of resetting them", async () => {

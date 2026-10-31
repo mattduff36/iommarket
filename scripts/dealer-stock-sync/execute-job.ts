@@ -265,6 +265,8 @@ async function applyJob(
         actorId: report.approvedById!, jobId: job.id, now: new Date(), stagedImages: staged.images,
         takeDown: (request) => takeDownManagedListing(tx, request),
       });
+      const { completeStockReviewSelection } = await import("../../lib/dealer-stock-sync/selection-completion");
+      await completeStockReviewSelection(tx, freshReport);
     }, guard, transactionTimeoutMs);
   } catch (error) {
     await cleanup(staged.uploaded);

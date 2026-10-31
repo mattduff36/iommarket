@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { dealerSyncBlockReason } from "@/lib/dealer-stock-sync/eligibility";
 import { enqueueApplyJob, enqueueScrapeJob } from "@/lib/dealer-stock-sync/enqueue";
+import { readPlanActions } from "@/lib/dealer-stock-sync/review-edit";
+import { isApprovableStockAction } from "@/lib/dealer-stock-sync/selection";
 import {
   approveStockReportSchema,
   enqueueDealerScrapeSchema,
@@ -234,10 +236,15 @@ export async function approveDealerStockReport(input: unknown) {
           fingerprint: true,
           bindingId: true,
           dealerId: true,
+          plan: true,
         },
       });
       if (!report || report.status !== "PENDING_REVIEW" || report.fingerprint !== parsed.data.fingerprint) {
         return { error: "This review is stale." };
+      }
+      const actions = readPlanActions(report.plan);
+      if (!actions?.some(isApprovableStockAction) || actions.some(action => action.kind !== "unchanged" && !isApprovableStockAction(action))) {
+        return { error: "Open the stock review and select eligible listings to approve. This older action cannot approve blocked listings or removals." };
       }
       const eligible = await tx.dealerProfile.findUnique({
         where: { id: report.dealerId },

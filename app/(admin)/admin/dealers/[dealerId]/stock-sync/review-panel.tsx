@@ -1,3 +1,9 @@
+"use client";
+
+import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { isSelectableStockAction } from "@/lib/dealer-stock-sync/selection";
+import { StockReviewSelectionControls, type StockReviewSelection } from "./review-selection-controls";
 import { ReportableError } from "@/components/monitoring/reportable-error";
 import { DEALER_PLACEHOLDER_PATH, isDealerPlaceholderImage } from "@/lib/images/dealer-placeholder";
 import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
@@ -6,7 +12,6 @@ import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit-eligibility";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
 import { actionLabel, stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
-import { ApproveStockReportButton } from "./approve-button";
 import { StockReviewEditButton } from "./review-edit-button";
 import { StockReviewPhoto } from "./review-photo";
 
@@ -61,20 +66,24 @@ function Row({
   reportId,
   fingerprint,
   allowEdit,
+  selected, onSelect,
 }: {
   action: PlanAction;
   reportId: string;
   fingerprint: string;
   allowEdit: boolean;
+  selected: boolean;
+  onSelect: (selected: boolean) => void;
 }) {
   const editable = allowEdit && canEditStockReviewAction(action);
   const linked = Boolean(action.listingId) && (action.kind === "blocked" || action.kind === "conflict");
   const corrected = action.review?.provenance.includes("admin-corrected") ?? false;
   const label = action.displayTitle || action.review?.displayTitle || "vehicle";
   return (
-    <li className="rounded-md border border-border px-3 py-2 text-sm">
+    <li className={`rounded-lg border p-4 text-sm transition-colors ${selected ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border"}`}>
+      {allowEdit && isSelectableStockAction(action) && <Checkbox className="mb-3 h-9 w-9 rounded-md [&_svg]:h-6 [&_svg]:w-6" label={<span className="flex min-h-10 items-center font-medium">Select {label}</span>} checked={selected} onCheckedChange={value => onSelect(value === true)} />}
       <p className="font-medium text-text-primary">
-        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(action.kind)}>{actionLabel(action)}</span>
+        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(action.kind)}>{action.kind === "missing_once" ? "Check availability" : action.kind === "unpublish" ? "Removal suggested" : actionLabel(action)}</span>
         {action.displayTitle ? ` - ${action.displayTitle}` : ""}
       </p>
       {corrected ? <p className="text-text-secondary">Corrected by admin.{allowEdit ? " Still pending approval." : ""}</p> : null}
@@ -121,7 +130,12 @@ export function StockSyncReviewPanel(input: {
   fingerprint: string;
   failureReason: string | null;
   actions: PlanAction[];
+  pendingActions?: PlanAction[];
+  selection?: StockReviewSelection;
 }) {
+  const [localSelection, setLocalSelection] = useState<number[]>([]);
+  const [busy, setBusy] = useState(false);
+  const selection = input.selection ?? { indexes: localSelection, setIndexes: setLocalSelection };
   const visible = input.actions.filter(action => !isSoldStockReviewAction(action));
   const actionable = visible.filter((action) => action.kind === "create" || action.kind === "update");
   const blocked = visible.filter((action) =>
@@ -132,8 +146,8 @@ export function StockSyncReviewPanel(input: {
   const groups = [
     ["Eligible additions and changes", [...actionable]],
     ["Blocked", blocked],
-    ["Missing once", missing],
-    ["Proposed unpublish", unpublish],
+    ["Check availability", missing],
+    ["Removal suggestions — review separately", unpublish],
   ] as const;
   return (
     <section className="space-y-4">
@@ -154,6 +168,8 @@ export function StockSyncReviewPanel(input: {
           Check incomplete: {stockSyncReason(input.failureReason)} Missing vehicles have not been counted.
         </ReportableError>
       ) : null}
+      {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}
+      <fieldset disabled={busy} className="min-w-0 space-y-4">
       {groups.map(([title, actions]) => (
         <div key={title}>
           <h3 className="mb-2 text-sm font-semibold text-text-primary">{title}</h3>
@@ -165,6 +181,8 @@ export function StockSyncReviewPanel(input: {
                 <Row
                   key={`${action.kind}-${action.sourceIdentityKey ?? "none"}-${index}`}
                   action={action}
+                  selected={selection.indexes.includes(input.actions.indexOf(action))}
+                  onSelect={checked => { const index = input.actions.indexOf(action); selection.setIndexes(checked ? [...selection.indexes.filter(value => value !== index), index] : selection.indexes.filter(value => value !== index)); }}
                   reportId={input.reportId}
                   fingerprint={input.fingerprint}
                   allowEdit={input.status === "PENDING_REVIEW"}
@@ -174,9 +192,12 @@ export function StockSyncReviewPanel(input: {
           )}
         </div>
       ))}
-      {input.status === "PENDING_REVIEW" ? (
-        <ApproveStockReportButton reportId={input.reportId} fingerprint={input.fingerprint} />
-      ) : null}
+      </fieldset>
+      {Boolean(input.pendingActions?.some(isSelectableStockAction)) && <div className="space-y-3 rounded-lg border border-border p-4">
+        <h3 className="font-semibold text-text-primary">Still awaiting your review</h3>
+        <p className="text-sm text-text-secondary">These items were not included in the approval. They become selectable again when processing finishes successfully. If processing fails, run a fresh stock check to recover an up-to-date review.</p>
+        <ul className="space-y-2">{input.pendingActions!.filter(isSelectableStockAction).map((action, index) => <Row key={index} action={action} reportId={input.reportId} fingerprint={input.fingerprint} selected={false} onSelect={() => undefined} allowEdit={false} />)}</ul>
+      </div>}
     </section>
   );
 }

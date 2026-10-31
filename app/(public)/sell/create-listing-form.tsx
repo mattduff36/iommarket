@@ -45,6 +45,7 @@ import {
   REGISTRATION_LOOKUP_CATEGORY_SLUGS,
   toUploadedImage,
 } from "./create-listing-form.helpers";
+import { StockDraftReviewNotice } from "./stock-draft-review-notice";
 import type { EditableDraft } from "@/lib/listings/editable-draft";
 import { getListingPhotoLimit } from "@/lib/listings/photo-limits";
 import { formatRegistrationForDisplay } from "@/lib/utils/registration";
@@ -142,6 +143,7 @@ export function CreateListingForm({
   );
   const [photoUploadsBusy, setPhotoUploadsBusy] = useState(false);
   const [, setPhotoRevision] = useState(initialDraft?.photoRevision ?? 0);
+  const [stockReviewConfirmed, setStockReviewConfirmed] = useState(false);
   const [trustConfirmed, setTrustConfirmed] = useState(initialDraft?.trustDeclarationAccepted ?? false);
   const [trustConfirmationMissing, setTrustConfirmationMissing] = useState(false);
   const [privateSellerTermsAccepted, setPrivateSellerTermsAccepted] =
@@ -522,6 +524,12 @@ export function CreateListingForm({
       return;
     }
 
+    if (initialDraft?.stockReview && !stockReviewConfirmed) {
+      setError("Review and confirm the received draft warnings before submitting.");
+      setStep(4);
+      releaseSubmitFlight(submitFlightRef);
+      return;
+    }
     const form = new FormData(e.currentTarget);
     if (!trustConfirmed) {
       setTrustConfirmationMissing(true);
@@ -575,6 +583,8 @@ export function CreateListingForm({
           mode,
           skipCheckout,
           isEditingDraft,
+          stockDraftReceiptId: initialDraft?.stockReview?.receiptId,
+          stockDraftReviewConfirmed: stockReviewConfirmed ? true : undefined,
           uploadedImages,
           listingIdRef,
           photoRevisionRef,
@@ -674,6 +684,7 @@ export function CreateListingForm({
                 ) : null}
               </div>
             ) : null}
+            {initialDraft?.stockReview && <StockDraftReviewNotice review={initialDraft.stockReview} confirmed={stockReviewConfirmed} onConfirm={setStockReviewConfirmed} showConfirmation={step === 4} />}
             <fieldset disabled={localDraft.recovering} className="min-w-0">
             <GuidedListingRail
               current={step}

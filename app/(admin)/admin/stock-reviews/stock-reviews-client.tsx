@@ -1,5 +1,6 @@
 "use client";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useStockReviewLayout } from "./use-review-layout";
 import type { StockReviewSnapshot } from "./snapshot-loader";
 import { isStockReviewSnapshot } from "./snapshot-validation";
 import { useStockSnapshot, StockSnapshotRefreshProvider } from "./use-stock-snapshot";
@@ -9,6 +10,7 @@ import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/s
 import type { ResultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 import Link from "@/components/navigation/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 
@@ -18,9 +20,9 @@ import { DownloadStockWorker } from "./download-worker";
 import { StockWorkerDashboard } from "./worker-dashboard";
 import { StockSyncReviewPanel } from "../dealers/[dealerId]/stock-sync/review-panel";
 
-function actionsOf(plan: unknown): PlanAction[] {
-  if (!plan || typeof plan !== "object" || !("actions" in plan)) return [];
-  const actions = (plan as { actions?: unknown }).actions;
+function actionsOf(plan: unknown, key: "actions" | "pendingReviewActions" = "actions"): PlanAction[] {
+  if (!plan || typeof plan !== "object" || !(key in plan)) return [];
+  const actions = (plan as Record<string, unknown>)[key];
   return Array.isArray(actions) ? (actions as PlanAction[]) : [];
 }
 
@@ -109,8 +111,8 @@ function dealerGroups(outstanding: ReportRow[], recentReports: ReportRow[], jobs
   return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function ReportCard({ report, historyView }: { report: ReportRow; historyView: ResultHistoryState }) {
-  const allActions = actionsOf(report.plan);
+function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; open: boolean; onToggle: () => void; detail?: ReactNode }) {
+  const allActions = [...actionsOf(report.plan), ...actionsOf(report.plan, "pendingReviewActions")];
   const actions = allActions.filter(action => !isSoldStockReviewAction(action));
   const visibleCount = Math.max(0, report.inventoryCount - allActions.filter(isSoldStockReviewAction).length);
   const warning = warningOf(report.plan);
@@ -120,7 +122,7 @@ function ReportCard({ report, historyView }: { report: ReportRow; historyView: R
   const outcome = reportOutcome(report.status, actions);
   const when = new Date(report.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" });
   return (
-    <li className="rounded-md border border-border px-4 py-3 text-sm">
+    <li className={`rounded-lg border px-4 py-3 text-sm transition-colors ${open ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border bg-surface"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary">
         <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(outcome === "No change" ? "no_change" : report.status)}>{outcome}</span> · {visibleCount} vehicles
       </p><StockResultActions id={report.id} /></div>
@@ -133,9 +135,10 @@ function ReportCard({ report, historyView }: { report: ReportRow; historyView: R
       {report.status === "FAILED" && report.failureReason ? <p className="text-text-secondary">{stockSyncReason(report.failureReason)}</p> : null}
       {warning?.coverageWarning ? <p className="text-text-secondary">{warning.coverageWarning}</p> : null}
       {warning?.capacityWarning ? <p className="text-text-secondary">{warning.capacityWarning}</p> : null}
-      <Link href={`/admin/stock-reviews?report=${report.id}&history=${historyView}#stock-review-detail`} className="text-neon-blue-400 hover:underline">
-        Open dealer stock review
-      </Link>
+      <button type="button" id={`review-toggle-${report.id}`} aria-expanded={open} aria-controls={open ? "stock-review-detail" : undefined} onClick={onToggle} className="mt-2 flex min-h-11 w-full items-center justify-between gap-3 text-left font-medium text-neon-blue-400 hover:underline">
+        {open ? "Close dealer stock review" : "Open dealer stock review"}<span aria-hidden="true">{open ? "−" : "+"}</span>
+      </button>
+      {detail && <div className="mt-3 border-t border-border pt-4">{detail}</div>}
     </li>
   );
 }
@@ -161,7 +164,17 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   const visibleJobIds = new Set(visibleJobs.map(job => job.id));
   const shownHistory = historyEntries.filter(entry => entry.kind === "report" || visibleJobIds.has(entry.id));
 
-  const selectedReport = [...outstanding, ...recentReports].find(report => report.id === query.report);
+  const { wide, selectedId, toggle } = useStockReviewLayout(typeof query.report === "string" ? query.report : null, historyView);
+  const selectedJob = visibleJobs.find(job => `job:${job.id}` === selectedId && historyEntries.some(entry => entry.id === job.id && entry.state === historyView));
+  const selectedReport = [...outstanding, ...recentReports].find(report => report.id === (selectedJob ? selectedJob.reportId ?? selectedJob.report?.id ?? reportsByRun.get(selectedJob.id)?.id : selectedId) && historyEntries.some(entry => entry.id === report.id && entry.state === historyView));
+  const selectedResult = selectedJob ?? selectedReport;
+  const [chosen, setChosen] = useState<{ key: string; indexes: number[] }>({ key: "", indexes: [] });
+  const selectionKey = selectedReport ? `${selectedReport.id}:${selectedReport.fingerprint}` : "";
+  const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="space-y-4 scroll-mt-6">
+    <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
+    {selectedJob && <div className="space-y-2 rounded-lg border border-border p-4 text-sm"><p className="font-semibold">{jobOutcome(selectedJob)}</p>{selectedJob.error && <ReportableError as="p" className="text-text-error">{selectedJob.error}</ReportableError>}{!selectedReport && <p>No saved review is available for this task yet. Check processing status above, or run a fresh check after a failure.</p>}</div>}
+    {selectedReport && <StockSyncReviewPanel key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
+  </section> : null;
   const readyCount = outstanding.filter(report => report.status === "PENDING_REVIEW" && needsReview(actionsOf(report.plan).filter(action => !isSoldStockReviewAction(action)))).length;
 
   return (
@@ -178,10 +191,8 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
       </>} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt }))}>
       <StockDealerPicker retainOnDisconnect={connectionLost} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <StockResultHistory entries={shownHistory} view={historyView}>
-      {selectedReport ? <StockResultVisibility ids={[selectedReport.id]}><section id="stock-review-detail" className="space-y-4 scroll-mt-6 rounded-xl border border-neon-blue-500/30 p-4">
-        <h2 className="text-xl font-semibold text-text-primary">{selectedReport.binding.dealer.name}</h2>
-        <StockSyncReviewPanel reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} />
-      </section></StockResultVisibility> : null}
+      <div data-review-layout={wide ? "split" : "accordion"} className={wide && selectedResult ? "grid min-w-0 grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)] items-start gap-5" : "min-w-0"}>
+      <div className={wide && selectedResult ? "max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-2" : "space-y-5"}>
       {dealers.length === 0 ? (
         <p className="text-sm text-text-tertiary">No dealer scrapes yet.</p>
       ) : (
@@ -195,7 +206,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
             {dealer.outstanding.length > 0 ? (
               <ul className="space-y-2">
                 {dealer.outstanding.map((report) => (
-                  <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} historyView={historyView} /></StockResultVisibility>
+                  <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} open={selectedId === report.id} onToggle={() => toggle(report.id)} detail={!wide && selectedId === report.id ? detail : undefined} /></StockResultVisibility>
                 ))}
               </ul>
             ) : null}
@@ -204,7 +215,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
                 <h3 className="text-sm font-semibold text-text-primary">Recent runs</h3>
                 <ul className="space-y-2">
                   {dealer.recentReports.map((report) => (
-                    <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} historyView={historyView} /></StockResultVisibility>
+                    <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} open={selectedId === report.id} onToggle={() => toggle(report.id)} detail={!wide && selectedId === report.id ? detail : undefined} /></StockResultVisibility>
                   ))}
                   {dealer.jobs.map((job) => (
                     <StockResultVisibility key={job.id} ids={[job.id]}><li className="rounded-md border border-border px-4 py-3 text-sm">
@@ -213,9 +224,8 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
                       {job.status === "FAILED" && !job.reportId ? <p className="text-sm text-text-secondary">No report was saved.</p> : null}
                       <p className="text-text-secondary">{new Date(job.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}</p>
                       {job.status === "FAILED" && job.error ? <p className="text-text-secondary">{job.error}</p> : null}
-                      <Link href={`/admin/dealers/${dealer.dealerId}/stock-sync`} className="text-neon-blue-400 hover:underline">
-                        Open dealer stock review
-                      </Link>
+                      <button type="button" id={`review-toggle-job:${job.id}`} aria-expanded={selectedJob?.id === job.id} aria-controls={selectedJob?.id === job.id ? "stock-review-detail" : undefined} onClick={() => toggle(`job:${job.id}`)} className="mt-2 flex min-h-11 w-full items-center justify-between gap-3 text-left font-medium text-neon-blue-400 hover:underline">{selectedJob?.id === job.id ? "Close dealer stock review" : "Open dealer stock review"}<span aria-hidden="true">{selectedJob?.id === job.id ? "−" : "+"}</span></button>
+                      {!wide && selectedJob?.id === job.id && <div className="mt-3 border-t border-border pt-4">{detail}</div>}
                     </li></StockResultVisibility>
                   ))}
                 </ul>
@@ -224,6 +234,9 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
           </section></StockResultVisibility>
         ))
       )}
+      </div>
+      {wide && selectedResult && <aside className="sticky top-4 h-[calc(100dvh-8rem)] min-w-0 overflow-y-auto rounded-xl border border-neon-blue-500/30 bg-surface p-5">{detail}</aside>}
+      </div>
       </StockResultHistory>
       </StockWorkerDashboard>
     </div></StockSnapshotRefreshProvider>

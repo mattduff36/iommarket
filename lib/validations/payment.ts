@@ -12,6 +12,8 @@ export const payForListingSchema = z
     listingId: z.string().cuid("Invalid listing ID"),
     privateSellerTermsAccepted: z.literal(true).optional(),
     includeFeatured: z.boolean().optional(),
+    stockDraftReceiptId: z.string().cuid().optional(),
+    stockDraftReviewConfirmed: z.literal(true).optional(),
   })
   .strict();
 

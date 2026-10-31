@@ -59,6 +59,7 @@ const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "error"
 };
 
 const listingInclude = {
+  revisions: { where: { status: "DRAFT" as const }, select: { id: true }, take: 1 },
   images: { take: 1, orderBy: { order: "asc" as const } },
   category: { select: { name: true } },
   region: { select: { name: true } },
@@ -451,7 +452,7 @@ async function ListingsSection({
   const listingWhere = {
     dealerId,
     ...(params.q ? { title: { contains: params.q, mode: "insensitive" as const } } : {}),
-    ...(params.status !== "ALL" ? { status: params.status } : {}),
+    ...(params.status === "DRAFT" ? { OR: [{ status: "DRAFT" as const }, { revisions: { some: { status: "DRAFT" as const } } }] } : params.status !== "ALL" ? { status: params.status } : {}),
   };
   const skip = (params.page - 1) * PAGE_SIZE;
   const listingsQuery = isAttributeSearchSort(params.sort)
@@ -559,6 +560,7 @@ async function ListingsSection({
                         featuredPurchased={listing.payments.length > 0}
                         statusVariant={STATUS_VARIANT[listing.status] ?? "neutral"}
                       />
+                      {listing.revisions?.length > 0 && <span className="mt-1 block text-xs font-medium text-neon-blue-400">Draft changes to review</span>}
                     </TableCell>
                     <TableCell className="text-text-secondary">
                       {listing.expiresAt ? listing.expiresAt.toLocaleDateString("en-GB") : "-"}

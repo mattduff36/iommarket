@@ -1,4 +1,5 @@
 import { isNotificationEnabled } from "@/lib/notifications/settings";
+import type { NotificationPreferenceKey } from "@/lib/notifications/preferences";
 import { db } from "@/lib/db";
 import {
   resolveCorrespondenceRecipients,
@@ -10,8 +11,9 @@ export async function resolveDealerMailRecipients(input: {
   dealerId?: string | null;
   primaryEmail: string;
   category: DealerCorrespondenceCategory;
+  notificationPreference?: NotificationPreferenceKey;
 }): Promise<string[]> {
-  const preference = input.category === "LISTING_UPDATES" ? "listingUpdates" : input.category === "REVIEWS" ? "dealerReviews" : null;
+  const preference = input.notificationPreference ?? (input.category === "LISTING_UPDATES" ? "listingUpdates" : input.category === "REVIEWS" ? "dealerReviews" : null);
   if (preference) {
     try {
       if (!await isNotificationEnabled(preference, { email: input.primaryEmail })) return [];

@@ -40,6 +40,13 @@ describe("dealer correspondence routing lookup", () => {
     expect(findUnique).not.toHaveBeenCalled();
   });
 
+  it("routes draft notifications independently of ordinary listing updates", async () => {
+    enabled.mockImplementation(async (key: string) => key === "draftListings");
+    findUnique.mockResolvedValue(null);
+    await expect(resolveDealerMailRecipients({ dealerId: "dealer-1", primaryEmail: "owner@example.com", category: "LISTING_UPDATES", notificationPreference: "draftListings" })).resolves.toEqual(["owner@example.com"]);
+    await expect(resolveDealerMailRecipients({ dealerId: "dealer-1", primaryEmail: "owner@example.com", category: "LISTING_UPDATES" })).resolves.toEqual([]);
+  });
+
   it("keeps buyer enquiries mandatory even with optional emails off", async () => {
     enabled.mockResolvedValue(false);
     await expect(resolveDealerMailRecipients({ primaryEmail: "buyer@example.com", category: "BUYER_ENQUIRIES" })).resolves.toEqual(["buyer@example.com"]);

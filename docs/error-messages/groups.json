@@ -2,13 +2,13 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 472,
+  "semantic_display_verified_count": 473,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
     "displayed": 1137,
-    "internal-only": 1299,
+    "internal-only": 1298,
     "duplicate": 793,
-    "irrelevant": 140
+    "irrelevant": 141
   },
   "rule_counts": {
     "ast-public-return": 541,
@@ -17,11 +17,10 @@
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 52,
     "ast-throw-caller-sink": 105,
-    "ast-binding": 19,
+    "ast-binding": 20,
     "ast-throw-unrendered": 352,
     "ast-diagnostic-call": 71,
     "ast-throw-replaced": 8,
-    "ast-branch-condition": 7,
     "ast-enclosing-public-function": 61,
     "ast-type-or-import": 104,
     "ast-public-sink": 234,
@@ -29,7 +28,8 @@
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
     "ast-signature": 4,
-    "ast-diagnostic-text": 3
+    "ast-diagnostic-text": 3,
+    "ast-branch-condition": 6
   },
   "exception_rows": 713,
   "implementation_status_counts": {
@@ -75,14 +75,14 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1230,
-    "raw-message": 166,
-    "fragment": 587,
-    "static-literal": 299,
-    "thrown": 892,
+    "public-sink": 1231,
+    "raw-message": 167,
+    "fragment": 586,
+    "static-literal": 300,
+    "thrown": 891,
     "monitoring": 81,
     "rate-limit": 13,
-    "field-errors": 101
+    "field-errors": 100
   },
   "groups": [
     {
@@ -136,7 +136,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:thrown",
-      "count": 127,
+      "count": 126,
       "example": "actions/dealer-reviews.ts:66",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -164,7 +164,7 @@
     },
     {
       "id": "displayed:ast-public-return:journey-c-public-boundary:public-sink",
-      "count": 70,
+      "count": 69,
       "example": "actions/account.ts:28",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -192,7 +192,7 @@
     },
     {
       "id": "displayed:ast-public-return:listings-b-public-boundary:public-sink",
-      "count": 46,
+      "count": 47,
       "example": "actions/listings.ts:134",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -241,7 +241,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
-      "count": 29,
+      "count": 30,
       "example": "actions/account.ts:81",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -282,18 +282,18 @@
       "classification": "duplicate"
     },
     {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:fragment",
-      "count": 24,
-      "example": "app/(public)/sell/create-listing-form.demo.ts:13",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "displayed:ast-public-return:payments-b-public-boundary:public-sink",
       "count": 23,
       "example": "actions/payments.ts:150",
       "rule_id": "ast-public-return",
       "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:fragment",
+      "count": 23,
+      "example": "app/(public)/sell/create-listing-form.demo.ts:13",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
     },
     {
       "id": "duplicate:exact-source-repeat:payments-b-public-boundary:public-sink",
@@ -317,6 +317,13 @@
       "classification": "irrelevant"
     },
     {
+      "id": "duplicate:exact-source-repeat:deferred-c:raw-message",
+      "count": 20,
+      "example": "actions/dealer-reviews.ts:347",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "duplicate:exact-source-repeat:listings-b-public-boundary:public-sink",
       "count": 20,
       "example": "actions/listings.ts:139",
@@ -324,22 +331,8 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:deferred-c:raw-message",
-      "count": 19,
-      "example": "actions/dealer-reviews.ts:347",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
-      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:fragment",
-      "count": 19,
-      "example": "actions/dealer.ts:92",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:raw-message",
-      "count": 19,
+      "count": 20,
       "example": "actions/account.ts:65",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
@@ -350,6 +343,13 @@
       "example": "app/api/listing-images/finalize/route.ts:74",
       "rule_id": "ast-public-return",
       "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:fragment",
+      "count": 18,
+      "example": "actions/dealer.ts:92",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
     },
     {
       "id": "internal-only:ast-diagnostic-call:deferred-c-payment-internals:monitoring",
@@ -408,13 +408,6 @@
       "classification": "internal-only"
     },
     {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:field-errors",
-      "count": 14,
-      "example": "app/(public)/sell/create-listing-form.tsx:124",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
       "count": 14,
       "example": "actions/payments.ts:109",
@@ -425,6 +418,13 @@
       "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:static-literal",
       "count": 14,
       "example": "app/api/listing-images/finalize/route.ts:46",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:field-errors",
+      "count": 13,
+      "example": "app/(public)/sell/create-listing-form.tsx:124",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -499,6 +499,13 @@
       "classification": "duplicate"
     },
     {
+      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
+      "count": 8,
+      "example": "actions/listings.ts:115",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
       "id": "irrelevant:ast-jsx-close:deferred-c:fragment",
       "count": 8,
       "example": "app/uidemo/page.tsx:513",
@@ -546,13 +553,6 @@
       "example": "lib/forms/action-error.ts:18",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
-    },
-    {
-      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
-      "count": 7,
-      "example": "actions/listings.ts:115",
-      "rule_id": "ast-binding",
-      "classification": "irrelevant"
     },
     {
       "id": "displayed:ast-enclosing-public-function:deferred-c:raw-message",
@@ -786,6 +786,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:static-literal",
+      "count": 3,
+      "example": "actions/listings.ts:947",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:raw-message",
       "count": 3,
       "example": "actions/payments.ts:426",
@@ -852,13 +859,6 @@
       "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:static-literal",
       "count": 2,
       "example": "actions/admin/payments.ts:497",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:static-literal",
-      "count": 2,
-      "example": "lib/services/vehicle-check-aggregator.ts:295",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -1062,13 +1062,6 @@
       "id": "internal-only:ast-branch-condition:deferred-c:fragment",
       "count": 1,
       "example": "lib/monitoring/plain-alert-rules.ts:439",
-      "rule_id": "ast-branch-condition",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-branch-condition:journey-c-public-boundary:raw-message",
-      "count": 1,
-      "example": "actions/listings.ts:1106",
       "rule_id": "ast-branch-condition",
       "classification": "internal-only"
     },

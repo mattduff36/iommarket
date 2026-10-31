@@ -121,6 +121,7 @@ model UserNotificationSettings {
   id                     String   @id @default(cuid())
   userId                 String   @unique
   listingUpdates         Boolean  @default(true)
+  draftListings          Boolean  @default(true)
   dealerReviews          Boolean  @default(true)
   tradeMessages          Boolean  @default(true)
   tradeListingUpdates    Boolean  @default(true)
@@ -489,6 +490,8 @@ model Listing {
   @@index([reviewSourceIdentity])
   @@index([createdAt])
   @@index([approvedAt])
+  stockDraftReceipts StockReviewDraftReceipt[]
+
 }
 
 model DealerPreviewPack {
@@ -692,6 +695,8 @@ model ListingRevision {
   @@index([listingId, status])
   @@index([status, submittedAt])
   @@index([decidedByUserId])
+  stockDraftReceipts StockReviewDraftReceipt[]
+
 }
 
 model ListingRevisionImage {
@@ -2636,4 +2641,24 @@ model TradeEvidenceAccess {
 
   @@index([membershipId, createdAt])
   @@index([actorUserId])
+}
+
+model StockReviewDraftReceipt {
+  id String @id @default(cuid())
+  reportId String
+  actionKey String
+  listingId String
+  revisionId String?
+  dealerId String
+  userId String
+  sourceIdentityKey String?
+  source Json
+  blockers String[] @default([])
+  reviewAcknowledgedAt DateTime?
+  acknowledgedById String?
+  createdAt DateTime @default(now())
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  revision ListingRevision? @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  @@unique([reportId, actionKey])
+  @@index([listingId, revisionId])
 }

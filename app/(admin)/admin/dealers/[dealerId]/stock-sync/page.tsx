@@ -14,9 +14,9 @@ import { StockSyncReviewPanel } from "./review-panel";
 
 export const metadata: Metadata = { title: "Website stock sync | Admin" };
 
-function asActions(plan: unknown): PlanAction[] {
-  if (!plan || typeof plan !== "object" || !("actions" in plan)) return [];
-  const actions = (plan as { actions?: unknown }).actions;
+function asActions(plan: unknown, key: "actions" | "pendingReviewActions" = "actions"): PlanAction[] {
+  if (!plan || typeof plan !== "object" || !(key in plan)) return [];
+  const actions = (plan as Record<string, unknown>)[key];
   return Array.isArray(actions) ? (actions as PlanAction[]) : [];
 }
 
@@ -90,11 +90,13 @@ export default async function DealerStockSyncPage({
       />
       {latest ? (
         <StockSyncReviewPanel
+          key={`${latest.id}:${latest.fingerprint}`}
           reportId={latest.id}
           status={latest.status}
           fingerprint={latest.fingerprint}
           failureReason={latest.failureReason}
           actions={asActions(latest.plan)}
+          pendingActions={asActions(latest.plan, "pendingReviewActions")}
         />
       ) : (
         <p className="text-sm text-text-tertiary">No scrape reports yet.</p>

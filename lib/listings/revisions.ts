@@ -260,6 +260,7 @@ export async function submitRevision(input: {
   expectedListingRevision: number;
   expectedVersion: number;
   seller?: DealerAccessSubject;
+  stockDraftReceiptId?: string;
 }) {
   const result = await db.$transaction(async (tx) => {
     const listing = await tx.listing.findUnique({
@@ -282,11 +283,15 @@ export async function submitRevision(input: {
 
     const revision = await tx.listingRevision.findFirst({
       where: { listingId: input.listingId, status: "DRAFT" },
-      include: { images: { select: { id: true } } },
+      include: { images: { select: { id: true } }, stockDraftReceipts: { orderBy: { createdAt: "desc" }, take: 1 } },
     });
     if (!revision) throw new ListingLifecycleError("No draft changes to submit.");
     if (revision.version !== input.expectedVersion) {
       throw new ListingRevisionConflictError();
+    }
+    if (revision.stockDraftReceipts?.[0]) {
+      const { assertStockDraftReady } = await import("@/lib/dealer-stock-sync/draft-readiness");
+      await assertStockDraftReady(tx, { receipt: revision.stockDraftReceipts[0], actorId: input.userId, acknowledgementReceiptId: input.stockDraftReceiptId });
     }
     if (revision.images.length < 2) {
       throw new ListingLifecycleError("At least 2 photos are required");

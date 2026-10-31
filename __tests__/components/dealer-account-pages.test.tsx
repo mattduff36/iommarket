@@ -306,6 +306,13 @@ describe("dealer account pages", () => {
     expect(toManagedDealerReviewMock).toHaveBeenCalledWith(expect.objectContaining({ id: "review-1" }));
   });
 
+  it("includes received revisions of live listings in the Drafts filter", async () => {
+    const { default: Page } = await import("@/app/(public)/dealer/listings/page");
+    render(await Page({ searchParams: Promise.resolve({ status: "DRAFT" }) }));
+    expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.where).toEqual({dealerId:"dealer-1",OR:[{status:"DRAFT"},{revisions:{some:{status:"DRAFT"}}}]});
+    expect(dbMock.listing.count).toHaveBeenCalledWith({where:{dealerId:"dealer-1",OR:[{status:"DRAFT"},{revisions:{some:{status:"DRAFT"}}}]}});
+  });
+
   it("loads correspondence for the signed-in dealer and points optional alerts elsewhere", async () => {
     const { default: Page } = await import("@/app/(public)/dealer/email-settings/page");
     render(await Page());

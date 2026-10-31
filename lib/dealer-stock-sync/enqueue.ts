@@ -118,10 +118,11 @@ export async function enqueueDueWeeklyScrapes(now = new Date(), client: EnqueueC
 
 export async function enqueueApplyJob(
   client: Pick<typeof db, "dealerStockSyncJob">,
-  input: { bindingId: string; dealerId: string; reportId: string; fingerprint: string; actorId: string },
+  input: { bindingId: string; dealerId: string; reportId: string; fingerprint: string; actorId: string; reviewSelection?: boolean },
 ) {
+  const idempotencyKey = input.reviewSelection ? `apply:${input.reportId}:${input.fingerprint}` : `apply:${input.reportId}`;
   const existing = await client.dealerStockSyncJob.findFirst({
-    where: { idempotencyKey: `apply:${input.reportId}` },
+    where: { idempotencyKey },
     select: { id: true, status: true },
   });
   if (existing) return existing;
@@ -132,7 +133,7 @@ export async function enqueueApplyJob(
       bindingId: input.bindingId,
       dealerId: input.dealerId,
       reportId: input.reportId,
-      idempotencyKey: `apply:${input.reportId}`,
+      idempotencyKey,
       payload: { fingerprint: input.fingerprint, reportId: input.reportId },
       createdById: input.actorId,
     },

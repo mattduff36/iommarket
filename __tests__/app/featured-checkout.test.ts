@@ -119,3 +119,7 @@ describe("featured checkout contract", () => {
     ).toBe(false);
   });
 });
+
+it("preserves received-draft acknowledgement through the checkout helper", () => {
+  expect(buildPayForListingInput({ listingId: "listing", stockDraftReceiptId: "receipt", stockDraftReviewConfirmed: true })).toMatchObject({stockDraftReceiptId: "receipt", stockDraftReviewConfirmed: true});
+});

@@ -14,6 +14,7 @@ export interface EditableDraft {
   photoRevision: number;
   editMode?: "draft" | "revision" | "resubmit";
   revisionPending?: boolean;
+  stockReview?: { receiptId: string; blockers: string[]; source: unknown; lifecycleRevision?: number; canDelete?: boolean } | null;
   images: Array<{
     id: string;
     url: string;
@@ -75,6 +76,7 @@ export async function getEditableDraft({
       dealerId,
     },
     include: {
+      stockDraftReceipts: { orderBy: { createdAt: "desc" } },
       images: {
         orderBy: { order: "asc" },
       },
@@ -96,6 +98,7 @@ export async function getEditableDraft({
     const revision =
       (await getOpenRevision(listing.id)) ??
       (await getOrCreateDraftRevision({ listingId: listing.id, userId }));
+    const receipt = listing.stockDraftReceipts?.find(item => item.revisionId === revision.id);
     return {
       id: listing.id,
       title: revision.title,
@@ -108,6 +111,7 @@ export async function getEditableDraft({
       photoRevision: revision.version,
       editMode: "revision",
       revisionPending: revision.status === "PENDING",
+      stockReview: receipt ? { receiptId: receipt.id, blockers: receipt.blockers, source: receipt.source, lifecycleRevision: listing.lifecycleRevision, canDelete: revision.status === "DRAFT" } : null,
       images: toEditableImages(revision.images),
       attributes: revision.attributeValues.map((attribute) => ({
         attributeDefinitionId: attribute.attributeDefinitionId,
@@ -128,6 +132,10 @@ export async function getEditableDraft({
     photoRevision: listing.photoRevision,
     editMode: listing.status === "DRAFT" || listing.status === "EXPIRED" ? "draft" : "resubmit",
     revisionPending: false,
+    stockReview: (() => {
+      const receipt = listing.stockDraftReceipts?.find(item => item.revisionId === null);
+      return receipt ? { receiptId: receipt.id, blockers: receipt.blockers, source: receipt.source, lifecycleRevision: listing.lifecycleRevision, canDelete: listing.status === "DRAFT" } : null;
+    })(),
     images: toEditableImages(listing.images),
     attributes: listing.attributeValues.map((attribute) => ({
       attributeDefinitionId: attribute.attributeDefinitionId,
