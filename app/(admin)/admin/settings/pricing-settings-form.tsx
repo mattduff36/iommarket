@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateMarketplacePricing } from "@/actions/admin/settings";
@@ -122,7 +123,7 @@ export function PricingSettingsForm({ pricing }: PricingSettingsFormProps) {
 
         <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div aria-live="polite" className="min-h-5">
-            {error ? <p className="text-sm text-text-error" role="alert">{error}</p> : null}
+            {error ? <ReportableError as="p" className="text-sm text-text-error" role="alert">{error}</ReportableError> : null}
             {success ? <p className="text-sm text-emerald-500" role="status">{success}</p> : null}
           </div>
           <AdminActionButton type="submit" disabled={isPending} tone="primary">

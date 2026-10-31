@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -88,9 +89,9 @@ export function StockBindingForm(input: {
         </button>
       </div>
       {error ? (
-        <p className="text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="text-sm text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </form>
   );

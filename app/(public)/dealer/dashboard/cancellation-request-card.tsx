@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useState, useTransition } from "react";
@@ -62,7 +63,7 @@ export function CancellationRequestCard({
               onCheckedChange={(checked) => setConfirmed(checked === true)}
               label="I understand this is an end-of-period request with no pro-rata refund"
             />
-            {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+            {error ? <ReportableError as="p" role="alert" className="text-sm text-text-error">{error}</ReportableError> : null}
       {recovery.blocked ? <a href="/dealer/dashboard" className="block text-sm underline">Reload and check status</a> : null}
             <Button
               type="button"

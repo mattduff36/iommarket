@@ -1,3 +1,4 @@
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
@@ -39,11 +40,12 @@ function Alert({ className, status, children, onClose, ...props }: AlertProps) {
   return (
     <div
       role="alert"
+      data-reportable-error={status === "error" ? "true" : "false"}
       className={cn(alertVariants({ status }), className)}
       {...props}
     >
       <Icon className="h-5 w-5 shrink-0 mt-0.5" />
-      <div className="flex-1">{children}</div>
+      <ReportableError data-reportable-error={status === "error" ? "true" : "false"} className="flex-1">{children}</ReportableError>
       {onClose && (
         <Button
           type="button"

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useState, useTransition } from "react";
@@ -119,7 +120,7 @@ export function RefundButton({
           </AdminActionButton>
         </AdminActionBar>
       )}
-      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
+      {error && <ReportableError as="p" role="alert" className="text-xs text-text-error">{error}</ReportableError>}
       {recovery.blocked ? <a href="/admin/payments" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );
@@ -238,7 +239,7 @@ export function ReconcileRippleButton({
           Cancel
         </AdminActionButton>
       </AdminActionBar>
-      {error ? <p role="alert" className="text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" role="alert" className="text-xs text-text-error">{error}</ReportableError> : null}
       {recovery.blocked ? <a href="/admin/payments" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );

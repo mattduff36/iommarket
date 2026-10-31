@@ -1,3 +1,4 @@
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import Link from "@/components/navigation/link";
 import { notFound, redirect } from "next/navigation";
 import { TradeNav } from "@/components/trade/trade-nav";
@@ -167,9 +168,9 @@ export default async function TradeExchangePage({
         <p className="mt-1 text-sm text-text-secondary">{summary.live} live, {summary.drafts} drafts, {summary.enquiries} open enquiries, {summary.stale} due for an availability check.</p>
       </div>
       {failed ? (
-        <p role="alert" className="mb-4 text-sm text-text-error">
+        <ReportableError as="p" role="alert" className="mb-4 text-sm text-text-error">
           {result.error} Clear the filters and try again.
-        </p>
+        </ReportableError>
       ) : null}
       <TradeFilters filters={filters} sellers={sellers} />
       {failed ? null : cards.length === 0 ? <p className="text-text-secondary">No live trade stock matches these filters.</p> : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "@/components/navigation/link";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
@@ -405,12 +406,12 @@ export function VehicleCheckClient({
       {!isPending && error ? (
         <Card className="border-neon-red-500/25 bg-neon-red-500/6">
           <CardContent className="p-6">
-            <EmptyState
+            <ReportableError role="alert"><EmptyState
               icon={<ShieldCheck className="h-6 w-6 text-neon-red-400" />}
               title="Lookup could not be completed"
               description={error}
               className="py-6"
-            />
+            /></ReportableError>
           </CardContent>
         </Card>
       ) : null}

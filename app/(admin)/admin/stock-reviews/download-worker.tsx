@@ -1,4 +1,5 @@
 "use client";
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState } from "react";
 
 export function DownloadStockWorker() {
@@ -26,6 +27,6 @@ export function DownloadStockWorker() {
     <button type="button" onClick={download} disabled={busy} aria-busy={busy} className="inline-flex items-center rounded-lg bg-neon-blue-500 px-4 py-2 font-semibold text-white transition hover:bg-neon-blue-600 disabled:cursor-wait disabled:opacity-60">
       {busy ? "Preparing download…" : "Download / update Stock Worker"}
     </button>
-    {error ? <p role="alert" className="text-sm text-red-400">{error}</p> : null}
+    {error ? <ReportableError as="p" role="alert" className="text-sm text-red-400">{error}</ReportableError> : null}
   </div>;
 }

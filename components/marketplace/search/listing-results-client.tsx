@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { ListingCard } from "@/components/marketplace/listing-card";
@@ -209,12 +210,12 @@ export function ListingResultsClient({
       {hasMore ? (
         <div ref={loaderRef} className="py-6 text-center text-sm text-text-secondary">
           {loadError ? (
-            <div className="flex flex-col items-center gap-3" role="alert">
+            <ReportableError as="div" className="flex flex-col items-center gap-3" role="alert">
               <span>{loadError}</span>
               <Button type="button" size="sm" variant="ghost" onClick={() => void loadMore()}>
                 Try again
               </Button>
-            </div>
+            </ReportableError>
           ) : isLoading ? (
             <span className="inline-flex items-center gap-2">
               <BrandedSpinner size="sm" />

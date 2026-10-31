@@ -1,6 +1,7 @@
 import type { ListingPhotoSource } from "@/lib/images/photo";
 import { uploadErrorFromPayload } from "@/lib/images/upload-client-error";
 import { PHOTO_UNKNOWN_MESSAGE } from "@/lib/media/upload-error-catalog";
+import { fetchUploadRequest } from "@/lib/images/upload-request-retry";
 
 export interface DirectImageKitUpload {
   provider: "imagekit";
@@ -31,10 +32,10 @@ export async function uploadDirectImageKitPhoto(file: File, uploadIntentId: stri
   if (!response.ok || typeof payload?.fileId !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(payload.fileId)) {
     throw new Error("The private image upload failed. Start a new upload to retry.");
   }
-  const finalized = await fetch(upload.finalizeUrl, {
+  const finalized = await fetchUploadRequest(upload.finalizeUrl, {
     method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-    body: JSON.stringify({ uploadIntentId, fileId: payload.fileId }), signal: AbortSignal.timeout(130_000),
-  });
+    body: JSON.stringify({ uploadIntentId, fileId: payload.fileId }),
+  }, { verification: true });
   const result = await finalized.json().catch(() => null) as { data?: ListingPhotoSource; error?: string } | null;
   if (!finalized.ok || !result?.data || result.data.provider !== "IMAGEKIT" ||
     result.data.uploadIntentId !== uploadIntentId || !result.data.imageKitFileId || !result.data.imageKitFilePath) {

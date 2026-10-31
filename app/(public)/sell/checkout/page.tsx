@@ -1,3 +1,4 @@
+import { ReportableError } from "@/components/monitoring/reportable-error";
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -138,10 +139,10 @@ export default async function SellCheckoutPage({ searchParams }: Props) {
               </p>
             ) : null}
             {hasFailedPayment ? (
-              <p className="mt-2 text-text-error">
+              <ReportableError as="p" className="mt-2 text-text-error">
                 The latest hosted payment attempt failed. You can retry without
                 losing the saved draft.
-              </p>
+              </ReportableError>
             ) : null}
           </div>
 

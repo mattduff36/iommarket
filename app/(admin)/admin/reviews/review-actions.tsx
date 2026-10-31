@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { moderateDealerReview } from "@/actions/dealer-reviews";
@@ -93,7 +94,7 @@ export function ReviewActions({
         placeholder="Admin notes"
         className="mt-2"
       />
-      {error ? <p className="mt-2 text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="mt-2 text-xs text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }

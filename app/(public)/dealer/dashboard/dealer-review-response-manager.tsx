@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -319,9 +320,9 @@ function ReviewManagementItem({ review }: { review: ManagedDealerReview }) {
         </p>
       ) : null}
       {error ? (
-        <p className="mt-3 text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="mt-3 text-sm text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </article>
   );

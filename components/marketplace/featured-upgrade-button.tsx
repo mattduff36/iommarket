@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useRef, useState, useTransition } from "react";
 import { upgradeFeatured } from "@/actions/payments";
 import { Button } from "@/components/ui/button";
@@ -91,9 +92,9 @@ export function FeaturedUpgradeButton({
           </p>
         )}
         {error && (
-          <p className="text-xs text-text-error" role="alert">
+          <ReportableError as="p" className="text-xs text-text-error" role="alert">
             {error}
-          </p>
+          </ReportableError>
         )}
         {uncertain ? <a href={`/listings/${listingId}`} className="text-text-trust underline">Check Featured status</a> : null}
       <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}
@@ -144,9 +145,9 @@ export function FeaturedUpgradeButton({
         </p>
       )}
       {error && (
-        <p className="text-sm text-text-energy w-full" role="alert">
+        <ReportableError as="p" className="text-sm text-text-energy w-full" role="alert">
           {error}
-        </p>
+        </ReportableError>
       )}
       {uncertain ? <a href={`/listings/${listingId}`} className="text-text-trust underline">Check Featured status</a> : null}
       <PaymentAwaitingStatus sampleCheckoutId={sampleCheckoutId}

@@ -1,4 +1,5 @@
 "use client";
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useState, useTransition } from "react";
@@ -178,9 +179,9 @@ function EntityEditor({
         </Button>
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-text-error sm:col-span-full">
+        <ReportableError as="p" role="alert" className="text-sm text-text-error sm:col-span-full">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </form>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { takeDownListingFromReport, updateReportStatus } from "@/actions/admin";
 import {
@@ -133,7 +134,7 @@ export function ReportActions({
           }}
         />
       ) : null}
-      {error ? <p className="mt-2 text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="mt-2 text-xs text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }

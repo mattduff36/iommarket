@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import Link from "@/components/navigation/link";
 import { completeDealerOnboardingClaim } from "@/actions/dealer-onboarding";
@@ -89,7 +90,7 @@ export function OnboardingAcceptForm() {
           </span>
         }
       />
-      {error ? <p className="text-sm text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-sm text-text-error">{error}</ReportableError> : null}
       <Button type="submit" disabled={isPending}>
         {isPending ? "Activating…" : "Accept and activate account"}
       </Button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import Link from "@/components/navigation/link";
 import { submitDealerReview } from "@/actions/dealer-reviews";
@@ -73,7 +74,7 @@ export function DealerReviewForm({ dealerId, canComment }: Props) {
           <option value={2}>2 - Fair</option>
           <option value={1}>1 - Poor</option>
         </select>
-        {ratingError ? <p className="text-xs text-text-error">{ratingError}</p> : null}
+        {ratingError ? <ReportableError as="p" className="text-xs text-text-error">{ratingError}</ReportableError> : null}
       </div>
 
       {canComment ? (
@@ -94,7 +95,7 @@ export function DealerReviewForm({ dealerId, canComment }: Props) {
             ].join(" ")}
             placeholder="Share your experience with this dealer"
           />
-          {commentError ? <p className="text-xs text-text-error">{commentError}</p> : null}
+          {commentError ? <ReportableError as="p" className="text-xs text-text-error">{commentError}</ReportableError> : null}
         </div>
       ) : (
         <p className="text-xs text-text-secondary">

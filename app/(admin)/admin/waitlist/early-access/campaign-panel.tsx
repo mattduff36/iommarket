@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import {
   confirmEarlyAccessCampaign,
@@ -131,9 +132,9 @@ export function EarlyAccessCampaignPanel({
       ) : null}
       {message ? <p className="text-sm text-text-primary">{message}</p> : null}
       {error ? (
-        <p className="text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="text-sm text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
 
       {bulkAllowed && !frozen ? (

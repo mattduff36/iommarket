@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
@@ -229,7 +230,7 @@ export function StockReviewEditButton({
             </label>
             <label className="block text-sm">Correction reason<textarea className="mt-1 w-full rounded-md border border-border px-2 py-1" value={reason} onChange={(event) => setReason(event.target.value)} required minLength={10} maxLength={1000} rows={3} /></label>
           </fieldset>
-          {errors.length > 0 ? <div role="alert" className="text-sm text-text-error">{errors.map((error) => <p key={error}>{error}</p>)}</div> : null}
+          {errors.length > 0 ? <ReportableError as="div" role="alert" className="text-sm text-text-error">{errors.map((error) => <p key={error}>{error}</p>)}</ReportableError> : null}
           <div className="flex gap-2">
             <button type="submit" className="rounded-md bg-neon-blue-500 px-3 py-2 text-sm font-medium text-white disabled:opacity-60" disabled={isPending}>{isPending ? "Saving corrections…" : "Save corrections"}</button>
             <button type="button" className="rounded-md border border-border px-3 py-2 text-sm" onClick={cancel} disabled={isPending}>Cancel</button>
@@ -240,7 +241,7 @@ export function StockReviewEditButton({
           <button type="button" className="rounded-md border border-border px-3 py-1 text-sm" onClick={openEditor} disabled={isPending}>
             {isPending ? "Loading review…" : override ? "Edit / override" : "Edit"}
           </button>
-          {errors.length > 0 ? <div role="alert" className="mt-2 text-sm text-text-error">{errors.map((error) => <p key={error}>{error}</p>)}</div> : null}
+          {errors.length > 0 ? <ReportableError as="div" role="alert" className="mt-2 text-sm text-text-error">{errors.map((error) => <p key={error}>{error}</p>)}</ReportableError> : null}
         </>
       )}
     </div>

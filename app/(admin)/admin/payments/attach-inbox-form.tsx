@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { adminAttachUnmatchedListing } from "@/actions/admin/payments";
@@ -65,7 +66,7 @@ export function AttachInboxForm({ inboxId }: { inboxId: string }) {
           Attach to listing
         </AdminActionButton>
       </AdminActionBar>
-      {error ? <p className="text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-xs text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }

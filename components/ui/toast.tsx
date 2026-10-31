@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import * as React from "react";
 import * as ToastPrimitive from "@radix-ui/react-toast";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -43,12 +44,15 @@ const Toast = React.forwardRef<
   React.ComponentRef<typeof ToastPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitive.Root> &
     VariantProps<typeof toastVariants>
->(({ className, variant, ...props }, ref) => (
+>(({ className, variant, children, ...props }, ref) => (
   <ToastPrimitive.Root
+    data-reportable-error={variant === "error" ? "true" : "false"}
     ref={ref}
     className={cn(toastVariants({ variant }), className)}
     {...props}
-  />
+  >
+    <ReportableError data-reportable-error={variant === "error" ? "true" : "false"} className="flex-1">{children}</ReportableError>
+  </ToastPrimitive.Root>
 ));
 Toast.displayName = ToastPrimitive.Root.displayName;
 

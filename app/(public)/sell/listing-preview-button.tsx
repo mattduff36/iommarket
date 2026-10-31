@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { browserDraftStorage, type DraftScope, type UnsavedDraftSnapshot } from "./listing-unsaved-draft";
@@ -27,6 +28,6 @@ export function ListingPreviewButton({ scope, snapshot, disabled }: {
           }
         }}>Preview listing <span className="sr-only">(opens in a new tab)</span></a>
     </Button>
-    {error ? <p role="alert" className="mt-2 text-sm text-text-energy">{error}</p> : null}
+    {error ? <ReportableError as="p" role="alert" className="mt-2 text-sm text-text-energy">{error}</ReportableError> : null}
   </div>;
 }

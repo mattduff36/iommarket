@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { loadAdminListingForEdit, saveAdminListingEdit } from "@/actions/admin/listing-edit";
@@ -267,9 +268,9 @@ export function ListingEditDialog({
           <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-5">
             <FormErrorSummary messages={messages} />
             {blockedByRevision ? (
-              <div className="rounded-md border border-premium-gold-500/30 bg-premium-gold-500/5 p-3 text-sm text-text-primary" role="alert">
+              <ReportableError as="div" className="rounded-md border border-premium-gold-500/30 bg-premium-gold-500/5 p-3 text-sm text-text-primary" role="alert">
                 A seller revision is {data.openRevisionStatus?.toLowerCase()} and must be resolved before these listing details can be edited.
-              </div>
+              </ReportableError>
             ) : null}
 
             <fieldset disabled={isPending || confirming || blockedByRevision} className="space-y-4">
@@ -297,7 +298,7 @@ export function ListingEditDialog({
                   aria-invalid={firstFieldError(fieldErrors, "description") ? true : undefined}
                 />
                 {firstFieldError(fieldErrors, "description") ? (
-                  <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "description")}</p>
+                  <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "description")}</ReportableError>
                 ) : null}
               </div>
               <Input
@@ -337,7 +338,7 @@ export function ListingEditDialog({
                     ))}
                   </AdminActionSelect>
                   {firstFieldError(fieldErrors, "categoryId") ? (
-                    <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "categoryId")}</p>
+                    <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "categoryId")}</ReportableError>
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-1">
@@ -354,7 +355,7 @@ export function ListingEditDialog({
                     ))}
                   </AdminActionSelect>
                   {firstFieldError(fieldErrors, "regionId") ? (
-                    <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "regionId")}</p>
+                    <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "regionId")}</ReportableError>
                   ) : null}
                 </div>
               </div>

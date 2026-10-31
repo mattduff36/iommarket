@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { CheckCircle2, Plus, StickyNote, Trash2 } from "lucide-react";
 import {
@@ -383,7 +384,7 @@ export function ChecklistBoard({
       </form>
 
       {error ? (
-        <p role="alert" className="px-4 pb-4 text-sm text-text-error sm:px-5 sm:pb-5">{error}</p>
+        <ReportableError as="p" role="alert" className="px-4 pb-4 text-sm text-text-error sm:px-5 sm:pb-5">{error}</ReportableError>
       ) : null}
     </div>
   );

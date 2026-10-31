@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createAttributeDefinition } from "@/actions/admin";
@@ -183,7 +184,7 @@ export function AddAttributeForm({ categories }: Props) {
             onCheckedChange={(v) => setRequired(Boolean(v))}
           />
 
-          {error && <p className="text-sm text-text-error">{error}</p>}
+          {error && <ReportableError as="p" className="text-sm text-text-error">{error}</ReportableError>}
 
           <AdminActionButton
             type="submit"

@@ -1,3 +1,4 @@
+import { ReportableError } from "@/components/monitoring/reportable-error";
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -20,9 +21,9 @@ export default async function AdminChecklistPage() {
         description="Shared admin to-do list. Check items off as they are done, add notes, or capture new work. Everyone with admin access sees the same list."
       />
       {result.error || !result.data ? (
-        <p className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-4 text-sm text-text-error">
+        <ReportableError as="p" className="rounded-lg border border-neon-red-500/20 bg-neon-red-500/5 p-4 text-sm text-text-error">
           {result.error}
-        </p>
+        </ReportableError>
       ) : (
         <ChecklistBoard
           initialItems={result.data.items}

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
@@ -85,9 +86,9 @@ export function RegionActions({
         pendingLabel={pendingLabel ?? undefined}
       />
       {error ? (
-        <p className="text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
       <AdminConfirmDialog
         open={confirmDelete}

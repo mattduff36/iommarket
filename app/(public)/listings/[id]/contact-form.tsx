@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState } from "react";
 import { contactSeller } from "@/actions/listings";
 import { Input } from "@/components/ui/input";
@@ -113,9 +114,9 @@ export function ContactSellerForm({ listingId }: Props) {
           ].join(" ")}
         />
         {messageError ? (
-          <p id="contact-message-error" className="text-xs text-text-error">
+          <ReportableError as="p" id="contact-message-error" className="text-xs text-text-error">
             {messageError}
-          </p>
+          </ReportableError>
         ) : null}
       </div>
       <input type="hidden" name="listingId" value={listingId} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AdminActionButton } from "@/components/admin/admin-action-controls";
@@ -38,7 +39,7 @@ export function CreateRegionForm() {
       <AdminActionButton type="submit" disabled={isPending} tone="primary">
         Add Region
       </AdminActionButton>
-      {error && <span className="text-xs text-text-error">{error}</span>}
+      {error && <ReportableError as="span" className="text-xs text-text-error">{error}</ReportableError>}
     </form>
   );
 }

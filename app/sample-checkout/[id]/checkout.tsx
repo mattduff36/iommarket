@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useState, useTransition } from "react";
 import { isUncertainActionResult, UNCERTAIN_SAMPLE_MESSAGE } from "@/lib/forms/outcome-uncertainty";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
@@ -172,7 +173,7 @@ export function SampleCheckout({
         </div>
 
         <div className="flowpay-content">
-          {uncertain ? <div role="alert"><p>{message || UNCERTAIN_SAMPLE_MESSAGE}</p><a href={`/sample-checkout/${checkout.id}`} className="flowpay-pay">Reload payment status</a></div> : terminalSuccess ? (
+          {uncertain ? <ReportableError as="div" role="alert"><p>{message || UNCERTAIN_SAMPLE_MESSAGE}</p><a href={`/sample-checkout/${checkout.id}`} className="flowpay-pay">Reload payment status</a></ReportableError> : terminalSuccess ? (
             <div className="flowpay-result" role="status">
               <strong>Sample payment approved</strong>
               <p>
@@ -192,14 +193,14 @@ export function SampleCheckout({
               <p>No money was charged.</p>
             </div>
           ) : declined && !retrying ? (
-            <div className="flowpay-result flowpay-error" role="alert">
+            <ReportableError as="div" className="flowpay-result flowpay-error" role="alert">
               <strong>Sample card declined</strong>
               <p>{message || "The sample payment was declined."}</p>
               <p>{checkout.attemptCount} of 3 sample attempts used.</p>
               {attemptsLeft > 0 && !isExpired ? (
                 <button type="button" className="flowpay-pay" onClick={() => { setRetrying(true); setSelectedCard(null); setMessage(""); }}>Retry</button>
               ) : <p>Return to iTrader to start another sample checkout.</p>}
-            </div>
+            </ReportableError>
           ) : (
             <>
               <fieldset className="flowpay-saved" role="radiogroup" aria-label="Use your saved card to pay">
@@ -226,7 +227,7 @@ export function SampleCheckout({
                 <label className="flowpay-security">Security code<input type="text" placeholder="000" disabled autoComplete="off" /></label>
               </fieldset>
               <p className="flowpay-note" id="sample-card-note">Select a saved sample card above. Real card details cannot be entered.</p>
-              {message ? <p className="flowpay-error" role="alert">{message}</p> : null}
+              {message ? <ReportableError as="p" className="flowpay-error" role="alert">{message}</ReportableError> : null}
               {isExpired ? <p className="flowpay-error" role="status">This sample checkout has expired. Return to iTrader to start again.</p> : null}
               <button type="button" className="flowpay-pay" disabled={uncertain || !selectedCard || isPending || attemptsLeft === 0 || isExpired} onClick={submitPayment}>
                 {isPending ? "Processing…" : "Pay using Card"}

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { AdminDataCell } from "@/components/admin/admin-data-cell";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -160,7 +161,7 @@ export function OnboardingManager({
         </form>
       </section>
 
-      {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" role="alert" className="text-sm text-text-error">{error}</ReportableError> : null}
       {message ? <p role="status" className="text-sm text-emerald-500">{message}</p> : null}
 
       <section>
@@ -187,7 +188,7 @@ export function OnboardingManager({
                   </TableCell>
                   <TableCell>
                     <p className="text-text-primary">{invite.statusLabel}</p>
-                    {invite.error ? <p className="mt-0.5 text-xs text-text-error">{invite.error}</p> : null}
+                    {invite.error ? <ReportableError as="p" className="mt-0.5 text-xs text-text-error">{invite.error}</ReportableError> : null}
                   </TableCell>
                   <TableCell className={adminDateCellClass}>{invite.expiresLabel}</TableCell>
                   <TableCell className={adminActionsCellClass}>

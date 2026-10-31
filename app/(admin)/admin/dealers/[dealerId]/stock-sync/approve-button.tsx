@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
@@ -53,9 +54,9 @@ export function ApproveStockReportButton({
       </button>
       {isPending ? <p role="status" className="w-full text-sm text-text-secondary">Updating review…</p> : null}
       {error ? (
-        <p className="w-full text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="w-full text-sm text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </div>
   );

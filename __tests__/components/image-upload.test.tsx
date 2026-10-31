@@ -141,6 +141,41 @@ describe("PHOTO-ORDER-A11Y-001 PHOTO-ORDER-PRIMARY-001 listing photo ordering", 
 });
 
 describe("PHOTO-ORDER-BATCH-001 listing photo batch order", () => {
+  it("reserves capacity during preflight and rejects an overlapping selection", async () => {
+    uploadListingImageFile.mockReset().mockResolvedValue(first);
+    let finishPreflight: ((value: unknown) => void) | undefined;
+    vi.stubGlobal("createImageBitmap", () => new Promise(resolve => { finishPreflight = resolve; }));
+    render(<Harness initial={[]} maxImages={1} />);
+    const input = document.querySelector('input[type="file"]')!;
+    fireEvent.change(input, { target: { files: [new File(["x"], "first.jpg", { type: "image/jpeg" })] } });
+    fireEvent.change(input, { target: { files: [new File(["x"], "overlap.jpg", { type: "image/jpeg" })] } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Wait for the current photo uploads to finish.");
+    finishPreflight?.({ width: 1200, height: 800, close() {} });
+    await waitFor(() => expect(screen.getByText("Photos (1/1)")).toBeInTheDocument());
+    expect(uploadListingImageFile).toHaveBeenCalledTimes(1);
+    expect(uploadListingImageFile.mock.calls[0][0].name).toBe("first.jpg");
+  });
+  it("limits a 20-photo selection to three active uploads and retains every photo in order", async () => {
+    uploadListingImageFile.mockReset();
+    let active = 0;
+    let peak = 0;
+    const releases: (() => void)[] = [];
+    uploadListingImageFile.mockImplementation((file: File) => new Promise(resolve => {
+      active++; peak = Math.max(peak, active);
+      releases.push(() => { active--; resolve({ ...first, uploadIntentId: file.name, url: `https://example.com/${file.name}` }); });
+    }));
+    render(<Harness initial={[]} maxImages={20} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files:
+      Array.from({ length: 20 }, (_, i) => new File(["x"], `${i}.jpg`, { type: "image/jpeg" })) } });
+    await waitFor(() => expect(uploadListingImageFile).toHaveBeenCalledTimes(3));
+    for (let i = 0; i < 20; i++) {
+      await waitFor(() => expect(releases[i]).toBeDefined());
+      releases[i]();
+    }
+    await waitFor(() => expect(screen.getByText("Photos (20/20)")).toBeInTheDocument());
+    expect(peak).toBe(3);
+    for (let i = 0; i < 20; i++) expect(screen.getByAltText(`Upload ${i + 1}`)).toHaveAttribute("src", `https://example.com/${i}.jpg`);
+  });
   it("keeps file-selection order when later uploads finish first", async () => {
     uploadListingImageFile.mockReset();
     let finishSecond: ((value: UploadedImage) => void) | undefined;

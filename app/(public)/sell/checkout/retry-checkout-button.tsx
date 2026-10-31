@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useRef, useState, useTransition } from "react";
 import Link from "@/components/navigation/link";
 import { guardClientMutation, isUncertainActionResult, paymentOutcomeReview, UNCERTAIN_CHECKOUT_MESSAGE } from "@/lib/forms/outcome-uncertainty";
@@ -271,7 +272,7 @@ export function RetryCheckoutButton({
         Open payment in new tab
       </Button>
       {notice ? <p className="text-sm text-text-secondary">{notice}</p> : null}
-      {error ? <p className="text-sm text-text-error" role="alert">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-sm text-text-error" role="alert">{error}</ReportableError> : null}
       {uncertain ? <a href={paymentOutcomeReview(listingId).href} className="text-text-trust underline">Check payment status</a> : null}
 
       <RippleDemoCheckoutDialog

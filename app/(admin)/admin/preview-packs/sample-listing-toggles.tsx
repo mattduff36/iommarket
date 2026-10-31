@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setSampleListingVisibility } from "@/actions/admin/preview-controls";
@@ -81,7 +82,7 @@ export function SampleListingToggles({
           );
         })}
       </div>
-      {error ? <p className="mt-3 text-sm text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="mt-3 text-sm text-text-error">{error}</ReportableError> : null}
     </section>
   );
 }

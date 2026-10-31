@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AdminActionButton } from "@/components/admin/admin-action-controls";
@@ -136,7 +137,7 @@ export function SettingsForm({ settings, envDefaults }: SettingsFormProps) {
       </div>
 
       <div aria-live="polite" className="mt-4 min-h-5">
-        {error && <p role="alert" className="text-sm text-text-error">{error}</p>}
+        {error && <ReportableError as="p" role="alert" className="text-sm text-text-error">{error}</ReportableError>}
         {success && <p role="status" className="text-sm text-emerald-500">{success}</p>}
       </div>
     </section>

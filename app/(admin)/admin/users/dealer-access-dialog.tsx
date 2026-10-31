@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import {
   grantDealerAccess,
@@ -193,9 +194,9 @@ export function DealerAccessDialog({
           </div>
 
           {error ? (
-            <p aria-live="polite" className="mt-3 text-sm text-text-error">
+            <ReportableError as="p" aria-live="polite" className="mt-3 text-sm text-text-error">
               {error}
-            </p>
+            </ReportableError>
           ) : null}
 
           <DialogFooter>

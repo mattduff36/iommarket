@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useRef, useState } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import {
@@ -220,9 +221,9 @@ export function AccountListingActions({
         />
       </div>
       {error ? (
-        <p className="max-w-64 text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="max-w-64 text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
       {notice ? (
         <p className="max-w-64 text-xs text-text-secondary" role="status">

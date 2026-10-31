@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { refreshPreviewMirrorAction } from "@/actions/admin/preview-mirror";
@@ -58,10 +59,10 @@ export function DatabasePanel({ initialStatus, initialStatusError }: { initialSt
           <div><dt className="text-text-secondary">Last successful refresh</dt><dd className="mt-1 font-medium">{dateLabel(status?.lastSuccessAt ?? null, Boolean(status))}</dd></div>
           <div><dt className="text-text-secondary">Automatic refresh</dt><dd className="mt-1 font-medium">Manual only</dd></div>
         </dl>
-        {!status ? <p className="mt-3 text-sm text-neon-red-500" role="alert">Refresh status is unavailable{initialStatusError ? `: ${initialStatusError}` : ". Reload this page to try again."} The refresh button is disabled until staging status can be verified.</p> : null}
+        {!status ? <ReportableError as="p" className="mt-3 text-sm text-neon-red-500" role="alert">Refresh status is unavailable{initialStatusError ? `: ${initialStatusError}` : ". Reload this page to try again."} The refresh button is disabled until staging status can be verified.</ReportableError> : null}
         {status?.lastError ? <p className="mt-3 text-sm text-neon-red-500" role="status">The last refresh failed. Sensitive source details are hidden.</p> : null}
       </section>
-      {error || notice ? <div role={error ? "alert" : "status"} className="rounded-md border border-border bg-surface p-4 text-sm">{error || notice}</div> : null}
+      {error || notice ? <ReportableError as="div" role={error ? "alert" : "status"} className="rounded-md border border-border bg-surface p-4 text-sm">{error || notice}</ReportableError> : null}
     </div>
   );
 }

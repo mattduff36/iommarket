@@ -2,13 +2,13 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 474,
+  "semantic_display_verified_count": 472,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1139,
+    "displayed": 1137,
     "internal-only": 1299,
     "duplicate": 793,
-    "irrelevant": 138
+    "irrelevant": 140
   },
   "rule_counts": {
     "ast-public-return": 541,
@@ -24,11 +24,11 @@
     "ast-branch-condition": 7,
     "ast-enclosing-public-function": 61,
     "ast-type-or-import": 104,
-    "ast-public-sink": 235,
-    "ast-jsx-consumer": 129,
+    "ast-public-sink": 234,
+    "ast-jsx-consumer": 128,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
-    "ast-signature": 2,
+    "ast-signature": 4,
     "ast-diagnostic-text": 3
   },
   "exception_rows": 713,
@@ -75,10 +75,10 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1233,
+    "public-sink": 1230,
     "raw-message": 166,
-    "fragment": 586,
-    "static-literal": 297,
+    "fragment": 587,
+    "static-literal": 299,
     "thrown": 892,
     "monitoring": 81,
     "rate-limit": 13,
@@ -108,14 +108,14 @@
     },
     {
       "id": "displayed:ast-public-sink:deferred-c:public-sink",
-      "count": 198,
+      "count": 197,
       "example": "app/early-access/continue-form.tsx:21",
       "rule_id": "ast-public-sink",
       "classification": "displayed"
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:public-sink",
-      "count": 195,
+      "count": 194,
       "example": "actions/admin.ts:147",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -150,7 +150,7 @@
     },
     {
       "id": "displayed:ast-jsx-consumer:deferred-c:public-sink",
-      "count": 117,
+      "count": 116,
       "example": "app/early-access/continue-form.tsx:40",
       "rule_id": "ast-jsx-consumer",
       "classification": "displayed"
@@ -206,7 +206,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:static-literal",
-      "count": 39,
+      "count": 40,
       "example": "actions/admin/database-sync.ts:77",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -1160,6 +1160,20 @@
       "id": "irrelevant:ast-signature:deferred-c:field-errors",
       "count": 1,
       "example": "components/auth/signup-feedback.ts:32",
+      "rule_id": "ast-signature",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-signature:deferred-c:fragment",
+      "count": 1,
+      "example": "app/(admin)/admin/dealers/dealer-actions.tsx:58",
+      "rule_id": "ast-signature",
+      "classification": "irrelevant"
+    },
+    {
+      "id": "irrelevant:ast-signature:deferred-c:static-literal",
+      "count": 1,
+      "example": "app/(admin)/admin/regions/region-actions.tsx:101",
       "rule_id": "ast-signature",
       "classification": "irrelevant"
     },

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { revealMonitoringEventIdentity, retryMonitoringAlertDelivery } from "@/actions/admin/monitoring";
 import { AdminRecordLink } from "@/components/admin/admin-record-link";
@@ -115,7 +116,7 @@ export function MonitoringEventContext({
           </a>
         ) : null}
       </div>
-      {error ? <p role="alert" className="mt-2 text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" role="alert" className="mt-2 text-xs text-text-error">{error}</ReportableError> : null}
       {tags ? <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-canvas p-3 text-[11px]">{tags}</pre> : null}
       {extra ? <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-canvas p-3 text-[11px]">{extra}</pre> : null}
     </div>

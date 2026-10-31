@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export function RenewListingButton({
       >
         Renew listing (payment required)
       </Button>
-      {error ? <p className="text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-xs text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { tradeListingStatusAction } from "@/actions/trade/listings";
@@ -70,7 +71,7 @@ function StatusActions({
         );
       })}
       <div className="w-full" aria-live="polite" aria-atomic="true">
-        {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+        {error ? <ReportableError as="p" role="alert" className="text-sm text-text-error">{error}</ReportableError> : null}
         {success ? <p role="status" className="text-sm text-emerald-500">{success}</p> : null}
       </div>
     </div>

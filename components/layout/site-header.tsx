@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import Link from "@/components/navigation/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -180,7 +181,7 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
 
   return (
     <>
-      {signOutError ? <p role="alert" className="bg-surface px-4 py-2 text-sm text-text-error">{signOutError}</p> : null}
+      {signOutError ? <ReportableError as="p" role="alert" className="bg-surface px-4 py-2 text-sm text-text-error">{signOutError}</ReportableError> : null}
       {/* Top utility bar - hidden on small mobile to save vertical space */}
       <div className="hidden sm:block bg-graphite-950 text-text-secondary" data-testid="utility-strip">
         <div className="mx-auto grid h-9 max-w-7xl grid-cols-3 items-center px-4 text-xs sm:px-6 lg:px-8">

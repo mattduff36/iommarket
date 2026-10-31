@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { continueEarlyAccessClaim } from "@/actions/early-access";
@@ -37,9 +38,9 @@ export function EarlyAccessContinueForm({
   return (
     <div className="mt-6">
       {error ? (
-        <p className="mb-4 text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="mb-4 text-sm text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
       <Button type="button" variant="trust" className="w-full" loading={pending} onClick={() => void continueClaim()}>
         {pending ? "Checking invitation…" : "Continue"}

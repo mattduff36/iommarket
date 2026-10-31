@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -226,9 +227,9 @@ function ListingAttributeControl({
           label={attr.name}
         />
         {fieldError ? (
-          <p id={`${fieldName}-error`} className="text-xs text-text-energy">
+          <ReportableError as="p" data-reportable-error="true" id={`${fieldName}-error`} className="text-xs text-text-energy">
             {fieldError}
-          </p>
+          </ReportableError>
         ) : null}
       </div>
     );
@@ -267,8 +268,8 @@ function FieldMessage({
 }) {
   if (!error && !helperText) return null;
   return (
-    <p id={id} className={error ? "text-xs text-text-energy" : "text-xs text-text-secondary"}>
+    <ReportableError as="p" data-reportable-error={error ? "true" : "false"} id={id} className={error ? "text-xs text-text-energy" : "text-xs text-text-secondary"}>
       {error || helperText}
-    </p>
+    </ReportableError>
   );
 }

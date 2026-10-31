@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import {
   addManualCostCategory,
@@ -60,7 +61,7 @@ export function RequestInvoiceButton({
           {isPending ? "Requesting…" : label}
         </AdminActionButton>
       </AdminActionBar>
-      {error ? <p className="text-sm text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-sm text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }
@@ -218,7 +219,7 @@ export function OwnerCostControls({
         </AdminActionBar>
       </form>
       <div aria-live="polite" className="min-h-5">
-        {error ? <p role="alert" className="text-sm text-text-error">{error}</p> : null}
+        {error ? <ReportableError as="p" role="alert" className="text-sm text-text-error">{error}</ReportableError> : null}
         {success ? <p role="status" className="text-sm text-emerald-500">{success}</p> : null}
       </div>
     </div>

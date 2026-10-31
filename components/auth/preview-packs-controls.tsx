@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, X } from "lucide-react";
@@ -209,7 +210,7 @@ export function PreviewPacksControlList({
       {state.packs.length > 0 ? null : (
         <p className="px-2 py-2 text-xs text-text-tertiary">No loaded preview packs.</p>
       )}
-      {error ? <p className="px-2 py-1 text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="px-2 py-1 text-xs text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }

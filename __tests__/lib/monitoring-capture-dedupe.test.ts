@@ -74,4 +74,14 @@ describe("monitoring capture dedupe", () => {
     expect(first?.eventId).toBe("event-1");
     expect(replay?.eventId).toBe("event-1");
   });
+  it("records explicit user reports once and uses the existing configured alert dispatcher", async () => {
+    const input = { source: "CLIENT" as const, severity: "MEDIUM" as const,
+      action: "user-report-issue", message: "Photo verification failed.", dedupeKey: "user-report:test", userId: "user-1" };
+    const first = await captureBusinessEvent(input);
+    const repeated = await captureBusinessEvent(input);
+    expect(first?.eventId).toBe(repeated?.eventId);
+    expect(mocks.eventCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.dispatch).toHaveBeenCalledTimes(1);
+    expect(mocks.dispatch).toHaveBeenCalledWith(expect.objectContaining({ issueId: "issue-1", eventId: "event-1" }));
+  });
 });

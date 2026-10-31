@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import * as React from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { Check } from "lucide-react";
@@ -54,9 +55,9 @@ const Checkbox = React.forwardRef<
         )}
       </div>
       {error ? (
-        <p id={errorId} className="text-xs text-text-error">
+        <ReportableError as="p" id={errorId} className="text-xs text-text-error">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </div>
   );
