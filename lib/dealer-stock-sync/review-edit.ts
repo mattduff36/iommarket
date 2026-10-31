@@ -1,3 +1,5 @@
+import { canEditStockReviewAction } from "./review-edit-eligibility";
+export { canEditStockReviewAction } from "./review-edit-eligibility";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { assertSafeRemoteImageUrl, isPublicIpAddress } from "@/lib/images/safe-remote-image";
@@ -5,22 +7,6 @@ import { listingDetailsSchema } from "@/lib/validations/listing";
 import type { CreatePlanAction, DealerStockCategorySlug, PlanAction, ReviewedActionEvidence } from "./types";
 
 const VEHICLE_CATEGORIES = ["car", "van", "motorbike", "motorhome"] as const;
-const CORRECTABLE_BLOCK_REASONS = new Set([
-  "review-flag",
-  "source-conflict",
-  "unmatched-archive",
-  "ambiguous-archive",
-  "missing-required-attr",
-  "invalid-price",
-  "invalid-title",
-  "poa",
-  "missing-price",
-  "images-not-owned",
-  "not-importable",
-  "title-conflict",
-  "availability-held",
-]);
-
 const idSchema = z.string().trim().min(1).max(64);
 const attributeKey = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80);
 
@@ -88,19 +74,6 @@ export interface StockReviewDraft {
   sourceUrl: string | null;
   warning: string | null;
   flags: string[];
-}
-
-function soldReview(action: PlanAction) {
-  if (action.kind === "blocked" && ["sold-exclude-from-live-import", "sold-preserved", "source-sold"].includes(action.reason)) {
-    return true;
-  }
-  return action.review?.availability === "sold" || Boolean(action.review?.flags.includes("sold-exclude-from-live-import"));
-}
-
-export function canEditStockReviewAction(action: PlanAction) {
-  if (!action.sourceIdentityKey?.trim() || action.listingId || soldReview(action)) return false;
-  if (action.kind === "create") return true;
-  return action.kind === "blocked" && action.section === "new" && CORRECTABLE_BLOCK_REASONS.has(action.reason);
 }
 
 function categorySlugOf(value: string | null | undefined): DealerStockCategorySlug | "" {

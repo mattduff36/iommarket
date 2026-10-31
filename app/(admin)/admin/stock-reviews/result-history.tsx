@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 import Link from "@/components/navigation/link";
 import { changeStockResultHistory } from "@/actions/admin/stock-result-history";
 import type { ResultHistoryEntry, ResultHistoryState } from "@/lib/dealer-stock-sync/result-history";
@@ -40,6 +41,7 @@ export function StockResultActions({ id }: { id: string }) {
   const { entries } = useContext(History);
   const entry = entries.find(row => row.id === id);
   const router = useRouter();
+  const reloadSnapshot = useStockSnapshotRefresh();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,7 +55,7 @@ export function StockResultActions({ id }: { id: string }) {
         const result = await changeStockResultHistory({ id, kind: entry.kind, action });
         if ("error" in result) { setError(result.error ?? "Could not update this result."); return; }
         setConfirmDelete(false);
-        router.refresh();
+        if (reloadSnapshot) reloadSnapshot(); else router.refresh();
       } catch { setError("Could not update this result. Please try again."); }
     });
   }

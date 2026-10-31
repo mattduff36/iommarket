@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { canRefreshStockPage } from "./refresh-guard";
+export { canRefreshStockPage } from "./refresh-guard";
 import Image from "next/image";
 import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 import { getWorkerDashboard } from "./worker-actions";
@@ -12,11 +13,6 @@ import progressStyles from "./worker-progress.module.css";
 
 export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null }
 
-export function canRefreshStockPage() {
-  const focus = document.activeElement;
-  return document.visibilityState !== "hidden" && !document.querySelector('[role="dialog"],dialog[open],[data-stock-review-editing="true"]') &&
-    !(focus instanceof HTMLElement && (focus.matches('input:not([type="checkbox"]),textarea,select,[contenteditable="true"]')));
-}
 
 function elapsed(start: string | null, now: number) {
   if (!start || !Number.isFinite(Date.parse(start))) return "";
@@ -28,20 +24,21 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, initialNow = 0 }: {
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
+  managedSnapshot?: boolean; connectionLost?: boolean;
   dealers?: StockDealer[]; offlineContent?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
 }) {
-  const router = useRouter();
   const [snapshot, setSnapshot] = useState(initial);
   const [now, setNow] = useState(initialNow);
+  useEffect(() => { if (managedSnapshot) setSnapshot(initial); }, [initial, managedSnapshot]);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [barHeight, setBarHeight] = useState(176);
   const bar = useRef<HTMLDivElement>(null);
   const devices = snapshot.ok ? snapshot.devices : [];
   const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
-  const online = snapshot.ok && Boolean(device && fresh(device, now));
-  const controls = useStockWorkerCommands(device, online, setSnapshot);
+  const online = snapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
+  const controls = useStockWorkerCommands(device, online && !connectionLost, setSnapshot);
   const { pending, message, running } = controls;
   const activeJobs = jobs.filter(job => job.status === "LEASED");
   const queued = jobs.filter(job => job.status === "QUEUED").length;
@@ -50,7 +47,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   const latestFinished = jobs.filter(stockJobFinished).sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""))[0];
   const phase = device?.activity.at(-1)?.text ?? "Connected and ready";
   const busy = activeJobs.length > 0 || (online && device?.state === "running");
-  const title = !snapshot.ok ? "Connection status unavailable" : !online ? "Start the Stock Update worker app" :
+  const title = connectionLost ? "Updates paused — reconnecting" : !snapshot.ok ? "Connection status unavailable" : !online ? "Start the Stock Update worker app" :
     device?.state === "error" ? "Worker needs attention" : device?.state === "stopping" ? "Stopping after the current job" :
     active ? `${active.kind === "APPLY" ? "Applying" : "Scanning"} · ${active.dealerName}` :
     queued === 0 && latestFinished ? stockJobOutcome(latestFinished) :
@@ -61,7 +58,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     let stopped = false;
     let inFlight = false;
     async function poll() {
-      if (stopped || inFlight || document.visibilityState === "hidden") return;
+      if (managedSnapshot || stopped || inFlight || document.visibilityState === "hidden") return;
       inFlight = true;
       try {
         const next = await getWorkerDashboard();
@@ -69,8 +66,6 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
       } catch { if (!stopped) setSnapshot({ ok: false, error: "unavailable" }); }
       finally {
         inFlight = false;
-        // refresh merges server results without clearing client selections or scroll.
-        if (!stopped && canRefreshStockPage()) router.refresh();
       }
     }
     const timer = window.setInterval(() => void poll(), 5_000);
@@ -78,7 +73,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     const visible = () => { if (document.visibilityState !== "hidden") void poll(); };
     document.addEventListener("visibilitychange", visible);
     return () => { stopped = true; clearInterval(timer); clearInterval(clock); document.removeEventListener("visibilitychange", visible); };
-  }, [router]);
+  }, [managedSnapshot]);
 
   useEffect(() => {
     const element = bar.current;
@@ -103,7 +98,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-lg font-semibold text-text-primary">{title}</h2></div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${online ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border text-text-secondary"}`}>{online ? "Connected" : snapshot.ok ? "Not connected" : "Unavailable"}</span>
+        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${online ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border text-text-secondary"}`}>{connectionLost ? "Reconnecting" : online ? "Connected" : snapshot.ok ? "Not connected" : "Unavailable"}</span>
       </div>
       <p className="text-sm text-text-secondary">{!snapshot.ok ? "Retrying connection. Check the app before starting more work." :
         !online ? "Open the app and sign in to connect." :

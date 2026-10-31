@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StockSyncReviewPanel } from "@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-panel";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
+import { ApproveStockReportButton } from "@/app/(admin)/admin/dealers/[dealerId]/stock-sync/approve-button";
+import { StockReviewEditButton } from "@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-edit-button";
+import { approveDealerStockReport, rejectDealerStockReport } from "@/actions/admin/dealer-stock-sync";
+import { loadStockReviewVehicle, saveStockReviewVehicle } from "@/actions/admin/dealer-stock-review-edit";
+import { StockSnapshotRefreshProvider } from "@/app/(admin)/admin/stock-reviews/use-stock-snapshot";
 
 vi.mock("@/actions/admin/dealer-stock-sync", () => ({
   approveDealerStockReport: vi.fn(),
@@ -11,6 +16,11 @@ vi.mock("@/actions/admin/dealer-stock-sync", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
+vi.mock("@/actions/admin/dealer-stock-review-edit", () => ({
+  loadStockReviewVehicle: vi.fn(), saveStockReviewVehicle: vi.fn(),
+}));
+beforeEach(() => vi.clearAllMocks());
+afterEach(cleanup);
 
 const actions: PlanAction[] = [
   {
@@ -69,6 +79,50 @@ describe("stock sync review", () => {
     expect(screen.getAllByText("No usable source photos were found.").length).toBeGreaterThan(0);
     expect(screen.getByText("The listing was edited after its last import. Review it manually.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve exact plan" })).toBeInTheDocument();
+  });
+});
+
+describe("stock review network recovery", () => {
+  it.each(["Approve exact plan", "Reject and clear"])("keeps %s failures local without replaying the write", async label => {
+    const action = label === "Approve exact plan" ? approveDealerStockReport : rejectDealerStockReport;
+    vi.mocked(action).mockRejectedValueOnce(new TypeError("network error"));
+    const reload = vi.fn();
+    render(<StockSnapshotRefreshProvider value={reload}><ApproveStockReportButton reportId="r" fingerprint="f" /></StockSnapshotRefreshProvider>);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: label })));
+    expect(screen.getByRole("alert")).toHaveTextContent("outcome is uncertain");
+    expect(screen.getByRole("alert")).toHaveTextContent("Check the saved result before trying again");
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed vehicle read local and does not send a write", async () => {
+    vi.mocked(loadStockReviewVehicle).mockRejectedValueOnce(new TypeError("network error"));
+    render(<StockReviewEditButton reportId="r" fingerprint="f" sourceIdentityKey="v" label="Vehicle" />);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Edit" })));
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load this vehicle");
+    expect(loadStockReviewVehicle).toHaveBeenCalledTimes(1);
+    expect(saveStockReviewVehicle).not.toHaveBeenCalled();
+  });
+
+  it("retains the complete draft after an uncertain save and does not replay it", async () => {
+    vi.mocked(loadStockReviewVehicle).mockResolvedValueOnce({ data: {
+      draft: { title: "Vehicle", description: "Original description", pricePence: 1250000, categorySlug: "car", attributes: {}, photoUrls: ["https://dealer.example/car.jpg"], sourceUrl: null, warning: null, flags: [] },
+      categories: [{ id: "car", name: "Cars", slug: "car", attributes: [] }],
+    } });
+    vi.mocked(saveStockReviewVehicle).mockRejectedValueOnce(new TypeError("network error"));
+    const reload = vi.fn();
+    render(<StockSnapshotRefreshProvider value={reload}><StockReviewEditButton reportId="r" fingerprint="f" sourceIdentityKey="v" label="Vehicle" /></StockSnapshotRefreshProvider>);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Edit" })));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Corrected vehicle" } });
+    fireEvent.change(screen.getByLabelText("Correction reason"), { target: { value: "Verified corrected title with dealer" } });
+    fireEvent.click(screen.getByLabelText("This vehicle is available"));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save corrections" })));
+    expect(screen.getByRole("alert")).toHaveTextContent("save outcome is uncertain");
+    expect(screen.getByLabelText("Title")).toHaveValue("Corrected vehicle");
+    expect(screen.getByLabelText("Correction reason")).toHaveValue("Verified corrected title with dealer");
+    expect(screen.getByLabelText("This vehicle is available")).toBeChecked();
+    expect(saveStockReviewVehicle).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
   });
 });
 

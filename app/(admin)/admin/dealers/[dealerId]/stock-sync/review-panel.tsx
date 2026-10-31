@@ -2,7 +2,7 @@ import { DEALER_PLACEHOLDER_PATH, isDealerPlaceholderImage } from "@/lib/images/
 import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
 import Link from "@/components/navigation/link";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
-import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit";
+import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit-eligibility";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
 import { actionLabel, stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import { ApproveStockReportButton } from "./approve-button";
