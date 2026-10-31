@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { AdminActionButton } from "@/components/admin/admin-action-controls";
 import { restoreContentPage } from "@/actions/admin/pages";
@@ -29,7 +30,7 @@ export function RestorePageButton({ id }: Props) {
       >
         {isPending ? "Restoring…" : "Restore"}
       </AdminActionButton>
-      {error ? <span className="text-xs text-text-error">{error}</span> : null}
+      {error ? <ReportableError as="span" className="text-xs text-text-error">{error}</ReportableError> : null}
     </span>
   );
 }

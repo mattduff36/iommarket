@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useCallback, useState } from "react";
 import { ArrowUpRight, BadgeAlert, CheckCircle2, CircleSlash } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -169,9 +170,9 @@ export function RippleDemoCheckoutDialog({
                 </Button>
               </div>
               {demoOutcomeControls.error ? (
-                <p className="mt-3 text-sm text-text-error">
+                <ReportableError as="p" className="mt-3 text-sm text-text-error">
                   {demoOutcomeControls.error}
-                </p>
+                </ReportableError>
               ) : null}
             </div>
           ) : null}

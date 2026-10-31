@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { disablePreviewPack, enablePreviewPack } from "@/actions/admin/preview-packs";
@@ -63,7 +64,7 @@ export function PreviewPackActions({
           aria-label={`${enabled ? "Hide" : "Show"} ${displayName} preview pack`}
         />
       </div>
-      {error ? <p className="max-w-xs text-right text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="max-w-xs text-right text-xs text-text-error">{error}</ReportableError> : null}
       {!loaded && !materialized && !archiveAvailable ? (
         <p className="max-w-xs text-right text-xs text-text-tertiary">
           Load once from local preview, then toggle here.

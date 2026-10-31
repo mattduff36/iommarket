@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmProjectInvoice } from "@/actions/admin/costs";
@@ -39,7 +40,7 @@ export function ConfirmInvoiceForm({
       >
         {isPending ? "Confirming…" : `Confirm invoice for ${amountLabel}`}
       </AdminActionButton>
-      {error ? <p className="text-sm text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-sm text-text-error">{error}</ReportableError> : null}
     </div>
   );
 }

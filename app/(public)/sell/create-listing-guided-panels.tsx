@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { type Dispatch, type SetStateAction } from "react";
 import { Check } from "lucide-react";
 
@@ -240,9 +241,9 @@ export function GuidedListingStepPanels({
             })}
           </div>
           {getFieldError("categoryId") ? (
-            <p id="category-error" className="text-xs text-text-energy">
+            <ReportableError as="p" data-reportable-error="true" id="category-error" className="text-xs text-text-energy">
               {getFieldError("categoryId")}
-            </p>
+            </ReportableError>
           ) : (
             <p className="text-xs text-text-secondary">
               Select the listing type first, then use number plate lookup.
@@ -276,7 +277,7 @@ export function GuidedListingStepPanels({
               Lookup is available for car, van, motorbike, and motorhome categories.
             </p>
           ) : null}
-          {lookupError ? <p className="text-xs text-text-error">{lookupError}</p> : null}
+          {lookupError ? <ReportableError as="p" className="text-xs text-text-error">{lookupError}</ReportableError> : null}
           {lookupMeta ? <p className="text-xs text-text-secondary">{lookupMeta}</p> : null}
         </div>
 
@@ -412,9 +413,9 @@ export function GuidedListingStepPanels({
             ))}
           </select>
           {getFieldError("regionId") ? (
-            <p id="region-error" className="text-xs text-text-energy">
+            <ReportableError as="p" data-reportable-error="true" id="region-error" className="text-xs text-text-energy">
               {getFieldError("regionId")}
-            </p>
+            </ReportableError>
           ) : null}
         </div>
         <div className="flex flex-col gap-1">
@@ -438,9 +439,9 @@ export function GuidedListingStepPanels({
             }`}
           />
           {getFieldError("description") ? (
-            <p id="description-error" className="text-xs text-text-energy">
+            <ReportableError as="p" data-reportable-error="true" id="description-error" className="text-xs text-text-energy">
               {getFieldError("description")}
-            </p>
+            </ReportableError>
           ) : null}
         </div>
       </div>

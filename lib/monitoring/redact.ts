@@ -154,5 +154,5 @@ export function sanitizeRequestPath(path: string | null | undefined): string | u
 export function isMonitoringIngestPath(path: string | null | undefined): boolean {
   if (!path) return false;
   const normalized = path.split("?")[0]?.toLowerCase() ?? "";
-  return normalized.includes("/api/monitoring/events");
+  return normalized.includes("/api/monitoring/events") || normalized.includes("/api/monitoring/report-issue");
 }

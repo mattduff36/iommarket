@@ -1,3 +1,4 @@
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { DEALER_PLACEHOLDER_PATH, isDealerPlaceholderImage } from "@/lib/images/dealer-placeholder";
 import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
 import Link from "@/components/navigation/link";
@@ -149,9 +150,9 @@ export function StockSyncReviewPanel(input: {
         </div>
       ) : null}
       {input.failureReason ? (
-        <p className="text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="text-sm text-text-error" role="alert">
           Check incomplete: {stockSyncReason(input.failureReason)} Missing vehicles have not been counted.
-        </p>
+        </ReportableError>
       ) : null}
       {groups.map(([title, actions]) => (
         <div key={title}>

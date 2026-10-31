@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState } from "react";
 import { reportListing } from "@/actions/listings";
 import { Button } from "@/components/ui/button";
@@ -112,7 +113,7 @@ export function ReportButton({ listingId }: Props) {
               <option value="OTHER">Other</option>
             </select>
             {reasonCodeError ? (
-              <p className="text-xs text-text-error">{reasonCodeError}</p>
+              <ReportableError as="p" className="text-xs text-text-error">{reasonCodeError}</ReportableError>
             ) : null}
           </div>
           <div className="flex flex-col gap-1">
@@ -134,9 +135,9 @@ export function ReportButton({ listingId }: Props) {
               ].join(" ")}
             />
             {reasonError ? (
-              <p id="report-reason-error" className="text-xs text-text-error">
+              <ReportableError as="p" id="report-reason-error" className="text-xs text-text-error">
                 {reasonError}
-              </p>
+              </ReportableError>
             ) : null}
           </div>
           <Button type="submit" variant="energy" size="sm" loading={loading}>

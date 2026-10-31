@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import Link from "@/components/navigation/link";
 import { useRouter } from "next/navigation";
@@ -283,7 +284,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
             </div>
 
             {firstFieldError(profileFieldErrors, "bio") ? (
-              <p className="text-xs text-text-error">{firstFieldError(profileFieldErrors, "bio")}</p>
+              <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(profileFieldErrors, "bio")}</ReportableError>
             ) : null}
 
             {profileSuccess ? <p className="text-sm text-neon-blue-400">{profileSuccess}</p> : null}
@@ -335,7 +336,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
             <p className="mt-1 text-xs text-text-secondary">
               Sign out of all other active sessions while keeping this device signed in.
             </p>
-            {sessionError ? <p className="mt-2 text-sm text-text-error">{sessionError}</p> : null}
+            {sessionError ? <ReportableError as="p" className="mt-2 text-sm text-text-error">{sessionError}</ReportableError> : null}
             {sessionMessage ? <p className="mt-2 text-sm text-neon-blue-400">{sessionMessage}</p> : null}
             <Button
               type="button"
@@ -422,7 +423,7 @@ export function ProfileSecurityForm({ user, regions }: Props) {
               />
             </div>
             {firstFieldError(deleteFieldErrors, "reason") ? (
-              <p className="text-xs text-text-error">{firstFieldError(deleteFieldErrors, "reason")}</p>
+              <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(deleteFieldErrors, "reason")}</ReportableError>
             ) : null}
             <Button type="submit" variant="energy" size="sm" loading={deleteLoading}>
               Delete My Account

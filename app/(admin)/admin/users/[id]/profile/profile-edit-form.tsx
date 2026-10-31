@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useId, useState, useTransition } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { saveAdminProfile, type AdminProfileEditorData } from "@/actions/admin/profile-edit";
@@ -264,7 +265,7 @@ export function AdminProfileEditForm({
                 aria-invalid={Boolean(firstFieldError(fieldErrors, "account.bio"))}
               />
               {firstFieldError(fieldErrors, "account.bio") ? (
-                <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "account.bio")}</p>
+                <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "account.bio")}</ReportableError>
               ) : null}
             </div>
             <div className="flex flex-col gap-1">
@@ -285,7 +286,7 @@ export function AdminProfileEditForm({
                   </option>
                 ))}
               </select>
-              {regionError ? <p className="text-xs text-text-error">{regionError}</p> : null}
+              {regionError ? <ReportableError as="p" className="text-xs text-text-error">{regionError}</ReportableError> : null}
             </div>
           </section>
 
@@ -331,7 +332,7 @@ export function AdminProfileEditForm({
                   aria-invalid={Boolean(firstFieldError(fieldErrors, "dealer.bio"))}
                 />
                 {firstFieldError(fieldErrors, "dealer.bio") ? (
-                  <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "dealer.bio")}</p>
+                  <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "dealer.bio")}</ReportableError>
                 ) : null}
               </div>
             </section>

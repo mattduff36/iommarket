@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useRef, useState, useTransition } from "react";
@@ -422,9 +423,9 @@ export function UserActions({
         </p>
       ) : null}
       {error ? (
-        <p className="text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
       {success ? (
         <p className="text-xs text-emerald-500" role="status">

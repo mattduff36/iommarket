@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { ResponsiveTableFrame } from "@/components/ui/responsive-table-frame";
 import { useState, useTransition } from "react";
 import { loadDatabaseSyncPreflight } from "@/actions/admin/database-sync";
@@ -47,7 +48,7 @@ export function DatabaseInspection({ initialReport }: { initialReport: Inspectio
           {pending ? "Refreshing inspection…" : "Refresh inspection"}
         </Button>
       </div>
-      {error ? <p role="alert" className="rounded-md border border-neon-red-500/30 p-4 text-sm text-text-primary">{error}</p> : null}
+      {error ? <ReportableError as="p" role="alert" className="rounded-md border border-neon-red-500/30 p-4 text-sm text-text-primary">{error}</ReportableError> : null}
       <section className="rounded-lg border border-border bg-surface p-5" aria-labelledby="db-readiness">
         <h2 id="db-readiness" className="text-lg font-semibold text-text-primary">Connection and schema readiness</h2>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">

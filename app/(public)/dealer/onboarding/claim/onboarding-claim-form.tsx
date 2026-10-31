@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { beginDealerOnboardingClaim } from "@/actions/dealer-onboarding";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ export function OnboardingClaimForm({ token }: { token: string }) {
       <p className="text-sm text-text-secondary">
         Continue only if you were expecting this iTrader dealer invitation. The next step confirms the existing dealer account before you choose a password or accept any documents.
       </p>
-      {error ? <p className="text-sm text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" className="text-sm text-text-error">{error}</ReportableError> : null}
       <Button type="submit" disabled={isPending}>
         {isPending ? "Continuing…" : "Continue securely"}
       </Button>

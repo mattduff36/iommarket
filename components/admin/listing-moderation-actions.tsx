@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { moderateListing, setListingFeatured } from "@/actions/admin";
@@ -335,9 +336,9 @@ export function ListingModerationActions({
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-xs text-neon-red-400" role="alert">
+        <ReportableError as="p" className="mt-2 text-xs text-neon-red-400" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </div>
   );

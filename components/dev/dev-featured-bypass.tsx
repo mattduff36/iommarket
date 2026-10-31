@@ -1,6 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
+import { ReportableError } from "@/components/monitoring/reportable-error";
+import { useState, useTransition } from "react";
 import { devMarkListingFeatured } from "@/actions/dev-bypass";
 import { Button } from "@/components/ui/button";
 import { Zap } from "lucide-react";
@@ -10,13 +11,15 @@ interface Props {
 }
 
 export function DevFeaturedBypass({ listingId }: Props) {
+  const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
   function handleBypass() {
+    setError("");
     startTransition(async () => {
       const result = await devMarkListingFeatured(listingId);
       if (result.error) {
-        alert(`Dev bypass error: ${result.error}`);
+        setError(`Dev bypass error: ${result.error}`);
       }
     });
   }
@@ -31,6 +34,7 @@ export function DevFeaturedBypass({ listingId }: Props) {
           Ripple checkout not configured. Use the bypass below to simulate a featured payment.
         </p>
       </div>
+      {error && <ReportableError role="alert">{error}</ReportableError>}
       <Button
         variant="ghost"
         size="sm"

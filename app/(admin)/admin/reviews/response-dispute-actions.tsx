@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -93,9 +94,9 @@ export function ResponseRevisionActions({
         disabled={isPending}
       />
       {error ? (
-        <p className="mt-2 text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="mt-2 text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </div>
   );
@@ -171,9 +172,9 @@ export function ReviewDisputeActions({
         disabled={isPending}
       />
       {error ? (
-        <p className="mt-2 text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="mt-2 text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </div>
   );

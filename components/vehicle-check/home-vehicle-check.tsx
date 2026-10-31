@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { Badge } from "@/components/ui/badge";
@@ -258,9 +259,9 @@ export function HomeVehicleCheck() {
                   Supports UK and Isle of Man formats.
                 </p>
                 {error ? (
-                  <p id={errorId} className="text-xs text-text-energy">
+                  <ReportableError as="p" data-reportable-error="true" id={errorId} className="text-xs text-text-energy">
                     {error}
-                  </p>
+                  </ReportableError>
                 ) : null}
               </form>
             </div>

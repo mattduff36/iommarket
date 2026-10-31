@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useStockSnapshotRefresh } from "./use-stock-snapshot";
@@ -71,6 +72,6 @@ export function StockResultActions({ id }: { id: string }) {
         : <button type="button" disabled={pending} className={BUTTON} onClick={() => run("restore")}>Restore</button>}
       {entry.state !== "deleted" ? <button type="button" disabled={pending} className={BUTTON + " text-red-300"} onClick={() => setConfirmDelete(true)}>Delete</button> : null}
     </div>}
-    {error ? <p role="alert" className="text-sm text-red-300">{error}</p> : null}
+    {error ? <ReportableError as="p" role="alert" className="text-sm text-red-300">{error}</ReportableError> : null}
   </div>;
 }

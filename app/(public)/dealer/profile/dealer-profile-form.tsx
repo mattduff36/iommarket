@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateMyDealerProfile } from "@/actions/account";
@@ -184,7 +185,7 @@ export function DealerProfileForm({ initialData }: Props) {
               ].join(" ")}
             />
             {firstFieldError(fieldErrors, "bio") ? (
-              <p className="text-xs text-text-error">{firstFieldError(fieldErrors, "bio")}</p>
+              <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "bio")}</ReportableError>
             ) : null}
           </div>
 

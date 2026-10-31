@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { setMonitoringIssueStatusBulk } from "@/actions/admin/monitoring";
 import {
@@ -82,7 +83,7 @@ export function MonitoringQueue({ issues }: { issues: MonitoringIssueCardData[] 
             </AdminActionButton>
           </AdminActionBar>
         </div>
-        {error ? <p role="alert" className="mt-2 text-xs text-text-error">{error}</p> : null}
+        {error ? <ReportableError as="p" role="alert" className="mt-2 text-xs text-text-error">{error}</ReportableError> : null}
       </div>
 
       {issues.map((issue) => (

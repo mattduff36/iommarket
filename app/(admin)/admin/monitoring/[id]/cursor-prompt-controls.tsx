@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMemo, useState, useTransition } from "react";
 import {
   AdminActionBar,
@@ -78,7 +79,7 @@ export function CursorPromptControls({ issueId, initialPrompt, generatedAt }: Pr
         className="h-64 w-full rounded-md border border-border bg-surface p-3 text-xs text-text-primary"
         placeholder="Generate a prompt to copy into Cursor."
       />
-      {error && <p role="alert" className="text-xs text-text-error">{error}</p>}
+      {error && <ReportableError as="p" role="alert" className="text-xs text-text-error">{error}</ReportableError>}
     </div>
   );
 }

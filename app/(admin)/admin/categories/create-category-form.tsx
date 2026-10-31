@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createCategory } from "@/actions/admin";
@@ -79,7 +80,7 @@ export function CreateCategoryForm({ parentCategories }: Props) {
               ))}
             </AdminActionSelect>
           </div>
-          {error && <p className="text-sm text-text-error">{error}</p>}
+          {error && <ReportableError as="p" className="text-sm text-text-error">{error}</ReportableError>}
           <AdminActionButton
             type="submit"
             disabled={isPending}

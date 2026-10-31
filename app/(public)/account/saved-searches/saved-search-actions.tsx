@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteSavedSearch } from "@/actions/user-tools";
@@ -81,9 +82,9 @@ export function SavedSearchActions({
         ]}
       />
       {error ? (
-        <p className="max-w-64 text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="max-w-64 text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
       {notice ? (
         <p className="max-w-64 text-xs text-text-secondary" role="status">

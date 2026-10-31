@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
@@ -51,7 +52,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {(error || helperText) && (
-          <p
+          <ReportableError as="p"
             id={helperId}
             className={cn(
               "text-xs",
@@ -59,7 +60,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             )}
           >
             {error || helperText}
-          </p>
+          </ReportableError>
         )}
       </div>
     );

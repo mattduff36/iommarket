@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useRef, useState } from "react";
 import { ImagePlus, Trash2, UploadCloud } from "lucide-react";
 import { DealerLogo } from "@/components/dealers/dealer-logo";
@@ -160,9 +161,9 @@ export function DealerLogoUpload({
           </p>
         ) : null}
         {error ? (
-          <p id="dealer-logo-error" role="alert" className="text-xs text-text-error">
+          <ReportableError as="p" id="dealer-logo-error" role="alert" className="text-xs text-text-error">
             {error}
-          </p>
+          </ReportableError>
         ) : (
           <span id="dealer-logo-error" className="sr-only" />
         )}

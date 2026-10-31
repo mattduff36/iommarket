@@ -1,3 +1,4 @@
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import Link from "@/components/navigation/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LISTING_DECLARATION_LABEL } from "@/lib/listings/write-off-category";
@@ -81,10 +82,10 @@ export function CreateListingDeclarations({
             }
           />
           {privateSellerTermsMissing ? (
-            <p className="mt-2 text-xs text-text-error">
+            <ReportableError as="p" className="mt-2 text-xs text-text-error">
               Accept the current private seller policies before
               continuing.
-            </p>
+            </ReportableError>
           ) : null}
         </div>
       ) : null}

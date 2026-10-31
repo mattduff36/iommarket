@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import {
@@ -164,7 +165,7 @@ export function PageEditor({ page }: PageEditorProps) {
         </div>
       </section>
 
-      {error && <p role="alert" className="text-sm text-text-error">{error}</p>}
+      {error && <ReportableError as="p" role="alert" className="text-sm text-text-error">{error}</ReportableError>}
 
       <AdminActionBar>
         <AdminActionButton type="submit" disabled={isPending} tone="primary">

@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useState, useTransition } from "react";
 import { useNavigationRouter as useRouter } from "@/components/navigation/navigation-pending";
 import { withdrawListingSubmission } from "@/actions/listings";
@@ -57,9 +58,9 @@ export function WithdrawSubmissionButton({
         {isPending ? "Withdrawing…" : "Withdraw submission"}
       </Button>
       {error ? (
-        <p className="max-w-64 text-xs text-text-error" role="alert">
+        <ReportableError as="p" className="max-w-64 text-xs text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
     </div>
   );

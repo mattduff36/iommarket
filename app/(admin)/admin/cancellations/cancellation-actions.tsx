@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMutationRecovery } from "@/lib/forms/use-mutation-recovery";
 
 import { useState, useTransition } from "react";
@@ -77,7 +78,7 @@ export function CancellationActions({ requestId, status }: Props) {
           </AdminActionButton>
         ) : null}
       </div>
-      {error ? <p role="alert" className="text-xs text-text-error">{error}</p> : null}
+      {error ? <ReportableError as="p" role="alert" className="text-xs text-text-error">{error}</ReportableError> : null}
       {recovery.blocked ? <a href="/admin/cancellations" className="block text-sm underline">Reload and check status</a> : null}
     </div>
   );

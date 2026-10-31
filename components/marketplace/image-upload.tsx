@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import * as React from "react";
 import {
   DndContext,
@@ -275,13 +276,15 @@ export function ImageUpload({
                 />
               ))}
               {pending.map((slot) => (
-                <div
+                <ReportableError as="div"
                   key={slot.clientId}
                   className={cn(
                     "flex min-h-44 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-surface-elevated text-center text-sm text-text-secondary",
                     slot.image && "block border-solid",
+                    slot.error && "flex-col p-2",
                   )}
                   role="status"
+                  data-reportable-error={slot.error ? "true" : undefined}
                 >
                   {slot.image ? (
                     <div className="relative">
@@ -300,7 +303,7 @@ export function ImageUpload({
                   ) : (
                     `Uploading ${slot.fileName}…`
                   )}
-                </div>
+                </ReportableError>
               ))}
             </div>
           </SortableContext>
@@ -344,9 +347,9 @@ export function ImageUpload({
       )}
 
       {error ? (
-        <p className="text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="text-sm text-text-error" role="alert">
           {error}
-        </p>
+        </ReportableError>
       ) : null}
       <p className="text-xs text-text-tertiary">
         The first photo is the cover photo. Drag photos or use the move controls to change the order.

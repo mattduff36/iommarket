@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -179,9 +180,9 @@ export function WaitlistForm() {
           })}
         </div>
         {interestsError ? (
-          <p id="waitlist-interests-error" className="text-xs text-text-error">
+          <ReportableError as="p" id="waitlist-interests-error" className="text-xs text-text-error">
             {interestsError}
-          </p>
+          </ReportableError>
         ) : null}
       </fieldset>
 

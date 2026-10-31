@@ -14,6 +14,7 @@ const EXACT_TRUSTED_HOOKS = new Set([
   "/api/auth/send-email",
   "/api/dev-auth",
   "/api/monitoring/events",
+  "/api/monitoring/report-issue",
   "/api/internal/cost-sync",
 ]);
 

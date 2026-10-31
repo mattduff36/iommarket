@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useState } from "react";
 import { Check, Copy, Share2 } from "lucide-react";
 import { NAVIGABLE_CARD_LINK_CLASS } from "@/components/ui/card-overlay-link";
@@ -90,7 +91,7 @@ export function ShareLinks({ url, title, text }: ShareLinksProps) {
         <p className="text-xs text-neon-blue-400">Listing link copied.</p>
       ) : null}
       {copyStatus === "failed" ? (
-        <p className="text-xs text-text-error">Could not copy the link. Please copy it from the address bar.</p>
+        <ReportableError as="p" className="text-xs text-text-error">Could not copy the link. Please copy it from the address bar.</ReportableError>
       ) : null}
     </div>
   );
