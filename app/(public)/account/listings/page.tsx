@@ -88,10 +88,11 @@ export default async function AccountListingsPage({ searchParams }: Props) {
 
   const where = {
     userId: user.id,
-    ...(status !== "ALL" ? { status } : {}),
+    ...(status === "DRAFT" ? { OR: [{ status: "DRAFT" as const }, { revisions: { some: { status: "DRAFT" as const } } }] } : status !== "ALL" ? { status } : {}),
   };
 
   const listingInclude = {
+    revisions: { where: { status: "DRAFT" as const }, select: { id: true }, take: 1 },
     category: { select: { name: true } },
     region: { select: { name: true } },
     statusEvents: {
@@ -234,6 +235,7 @@ export default async function AccountListingsPage({ searchParams }: Props) {
                         payment.type === "FEATURED" || payment.includesFeatured,
                     )}
                   />
+                  {listing.revisions.length > 0 && <span className="mt-1 block text-xs font-medium text-neon-blue-400">Draft changes to review</span>}
                 </TableCell>
                 <TableCell className="text-text-secondary text-xs">
                   {listing.statusEvents[0]

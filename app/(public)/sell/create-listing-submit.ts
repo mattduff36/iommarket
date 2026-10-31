@@ -255,6 +255,8 @@ export async function executeCreateListingSubmit(params: {
   attributes: Array<{ attributeDefinitionId: string; value: string }>;
   mode: "private" | "dealer";
   skipCheckout: boolean;
+  stockDraftReceiptId?: string;
+  stockDraftReviewConfirmed?: true;
   isEditingDraft: boolean;
   uploadedImages: Array<{
     id?: string;
@@ -408,6 +410,8 @@ export async function executeCreateListingSubmit(params: {
     ? { data: { checkoutUrl: null, skippedPayment: true }, error: undefined }
     : await payForListing(
         buildPayForListingInput({
+          stockDraftReceiptId: params.stockDraftReceiptId,
+          stockDraftReviewConfirmed: params.stockDraftReviewConfirmed,
           listingId,
           privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
           includeFeatured: params.includeFeatured,
@@ -426,6 +430,7 @@ export async function executeCreateListingSubmit(params: {
   if (payResult.data?.skippedPayment && !listingSubmitted) {
     const reviewResult = await submitListingForReview({
       listingId,
+      ...(params.stockDraftReceiptId ? { stockDraftReceiptId: params.stockDraftReceiptId, stockDraftReviewConfirmed: params.stockDraftReviewConfirmed } : {}),
       privateSellerTermsAccepted: params.mode === "private" ? true : undefined,
     });
     if (reviewResult?.error) {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const entitlement = vi.hoisted(() => vi.fn().mockResolvedValue({ tier: "PRO" }));
@@ -14,7 +14,7 @@ const { dashboardProps, pickerProps, profileFindMany } = vi.hoisted(() => ({ das
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: vi.fn().mockResolvedValue({ok:true,devices:[]}) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-dashboard", () => ({ StockWorkerDashboard: (props: {children: import("react").ReactNode}) => { dashboardProps(props); return props.children; } }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-pairing", () => ({ StockWorkerPairing: () => null }));
-vi.mock("@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-panel", () => ({ StockSyncReviewPanel: () => null }));
+vi.mock("@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-panel", () => ({ StockSyncReviewPanel: ({ reportId }: { reportId: string }) => <div data-testid="review-detail">{reportId}</div> }));
 vi.mock("@/app/(admin)/admin/stock-reviews/dealer-picker", () => ({ StockDealerPicker: (props: unknown) => { pickerProps(props); return null; } }));
 
 vi.mock("@/lib/auth", () => ({
@@ -126,9 +126,7 @@ describe("admin stock reviews", () => {
     expect(screen.getAllByText("More vehicles were advertised than this check can hold.").length).toBeGreaterThan(0);
     expect(screen.getByText("Approved, not applied yet").parentElement).toHaveTextContent("Approved, not applied yet · 4 vehicles");
     expect(screen.getByText("Approval queues processing and does not apply listings by itself.")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Open dealer stock review" }).every((link) =>
-      link.getAttribute("href")?.startsWith("/admin/stock-reviews?report="),
-    )).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Open dealer stock review" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
 
@@ -168,7 +166,7 @@ describe("admin stock reviews", () => {
     expect(screen.getByText(/2 removals/)).toBeInTheDocument();
     expect(screen.getByText("Listings from this approved plan were applied.")).toBeInTheDocument();
     expect(screen.queryByText(/succeeded/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open dealer stock review" })).toHaveAttribute("href", "/admin/stock-reviews?report=applied-1&history=archived#stock-review-detail");
+    expect(screen.getByRole("button", { name: "Open dealer stock review" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("shows queued and processing jobs and a no-change review", async () => {
@@ -265,4 +263,17 @@ it("represents rejected reviews once in the archive instead of an orphan finishe
   await renderPage([], [report({id:"rejected",status:"REJECTED",scrapeRunId:"old-scan"})], [job({id:"old-scan",status:"SUCCEEDED"})], "archived");
   expect(screen.getByText("rejected", {exact:true})).toBeInTheDocument();
   expect(screen.queryByText("Finished processing")).not.toBeInTheDocument();
+});
+
+it("opens only one result and can collapse it again", async () => {
+  await renderPage([report({id:"review-one"}),report({id:"review-two"})]);
+  const controls = screen.getAllByRole("button", {name: /open dealer stock review/i});
+  fireEvent.click(controls[0]);
+  expect(screen.getAllByTestId("review-detail")).toHaveLength(1);
+  expect(screen.getByTestId("review-detail")).toHaveTextContent("review-one");
+  fireEvent.click(controls[1]);
+  expect(screen.getAllByTestId("review-detail")).toHaveLength(1);
+  expect(screen.getByTestId("review-detail")).toHaveTextContent("review-two");
+  fireEvent.click(controls[1]);
+  expect(screen.queryByTestId("review-detail")).not.toBeInTheDocument();
 });

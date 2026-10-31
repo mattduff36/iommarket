@@ -65,6 +65,8 @@ export const renewListingSchema = z.object({
 export const submitListingForReviewSchema = z.object({
   listingId: z.string().min(1).max(100),
   privateSellerTermsAccepted: z.literal(true).optional(),
+  stockDraftReceiptId: z.string().min(1).max(100).optional(),
+  stockDraftReviewConfirmed: z.literal(true).optional(),
 });
 export type SubmitListingForReviewInput = z.infer<
   typeof submitListingForReviewSchema

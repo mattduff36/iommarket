@@ -21,6 +21,7 @@ export async function readNotificationPreferences(userId: string): Promise<Notif
 
   return {
     listingUpdates: row.listingUpdates,
+    draftListings: row.draftListings ?? true,
     dealerReviews: row.dealerReviews,
     tradeMessages: row.tradeMessages,
     tradeListingUpdates: row.tradeListingUpdates,

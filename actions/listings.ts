@@ -544,6 +544,8 @@ export async function submitListingForReview(
     | {
         listingId: string;
         privateSellerTermsAccepted?: true;
+        stockDraftReceiptId?: string;
+        stockDraftReviewConfirmed?: true;
       },
 ) {
   return guardListingWrite(
@@ -560,6 +562,8 @@ async function submitListingForReviewBody(
     | {
         listingId: string;
         privateSellerTermsAccepted?: true;
+        stockDraftReceiptId?: string;
+        stockDraftReviewConfirmed?: true;
       },
 ) {
   const actor = await requireListingActor({
@@ -576,6 +580,7 @@ async function submitListingForReviewBody(
     return { error: parsedInput.error.flatten().fieldErrors };
   }
   const { listingId, privateSellerTermsAccepted } = parsedInput.data;
+  const stockDraftReceiptId = parsedInput.data.stockDraftReviewConfirmed ? parsedInput.data.stockDraftReceiptId : undefined;
   const submitRateError = listingLifecycleRateError(
     await canChangeListingLifecycle(user.id, listingId),
   );
@@ -685,6 +690,7 @@ async function submitListingForReviewBody(
         expectedListingRevision: listing.lifecycleRevision,
         expectedVersion: openRevision.version,
         seller: user,
+        stockDraftReceiptId,
       });
       revalidatePath(`/listings/${listingId}`);
       revalidatePath("/admin/listings");
@@ -841,6 +847,7 @@ async function submitListingForReviewBody(
                   },
                   source: "USER",
                   notes: "Submitted for moderation with free listing claim",
+                  stockDraftReceiptId,
                 },
                 transaction,
               );
@@ -902,6 +909,7 @@ async function submitListingForReviewBody(
       },
       source: "USER" as const,
       notes: "Submitted for moderation",
+      stockDraftReceiptId,
     };
     const updated = await runWithDealerDetach(db, {
       listingId,

@@ -184,5 +184,11 @@
     "snippet": "instanceof DealerReviewWorkflowConflictError ? error.message",
     "reason": "DealerReviewWorkflowConflictError has a no-argument constructor with one fixed conflict sentence; the alternative local moderation class contains checked-in refusal copy only. Unknown failures use fixed fallback.",
     "occurrences": 1
+  },
+  {
+    "file": "actions/stock-drafts.ts",
+    "snippet": "return { error: error instanceof StockDraftDiscardError ? error.message : \"This draft could not be deleted. Refresh and try again.\" };",
+    "reason": "StockDraftDiscardError is constructed only from the fixed CHANGED sentence in discard-draft; unknown database/provider errors use the fixed fallback.",
+    "occurrences": 1
   }
 ]
