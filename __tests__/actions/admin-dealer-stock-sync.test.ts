@@ -84,6 +84,15 @@ describe("admin dealer stock sync actions", () => {
     expect(db.dealerStockSyncJob.create).not.toHaveBeenCalled();
     expect(db.dealerProfile.findUnique).not.toHaveBeenCalled();
   });
+  it("prevents the legacy whole-report endpoint approving a removal", async () => {
+    db.dealerStockSyncReport.findUnique.mockResolvedValue({
+      id: "report-1", status: "PENDING_REVIEW", fingerprint: "a".repeat(64), bindingId: "binding-1", dealerId: "dealer-1",
+      plan: { actions: [{ kind: "create" }, { kind: "unpublish" }] },
+    });
+    const result = await approveDealerStockReport({ reportId: "report-1", fingerprint: "a".repeat(64) });
+    expect(result.error).toContain("older action");
+    expect(db.dealerStockSyncJob.create).not.toHaveBeenCalled();
+  });
 
   it("does not bind a preview dealer", async () => {
     db.dealerProfile.findUnique.mockResolvedValue({ ...liveDealer, isAdminPreview: true });

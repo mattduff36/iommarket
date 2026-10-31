@@ -50,6 +50,7 @@ export interface TransitionListingStatusInput {
   notes?: string;
   reportId?: string;
   now?: Date;
+  stockDraftReceiptId?: string;
 }
 
 export interface ListingTransitionResult {
@@ -143,6 +144,7 @@ async function runTransition(
       expiresAt: true,
       approvedAt: true,
       lifecycleRevision: true,
+      ...(input.action === "SUBMIT" ? { stockDraftReceipts: { where: { revisionId: null }, orderBy: { createdAt: "desc" as const }, take: 1 } } : {}),
     },
   });
 
@@ -237,6 +239,10 @@ async function runTransition(
   }
 
   const toStatus = getActionTargetStatus(input.action);
+  if (input.action === "SUBMIT" && existing.stockDraftReceipts?.[0]) {
+    const { assertStockDraftReady } = await import("@/lib/dealer-stock-sync/draft-readiness");
+    await assertStockDraftReady(client, { receipt: existing.stockDraftReceipts[0], actorId: input.actor.id, acknowledgementReceiptId: input.stockDraftReceiptId });
+  }
   const effects = effectsForAction(input.action, now, existing);
   const updated = await client.listing.updateMany({
     where: {

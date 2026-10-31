@@ -75,10 +75,11 @@ describe("stock sync review", () => {
     expect(screen.getByText(/Price:.*1.00 to.*0.90/)).toBeInTheDocument();
     expect(screen.getByText("Missing from 1 complete checks")).toBeInTheDocument();
     expect(screen.getByText("Missing from 2 complete checks")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Proposed unpublish" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Removal suggestions — review separately" })).toBeInTheDocument();
     expect(screen.getAllByText("No usable source photos were found.").length).toBeGreaterThan(0);
     expect(screen.getByText("The listing was edited after its last import. Review it manually.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Approve exact plan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve all eligible (1)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve exact plan" })).not.toBeInTheDocument();
   });
 });
 

@@ -2,6 +2,7 @@ import type { TradeDealerSubject } from "@/lib/trade-exchange/decision";
 
 export const NOTIFICATION_PREFERENCE_KEYS = [
   "listingUpdates",
+  "draftListings",
   "dealerReviews",
   "tradeMessages",
   "tradeListingUpdates",
@@ -14,6 +15,7 @@ export type NotificationPreferences = Record<NotificationPreferenceKey, boolean>
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   listingUpdates: true,
+  draftListings: true,
   dealerReviews: true,
   tradeMessages: true,
   tradeListingUpdates: true,
@@ -27,6 +29,10 @@ export const NOTIFICATION_CATEGORY_COPY: Record<
   listingUpdates: {
     label: "Listing updates",
     description: "Emails about changes to your marketplace listings.",
+  },
+  draftListings: {
+    label: "New draft listings",
+    description: "Emails when new listings or changes are sent to your drafts for review.",
   },
   dealerReviews: {
     label: "Dealer reviews",
@@ -64,7 +70,7 @@ export function visiblePreferenceKeys(actor: {
   role: "USER" | "DEALER" | "ADMIN";
   tradeEligible: boolean;
 }): NotificationPreferenceKey[] {
-  const keys: NotificationPreferenceKey[] = ["listingUpdates"];
+  const keys: NotificationPreferenceKey[] = ["listingUpdates", "draftListings"];
   if (actor.role === "DEALER") keys.push("dealerReviews");
   if (actor.tradeEligible) keys.push(...TRADE_PREFERENCE_KEYS);
   return keys;

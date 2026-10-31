@@ -42,11 +42,14 @@ export function featuredCheckoutTotalPence(params: {
 export function buildPayForListingInput(params: {
   listingId: string;
   privateSellerTermsAccepted?: true;
+  stockDraftReceiptId?: string;
+  stockDraftReviewConfirmed?: true;
   includeFeatured?: boolean;
   listingFeeDue?: boolean;
 }): PayForListingInput {
   return {
     listingId: params.listingId,
+    ...(params.stockDraftReceiptId ? { stockDraftReceiptId: params.stockDraftReceiptId, stockDraftReviewConfirmed: params.stockDraftReviewConfirmed } : {}),
     ...(params.privateSellerTermsAccepted
       ? { privateSellerTermsAccepted: true as const }
       : {}),

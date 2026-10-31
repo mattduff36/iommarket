@@ -165,7 +165,7 @@ async function payForListingBody(input: PayForListingInput) {
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
   }
-  const { listingId, privateSellerTermsAccepted, includeFeatured = false } = parsed.data;
+  const { listingId, privateSellerTermsAccepted, includeFeatured = false, stockDraftReceiptId, stockDraftReviewConfirmed } = parsed.data;
   const checkoutRateError = rateLimitActionError(
     await checkRateLimit(
       makeRateLimitKey("checkout-listing", `${user.id}:${listingId}`),
@@ -329,7 +329,7 @@ async function payForListingBody(input: PayForListingInput) {
 
     if (includeFeatured && shouldSkipPayment) {
       const { submitListingForReview } = await import("@/actions/listings");
-      const submitted = await submitListingForReview({ listingId: listing.id, privateSellerTermsAccepted });
+      const submitted = await submitListingForReview({ listingId: listing.id, privateSellerTermsAccepted, ...(stockDraftReceiptId ? { stockDraftReceiptId, stockDraftReviewConfirmed } : {}) });
       if ("error" in submitted) return { error: submitted.error };
       const featured = await upgradeFeatured(listing.id);
       if ("error" in featured) return { error: featured.error };
