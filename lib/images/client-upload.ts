@@ -1,4 +1,5 @@
 import { uploadDirectImageKitPhoto, type DirectImageKitUpload } from "@/lib/images/imagekit-client-upload";
+import { fetchUploadRequest } from "@/lib/images/upload-request-retry";
 import {
   IMAGE_CONSTRAINTS,
   isAllowedListingImageFormat,
@@ -127,7 +128,7 @@ export async function preflightListingImageFile(file: File): Promise<string | nu
 async function transmitListingImageFile(file: File): Promise<ListingPhotoSource> {
   let intentResponse: Response;
   try {
-    intentResponse = await fetch("/api/listing-images/intent", {
+    intentResponse = await fetchUploadRequest("/api/listing-images/intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size }),

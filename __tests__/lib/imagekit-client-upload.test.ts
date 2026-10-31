@@ -10,7 +10,30 @@ const stored = { provider: "IMAGEKIT", uploadIntentId: "intent", publicId: "imag
 
 describe("direct ImageKit client integration", () => {
   beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+  it("waits for a throttled verification then retries the same identifiers without reuploading", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(Response.json({ fileId: "raw-file" }))
+      .mockResolvedValueOnce(Response.json({ error: "Too many upload verification attempts. Wait 60 seconds, then try again.", code: "rate_limited", retryable: true, retryAfterSeconds: 60 }, { status: 429, headers: { "Retry-After": "60" } }))
+      .mockResolvedValueOnce(Response.json({ data: stored }));
+    const result = uploadDirectImageKitPhoto(new File(["x"], "car.jpg"), "intent", upload);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(await result).toEqual(stored);
+    expect(fetchMock.mock.calls.filter(([url]) => url === upload.uploadUrl)).toHaveLength(1);
+    expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(fetchMock.mock.calls[1]?.[1]?.body);
+  });
+  it("preserves the upload while retrying a lost verification response", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(Response.json({ fileId: "raw-file" }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(Response.json({ data: stored }));
+    const result = uploadDirectImageKitPhoto(new File(["x"], "car.jpg"), "intent", upload);
+    await vi.runAllTimersAsync();
+    expect(await result).toEqual(stored);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
   it("sends files larger than the function body limit to ImageKit and only identifiers to our API", async () => {
     const file = new File([new Uint8Array(6 * 1024 * 1024)], "car.jpg", { type: "image/jpeg" });
     fetchMock.mockResolvedValueOnce(Response.json({ data: { uploadIntentId: "intent", publicId: stored.publicId, upload } }))

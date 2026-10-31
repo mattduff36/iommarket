@@ -30,6 +30,16 @@ describe("managed ImageKit finalize route", () => {
     m.capture.mockResolvedValue(null);
   });
   afterEach(() => vi.unstubAllEnvs());
+  it("accepts a complete 20-photo batch before rate limiting further attempts", async () => {
+    let count = 0;
+    m.rate.mockImplementation(async (_key, config) => ({
+      allowed: ++count <= config.maxRequests, remaining: 0,
+      resetAt: Date.now() + 60_000, unavailable: false,
+    }));
+    const responses = await Promise.all(Array.from({ length: 20 }, () => POST(request())));
+    expect(responses.map(response => response.status)).toEqual(Array(20).fill(200));
+    expect((await POST(request())).status).toBe(429);
+  });
   it("uses only authenticated ownership and identifiers and returns verified final metadata", async () => {
     const response = await POST(request());
     expect(response.status).toBe(200); expect(response.headers.get("cache-control")).toBe("no-store");

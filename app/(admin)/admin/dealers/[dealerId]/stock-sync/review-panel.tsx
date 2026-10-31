@@ -7,6 +7,7 @@ import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync
 import { actionLabel, stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import { ApproveStockReportButton } from "./approve-button";
 import { StockReviewEditButton } from "./review-edit-button";
+import { StockReviewPhoto } from "./review-photo";
 
 function changesFor(action: PlanAction) {
   if (action.kind !== "update" && action.kind !== "conflict" && action.kind !== "create") return [];
@@ -29,16 +30,14 @@ function priceText(pence: number | null | undefined) {
 }
 
 function Evidence({ review }: { review: ReviewedActionEvidence }) {
-  const sourcePhoto = review.safePhotoUrls.map((url) => safeHttps(url)).find((url) => url != null) ?? null;
-  const photo = sourcePhoto && isDealerPlaceholderImage(sourcePhoto) ? DEALER_PLACEHOLDER_PATH : sourcePhoto;
+  const photos = [...new Set(review.safePhotoUrls.flatMap(url => {
+    const safe = safeHttps(url);
+    return safe ? [isDealerPlaceholderImage(safe) ? DEALER_PLACEHOLDER_PATH : safe] : [];
+  }))];
   const source = safeHttps(review.sourceUrl);
   return (
     <div className="mt-2 flex gap-3">
-      {photo ? (
-        <a href={photo} target="_blank" rel="noreferrer" aria-label={`View photo of ${review.displayTitle}`}>
-          <img src={photo} alt={review.displayTitle} loading="lazy" className="h-16 w-24 rounded-md object-cover" />
-        </a>
-      ) : null}
+      {photos.length > 0 ? <StockReviewPhoto key={JSON.stringify(photos)} photos={photos} title={review.displayTitle} /> : null}
       <div className="text-text-secondary">
         <p>
           {review.year ?? "Year unknown"} · {review.categorySlug ?? "Category unknown"} · {priceText(review.pricePence)} ·{" "}

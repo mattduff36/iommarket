@@ -45,6 +45,7 @@ import { buildCanonicalListingImageUrl } from "@/lib/images/cloudinary-url";
 import { IMAGE_CONSTRAINTS, LISTING_IMAGE_ACCEPT } from "@/lib/images/constraints";
 import { preflightListingImageFile, presentClientUploadError, uploadListingImageFile } from "@/lib/images/client-upload";
 import type { ListingPhotoSource } from "@/lib/images/photo";
+import { mapPhotoBatch } from "@/lib/images/upload-batch";
 import { useListingDraftPhotoBackup } from "@/app/(public)/sell/listing-draft-photos";
 
 export interface UploadedImage extends ListingPhotoSource {
@@ -85,10 +86,10 @@ export function ImageUpload({
   const uploadInProgressRef = React.useRef(false);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState<PendingSlot[]>([]);
+  const [isBusy, setIsBusy] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
   const [focalImage, setFocalImage] = React.useState<UploadedImage | null>(null);
   const backupListingPhoto = useListingDraftPhotoBackup();
-  const isBusy = pending.length > 0;
 
   React.useEffect(() => {
     isMountedRef.current = true;
@@ -155,31 +156,34 @@ export function ImageUpload({
       setError(null);
     }
 
-    const checked = await Promise.all(
-      filesToProcess.map(async (file) => {
-        const slot = {
-          clientId: `${file.name}-${file.lastModified}-${createClientId()}`,
-          fileName: file.name,
-        };
-        return { file, slot, validationError: await preflightListingImageFile(file) };
-      }),
-    );
-    const validEntries = checked.flatMap((entry) => {
-      if (entry.validationError) {
-        setError(entry.validationError);
-        return [];
-      }
-      return [{ file: entry.file, slot: entry.slot }];
-    });
-    if (validEntries.length === 0) return;
-
+    // Reserve the selection before asynchronous preflight so a second selection cannot overlap it.
     uploadInProgressRef.current = true;
-    setPending((current) => [...current, ...validEntries.map(({ slot }) => slot)]);
+    setIsBusy(true);
     onBusyChange?.(true);
-
     try {
-      const reserved = await Promise.all(
-        validEntries.map(async ({ file, slot }) => {
+      const checked = await mapPhotoBatch(
+        filesToProcess, async (file) => {
+          const slot = {
+            clientId: `${file.name}-${file.lastModified}-${createClientId()}`,
+            fileName: file.name,
+          };
+          return { file, slot, validationError: await preflightListingImageFile(file) };
+        },
+      );
+      if (!isMountedRef.current) return;
+      const validEntries = checked.flatMap((entry) => {
+        if (entry.validationError) {
+          setError(entry.validationError);
+          return [];
+        }
+        return [{ file: entry.file, slot: entry.slot }];
+      });
+      if (validEntries.length === 0) return;
+
+      setPending((current) => [...current, ...validEntries.map(({ slot }) => slot)]);
+
+      const reserved = await mapPhotoBatch(
+        validEntries, async ({ file, slot }) => {
           try {
             const uploaded = await uploadListingImageFile(file);
             const image = {
@@ -212,7 +216,7 @@ export function ImageUpload({
             }
             return null;
           }
-        }),
+        },
       );
 
       if (!isMountedRef.current) return;
@@ -231,7 +235,10 @@ export function ImageUpload({
       );
     } finally {
       uploadInProgressRef.current = false;
-      if (isMountedRef.current) onBusyChange?.(false);
+      if (isMountedRef.current) {
+        setIsBusy(false);
+        onBusyChange?.(false);
+      }
     }
   }
 

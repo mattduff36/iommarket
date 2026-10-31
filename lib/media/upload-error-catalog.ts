@@ -155,6 +155,10 @@ const REFERENCE_SUFFIX =
 
 function ruleFor(message: string): UploadMessageRule | undefined {
   const { source, approved } = loadRules();
+  // The limiter adds a bounded wait to these exact approved sentences.
+  if (/^Too many upload (?:verification )?attempts\. Wait [1-9]\d{0,5} seconds?, then try again\.$/.test(message)) {
+    return listed(message, "rate_limited", 429, false);
+  }
   return source.get(message) ?? approved.get(message);
 }
 

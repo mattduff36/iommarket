@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
     return reply(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), 403);
   }
   const rateBody = rateLimitPublicError(await checkRateLimit(makeRateLimitKey("imagekit-finalize", user.id), {
-    windowMs: 60_000, maxRequests: 10, policy: "listing-image-imagekit",
+    // Match the intent allowance: a supported 20-photo selection must fit in one window.
+    windowMs: 60_000, maxRequests: 20, policy: "listing-image-imagekit",
   }), "Too many upload verification attempts.");
   if (rateBody) return NextResponse.json(rateBody, { status: rateBody.code === "unavailable" ? 503 : 429,
     headers: { "Cache-Control": "no-store", "Retry-After": String(rateBody.retryAfterSeconds) } });
