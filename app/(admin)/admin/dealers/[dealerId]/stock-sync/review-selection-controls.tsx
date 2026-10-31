@@ -37,7 +37,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
       finally { onPendingChange?.(false); }
     });
   }
-  return <div className="sticky bottom-0 z-10 space-y-3 rounded-lg border border-neon-blue-500/30 bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-high" aria-label="Review actions" aria-busy={pending}>
+  return <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 sm:bottom-0 space-y-3 rounded-lg border border-neon-blue-500/30 bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-high" aria-label="Review actions" aria-busy={pending}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p className="font-semibold text-text-primary" aria-live="polite">{chosen.length} selected</p>
       <Button type="button" variant="ghost" size="sm" onClick={() => selection.setIndexes([])} disabled={pending || !chosen.length} className="min-h-10 border border-border-active px-3">Clear selection</Button>
