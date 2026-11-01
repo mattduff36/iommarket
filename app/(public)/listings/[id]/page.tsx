@@ -5,6 +5,7 @@ import Link from "@/components/navigation/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
+import { recordListingView } from "@/lib/listings/record-view";
 import { hasPublicListingSellerAccess } from "@/lib/listings/dealer-visibility";
 import { getCurrentUser } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
@@ -288,18 +289,11 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
       });
 
       if (!recentView) {
-        await db.listing.update({
-          where: { id: listing.id },
-          data: {
-            viewCount: { increment: 1 },
-            views: {
-              create: {
-                viewerId: currentUser?.id,
-                viewerHash: hashed.viewerHash,
-                viewerHashVersion: hashed.viewerHashVersion,
-              },
-            },
-          },
+        await recordListingView({
+          listingId: listing.id,
+          viewerId: currentUser?.id,
+          viewerHash: hashed.viewerHash,
+          viewerHashVersion: hashed.viewerHashVersion,
         });
       }
     }

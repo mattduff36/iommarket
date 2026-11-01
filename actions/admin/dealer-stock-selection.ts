@@ -47,7 +47,10 @@ export async function reviewDealerStockSelection(input: unknown) {
       const actions = readPlanActions(report.plan);
       if (!actions) return { error: STALE };
       const snapshot = await loadStockSyncSnapshot(report.dealerId, actions, tx);
-      if (!snapshot || snapshot.binding.id !== report.bindingId || fingerprintSnapshot(snapshot) !== report.fingerprint) return { error: STALE };
+      if (!snapshot || snapshot.binding.id !== report.bindingId) return { error: STALE };
+      if (fingerprintSnapshot(snapshot) !== report.fingerprint) {
+        return { error: "Stock has changed since this scan. Run a new stock check for this dealer, then review the new results." };
+      }
       if (dealerSyncBlockReason({ ...snapshot.dealer, role: snapshot.dealer.role as "USER" | "DEALER" | "ADMIN" })) {
         return { error: "This dealer account cannot receive stock changes." };
       }
