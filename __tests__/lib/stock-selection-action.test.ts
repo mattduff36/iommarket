@@ -45,7 +45,7 @@ describe("selected stock review mutations", () => {
   });
   it("refuses stale state before any write", async () => {
     mocks.fingerprint.mockReturnValue("changed");
-    expect(await run("draft")).toHaveProperty("error");
+    expect(await run("draft")).toHaveProperty("error", expect.stringContaining("Run a new stock check"));
     expect(mocks.transfer).not.toHaveBeenCalled(); expect(tx.dealerStockSyncReport.updateMany).not.toHaveBeenCalled();
   });
   it("queues only selected eligible actions and durably keeps the remainder", async () => {
