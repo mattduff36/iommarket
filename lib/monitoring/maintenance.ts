@@ -6,11 +6,13 @@ import { runMonitoringCanary } from "./canary";
 import { compactMonitoringHistory } from "./retention";
 import { checkVercelErrorAlerts } from "./vercel-fallback";
 import { logMonitoringFallback } from "./fallback-log";
+import { runMediaHealthCheck } from "./media-health";
 
 const DAILY_MS = 20 * 60 * 60 * 1000;
 
 export async function runMonitoringMaintenance(now = new Date()) {
   const unmuted = await expireMutedMonitoringIssues();
+  const media = await runMediaHealthCheck();
   const outbox = await processMonitoringAlertOutbox({ now, limit: 20 });
   const digest = await sendMonitoringDigest(now);
   const canary = await runMonitoringCanary(now);
@@ -45,5 +47,5 @@ export async function runMonitoringMaintenance(now = new Date()) {
     }
   }
 
-  return { unmuted, outbox, digest, canary, retention, vercelFallback };
+  return { unmuted, outbox, digest, canary, retention, vercelFallback, media };
 }

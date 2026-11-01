@@ -17,11 +17,12 @@ export function useStockSnapshot<T>(
   initial: T,
   canCommit: () => boolean,
   isValid: (value: unknown) => value is T,
+  pollInterval: (value: T) => number = () => POLL_MS,
 ) {
   const [snapshot, setSnapshot] = useState(initial);
   const [connectionLost, setConnectionLost] = useState(false);
-  const callbacks = useRef({ canCommit, isValid });
-  callbacks.current = { canCommit, isValid };
+  const callbacks = useRef({ canCommit, isValid, pollInterval });
+  callbacks.current = { canCommit, isValid, pollInterval };
   const reloadRef = useRef<() => void>(() => {});
   const reload = useCallback(() => reloadRef.current(), []);
 
@@ -32,6 +33,8 @@ export function useStockSnapshot<T>(
     let controller: AbortController | null = null;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let deferred: { value: T } | undefined;
+    let failures = 0;
+    let nextPollAt = Date.now() + callbacks.current.pollInterval(initial);
     // A new server payload (including query navigation) supersedes old reads.
     setSnapshot(initial);
     setConnectionLost(false);
@@ -43,9 +46,10 @@ export function useStockSnapshot<T>(
       }
     }
 
-    async function poll() {
+    async function poll(force = false) {
       if (stopped || !isVisible()) return;
       commitDeferred();
+      if (!force && Date.now() < nextPollAt) return;
       if (inFlight) return;
       inFlight = true;
       const requestController = new AbortController();
@@ -70,10 +74,14 @@ export function useStockSnapshot<T>(
         });
         const value = await Promise.race([request, deadline]);
         if (stopped) return;
+        failures = 0;
+        nextPollAt = Date.now() + callbacks.current.pollInterval(value);
         deferred = { value };
         setConnectionLost(false);
         if (isVisible()) commitDeferred();
       } catch {
+        failures += 1;
+        nextPollAt = Date.now() + Math.min(60_000, POLL_MS * 2 ** Math.min(failures, 4));
         if (!stopped) setConnectionLost(true);
       } finally {
         clearTimeout(timeout);
@@ -82,17 +90,17 @@ export function useStockSnapshot<T>(
         inFlight = false;
         if (!stopped && reloadQueued) {
           reloadQueued = false;
-          void poll();
+          void poll(true);
         }
       }
     }
 
     reloadRef.current = () => {
       if (inFlight) reloadQueued = true;
-      else void poll();
+      else void poll(true);
     };
     const timer = setInterval(() => void poll(), POLL_MS);
-    const visible = () => { if (isVisible()) void poll(); };
+    const visible = () => { if (isVisible()) void poll(true); };
     document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;

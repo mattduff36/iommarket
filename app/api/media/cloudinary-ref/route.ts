@@ -7,7 +7,7 @@ import { allowsSignedDealerLogo } from "@/lib/media/delivery-access";
 import { findMigratedDealerLogo } from "@/lib/media/migrated-dealer-logos";
 import { signedImageKitDeliveryUrl } from "@/lib/media/imagekit-api";
 import { imageKitDeliveryRelativePath, imageKitFillTransform } from "@/lib/media/imagekit-transforms";
-import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { checkMediaReadRateLimit } from "@/lib/media/read-rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { dealerLogoDeliveryUrl } from "@/lib/media/dealer-logo-delivery";
 import { readMediaProviderMode } from "@/lib/media/config";
@@ -31,17 +31,11 @@ export async function GET(request: NextRequest) {
   }
 
   const rateDenial = toRateLimitDenial(
-    await checkRateLimit(
-      makeRateLimitKey(
-        "media-delivery",
-        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local",
-      ),
-      { windowMs: 60_000, maxRequests: 240, policy: "media-delivery" },
-    ),
+    await checkMediaReadRateLimit(request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"),
     "Too many image requests.",
   );
   if (rateDenial) {
-    return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status });
+    return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds), "Cache-Control": "no-store" } });
   }
 
   const dealer = await db.dealerProfile.findFirst({

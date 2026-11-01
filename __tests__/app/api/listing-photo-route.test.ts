@@ -6,6 +6,8 @@ vi.mock("@/lib/media/authorize-listing-photo", () => ({
   loadAuthorizedRevisionPhoto: vi.fn(),
 }));
 
+vi.mock("@/lib/media/authorize-upload-photo", () => ({ loadAuthorizedUploadPhoto: vi.fn() }));
+
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn(async () => ({
     allowed: true,
@@ -20,7 +22,10 @@ vi.mock("@/lib/media/serve-photo", () => ({
   signedDeliveryForPhoto: vi.fn(),
 }));
 
-import { loadAuthorizedListingPhoto } from "@/lib/media/authorize-listing-photo";
+import { loadAuthorizedListingPhoto, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
+import { loadAuthorizedUploadPhoto } from "@/lib/media/authorize-upload-photo";
+import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { GET } from "@/app/api/media/listing-photo/route";
 
 const authorize = vi.mocked(loadAuthorizedListingPhoto);
@@ -49,5 +54,30 @@ describe("GET /api/media/listing-photo widths", () => {
     const response = await GET(request("1600"));
     expect(response.status).toBe(404);
     expect(authorize).toHaveBeenCalledWith("img-1");
+  });
+});
+
+describe("media access during a rate-limit database outage", () => {
+  beforeEach(() => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, resetAt: Date.now() + 60_000, unavailable: true });
+    vi.mocked(loadAuthorizedListingPhoto).mockResolvedValue(null);
+    vi.mocked(loadAuthorizedRevisionPhoto).mockResolvedValue(null);
+    vi.mocked(loadAuthorizedUploadPhoto).mockResolvedValue(null);
+    vi.mocked(signedDeliveryForPhoto).mockClear();
+  });
+
+  it.each(["listing", "revision", "upload"])("does not expose an unauthorised %s image", async source => {
+    const response = await GET(new NextRequest(`http://localhost/api/media/listing-photo?imageId=private&source=${source}&mode=fit&frame=gallery&w=1600`));
+    expect(response.status).toBe(404);
+    expect(signedDeliveryForPhoto).not.toHaveBeenCalled();
+  });
+
+  it("still serves an authorised image", async () => {
+    vi.mocked(loadAuthorizedListingPhoto).mockResolvedValue({ id: "img-1" } as never);
+    vi.mocked(signedDeliveryForPhoto).mockReturnValue({ kind: "imagekit", url: "https://ik.imagekit.io/example/photo.jpg" } as never);
+    const response = await GET(request("1600"));
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://ik.imagekit.io/example/photo.jpg");
+    expect(response.headers.get("cache-control")).toBe("private, max-age=60");
   });
 });

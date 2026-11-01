@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadAuthorizedListingPhoto, loadAuthorizedRevisionPhoto } from "@/lib/media/authorize-listing-photo";
 import { listingPhotoDeliveryQuerySchema } from "@/lib/media/listing-photo-query";
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
-import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
+import { checkMediaReadRateLimit } from "@/lib/media/read-rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 
 export const runtime = "nodejs";
@@ -26,15 +26,11 @@ export async function GET(request: NextRequest) {
   }
 
   const rateDenial = toRateLimitDenial(
-    await checkRateLimit(makeRateLimitKey("media-delivery", clientKey(request)), {
-      windowMs: 60_000,
-      maxRequests: 240,
-      policy: "media-delivery",
-    }),
+    await checkMediaReadRateLimit(clientKey(request)),
     "Too many image requests.",
   );
   if (rateDenial) {
-    return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status });
+    return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds), "Cache-Control": "no-store" } });
   }
 
   const photo = parsed.data.source === "revision"
