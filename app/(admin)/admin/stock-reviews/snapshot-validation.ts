@@ -36,7 +36,7 @@ const device = z.object({
   instanceId: z.string().nullable(), state: z.string().nullable(), online: z.boolean(),
   lastSeenAt: z.iso.datetime().nullable(),
   activity: z.array(z.object({ sequence: z.number(), code: z.string(), text: z.string(), at: z.iso.datetime() })),
-  pendingCommand: z.object({ id: z.string(), instanceId: z.string(), action: z.enum(["start", "stop"]) }).nullable(),
+  pendingCommand: z.object({ id: z.string(), instanceId: z.string(), action: z.enum(["start", "stop", "close"]) }).nullable(),
 });
 const snapshot = z.object({
   outstanding: z.array(report), recentReports: z.array(report), jobs: z.array(job),

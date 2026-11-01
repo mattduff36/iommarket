@@ -21,6 +21,7 @@ vi.mock("@/lib/media/managed-policy", async original => ({
 vi.mock("@/scripts/dealer-stock-sync/execute-job", () => ({ runLeasedJob: mocks.run }));
 vi.mock("@/scripts/dealer-stock-sync/stock-images", () => ({ cleanupStockImages: mocks.cleanup }));
 import { runDesktopApplyStep } from "@/lib/dealer-stock-sync/desktop-apply-step";
+import { RemoteImageUnavailableError } from "@/lib/images/remote-image-error";
 import { fingerprintSnapshot, type FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
 import type { CreatePlanAction } from "@/lib/dealer-stock-sync/types";
 import type { DesktopApplyStepInput } from "@/lib/dealer-stock-sync/desktop-jobs";
@@ -179,6 +180,26 @@ describe("bounded desktop APPLY staging", () => {
     expect(await api.step()).toEqual({ outcome: "failed" });
     expect(mocks.download).not.toHaveBeenCalled();
     expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.run).not.toHaveBeenCalled();
+  });
+
+  it("skips a refused DW Cars-style source photo and applies the remaining photos", async () => {
+    const api = fixture([action("first", 3)]);
+    await api.step();
+    mocks.download.mockRejectedValueOnce(new RemoteImageUnavailableError(403));
+    expect(await api.step()).toEqual({ outcome: "continue" });
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+    expect(await api.step()).toEqual({ outcome: "continue" });
+    expect(await api.step()).toEqual({ outcome: "succeeded" });
+    expect(api.state.received[0]?.map(image => image.order)).toEqual([0, 1]);
+    expect(api.state.job.payload.desktopApply).toMatchObject({ skippedPhotos: [{ sourceUrl: sourceUrl(1), photoIndex: 1 }] });
+  });
+
+  it("does not apply a vehicle when every approved photo is unavailable", async () => {
+    const api = fixture([action("first", 1)]);
+    mocks.download.mockRejectedValueOnce(new RemoteImageUnavailableError(404));
+    expect(await api.step()).toEqual({ outcome: "continue" });
+    expect(await api.step()).toEqual({ outcome: "failed" });
     expect(mocks.run).not.toHaveBeenCalled();
   });
 

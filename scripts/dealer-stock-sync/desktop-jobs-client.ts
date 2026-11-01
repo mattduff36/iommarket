@@ -3,6 +3,8 @@ import { DESKTOP_ORIGINS, type DesktopEnvironment } from "./desktop-access";
 export const DESKTOP_REQUEST_TIMEOUT_MS = 60_000;
 export const DESKTOP_STEP_TIMEOUT_MS = 240_000;
 export const DESKTOP_REQUEST_INTERVAL_MS = 1_200;
+export const DESKTOP_SCOPE_WAIT_MS = 30 * 60 * 1000;
+export const DESKTOP_SCOPE_POLL_MS = 3_000;
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 65_536;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -52,11 +54,15 @@ function status(value: unknown, allowed: readonly string[]): string {
 }
 
 export function createDesktopJobsClient(environment: DesktopEnvironment, accessToken: string, options: {
-  fetcher?: typeof fetch; now?: () => number; wait?: (ms: number) => Promise<void>; timeoutMs?: number;
+  jobIds?: string[]; scopeWaitMs?: number; fetcher?: typeof fetch; now?: () => number; wait?: (ms: number) => Promise<void>; timeoutMs?: number;
 } = {}) {
   if ((environment !== "preview" && environment !== "production") || typeof accessToken !== "string" || !TOKEN.test(accessToken)) {
     throw new DesktopJobError("unauthorised");
   }
+  if (options.jobIds && (options.jobIds.length === 0 || options.jobIds.length > 100 || new Set(options.jobIds).size !== options.jobIds.length || options.jobIds.some(id => !JOB_ID.test(id)))) throw new DesktopJobError("invalid-request");
+  const scopedIds = options.jobIds ? [...options.jobIds] : undefined;
+  const scopeWaitMs = options.scopeWaitMs ?? DESKTOP_SCOPE_WAIT_MS;
+  if (!Number.isSafeInteger(scopeWaitMs) || scopeWaitMs < 1 || scopeWaitMs > DESKTOP_SCOPE_WAIT_MS) throw new DesktopJobError("invalid-request");
   const url = DESKTOP_ORIGINS[environment] + "/api/stock-worker/jobs";
   const now = options.now ?? Date.now;
   const wait = options.wait ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
@@ -130,6 +136,42 @@ export function createDesktopJobsClient(environment: DesktopEnvironment, accessT
     }
   }
 
+  async function leaseOnce(isStopped: () => boolean): Promise<DesktopLease | null | "pending"> {
+    return scheduled(async () => {
+      const body = record(await post({ op: "lease", ...(scopedIds ? { jobIds: scopedIds } : {}) }));
+      if (body.job === null && scopedIds) {
+        exact(body, ["job", "pending"]);
+        if (typeof body.pending !== "boolean") throw new DesktopJobError("invalid-response");
+        return body.pending ? "pending" : null;
+      }
+      exact(body, ["job"]);
+      if (body.job === null) return null;
+      const job = record(body.job);
+      if (scopedIds && !scopedIds.includes(String(job.id))) throw new DesktopJobError("invalid-response");
+      exact(job, ["id", "kind", "registryKey", "leaseToken"]);
+      if (typeof job.id !== "string" || !JOB_ID.test(job.id) || (job.kind !== "SCRAPE" && job.kind !== "APPLY") ||
+          typeof job.registryKey !== "string" || !/^[a-z0-9-]{1,80}$/.test(job.registryKey) ||
+          typeof job.leaseToken !== "string" || !TOKEN.test(job.leaseToken)) throw new DesktopJobError("invalid-response");
+      return job as unknown as DesktopLease;
+    }, isStopped, null);
+  }
+  async function leaseScope(isStopped: () => boolean): Promise<DesktopLease | null> {
+    if (!scopedIds) {
+      const result = await leaseOnce(isStopped);
+      if (result === "pending") throw new DesktopJobError("invalid-response");
+      return result;
+    }
+    const deadline = now() + scopeWaitMs;
+    while (!isStopped()) {
+      if (now() >= deadline) throw new DesktopJobError("unavailable");
+      const result = await leaseOnce(isStopped);
+      if (result !== "pending") return result;
+      if (isStopped()) return null;
+      await wait(DESKTOP_SCOPE_POLL_MS);
+    }
+    return null;
+  }
+
   const receipt = (job: DesktopLease) => ({ jobId: job.id, leaseToken: job.leaseToken });
   return {
     check: () => scheduled(async () => {
@@ -137,17 +179,7 @@ export function createDesktopJobsClient(environment: DesktopEnvironment, accessT
       exact(body, ["ready"]);
       if (body.ready !== true) throw new DesktopJobError("invalid-response");
     }),
-    lease: (isStopped: () => boolean = () => false): Promise<DesktopLease | null> => scheduled(async () => {
-      const body = record(await post({ op: "lease" }));
-      exact(body, ["job"]);
-      if (body.job === null) return null;
-      const job = record(body.job);
-      exact(job, ["id", "kind", "registryKey", "leaseToken"]);
-      if (typeof job.id !== "string" || !JOB_ID.test(job.id) || (job.kind !== "SCRAPE" && job.kind !== "APPLY") ||
-          typeof job.registryKey !== "string" || !/^[a-z0-9-]{1,80}$/.test(job.registryKey) ||
-          typeof job.leaseToken !== "string" || !TOKEN.test(job.leaseToken)) throw new DesktopJobError("invalid-response");
-      return job as unknown as DesktopLease;
-    }, isStopped, null),
+    lease: (isStopped: () => boolean = () => false): Promise<DesktopLease | null> => leaseScope(isStopped),
     heartbeat: (job: DesktopLease) => scheduled(async () => {
       status(await post({ op: "heartbeat", ...receipt(job) }), ["extended"]);
     }),

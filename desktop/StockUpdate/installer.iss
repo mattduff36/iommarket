@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.10"
+  #define AppVersion "1.1.11"
 #endif
 #ifndef OnlineInclude
   #define OnlineInclude AddBackslash(BuildRoot) + "online-dependencies.iss"
@@ -70,6 +70,11 @@ Source: "{tmp}\online-runtime\node.exe"; DestDir: "{app}\runtime"; Flags: extern
 Source: "{tmp}\online-runtime\LICENSE.node.txt"; DestDir: "{app}\runtime"; Flags: external ignoreversion
 Source: "{tmp}\online-browsers\*"; DestDir: "{app}\browsers"; Flags: external ignoreversion recursesubdirs createallsubdirs
 Source: "{#BuildRoot}\client-readme.txt"; DestDir: "{app}"; Flags: ignoreversion
+
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\itrader-stock-update"; ValueType: string; ValueName: ""; ValueData: "URL:iTrader Stock Update"
+Root: HKCU; Subkey: "Software\Classes\itrader-stock-update"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\itrader-stock-update\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\StockUpdate.exe"" ""%1"""
 
 [Icons]
 Name: "{autoprograms}\iTrader\Stock Update"; Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"
@@ -219,4 +224,14 @@ begin
     'Setup needs an internet connection to download the pinned Node.js runtime and browser components. If that download is cancelled or fails verification, any existing installation is left unchanged.' + #13#10 + #13#10 +
     'It includes both Preview and Production. Choose the environment explicitly in the app. Production access is restricted to authorised administrators. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
     'Continue with installation?', mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Command: String;
+begin
+  if (CurUninstallStep = usUninstall) and
+    RegQueryStringValue(HKCU, 'Software\Classes\itrader-stock-update\shell\open\command', '', Command) and
+    (CompareText(Command, ExpandConstant('"{app}\StockUpdate.exe" "%1"')) = 0) then
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\itrader-stock-update');
 end;

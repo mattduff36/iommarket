@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$version = '1.1.10'
+$version = '1.1.11'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repo "private\stock-update-release-$version" }
 $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
 $privateRoot = [IO.Path]::GetFullPath((Join-Path $repo 'private')) + [IO.Path]::DirectorySeparatorChar
@@ -93,19 +93,19 @@ if ((Get-SourceCommit) -ne $sourceCommit) { throw 'The source commit changed dur
 
 Invoke-Checked $systemNode @((Join-Path $PSScriptRoot 'online-dependencies.mjs'), '--tools', $ToolRoot, '--out', $BuildRoot, '--worker', (Join-Path $BuildRoot 'payload\x64\worker')) 'online-dependencies'
 @'
-iTrader Stock Update - private internal release 1.1.10 (unsigned)
+iTrader Stock Update - private internal release 1.1.11 (unsigned)
 
 This installer includes the application and its reviewed worker packages. Setup downloads the matching official Node.js runtime and the pinned browser components, so an internet connection is required. A cancelled or failed download, checksum or extraction leaves any existing installation unchanged. You do not need Git, npm, .NET, Cursor or repository access. Setup downloads both Chromium modes needed by the configured dealer websites.
 
-The app always starts on Preview - itrader.dev. Use the bottom-right Switch to production site button and confirm the warning to work on itrader.im. Closing or updating the app resets the selected site to Preview.
+Manual launches start on Preview - itrader.dev. Use the bottom-right Switch to production site button and confirm the warning to work on itrader.im. An authenticated Stock Reviews launch selects the requesting site and signs in automatically. Your browser may ask once to open the installed app. Temporary task launches run minimized, process only the requested jobs and close; opening the app manually keeps it open.
 
 1. Open iTrader Stock Update from the Start menu and leave Preview selected.
 2. Click Sign in. In your browser, use your administrator account and approve this computer for Preview. The app does not collect your password.
-3. Keep the app open. Stock Reviews shows Connected when ready. The app never starts a job just by signing in.
+3. Keep the app open. Stock Reviews shows Connected when ready. Manual sign-in does not start a job. A confirmed website task launch runs its requested jobs.
 4. Open Stock Reviews, select the dealers, then click Start worker. Leave the computer awake and connected.
 5. Review the completed report on the website. Check all proposed changes and source photos. Approve only the report you intend to apply. Incomplete scans and missing photos must be resolved, not bypassed.
 6. After approval, click Start worker again. The worker stops automatically when the queue is empty. The server stages the approved photos and applies the whole approved report together. Confirm the report outcome and listings in Stock Reviews.
-7. Click Stop safely on Stock Reviews or in the app when finished. It finishes the current job, takes no next job and then stops. Wait for it before closing.
+7. Click Stop safely on Stock Reviews or in the app when finished. It finishes the current job, takes no next job and then stops. Closing the app also drains its current job and reports disconnection to the website.
 
 There is no scheduled scan, startup worker or automatic approval. Any already queued eligible work for the selected environment may be processed while the worker runs.
 

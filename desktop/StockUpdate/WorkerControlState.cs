@@ -30,7 +30,7 @@ public sealed class WorkerControlState
         or "staging-photos" or "processing-finished" or "applied" or "stopping" or "stopped" or "error";
 
     public static bool IsRuntime(string? state) =>
-        state is "connected" or "waiting" or "running" or "stopping" or "stopped" or "error";
+        state is "connected" or "waiting" or "running" or "stopping" or "stopped" or "error" or "disconnected";
 
     public void Record(string code, DateTimeOffset now)
     {
@@ -68,7 +68,7 @@ public sealed class WorkerControlState
     {
         execute = false;
         generation = 0;
-        if (action is not ("start" or "stop")) return false;
+        if (action is not ("start" or "stop" or "close")) return false;
         lock (_gate)
         {
             if (Paused || instanceId != InstanceId) return false;
@@ -76,13 +76,13 @@ public sealed class WorkerControlState
             AcknowledgedCommandId = id;
             generation = Generation;
             if (replay) return true;
-            if (action == "stop" || StopWorker)
+            if (action is "stop" or "close" || StopWorker)
             {
                 Generation++;
                 generation = Generation;
                 StopWorker = true;
                 RuntimeState = "stopping";
-                execute = action == "stop";
+                execute = action is "stop" or "close";
                 return true;
             }
             StopWorker = false;
@@ -191,11 +191,15 @@ public sealed class WorkerControlController : IDisposable
     private readonly CancellationTokenSource _cancel = new();
     private readonly CancellationToken _token;
     private int _started;
+    private Task? _run;
+    private Task? _disconnect;
+    private readonly Guid? _launchId;
     public WorkerControlState State { get; } = new();
 
-    public WorkerControlController(AppEnvironment environment, string bearer, IWorkerControlUi ui, HttpMessageHandler? handler = null)
+    public WorkerControlController(AppEnvironment environment, string bearer, IWorkerControlUi ui, HttpMessageHandler? handler = null, Guid? launchId = null)
     {
         _token = _cancel.Token;
+        _launchId = launchId;
         _bearer = bearer;
         _ui = ui;
         _client = handler is null ? WorkerControlClient.Create(environment) : new WorkerControlClient(environment, handler, ownsHandler: false);
@@ -204,10 +208,29 @@ public sealed class WorkerControlController : IDisposable
     public void Start()
     {
         if (Interlocked.Exchange(ref _started, 1) != 0) return;
-        _ = Task.Run(RunAsync);
+        _run = Task.Run(RunAsync);
     }
 
     public void Cancel() => _cancel.Cancel();
+
+    public Task DisconnectAsync()
+    {
+        lock (_cancel) return _disconnect ??= DisconnectCoreAsync();
+    }
+
+    private async Task DisconnectCoreAsync()
+    {
+        _cancel.Cancel();
+        if (_run is not null) await _run.ConfigureAwait(false);
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var activity = State.Snapshot(DateTimeOffset.UtcNow, out var instance, out _, out var ack);
+            await _client.HeartbeatAsync(instance, "disconnected", activity, ack, _bearer, deadline.Token, _launchId).ConfigureAwait(false);
+        }
+        finally { _client.Dispose(); }
+    }
+
 
     private async Task RunAsync()
     {
@@ -218,7 +241,7 @@ public sealed class WorkerControlController : IDisposable
             while (!token.IsCancellationRequested)
             {
                 var activity = State.Snapshot(DateTimeOffset.UtcNow, out var instanceId, out var runtime, out var ack);
-                var call = await _client.HeartbeatAsync(instanceId, runtime, activity, ack, _bearer, token);
+                var call = await _client.HeartbeatAsync(instanceId, runtime, activity, ack, _bearer, token, _launchId);
                 if (!call.Ok)
                 {
                     if (call.ErrorCode == "cancelled") return;
@@ -242,12 +265,10 @@ public sealed class WorkerControlController : IDisposable
             }
         }
         catch (OperationCanceledException) { }
-        finally { _client.Dispose(); }
     }
 
     public void Dispose()
     {
-        _cancel.Cancel();
-        _cancel.Dispose();
+        _ = DisconnectAsync();
     }
 }

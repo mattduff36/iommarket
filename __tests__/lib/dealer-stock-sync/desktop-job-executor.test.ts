@@ -40,7 +40,7 @@ describe("desktop jobs database adapter", () => {
     const before = process.env.DEALER_STOCK_SYNC_WORKER;
     await deps.leaseOneJob("hashed-device-owner", new Date(0), guard);
     await deps.runLeasedJob({ id: "job", owner: "busy-owner" }, scrape, undefined, guard);
-    expect(mocks.lease).toHaveBeenCalledWith("hashed-device-owner", new Date(0), guard);
+    expect(mocks.lease).toHaveBeenCalledWith("hashed-device-owner", new Date(0), guard, undefined);
     expect(mocks.run).toHaveBeenCalledWith({ id: "job", owner: "busy-owner" }, scrape, undefined, guard);
     expect(process.env.DEALER_STOCK_SYNC_WORKER).toBe(before);
   });

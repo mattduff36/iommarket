@@ -35,13 +35,15 @@ public static class WorkerProcess
         string mode,
         IReadOnlyDictionary<string, string> parentEnvironment,
         out WorkerLaunchPlan plan,
-        out string error)
+        out string error,
+        IReadOnlyList<string>? jobIds = null)
     {
         plan = null!;
         error = "missing_payload";
         if (!Enum.IsDefined(environment)) { error = "invalid_request"; return false; }
         if (mode is not ("check" or "watch")) { error = "invalid_request"; return false; }
         if (!TokenShapes.Base64Url(accessToken, 43)) { error = "not_signed_in"; return false; }
+        if (jobIds is not null && (mode != "watch" || !LaunchReply.ValidJobIds(jobIds))) { error = "invalid_request"; return false; }
         var root = Path.GetFullPath(appRoot);
         var node = Path.Combine(root, "runtime", "node.exe");
         var worker = Path.Combine(root, "worker");
@@ -60,11 +62,9 @@ public static class WorkerProcess
         env["PATH"] = string.Join(";", Path.GetDirectoryName(node), Path.Combine(env["SYSTEMROOT"], "System32"), env["SYSTEMROOT"]);
         env["NODE_ENV"] = "production";
         env["PLAYWRIGHT_BROWSERS_PATH"] = browsers;
-        var stdin = JsonSerializer.Serialize(new
-        {
-            environment = Targets.WireName(environment),
-            accessToken
-        });
+        var bootstrap = new Dictionary<string, object> { ["environment"] = Targets.WireName(environment), ["accessToken"] = accessToken };
+        if (jobIds is not null) bootstrap["jobIds"] = jobIds;
+        var stdin = JsonSerializer.Serialize(bootstrap);
         plan = new WorkerLaunchPlan(
             node,
             worker,

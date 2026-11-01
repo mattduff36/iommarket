@@ -111,7 +111,7 @@ export function createDesktopJobDependencies(
     },
     consumeRate: (bucket, limit, windowSeconds) => desktop.store.consumeRate(bucket, limit, windowSeconds),
     randomBytes: defaultJobRandomBytes,
-    leaseOneJob: (owner, now, guard) => leaseOneJob(owner, now, guard),
+    leaseOneJob: (owner, now, guard, jobIds) => leaseOneJob(owner, now, guard, jobIds),
     runLeasedJob: (lease, scrape, _upload, guard) => runLeasedJob(lease, scrape, undefined, guard),
     jobs: {
       findById: findJob,

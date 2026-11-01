@@ -714,3 +714,25 @@ function leasedJob(response: DesktopJobResponse): { id: string; kind: "SCRAPE" |
   if (!response.ok || !("job" in response.body) || !response.body.job) throw new Error("lease was empty");
   return response.body.job;
 }
+
+
+it("passes only explicit task IDs to the atomic lease and rejects an empty scope", async () => {
+  let scoped: string[] | undefined;
+  const h = harness({ job: ownedJob(token(), { status: "SUCCEEDED" }), leaseOneJob: async (_owner, _now, _guard, ids) => { scoped = ids; return null; } });
+  expect(await h.post({ op: "lease", jobIds: [JOB_ID] })).toMatchObject({ ok: true, body: { job: null } });
+  expect(scoped).toEqual([JOB_ID]);
+  expect(await h.post({ op: "lease", jobIds: [] })).toMatchObject({ ok: false, status: 400 });
+});
+
+
+it("distinguishes blocked scoped jobs from terminal scope and refuses missing jobs", async () => {
+  for (const status of ["QUEUED", "LEASED", "SUCCEEDED", "FAILED", "CANCELLED"] as const) {
+    const h = harness({ job: ownedJob(token(), { status }), leaseOneJob: async () => null });
+    expect(await h.post({ op: "lease", jobIds: [JOB_ID] })).toMatchObject({
+      ok: true, body: { job: null, pending: status === "QUEUED" || status === "LEASED" },
+    });
+  }
+  const missing = harness({ leaseOneJob: async () => null });
+  expect(await missing.post({ op: "lease", jobIds: [JOB_ID] })).toMatchObject({ ok: false, status: 409 });
+  expect(await missing.post({ op: "lease" })).toMatchObject({ ok: true, body: { job: null } });
+});

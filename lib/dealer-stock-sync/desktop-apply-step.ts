@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { downloadSafeRemoteImage } from "@/lib/images/safe-remote-image";
+import { RemoteImageUnavailableError } from "@/lib/images/remote-image-error";
 import { assertManagedUploadsConfigured } from "@/lib/media/direct-upload-token";
 import { uploadManagedImport } from "@/lib/media/managed-import";
 import { assertManagedMediaMutation } from "@/lib/media/managed-policy";
@@ -24,6 +25,7 @@ interface PhotoTask { identityKey: string; photoIndex: number; sourceUrl: string
 interface StagedPhoto extends PhotoTask { attemptId: string; image: PreviewUploadedImage }
 interface ApplyProgress {
   version: 1; jobId: string; reportId: string; fingerprint: string; photos: StagedPhoto[];
+  skippedPhotos: PhotoTask[];
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -65,16 +67,27 @@ function progressFor(
   registryKey: string, tasks: PhotoTask[],
 ): ApplyProgress {
   const raw = payload.desktopApply;
-  if (raw === undefined) return { version: 1, jobId: input.jobId, reportId: input.reportId!, fingerprint, photos: [] };
+  if (raw === undefined) return { version: 1, jobId: input.jobId, reportId: input.reportId!, fingerprint, photos: [], skippedPhotos: [] };
   const progress = object(raw);
   if (!progress || progress.version !== 1 || progress.jobId !== input.jobId ||
       progress.reportId !== input.reportId || progress.fingerprint !== fingerprint ||
       !Array.isArray(progress.photos) || progress.photos.length > tasks.length) throw new Error(SAFE_FAILURE);
   const photos: StagedPhoto[] = [];
+  const skipped = progress.skippedPhotos ?? [];
+  if (!Array.isArray(skipped) || skipped.length + progress.photos.length > tasks.length) throw new Error(SAFE_FAILURE);
+  const processed = new Set<number>();
+  const skippedPhotos: PhotoTask[] = skipped.map(value => {
+    const photo = object(value);
+    const index = tasks.findIndex(task => task.identityKey === photo?.identityKey && task.photoIndex === photo?.photoIndex && task.sourceUrl === photo?.sourceUrl);
+    if (index < 0 || processed.has(index)) throw new Error(SAFE_FAILURE);
+    processed.add(index);
+    return tasks[index]!;
+  });
+  const available = tasks.filter((_, index) => !processed.has(index));
   const receipts = new Set<string>();
   for (let index = 0; index < progress.photos.length; index += 1) {
     const photo = object(progress.photos[index]);
-    const task = tasks[index]!;
+    const task = available[index]!;
     const image = object(photo?.image) as unknown as PreviewUploadedImage | null;
     if (!photo || photo.identityKey !== task.identityKey || photo.photoIndex !== task.photoIndex ||
         photo.sourceUrl !== task.sourceUrl || typeof photo.attemptId !== "string" || !UUID.test(photo.attemptId) ||
@@ -83,9 +96,11 @@ function progressFor(
         receipts.has(image.cleanupReceiptId!)) throw new Error(SAFE_FAILURE);
     assertManagedMediaMutation(image.imageKitFilePath!);
     receipts.add(image.cleanupReceiptId!);
+    processed.add(tasks.indexOf(task));
     photos.push({ ...task, attemptId: photo.attemptId, image });
   }
-  return { version: 1, jobId: input.jobId, reportId: input.reportId!, fingerprint, photos };
+  if ([...processed].some(index => index >= processed.size)) throw new Error(SAFE_FAILURE);
+  return { version: 1, jobId: input.jobId, reportId: input.reportId!, fingerprint, photos, skippedPhotos };
 }
 
 async function cleanup(images: PreviewUploadedImage[]) {
@@ -137,12 +152,23 @@ export async function runDesktopApplyStep(
     });
     if (renewed.count !== 1) return { outcome: "unavailable" };
 
-    const task = tasks[progress.photos.length];
+    const task = tasks[progress.photos.length + progress.skippedPhotos.length];
     if (task) {
       assertManagedUploadsConfigured();
       const attemptId = randomUUID();
       const publicId = previewImagePublicId(snapshot.binding.registryKey, task.identityKey, input.jobId + "-" + attemptId, task.photoIndex);
-      const downloaded = await dealerPlaceholderBytes(task.sourceUrl) ?? await downloadSafeRemoteImage({ url: task.sourceUrl });
+      let downloaded;
+      try {
+        downloaded = await dealerPlaceholderBytes(task.sourceUrl) ?? await downloadSafeRemoteImage({ url: task.sourceUrl });
+      } catch (error) {
+        // Only explicit source refusals/removals are skippable. Invalid URLs,
+        // DNS safety failures, corrupt images and uncertain uploads fail closed.
+        if (!(error instanceof RemoteImageUnavailableError)) throw error;
+        const next = { ...progress, skippedPhotos: [...progress.skippedPhotos, task] };
+        const recorded = await db.dealerStockSyncJob.updateMany({ where: leaseWhere(input),
+          data: { payload: { ...payload, desktopApply: next } as unknown as Prisma.InputJsonValue } });
+        return { outcome: recorded.count === 1 ? "continue" : "unavailable" };
+      }
       guard();
       const image: PreviewUploadedImage = await uploadManagedImport({
         publicId, bytes: downloaded.bytes, contentType: downloaded.contentType ?? "", order: task.photoIndex,
@@ -162,6 +188,8 @@ export async function runDesktopApplyStep(
       return { outcome: "continue" };
     }
 
+    if (snapshot.actions.some(action => action.kind === "create" &&
+        !progress.photos.some(photo => photo.identityKey === action.sourceIdentityKey))) throw new Error(SAFE_FAILURE);
     const used = new Set<string>();
     const stagedUpload: typeof uploadPreviewPackImages = async (request) => {
       const action = snapshot.actions.find(action => action.kind === "create" && action.sourceIdentityKey === request.identityKey);
@@ -171,8 +199,9 @@ export async function runDesktopApplyStep(
             source.url !== action.sourceImageUrls![index])) throw new Error(SAFE_FAILURE);
       used.add(request.identityKey);
       const images = progress.photos.filter(photo => photo.identityKey === request.identityKey).map(photo => photo.image);
-      if (images.length !== Math.min(action.sourceImageUrls!.length, PREVIEW_PACK_PHOTO_LIMIT)) throw new Error(SAFE_FAILURE);
-      return images;
+      const skippedCount = progress.skippedPhotos.filter(photo => photo.identityKey === request.identityKey).length;
+      if (!images.length || images.length + skippedCount !== Math.min(action.sourceImageUrls!.length, PREVIEW_PACK_PHOTO_LIMIT)) throw new Error(SAFE_FAILURE);
+      return images.map((image, order) => ({ ...image, order }));
     };
     guard();
     // These images are durable job progress, shared with a successor after lease expiry.

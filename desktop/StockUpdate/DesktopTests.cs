@@ -171,6 +171,13 @@ public static class DesktopTests
             Assert(stdin.RootElement.GetProperty("accessToken").GetString() == token);
             Assert(stdin.RootElement.GetProperty("environment").GetString() == "preview");
             Assert(!WorkerProcess.TryCreatePlan(root, (AppEnvironment)99, token, "check", parent, out _, out _));
+            var jobs = new[] { "c" + new string('b', 24) };
+            Assert(WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, "watch", parent, out var scoped, out _, jobs));
+            using var scopedInput = JsonDocument.Parse(scoped.StdinJson);
+            Assert(SessionParser.ExactFields(scopedInput.RootElement, "environment", "accessToken", "jobIds"));
+            Assert(scopedInput.RootElement.GetProperty("jobIds")[0].GetString() == jobs[0]);
+            Assert(!WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, "watch", parent, out _, out _, []));
+            Assert(!WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, "check", parent, out _, out _, jobs));
             File.Delete(plan.NodePath);
             Assert(!WorkerProcess.TryCreatePlan(root, AppEnvironment.Preview, token, "watch", parent, out _, out var error));
             Assert(error == "missing_payload");
@@ -277,6 +284,11 @@ public static class DesktopTests
         Check("control-dedupes-prunes-and-ignores-old-or-replayed-commands", WorkerControlTests.StateRules);
         Check("control-loss-stops-work-and-local-stop-beats-start", WorkerControlTests.Races);
         Check("worker-output-codes-are-bounded", WorkerControlTests.OutputCodes);
+
+        Check("website-launch-strict-parser-and-job-scope", LaunchTests.Parser);
+        Check("website-launch-fixed-origin-session-envelope", LaunchTests.Transport);
+        Check("website-close-terminal-heartbeat-and-instance-fence", LaunchTests.Close);
+        Check("website-launch-current-user-ipc-bounded-frame", LaunchTests.Ipc);
 
         Check("update-signed-manifest-and-channel", UpdateTests.Manifest);
         Check("update-unattended-settings-and-relaunch", UpdateTests.InstallArguments);

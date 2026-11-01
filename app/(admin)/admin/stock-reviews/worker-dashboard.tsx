@@ -10,6 +10,9 @@ import { StockWorkerCompletion, stockJobFinished, stockJobOutcome } from "./work
 import { StockWorkerControlProvider, stockWorkerCommandClass, stockWorkerCommandLabel, useStockWorkerCommands } from "./worker-context";
 import { StockDealerSelectionProvider, useDealerSelection, type StockDealer } from "./worker-selection";
 import progressStyles from "./worker-progress.module.css";
+import { useStockAppLifecycle } from "./app-lifecycle";
+import { useWorkerPresence } from "./use-worker-presence";
+import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 
 export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null }
 
@@ -30,7 +33,16 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [now, setNow] = useState(initialNow);
-  useEffect(() => { if (managedSnapshot) setSnapshot(initial); }, [initial, managedSnapshot]);
+  const mergeSnapshot = (next: WorkerDashboardResult) => setSnapshot(previous => {
+    if (!previous.ok || !next.ok) return next;
+    return { ...next, devices: next.devices.map(row => {
+      const old = previous.devices.find(device => device.deviceId === row.deviceId);
+      return old?.lastSeenAt && (!row.lastSeenAt || Date.parse(old.lastSeenAt) > Date.parse(row.lastSeenAt)) ? old : row;
+    }) };
+  });
+  useEffect(() => { if (managedSnapshot) mergeSnapshot(initial); }, [initial, managedSnapshot]);
+  const refresh = useStockSnapshotRefresh();
+  useWorkerPresence(value => { mergeSnapshot(value); setNow(Date.now()); }, refresh);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [barHeight, setBarHeight] = useState(176);
@@ -38,11 +50,13 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   const devices = snapshot.ok ? snapshot.devices : [];
   const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
   const online = snapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
-  const controls = useStockWorkerCommands(device, online && !connectionLost, setSnapshot);
+  const baseControls = useStockWorkerCommands(device, online && !connectionLost, mergeSnapshot);
+  const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId);
+  const controls = { ...baseControls, requestRun: connectionLost ? undefined : lifecycle.requestRun, pending: baseControls.pending || lifecycle.pending };
   const { pending, message, running } = controls;
   const activeJobs = jobs.filter(job => job.status === "LEASED");
   const queued = jobs.filter(job => job.status === "QUEUED").length;
-  const selection = useDealerSelection(dealers, controls, queued > 0);
+  const selection = useDealerSelection(dealers, controls, queued > 0, jobs.filter(job => job.status === "QUEUED").map(job => job.id));
   const active = activeJobs[0];
   const latestFinished = jobs.filter(stockJobFinished).sort((left, right) => (right.startedAt ?? "").localeCompare(left.startedAt ?? ""))[0];
   const phase = device?.activity.at(-1)?.text ?? "Connected and ready";
@@ -101,8 +115,14 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
         <span className={`rounded-full border px-3 py-1 text-xs font-medium ${online ? "border-neon-blue-500/40 text-neon-blue-400" : "border-border text-text-secondary"}`}>{connectionLost ? "Reconnecting" : online ? "Connected" : snapshot.ok ? "Not connected" : "Unavailable"}</span>
       </div>
       <p className="text-sm text-text-secondary">{!snapshot.ok ? "Retrying connection. Check the app before starting more work." :
-        !online ? "Open the app and sign in to connect." :
+        !online ? "Open Stock Update to connect to this site automatically." :
         `${device?.deviceName} · ${device?.environment === "preview" ? "Preview — itrader.dev" : "Production — itrader.im"}`}</p>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" disabled={pending || connectionLost} onClick={() => void lifecycle.open()} className="min-h-11 rounded-md border border-neon-blue-400 px-4 text-sm text-neon-blue-400 disabled:opacity-50">Open Stock Update</button>
+        {online ? <button type="button" disabled={!controls.canCommand || pending} onClick={() => controls.command("close")} className="min-h-11 rounded-md border border-border px-4 text-sm text-text-primary disabled:opacity-50">Close app safely</button> : null}
+      </div>
+      {lifecycle.message ? <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p> : null}
+      {message && !online ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
       {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>
         {devices.map(row => <option key={row.deviceId} value={row.deviceId}>{row.deviceName}{fresh(row, now) ? " — connected" : " — offline"}</option>)}
@@ -127,7 +147,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
         <div className="flex flex-wrap gap-2">{buttons}</div>
       </div>
       {message ? <p role="status" className="px-4 pb-3 text-sm text-text-secondary">{message}</p> : null}
-      {device?.pendingCommand ? <p className="px-4 pb-3 text-xs text-text-secondary">{device.pendingCommand.action === "start" ? "Start" : "Safe stop"} is awaiting acknowledgement from the app.</p> : null}
+      {device?.pendingCommand ? <p className="px-4 pb-3 text-xs text-text-secondary">{device.pendingCommand.action === "start" ? "Start" : device.pendingCommand.action === "close" ? "Close app" : "Safe stop"} is awaiting acknowledgement from the app.</p> : null}
       {expanded ? <div id="stock-worker-activity" className="max-h-[35vh] overflow-y-auto border-t border-border px-4 py-3">
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Recent worker activity</h3>
         {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{device.activity.map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
@@ -135,5 +155,6 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
       </div>
     </div>
     <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} />
+    {lifecycle.dialog}
   </StockDealerSelectionProvider></StockWorkerControlProvider>;
 }
