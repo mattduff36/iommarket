@@ -22,7 +22,7 @@ function snapshot(): StockReviewSnapshot {
 }
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); vi.stubGlobal("fetch", mocks.fetch); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-const tick = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); };
+const tick = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(15_000); }); };
 describe("stock page retained snapshot", () => {
   it("retains results and selection on connection failure, then updates without navigation", async () => {
     const initial = snapshot(); mocks.fetch.mockRejectedValueOnce(new TypeError("network error"));

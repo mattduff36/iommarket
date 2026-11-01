@@ -24,6 +24,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("stock snapshot polling", () => {
+  it("uses a slower idle cadence while manual refresh remains immediate", async () => {
+    const { result } = renderHook(() => useStockSnapshot(initial, safe, valid, () => 60_000));
+    await tick(55_000);
+    expect(fetch).not.toHaveBeenCalled();
+    await tick();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => result.current.reload());
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
   it.each(["network", "http", "json", "shape"])("retains saved results after %s failure and recovers", async failure => {
     const fetchMock = vi.mocked(fetch);
     if (failure === "network") fetchMock.mockRejectedValueOnce(new TypeError("network error"));
@@ -34,7 +43,7 @@ describe("stock snapshot polling", () => {
     await tick();
     expect(result.current.snapshot).toBe(initial);
     expect(result.current.connectionLost).toBe(true);
-    await tick();
+    await tick(10_000);
     expect(result.current.snapshot).toEqual({ version: 2 });
     expect(result.current.connectionLost).toBe(false);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/stock-reviews/snapshot", expect.objectContaining({ credentials: "same-origin", cache: "no-store" }));

@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useStockReviewLayout } from "./use-review-layout";
 import type { StockReviewSnapshot } from "./snapshot-loader";
 import { isStockReviewSnapshot } from "./snapshot-validation";
+import { stockSnapshotPollInterval } from "./snapshot-poll-interval";
 import { useStockSnapshot, StockSnapshotRefreshProvider } from "./use-stock-snapshot";
 import { canRefreshStockPage } from "./refresh-guard";
 import { StockResultHistory, StockResultVisibility, StockResultActions } from "./result-history";
@@ -144,7 +145,7 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
 }
 
 export function StockReviewsClient({ initial, query, pairing, offlineStatus }: { initial: StockReviewSnapshot; query: Record<string, string | string[] | undefined>; pairing?: ReactNode; offlineStatus?: ReactNode }) {
-  const { snapshot, connectionLost, reload } = useStockSnapshot(initial, canRefreshStockPage, isStockReviewSnapshot);
+  const { snapshot, connectionLost, reload } = useStockSnapshot(initial, canRefreshStockPage, isStockReviewSnapshot, stockSnapshotPollInterval);
   const { outstanding, recentReports, jobs, profiles, dashboard, historyEntries } = snapshot;
   // Admin stock management follows the account tier, not billing entitlement.
   // Source setup is handled separately and must not hide an enabled Pro dealer.
