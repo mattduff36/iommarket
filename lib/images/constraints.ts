@@ -52,10 +52,12 @@ export function validateListingImageBounds({
   width,
   height,
   bytes,
+  purpose = "listing-upload",
 }: {
   width: number;
   height: number;
   bytes: number;
+  purpose?: "listing-upload" | "dealer-import";
 }): string | null {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "The uploaded file is empty.";
@@ -69,7 +71,11 @@ export function validateListingImageBounds({
 
   const longEdge = Math.max(width, height);
   const shortEdge = Math.min(width, height);
-  if (longEdge < IMAGE_CONSTRAINTS.minLongEdge || shortEdge < IMAGE_CONSTRAINTS.minShortEdge) {
+  // Dealer imports retain the existing stock-image ownership minimum, without upscaling.
+  if (purpose === "dealer-import" && (width < 300 || height < 200)) {
+    return "Imported dealer photos must be at least 300×200px.";
+  }
+  if (purpose !== "dealer-import" && (longEdge < IMAGE_CONSTRAINTS.minLongEdge || shortEdge < IMAGE_CONSTRAINTS.minShortEdge)) {
     return `Images must be at least ${IMAGE_CONSTRAINTS.minLongEdge}×${IMAGE_CONSTRAINTS.minShortEdge}px.`;
   }
   if (width * height > IMAGE_CONSTRAINTS.maxMegapixels * 1_000_000) {

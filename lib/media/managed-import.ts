@@ -27,7 +27,7 @@ export async function uploadManagedImport(input: { publicId: string; bytes: Buff
   const scope = assertManagedUploadsConfigured();
   await assertExternalEffectAllowed({ mediaIds: [input.publicId] });
   const format = input.contentType.replace("image/", "").replace("jpeg", "jpg");
-  const cleaned = await stripListingImageMetadata({ bytes: input.bytes, format });
+  const cleaned = await stripListingImageMetadata({ bytes: input.bytes, format, purpose: "dealer-import" });
   if (cleaned.format !== "jpg" && cleaned.format !== "png" && cleaned.format !== "webp") throw new Error("Unsupported import output.");
   const filePath = managedImportPath(scope, input.publicId, cleaned.format);
   const receipt = await db.$transaction(async (tx) => {

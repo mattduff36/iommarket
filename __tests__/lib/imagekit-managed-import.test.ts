@@ -27,6 +27,7 @@ describe("managed import receipt ownership", () => {
   it("records one immutable ownership receipt before uploading", async () => {
     expect(await uploadManagedImport({ publicId, bytes: Buffer.from("source"), contentType: "image/jpeg", order: 0 })).toMatchObject(image);
     expect(m.lock).toHaveBeenCalled();
+    expect(m.clean).toHaveBeenCalledWith(expect.objectContaining({ purpose: "dealer-import" }));
     expect(m.create.mock.invocationCallOrder[0]).toBeLessThan(m.upload.mock.invocationCallOrder[0]!);
   });
   it("refuses reuse of an import path instead of creating competing cleanup receipts", async () => {
