@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { downloadManagedImageKitBytes, requireManagedFileDetails, deleteManagedImageKitFile } from "@/lib/media/managed-io";
+import { downloadManagedImageKitBytes, requireManagedFileDetails, deleteManagedImageKitFile, uploadImmutableManagedImage } from "@/lib/media/managed-io";
+import { stripListingImageMetadata } from "@/lib/media/strip-metadata";
+import sharp from "sharp";
 
 vi.mock("@/lib/database-sync/effects", () => ({ assertExternalEffectAllowed: vi.fn() }));
 const env: NodeJS.ProcessEnv = {
@@ -15,6 +17,26 @@ describe("managed ImageKit I/O guards", () => {
   it("rejects provider dimensions below the listing minimum", async () => {
     const fetchImpl = vi.fn(async () => Response.json({ ...details, width: 385, height: 294 }));
     await expect(requireManagedFileDetails({ fileId: "file-1", filePath: path, env, fetchImpl })).rejects.toThrow("Images must be at least 800×480px.");
+  });
+
+  it("processes, uploads and verifies a dealer thumbnail through the full immutable path", async () => {
+    const source = await sharp({ create: { width: 322, height: 230, channels: 3, background: "white" } }).jpeg().withMetadata().toBuffer();
+    const clean = await stripListingImageMetadata({ bytes: source, format: "jpg", purpose: "dealer-import" });
+    const filePath = "/iommarket-media/local/imports/preview-packs/dw-cars/car/run/0.jpg";
+    const imported = { ...details, filePath, width: clean.width, height: clean.height, size: clean.bytes.length };
+    const fetchImpl = vi.fn<typeof fetch>(async (url) => {
+      const address = String(url);
+      if (address.startsWith("https://api.imagekit.io/v1/files?")) return Response.json([]);
+      if (address.startsWith("https://upload.imagekit.io/")) return Response.json(imported);
+      if (address.endsWith("/details")) return Response.json(imported);
+      if (address.startsWith("https://ik.imagekit.io/")) return new Response(new Uint8Array(clean.bytes));
+      throw new Error("Unexpected provider request");
+    });
+    await expect(uploadImmutableManagedImage({ filePath, bytes: clean.bytes, env, fetchImpl })).resolves.toEqual(imported);
+    expect(fetchImpl.mock.calls.some(([, options]) => options?.method === "POST")).toBe(true);
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).includes("tr:orig-true/"))).toBe(true);
+    const tooSmall = vi.fn(async () => Response.json({ ...imported, width: 299 }));
+    await expect(requireManagedFileDetails({ fileId: imported.fileId, filePath, env, fetchImpl: tooSmall })).rejects.toThrow(/300×200/);
   });
 
   it("requires observed private identity and never accepts a substituted path", async () => {
