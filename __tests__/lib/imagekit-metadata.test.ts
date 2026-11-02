@@ -8,6 +8,21 @@ const image = () => sharp({ create: {
 } });
 
 describe("ImageKit metadata and orientation", () => {
+  it("preserves an imported dealer thumbnail at its original size without relaxing customer uploads", async () => {
+    const bytes = await sharp({ create: { width: 322, height: 230, channels: 3, background: "white" } }).jpeg().withMetadata().toBuffer();
+    await expect(stripListingImageMetadata({ bytes, format: "jpg" })).rejects.toThrow("Images must be at least 800×480px.");
+    const result = await stripListingImageMetadata({ bytes, format: "jpg", purpose: "dealer-import" });
+    expect([result.width, result.height]).toEqual([322, 230]);
+    const metadata = await sharp(result.bytes).metadata();
+    expect(metadata.exif).toBeUndefined();
+    expect(metadata.icc).toBeUndefined();
+  });
+
+  it.each([[299, 230], [322, 199]])("rejects dealer imports below their existing minimum: %i×%i", async (width, height) => {
+    const bytes = await sharp({ create: { width, height, channels: 3, background: "white" } }).jpeg().toBuffer();
+    await expect(stripListingImageMetadata({ bytes, format: "jpg", purpose: "dealer-import" })).rejects.toThrow();
+  });
+
   it.each([1, 2, 3, 4, 5, 6, 7, 8])("records output dimensions for EXIF orientation %i", async (orientation) => {
     const bytes = await image().jpeg().withMetadata({ orientation }).toBuffer();
     const result = await stripListingImageMetadata({ bytes, format: "jpg" });

@@ -13,6 +13,7 @@ export function listingUploadFormat(fileName: string, mimeType: string) {
 export async function stripListingImageMetadata(input: {
   bytes: Buffer;
   format: string | null;
+  purpose?: "listing-upload" | "dealer-import";
 }) {
   const format = normalizeImageFormat(input.format);
   if (format === "heic" || format === "heif") {
@@ -41,6 +42,7 @@ export async function stripListingImageMetadata(input: {
       width: metadata.width ?? 0,
       height: metadata.height ?? 0,
       bytes: input.bytes.length,
+      purpose: input.purpose,
     });
     if (boundsError) throw new Error(boundsError);
   } catch (error) {
@@ -60,7 +62,7 @@ export async function stripListingImageMetadata(input: {
   // Input metadata ignores rotate(). The output bytes are the authoritative dimensions.
   const width = stripped.width ?? 0;
   const height = stripped.height ?? 0;
-  const boundsError = validateListingImageBounds({ width, height, bytes: encoded.length });
+  const boundsError = validateListingImageBounds({ width, height, bytes: encoded.length, purpose: input.purpose });
   if (boundsError) throw new Error(boundsError);
   return { bytes: encoded, width, height, format, bytesLength: encoded.length };
 }
