@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.12"
+  #define AppVersion "1.1.13"
 #endif
 #ifndef OnlineInclude
   #define OnlineInclude AddBackslash(BuildRoot) + "online-dependencies.iss"
@@ -104,9 +104,13 @@ end;
 
 procedure InitializeWizard;
 begin
-  DownloadPage := CreateDownloadPage('Downloading Stock Update components',
-    'Downloading the pinned Node.js runtime and browser components. The existing installation stays in place until the downloads are verified.',
+  DownloadPage := CreateDownloadPage('Preparing Stock Update',
+    'Please wait while the required files are downloaded and checked.',
     nil);
+  if IsAppUpdate then begin
+    WizardForm.Caption := 'Updating Stock Update';
+    WizardForm.FilenameLabel.Visible := False;
+  end;
 end;
 
 function StageExtractedDirectory(const Archive, Directory, RelativeExe: String): String;
@@ -154,7 +158,10 @@ begin
   DownloadPage.Add('{#OnlineHeadlessUrl}', 'headless.zip', '{#OnlineHeadlessSha}');
   DownloadPage.Add('{#OnlineFfmpegUrl}', 'ffmpeg.zip', '{#OnlineFfmpegSha}');
   DownloadPage.Add('{#OnlineWinlddUrl}', 'winldd.zip', '{#OnlineWinlddSha}');
-  if not WizardSilent then DownloadPage.Show;
+  if (not WizardSilent) or IsAppUpdate then begin
+    if IsAppUpdate then WizardForm.Show;
+    DownloadPage.Show;
+  end;
   try
     try
       DownloadPage.Download;
@@ -189,7 +196,7 @@ begin
         Result := GetExceptionMessage + ' The existing installation was not changed.';
     end;
   finally
-    if not WizardSilent then DownloadPage.Hide;
+    if (not WizardSilent) or IsAppUpdate then DownloadPage.Hide;
   end;
 end;
 
