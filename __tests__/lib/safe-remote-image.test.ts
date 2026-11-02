@@ -1,6 +1,7 @@
 /* @vitest-environment node */
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RemoteImageUnavailableError } from "@/lib/images/remote-image-error";
 const { httpsGet } = vi.hoisted(() => ({ httpsGet: vi.fn() }));
 vi.mock("node:https", () => ({ default: { get: httpsGet } }));
 import {
@@ -108,6 +109,33 @@ describe("SSRF-001 safe remote image downloads", () => {
     await rejected;
     expect(httpsGet).toHaveBeenCalledTimes(1);
     expect(fixture.request.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("recognises DW Cars' exact hosted missing-photo response without following it", async () => {
+    const fixture = transportFixture(302, { location: "https://freeola.com/errors/e.php?ec=404" });
+    const pending = downloadSafeRemoteImage({
+      url: "https://www.dwcars.info/images/carpix/details/slider_06733.jpg", lookupImpl: publicLookup,
+    });
+    const rejected = expect(pending).rejects.toBeInstanceOf(RemoteImageUnavailableError);
+    await fixture.ready;
+    fixture.respond();
+    await rejected;
+    expect(httpsGet).toHaveBeenCalledTimes(1);
+    expect(fixture.request.destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["https://images.example/photo.jpg", "https://freeola.com/errors/e.php?ec=404"],
+    ["https://www.dwcars.info/images/carpix/details/slider_06733.jpg", "https://freeola.com/errors/e.php?ec=500"],
+    ["https://www.dwcars.info/images/carpix/details/slider_06733.jpg", "https://freeola.com/errors/e.php?ec=404&next=https://127.0.0.1"],
+  ])("does not classify other redirects as missing photos: %s %s", async (url, location) => {
+    const fixture = transportFixture(302, { location });
+    const pending = downloadSafeRemoteImage({ url, lookupImpl: publicLookup });
+    const rejected = expect(pending).rejects.toThrow(/redirects are not allowed/);
+    await fixture.ready;
+    fixture.respond();
+    await rejected;
+    expect(httpsGet).toHaveBeenCalledTimes(1);
   });
 
   it.each(["declared", "streamed"])("destroys an oversized %s response", async (kind) => {
