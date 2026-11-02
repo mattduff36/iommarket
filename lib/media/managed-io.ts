@@ -18,7 +18,8 @@ function credentials(env: NodeJS.ProcessEnv) {
 }
 
 export async function requireManagedFileDetails(input: Target & Options) {
-  if (!FILE_ID.test(input.fileId) || !parseManagedMediaPath(input.filePath)) throw new Error("Managed file identity is invalid.");
+  const parsed = parseManagedMediaPath(input.filePath);
+  if (!FILE_ID.test(input.fileId) || !parsed) throw new Error("Managed file identity is invalid.");
   const env = input.env ?? process.env;
   credentials(env);
   const observed = await getImageKitFileDetails(input);
@@ -26,7 +27,10 @@ export async function requireManagedFileDetails(input: Target & Options) {
     throw new Error("ImageKit file identity does not match the upload intent.");
   }
   if (observed.isPrivateFile !== true || observed.fileType !== "image") throw new Error("The upload must be a private image.");
-  const boundsError = validateListingImageBounds({ width: observed.width, height: observed.height, bytes: observed.size });
+  const boundsError = validateListingImageBounds({
+    width: observed.width, height: observed.height, bytes: observed.size,
+    purpose: parsed.kind === "imports" ? "dealer-import" : "listing-upload",
+  });
   if (boundsError) throw new Error(boundsError);
   return observed;
 }
