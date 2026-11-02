@@ -13,7 +13,7 @@ public enum AppEnvironment
 
 public static class Targets
 {
-    public const string ClientVersion = "1.1.11";
+    public const string ClientVersion = "1.1.12";
     public const string PreviewHost = "itrader.dev";
     public const string ProductionHost = "itrader.im";
 

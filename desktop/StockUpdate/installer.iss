@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.11"
+  #define AppVersion "1.1.12"
 #endif
 #ifndef OnlineInclude
   #define OnlineInclude AddBackslash(BuildRoot) + "online-dependencies.iss"
@@ -37,6 +37,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 AppMutex=Local\iTrader.StockUpdate.SingleInstance
 CloseApplications=no
 RestartApplications=no
+ChangesAssociations=yes
 DisableProgramGroupPage=yes
 DisableDirPage=no
 UsePreviousAppDir=yes

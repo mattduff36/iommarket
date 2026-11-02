@@ -122,6 +122,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
         {online ? <button type="button" disabled={!controls.canCommand || pending} onClick={() => controls.command("close")} className="min-h-11 rounded-md border border-border px-4 text-sm text-text-primary disabled:opacity-50">Close app safely</button> : null}
       </div>
       {lifecycle.message ? <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p> : null}
+      {lifecycle.launchFallback}
       {message && !online ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
       {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>

@@ -9,7 +9,7 @@ import type { StockWorkerControl } from "@/app/(admin)/admin/stock-reviews/worke
 function Harness({ online = false, target = "device:instance" }: { online?: boolean; target?: string }) {
   const controls = { online, target, running: false, pending: false, stopping: false, dispatch: mocks.dispatch } as unknown as StockWorkerControl;
   const lifecycle = useStockAppLifecycle(controls);
-  return <><button onClick={() => void lifecycle.requestRun(mocks.task)}>Run task</button>{lifecycle.dialog}<p>{lifecycle.message}</p></>;
+  return <><button onClick={() => void lifecycle.requestRun(mocks.task)}>Run task</button>{lifecycle.dialog}<p>{lifecycle.message}</p>{lifecycle.launchFallback}</>;
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,6 +35,15 @@ it("queues once after confirmation and launches only those jobs as a temporary t
   expect(mocks.task).toHaveBeenCalledTimes(1);
   expect(mocks.launch).toHaveBeenCalledExactlyOnceWith({ mode: "task", jobIds: ["job-one"] });
   expect(mocks.dispatch).not.toHaveBeenCalled();
+});
+it("retries the same protocol launch from a direct click without queuing or minting twice", async () => {
+  render(<Harness />);
+  fireEvent.click(screen.getByText("Run task"));
+  fireEvent.click(screen.getByText("Start app and continue"));
+  fireEvent.click(await screen.findByText("Open app if it did not start"));
+  expect(mocks.navigate).toHaveBeenCalledTimes(2);
+  expect(mocks.task).toHaveBeenCalledTimes(1);
+  expect(mocks.launch).toHaveBeenCalledTimes(1);
 });
 it("does not launch after an unsuccessful action, and never retries an uncertain action", async () => {
   mocks.task.mockRejectedValue(new Error("response lost"));

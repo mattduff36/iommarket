@@ -18,6 +18,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [launchId, setLaunchId] = useState<string | null>(null);
+  const [launchUrl, setLaunchUrl] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{ task: StockAppTask; resolve: () => void } | null>(null);
   const confirmationRef = useRef(confirmation);
   confirmationRef.current = confirmation;
@@ -30,11 +31,13 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     if (!launchId) return;
     if (connectedLaunchId === launchId) {
       setLaunchId(null);
+      setLaunchUrl(null);
       setMessage("Stock Update received the request. Check task results below.");
       return;
     }
     const timeout = window.setTimeout(() => {
       setLaunchId(null);
+      setLaunchUrl(null);
       setMessage("The app has not connected. Allow the browser’s Open Stock Update prompt and install the latest app if needed. Any queued tasks are saved; check their status before trying again.");
     }, 45_000);
     return () => clearTimeout(timeout);
@@ -45,6 +48,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     if (!result.ok) throw new Error(result.error);
     if (!mounted.current) return;
     setLaunchId(result.launchId);
+    setLaunchUrl(result.url);
     setMessage("Opening Stock Update. Allow the browser prompt if it appears.");
     openStockUpdateProtocol(result.url);
   }
@@ -107,5 +111,6 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
       </div>
     </DialogContent>
   </Dialog>;
-  return { requestRun, open, pending: pending || launchId !== null, message, dialog };
+  const launchFallback = launchUrl ? <button type="button" className="min-h-11 rounded-md border border-neon-blue-400 px-4 text-sm text-neon-blue-400" onClick={() => openStockUpdateProtocol(launchUrl)}>Open app if it did not start</button> : null;
+  return { requestRun, open, pending: pending || launchId !== null, message, dialog, launchFallback };
 }
