@@ -61,3 +61,8 @@ export function chooseLeasableJob<T extends LeasableJob>(jobs: T[], now: Date) {
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))[0] ?? null
   );
 }
+
+/** Preserve the existing binding lock while restricting an ephemeral run. */
+export const SCOPED_LEASE_JOB_SQL = LEASE_JOB_SQL.replace(
+  '  AND NOT EXISTS (', '  AND candidate."id" = ANY($3::text[])\n  AND NOT EXISTS (',
+);

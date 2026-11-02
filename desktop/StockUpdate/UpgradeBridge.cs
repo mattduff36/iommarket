@@ -27,7 +27,7 @@ internal static class UpgradeBridge
                 try { using (var process = Process.GetProcessById(parent)) { if (!process.WaitForExit(30000)) return 1; } }
                 catch (ArgumentException) { /* Setup already exited. */ }
                 Process.Start(new ProcessStartInfo(installer,
-                    "/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /UPDATEAPP=1 /DIR=" + Quote(directory))
+                    "/SP- /SILENT /NORESTART /NOCLOSEAPPLICATIONS /UPDATEAPP=1 /DIR=" + Quote(directory))
                     { UseShellExecute = true });
             }
             return 0;

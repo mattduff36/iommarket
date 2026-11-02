@@ -3,8 +3,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 import { commandWorker, getWorkerDashboard } from "./worker-actions";
+import type { StockAppRun } from "./app-lifecycle";
 
-export type StockWorkerCommandAction = "start" | "stop";
+export type StockWorkerCommandAction = "start" | "stop" | "close";
 export type StockWorkerCommandOutcome = "ok" | "failed" | "uncertain" | "skipped";
 
 export type StockWorkerControlDevice = {
@@ -15,6 +16,7 @@ export type StockWorkerControlDevice = {
 };
 
 export type StockWorkerControl = {
+  requestRun?: StockAppRun;
   target: string | null;
   online: boolean;
   running: boolean;
@@ -55,6 +57,8 @@ export function useStockWorkerControl() {
   if (!value) throw new Error("Stock worker controls are available inside the stock reviews dashboard.");
   return value;
 }
+
+export function useOptionalStockWorkerControl() { return useContext(StockWorkerControlContext); }
 
 export function useStockWorkerCommands(
   device: StockWorkerControlDevice | undefined,

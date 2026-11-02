@@ -62,12 +62,13 @@ public sealed class WorkerControlClient : IDisposable
         IReadOnlyList<WorkerActivityItem> activity,
         Guid? acknowledgedCommandId,
         string bearer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? launchId = null)
     {
         if (!TokenShapes.Base64Url(bearer, 43) || !WorkerControlState.IsRuntime(state) || activity.Count > WorkerControlState.MaxEvents)
             return ApiCall<WorkerControlCommand?>.Fail("invalid_request");
         string json;
-        try { json = WriteBody(instanceId, state, activity, acknowledgedCommandId); }
+        try { json = WriteBody(instanceId, state, activity, acknowledgedCommandId, launchId); }
         catch (InvalidOperationException) { return ApiCall<WorkerControlCommand?>.Fail("invalid_request"); }
         if (!Targets.TryFixedHttps(Environment, "/api/stock-worker/control", null, out var uri))
             return ApiCall<WorkerControlCommand?>.Fail("invalid_request");
@@ -95,7 +96,7 @@ public sealed class WorkerControlClient : IDisposable
         catch (Exception ex) when (ex is HttpRequestException or IOException) { return ApiCall<WorkerControlCommand?>.Fail("unavailable"); }
     }
 
-    private static string WriteBody(Guid instanceId, string state, IReadOnlyList<WorkerActivityItem> activity, Guid? acknowledgedCommandId)
+    private static string WriteBody(Guid instanceId, string state, IReadOnlyList<WorkerActivityItem> activity, Guid? acknowledgedCommandId, Guid? launchId)
     {
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream);
@@ -103,6 +104,7 @@ public sealed class WorkerControlClient : IDisposable
         writer.WriteString("op", "heartbeat");
         writer.WriteString("instanceId", instanceId.ToString("D"));
         writer.WriteString("state", state);
+        if (launchId is Guid launch) writer.WriteString("launchId", launch.ToString("D"));
         writer.WritePropertyName("activity");
         writer.WriteStartArray();
         var previous = 0;
@@ -143,7 +145,7 @@ public sealed class WorkerControlClient : IDisposable
             var id = Text(node, "id");
             var instance = Text(node, "instanceId");
             var action = Text(node, "action");
-            if (!Uuid(id) || !Uuid(instance) || action is not ("start" or "stop")) return false;
+            if (!Uuid(id) || !Uuid(instance) || action is not ("start" or "stop" or "close")) return false;
             command = new WorkerControlCommand(Guid.ParseExact(id!.ToLowerInvariant(), "D"), Guid.ParseExact(instance!.ToLowerInvariant(), "D"), action);
             return true;
         }

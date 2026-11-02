@@ -21,7 +21,7 @@ const FAIL_REASONS = ["source_unavailable", "browser_failed", "timed_out", "inco
 const jobId = z.string().regex(JOB_ID);
 const leaseToken = z.string().regex(LEASE_TOKEN);
 const checkBody = z.object({ op: z.literal("check") }).strict();
-const leaseBody = z.object({ op: z.literal("lease") }).strict();
+const leaseBody = z.object({ op: z.literal("lease"), jobIds: z.array(jobId).min(1).max(100).refine(ids => new Set(ids).size === ids.length).optional() }).strict();
 const heartbeatBody = z.object({ op: z.literal("heartbeat"), jobId, leaseToken }).strict();
 const submitBody = z.object({ op: z.literal("submit"), jobId, leaseToken, result: z.unknown() }).strict();
 const failBody = z.object({
@@ -114,6 +114,7 @@ export interface DesktopJobDependencies {
     owner: string,
     now: Date,
     guard: DesktopJobGuard,
+    jobIds?: string[],
   ) => Promise<{ id: string; owner: string } | null>;
   runLeasedJob: (
     lease: { id: string; owner: string },
@@ -140,6 +141,7 @@ export interface DesktopJobFailure {
 
 export type DesktopJobSuccessBody =
   | { ready: true }
+  | { job: null; pending: boolean }
   | { job: { id: string; kind: "SCRAPE" | "APPLY"; registryKey: string; leaseToken: string } | null }
   | { status: "extended" | "continue" | "succeeded" | "failed" };
 
@@ -326,17 +328,26 @@ async function lease(
   principal: DesktopPrincipal,
   guard: DesktopJobGuard,
   now: Date,
+  jobIds?: string[],
 ): Promise<DesktopJobResponse> {
   const token = deps.randomBytes(32).toString("base64url");
   if (!LEASE_TOKEN.test(token)) return failure(503, "unavailable");
   const owner = desktopLeaseOwner(principal, token);
   let leased: { id: string; owner: string } | null;
   try {
-    leased = await deps.leaseOneJob(owner, now, guard);
+    leased = await deps.leaseOneJob(owner, now, guard, jobIds);
   } catch {
     return failure(503, "unavailable");
   }
-  if (!leased) return success({ job: null });
+  if (!leased) {
+    if (!jobIds) return success({ job: null });
+    // No available lease may mean a binding is busy, not that this task ended.
+    const scoped = await Promise.all(jobIds.map(id => readJob(deps, id)));
+    if (scoped.some(job => job === "down")) return failure(503, "unavailable");
+    if (scoped.some(job => job === null)) return failure(409, "conflict");
+    const pending = scoped.some(job => job !== null && job !== "down" && (job.status === "QUEUED" || job.status === "LEASED"));
+    return success({ job: null, pending });
+  }
   if (leased.owner !== owner) return failure(503, "unavailable");
   const job = await readJob(deps, leased.id);
   if (job === "down") return failure(503, "unavailable");
@@ -548,7 +559,7 @@ export async function handleDesktopJob(
   if (!body) return failure(400, "invalid_request");
   const now = deps.now();
   if (body.op === "check") return check(deps);
-  if (body.op === "lease") return lease(deps, gated.principal, gated.guard, now);
+  if (body.op === "lease") return lease(deps, gated.principal, gated.guard, now, body.jobIds);
   if (body.op === "heartbeat") return heartbeat(deps, gated.principal, body);
   if (body.op === "submit") return submit(deps, gated.principal, gated.guard, body, now);
   if (body.op === "fail") return fail(deps, gated.principal, body, now);

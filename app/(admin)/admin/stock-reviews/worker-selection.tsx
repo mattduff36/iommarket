@@ -5,18 +5,39 @@ import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 import { enqueueDealerStockScrape } from "@/actions/admin/dealer-stock-sync";
 import type { StockWorkerControl } from "./worker-context";
 export type StockDealer = { id: string; name: string };
-export function useDealerSelection(dealers: StockDealer[], controls: StockWorkerControl, hasQueuedWork = false) {
+export function useDealerSelection(dealers: StockDealer[], controls: StockWorkerControl, hasQueuedWork = false, queuedJobIds: string[] = []) {
   const router = useRouter();
   const reloadSnapshot = useStockSnapshotRefresh();
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const eligible = selected.filter(id => dealers.some(dealer => dealer.id === id));
-  const canAct = controls.canCommand && (controls.running || eligible.length > 0 || hasQueuedWork);
+  const canAct = (controls.canCommand || (Boolean(controls.requestRun) && !controls.online && !controls.pending)) && (controls.running || eligible.length > 0 || hasQueuedWork);
   function startOrStop() {
     if (!canAct) return;
     if (controls.running) { controls.command("stop"); return; }
     const target = controls.target;
     const chosen = dealers.filter(dealer => eligible.includes(dealer.id));
+    if (controls.requestRun) {
+      void controls.requestRun(async () => {
+        setMessage("");
+        const ids: string[] = [];
+        const queuedDealers: string[] = [];
+        const failures: string[] = [];
+        try {
+          for (const dealer of chosen) {
+            try {
+              const result = await enqueueDealerStockScrape({ dealerId: dealer.id });
+              if (result.error) failures.push(`${dealer.name}: ${result.error}`);
+              else if (result.data?.jobId) { ids.push(result.data.jobId); queuedDealers.push(dealer.id); }
+            } catch { failures.push(`${dealer.name}: request outcome is uncertain. Check run history before trying again.`); }
+          }
+          setSelected(current => current.filter(id => !queuedDealers.includes(id)));
+          setMessage(`${chosen.length && !ids.length ? "No dealer scans were queued. " : ""}${failures.join(" ")}`.trim());
+          return chosen.length ? ids : queuedJobIds;
+        } finally { if (reloadSnapshot) reloadSnapshot(); else router.refresh(); }
+      });
+      return;
+    }
     if (!controls.tryAcquire()) return;
     setMessage("");
     void (async () => {

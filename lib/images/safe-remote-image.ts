@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import https from "node:https";
 import { isIP } from "node:net";
 import { IMAGE_CONSTRAINTS } from "@/lib/images/constraints";
+import { RemoteImageUnavailableError } from "@/lib/images/remote-image-error";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -157,6 +158,10 @@ function pinnedHttpsDownload(input: Parameters<PinnedImageTransport>[0]) {
       },
       (response) => {
         const status = response.statusCode ?? 500;
+        if (status === 403 || status === 404 || status === 410) {
+          finish(new RemoteImageUnavailableError(status));
+          return;
+        }
         if (status < 200 || status >= 300) {
           finish(new Error(
             status >= 300 && status < 400

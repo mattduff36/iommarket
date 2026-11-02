@@ -61,6 +61,7 @@ export interface WorkerCommandView {
 }
 
 export interface WorkerDashboardDevice {
+  launchId?: string;
   deviceId: string;
   deviceName: string;
   environment: DesktopEnvironment;
@@ -130,6 +131,7 @@ function heartbeatBody(nowMs: number) {
   return z.object({
     op: z.literal("heartbeat"),
     instanceId: uuid,
+    launchId: uuid.optional(),
     state: runtimeStateSchema,
     activity: z.array(event).max(40),
     acknowledgedCommandId: uuid.nullable(),
@@ -147,7 +149,7 @@ function heartbeatBody(nowMs: number) {
 const commandBody = z.object({
   deviceId: z.string().regex(DEVICE_ID),
   instanceId: uuid,
-  action: z.enum(["start", "stop"]),
+  action: z.enum(["start", "stop", "close"]),
 }).strict();
 
 function gateOf(deps: WorkerControlDependencies) {
@@ -170,7 +172,7 @@ async function allowRate(
 }
 
 function presenceOnline(presence: WorkerPresenceRecord | null, nowMs: number): boolean {
-  if (!presence) return false;
+  if (!presence || presence.state === "disconnected") return false;
   if (Date.parse(presence.lastSeenAt) !== presence.lastSeenMs) return false;
   const age = nowMs - presence.lastSeenMs;
   return age >= 0 && age <= WORKER_ONLINE_WINDOW_MS;
@@ -247,6 +249,7 @@ export async function handleWorkerHeartbeat(
   const seen = deps.now();
   const presence: WorkerPresenceRecord = {
     instanceId: parsed.data.instanceId,
+    ...(parsed.data.launchId ? { launchId: parsed.data.launchId } : {}),
     state: parsed.data.state,
     activity: parsed.data.activity.map((event) => ({ ...event })),
     lastSeenAt: new Date(seen).toISOString(),
@@ -291,6 +294,7 @@ export async function readWorkerDashboard(
         deviceName: device.deviceName,
         environment: device.environment,
         instanceId: snapshot.presence.instanceId,
+        ...(snapshot.presence.launchId ? { launchId: snapshot.presence.launchId } : {}),
         state: snapshot.presence.state,
         online,
         lastSeenAt: snapshot.presence.lastSeenAt,

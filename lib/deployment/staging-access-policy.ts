@@ -24,6 +24,7 @@ const MACHINE_PATHS = new Set([
   "/api/stock-worker/jobs",
   "/api/stock-worker/control",
   "/api/stock-worker/update",
+  "/api/stock-worker/launch", // One-use admin launch tickets authenticate inside the handler.
   "/api/auth/send-email",
   "/api/cron/preview-mirror",
   "/api/webhooks/payments", "/api/webhooks/ripple", "/api/webhooks/ripple-staging",

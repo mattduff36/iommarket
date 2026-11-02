@@ -112,6 +112,17 @@ public sealed class WorkerApiClient : IDisposable
         return ApiCall<bool>.Fail(call.Value.StatusCode is >= 300 and < 400 ? "redirect_rejected" : MapStatus(call.Value));
     }
 
+    public async Task<ApiCall<LaunchReply>> RedeemLaunchAsync(LaunchRequest launch, string? bearer, CancellationToken token)
+    {
+        if (launch.Environment != Environment || !TokenShapes.Base64Url(launch.Ticket, 43)) return ApiCall<LaunchReply>.Fail("invalid_request");
+        var body = JsonSerializer.Serialize(new { op = "redeem", ticket = launch.Ticket, deviceName = SafeText.DeviceName(), clientVersion = Targets.ClientVersion });
+        var call = await PostAsync(body, bearer, token, "/api/stock-worker/launch");
+        if (!call.Ok || call.Value is null) return ApiCall<LaunchReply>.Fail(call.ErrorCode);
+        if (call.Value.StatusCode == 200 && call.Value.Json is not null && LaunchReply.TryParse(call.Value.Json, Environment, out var reply))
+            return ApiCall<LaunchReply>.Success(reply);
+        return ApiCall<LaunchReply>.Fail(MapStatus(call.Value));
+    }
+
     private static bool IsRevoked(string json) => HasStatus(json, "revoked");
 
     private static bool HasStatus(string? json, string expected)
@@ -150,9 +161,9 @@ public sealed class WorkerApiClient : IDisposable
         }
     }
 
-    private async Task<ApiCall<RawReply>> PostAsync(string json, string? bearer, CancellationToken cancellationToken)
+    private async Task<ApiCall<RawReply>> PostAsync(string json, string? bearer, CancellationToken cancellationToken, string path = "/api/stock-worker")
     {
-        if (!Targets.TryFixedHttps(Environment, "/api/stock-worker", null, out var uri))
+        if (!Targets.TryFixedHttps(Environment, path, null, out var uri))
             return ApiCall<RawReply>.Fail("invalid_request");
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
