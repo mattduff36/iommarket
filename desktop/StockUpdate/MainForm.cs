@@ -43,6 +43,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     private bool _closing;
     private bool _shuttingDown;
     private bool _launchControlStarted;
+    private bool _connected;
 
     public MainForm(string? initialLaunch = null)
     {
@@ -169,7 +170,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
             Text = "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")";
         _session = _store.TryLoad(Selected);
         _account.Text = _session is null ? "Not signed in" : _session.Account.Name + " (" + _session.Account.Email + ")";
-        SetStatus(_session is null ? "Idle" : "Signed in");
+        SetStatus(_session is null ? "Not signed in" : "Checking saved sign-in");
         UpdateButtons();
     }
 
@@ -180,8 +181,9 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         _switchSite.Enabled = !running && !_busy && !_shuttingDown;
         _switchSite.Text = Selected == AppEnvironment.Preview ? "Switch to production site" : "Switch to preview site";
         _signIn.Enabled = !running && !_busy;
+        _signIn.Text = _session is null ? "Sign in" : _connected ? "Open Stock Reviews" : "Reconnect";
         _simpleSignIn.Enabled = !_busy;
-        _simpleSignIn.Text = _session is not null && _control is not null && !_control.State.Paused ? "Open Stock Reviews" : "Sign in";
+        _simpleSignIn.Text = _signIn.Text;
         _cancel.Enabled = _busy && !running;
         _simpleCancel.Enabled = _busy && !running;
         _signOut.Enabled = !running && !_busy && _session is not null;
@@ -442,6 +444,8 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     {
         var previous = _control;
         _control = next;
+        _connected = false;
+        if (next is not null) SetStatus("Connecting to Stock Reviews");
         if (previous is not null) _ = previous.DisconnectAsync();
     }
 
@@ -449,6 +453,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     {
         _store.Clear(Selected);
         _session = null;
+        _connected = false;
         _account.Text = "Not signed in";
         SetStatus("Not signed in");
     }
@@ -465,7 +470,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         if (!IsDisposed)
         {
             if (_session is null) SetStatus("Not signed in");
-            else if (_runner is not { IsRunning: true } && _control is null) SetStatus("Signed in");
+            else if (_runner is not { IsRunning: true } && _control is null) SetStatus("Connection not confirmed. Click Reconnect.");
             UpdateButtons();
         }
         if ((_closing || _shuttingDown || _autoCloseTask) && _runner is null && !IsDisposed) Close();
@@ -480,7 +485,8 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
     void IWorkerControlUi.OnConnected()
     {
-        if (_runner is not { IsRunning: true }) SetStatus("Connected — use Stock Reviews to start work");
+        _connected = true;
+        if (_runner is not { IsRunning: true }) SetStatus("Signed in and connected — ready to start work");
         UpdateButtons();
     }
 
@@ -494,6 +500,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
     void IWorkerControlUi.OnControlLost(string errorCode)
     {
+        _connected = false;
         if (errorCode == "unauthorized") ClearLocalSession();
         else SetStatus("Control disconnected");
         Note(errorCode switch

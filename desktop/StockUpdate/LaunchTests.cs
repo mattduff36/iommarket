@@ -18,8 +18,9 @@ public static class LaunchTests
     public static void Parser()
     {
         Assert(LaunchRequest.TryParse(Link, out var launch) && launch.Environment == AppEnvironment.Production);
+        Assert(LaunchRequest.TryParse(Link.Replace("launch?", "launch/?"), out var normalized) && normalized == launch);
         Assert(!launch.ToString().Contains(Token));
-        foreach (var invalid in new[] { Link + "#x", Link + "&x=1", Link + "&ticket=" + Token, Link.Replace("launch?", "launch/?"),
+        foreach (var invalid in new[] { Link + "#x", Link + "&x=1", Link + "&ticket=" + Token, Link.Replace("launch?", "launch//?"),
             Link.Replace("launch?", "launch:443?"), Link.Replace("launch?", "user@launch?"), Link.Replace("production", "local"), Link.Replace("ticket=", "ticket=%61"), Link + "\n", Link.ToUpperInvariant(), " " + Link })
             Assert(!LaunchRequest.TryParse(invalid, out _));
         Assert(LaunchReply.TryParse(Reply(), AppEnvironment.Production, out var task) && task.JobIds.SequenceEqual(new[] { Job }));

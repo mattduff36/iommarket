@@ -5,12 +5,13 @@ namespace StockUpdate;
 
 public sealed record LaunchRequest(AppEnvironment Environment, string Ticket)
 {
-    // Match original bytes, not URI-normalized aliases or percent escapes.
+    // Windows ShellExecute inserts an empty path slash after the authority.
+    // Accept only that equivalent form; never accept aliases or percent escapes.
     public static bool TryParse(string? value, out LaunchRequest request)
     {
         request = null!;
         if (value is null || value.Length > 180) return false;
-        var match = Regex.Match(value, @"\Aitrader-stock-update://launch\?environment=(preview|production)&ticket=([A-Za-z0-9_-]{43})\z", RegexOptions.CultureInvariant);
+        var match = Regex.Match(value, @"\Aitrader-stock-update://launch/?\?environment=(preview|production)&ticket=([A-Za-z0-9_-]{43})\z", RegexOptions.CultureInvariant);
         if (!match.Success || !Targets.TryParse(match.Groups[1].Value, out var environment)) return false;
         request = new LaunchRequest(environment, match.Groups[2].Value);
         return true;
