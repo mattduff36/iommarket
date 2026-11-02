@@ -8,6 +8,7 @@ import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
+import { useOptionalStockWorkerControl } from "../../../stock-reviews/worker-context";
 
 export interface StockReviewSelection { indexes: number[]; setIndexes: (indexes: number[]) => void }
 export function StockReviewSelectionControls({ reportId, fingerprint, actions, selection, onPendingChange }: {
@@ -16,6 +17,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
 }) {
   const router = useRouter();
   const reload = useStockSnapshotRefresh();
+  const worker = useOptionalStockWorkerControl();
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{error?: string; message?: string}>({});
   const chosen = selection.indexes.map(index => actions[index]).filter(Boolean);
@@ -25,16 +27,21 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
   const canDraft = chosen.length > 0 && chosen.every(isDraftableStockAction);
   function run(operation: "approve" | "reject" | "draft", actionIndexes: number[]) {
     setFeedback({});
-    onPendingChange?.(true);
     startTransition(async () => {
+      const perform = async (): Promise<string[]> => {
+      onPendingChange?.(true);
       try {
         const result = await reviewDealerStockSelection({ reportId, fingerprint, operation, actionIndexes });
-        if ("error" in result) { setFeedback({error: result.error ?? "Could not update this review."}); return; }
+        if ("error" in result) { setFeedback({error: result.error ?? "Could not update this review."}); return []; }
         selection.setIndexes([]);
         setFeedback({message: "warning" in result && typeof result.warning === "string" ? result.warning : operation === "approve" ? "Selected listings queued for approval. Other items remain for review." : operation === "draft" ? "Selected listings sent to the dealer's drafts." : "Selected items cleared. Listings have not been deleted."});
         if (reload) reload(); else router.refresh();
-      } catch { setFeedback({error: "Could not update this review. Refresh the results and try again."}); }
+        return result.data.jobId ? [result.data.jobId] : [];
+      } catch { setFeedback({error: "Could not update this review. Refresh the results and try again."}); return []; }
       finally { onPendingChange?.(false); }
+      };
+      if (operation === "approve" && worker?.requestRun) await worker.requestRun(perform);
+      else await perform();
     });
   }
   return <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 sm:bottom-0 space-y-3 rounded-lg border border-neon-blue-500/30 bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-high" aria-label="Review actions" aria-busy={pending}>

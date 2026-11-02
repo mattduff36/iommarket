@@ -3,7 +3,7 @@
   #error BuildRoot must name the verified private payload directory.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.1.10"
+  #define AppVersion "1.1.14"
 #endif
 #ifndef OnlineInclude
   #define OnlineInclude AddBackslash(BuildRoot) + "online-dependencies.iss"
@@ -37,6 +37,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 AppMutex=Local\iTrader.StockUpdate.SingleInstance
 CloseApplications=no
 RestartApplications=no
+ChangesAssociations=yes
 DisableProgramGroupPage=yes
 DisableDirPage=no
 UsePreviousAppDir=yes
@@ -71,6 +72,11 @@ Source: "{tmp}\online-runtime\LICENSE.node.txt"; DestDir: "{app}\runtime"; Flags
 Source: "{tmp}\online-browsers\*"; DestDir: "{app}\browsers"; Flags: external ignoreversion recursesubdirs createallsubdirs
 Source: "{#BuildRoot}\client-readme.txt"; DestDir: "{app}"; Flags: ignoreversion
 
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\itrader-stock-update"; ValueType: string; ValueName: ""; ValueData: "URL:iTrader Stock Update"
+Root: HKCU; Subkey: "Software\Classes\itrader-stock-update"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\itrader-stock-update\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\StockUpdate.exe"" ""%1"""
+
 [Icons]
 Name: "{autoprograms}\iTrader\Stock Update"; Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\iTrader Stock Update"; Filename: "{app}\StockUpdate.exe"; WorkingDir: "{app}"; Tasks: desktopicon
@@ -98,9 +104,13 @@ end;
 
 procedure InitializeWizard;
 begin
-  DownloadPage := CreateDownloadPage('Downloading Stock Update components',
-    'Downloading the pinned Node.js runtime and browser components. The existing installation stays in place until the downloads are verified.',
+  DownloadPage := CreateDownloadPage('Preparing Stock Update',
+    'Please wait while the required files are downloaded and checked.',
     nil);
+  if IsAppUpdate then begin
+    WizardForm.Caption := 'Updating Stock Update';
+    WizardForm.FilenameLabel.Visible := False;
+  end;
 end;
 
 function StageExtractedDirectory(const Archive, Directory, RelativeExe: String): String;
@@ -148,7 +158,10 @@ begin
   DownloadPage.Add('{#OnlineHeadlessUrl}', 'headless.zip', '{#OnlineHeadlessSha}');
   DownloadPage.Add('{#OnlineFfmpegUrl}', 'ffmpeg.zip', '{#OnlineFfmpegSha}');
   DownloadPage.Add('{#OnlineWinlddUrl}', 'winldd.zip', '{#OnlineWinlddSha}');
-  if not WizardSilent then DownloadPage.Show;
+  if (not WizardSilent) or IsAppUpdate then begin
+    if IsAppUpdate then WizardForm.Show;
+    DownloadPage.Show;
+  end;
   try
     try
       DownloadPage.Download;
@@ -183,7 +196,7 @@ begin
         Result := GetExceptionMessage + ' The existing installation was not changed.';
     end;
   finally
-    if not WizardSilent then DownloadPage.Hide;
+    if (not WizardSilent) or IsAppUpdate then DownloadPage.Hide;
   end;
 end;
 
@@ -219,4 +232,14 @@ begin
     'Setup needs an internet connection to download the pinned Node.js runtime and browser components. If that download is cancelled or fails verification, any existing installation is left unchanged.' + #13#10 + #13#10 +
     'It includes both Preview and Production. Choose the environment explicitly in the app. Production access is restricted to authorised administrators. The selected website must have desktop access configured before sign-in works. Installation does not activate stock updates or run jobs.' + #13#10 + #13#10 +
     'Continue with installation?', mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Command: String;
+begin
+  if (CurUninstallStep = usUninstall) and
+    RegQueryStringValue(HKCU, 'Software\Classes\itrader-stock-update\shell\open\command', '', Command) and
+    (CompareText(Command, ExpandConstant('"{app}\StockUpdate.exe" "%1"')) = 0) then
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\itrader-stock-update');
 end;

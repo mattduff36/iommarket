@@ -43,9 +43,13 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     private bool _closing;
     private bool _shuttingDown;
     private bool _launchControlStarted;
+    private bool _connected;
 
-    public MainForm()
+    public MainForm(string? initialLaunch = null)
     {
+        _initialLaunch = initialLaunch;
+        _webOwned = initialLaunch is not null;
+        if (_webOwned) { WindowState = FormWindowState.Minimized; ShowInTaskbar = false; }
         Text = "iTrader Stock Update";
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96f, 96f);
@@ -118,7 +122,10 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         LoadEnvironment();
         Note("Manual controls only. A finished-processing line is not treated as success.");
         ResumeLayout(true);
-        Shown += async (_, _) => await LaunchWithUpdateAsync();
+        Shown += async (_, _) => {
+            if (_initialLaunch is string launch) { _initialLaunch = null; await AcceptLaunchAsync(launch); }
+            else await LaunchWithUpdateAsync();
+        };
     }
 
     private AppEnvironment Selected => _site.Environment;
@@ -163,7 +170,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
             Text = "iTrader Stock Update - " + Targets.WireName(Selected) + " (" + Targets.Host(Selected) + ")";
         _session = _store.TryLoad(Selected);
         _account.Text = _session is null ? "Not signed in" : _session.Account.Name + " (" + _session.Account.Email + ")";
-        SetStatus(_session is null ? "Idle" : "Signed in");
+        SetStatus(_session is null ? "Not signed in" : "Checking saved sign-in");
         UpdateButtons();
     }
 
@@ -174,8 +181,9 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         _switchSite.Enabled = !running && !_busy && !_shuttingDown;
         _switchSite.Text = Selected == AppEnvironment.Preview ? "Switch to production site" : "Switch to preview site";
         _signIn.Enabled = !running && !_busy;
+        _signIn.Text = _session is null ? "Sign in" : _connected ? "Open Stock Reviews" : "Reconnect";
         _simpleSignIn.Enabled = !_busy;
-        _simpleSignIn.Text = _session is not null && _control is not null && !_control.State.Paused ? "Open Stock Reviews" : "Sign in";
+        _simpleSignIn.Text = _signIn.Text;
         _cancel.Enabled = _busy && !running;
         _simpleCancel.Enabled = _busy && !running;
         _signOut.Enabled = !running && !_busy && _session is not null;
@@ -290,7 +298,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
             }
             if (ticket is int generation && _control is not null && !_control.State.CompleteStart(generation)) return;
             var root = Path.GetFullPath(AppContext.BaseDirectory);
-            if (!WorkerProcess.TryCreatePlan(root, Selected, session.AccessToken, mode, ParentEnvironment(), out var plan, out var error))
+            if (!WorkerProcess.TryCreatePlan(root, Selected, session.AccessToken, mode, ParentEnvironment(), out var plan, out var error, _taskJobIds))
             {
                 Note(SafeText.MapError(error));
                 if (commandGeneration is not null) _control?.State.FailStart();
@@ -327,6 +335,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
                 {
                     if (!ReferenceEquals(_runner, observed)) return;
                     _runner = null;
+                    _taskJobIds = null;
                     var expected = _control?.State.StopWorker == true || _control?.State.RuntimeState is "stopping" or "stopped";
                     if (mode == "check") _control?.State.MarkStopped();
                     else _control?.State.ObserveExit();
@@ -337,7 +346,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
                         ? "Worker stopped. The app stays connected so the website can start it again."
                         : "The worker process exited and was not restarted. Review the activity. A generic finished line is not verified success.");
                     UpdateButtons();
-                    if (_closing || _shuttingDown) Close();
+                    if (_closing || _shuttingDown || _autoCloseTask) Close();
                 });
             });
         }
@@ -350,8 +359,9 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         finally
         {
             _busy = false;
+            if (_runner is null) _taskJobIds = null;
             if (!IsDisposed) UpdateButtons();
-            if ((_closing || _shuttingDown) && _runner is null && !IsDisposed) Close();
+            if ((_closing || _shuttingDown || _autoCloseTask) && _runner is null && !IsDisposed) Close();
         }
     }
 
@@ -424,7 +434,7 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     private void StartControl(WorkerSession session)
     {
         var bridge = new ControlBridge(this);
-        var control = new WorkerControlController(session.Environment, session.AccessToken, bridge);
+        var control = new WorkerControlController(session.Environment, session.AccessToken, bridge, launchId: _launchId);
         bridge.Bind(control);
         ReplaceControl(control);
         control.Start();
@@ -434,13 +444,16 @@ public sealed partial class MainForm : Form, IWorkerControlUi
     {
         var previous = _control;
         _control = next;
-        previous?.Cancel();
+        _connected = false;
+        if (next is not null) SetStatus("Connecting to Stock Reviews");
+        if (previous is not null) _ = previous.DisconnectAsync();
     }
 
     private void ClearLocalSession()
     {
         _store.Clear(Selected);
         _session = null;
+        _connected = false;
         _account.Text = "Not signed in";
         SetStatus("Not signed in");
     }
@@ -457,10 +470,10 @@ public sealed partial class MainForm : Form, IWorkerControlUi
         if (!IsDisposed)
         {
             if (_session is null) SetStatus("Not signed in");
-            else if (_runner is not { IsRunning: true } && _control is null) SetStatus("Signed in");
+            else if (_runner is not { IsRunning: true } && _control is null) SetStatus("Connection not confirmed. Click Reconnect.");
             UpdateButtons();
         }
-        if ((_closing || _shuttingDown) && _runner is null && !IsDisposed) Close();
+        if ((_closing || _shuttingDown || _autoCloseTask) && _runner is null && !IsDisposed) Close();
     }
 
     void IWorkerControlUi.Post(Action action)
@@ -472,19 +485,22 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
     void IWorkerControlUi.OnConnected()
     {
-        if (_runner is not { IsRunning: true }) SetStatus("Connected — use Stock Reviews to start work");
+        _connected = true;
+        if (_runner is not { IsRunning: true }) SetStatus("Signed in and connected — ready to start work");
         UpdateButtons();
     }
 
     void IWorkerControlUi.OnRemoteCommand(int generation, string action)
     {
         if (_shuttingDown || IsDisposed) return;
+        if (action == "close") { Close(); return; }
         if (action == "stop") { _ = StopAsync(local: false); return; }
-        if (action == "start") _ = StartModeAsync("watch", confirmProduction: true, generation);
+        if (action == "start") _ = StartModeAsync("watch", confirmProduction: false, generation);
     }
 
     void IWorkerControlUi.OnControlLost(string errorCode)
     {
+        _connected = false;
         if (errorCode == "unauthorized") ClearLocalSession();
         else SetStatus("Control disconnected");
         Note(errorCode switch
@@ -572,23 +588,9 @@ public sealed partial class MainForm : Form, IWorkerControlUi
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        _shuttingDown = true;
-        ReplaceControl(null);
-        _http.Cancel();
-        if (_busy)
-        {
-            e.Cancel = true;
-            _closing = true;
-            SetStatus("Cancelling the current connection request");
-        }
-        if (_runner is { IsRunning: true })
-        {
-            e.Cancel = true;
-            if (_closing) return;
-            _closing = true;
-            SetStatus("Waiting for the current job to finish");
-            _ = StopAsync(local: true);
-        }
+        if (_shutdownComplete) { base.OnFormClosing(e); return; }
+        e.Cancel = true;
+        if (!_shuttingDown) { _shuttingDown = true; _closing = true; _ = ShutdownAsync(); }
         base.OnFormClosing(e);
     }
 

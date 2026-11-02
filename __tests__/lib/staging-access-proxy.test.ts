@@ -182,7 +182,7 @@ describe("staging access proxy", () => {
     expect(deleted.headers.get("location")).toBe("https://itrader.dev/staging-access?next=%2Fadmin");
   });
 
-  it.each(["/api/stock-worker", "/api/stock-worker/jobs"])("lets the exact desktop POST %s authenticate its own bearer without a browser cookie", async path => {
+  it.each(["/api/stock-worker", "/api/stock-worker/jobs", "/api/stock-worker/launch"])("lets the exact desktop POST %s authenticate its own credential without a browser cookie", async path => {
     const response = await proxy(new NextRequest("https://itrader.dev" + path, { method: "POST" }));
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(getUserMock).not.toHaveBeenCalled();
@@ -193,6 +193,9 @@ describe("staging access proxy", () => {
   it("keeps desktop jobs GET, subpaths and server actions behind the browser gate", async () => {
     for (const request of [
       new NextRequest("https://itrader.dev/api/stock-worker/jobs"),
+      new NextRequest("https://itrader.dev/api/stock-worker/launch"),
+      new NextRequest("https://itrader.dev/api/stock-worker/launch/extra", { method: "POST" }),
+      new NextRequest("https://itrader.dev/api/stock-worker/launch", { method: "POST", headers: { "next-action": "action-id" } }),
       new NextRequest("https://itrader.dev/api/stock-worker/jobs/extra", { method: "POST" }),
       new NextRequest("https://itrader.dev/api/stock-worker/jobs", { method: "POST", headers: { "next-action": "action-id" } }),
     ]) {

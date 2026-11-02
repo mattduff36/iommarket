@@ -327,6 +327,7 @@ describe("worker presence and control", () => {
     expect(calls[0]?.keys).toEqual([
       workerControlKeys("preview", ADMIN_A, deviceId).presence,
       workerControlKeys("preview", ADMIN_A, deviceId).command,
+      `${workerControlKeys("preview", ADMIN_A, deviceId).presence}:closed:${INSTANCE_A}`,
     ]);
     expect(calls[0]?.keys[0]).not.toBe(calls[0]?.keys[1]);
     expect(calls[0]?.args[1]).toBe(String(WORKER_PRESENCE_TTL_SECONDS));
@@ -355,4 +356,36 @@ describe("worker action module", () => {
     expect(source).not.toMatch(/export\s*\{/);
     expect(source).not.toContain("console.");
   });
+});
+
+
+describe("desktop shutdown presence", () => {
+  it("disconnects immediately, rejects commands, and fences late heartbeats", async () => {
+    const { deps, now } = harness(); const session = await issue(deps.desktop);
+    const beat = (state: string, instanceId = INSTANCE_A) => handleWorkerHeartbeat(deps, {
+      body: heartbeatBody(now(), { state, instanceId, launchId: INSTANCE_B }), authorization: session.authorization,
+    });
+    await beat("connected");
+    expect(await commandWorkerDevice(deps, browser({ deviceId: session.deviceId, instanceId: INSTANCE_A, action: "close" }))).toMatchObject({ ok: true });
+    await beat("disconnected");
+    await beat("running");
+    expect(await readWorkerDashboard(deps, ADMIN_A)).toMatchObject({ ok: true, devices: [{ state: "disconnected", online: false, launchId: INSTANCE_B }] });
+    expect(await commandWorkerDevice(deps, browser({ deviceId: session.deviceId, instanceId: INSTANCE_A, action: "start" }))).toMatchObject({ ok: false });
+    await beat("connected", INSTANCE_B);
+    await beat("disconnected");
+    expect(await readWorkerDashboard(deps, ADMIN_A)).toMatchObject({ ok: true, devices: [{ instanceId: INSTANCE_B, online: true }] });
+  });
+});
+
+
+it("ignores an old disconnect that arrives after a replacement instance connected", async () => {
+  const { deps, now } = harness(); const session = await issue(deps.desktop);
+  const beat = (state: string, instanceId: string) => handleWorkerHeartbeat(deps, {
+    body: heartbeatBody(now(), { state, instanceId }), authorization: session.authorization,
+  });
+  await beat("connected", INSTANCE_A);
+  await beat("connected", INSTANCE_B);
+  await beat("disconnected", INSTANCE_A);
+  await beat("running", INSTANCE_A);
+  expect(await readWorkerDashboard(deps, ADMIN_A)).toMatchObject({ ok: true, devices: [{ instanceId: INSTANCE_B, online: true }] });
 });

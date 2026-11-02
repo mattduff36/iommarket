@@ -53,3 +53,13 @@ describe("token-only desktop bootstrap", () => {
     }
   });
 });
+
+
+it("accepts a bounded scoped bootstrap and rejects empty scope instead of draining every job", () => {
+  const base = { environment: "preview", accessToken: token };
+  const jobIds = ["cjob000000000000000000001"];
+  expect(validateDesktopBootstrap({ ...base, jobIds })).toEqual({ ...base, jobIds });
+  for (const ids of [[], [jobIds[0], jobIds[0]], ["bad"], Array(101).fill(jobIds[0])]) {
+    expect(() => validateDesktopBootstrap({ ...base, jobIds: ids })).toThrow();
+  }
+});

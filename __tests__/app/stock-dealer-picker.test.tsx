@@ -6,6 +6,7 @@ vi.mock("@/actions/admin/dealer-stock-sync", () => ({ enqueueDealerStockScrape: 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: dashboard, commandWorker: command }));
 import { StockDealerPicker } from "@/app/(admin)/admin/stock-reviews/dealer-picker";
+vi.mock("@/app/(admin)/admin/stock-reviews/launch-actions", () => ({ launchStockApp: vi.fn() }));
 import { StockWorkerDashboard } from "@/app/(admin)/admin/stock-reviews/worker-dashboard";
 
 import { useStockWorkerCommands } from "@/app/(admin)/admin/stock-reviews/worker-context";
@@ -27,11 +28,11 @@ function picker() {
   return within(section);
 }
 
-beforeEach(() => { vi.clearAllMocks(); enqueue.mockResolvedValue({ success: true }); command.mockResolvedValue({ ok: true }); });
+beforeEach(() => { vi.clearAllMocks(); enqueue.mockResolvedValue({ data: { status: "queued", jobId: "queued-job" } }); command.mockResolvedValue({ ok: true }); });
 
 it("queues only selected dealers and starts once after those queues succeed", async () => {
   const order: string[] = [];
-  enqueue.mockImplementation(async ({ dealerId }: { dealerId: string }) => { order.push(`queue:${dealerId}`); return { success: true }; });
+  enqueue.mockImplementation(async ({ dealerId }: { dealerId: string }) => { order.push(`queue:${dealerId}`); return { data: { status: "queued", jobId: "queued-job" } }; });
   command.mockImplementation(async (input: { action: string }) => { order.push(input.action); return { ok: true }; });
   renderPicker();
   expect(picker().getByRole("button", { name: "Start worker" })).toBeDisabled();
@@ -63,7 +64,7 @@ it("does not start when every queue fails and keeps partial failures when one su
   await waitFor(() => expect(picker().getByRole("status")).toHaveTextContent("No dealer scans were queued. Alpha: Website source needs setup"));
   expect(command).not.toHaveBeenCalled();
 
-  enqueue.mockImplementation(async ({ dealerId }: { dealerId: string }) => dealerId === "a" ? { error: "Website source needs setup" } : { success: true });
+  enqueue.mockImplementation(async ({ dealerId }: { dealerId: string }) => dealerId === "a" ? { error: "Website source needs setup" } : { data: { status: "queued", jobId: "queued-job" } });
   fireEvent.click(picker().getByLabelText("Beta"));
   fireEvent.click(picker().getByRole("button", { name: "Start worker" }));
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
@@ -77,7 +78,7 @@ it("shares one start across the picker and sticky control", async () => {
     const button = document.querySelector("[data-stock-worker-dock] button");
     if (!(button instanceof HTMLButtonElement)) throw new Error("missing dock button");
     fireEvent.click(button);
-    return Promise.resolve({ success: true });
+    return Promise.resolve({ data: { status: "queued", jobId: "queued-job" } });
   });
   renderPicker();
   fireEvent.click(picker().getByLabelText("Alpha"));
@@ -111,8 +112,8 @@ it("stops without a selection and does not enqueue", async () => {
 
 it("hides controls offline and disables start while awaiting acknowledgement or stopping", () => {
   const offline = renderPicker(connected([]));
-  expect(screen.queryByRole("heading", { name: "Choose dealers to scrape" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Start worker" })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Choose dealers to scrape" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start worker" })).toBeDisabled();
   expect(screen.queryByRole("img", { name: "iTrader" })).not.toBeInTheDocument();
   expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("hidden");
   offline.unmount();

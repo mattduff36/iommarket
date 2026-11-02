@@ -22,7 +22,7 @@ export async function getWorkerDashboard(): Promise<WorkerDashboardResult> {
 export async function commandWorker(input: {
   deviceId: string;
   instanceId: string;
-  action: "start" | "stop";
+  action: "start" | "stop" | "close";
 }): Promise<WorkerCommandResult> {
   noStore();
   const admin = await requireRole("ADMIN");

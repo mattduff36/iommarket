@@ -24,6 +24,7 @@ export const WORKER_ACTIVITY_CODES = [
 
 export const WORKER_RUNTIME_STATES = [
   "connected",
+  "disconnected",
   "waiting",
   "running",
   "stopping",
@@ -33,7 +34,7 @@ export const WORKER_RUNTIME_STATES = [
 
 export type WorkerActivityCode = (typeof WORKER_ACTIVITY_CODES)[number];
 export type WorkerRuntimeState = (typeof WORKER_RUNTIME_STATES)[number];
-export type WorkerCommandAction = "start" | "stop";
+export type WorkerCommandAction = "start" | "stop" | "close";
 
 export interface WorkerActivityEvent {
   sequence: number;
@@ -42,6 +43,7 @@ export interface WorkerActivityEvent {
 }
 
 export interface WorkerPresenceRecord {
+  launchId?: string;
   instanceId: string;
   state: WorkerRuntimeState;
   activity: WorkerActivityEvent[];
@@ -104,6 +106,16 @@ interface MemoryBucket {
 const HEARTBEAT_SCRIPT = `
 local ok, presence = pcall(cjson.decode, ARGV[1])
 if not ok or type(presence) ~= 'table' or presence.instanceId ~= ARGV[3] then return 'invalid' end
+-- Terminal instance fences survive a newer instance's presence.
+if redis.call('GET', KEYS[3]) then return '' end
+if presence.state == 'disconnected' then
+  redis.call('SET', KEYS[3], '1', 'EX', ARGV[2])
+  local previous = redis.call('GET', KEYS[1])
+  if previous and previous ~= '' then
+    local valid, old = pcall(cjson.decode, previous)
+    if valid and type(old) == 'table' and old.instanceId ~= presence.instanceId then return '' end
+  end
+end
 local ack = ARGV[4]
 local function savePresence()
   -- Redis cjson re-encodes an empty JSON array as an object. Preserve the
@@ -118,7 +130,7 @@ local command = nil
 if raw and raw ~= '' then
   local parsed, data = pcall(cjson.decode, raw)
   if parsed and type(data) == 'table' and type(data.id) == 'string' and type(data.instanceId) == 'string'
-    and data.instanceId == ARGV[3] and (data.action == 'start' or data.action == 'stop') then
+    and data.instanceId == ARGV[3] and (data.action == 'start' or data.action == 'stop' or data.action == 'close') then
     command = data
   elseif parsed and type(data) == 'table' and type(data.instanceId) == 'string' and data.instanceId ~= ARGV[3] then
     command = false
@@ -144,6 +156,7 @@ if not raw or raw == '' then return 'offline' end
 local ok, presence = pcall(cjson.decode, raw)
 if not ok or type(presence) ~= 'table' then return 'invalid' end
 if presence.instanceId ~= ARGV[1] then return 'mismatch' end
+if presence.state == 'disconnected' then return 'offline' end
 local seen = tonumber(presence.lastSeenMs)
 local now = tonumber(ARGV[2])
 local window = tonumber(ARGV[3])
@@ -187,7 +200,7 @@ function isState(value: unknown): value is WorkerRuntimeState {
 }
 
 function isAction(value: unknown): value is WorkerCommandAction {
-  return value === "start" || value === "stop";
+  return value === "start" || value === "stop" || value === "close";
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -224,7 +237,9 @@ export function presenceFrom(value: unknown): WorkerPresenceRecord | null {
   if (!activity) return null;
   const acknowledged = record.acknowledgedCommandId ?? null;
   if (acknowledged !== null && (typeof acknowledged !== "string" || !UUID.test(acknowledged))) return null;
+  if (record.launchId !== undefined && (typeof record.launchId !== "string" || !UUID.test(record.launchId))) return null;
   return {
+    ...(typeof record.launchId === "string" ? { launchId: record.launchId } : {}),
     instanceId: record.instanceId,
     state: record.state,
     activity,
@@ -273,7 +288,7 @@ export function reduceCommand(
   instanceId: string,
   nowMs: number,
 ): Exclude<WorkerCommandWrite, "ok"> | "ready" {
-  if (!presence) return "offline";
+  if (!presence || presence.state === "disconnected") return "offline";
   if (presence.instanceId !== instanceId) return "mismatch";
   if (Date.parse(presence.lastSeenAt) !== presence.lastSeenMs) return "stale";
   const age = nowMs - presence.lastSeenMs;
@@ -301,7 +316,7 @@ export function createRedisWorkerControlStore(
         const keys = workerControlKeys(environment, adminId, deviceId);
         const result = await redis.eval(
           HEARTBEAT_SCRIPT,
-          [keys.presence, keys.command],
+          [keys.presence, keys.command, `${keys.presence}:closed:${presence.instanceId}`],
           [
             JSON.stringify({ ...presence, acknowledgedCommandId: null }),
             String(WORKER_PRESENCE_TTL_SECONDS),
@@ -374,6 +389,7 @@ export function createMemoryWorkerControlStore(
   environment: DesktopEnvironment,
 ): WorkerControlStore {
   const buckets = new Map<string, MemoryBucket>();
+  const retired = new Map<string, number>();
 
   function bucket(adminId: string, deviceId: string): MemoryBucket {
     const keys = workerControlKeys(environment, adminId, deviceId);
@@ -401,6 +417,13 @@ export function createMemoryWorkerControlStore(
       assertPresence(presence, acknowledgedCommandId);
       const current = bucket(adminId, deviceId);
       const nowMs = now();
+      const retiredKey = `${workerControlKeys(environment, adminId, deviceId).presence}:${presence.instanceId}`;
+      if ((retired.get(retiredKey) ?? 0) > nowMs) return null;
+      if (presence.state === "disconnected") {
+        retired.set(retiredKey, nowMs + WORKER_PRESENCE_TTL_SECONDS * 1000);
+        const previous = liveSlot(current.presence, nowMs)?.value;
+        if (previous && previous.instanceId !== presence.instanceId) return null;
+      }
       current.command = liveSlot(current.command, nowMs);
       const reduced = reduceHeartbeat(current.command?.value ?? null, presence, acknowledgedCommandId);
       current.presence = { value: reduced.presence, expiresAt: nowMs + WORKER_PRESENCE_TTL_SECONDS * 1000 };

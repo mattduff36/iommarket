@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { refresh, dashboard, command } = vi.hoisted(() => ({ refresh: vi.fn(), dashboard: vi.fn(), command: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: dashboard, commandWorker: command }));
+vi.mock("@/app/(admin)/admin/stock-reviews/launch-actions", () => ({ launchStockApp: vi.fn() }));
 import { StockWorkerDashboard } from "@/app/(admin)/admin/stock-reviews/worker-dashboard";
 import { StockDealerPicker } from "@/app/(admin)/admin/stock-reviews/dealer-picker";
 import progressStyles from "@/app/(admin)/admin/stock-reviews/worker-progress.module.css";
@@ -20,8 +21,8 @@ describe("Stock Reviews live worker", () => {
     <p>Saved dealer review</p>
   </StockWorkerDashboard>);
   expect(screen.getByText("Saved dealer review")).toBeInTheDocument();
-  expect(screen.queryByText("Choose dealers to scrape")).not.toBeInTheDocument();
-  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(screen.getByText("Choose dealers to scrape")).toBeInTheDocument();
+  expect(screen.getByRole("checkbox")).toBeEnabled();
   expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   expect(screen.queryByText("6 ready for review")).not.toBeInTheDocument();
   await tick();
@@ -29,7 +30,7 @@ describe("Stock Reviews live worker", () => {
   expect(screen.getByText("Saved dealer review")).toBeInTheDocument();
   dashboard.mockResolvedValue(offline);
   await tick();
-  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("checkbox")).toBeEnabled();
  });
  it("shows indeterminate progress only while work is active", () => {
   const job = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: new Date().toISOString() };

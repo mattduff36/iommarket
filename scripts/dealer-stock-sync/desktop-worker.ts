@@ -12,7 +12,7 @@ const OS_ENV_KEYS = [
   "COMSPEC", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "OS",
   "USERNAME", "USERDOMAIN", "SYSTEMDRIVE",
 ] as const;
-export interface DesktopBootstrap { environment: DesktopEnvironment; accessToken: string }
+export interface DesktopBootstrap { environment: DesktopEnvironment; accessToken: string; jobIds?: string[] }
 
 export function parseDesktopMode(argv: readonly string[]): "check" | "watch" {
   if (argv.length !== 2 || argv[0] !== "--mode" || (argv[1] !== "check" && argv[1] !== "watch")) {
@@ -24,12 +24,13 @@ export function parseDesktopMode(argv: readonly string[]): "check" | "watch" {
 export function validateDesktopBootstrap(value: unknown): DesktopBootstrap {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid desktop sign-in.");
   const data = value as Record<string, unknown>;
-  if (Object.keys(data).length !== 2 || !["environment", "accessToken"].every(key => Object.hasOwn(data, key)) ||
+  if ((Object.keys(data).length !== 2 && Object.keys(data).length !== 3) || Object.keys(data).some(key => !["environment", "accessToken", "jobIds"].includes(key)) || !["environment", "accessToken"].every(key => Object.hasOwn(data, key)) ||
       (data.environment !== "preview" && data.environment !== "production") ||
       typeof data.accessToken !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(data.accessToken)) {
     throw new Error("Invalid desktop sign-in.");
   }
-  return { environment: data.environment, accessToken: data.accessToken };
+  if (data.jobIds !== undefined && (!Array.isArray(data.jobIds) || data.jobIds.length === 0 || data.jobIds.length > 100 || new Set(data.jobIds).size !== data.jobIds.length || data.jobIds.some(id => typeof id !== "string" || !/^[a-z0-9]{8,40}$/.test(id)))) throw new Error("Invalid desktop job scope.");
+  return { environment: data.environment, accessToken: data.accessToken, ...(data.jobIds ? { jobIds: data.jobIds as string[] } : {}) };
 }
 
 /** The native launcher also isolates the environment before Node/tsx can execute. */
@@ -115,7 +116,7 @@ export async function runDesktop(argv: readonly string[] = process.argv.slice(2)
     const isolated = desktopRuntimeEnvironment(process.env);
     for (const key of Object.keys(process.env)) delete process.env[key];
     Object.assign(process.env, isolated);
-    const client = createDesktopJobsClient(bootstrap.environment, bootstrap.accessToken);
+    const client = createDesktopJobsClient(bootstrap.environment, bootstrap.accessToken, { jobIds: bootstrap.jobIds });
     emit({ type: "status", state: "checking", message: "Checking authorisation and the installed runtime." });
     await client.check();
     if (stopped) return 0;

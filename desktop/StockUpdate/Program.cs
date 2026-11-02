@@ -13,18 +13,16 @@ internal static class Program
             return DesktopTests.Run(report);
         }
 
+        if (args.Length > 1 || (args.Length == 1 && !LaunchRequest.TryParse(args[0], out _))) return 2;
         ApplicationConfiguration.Initialize();
-        using var activation = new EventWaitHandle(false, EventResetMode.AutoReset, WindowActivation.EventName);
         using var mutex = new Mutex(true, SingleInstanceMutexName, out var created);
         if (!created)
         {
-            WindowActivation.Signal(activation);
-            return 0;
+            return WindowActivation.Signal(args.Length == 1 ? args[0] : "activate") ? 0 : 3;
         }
-        using var form = new MainForm();
-        var listener = WindowActivation.Listen(activation, form);
-        try { Application.Run(form); }
-        finally { listener.Unregister(null); }
+        using var form = new MainForm(args.Length == 1 ? args[0] : null);
+        using var listener = new WindowActivation(form);
+        Application.Run(form);
         mutex.ReleaseMutex();
         mutex.Dispose();
         if (form.PendingInstaller is string installer)

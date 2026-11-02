@@ -500,3 +500,42 @@ describe("desktop jobs client bounds, deadlines, pacing, and stop", () => {
     expect(clock.waits).toEqual([1_200]);
   });
 });
+
+
+describe("ephemeral job scope completion", () => {
+  it("waits for a blocked scope and takes only the requested job", async () => {
+    const clock = pace();
+    const transport = mockFetch((_url, _init, index) => httpResponse({ body: index === 0 ? { job: null, pending: true } : { job: JOB } }));
+    const client = createDesktopJobsClient("preview", TOKEN, { ...clock, fetcher: transport.fetcher, jobIds: [JOB.id] });
+    expect(await client.lease()).toEqual(JOB);
+    expect(clock.waits).toContain(3000);
+    expect(transport.calls).toHaveLength(2);
+    for (const call of transport.calls) expect(JSON.parse(String(call.init.body))).toEqual({ op: "lease", jobIds: [JOB.id] });
+  });
+  it("waits for another worker's scoped job until the server confirms terminal state", async () => {
+    const clock = pace();
+    const transport = mockFetch((_url, _init, index) => httpResponse({ body: { job: null, pending: index === 0 } }));
+    const client = createDesktopJobsClient("preview", TOKEN, { ...clock, fetcher: transport.fetcher, jobIds: [JOB.id] });
+    expect(await client.lease()).toBeNull();
+    expect(transport.calls).toHaveLength(2);
+  });
+  it("stops during a pending wait and reports timeout as uncertain rather than completion", async () => {
+    let stopped = false;
+    const clock = pace();
+    const transport = mockFetch(() => httpResponse({ body: { job: null, pending: true } }));
+    const stoppedClient = createDesktopJobsClient("preview", TOKEN, { ...clock, fetcher: transport.fetcher, jobIds: [JOB.id],
+      wait: async ms => { await clock.wait(ms); stopped = true; },
+    });
+    expect(await stoppedClient.lease(() => stopped)).toBeNull();
+    expect(transport.calls).toHaveLength(1);
+    const timeoutClient = createDesktopJobsClient("preview", TOKEN, { ...pace(), fetcher: transport.fetcher, jobIds: [JOB.id], scopeWaitMs: 1 });
+    expect((await rejection(timeoutClient.lease())).reason).toBe("unavailable");
+  });
+  it("refuses unrelated jobs and an ambiguous scoped null response", async () => {
+    for (const body of [{ job: { ...JOB, id: "otherjob123" } }, { job: null }]) {
+      const transport = mockFetch(() => httpResponse({ body }));
+      const client = createDesktopJobsClient("preview", TOKEN, { ...pace(), fetcher: transport.fetcher, jobIds: [JOB.id] });
+      expect((await rejection(client.lease())).reason).toBe("invalid-response");
+    }
+  });
+});

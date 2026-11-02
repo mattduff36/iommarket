@@ -29,11 +29,22 @@ public sealed partial class MainForm
             if (fresh is null || fresh.Manifest != update.Manifest) throw new InvalidDataException();
             update = fresh;
             SetStatus("Downloading verified update");
+            using var progressWindow = new Form { Text = "Updating Stock Update", StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(420, 110), FormBorderStyle = FormBorderStyle.FixedDialog, ControlBox = false };
+            var progressText = new Label { Text = "Downloading update…", Location = new Point(20, 20), Size = new Size(380, 25) };
+            var progressBar = new ProgressBar { Location = new Point(20, 60), Size = new Size(380, 18), Minimum = 0, Maximum = 100 };
+            progressWindow.Controls.AddRange([progressText, progressBar]);
+            progressWindow.Show(this);
             using var client = UpdateDownload.CreateClient();
-            var progress = new Progress<int>(value => { if (!IsDisposed) SetStatus($"Downloading update… {value}%"); });
+            var progress = new Progress<int>(value => {
+                if (IsDisposed || progressWindow.IsDisposed) return;
+                progressBar.Value = Math.Clamp(value, 0, 100);
+                progressText.Text = $"Downloading update… {progressBar.Value}%";
+                SetStatus(progressText.Text);
+            });
             PendingInstaller = await UpdateDownload.SaveAsync(client, update.Manifest, update.DownloadUrl, _http.Token, progress);
             if (_closing || _shuttingDown || IsDisposed) { PendingInstaller = null; return false; }
-            // FinishBusy closes the form; Program releases the single-instance mutex before setup.
+            // Release the executable for replacement; setup keeps a visible progress window
+            // throughout installation and reopens the app when complete.
             _closing = true;
             return false;
         }

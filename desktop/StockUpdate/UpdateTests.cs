@@ -66,7 +66,8 @@ public static class UpdateTests
         var path = Path.Combine(Path.GetTempPath(), "Stock Update test");
         var start = UpdateInstaller.StartInfo("verified.exe", path);
         Assert(start.UseShellExecute && start.FileName == "verified.exe");
-        Assert(start.ArgumentList.Contains("/VERYSILENT") && start.ArgumentList.Contains("/SUPPRESSMSGBOXES"));
+        Assert(start.ArgumentList.Contains("/SILENT") && !start.ArgumentList.Contains("/VERYSILENT"));
+        Assert(!start.ArgumentList.Contains("/SUPPRESSMSGBOXES"));
         Assert(start.ArgumentList.Contains("/NORESTART") && start.ArgumentList.Contains("/UPDATEAPP=1"));
         Assert(start.ArgumentList.Contains("/DIR=" + Path.GetFullPath(path)));
         Assert(!start.ArgumentList.Any(value => value.StartsWith("/TASKS=")));
