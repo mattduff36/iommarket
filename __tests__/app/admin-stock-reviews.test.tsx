@@ -196,13 +196,13 @@ describe("admin stock reviews", () => {
 
     reportFindMany.mockResolvedValue([]);
     jobFindMany.mockResolvedValue([]);
-    render(await AdminStockReviewsPage());
+    render(await AdminStockReviewsPage({}));
     expect(screen.getByText("No dealer scrapes yet.")).toBeInTheDocument();
   });
 
   it("does not read reviews when the admin guard rejects", async () => {
     requireRole.mockRejectedValueOnce(new Error("unauthorized"));
-    await expect(AdminStockReviewsPage()).rejects.toThrow("unauthorized");
+    await expect(AdminStockReviewsPage({})).rejects.toThrow("unauthorized");
     expect(reportFindMany).not.toHaveBeenCalled();
     expect(jobFindMany).not.toHaveBeenCalled();
   });

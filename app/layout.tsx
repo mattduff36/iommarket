@@ -14,17 +14,21 @@ import { defaultSocialImage, resolvePageRobots } from "@/lib/seo/page-metadata";
 import { faviconIcons, faviconManifest, faviconThemeColor } from "@/lib/seo/favicons";
 import "./globals.css";
 import "../styles/responsive-tables.css";
+// Retain scoped account styles when an account navigation is interrupted.
+import "../components/account/account-shell.module.css";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-body",
   display: "swap",
+  preload: false,
 });
 
 const orbitron = Orbitron({
   subsets: ["latin"],
   variable: "--font-heading",
   display: "swap",
+  preload: false,
 });
 
 export const viewport: Viewport = {
