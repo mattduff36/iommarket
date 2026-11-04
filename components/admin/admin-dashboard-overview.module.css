@@ -1,0 +1,249 @@
+.overview {
+  --trade-exchange-accent: #f97316;
+  --rail-width: 76px;
+  --panel-gap: 8px;
+  --slide-duration: 420ms;
+  --slide-easing: cubic-bezier(0.65, 0, 0.35, 1);
+  --content-width: calc(100cqw - 2px);
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--panel-gap);
+  min-width: 0;
+  margin-bottom: 24px;
+}
+
+.overview[data-trade="true"] {
+  --content-width: calc(100cqw - var(--rail-width) - var(--panel-gap) - 2px);
+  grid-template-columns: calc(100% - var(--rail-width) - var(--panel-gap)) var(--rail-width);
+  transition: grid-template-columns var(--slide-duration) var(--slide-easing);
+}
+
+.overview[data-trade="true"][data-active="trade"] {
+  grid-template-columns: var(--rail-width) calc(100% - var(--rail-width) - var(--panel-gap));
+}
+
+.panel {
+  --panel-accent: var(--sem-text-primary);
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--sem-border-default);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--sem-bg-surface);
+  box-shadow: var(--shadow-low);
+}
+
+.panel[data-panel="trade"] {
+  --panel-accent: var(--trade-exchange-accent);
+  border-color: color-mix(in srgb, var(--trade-exchange-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--trade-exchange-accent) 10%, transparent);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  margin: 0;
+  padding: 12px;
+  border-bottom: 1px solid var(--sem-border-default);
+  color: var(--panel-accent);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: border-color 130ms ease;
+}
+
+.overview[data-trade="true"] .heading {
+  padding: 0;
+}
+
+.toggle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 50px;
+  height: 50px;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.label {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.rail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+/* Place the arrow below each rotated label in its reading direction. */
+.panel[data-panel="trade"] .rail {
+  flex-direction: row-reverse;
+}
+
+.railLabel {
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.panel[data-panel="marketplace"] .railLabel {
+  transform: rotate(180deg);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--sem-border-focus, #38bdf8);
+  outline-offset: -4px;
+  border-radius: 6px;
+}
+
+.arrow {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.content {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--content-width);
+  max-width: 100%;
+  padding: 12px;
+  overflow-wrap: anywhere;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 180ms ease, visibility 0s;
+}
+
+/* Keep both bodies at the expanded width while the surrounding columns slide. */
+.overview[data-trade="true"] .content {
+  max-width: none;
+}
+
+/* Each body stays at its outside edge as the shared boundary moves. */
+.overview[data-trade="true"] .panel[data-panel="trade"] .content {
+  left: calc(100% - var(--content-width));
+}
+
+.overview[data-trade="true"] .panel[data-panel="trade"] .label {
+  left: calc(100% - var(--content-width) + 12px);
+}
+
+.panel[data-expanded="false"] .heading {
+  border-bottom-color: transparent;
+}
+
+.panel[data-expanded="false"] .toggle {
+  inset: 0;
+  height: 100%;
+  z-index: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 8px;
+  color: var(--panel-accent);
+  cursor: pointer;
+}
+
+.panel[data-expanded="false"] .toggle:hover {
+  background: color-mix(in srgb, var(--panel-accent) 8%, transparent);
+}
+
+.panel[data-expanded="false"] .label {
+  opacity: 0;
+}
+
+.panel[data-expanded="false"] .rail {
+  opacity: 1;
+}
+
+.panel[data-expanded="false"] .content {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+/* Crisp pop: clear text before changing widths, then reveal after the slide. */
+.overview[data-phase="clearing"] .content,
+.overview[data-phase="clearing"] .label {
+  opacity: 0;
+  transition: opacity 130ms ease;
+}
+
+.overview[data-phase="clearing"] .panel[data-expanded="false"] .rail {
+  animation: rail-pop 130ms ease forwards;
+}
+
+@keyframes rail-pop {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.75); }
+}
+
+.overview[data-phase="sliding"] .content,
+.overview[data-phase="sliding"] .label,
+.overview[data-phase="sliding"] .rail {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+.overview[data-phase="clearing"] .heading,
+.overview[data-phase="sliding"] .heading {
+  border-bottom-color: transparent;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+@container (min-width: 760px) {
+  .metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 340px) {
+  .metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overview[data-trade="true"],
+  .heading,
+  .label,
+  .rail,
+  .content,
+  .panel[data-expanded="false"] .content {
+    transition: none;
+  }
+
+  .overview[data-phase="clearing"] .panel[data-expanded="false"] .rail {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -337,7 +337,10 @@ describe("trade admin integration", () => {
     dbMock.tradeListing.count.mockResolvedValue(4);
     const { default: Dashboard } = await import("@/app/(admin)/admin/page");
     const { unmount } = render(await Dashboard());
-    expect(screen.getByRole("link", { name: "Open private Trade" })).toHaveAttribute("href", "/admin/trade");
+    expect(screen.queryByRole("link", { name: "Open private Trade" })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Trade Exchange" }));
+    expect(await screen.findByRole("link", { name: "Open private Trade" }, { timeout: 3000 })).toHaveAttribute("href", "/admin/trade");
     expect(screen.getByRole("link", { name: /Applications waiting/ })).toHaveAttribute(
       "href",
       "/admin/trade/applications?status=PENDING",
@@ -349,6 +352,7 @@ describe("trade admin integration", () => {
     process.env.TRADE_EXCHANGE_ENABLED = "0";
     dbMock.tradeMembership.count.mockClear();
     render(await Dashboard());
+    expect(screen.queryByRole("button", { name: "Trade Exchange" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open private Trade" })).not.toBeInTheDocument();
     expect(dbMock.tradeMembership.count).not.toHaveBeenCalled();
   });

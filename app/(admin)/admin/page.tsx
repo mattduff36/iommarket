@@ -32,6 +32,7 @@ import {
   buildAdminDashboardStats,
 } from "@/components/admin/admin-dashboard-stats";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminDashboardOverview } from "@/components/admin/admin-dashboard-overview";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminRecordLink } from "@/components/admin/admin-record-link";
 import { listingReviewHref } from "@/lib/admin/record-href";
@@ -75,9 +76,9 @@ export default async function AdminDashboardPage() {
   const tradeEnabled = isTradeExchangeEnabled();
 
   const [
-    totalListings,
+    livePrivateListings,
     listingsAwaitingReview,
-    liveListings,
+    liveDealerListings,
     totalDealers,
     verifiedDealers,
     openReports,
@@ -98,7 +99,7 @@ export default async function AdminDashboardPage() {
     recentPaymentsList,
     tradeQueue,
   ] = await Promise.all([
-    db.listing.count({ where: catalogWhere }),
+    db.listing.count({ where: { AND: [liveWhere, { dealerId: null }] } }),
     db.listing.count({
       where: applySampleListingVisibility(
         {
@@ -110,7 +111,7 @@ export default async function AdminDashboardPage() {
         sampleVisibility,
       ),
     }),
-    db.listing.count({ where: liveWhere }),
+    db.listing.count({ where: { AND: [liveWhere, { dealerId: { not: null } }] } }),
     db.dealerProfile.count({ where: dealerWhere }),
     db.dealerProfile.count({
       where: applySampleDealerVisibility({ verified: true }, sampleVisibility),
@@ -269,15 +270,14 @@ export default async function AdminDashboardPage() {
         })}
       />
 
-      {tradeQueue ? (
-        <Card className="mb-6 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 px-4 py-3.5">
-            <CardTitle className="text-sm font-semibold text-text-primary">Trade Exchange</CardTitle>
+      <AdminDashboardOverview trade={tradeQueue ? (
+        <>
+          <div className="mb-3 flex justify-end">
             <Link href="/admin/trade" className="inline-flex items-center gap-1 text-xs font-medium text-neon-blue-400 hover:underline">
               Open private Trade <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
-          </CardHeader>
-          <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
             {(
               [
                 ["Applications waiting", tradeQueue[0], "/admin/trade/applications?status=PENDING"],
@@ -292,22 +292,24 @@ export default async function AdminDashboardPage() {
                 </span>
               </Link>
             ))}
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        </>
+      ) : null}>
 
       <AdminDashboardStats
+        compact
         stats={buildAdminDashboardStats({
           totalUsers,
           newUsers7d,
-          liveListings,
-          totalListings,
+          livePrivateListings,
+          liveDealerListings,
           totalRevenue,
           recentPayments: recentPayments + recentSubscriptionPayments,
           totalDealers,
           verifiedDealers,
         })}
       />
+      </AdminDashboardOverview>
 
       {/* Activity feeds */}
       <div className="grid gap-4 lg:grid-cols-2">

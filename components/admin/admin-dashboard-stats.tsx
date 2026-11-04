@@ -1,12 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle,
-  DollarSign,
+  PoundSterling,
   Store,
   Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
+import styles from "./admin-dashboard-overview.module.css";
 
 export type AdminDashboardStat = {
   label: string;
@@ -20,8 +21,8 @@ export type AdminDashboardStat = {
 export type AdminDashboardStatsInput = {
   totalUsers: number;
   newUsers7d: number;
-  liveListings: number;
-  totalListings: number;
+  livePrivateListings: number;
+  liveDealerListings: number;
   totalRevenue: number;
   recentPayments: number;
   totalDealers: number;
@@ -42,8 +43,8 @@ export function buildAdminDashboardStats(
     },
     {
       label: "Live Listings",
-      value: input.liveListings.toLocaleString(),
-      hint: `${input.totalListings} total`,
+      value: (input.livePrivateListings + input.liveDealerListings).toLocaleString("en-GB"),
+      hint: `Private: ${input.livePrivateListings.toLocaleString("en-GB")} · Dealer: ${input.liveDealerListings.toLocaleString("en-GB")}`,
       icon: CheckCircle,
       iconClassName: "text-emerald-500/60",
     },
@@ -51,7 +52,7 @@ export function buildAdminDashboardStats(
       label: "Revenue",
       value: `£${input.totalRevenue.toLocaleString()}`,
       hint: `${input.recentPayments} payments (30d)`,
-      icon: DollarSign,
+      icon: PoundSterling,
       iconClassName: "text-premium-gold-400/60",
     },
     {
@@ -65,7 +66,28 @@ export function buildAdminDashboardStats(
   ];
 }
 
-export function AdminDashboardStats({ stats }: { stats: AdminDashboardStat[] }) {
+export function AdminDashboardStats({ stats, compact = false }: { stats: AdminDashboardStat[]; compact?: boolean }) {
+  if (compact) {
+    return (
+      <dl className={styles.metrics}>
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="flex min-w-0 flex-col gap-2 rounded-md border border-border bg-surface p-3">
+              <dt className="flex items-center justify-between gap-2 text-xs font-medium text-text-secondary">
+                {stat.label}
+                <Icon aria-hidden="true" className={`hidden h-4 w-4 shrink-0 sm:block ${stat.iconClassName}`} />
+              </dt>
+              <dd className="flex flex-col gap-2">
+                <span className="text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">{stat.value}</span>
+                {stat.hint ? <span className={`text-xs ${stat.hintClassName ?? "text-text-tertiary"}`}>{stat.hint}</span> : null}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    );
+  }
   return (
     <Card className="mb-6 overflow-hidden">
       <CardHeader className="border-b border-border/70 px-4 py-3.5 sm:px-5">

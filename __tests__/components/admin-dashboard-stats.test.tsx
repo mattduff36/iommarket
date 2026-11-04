@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   AdminDashboardStats,
   buildAdminDashboardStats,
 } from "@/components/admin/admin-dashboard-stats";
 
+afterEach(cleanup);
+
 const SAMPLE_STATS = {
   totalUsers: 120,
   newUsers7d: 4,
-  liveListings: 18,
-  totalListings: 40,
+  livePrivateListings: 7,
+  liveDealerListings: 11,
   totalRevenue: 2500,
   recentPayments: 6,
   totalDealers: 9,
@@ -45,7 +47,7 @@ describe("AdminDashboardStats", () => {
     expect(screen.getByText("Revenue")).toBeTruthy();
     expect(screen.getByText("Dealers")).toBeTruthy();
     expect(screen.getByText("+4 this week")).toBeTruthy();
-    expect(screen.getByText("40 total")).toBeTruthy();
+    expect(screen.getByText("Private: 7 · Dealer: 11")).toBeTruthy();
     expect(screen.getByText("6 payments (30d)")).toBeTruthy();
     expect(screen.getByText("5 verified")).toBeTruthy();
     expect(screen.queryByText("Open Reports")).toBeNull();
@@ -54,5 +56,34 @@ describe("AdminDashboardStats", () => {
     expect(screen.queryByText("Favourites")).toBeNull();
     expect(screen.queryByText("Regions")).toBeNull();
     expect(screen.queryByText("CMS Pages")).toBeNull();
+  });
+
+  it("renders compact boxed metrics without a duplicate heading or outer card", () => {
+    const { container } = render(
+      <AdminDashboardStats compact stats={buildAdminDashboardStats(SAMPLE_STATS)} />,
+    );
+
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(container.querySelectorAll("dl")).toHaveLength(1);
+    expect(container.querySelectorAll("dt")).toHaveLength(4);
+    expect(container.querySelectorAll("dd")).toHaveLength(4);
+    expect(container.querySelectorAll(".border")).toHaveLength(4);
+    expect(screen.getByText("120")).toBeTruthy();
+    expect(screen.getByText("18")).toBeTruthy();
+    expect(screen.getByText(`\u00a3${SAMPLE_STATS.totalRevenue.toLocaleString()}`)).toBeTruthy();
+    expect(screen.getByText("9")).toBeTruthy();
+    expect(screen.getByText("+4 this week")).toBeTruthy();
+    expect(screen.getByText("Private: 7 · Dealer: 11")).toBeTruthy();
+    expect(screen.getByText("6 payments (30d)")).toBeTruthy();
+    expect(screen.getByText("5 verified")).toBeTruthy();
+  });
+
+  it("uses a sterling icon and totals only the live private and dealer listings", () => {
+    const stats = buildAdminDashboardStats({ ...SAMPLE_STATS, livePrivateListings: 0, liveDealerListings: 1234 });
+    const { container } = render(<AdminDashboardStats compact stats={stats} />);
+    expect(screen.getByText("1,234")).toBeTruthy();
+    expect(screen.getByText("Private: 0 · Dealer: 1,234")).toBeTruthy();
+    expect(container.querySelector("svg.lucide-pound-sterling")).not.toBeNull();
+    expect(container.querySelector("svg.lucide-dollar-sign")).toBeNull();
   });
 });
