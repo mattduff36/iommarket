@@ -258,7 +258,7 @@ export function ListingEditDialog({
         <DialogHeader>
           <DialogTitle>Edit listing details</DialogTitle>
           <DialogDescription>
-            {data?.stockReview ? "Corrections are saved to the stock review for approval. Identity, matching and removal safeguards remain in place. Nothing is published or emailed now." : "Admin changes save immediately. Listing status, payment, seller details, and photos stay unchanged."}
+            {data?.linkedReview ? "Saving updates this listing and removes its item from this stock review. Listing status and photos stay unchanged." : data?.stockReview ? "Corrections are saved to the stock review for approval. Identity, matching and removal safeguards remain in place. Nothing is published or emailed now." : "Admin changes save immediately. Listing status, payment, seller details, and photos stay unchanged."}
           </DialogDescription>
         </DialogHeader>
 
@@ -398,7 +398,7 @@ export function ListingEditDialog({
 
             {confirming ? (
               <div className="rounded-md border border-premium-gold-500/30 bg-premium-gold-500/5 p-3 text-sm text-text-primary" role="alert">
-                {data.stockReview ? "Confirm these corrections. They update the review and still require approval; protected records remain blocked." : data.listing.status === "LIVE"
+                {data.stockReview ? "Confirm these corrections. They update the review and still require approval; protected records remain blocked." : data.linkedReview ? "Confirm this correction and remove the item from this review. The listing keeps its current status." : data.listing.status === "LIVE"
                   ? "Confirm this edit. The changed details will appear on the public listing immediately."
                   : "Confirm this edit. The changed listing details will be saved immediately."}
               </div>

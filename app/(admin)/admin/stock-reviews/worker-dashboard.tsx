@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { canRefreshStockPage } from "./refresh-guard";
 export { canRefreshStockPage } from "./refresh-guard";
-import Image from "next/image";
 import { StockWorkerCommandButton } from "./worker-command-button";
 import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 import { getWorkerDashboard } from "./worker-actions";
@@ -46,8 +45,6 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   useWorkerPresence(value => { mergeSnapshot(value); setNow(Date.now()); }, refresh);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [barHeight, setBarHeight] = useState(176);
-  const bar = useRef<HTMLDivElement>(null);
   const devices = snapshot.ok ? snapshot.devices : [];
   const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
   const online = snapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
@@ -90,14 +87,6 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     return () => { stopped = true; clearInterval(timer); clearInterval(clock); document.removeEventListener("visibilitychange", visible); };
   }, [managedSnapshot]);
 
-  useEffect(() => {
-    const element = bar.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => setBarHeight(Math.ceil(element.getBoundingClientRect().height) + 48));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
   const compact = online && !connectionLost && !busy && !running && !pending && !device?.pendingCommand
     && device?.state !== "error" && !message && !expanded;
 
@@ -135,22 +124,19 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
       </> : null}
     </section>
     {children}
-    <div aria-hidden="true" style={{ height: online ? barHeight : 0 }} />
-    <div ref={bar} hidden={!online} data-stock-worker-dock="" data-compact={compact} className={`${progressStyles.dock} fixed inset-x-3 bottom-3 z-40 sm:inset-x-5 lg:left-72`}>
-      <div aria-hidden="true" data-stock-worker-backdrop="" className={progressStyles.backdrop} />
-      <div data-stock-worker-panel="" className={`${progressStyles.panel} overflow-hidden rounded-xl border border-neon-blue-500/40 bg-surface shadow-2xl`}>
-      <div className="h-1 overflow-hidden bg-neon-blue-500/10" role={busy ? "progressbar" : undefined}
+    <footer aria-label="Stock Update" hidden={!online} data-stock-worker-dock="" data-compact={compact} className="mt-8 border-t border-border pb-[env(safe-area-inset-bottom)] text-text-secondary">
+      <div className="h-0.5 overflow-hidden" role={busy ? "progressbar" : undefined}
         aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
-        <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : online ? "w-full opacity-40" : "w-0"}`} />
+        <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : "w-0"}`} />
       </div>
-      <div className={`flex flex-wrap items-center gap-3 ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3">
         <button type="button" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "Hide worker activity" : "Show worker activity"}
           aria-expanded={expanded} aria-controls="stock-worker-activity" title={title}
           className="flex min-h-11 shrink-0 items-center rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">
-          <Image src="/images/logo-itrader-hq.png" alt="iTrader" width={220} height={74} className="h-9 w-auto" />
+          <span className="text-sm font-medium text-text-secondary">Stock Update</span>
         </button>
-        <div className={compact ? "sr-only" : "min-w-0 flex-1"}><p role="status" className="text-sm font-semibold text-text-primary">{title}</p>
-          <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "Run complete. Review the results below." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
+        <div className="min-w-0 flex-1"><p role="status" className="text-sm text-text-secondary">{title}</p>
+          <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "Run complete. Review the results above." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
         <div className="flex flex-wrap gap-2">{buttons}</div>
       </div>
       {message ? <p role="status" className="px-4 pb-3 text-sm text-text-secondary">{message}</p> : null}
@@ -159,8 +145,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Recent worker activity</h3>
         {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{device.activity.map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
       </div> : null}
-      </div>
-    </div>
+    </footer>
     <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} />
     {lifecycle.dialog}
   </StockDealerSelectionProvider></StockWorkerControlProvider>;

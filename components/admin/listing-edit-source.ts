@@ -4,7 +4,7 @@ import { loadStockReviewVehicle, saveStockReviewVehicle } from "@/actions/admin/
 export type StockReviewEditTarget = { reportId: string; fingerprint: string; sourceIdentityKey: string };
 type AdminEditData = NonNullable<Extract<Awaited<ReturnType<typeof loadAdminListingForEdit>>, { data?: unknown }>["data"]>;
 type ReviewData = NonNullable<Extract<Awaited<ReturnType<typeof loadStockReviewVehicle>>, { data?: unknown }>["data"]>;
-export type ListingEditorData = AdminEditData & { stockReview?: { target: StockReviewEditTarget; draft: ReviewData["draft"] } };
+export type ListingEditorData = AdminEditData & { linkedReview?: StockReviewEditTarget; stockReview?: { target: StockReviewEditTarget; draft: ReviewData["draft"] } };
 
 export function listingEditorSourceUrl(data: ListingEditorData | null) {
   try {
@@ -15,7 +15,10 @@ export function listingEditorSourceUrl(data: ListingEditorData | null) {
 
 /** Storage adapters share the same fields and interactions in ListingEditDialog. */
 export async function loadListingEditor(listingId: string, target?: StockReviewEditTarget): Promise<{ data?: ListingEditorData; error?: string }> {
-  if (listingId) return loadAdminListingForEdit(listingId);
+  if (listingId) {
+    const result = await loadAdminListingForEdit(listingId);
+    return result.data ? { data: { ...result.data, linkedReview: target } } : result;
+  }
   if (!target) return { error: "No listing or stock review was selected." };
   const result = await loadStockReviewVehicle(target);
   if (!("data" in result) || !result.data) return { error: result.error || "Could not load this vehicle." };
@@ -46,7 +49,7 @@ export async function saveListingEditor(data: ListingEditorData, values: Listing
   if (!data.stockReview) {
     return saveAdminListingEdit({ title: values.title, description: values.description, price: values.price,
       categoryId: values.categoryId, regionId: values.regionId, attributes: values.attributes,
-      listingId: data.listing.id, expectedLifecycleRevision: data.listing.lifecycleRevision, expectedUpdatedAt: data.listing.updatedAt });
+      listingId: data.listing.id, ...(data.linkedReview ? { stockReview: data.linkedReview } : {}), expectedLifecycleRevision: data.listing.lifecycleRevision, expectedUpdatedAt: data.listing.updatedAt });
   }
   const category = data.categories.find(item => item.id === values.categoryId);
   const attributes = Object.fromEntries(values.attributes.flatMap(item => {

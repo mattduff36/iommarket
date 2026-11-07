@@ -20,5 +20,5 @@ export function StockReviewEditButton({ reportId, fingerprint, sourceIdentityKey
   return <AdminListingEditButton listingId={listingId} stockReview={target}
     label={override ? "Edit / override" : "Edit"}
     onSaved={() => { if (refresh) refresh(); else router.refresh(); }}
-    savedMessage={listingId ? "Listing saved. Run a fresh stock check before approving further changes; this saved review may now be out of date." : "Corrections saved to the review. Review eligibility before approving."} />;
+    savedMessage={listingId ? "Listing saved and removed from this review." : "Corrections saved to the review. Review eligibility before approving."} />;
 }
