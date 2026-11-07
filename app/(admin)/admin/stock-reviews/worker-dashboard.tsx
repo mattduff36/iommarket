@@ -100,8 +100,10 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   </>;
 
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
+    {/* Keep document height stable as the navbar scrolls out and the inner viewport expands. */}
+    <div className={online ? "min-h-[calc(100dvh-1rem)]" : undefined}>
     <div ref={viewport.ref} style={{ height: viewport.height }} className={online ? "flex min-h-0 flex-col" : undefined}>
-    <div data-stock-worker-content="" style={online ? { containerType: "size" } : undefined} className={online ? "min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain pr-2 pb-6" : "space-y-8"}>
+    <div data-stock-worker-content="" style={online ? { containerType: "size" } : undefined} className={online ? "min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6" : "space-y-8"}>
     {header}
     {!online ? offlineContent : null}
     <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
@@ -152,6 +154,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
         {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{device.activity.map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
       </div> : null}
     </footer>
+    </div>
     </div>
     <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} />
     {lifecycle.dialog}
