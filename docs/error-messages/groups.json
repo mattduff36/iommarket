@@ -2,17 +2,17 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 470,
+  "semantic_display_verified_count": 469,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1130,
-    "internal-only": 1304,
+    "displayed": 1129,
+    "internal-only": 1305,
     "duplicate": 793,
     "irrelevant": 142
   },
   "rule_counts": {
     "ast-public-return": 537,
-    "ast-no-public-sink": 865,
+    "ast-no-public-sink": 866,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
@@ -23,7 +23,7 @@
     "ast-throw-replaced": 9,
     "ast-enclosing-public-function": 65,
     "ast-type-or-import": 105,
-    "ast-public-sink": 234,
+    "ast-public-sink": 233,
     "ast-jsx-consumer": 126,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
@@ -75,10 +75,10 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1222,
+    "public-sink": 1221,
     "raw-message": 168,
     "fragment": 588,
-    "static-literal": 304,
+    "static-literal": 305,
     "thrown": 892,
     "monitoring": 81,
     "rate-limit": 13,
@@ -108,7 +108,7 @@
     },
     {
       "id": "displayed:ast-public-sink:deferred-c:public-sink",
-      "count": 197,
+      "count": 196,
       "example": "app/early-access/continue-form.tsx:21",
       "rule_id": "ast-public-sink",
       "classification": "displayed"
@@ -122,7 +122,7 @@
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:static-literal",
-      "count": 159,
+      "count": 160,
       "example": "actions/account.ts:73",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"

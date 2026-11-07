@@ -18,6 +18,9 @@ vi.mock("@/actions/admin/listing-edit", () => ({
   loadAdminListingForEdit: mocks.load,
   saveAdminListingEdit: mocks.save,
 }));
+vi.mock("@/actions/admin/dealer-stock-review-edit", () => ({
+  loadStockReviewVehicle: vi.fn(), saveStockReviewVehicle: vi.fn(),
+}));
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children, open }: { children: React.ReactNode; open: boolean; onOpenChange?: (open: boolean) => void }) => open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => <section role="dialog">{children}</section>,

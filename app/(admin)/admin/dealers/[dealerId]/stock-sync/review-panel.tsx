@@ -8,7 +8,6 @@ import { ReportableError } from "@/components/monitoring/reportable-error";
 import { DEALER_PLACEHOLDER_PATH, isDealerPlaceholderImage } from "@/lib/images/dealer-placeholder";
 import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
 import { AdminListingEditButton } from "@/components/admin/listing-edit-button";
-import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit-eligibility";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
@@ -79,7 +78,6 @@ function Row({
   onSelect: (selected: boolean) => void;
 }) {
   const editable = allowEdit && canEditStockReviewAction(action);
-  const refreshSnapshot = useStockSnapshotRefresh();
   const linked = Boolean(action.listingId) && (action.kind === "blocked" || action.kind === "conflict");
   const corrected = action.review?.provenance.includes("admin-corrected") ?? false;
   const label = stockReviewTitle(action);
@@ -117,17 +115,18 @@ function Row({
         {action.sourceIdentityKey ? <p>Source reference: <span className="[overflow-wrap:anywhere]">{action.sourceIdentityKey}</span></p> : <p>No source reference is available in this saved review.</p>}
         {sourceReferenceUrl && <a href={sourceReferenceUrl} target="_blank" rel="noreferrer" className="inline-block text-neon-blue-400 hover:underline">Source listing</a>}
       </div>}
-      {editable && action.sourceIdentityKey ? (
+      {allowEdit && (editable || (action.kind === "blocked" && linked)) && action.sourceIdentityKey ? (
         <StockReviewEditButton
           reportId={reportId}
           fingerprint={fingerprint}
           sourceIdentityKey={action.sourceIdentityKey}
+          listingId={action.listingId ?? undefined}
           label={label}
           override={action.kind === "blocked"}
         />
       ) : null}
-      {linked ? (
-        <AdminListingEditButton listingId={action.listingId!} label={action.kind === "blocked" ? "Edit / override" : "Open listing editor"} onSaved={() => { void refreshSnapshot?.(); }} savedMessage="Listing saved. Run a fresh stock check before approving further changes; this saved review may now be out of date." />
+      {linked && (!allowEdit || action.kind !== "blocked" || !action.sourceIdentityKey) ? (
+        <AdminListingEditButton listingId={action.listingId!} label={action.kind === "blocked" ? "Edit / override" : "Open listing editor"} />
       ) : null}
       {allowEdit && action.kind === "blocked" && !action.listingId && !action.sourceIdentityKey && <div className="mt-2">
         <button type="button" disabled className="rounded border border-border px-3 py-2 text-text-secondary">Edit / override</button>
