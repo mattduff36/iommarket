@@ -143,6 +143,13 @@ import {
 } from "@/actions/payments";
 
 describe("payForListing", () => {
+  it("rejects stale checkout and featured-upgrade requests for a recalled dealer draft before payment side effects", async () => {
+    mockDb.listing.findUnique.mockResolvedValue({ id: "caaaaaaaaaaaaaaaaaaaaaaaa", userId: "user_123", status: "DRAFT", stockReviewHeld: true });
+    expect(await payForListing({ listingId: "caaaaaaaaaaaaaaaaaaaaaaaa", privateSellerTermsAccepted: true })).toMatchObject({ error: expect.stringContaining("pulled back") });
+    expect(await upgradeFeatured("caaaaaaaaaaaaaaaaaaaaaaaa")).toMatchObject({ error: expect.stringContaining("pulled back") });
+    expect(persistCheckoutAttemptMock).not.toHaveBeenCalled();
+    expect(mockDb.payment.create).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mockDb.subscription.findMany.mockResolvedValue([]);

@@ -125,12 +125,12 @@ export async function preflightListingImageFile(file: File): Promise<string | nu
   }
 }
 
-async function transmitListingImageFile(file: File): Promise<ListingPhotoSource> {
+async function transmitListingImageFile(file: File, stockReviewListingId?: string): Promise<ListingPhotoSource> {
   let intentResponse: Response;
   try {
     intentResponse = await fetchUploadRequest("/api/listing-images/intent", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(stockReviewListingId ? { "x-stock-review-listing": stockReviewListingId } : {}) },
       body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size }),
     });
   } catch (error) {
@@ -239,13 +239,13 @@ async function transmitListingImageFile(file: File): Promise<ListingPhotoSource>
   };
 }
 
-export async function uploadListingImageFile(file: File): Promise<ListingPhotoSource> {
+export async function uploadListingImageFile(file: File, stockReviewListingId?: string): Promise<ListingPhotoSource> {
   const rejected = await preflightListingImageFile(file);
   if (rejected) {
     throw new UploadClientError(rejected, { code: "validation", retryable: false });
   }
   try {
-    return await transmitListingImageFile(file);
+    return await transmitListingImageFile(file, stockReviewListingId);
   } catch (error) {
     throw normalizeUploadClientError(error);
   }

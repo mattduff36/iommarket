@@ -12,6 +12,7 @@ const {
   intentUpdateMany,
   cleanupCreate,
   transaction,
+  audit,
 } = vi.hoisted(() => ({
   listingFindUnique: vi.fn(),
   listingUpdate: vi.fn(),
@@ -24,6 +25,7 @@ const {
   intentUpdateMany: vi.fn(),
   cleanupCreate: vi.fn(),
   transaction: vi.fn(),
+  audit: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -106,6 +108,7 @@ describe("listing photo mutation", () => {
     cleanupCreate.mockResolvedValue({});
     transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
+        adminAuditLog: { create: audit },
         listingImage: {
           findMany: listingImageFindMany,
           update: listingImageUpdate,
@@ -128,6 +131,44 @@ describe("listing photo mutation", () => {
     );
   });
 
+  it("rejects a held dealer draft before replaying an old successful photo mutation", async () => {
+    listingFindUnique.mockResolvedValue(listing({ stockReviewHeld: true, lastPhotoMutationId: "mut-1",
+      lastPhotoMutationHash: hashPhotoMutation([{ imageId: "img-1" }]) }));
+    expect(await syncListingImagesForUser({ listingId: "listing-1", userId: "user-1", isAdmin: false,
+      input: { photos: [{ imageId: "img-1" }], basePhotoRevision: 3, mutationId: "mut-1" } })).toMatchObject({ error: expect.stringContaining("pulled back") });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+  it("rejects a recall that commits between the dealer's read and photo transaction", async () => {
+    listingFindUnique.mockResolvedValueOnce(listing()).mockResolvedValueOnce(listing({ stockReviewHeld: true }));
+    expect(await syncListingImagesForUser({ listingId: "listing-1", userId: "user-1", isAdmin: false,
+      input: { photos: [{ imageId: "img-1" }], basePhotoRevision: 3, mutationId: "mut-new" } })).toMatchObject({ error: expect.stringContaining("pulled back") });
+    expect(listingImageUpdate).not.toHaveBeenCalled();
+    expect(listingImageDeleteMany).not.toHaveBeenCalled();
+  });
+  it("fences a recall committed during photo writes and does not return a successful save", async () => {
+    listingFindUnique.mockResolvedValueOnce(listing()).mockResolvedValueOnce(listing()).mockResolvedValueOnce(listing({ stockReviewHeld: true }));
+    listingUpdate.mockResolvedValue({ count: 0 });
+    expect(await syncListingImagesForUser({ listingId: "listing-1", userId: "user-1", isAdmin: false,
+      input: { photos: [{ imageId: "img-1" }], basePhotoRevision: 3, mutationId: "mut-new" } })).toMatchObject({ error: expect.stringContaining("pulled back") });
+    expect(listingUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ stockReviewHeld: false }) }));
+  });
+  it("allows an admin to retain the same dealer image identity on a held draft and audits the change", async () => {
+    listingFindUnique.mockResolvedValue(listing({ stockReviewHeld: true, dealerId: "dealer" }));
+    expect(await syncListingImagesForUser({ listingId: "listing-1", userId: "admin", isAdmin: true,
+      input: { photos: [{ imageId: "img-1", focalX: 0.3, focalY: 0.6 }], basePhotoRevision: 3, mutationId: "admin-edit" } })).toMatchObject({ data: { photoRevision: 4 } });
+    expect(listingImageCreate).not.toHaveBeenCalled();
+    expect(listingUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({
+      userId: "user-1", dealerId: "dealer", stockReviewHeld: true, soldAt: null, previewPackId: null,
+    }) }));
+    expect(audit).toHaveBeenCalledWith({ data: expect.objectContaining({ adminId: "admin", action: "ADMIN_EDIT_RECALLED_STOCK_PHOTOS" }) });
+  });
+  it.each([null, "another-listing"])("rejects an admin upload intent not bound to this recalled listing: %s", async listingId => {
+    listingFindUnique.mockResolvedValue(listing({ stockReviewHeld: true, dealerId: "dealer" }));
+    intentFindUnique.mockResolvedValue({ userId: "admin", listingId, status: "VERIFIED" });
+    expect(await syncListingImagesForUser({ listingId: "listing-1", userId: "admin", isAdmin: true,
+      input: { photos: [{ uploadIntentId: "intent-new" }], basePhotoRevision: 3, mutationId: "admin-edit" } })).toMatchObject({ error: expect.stringContaining("verified uploads") });
+    expect(intentUpdateMany).not.toHaveBeenCalled();
+  });
   it("PHOTO-ORDER-REPLAY-001 replays identical mutations and rejects reused IDs", async () => {
     listingFindUnique.mockResolvedValue(
       listing({

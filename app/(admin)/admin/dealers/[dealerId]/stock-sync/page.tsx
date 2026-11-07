@@ -8,6 +8,7 @@ import { stockSyncStatus, stockSyncReason } from "@/lib/dealer-stock-sync/review
 import { requireRole } from "@/lib/auth";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
 import { db } from "@/lib/db";
+import { decorateStockDraftReports } from "@/lib/dealer-stock-sync/draft-handoff-store";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { StockBindingForm } from "./binding-form";
 import { StockSyncReviewPanel } from "./review-panel";
@@ -46,6 +47,8 @@ export default async function DealerStockSyncPage({
             take: 8,
             select: {
               id: true,
+              dealerId: true,
+              bindingId: true,
               status: true,
               fingerprint: true,
               failureReason: true,
@@ -63,7 +66,7 @@ export default async function DealerStockSyncPage({
     notFound();
   }
   const binding = dealer.stockSourceBinding;
-  const latest = binding?.reports[0] ?? null;
+  const latest = (await decorateStockDraftReports(binding?.reports.slice(0, 1) ?? []))[0] ?? null;
 
   return (
     <div className="space-y-8">

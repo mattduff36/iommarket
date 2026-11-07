@@ -57,6 +57,10 @@ export async function reviewDealerStockSelection(input: unknown) {
       const busy = await tx.dealerStockSyncJob.findFirst({ where: { bindingId: report.bindingId, status: { in: ["QUEUED", "LEASED"] } }, select: { id: true } });
       if (busy) return { error: "Wait for this dealer's current stock task to finish before changing the review." };
       const { selected, remaining } = selectReviewActions(actions, parsed.data.actionIndexes);
+      if (selected.some(action => snapshot.listings.some(listing => listing.stockDraft &&
+        (listing.id === action.listingId || listing.stockDraft.sourceIdentityKey === action.sourceIdentityKey)))) {
+        return { error: "These drafts already belong to dealer review or admin recall. Refresh the review; they cannot be sent or approved again." };
+      }
       if (selected.some(action => !isSelectableStockAction(action))) return { error: "Sold or unchanged vehicles cannot be selected." };
       if (parsed.data.operation === "approve" && selected.some(action => !isApprovableStockAction(action))) {
         return { error: "Only eligible new listings and updates can be approved. Blocked vehicles and suggested removals are not approved by this action." };

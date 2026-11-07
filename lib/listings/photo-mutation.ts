@@ -2,6 +2,7 @@ import { uploadIntentCanBeAttached, UPLOAD_PROVIDER_CUTOVER_ERROR } from "@/lib/
 import { createHash } from "node:crypto";
 import type { ListingImageProvider, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 import { cleanupDeliveryForRemovedImage, imageRecordFromIntent } from "@/lib/media/stored-image";
 import { getListingPhotoLimitError, getSellerListingPhotoLimit } from "@/lib/listings/photo-limits";
 export class PhotoRevisionConflictError extends Error {
@@ -98,7 +99,14 @@ export async function syncListingImagesForUser({
     },
   });
   if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== userId) return { error: "Not authorised" };
+  const adminHeldEdit = isAdmin && listing.stockReviewHeld;
+  if (listing.userId !== userId && !adminHeldEdit) return { error: "Not authorised" };
+  if (listing.stockReviewHeld && !adminHeldEdit) return { error: STOCK_REVIEW_HELD_ERROR };
+  if (isAdmin && !adminHeldEdit) return { error: "Admin photo editing is only available for recalled stock drafts." };
+  if (adminHeldEdit && (!["DRAFT", "REJECTED"].includes(listing.status) || !listing.dealerId ||
+      listing.soldAt || listing.previewPackId || listing.retentionPurgedAt)) {
+    return { error: "This draft is no longer available for admin photo editing." };
+  }
   if (listing.status === "LIVE") {
     const { getOpenRevision, getOrCreateDraftRevision } = await import(
       "@/lib/listings/revisions"
@@ -169,10 +177,14 @@ export async function syncListingImagesForUser({
     await db.$transaction(async (tx) => {
       const currentListing = await tx.listing.findUnique({
         where: { id: listingId },
-        select: { photoRevision: true, status: true },
+        select: { photoRevision: true, status: true, stockReviewHeld: true, userId: true },
       });
       if (!currentListing) {
         throw new Error("Listing not found");
+      }
+      if (Boolean(currentListing.stockReviewHeld) !== Boolean(adminHeldEdit) ||
+          currentListing.userId !== listing.userId) {
+        throw new Error(STOCK_REVIEW_HELD_ERROR);
       }
       if (
         currentListing.status !== "DRAFT" &&
@@ -228,7 +240,7 @@ export async function syncListingImagesForUser({
           const intent = await tx.listingImageUploadIntent.findUnique({
             where: { id: photo.uploadIntentId },
           });
-          if (!intent || intent.userId !== listing.userId) {
+          if (!intent || intent.userId !== userId || (adminHeldEdit && intent.listingId !== listingId)) {
             throw new Error("Only your verified uploads can be attached to this listing.");
           }
           if (intent.status !== "VERIFIED") {
@@ -293,7 +305,7 @@ export async function syncListingImagesForUser({
           where: {
             id: item.intent.id,
             status: "VERIFIED",
-            userId: listing.userId,
+            userId,
             expiresAt: { gt: new Date() },
           },
           data: {
@@ -345,8 +357,12 @@ export async function syncListingImagesForUser({
       const bumped = await tx.listing.updateMany({
         where: {
           id: listingId,
+          userId: listing.userId,
+          dealerId: listing.dealerId,
           photoRevision: input.basePhotoRevision,
-          status: { in: ["DRAFT", "EXPIRED", "TAKEN_DOWN", "REJECTED"] },
+          stockReviewHeld: Boolean(adminHeldEdit),
+          status: { in: adminHeldEdit ? ["DRAFT", "REJECTED"] : ["DRAFT", "EXPIRED", "TAKEN_DOWN", "REJECTED"] },
+          ...(adminHeldEdit ? { soldAt: null, previewPackId: null, retentionPurgedAt: null } : {}),
         },
         data: {
           photoRevision: { increment: 1 },
@@ -357,11 +373,12 @@ export async function syncListingImagesForUser({
       if (bumped.count !== 1) {
         const latest = await tx.listing.findUnique({
           where: { id: listingId },
-          select: { photoRevision: true, status: true },
+          select: { photoRevision: true, status: true, stockReviewHeld: true },
         });
         if (!latest) {
           throw new Error("Listing not found");
         }
+        if (Boolean(latest.stockReviewHeld) !== Boolean(adminHeldEdit)) throw new Error(STOCK_REVIEW_HELD_ERROR);
         if (
           latest.status !== "DRAFT" &&
           latest.status !== "EXPIRED" &&
@@ -372,6 +389,10 @@ export async function syncListingImagesForUser({
         }
         throw new PhotoRevisionConflictError(latest.photoRevision);
       }
+      if (adminHeldEdit) await tx.adminAuditLog.create({ data: {
+        adminId: userId, action: "ADMIN_EDIT_RECALLED_STOCK_PHOTOS", entityType: "Listing", entityId: listingId,
+        details: { photoRevision: input.basePhotoRevision, nextCount: input.photos.length },
+      } });
     });
 
     return {

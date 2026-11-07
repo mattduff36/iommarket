@@ -39,11 +39,15 @@ function warningOf(plan: unknown) {
 
 function needsReview(actions: PlanAction[]) {
   return actions.some((action) =>
-    action.kind === "create" || action.kind === "update" || action.kind === "unpublish" || action.kind === "blocked" || action.kind === "conflict",
+    action.stockDraft?.state === "admin" || (!action.stockDraft && (action.kind === "create" || action.kind === "update" || action.kind === "unpublish" || action.kind === "blocked" || action.kind === "conflict")),
   );
 }
 
 function reportOutcome(status: string, actions: PlanAction[]) {
+  if (status !== "SUPERSEDED" && !needsReview(actions)) {
+    if (actions.some(action => action.stockDraft?.state === "dealer")) return "Awaiting dealer review";
+    if (actions.some(action => action.stockDraft?.state === "moderation")) return "Awaiting listing moderation";
+  }
   if (status === "PENDING_REVIEW") return needsReview(actions) ? "Awaiting review" : "No change";
   if (status === "SUPERSEDED" && !needsReview(actions)) return "No change";
   if (status === "APPROVED") return "Approved, not applied yet";
@@ -118,7 +122,8 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
   const visibleCount = Math.max(0, report.inventoryCount - allActions.filter(isSoldStockReviewAction).length);
   const warning = warningOf(report.plan);
   const actionable = actions.filter((action) => action.kind === "create" || action.kind === "update").length;
-  const blocked = actions.filter((action) => action.kind === "blocked" || action.kind === "conflict").length;
+  const blocked = actions.filter((action) => !action.stockDraft && (action.kind === "blocked" || action.kind === "conflict")).length;
+  const handoffs = actions.filter(action => action.stockDraft).length;
   const removals = removalLabel(report.status, actions);
   const outcome = reportOutcome(report.status, actions);
   const when = new Date(report.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" });
@@ -128,7 +133,7 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
         <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(outcome === "No change" ? "no_change" : report.status)}>{outcome}</span> · {visibleCount} vehicles
       </p><div className="relative z-10"><StockResultActions id={report.id} /></div></div>
       <p className="text-text-secondary">
-        {actionable} actionable · {blocked} blocked{removals ? ` · ${removals}` : ""} · {when}
+        {actionable} actionable · {blocked} blocked{handoffs ? ` · ${handoffs} tracked drafts` : ""}{removals ? ` · ${removals}` : ""} · {when}
       </p>
       {outcome === "No change" ? <p className="text-text-secondary">Nothing to approve. Listings were not changed.</p> : null}
       {report.status === "APPROVED" ? <p className="text-text-secondary">Approval queues processing and does not apply listings by itself.</p> : null}

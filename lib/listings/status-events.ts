@@ -7,6 +7,7 @@ import type {
   Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 import { calculateExpiryDate } from "@/lib/listing-status";
 import {
   canReinstateLive,
@@ -144,12 +145,17 @@ async function runTransition(
       expiresAt: true,
       approvedAt: true,
       lifecycleRevision: true,
+      stockReviewHeld: true,
       ...(input.action === "SUBMIT" ? { stockDraftReceipts: { where: { revisionId: null }, orderBy: { createdAt: "desc" as const }, take: 1 } } : {}),
     },
   });
 
   if (!existing) {
     throw new ListingLifecycleError("Listing not found");
+  }
+  const sellerMutation = input.source === "USER" || input.source === "PAYMENT";
+  if (existing.stockReviewHeld && sellerMutation) {
+    throw new ListingLifecycleError(STOCK_REVIEW_HELD_ERROR);
   }
 
   if (existing.lifecycleRevision !== input.expectedRevision) {
@@ -249,6 +255,7 @@ async function runTransition(
       id: existing.id,
       status: existing.status,
       lifecycleRevision: input.expectedRevision,
+      ...(sellerMutation ? { stockReviewHeld: false } : {}),
     },
     data: {
       ...effects,
@@ -257,6 +264,7 @@ async function runTransition(
         : {}),
       status: toStatus,
       lifecycleRevision: { increment: 1 },
+      ...(input.action === "APPROVE" ? { stockReviewHeld: false } : {}),
     },
   });
 

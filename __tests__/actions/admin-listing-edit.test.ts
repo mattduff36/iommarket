@@ -161,6 +161,21 @@ describe("admin listing detail editor action", () => {
     expect(mocks.resolveReview).toHaveBeenCalledTimes(1);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/stock-reviews");
   });
+  it("corrects held stock without changing its identity, hold or stale stock-report guard", async () => {
+    mocks.listingFindUnique.mockResolvedValueOnce({
+      id: input.listingId, title: "Dealer saved title", description: "Dealer saved description",
+      price: 25000, categoryId: "category-1", regionId: "region-1", lifecycleRevision: 2,
+      updatedAt: new Date(expectedUpdatedAt), stockReviewHeld: true, status: "DRAFT", attributeValues: [],
+    });
+    const { saveAdminListingEdit } = await import("@/actions/admin/listing-edit");
+    expect(await saveAdminListingEdit(input)).toHaveProperty("data");
+    expect(mocks.prepareResolution).not.toHaveBeenCalled();
+    expect(mocks.resolveReview).not.toHaveBeenCalled();
+    const data = mocks.listingUpdateMany.mock.calls[0][0].data;
+    for (const field of ["stockReviewHeld", "userId", "dealerId", "status", "reviewSourceIdentity"]) {
+      expect(data).not.toHaveProperty(field);
+    }
+  });
   it("can resolve a correction already saved without changing listing details again", async () => {
     const { saveAdminListingEdit } = await import("@/actions/admin/listing-edit");
     mocks.listingFindUnique.mockResolvedValueOnce({ ...input, updatedAt: new Date(expectedUpdatedAt), lifecycleRevision: 2, attributeValues: [] });

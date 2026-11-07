@@ -129,7 +129,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     </section>
     {children}
     </div>
-    <footer aria-label="Stock Update" hidden={!online} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t border-border bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
+    <footer aria-label="Stock Update" hidden={!online} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t-2 border-neon-blue-500/70 bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
       <div className="h-0.5 overflow-hidden" role={busy ? "progressbar" : undefined}
         aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
         <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : "w-0"}`} />

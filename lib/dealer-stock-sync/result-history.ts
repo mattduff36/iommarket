@@ -7,12 +7,18 @@ function hasPendingSelection(plan: unknown) {
   return Array.isArray(plan.pendingReviewActions) && plan.pendingReviewActions.some((action: PlanAction) => action && isSelectableStockAction(action));
 }
 
+function hasDraftOwnership(plan: unknown) {
+  if (!plan || typeof plan !== "object") return false;
+  const groups = ["actions" in plan ? plan.actions : null, "pendingReviewActions" in plan ? plan.pendingReviewActions : null];
+  return groups.some(group => Array.isArray(group) && group.some((action: PlanAction) => action?.stockDraft));
+}
+
 export type ResultHistoryState = "active" | "archived" | "deleted";
 export const RESULT_HISTORY_ACTIONS = ["RESULT_ARCHIVED", "RESULT_DELETED", "RESULT_RESTORED"] as const;
 export type ResultHistoryAction = typeof RESULT_HISTORY_ACTIONS[number];
 
 export function resultHistoryState(status: string, action: string | null, plan?: unknown): ResultHistoryState {
-  if (hasPendingSelection(plan)) return "active";
+  if (hasPendingSelection(plan) || hasDraftOwnership(plan)) return "active";
   if (action === "RESULT_DELETED") return "deleted";
   if (action === "RESULT_ARCHIVED") return "archived";
   if (action === "RESULT_RESTORED") return "active";
@@ -21,7 +27,7 @@ export function resultHistoryState(status: string, action: string | null, plan?:
 }
 
 export function canManageStockReport(status: string, plan: unknown): boolean {
-  if (hasPendingSelection(plan)) return false;
+  if (hasPendingSelection(plan) || hasDraftOwnership(plan)) return false;
   if (["APPLIED", "FAILED", "REJECTED", "SUPERSEDED"].includes(status)) return true;
   if (status !== "PENDING_REVIEW" || !plan || typeof plan !== "object" || !("actions" in plan)) return false;
   if (!Array.isArray(plan.actions)) return false;

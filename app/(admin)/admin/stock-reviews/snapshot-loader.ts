@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { decorateStockDraftReports } from "@/lib/dealer-stock-sync/draft-handoff-store";
 import { requireRole } from "@/lib/auth";
 import { loadResultHistory } from "@/lib/dealer-stock-sync/result-history-store";
 import { resolveDesktopGate } from "@/lib/dealer-stock-sync/desktop-config";
@@ -9,6 +10,8 @@ const RECENT_LIMIT = 100;
 
 const reportSelect = {
   id: true,
+  dealerId: true,
+  bindingId: true,
   scrapeRunId: true,
   fingerprint: true,
   status: true,
@@ -47,6 +50,23 @@ async function loadJobs() {
   return [...new Map([...active, ...recent].map(job => [job.id, job])).values()];
 }
 
+async function loadHandoffReports(loadedIds: string[]) {
+  const receipts = await db.stockReviewDraftReceipt.findMany({
+    where: { OR: [
+      { revisionId: null, listing: { status: { in: ["DRAFT", "PENDING", "REJECTED"] },
+        soldAt: null, previewPackId: null, retentionPurgedAt: null } },
+      { revision: { status: { in: ["DRAFT", "PENDING"] } }, listing: {
+        status: "LIVE", soldAt: null, previewPackId: null, retentionPurgedAt: null,
+      } },
+    ] },
+    distinct: ["reportId"], select: { reportId: true },
+  });
+  const ids = receipts.map(receipt => receipt.reportId).filter(id => !loadedIds.includes(id));
+  return ids.length ? db.dealerStockSyncReport.findMany({
+    where: { id: { in: ids } }, orderBy: { createdAt: "desc" }, select: reportSelect,
+  }) : [];
+}
+
 export async function loadStockReviewSnapshot() {
   await requireRole("ADMIN");
   const [outstanding, recentReports, jobs, profiles, dashboard] = await Promise.all([
@@ -56,10 +76,14 @@ export async function loadStockReviewSnapshot() {
     db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, user: { select: { disabledAt: true } } }, orderBy: { name: "asc" } }),
     getWorkerDashboard(),
   ]);
-  const historyEntries = await loadResultHistory([...outstanding, ...recentReports], jobs);
+  const legacy = await loadHandoffReports([...outstanding, ...recentReports].map(report => report.id));
+  const savedReports = [...recentReports, ...legacy];
+  const enriched = await decorateStockDraftReports([...outstanding, ...savedReports]);
+  const historyEntries = await loadResultHistory(enriched, jobs);
+  const decorated = new Map(enriched.map(report => [report.id, report]));
   const serializeReport = (report: Awaited<ReturnType<typeof loadReports>>[number]) => ({ ...report, createdAt: report.createdAt.toISOString() });
   return {
-    outstanding: outstanding.map(serializeReport), recentReports: recentReports.map(serializeReport),
+    outstanding: outstanding.map(report => serializeReport(decorated.get(report.id)!)), recentReports: savedReports.map(report => serializeReport(decorated.get(report.id)!)),
     jobs: jobs.map(job => ({ ...job, createdAt: job.createdAt.toISOString(), startedAt: job.startedAt?.toISOString() ?? null })),
     profiles: profiles.map(profile => ({ ...profile, user: { disabledAt: profile.user.disabledAt?.toISOString() ?? null } })),
     dashboard, historyEntries, desktopEnabled: resolveDesktopGate(process.env).ok, now: Date.now(),

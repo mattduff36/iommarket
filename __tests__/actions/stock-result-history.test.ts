@@ -4,6 +4,7 @@ const { db, auth, rate, refresh } = vi.hoisted(() => ({
   db: {
     $transaction: vi.fn(), $queryRaw: vi.fn(),
     dealerStockSyncReport: {findUnique:vi.fn()},
+    stockReviewDraftReceipt: {findMany:vi.fn().mockResolvedValue([])},
     dealerStockSyncJob: {findUnique:vi.fn(),findFirst:vi.fn()},
     dealerStockSyncAudit: {findFirst:vi.fn(),create:vi.fn()},
   },
@@ -19,7 +20,7 @@ beforeEach(() => {
   rate.mockResolvedValue({allowed:true});
   db.$transaction.mockImplementation(async fn=>fn(db));
   db.$queryRaw.mockResolvedValue([{id:"result"}]);
-  db.dealerStockSyncReport.findUnique.mockResolvedValue({status:"PENDING_REVIEW",plan:{actions:[{kind:"unchanged"}]},scrapeRunId:"scan"});
+  db.dealerStockSyncReport.findUnique.mockResolvedValue({id:"result",dealerId:"dealer",bindingId:"binding",status:"PENDING_REVIEW",plan:{actions:[{kind:"unchanged"}]},scrapeRunId:"scan"});
   db.dealerStockSyncJob.findUnique.mockResolvedValue({status:"SUCCEEDED"});
   db.dealerStockSyncJob.findFirst.mockResolvedValue(null);
   db.dealerStockSyncAudit.findFirst.mockResolvedValue(null);

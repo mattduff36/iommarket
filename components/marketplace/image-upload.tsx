@@ -55,6 +55,7 @@ export interface UploadedImage extends ListingPhotoSource {
 }
 
 interface ImageUploadProps {
+  stockReviewListingId?: string;
   images: UploadedImage[];
   onImagesChange: React.Dispatch<React.SetStateAction<UploadedImage[]>>;
   onBusyChange?: (isBusy: boolean) => void;
@@ -76,6 +77,7 @@ function createClientId() {
 }
 
 export function ImageUpload({
+  stockReviewListingId,
   hideAddButton = false,
   images,
   onImagesChange,
@@ -186,7 +188,7 @@ export function ImageUpload({
       const reserved = await mapPhotoBatch(
         validEntries, async ({ file, slot }) => {
           try {
-            const uploaded = await uploadListingImageFile(file);
+            const uploaded = await uploadListingImageFile(file, stockReviewListingId);
             const image = {
               ...uploaded,
               uploadIntentId: uploaded.uploadIntentId!,

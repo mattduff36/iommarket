@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { canManageStockReport, resultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 
 describe("stock result history policy", () => {
+  it("keeps receipt-backed ownership visible and unarchivable while dealer/admin/moderation work is pending", () => {
+    for (const state of ["dealer", "admin", "moderation"]) {
+      for (const key of ["actions", "pendingReviewActions"]) {
+        const plan = { [key]: [{ kind: "blocked", stockDraft: { state } }] };
+        expect(resultHistoryState("REJECTED", "RESULT_DELETED", plan)).toBe("active");
+        expect(canManageStockReport("APPLIED", plan)).toBe(false);
+      }
+    }
+  });
   it("retains unprocessed selection remainder even after failed jobs or archive requests", () => {
     const plan = { actions: [], pendingReviewActions: [{ kind: "blocked", reason: "missing-price" }] };
     for (const status of ["APPROVED", "FAILED", "APPLIED", "SUPERSEDED"]) {

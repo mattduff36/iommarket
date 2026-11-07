@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const requireRole = vi.fn();
 const reportFindMany = vi.fn();
 const jobFindMany = vi.fn();
-const { dashboardProps, pickerProps, profileFindMany } = vi.hoisted(() => ({ dashboardProps: vi.fn(), pickerProps: vi.fn(), profileFindMany: vi.fn().mockResolvedValue([]) }));
+const { dashboardProps, pickerProps, profileFindMany, receiptFindMany } = vi.hoisted(() => ({ dashboardProps: vi.fn(), pickerProps: vi.fn(), profileFindMany: vi.fn().mockResolvedValue([]), receiptFindMany: vi.fn() }));
 
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: vi.fn().mockResolvedValue({ok:true,devices:[]}) }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-dashboard", () => ({ StockWorkerDashboard: (props: {children: import("react").ReactNode}) => { dashboardProps(props); return props.children; } }));
@@ -23,6 +23,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    stockReviewDraftReceipt: { findMany: receiptFindMany },
     dealerStockSyncAudit: { findMany: vi.fn().mockResolvedValue([]) },
     dealerProfile: { findMany: profileFindMany },
     dealerStockSourceBinding: { findMany: vi.fn().mockResolvedValue([]) },
@@ -48,6 +49,8 @@ function dealer(id: string, name: string) {
 function report(overrides: Record<string, unknown>) {
   return {
     id: "report",
+    dealerId: "dealer-1",
+    bindingId: "binding-1",
     status: "PENDING_REVIEW",
     inventoryCount: 4,
     failureReason: null,
@@ -98,8 +101,28 @@ describe("admin stock reviews", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireRole.mockResolvedValue({ id: "admin-1" });
+    receiptFindMany.mockResolvedValue([]);
   });
 
+  it("keeps legacy applied handoffs beyond the recent-results limit in active history", async () => {
+    receiptFindMany.mockResolvedValue([{ id: "receipt", reportId: "origin", dealerId: "dealer-1", userId: "owner",
+      listingId: "listing", revisionId: null, revision: null, sourceIdentityKey: "source", createdAt: when,
+      recalledAt: null, blockers: [], listing: { id: "listing", dealerId: "dealer-1", userId: "owner", status: "DRAFT",
+        stockReviewHeld: false, title: "Dealer saved car", soldAt: null, previewPackId: null, retentionPurgedAt: null,
+        lifecycleRevision: 1, photoRevision: 2, updatedAt: when,
+        stockSourceIdentity: { sourceIdentityKey: "source", listingId: "listing", bindingId: "binding-1" } } }]);
+    reportFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([
+      report({ id: "origin", status: "APPLIED", plan: { actions: [] } }),
+    ]);
+    jobFindMany.mockResolvedValue([]);
+    render(await AdminStockReviewsPage({ searchParams: Promise.resolve({ history: "active" }) }));
+    expect(reportFindMany).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      where: { id: { in: ["origin"] } },
+    }));
+    expect(screen.getByRole("button", { name: "Open dealer stock review" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open dealer stock review" }));
+    expect(screen.getByTestId("review-detail")).toHaveTextContent("origin");
+  });
   it("requires an admin and lists every pending and approved review with warnings", async () => {
     await renderPage([
       report({

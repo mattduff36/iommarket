@@ -382,6 +382,6 @@ describe("listing draft photos", () => {
       const cached = await photoStore.get(listingPhotoCacheKey("user_a", "private", "cars", "intent_ui"));
       expect(cached?.file).toBe(file);
     });
-    expect(uploadListingImageFile).toHaveBeenCalledWith(file);
+    expect(uploadListingImageFile).toHaveBeenCalledWith(file, undefined);
   });
 });

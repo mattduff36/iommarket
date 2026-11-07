@@ -2,25 +2,26 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 469,
+  "semantic_display_verified_count": 471,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1129,
-    "internal-only": 1305,
+    "displayed": 1132,
+    "internal-only": 1303,
     "duplicate": 793,
-    "irrelevant": 142
+    "irrelevant": 141
   },
   "rule_counts": {
-    "ast-public-return": 537,
-    "ast-no-public-sink": 866,
+    "ast-public-return": 540,
+    "ast-no-public-sink": 863,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
     "ast-throw-caller-sink": 101,
-    "ast-binding": 20,
+    "ast-binding": 19,
     "ast-throw-unrendered": 350,
     "ast-diagnostic-call": 71,
     "ast-throw-replaced": 9,
+    "ast-branch-condition": 7,
     "ast-enclosing-public-function": 65,
     "ast-type-or-import": 105,
     "ast-public-sink": 233,
@@ -28,15 +29,14 @@
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
     "ast-signature": 4,
-    "ast-diagnostic-text": 3,
-    "ast-branch-condition": 6
+    "ast-diagnostic-text": 3
   },
   "exception_rows": 712,
   "implementation_status_counts": {
-    "journey-c-public-boundary": 154,
+    "journey-c-public-boundary": 153,
     "deferred-c": 2354,
     "journey-c-destructive-boundary": 111,
-    "listings-b-public-boundary": 197,
+    "listings-b-public-boundary": 198,
     "payments-b-public-boundary": 125,
     "deferred-c-payment-internals": 236,
     "boundary-d-public": 17,
@@ -75,12 +75,12 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1221,
+    "public-sink": 1227,
     "raw-message": 168,
     "fragment": 588,
-    "static-literal": 305,
+    "static-literal": 300,
     "thrown": 892,
-    "monitoring": 81,
+    "monitoring": 80,
     "rate-limit": 13,
     "field-errors": 101
   },
@@ -192,7 +192,7 @@
     },
     {
       "id": "displayed:ast-public-return:listings-b-public-boundary:public-sink",
-      "count": 47,
+      "count": 48,
       "example": "actions/listings.ts:134",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -240,18 +240,18 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
-      "count": 29,
-      "example": "actions/account.ts:81",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:thrown",
       "count": 29,
       "example": "lib/payments/provider.ts:64",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
+      "count": 28,
+      "example": "actions/account.ts:81",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-destructive-boundary:public-sink",
@@ -282,6 +282,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:public-sink",
+      "count": 25,
+      "example": "actions/payments.ts:140",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "displayed:ast-public-return:payments-b-public-boundary:public-sink",
       "count": 23,
       "example": "actions/payments.ts:150",
@@ -303,13 +310,6 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:public-sink",
-      "count": 21,
-      "example": "actions/payments.ts:140",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:fragment",
       "count": 21,
       "example": "app/(admin)/admin/payments/page.tsx:560",
@@ -322,6 +322,13 @@
       "example": "app/uidemo/page.tsx:54",
       "rule_id": "ast-type-or-import",
       "classification": "irrelevant"
+    },
+    {
+      "id": "displayed:ast-public-return:uploads-b-public-boundary:public-sink",
+      "count": 20,
+      "example": "app/api/listing-images/finalize/route.ts:54",
+      "rule_id": "ast-public-return",
+      "classification": "displayed"
     },
     {
       "id": "duplicate:exact-source-repeat:listings-b-public-boundary:public-sink",
@@ -338,15 +345,8 @@
       "classification": "internal-only"
     },
     {
-      "id": "displayed:ast-public-return:uploads-b-public-boundary:public-sink",
-      "count": 18,
-      "example": "app/api/listing-images/finalize/route.ts:74",
-      "rule_id": "ast-public-return",
-      "classification": "displayed"
-    },
-    {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:fragment",
-      "count": 18,
+      "count": 19,
       "example": "actions/dealer.ts:92",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -382,7 +382,7 @@
     {
       "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:fragment",
       "count": 16,
-      "example": "app/api/listing-images/imagekit-finalize/route.ts:27",
+      "example": "app/api/listing-images/finalize/route.ts:74",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -422,13 +422,6 @@
       "classification": "internal-only"
     },
     {
-      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:static-literal",
-      "count": 14,
-      "example": "app/api/listing-images/finalize/route.ts:46",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:field-errors",
       "count": 13,
       "example": "app/(public)/sell/create-listing-form.tsx:124",
@@ -441,6 +434,13 @@
       "example": "lib/payments/attach-unmatched-listing.ts:25",
       "rule_id": "ast-throw-caller-sink",
       "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:static-literal",
+      "count": 11,
+      "example": "app/api/listing-images/finalize/route.ts:46",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
     },
     {
       "id": "displayed:ast-value-reaches-return:deferred-c:public-sink",
@@ -492,20 +492,6 @@
       "classification": "displayed"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:fragment",
-      "count": 8,
-      "example": "actions/payments.ts:542",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
-      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
-      "count": 8,
-      "example": "actions/listings.ts:115",
-      "rule_id": "ast-binding",
-      "classification": "irrelevant"
-    },
-    {
       "id": "irrelevant:ast-jsx-close:deferred-c:fragment",
       "count": 8,
       "example": "app/uidemo/page.tsx:513",
@@ -534,9 +520,9 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:static-literal",
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:fragment",
       "count": 7,
-      "example": "actions/payments.ts:158",
+      "example": "actions/payments.ts:542",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -555,6 +541,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "irrelevant:ast-binding:listings-b-public-boundary:fragment",
+      "count": 7,
+      "example": "actions/listings.ts:115",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
+    },
+    {
       "id": "displayed:ast-enclosing-public-function:deferred-c:raw-message",
       "count": 6,
       "example": "lib/costs/email.ts:79",
@@ -567,6 +560,13 @@
       "example": "components/marketplace/image-upload.tsx:112",
       "rule_id": "ast-public-sink",
       "classification": "displayed"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:static-literal",
+      "count": 6,
+      "example": "actions/payments.ts:159",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
     },
     {
       "id": "duplicate:exact-source-repeat:uploads-b-mapped-if-surfaced:public-sink",
@@ -599,7 +599,7 @@
     {
       "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:public-sink",
       "count": 5,
-      "example": "app/api/listing-images/imagekit-upload/route.ts:29",
+      "example": "app/api/listing-images/finalize/route.ts:86",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -751,13 +751,6 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:raw-message",
-      "count": 3,
-      "example": "actions/payments.ts:233",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:field-errors",
       "count": 3,
       "example": "lib/forms/action-error.ts:63",
@@ -772,13 +765,6 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:static-literal",
-      "count": 3,
-      "example": "app/api/listing-images/finalize/route.ts:86",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "internal-only:ast-diagnostic-text:deferred-c:monitoring",
       "count": 3,
       "example": "components/layout/site-header.tsx:117",
@@ -786,16 +772,16 @@
       "classification": "internal-only"
     },
     {
-      "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:static-literal",
+      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:raw-message",
       "count": 3,
-      "example": "actions/listings.ts:947",
+      "example": "actions/payments.ts:426",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
-      "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:raw-message",
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:raw-message",
       "count": 3,
-      "example": "actions/payments.ts:426",
+      "example": "app/api/listing-images/imagekit-finalize/route.ts:31",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -849,9 +835,37 @@
       "classification": "duplicate"
     },
     {
+      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:raw-message",
+      "count": 2,
+      "example": "actions/payments.ts:233",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:fragment",
+      "count": 2,
+      "example": "app/api/listing-images/imagekit-upload/route.ts:52",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:static-literal",
+      "count": 2,
+      "example": "app/api/listing-images/imagekit-upload/route.ts:29",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:static-literal",
       "count": 2,
       "example": "actions/admin/payments.ts:497",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:static-literal",
+      "count": 2,
+      "example": "lib/services/vehicle-check-aggregator.ts:295",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -873,13 +887,6 @@
       "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:rate-limit",
       "count": 2,
       "example": "app/api/listing-images/finalize/route.ts:65",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:raw-message",
-      "count": 2,
-      "example": "components/marketplace/image-upload.tsx:196",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -1052,23 +1059,16 @@
       "classification": "duplicate"
     },
     {
-      "id": "duplicate:exact-source-repeat:payments-b-public-boundary:monitoring",
-      "count": 1,
-      "example": "actions/payments.ts:442",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
-      "id": "duplicate:exact-source-repeat:uploads-b-public-boundary:fragment",
-      "count": 1,
-      "example": "app/api/listing-images/imagekit-upload/route.ts:52",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
-    },
-    {
       "id": "internal-only:ast-branch-condition:deferred-c:fragment",
       "count": 1,
       "example": "lib/monitoring/plain-alert-rules.ts:439",
+      "rule_id": "ast-branch-condition",
+      "classification": "internal-only"
+    },
+    {
+      "id": "internal-only:ast-branch-condition:listings-b-public-boundary:static-literal",
+      "count": 1,
+      "example": "actions/listings.ts:818",
       "rule_id": "ast-branch-condition",
       "classification": "internal-only"
     },

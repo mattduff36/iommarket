@@ -1,4 +1,5 @@
 import { isSoldStockReviewAction } from "./review";
+import { isStockDraftOwnedAction } from "./draft-handoff";
 import type { PlanAction } from "./types";
 
 // Desktop inventory and apply execution both cap a review at 2,000 actions.
@@ -12,15 +13,15 @@ const PROTECTED_DRAFT_REASONS = new Set([
 ]);
 
 export function isSelectableStockAction(action: PlanAction) {
-  return action.kind !== "unchanged" && !isSoldStockReviewAction(action);
+  return action.kind !== "unchanged" && !isSoldStockReviewAction(action) && !isStockDraftOwnedAction(action);
 }
 
 export function isApprovableStockAction(action: PlanAction) {
-  return !isSoldStockReviewAction(action) && (action.kind === "create" || action.kind === "update");
+  return !isStockDraftOwnedAction(action) && !isSoldStockReviewAction(action) && (action.kind === "create" || action.kind === "update");
 }
 
 export function isDraftableStockAction(action: PlanAction) {
-  if (!action.sourceIdentityKey?.trim() || isSoldStockReviewAction(action)) return false;
+  if (!action.sourceIdentityKey?.trim() || isSoldStockReviewAction(action) || isStockDraftOwnedAction(action)) return false;
   if ((action.kind === "blocked" || action.kind === "conflict") && PROTECTED_DRAFT_REASONS.has(action.reason)) return false;
   if (action.kind === "create" || action.kind === "update" || action.kind === "conflict") return true;
   return action.kind === "blocked" && !PROTECTED_DRAFT_REASONS.has(action.reason) &&

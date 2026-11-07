@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { finalizeListingImageUploadIntent } from "@/lib/listings/photo-upload";
+import { canUploadAdminStockPhoto } from "@/lib/listings/admin-stock-upload";
 import { processListingImageCleanupJobs } from "@/lib/listings/photo-cleanup";
 import { publicErrorBody } from "@/lib/forms/public-error";
 import { uploadAuthErrorBody } from "@/lib/media/upload-auth-error";
@@ -77,10 +78,6 @@ export async function POST(request: NextRequest) {
       headers: { "Retry-After": String(rateBody.retryAfterSeconds) },
     });
   }
-  if (isAdminSellerBlocked(user.role)) {
-    return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -92,8 +89,10 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(publicErrorBody({ message: "Invalid upload data", code: "validation" }), { status: 400 });
   }
-
   try {
+    if (isAdminSellerBlocked(user.role) && !(await canUploadAdminStockPhoto(user, { intentId: parsed.data.uploadIntentId }))) {
+      return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
+    }
     const result = await finalizeListingImageUploadIntent({
       userId: user.id,
       intentId: parsed.data.uploadIntentId,

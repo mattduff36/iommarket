@@ -24,6 +24,9 @@ export async function prepareLinkedReviewResolution(tx: Prisma.TransactionClient
   const busy = await tx.dealerStockSyncJob.findFirst({ where: { bindingId: report.bindingId, status: { in: ["QUEUED", "LEASED"] } }, select: { id: true } });
   if (busy) throw new Error("Wait for this dealer's current stock task to finish before saving the correction.");
   const before = await loadStockSyncSnapshot(report.dealerId, actions, tx);
+  if (before?.listings.some(listing => listing.id === listingId && (listing.stockReviewHeld || listing.stockDraft))) {
+    throw new Error("This listing is tracked as a dealer stock draft. Use its ownership review controls; saving must not remove it from stock review.");
+  }
   if (!before || before.binding.id !== report.bindingId || !before.listings.some(listing => listing.id === listingId) ||
       !before.identities.some(identity => identity.sourceIdentityKey === target.sourceIdentityKey && identity.listingId === listingId)) throw new Error(STALE);
   const wasCurrent = fingerprintSnapshot(before) === report.fingerprint;

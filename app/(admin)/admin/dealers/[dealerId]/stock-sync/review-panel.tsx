@@ -16,6 +16,7 @@ import { StockReviewEditButton } from "./review-edit-button";
 import { StockReviewPhoto } from "./review-photo";
 import { StockReviewReason } from "./review-reason";
 import { stockReviewTitle } from "@/lib/dealer-stock-sync/review-help";
+import { StockDraftOwnership } from "./draft-ownership";
 
 function changesFor(action: PlanAction) {
   if (action.kind !== "update" && action.kind !== "conflict" && action.kind !== "create") return [];
@@ -68,12 +69,14 @@ function Row({
   reportId,
   fingerprint,
   allowEdit,
+  status,
   selected, onSelect,
 }: {
   action: PlanAction;
   reportId: string;
   fingerprint: string;
   allowEdit: boolean;
+  status: string;
   selected: boolean;
   onSelect: (selected: boolean) => void;
 }) {
@@ -87,11 +90,11 @@ function Row({
     <li className={`rounded-lg border p-4 text-sm transition-colors ${selected ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border"}`}>
       {allowEdit && isSelectableStockAction(action) && <Checkbox className="mb-3 h-9 w-9 rounded-md [&_svg]:h-6 [&_svg]:w-6" label={<span className="flex min-h-10 items-center font-medium">Select {label}</span>} checked={selected} onCheckedChange={value => onSelect(value === true)} />}
       <p className="font-medium text-text-primary">
-        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(action.kind)}>{action.kind === "missing_once" ? "Check availability" : action.kind === "unpublish" ? "Removal suggested" : actionLabel(action)}</span>
+        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(action.stockDraft ? "PENDING" : action.kind)}>{action.stockDraft ? action.stockDraft.state === "dealer" ? "Awaiting dealer review" : action.stockDraft.state === "moderation" ? "Awaiting listing moderation" : "Admin stock review" : action.kind === "missing_once" ? "Check availability" : action.kind === "unpublish" ? "Removal suggested" : actionLabel(action)}</span>
         {` - ${label}`}
       </p>
       {corrected ? <p className="text-text-secondary">Corrected by admin.{allowEdit ? " Still pending approval." : ""}</p> : null}
-      {action.kind === "blocked" || action.kind === "conflict" ? (
+      {!action.stockDraft && (action.kind === "blocked" || action.kind === "conflict") ? (
         <StockReviewReason action={action} />
       ) : null}
       {action.kind === "missing_once" || action.kind === "unpublish" ? (
@@ -110,12 +113,12 @@ function Row({
         </p>
       ))}
       {action.review ? <Evidence review={action.review} /> : null}
-      {!action.review && <div className="mt-2 space-y-1 break-words text-text-secondary">
+      {!action.review && !action.stockDraft && <div className="mt-2 space-y-1 break-words text-text-secondary">
         <p>No vehicle details were saved with this review.{action.kind === "blocked" && action.section === "missing" ? " This record was absent from the latest complete website check." : " Run a fresh stock check to obtain current source details."}</p>
         {action.sourceIdentityKey ? <p>Source reference: <span className="[overflow-wrap:anywhere]">{action.sourceIdentityKey}</span></p> : <p>No source reference is available in this saved review.</p>}
         {sourceReferenceUrl && <a href={sourceReferenceUrl} target="_blank" rel="noreferrer" className="inline-block text-neon-blue-400 hover:underline">Source listing</a>}
       </div>}
-      {allowEdit && (editable || (action.kind === "blocked" && linked)) && action.sourceIdentityKey ? (
+      {!action.stockDraft && allowEdit && (editable || (action.kind === "blocked" && linked)) && action.sourceIdentityKey ? (
         <StockReviewEditButton
           reportId={reportId}
           fingerprint={fingerprint}
@@ -125,9 +128,10 @@ function Row({
           override={action.kind === "blocked"}
         />
       ) : null}
-      {linked && (!allowEdit || action.kind !== "blocked" || !action.sourceIdentityKey) ? (
+      {!action.stockDraft && linked && (!allowEdit || action.kind !== "blocked" || !action.sourceIdentityKey) ? (
         <AdminListingEditButton listingId={action.listingId!} label={action.kind === "blocked" ? "Edit / override" : "Open listing editor"} />
       ) : null}
+      {action.stockDraft && <StockDraftOwnership draft={action.stockDraft} reportId={reportId} fingerprint={fingerprint} status={status} />}
       {allowEdit && action.kind === "blocked" && !action.listingId && !action.sourceIdentityKey && <div className="mt-2">
         <button type="button" disabled className="rounded border border-border px-3 py-2 text-text-secondary">Edit / override</button>
         <p className="text-text-secondary">Run a fresh stock check first: this saved row has no vehicle reference to safely identify the record to edit.</p>
@@ -151,13 +155,17 @@ export function StockSyncReviewPanel(input: {
   const visible = input.actions.filter(action => !isSoldStockReviewAction(action));
   const actionable = visible.filter((action) => action.kind === "create" || action.kind === "update");
   const blocked = visible.filter((action) =>
-    (action.kind === "blocked" || action.kind === "conflict"));
+    !action.stockDraft && (action.kind === "blocked" || action.kind === "conflict"));
+  const handoffs = visible.filter(action => action.stockDraft);
   const missing = visible.filter((action) => action.kind === "missing_once");
   const unpublish = visible.filter((action) => action.kind === "unpublish");
   const summary = visible.find((action) => action.review)?.review ?? null;
   const groups = [
     ["Eligible additions and changes", [...actionable]],
     ["Blocked", blocked],
+    ["Awaiting dealer review", handoffs.filter(action => action.stockDraft?.state === "dealer")],
+    ["Awaiting listing moderation", handoffs.filter(action => action.stockDraft?.state === "moderation")],
+    ["Returned to admin stock review", handoffs.filter(action => action.stockDraft?.state === "admin")],
     ["Check availability", missing],
     ["Removal suggestions — review separately", unpublish],
   ] as const;
@@ -166,7 +174,7 @@ export function StockSyncReviewPanel(input: {
       <div data-stock-review-scroll="" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-2 pb-4">
       <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>
       <p className="text-sm text-text-secondary">
-        Status: <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(input.status)}>{stockSyncStatus(input.status)}</span>. {actionable.length} actionable, {blocked.length} blocked.
+        Status: <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(input.status)}>{stockSyncStatus(input.status)}</span>. {actionable.length} actionable, {blocked.length} blocked{handoffs.length ? `, ${handoffs.length} handed-off drafts tracked separately` : ""}.
         Approving queues processing. It does not publish listings immediately.
       </p>
       {summary && Number.isFinite(Date.parse(summary.capturedAt)) ? (
@@ -198,6 +206,7 @@ export function StockSyncReviewPanel(input: {
                   reportId={input.reportId}
                   fingerprint={input.fingerprint}
                   allowEdit={input.status === "PENDING_REVIEW"}
+                  status={input.status}
                 />
               ))}
             </ul>
@@ -205,10 +214,10 @@ export function StockSyncReviewPanel(input: {
         </div>
       ))}
       </fieldset>
-      {Boolean(input.pendingActions?.some(isSelectableStockAction)) && <div className="space-y-3 rounded-lg border border-border p-4">
+      {Boolean(input.pendingActions?.some(action => isSelectableStockAction(action) || action.stockDraft)) && <div className="space-y-3 rounded-lg border border-border p-4">
         <h3 className="font-semibold text-text-primary">Still awaiting your review</h3>
         <p className="text-sm text-text-secondary">These items were not included in the approval. They become selectable again when processing finishes successfully. If processing fails, run a fresh stock check to recover an up-to-date review.</p>
-        <ul className="space-y-2">{input.pendingActions!.filter(isSelectableStockAction).map((action, index) => <Row key={index} action={action} reportId={input.reportId} fingerprint={input.fingerprint} selected={false} onSelect={() => undefined} allowEdit={false} />)}</ul>
+        <ul className="space-y-2">{input.pendingActions!.filter(action => isSelectableStockAction(action) || action.stockDraft).map((action, index) => <Row key={index} action={action} reportId={input.reportId} fingerprint={input.fingerprint} selected={false} onSelect={() => undefined} allowEdit={false} status={input.status} />)}</ul>
       </div>}
       </div>
       {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}

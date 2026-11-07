@@ -9,6 +9,8 @@ const { requireAcceptedAuthMock, checkRateLimitMock, mockDb } = vi.hoisted(() =>
     listing: {
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       count: vi.fn(),
       findUnique: vi.fn(),
     },
@@ -83,6 +85,8 @@ describe("createListing taxonomy ALR-TAX-001", () => {
       id: "cllisting123456789012345678",
       status: "DRAFT",
     });
+    mockDb.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.listing.findUniqueOrThrow.mockResolvedValue({ id: "cllisting123456789012345678" });
     mockDb.listingStatusEvent.create.mockResolvedValue({ id: "event-1" });
   });
 

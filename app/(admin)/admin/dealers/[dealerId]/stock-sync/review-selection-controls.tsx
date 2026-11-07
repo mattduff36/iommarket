@@ -44,14 +44,15 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
       else await perform();
     });
   }
-  const actionClass = "min-h-11 w-full gap-2 rounded-md px-3 text-xs font-medium normal-case not-italic tracking-normal";
-  return <footer className="shrink-0 space-y-3 border-t border-border bg-surface p-3" aria-label="Review actions" aria-busy={pending}>
-    <div className="flex items-center justify-between gap-2">
-      <p className="text-sm font-semibold tabular-nums text-text-primary" aria-live="polite">{chosen.length} selected</p>
+  const actionClass = "min-h-11 shrink-0 gap-1.5 rounded-md px-2 text-xs font-medium normal-case not-italic tracking-normal";
+  return <footer className="shrink-0 space-y-2 border-t border-border bg-surface p-2" aria-label="Review actions" aria-busy={pending}>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+    <div className="flex shrink-0 items-center gap-1">
+      <p className="whitespace-nowrap text-xs font-semibold tabular-nums text-text-primary" aria-live="polite">{chosen.length} selected</p>
       <Button type="button" variant="ghost" size="sm" onClick={() => selection.setIndexes([])} disabled={pending || !chosen.length}
-        className="min-h-11 gap-1.5 px-2 text-xs text-text-secondary"><X size={14} aria-hidden="true" />Clear selection</Button>
+        title="Clear selection" className="min-h-11 min-w-9 px-2 text-text-secondary"><X size={14} aria-hidden="true" /><span className="sr-only">Clear selection</span></Button>
     </div>
-    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Selected listing actions">
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Selected listing actions">
       <Button type="button" variant="ghost" aria-label="Approve selected"
         title={canApprove ? "Queue the selected eligible additions and updates." : "Select eligible additions or updates. Blocked items and removals cannot be approved here."}
         className={`${actionClass} bg-neon-blue-600 text-white hover:bg-neon-blue-500 hover:text-white`}
@@ -70,8 +71,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
         <X className="size-4 shrink-0" aria-hidden="true" /><span>Reject</span>
       </Button>
     </div>
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2" role="group" aria-label="Whole review actions">
-      <span className="mr-auto text-xs text-text-secondary">Whole review</span>
+    <div className="ml-auto flex flex-wrap items-center gap-1" role="group" aria-label="Whole review actions">
       <Button type="button" variant="ghost" aria-label={`Approve all eligible (${eligible.length})`}
         title="Approve all eligible additions and updates. Blocked items and removals are excluded."
         className="min-h-11 gap-1.5 px-2 text-xs font-medium normal-case not-italic text-neon-blue-400 hover:text-neon-blue-400"
@@ -84,6 +84,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
         disabled={pending || !blocked.length} onClick={() => run("reject", blocked)}>
         <ListX className="size-4 shrink-0" aria-hidden="true" />Clear blocked <span className="tabular-nums">({blocked.length})</span>
       </Button>
+    </div>
     </div>
     {feedback.error && <Alert status="error">{feedback.error}</Alert>}
     {feedback.message && <Alert status="success">{feedback.message}</Alert>}

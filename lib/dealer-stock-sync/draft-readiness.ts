@@ -4,6 +4,7 @@ import { listingDetailsSchema } from "@/lib/validations/listing";
 import { validateListingAttributesWithServerPolicy } from "@/lib/listings/listing-ns-policy";
 import { isTrustedListingPublicId } from "@/lib/images/cloudinary-url";
 import { isManagedListingPath, managedMediaPublicId } from "@/lib/media/managed-policy";
+import { STOCK_REVIEW_HELD_ERROR } from "./draft-handoff";
 
 interface StoredPhoto {
   provider: string; publicId: string; url: string; imageKitFilePath: string | null; imageKitFileId: string | null;
@@ -30,19 +31,31 @@ export async function assertStockDraftReady(client: Prisma.TransactionClient, in
   }
   await client.$queryRaw`SELECT "id" FROM "Listing" WHERE "id" = ${receipt.listingId} FOR UPDATE`;
   if (receipt.revisionId) await client.$queryRaw`SELECT "id" FROM "ListingRevision" WHERE "id" = ${receipt.revisionId} FOR UPDATE`;
+  const draft = await assertStoredStockDraftReady(client, { listingId: receipt.listingId, revisionId: receipt.revisionId });
+  const correctOwner = "listingId" in draft ? draft.listingId === receipt.listingId : draft.userId === input.actorId;
+  if (!correctOwner) throw new ListingLifecycleError("This imported draft changed. Reload it before submitting.");
+  await client.stockReviewDraftReceipt.update({ where: { id: receipt.id }, data: {
+    reviewAcknowledgedAt: new Date(), acknowledgedById: input.actorId,
+  } });
+}
+
+/** Admin confirmation is audited separately; it never fabricates a dealer declaration. */
+export async function assertStoredStockDraftReady(client: Prisma.TransactionClient, input: {
+  listingId: string; revisionId?: string | null; adminReview?: boolean;
+}) {
   const include = {
     category: { include: { attributeDefinitions: true } }, region: true,
     images: true, attributeValues: true,
   };
-  const draft = receipt.revisionId
-    ? await client.listingRevision.findUnique({ where: { id: receipt.revisionId }, include })
-    : await client.listing.findUnique({ where: { id: receipt.listingId }, include });
-  const allowedStatus = receipt.revisionId ? draft?.status === "DRAFT" : ["DRAFT", "REJECTED", "TAKEN_DOWN"].includes(draft?.status ?? "");
-  const correctOwner = draft && ("listingId" in draft ? draft.listingId === receipt.listingId : draft.userId === input.actorId);
-  if (!draft || !allowedStatus || !correctOwner) throw new ListingLifecycleError("This imported draft changed. Reload it before submitting.");
+  const draft = input.revisionId
+    ? await client.listingRevision.findUnique({ where: { id: input.revisionId }, include })
+    : await client.listing.findUnique({ where: { id: input.listingId }, include });
+  const allowedStatus = input.revisionId ? draft?.status === "DRAFT" : ["DRAFT", "REJECTED", "TAKEN_DOWN"].includes(draft?.status ?? "");
+  if (!draft || !allowedStatus) throw new ListingLifecycleError("This imported draft changed. Reload it before submitting.");
+  if ("stockReviewHeld" in draft && draft.stockReviewHeld && !input.adminReview) throw new ListingLifecycleError(STOCK_REVIEW_HELD_ERROR);
   if (!draft.category.active || !draft.region.active) throw new ListingLifecycleError("Choose an active category and location before submitting.");
   const attributes = draft.attributeValues.map(value => ({ attributeDefinitionId: value.attributeDefinitionId, value: value.value }));
-  const details = listingDetailsSchema.safeParse({ ...draft, attributes });
+  const details = (input.adminReview ? listingDetailsSchema.omit({ trustDeclarationAccepted: true }) : listingDetailsSchema).safeParse({ ...draft, attributes });
   if (!details.success) throw new ListingLifecycleError(details.error.issues[0]?.message ?? "Complete the listing details before submitting.");
   const validation = validateListingAttributesWithServerPolicy({ categorySlug: draft.category.slug, definitions: draft.category.attributeDefinitions, attributes });
   const attributeError = validation.configurationError ?? Object.values(validation.fieldErrors).flat()[0];
@@ -50,7 +63,5 @@ export async function assertStockDraftReady(client: Prisma.TransactionClient, in
   if (draft.images.length < 2 || draft.images.some(photo => !isOwnedStockDraftPhoto(photo))) {
     throw new ListingLifecycleError("Add at least two verified listing photos before submitting this imported draft.");
   }
-  await client.stockReviewDraftReceipt.update({ where: { id: receipt.id }, data: {
-    reviewAcknowledgedAt: new Date(), acknowledgedById: input.actorId,
-  } });
+  return draft;
 }

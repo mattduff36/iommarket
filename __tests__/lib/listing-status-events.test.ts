@@ -57,6 +57,48 @@ describe("transitionListingStatus", () => {
     vi.clearAllMocks();
   });
 
+  it.each([
+    { actor: { id: "user-1", role: "DEALER" as const }, source: "USER" as const },
+    { actor: { id: null, role: "SYSTEM" as const }, source: "PAYMENT" as const },
+  ])("rejects stale dealer/payment transitions on a held draft: $source", async ({ actor, source }) => {
+    mockTx.listing.findUnique.mockResolvedValue({ id: "held", userId: "user-1", status: "DRAFT",
+      stockReviewHeld: true, lifecycleRevision: 4, expiresAt: null });
+    await expect(transitionListingStatus({ listingId: "held", action: "SUBMIT", expectedRevision: 4, actor, source })).rejects.toThrow(/pulled back/);
+    expect(mockTx.listing.updateMany).not.toHaveBeenCalled();
+    expect(mockTx.listingStatusEvent.create).not.toHaveBeenCalled();
+  });
+  it("fences a recall committed after a seller's status read", async () => {
+    mockTx.listing.findUnique.mockResolvedValue({ id: "held", userId: "user-1", status: "DRAFT",
+      stockReviewHeld: false, lifecycleRevision: 4, expiresAt: null });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 0 });
+    await expect(transitionListingStatus({ listingId: "held", action: "SUBMIT", expectedRevision: 4,
+      actor: { id: "user-1", role: "DEALER" }, source: "USER" })).rejects.toBeInstanceOf(ListingLifecycleConflictError);
+    expect(mockTx.listing.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: {
+      id: "held", status: "DRAFT", lifecycleRevision: 4, stockReviewHeld: false,
+    } }));
+    expect(mockTx.listingStatusEvent.create).not.toHaveBeenCalled();
+  });
+  it("preserves account-disable safeguards on a held draft", async () => {
+    mockTx.listing.findUnique.mockResolvedValue({ id: "held", userId: "user-1", status: "PENDING",
+      stockReviewHeld: true, lifecycleRevision: 4, expiresAt: null });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "disabled-event" });
+    mockTx.listingRevision.findMany.mockResolvedValue([]);
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({ id: "held", status: "REJECTED", lifecycleRevision: 5 });
+    expect(await transitionListingStatus({ listingId: "held", action: "ACCOUNT_DISABLE_PENDING", expectedRevision: 4,
+      actor: { id: "admin-1", role: "ADMIN" }, source: "ADMIN", reasonCode: "ACCOUNT_DISABLED" })).toMatchObject({ listing: { status: "REJECTED" } });
+    expect(mockTx.listing.updateMany.mock.calls[0][0].where).not.toHaveProperty("stockReviewHeld");
+  });
+  it("clears the hold only after explicit ordinary admin approval", async () => {
+    mockTx.listing.findUnique.mockResolvedValue({ id: "held", userId: "user-1", status: "PENDING",
+      stockReviewHeld: true, lifecycleRevision: 5, expiresAt: null });
+    mockTx.listing.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.listingStatusEvent.create.mockResolvedValue({ id: "approved-event" });
+    mockTx.listing.findUniqueOrThrow.mockResolvedValue({ id: "held", status: "LIVE", lifecycleRevision: 6 });
+    expect(await transitionListingStatus({ listingId: "held", action: "APPROVE", expectedRevision: 5,
+      actor: { id: "admin-1", role: "ADMIN" }, source: "ADMIN" })).toMatchObject({ listing: { status: "LIVE" } });
+    expect(mockTx.listing.updateMany.mock.calls[0][0].data).toMatchObject({ stockReviewHeld: false });
+  });
   it("updates listing and writes a status event when status changes ALR-LST-001", async () => {
     mockTx.listing.findUnique.mockResolvedValue({
       id: "listing-1",
@@ -179,6 +221,7 @@ describe("transitionListingStatus", () => {
         id: "listing-withdraw",
         status: "PENDING",
         lifecycleRevision: 4,
+        stockReviewHeld: false,
       },
       data: {
         status: "DRAFT",

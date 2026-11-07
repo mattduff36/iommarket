@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
-import { assertStockDraftReady, isOwnedStockDraftPhoto } from "@/lib/dealer-stock-sync/draft-readiness";
+import { assertStockDraftReady, assertStoredStockDraftReady, isOwnedStockDraftPhoto } from "@/lib/dealer-stock-sync/draft-readiness";
 const policy = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/listings/listing-ns-policy", () => ({ validateListingAttributesWithServerPolicy: policy }));
 const receipt = { id: "receipt-1", listingId: "listing-1", revisionId: null, userId: "user-1" };
@@ -15,6 +15,23 @@ const submit = (ack = receipt.id) => assertStockDraftReady(tx as unknown as Pris
 beforeEach(() => { vi.clearAllMocks(); policy.mockReturnValue({ fieldErrors: {} }); tx.listing.findUnique.mockResolvedValue(valid()); });
 
 describe("received stock draft submission", () => {
+  it("blocks stale dealer submission of a recalled draft even with the right receipt acknowledgement", async () => {
+    tx.listing.findUnique.mockResolvedValue({ ...valid(), stockReviewHeld: true });
+    await expect(submit()).rejects.toThrow(/pulled back/);
+    expect(tx.stockReviewDraftReceipt.update).not.toHaveBeenCalled();
+  });
+  it("validates an admin-confirmed held draft without fabricating a dealer trust declaration or acknowledgement", async () => {
+    tx.listing.findUnique.mockResolvedValue({ ...valid(), stockReviewHeld: true, trustDeclarationAccepted: false });
+    const draft = await assertStoredStockDraftReady(tx as unknown as Prisma.TransactionClient, { listingId: "listing-1", adminReview: true });
+    expect(draft.trustDeclarationAccepted).toBe(false);
+    expect(tx.stockReviewDraftReceipt.update).not.toHaveBeenCalled();
+  });
+  it("still requires two owned photos and complete details for explicit admin moderation", async () => {
+    tx.listing.findUnique.mockResolvedValue({ ...valid(), stockReviewHeld: true, trustDeclarationAccepted: false, images: [photo] });
+    await expect(assertStoredStockDraftReady(tx as unknown as Prisma.TransactionClient, { listingId: "listing-1", adminReview: true })).rejects.toThrow(/two verified/);
+    tx.listing.findUnique.mockResolvedValue({ ...valid(), stockReviewHeld: true, title: "" });
+    await expect(assertStoredStockDraftReady(tx as unknown as Prisma.TransactionClient, { listingId: "listing-1", adminReview: true })).rejects.toThrow();
+  });
   it("requires explicit acknowledgement of this exact receipt", async () => {
     await expect(submit("other")).rejects.toThrow(/confirm/);
     expect(tx.stockReviewDraftReceipt.update).not.toHaveBeenCalled();

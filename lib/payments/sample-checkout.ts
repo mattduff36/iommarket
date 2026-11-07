@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import type { Prisma, SampleCheckout } from "@prisma/client";
 import { isStagingTestRuntime, StagingIdentityError } from "@/lib/deployment/staging-test-effects";
 import { assertSampleCheckoutEnabled, isSampleCheckoutEnabled, SAMPLE_MAX_ATTEMPTS } from "./sample-checkout-config";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 
 const REAL_SUBSCRIPTION_ERROR =
   "This account has a real subscription. Use another preview account to test sample subscriptions.";
@@ -93,6 +94,7 @@ export async function assertSampleTarget(tx: Prisma.TransactionClient, row: {
   await tx.$queryRaw`SELECT id FROM "Listing" WHERE id = ${row.targetId} FOR UPDATE`;
   const listing = await tx.listing.findFirst({ where: { id: row.targetId, userId: row.userId } });
   if (!listing) throw new Error("Listing not found.");
+  if (listing.stockReviewHeld) throw new Error(STOCK_REVIEW_HELD_ERROR);
   if (row.kind === "listing_payment" || row.kind === "listing_and_featured") {
     if (listing.status !== "DRAFT" && listing.status !== "EXPIRED") {
       throw new Error("Only draft or expired listings can be submitted for payment.");

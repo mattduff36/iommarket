@@ -6,6 +6,7 @@ import { imageKitDevUploadsEnabled } from "@/lib/media/config";
 import { uploadDisposableImage, deleteDisposableImageKitFile } from "@/lib/media/disposable-media";
 import { listingUploadFormat, stripListingImageMetadata } from "@/lib/media/strip-metadata";
 import { verifyImageKitListingUpload } from "@/lib/listings/photo-upload";
+import { canUploadAdminStockPhoto } from "@/lib/listings/admin-stock-upload";
 import { db } from "@/lib/db";
 import { publicErrorBody } from "@/lib/forms/public-error";
 import { uploadAuthErrorBody } from "@/lib/media/upload-auth-error";
@@ -59,9 +60,6 @@ export async function POST(request: NextRequest) {
       headers: { "Retry-After": String(rateBody.retryAfterSeconds) },
     });
   }
-  if (isAdminSellerBlocked(user.role)) {
-    return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
-  }
 
   const form = await request.formData();
   const intentId = intentSchema.safeParse(form.get("uploadIntentId"));
@@ -73,13 +71,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(publicErrorBody({ message: "Images must be 10MB or smaller.", code: "validation" }), { status: 400 });
   }
 
-  const intent = await db.listingImageUploadIntent.findUnique({ where: { id: intentId.data } });
-  if (!intent || intent.userId !== user.id || intent.deliveryType !== "imagekit" || intent.status !== "ISSUED") {
-    return NextResponse.json(publicErrorBody({ message: "Upload not found.", code: "not_found" }), { status: 404 });
-  }
-
   let uploaded: { fileId: string; filePath: string } | null = null;
   try {
+    if (isAdminSellerBlocked(user.role) && !(await canUploadAdminStockPhoto(user, { intentId: intentId.data }))) {
+      return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
+    }
+    const intent = await db.listingImageUploadIntent.findUnique({ where: { id: intentId.data } });
+    if (!intent || intent.userId !== user.id || intent.deliveryType !== "imagekit" || intent.status !== "ISSUED") {
+      return NextResponse.json(publicErrorBody({ message: "Upload not found.", code: "not_found" }), { status: 404 });
+    }
     const format = listingUploadFormat(file.name, file.type);
     const stripped = await stripListingImageMetadata({
       bytes: Buffer.from(await file.arrayBuffer()),

@@ -17,11 +17,11 @@ beforeEach(() => {
 describe("received stock draft deletion", () => {
   it("deletes only an owned base DRAFT with exact lifecycle revision and retains audit provenance", async () => {
     expect(await run()).toEqual({ listingId: "listing", revisionOnly: false });
-    expect(tx.listing.deleteMany).toHaveBeenCalledWith({ where: { id: "listing", userId: "owner", status: "DRAFT", lifecycleRevision: 4 } });
+    expect(tx.listing.deleteMany).toHaveBeenCalledWith({ where: { id: "listing", userId: "owner", status: "DRAFT", stockReviewHeld: false, lifecycleRevision: 4 } });
     expect(tx.dealerStockSyncAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ actorId: "owner", before: expect.objectContaining({ receiptId: "receipt", source: receipt.source, blockers: receipt.blockers }) }) });
     expect(tx.listingImageCleanupJob.create).toHaveBeenCalledWith({ data: expect.objectContaining({ imageKitFileId: "file", reason: "received-stock-draft-discarded" }) });
   });
-  it.each([{ userId: "other" }, { dealerId: "other" }, { status: "LIVE" }, { status: "PENDING" }, { lifecycleRevision: 5 }])("refuses changed or protected listing: %j", async override => {
+  it.each([{ userId: "other" }, { dealerId: "other" }, { status: "LIVE" }, { status: "PENDING" }, { lifecycleRevision: 5 }, { stockReviewHeld: true }])("refuses changed or protected listing: %j", async override => {
     tx.listing.findUnique.mockResolvedValue({ ...listing, ...override });
     await expect(run()).rejects.toThrow(/changed/); expect(tx.listing.deleteMany).not.toHaveBeenCalled();
     expect(tx.listingImageCleanupJob.create).not.toHaveBeenCalled();

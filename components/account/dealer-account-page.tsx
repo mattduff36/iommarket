@@ -206,7 +206,7 @@ function InventoryStats({ counts, visibleCount }: { counts: Record<string, numbe
     { label: "Total listings", value: visibleCount, accent: "text-text-primary" },
     { label: "Live", value: counts.LIVE ?? 0, accent: "text-neon-blue-500" },
     { label: "Pending", value: counts.PENDING ?? 0, accent: "text-premium-gold-500" },
-    { label: "Drafts", value: counts.DRAFT ?? 0, accent: "text-text-secondary" },
+    { label: "Draft slots", value: counts.DRAFT ?? 0, accent: "text-text-secondary" },
   ];
   return (
     <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -293,7 +293,7 @@ async function OverviewSection({
   const [counts, recent, reviewStats, entitlement, trade] = await Promise.all([
     loadStatusCounts(dealerId),
     db.listing.findMany({
-      where: { dealerId },
+      where: { dealerId, stockReviewHeld: false },
       orderBy: { createdAt: "desc" },
       take: RECENT_LISTING_LIMIT,
       select: {
@@ -451,6 +451,7 @@ async function ListingsSection({
   const params = readListingQuery(searchParams ? await searchParams : {});
   const listingWhere = {
     dealerId,
+    stockReviewHeld: false,
     ...(params.q ? { title: { contains: params.q, mode: "insensitive" as const } } : {}),
     ...(params.status === "DRAFT" ? { OR: [{ status: "DRAFT" as const }, { revisions: { some: { status: "DRAFT" as const } } }] } : params.status !== "ALL" ? { status: params.status } : {}),
   };
@@ -463,7 +464,7 @@ async function ListingsSection({
         take: PAGE_SIZE,
         load: (ids) =>
           db.listing.findMany({
-            where: { dealerId, id: { in: ids } },
+            where: { dealerId, stockReviewHeld: false, id: { in: ids } },
             include: listingInclude,
           }),
       })

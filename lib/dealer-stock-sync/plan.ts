@@ -1,5 +1,6 @@
 import { foundingManagedSlug, oceanManagedSlug } from "./legacy-identity";
 import { ownedImagesOrNull } from "./images";
+import { decorateStockDraftActions } from "./draft-handoff";
 import {
   UNPUBLISH_AFTER_ABSENCES,
   type IdentityPatch,
@@ -143,13 +144,13 @@ function presentListingAction(
   if (listing.status === "TAKEN_DOWN") {
     return { action: hold("manual-taken-down", "other"), patch };
   }
+  if (vehicle.availability === "sold") return { action: hold("source-sold", "change"), patch };
   if (listing.openRevision) {
     return { action: hold("pending-revision", "change"), patch };
   }
   if (listing.previewPackId || listing.status !== "LIVE") {
     return { action: hold(listing.previewPackId ? "preview-listing" : "status-preserved", "change"), patch };
   }
-  if (vehicle.availability === "sold") return { action: hold("source-sold", "change"), patch };
   if (vehicle.availability === "reserved" || vehicle.isPoa) {
     return {
       action: {
@@ -373,5 +374,8 @@ export function buildStockSyncPlan(input: BuildPlanInput): StockSyncPlan {
     actions.push(absentAction(identity, patch, input.listings));
   }
 
-  return { actions, patches, inventoryCount: input.vehicles.length };
+  return {
+    actions: decorateStockDraftActions(actions, input.listings.flatMap(listing => listing.stockDraft ? [listing.stockDraft] : []), ""),
+    patches, inventoryCount: input.vehicles.length,
+  };
 }

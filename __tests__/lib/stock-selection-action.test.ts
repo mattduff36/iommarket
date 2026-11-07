@@ -24,7 +24,7 @@ beforeEach(() => {
   tx.dealerStockSyncReport.updateMany.mockResolvedValue({ count: 1 });
   tx.dealerStockSyncJob.findFirst.mockResolvedValue(null);
   tx.dealerStockSyncAudit.create.mockResolvedValue({ id: "audit" });
-  mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 0, listingCap: 10, actions });
+  mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 0, listingCap: 10, listings: [], actions });
   mocks.fingerprint.mockReturnValue(fingerprint); mocks.enqueue.mockResolvedValue({ id: "job" });
   mocks.transfer.mockResolvedValue([{ listingId: "draft", revisionId: null }]); mocks.notify.mockResolvedValue(undefined);
 });
@@ -70,7 +70,7 @@ describe("selected stock review mutations", () => {
     expect(mocks.notify).not.toHaveBeenCalled();
   });
   it("preserves the dealer listing allowance when creating received drafts", async () => {
-    mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 10, listingCap: 10, actions });
+    mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 10, listingCap: 10, listings: [], actions });
     expect(await run("draft")).toHaveProperty("error", expect.stringContaining("allowance"));
     expect(mocks.transfer).not.toHaveBeenCalled();
   });

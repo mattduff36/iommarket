@@ -3,6 +3,7 @@ import { hasPublicListingSellerAccess } from "@/lib/listings/dealer-visibility";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 import { acceptedAuthHttpStatus, requireAcceptedAuth } from "@/lib/policy/gate";
 import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import {
@@ -380,12 +381,14 @@ async function updateListingBody(input: unknown) {
       categoryId: true,
       status: true,
       trustDeclarationAcceptedAt: true,
+      stockReviewHeld: true,
       lifecycleRevision: true,
     },
   });
   if (!existing || existing.userId !== user.id) {
     return { error: LISTING_UNAVAILABLE };
   }
+  if (existing.stockReviewHeld) return { error: STOCK_REVIEW_HELD_ERROR };
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
@@ -483,10 +486,11 @@ async function updateListingBody(input: unknown) {
     }
 
     const listing = await db.$transaction(async (tx) => {
-      const updated = await tx.listing.update({
-        where: { id },
+      const updated = await tx.listing.updateMany({
+        where: { id, userId: user.id, stockReviewHeld: false, status: existing.status, lifecycleRevision: existing.lifecycleRevision },
         data: {
           ...data,
+          lifecycleRevision: { increment: 1 },
           ...(data.trustDeclarationAccepted !== undefined
             ? {
                 trustDeclarationAcceptedAt: data.trustDeclarationAccepted
@@ -496,6 +500,7 @@ async function updateListingBody(input: unknown) {
             : {}),
         },
       });
+      if (updated.count !== 1) throw new ListingLifecycleConflictError("This listing changed while it was being saved. Refresh and try again.");
 
       if (attributes !== undefined) {
         await tx.listingAttributeValue.deleteMany({ where: { listingId: id } });
@@ -510,7 +515,7 @@ async function updateListingBody(input: unknown) {
         }
       }
 
-      return updated;
+      return tx.listing.findUniqueOrThrow({ where: { id } });
     });
 
     revalidatePath(`/listings/${id}`);
@@ -596,6 +601,7 @@ async function submitListingForReviewBody(
   if (!listing || listing.userId !== user.id || hasMismatchedDealerListing(user, listing)) {
     return { error: LISTING_UNAVAILABLE };
   }
+  if (listing.stockReviewHeld) return { error: STOCK_REVIEW_HELD_ERROR };
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }

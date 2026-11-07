@@ -35,6 +35,8 @@ export interface InventoryVehicle {
 }
 
 export interface SyncListing {
+  stockReviewHeld?: boolean;
+  stockDraft?: import("./draft-handoff").StockDraftHandoff;
   updatedAt?: string;
   userId?: string;
   title?: string;
@@ -102,6 +104,7 @@ export interface ReviewedActionEvidence {
 }
 
 interface PlanBase {
+  stockDraft?: import("./draft-handoff").StockDraftHandoff;
   displayTitle?: string;
   sourceIdentityKey: string | null;
   listingId: string | null;
