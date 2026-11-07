@@ -171,8 +171,8 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   const selectedResult = selectedJob ?? selectedReport;
   const [chosen, setChosen] = useState<{ key: string; indexes: number[] }>({ key: "", indexes: [] });
   const selectionKey = selectedReport ? `${selectedReport.id}:${selectedReport.fingerprint}` : "";
-  const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="space-y-4 scroll-mt-6">
-    <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
+  const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="flex h-[min(80dvh,calc(100cqh-4rem))] min-h-0 flex-col gap-4 scroll-mt-6">
+    <div className="flex shrink-0 items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
     {selectedJob && <div className="space-y-2 rounded-lg border border-border p-4 text-sm"><p className="font-semibold">{jobOutcome(selectedJob)}</p>{selectedJob.error && <ReportableError as="p" className="text-text-error">{selectedJob.error}</ReportableError>}{!selectedReport && <p>No saved review is available for this task yet. Check processing status above, or run a fresh check after a failure.</p>}</div>}
     {selectedReport && <StockSyncReviewPanel key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
   </section> : null;
@@ -233,7 +233,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
         ))
       )}
       </div>
-      {wide && selectedResult && <aside className="sticky top-4 h-[calc(100dvh-8rem)] min-w-0 overflow-y-auto rounded-xl border border-neon-blue-500/30 bg-surface p-5">{detail}</aside>}
+      {wide && selectedResult && <aside className="sticky top-4 min-h-0 min-w-0 overflow-hidden rounded-xl border border-neon-blue-500/30 bg-surface p-5">{detail}</aside>}
       </div>
       </StockResultHistory>
       </StockWorkerDashboard>

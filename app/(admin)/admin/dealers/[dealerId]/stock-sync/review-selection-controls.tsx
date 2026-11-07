@@ -45,7 +45,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
     });
   }
   const actionClass = "min-h-11 w-full gap-2 rounded-md px-3 text-xs font-medium normal-case not-italic tracking-normal";
-  return <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 space-y-3 rounded-lg border border-border bg-surface p-3 sm:bottom-0" aria-label="Review actions" aria-busy={pending}>
+  return <footer className="shrink-0 space-y-3 border-t border-border bg-surface p-3" aria-label="Review actions" aria-busy={pending}>
     <div className="flex items-center justify-between gap-2">
       <p className="text-sm font-semibold tabular-nums text-text-primary" aria-live="polite">{chosen.length} selected</p>
       <Button type="button" variant="ghost" size="sm" onClick={() => selection.setIndexes([])} disabled={pending || !chosen.length}
@@ -87,5 +87,5 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
     </div>
     {feedback.error && <Alert status="error">{feedback.error}</Alert>}
     {feedback.message && <Alert status="success">{feedback.message}</Alert>}
-  </div>;
+  </footer>;
 }

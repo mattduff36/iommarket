@@ -11,6 +11,7 @@ import { StockWorkerControlProvider, useStockWorkerCommands } from "./worker-con
 import { StockDealerSelectionProvider, useDealerSelection, type StockDealer } from "./worker-selection";
 import progressStyles from "./worker-progress.module.css";
 import { useStockAppLifecycle } from "./app-lifecycle";
+import { useWorkerViewport } from "./use-worker-viewport";
 import { useWorkerPresence } from "./use-worker-presence";
 import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 
@@ -48,6 +49,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   const devices = snapshot.ok ? snapshot.devices : [];
   const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
   const online = snapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
+  const viewport = useWorkerViewport(online);
   const baseControls = useStockWorkerCommands(device, online && !connectionLost, mergeSnapshot);
   const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId);
   const controls = { ...baseControls, requestRun: connectionLost ? undefined : lifecycle.requestRun, pending: baseControls.pending || lifecycle.pending };
@@ -98,6 +100,8 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   </>;
 
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
+    <div ref={viewport.ref} style={{ height: viewport.height }} className={online ? "flex min-h-0 flex-col" : undefined}>
+    <div data-stock-worker-content="" style={online ? { containerType: "size" } : undefined} className={online ? "min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain pr-2 pb-6" : "space-y-8"}>
     {!online ? offlineContent : null}
     <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -124,7 +128,8 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
       </> : null}
     </section>
     {children}
-    <footer aria-label="Stock Update" hidden={!online} data-stock-worker-dock="" data-compact={compact} className="mt-8 border-t border-border pb-[env(safe-area-inset-bottom)] text-text-secondary">
+    </div>
+    <footer aria-label="Stock Update" hidden={!online} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t border-border bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
       <div className="h-0.5 overflow-hidden" role={busy ? "progressbar" : undefined}
         aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
         <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : "w-0"}`} />
@@ -146,6 +151,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
         {device?.activity.length ? <ol className="space-y-1 text-sm text-text-secondary">{device.activity.map(event => <li key={`${device.instanceId}:${event.sequence}`} className="flex gap-3"><time className="shrink-0 tabular-nums text-text-tertiary" dateTime={event.at}>{new Date(event.at).toLocaleTimeString("en-GB")}</time><span>{event.text}</span></li>)}</ol> : <p className="text-sm text-text-secondary">No activity yet.</p>}
       </div> : null}
     </footer>
+    </div>
     <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} />
     {lifecycle.dialog}
   </StockDealerSelectionProvider></StockWorkerControlProvider>;
