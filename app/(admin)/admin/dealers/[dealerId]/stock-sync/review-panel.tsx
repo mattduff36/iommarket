@@ -14,6 +14,8 @@ import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync
 import { actionLabel, stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import { StockReviewEditButton } from "./review-edit-button";
 import { StockReviewPhoto } from "./review-photo";
+import { StockReviewReason } from "./review-reason";
+import { stockReviewTitle } from "@/lib/dealer-stock-sync/review-help";
 
 function changesFor(action: PlanAction) {
   if (action.kind !== "update" && action.kind !== "conflict" && action.kind !== "create") return [];
@@ -78,17 +80,19 @@ function Row({
   const editable = allowEdit && canEditStockReviewAction(action);
   const linked = Boolean(action.listingId) && (action.kind === "blocked" || action.kind === "conflict");
   const corrected = action.review?.provenance.includes("admin-corrected") ?? false;
-  const label = action.displayTitle || action.review?.displayTitle || "vehicle";
+  const label = stockReviewTitle(action);
+  const sourceReferenceUrl = action.sourceIdentityKey?.startsWith("detailUrl:")
+    ? safeHttps(action.sourceIdentityKey.slice("detailUrl:".length)) : null;
   return (
     <li className={`rounded-lg border p-4 text-sm transition-colors ${selected ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border"}`}>
       {allowEdit && isSelectableStockAction(action) && <Checkbox className="mb-3 h-9 w-9 rounded-md [&_svg]:h-6 [&_svg]:w-6" label={<span className="flex min-h-10 items-center font-medium">Select {label}</span>} checked={selected} onCheckedChange={value => onSelect(value === true)} />}
       <p className="font-medium text-text-primary">
         <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(action.kind)}>{action.kind === "missing_once" ? "Check availability" : action.kind === "unpublish" ? "Removal suggested" : actionLabel(action)}</span>
-        {action.displayTitle ? ` - ${action.displayTitle}` : ""}
+        {` - ${label}`}
       </p>
       {corrected ? <p className="text-text-secondary">Corrected by admin.{allowEdit ? " Still pending approval." : ""}</p> : null}
       {action.kind === "blocked" || action.kind === "conflict" ? (
-        <p className="text-text-secondary">{stockSyncReason(action.reason)}</p>
+        <StockReviewReason action={action} />
       ) : null}
       {action.kind === "missing_once" || action.kind === "unpublish" ? (
         <p className="text-text-secondary">Missing from {action.absenceCount} complete checks</p>
@@ -106,6 +110,11 @@ function Row({
         </p>
       ))}
       {action.review ? <Evidence review={action.review} /> : null}
+      {!action.review && <div className="mt-2 space-y-1 break-words text-text-secondary">
+        <p>No vehicle details were saved with this review.{action.kind === "blocked" && action.section === "missing" ? " This record was absent from the latest complete website check." : " Run a fresh stock check to obtain current source details."}</p>
+        {action.sourceIdentityKey ? <p>Source reference: <span className="[overflow-wrap:anywhere]">{action.sourceIdentityKey}</span></p> : <p>No source reference is available in this saved review.</p>}
+        {sourceReferenceUrl && <a href={sourceReferenceUrl} target="_blank" rel="noreferrer" className="inline-block text-neon-blue-400 hover:underline">Source listing</a>}
+      </div>}
       {editable && action.sourceIdentityKey ? (
         <StockReviewEditButton
           reportId={reportId}

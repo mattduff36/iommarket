@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { canRefreshStockPage } from "./refresh-guard";
 export { canRefreshStockPage } from "./refresh-guard";
 import Image from "next/image";
+import { StockWorkerCommandButton } from "./worker-command-button";
 import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 import { getWorkerDashboard } from "./worker-actions";
 import { StockWorkerCompletion, stockJobFinished, stockJobOutcome } from "./worker-completion";
-import { StockWorkerControlProvider, stockWorkerCommandClass, stockWorkerCommandLabel, useStockWorkerCommands } from "./worker-context";
+import { StockWorkerControlProvider, useStockWorkerCommands } from "./worker-context";
 import { StockDealerSelectionProvider, useDealerSelection, type StockDealer } from "./worker-selection";
 import progressStyles from "./worker-progress.module.css";
 import { useStockAppLifecycle } from "./app-lifecycle";
@@ -27,9 +28,9 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, downloadFallback, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
   managedSnapshot?: boolean; connectionLost?: boolean;
-  dealers?: StockDealer[]; offlineContent?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
+  dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [now, setNow] = useState(initialNow);
@@ -97,14 +98,14 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     return () => observer.disconnect();
   }, []);
 
+  const compact = online && !connectionLost && !busy && !running && !pending && !device?.pendingCommand
+    && device?.state !== "error" && !message && !expanded;
+
   const buttons = <>
-    <button type="button" onClick={selection.startOrStop}
-      disabled={!selection.canAct}
-      className={stockWorkerCommandClass(running)}>
-      {stockWorkerCommandLabel({ pending, pendingCommand: Boolean(device?.pendingCommand), stopping: device?.state === "stopping", running })}
-    </button>
-    <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls="stock-worker-activity"
-      className="min-h-11 rounded-md border border-border px-3 text-sm text-text-primary hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">{expanded ? "Hide activity" : "Show activity"}</button>
+    <StockWorkerCommandButton running={running} pending={pending} pendingCommand={Boolean(device?.pendingCommand)}
+      stopping={device?.state === "stopping"} disabled={!selection.canAct} onClick={selection.startOrStop} iconOnly />
+    {!compact && <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls="stock-worker-activity"
+      className="min-h-11 rounded-md border border-border px-3 text-sm text-text-primary hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">{expanded ? "Hide activity" : "Show activity"}</button>}
   </>;
 
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
@@ -123,6 +124,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
       </div>
       {lifecycle.message ? <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p> : null}
       {lifecycle.launchFallback}
+      {!online && lifecycle.launchFailed ? downloadFallback : null}
       {message && !online ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
       {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>
@@ -134,16 +136,20 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
     </section>
     {children}
     <div aria-hidden="true" style={{ height: online ? barHeight : 0 }} />
-    <div ref={bar} hidden={!online} data-stock-worker-dock="" className={`${progressStyles.dock} fixed inset-x-3 bottom-3 z-40 sm:inset-x-5 lg:left-72`}>
+    <div ref={bar} hidden={!online} data-stock-worker-dock="" data-compact={compact} className={`${progressStyles.dock} fixed inset-x-3 bottom-3 z-40 sm:inset-x-5 lg:left-72`}>
       <div aria-hidden="true" data-stock-worker-backdrop="" className={progressStyles.backdrop} />
       <div data-stock-worker-panel="" className={`${progressStyles.panel} overflow-hidden rounded-xl border border-neon-blue-500/40 bg-surface shadow-2xl`}>
       <div className="h-1 overflow-hidden bg-neon-blue-500/10" role={busy ? "progressbar" : undefined}
         aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
         <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : online ? "w-full opacity-40" : "w-0"}`} />
       </div>
-      <div className="flex flex-wrap items-center gap-4 px-5 py-4">
-        <Image src="/images/logo-itrader-hq.png" alt="iTrader" width={220} height={74} className="mr-1 h-9 w-auto shrink-0" />
-        <div className="min-w-0 flex-1"><p role="status" className="text-sm font-semibold text-text-primary">{title}</p>
+      <div className={`flex flex-wrap items-center gap-3 ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
+        <button type="button" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "Hide worker activity" : "Show worker activity"}
+          aria-expanded={expanded} aria-controls="stock-worker-activity" title={title}
+          className="flex min-h-11 shrink-0 items-center rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400">
+          <Image src="/images/logo-itrader-hq.png" alt="iTrader" width={220} height={74} className="h-9 w-auto" />
+        </button>
+        <div className={compact ? "sr-only" : "min-w-0 flex-1"}><p role="status" className="text-sm font-semibold text-text-primary">{title}</p>
           <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "Run complete. Review the results below." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
         <div className="flex flex-wrap gap-2">{buttons}</div>
       </div>

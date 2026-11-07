@@ -37,3 +37,38 @@
     opacity: 0.5;
   }
 }
+
+.dock[data-compact="true"] {
+  right: auto;
+  width: max-content;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0;
+}
+
+.command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 2.75rem;
+  padding-inline: 0.8125rem;
+}
+
+.commandLabel {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width 160ms ease-out, opacity 160ms ease-out, margin 160ms ease-out;
+}
+
+.command:hover .commandLabel,
+.command:focus-visible .commandLabel {
+  max-width: 12rem;
+  margin-left: 0.5rem;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commandLabel { transition: none; }
+}

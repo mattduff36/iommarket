@@ -17,6 +17,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   const mounted = useRef(true);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [launchFailed, setLaunchFailed] = useState(false);
   const [launchId, setLaunchId] = useState<string | null>(null);
   const [launchUrl, setLaunchUrl] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{ task: StockAppTask; resolve: () => void } | null>(null);
@@ -28,14 +29,19 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     return () => { mounted.current = false; confirmationRef.current?.resolve(); };
   }, []);
   useEffect(() => {
+    if (controls.online) setLaunchFailed(false);
+  }, [controls.online]);
+  useEffect(() => {
     if (!launchId) return;
     if (connectedLaunchId === launchId) {
+      setLaunchFailed(false);
       setLaunchId(null);
       setLaunchUrl(null);
       setMessage("Stock Update received the request. Check task results below.");
       return;
     }
     const timeout = window.setTimeout(() => {
+      setLaunchFailed(true);
       setLaunchId(null);
       setLaunchUrl(null);
       setMessage("The app has not connected. Allow the browser’s Open Stock Update prompt and install the latest app if needed. Any queued tasks are saved; check their status before trying again.");
@@ -44,6 +50,7 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
   }, [launchId, connectedLaunchId]);
 
   async function launch(mode: "open" | "task", jobIds: string[] = []) {
+    setLaunchFailed(false);
     const result = await launchStockApp({ mode, jobIds });
     if (!result.ok) throw new Error(result.error);
     if (!mounted.current) return;
@@ -97,7 +104,12 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     locked.current = true;
     setPending(true);
     try { await launch("open"); }
-    catch { setMessage("Could not open Stock Update. Install the latest app and try again."); }
+    catch {
+      setLaunchId(null);
+      setLaunchUrl(null);
+      setLaunchFailed(true);
+      setMessage("Could not open Stock Update. Install the latest app and try again.");
+    }
     finally { locked.current = false; if (mounted.current) setPending(false); }
   }
   const dialog = <Dialog open={confirmation !== null} onOpenChange={value => { if (!value) cancel(); }}>
@@ -112,5 +124,5 @@ export function useStockAppLifecycle(controls: StockWorkerControl, connectedLaun
     </DialogContent>
   </Dialog>;
   const launchFallback = launchUrl ? <button type="button" className="min-h-11 rounded-md border border-neon-blue-400 px-4 text-sm text-neon-blue-400" onClick={() => openStockUpdateProtocol(launchUrl)}>Open app if it did not start</button> : null;
-  return { requestRun, open, pending: pending || launchId !== null, message, dialog, launchFallback };
+  return { requestRun, open, pending: pending || launchId !== null, message, dialog, launchFallback, launchFailed };
 }

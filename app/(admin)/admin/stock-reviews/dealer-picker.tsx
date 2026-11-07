@@ -1,6 +1,7 @@
 "use client";
+import { StockWorkerCommandButton } from "./worker-command-button";
 import { Check } from "lucide-react";
-import { stockWorkerCommandClass, stockWorkerCommandLabel, useStockWorkerControl } from "./worker-context";
+import { useStockWorkerControl } from "./worker-context";
 import { useStockDealerSelection, type StockDealer } from "./worker-selection";
 export function StockDealerPicker({ dealers, unavailable = [], retainOnDisconnect = false }: { retainOnDisconnect?: boolean; dealers: StockDealer[]; unavailable?: { id: string; name: string; reason: string }[] }) {
   const controls = useStockWorkerControl();
@@ -22,9 +23,8 @@ export function StockDealerPicker({ dealers, unavailable = [], retainOnDisconnec
       </label>)}
     </fieldset>
     <div className="flex flex-wrap items-center gap-3">
-      <button type="button" disabled={!selection.canAct} onClick={selection.startOrStop} className={stockWorkerCommandClass(controls.running)}>
-        {stockWorkerCommandLabel({ ...controls, pendingCommand: Boolean(controls.pendingCommand) })}
-      </button>
+      <StockWorkerCommandButton {...controls} pendingCommand={Boolean(controls.pendingCommand)}
+        disabled={!selection.canAct} onClick={selection.startOrStop} />
       {dealers.length ? <button type="button" disabled={controls.pending || (!controls.online && !controls.requestRun)} onClick={selection.selected.length === dealers.length ? selection.clear : selection.selectAll} className="min-h-11 rounded-md px-3 text-sm text-neon-blue-400 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-blue-400 disabled:opacity-50">{selection.selected.length === dealers.length ? "Clear selection" : "Select all"}</button> : <p className="text-sm text-text-secondary">No dealers have a verified website source.</p>}
     </div>
     {unavailable.length ? <details className="text-sm text-text-secondary"><summary className="cursor-pointer py-2">Unavailable dealers ({unavailable.length})</summary><ul className="mt-2 space-y-2">{unavailable.map(dealer => <li key={dealer.id}><span className="font-medium">{dealer.name}</span> · {dealer.reason}</li>)}</ul></details> : null}
