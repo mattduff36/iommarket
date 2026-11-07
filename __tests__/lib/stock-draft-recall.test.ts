@@ -61,6 +61,15 @@ describe("admin stock draft ownership transaction", () => {
     }) });
     expect(ready).not.toHaveBeenCalled(); expect(event).not.toHaveBeenCalled();
   });
+  it("recalls verified manual handoffs when automatic scraping is disabled", async () => {
+    tx.dealerStockSourceBinding.findUnique.mockResolvedValue({ dealerId: "dealer", enabled: false, verifiedAt: stamp });
+    expect(await run()).toMatchObject({ listingId: "listing", alreadyDone: false });
+  });
+  it("rejects a source binding that is no longer verified", async () => {
+    tx.dealerStockSourceBinding.findUnique.mockResolvedValue({ dealerId: "dealer", enabled: false, verifiedAt: null });
+    await expect(run()).rejects.toThrow(/changed/);
+    expect(tx.listing.updateMany).not.toHaveBeenCalled();
+  });
   it("restores an origin-report row removed by the original To drafts operation", async () => {
     tx.dealerStockSyncReport.findUnique.mockResolvedValue({ ...report(), status: "REJECTED", plan: { actions: [] } });
     await run();

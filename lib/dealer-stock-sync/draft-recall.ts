@@ -66,7 +66,7 @@ export async function changeStockDraftOwnership(tx: Prisma.TransactionClient, in
     throw new StockDraftRecallError("This draft is submitted, protected or no longer available for this action. Refresh the review.");
   }
   const [binding, dealer, busy, revision, newer, payment, checkout] = await Promise.all([
-    tx.dealerStockSourceBinding.findUnique({ where: { id: report.bindingId }, select: { dealerId: true, enabled: true, verifiedAt: true } }),
+    tx.dealerStockSourceBinding.findUnique({ where: { id: report.bindingId }, select: { dealerId: true, verifiedAt: true } }),
     tx.dealerProfile.findUnique({ where: { id: report.dealerId }, select: {
       userId: true, isAdminPreview: true, user: { select: { role: true, disabledAt: true, deletedAt: true } },
     } }),
@@ -76,7 +76,8 @@ export async function changeStockDraftOwnership(tx: Prisma.TransactionClient, in
     tx.payment.findFirst({ where: { listingId: listing.id, refundedAt: null, status: { in: ["PENDING", "SUCCEEDED"] } }, select: { id: true } }),
     tx.sampleCheckout.findFirst({ where: { targetId: listing.id, kind: { in: ["listing_payment", "listing_and_featured", "featured_upgrade"] }, status: { in: ["PENDING", "SUCCEEDED"] } }, select: { id: true } }),
   ]);
-  if (!binding?.enabled || !binding.verifiedAt || binding.dealerId !== report.dealerId || !dealer ||
+  // Manual stock review remains available when automatic scraping is disabled.
+  if (!binding?.verifiedAt || binding.dealerId !== report.dealerId || !dealer ||
       dealer.userId !== receipt.userId || dealer.isAdminPreview || dealer.user.role !== "DEALER" ||
       dealer.user.disabledAt || dealer.user.deletedAt || revision || newer) throw new StockDraftRecallError(STALE);
   if (busy) throw new StockDraftRecallError("Wait for this dealer's current stock task to finish before changing draft ownership.");
