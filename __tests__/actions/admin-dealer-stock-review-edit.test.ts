@@ -274,6 +274,20 @@ describe("admin stock review corrections", () => {
     });
   });
 
+  it("saves unmatched historical evidence without creating an eligible listing", async () => {
+    const held = await install([blocked({ reason: "unmapped", section: "missing" })]);
+    const result = await saveStockReviewVehicle(input(held.fingerprint));
+    expect(result).toMatchObject({ data: { dealerId: "dealer-1" } });
+    const saved = db.dealerStockSyncReport.updateMany.mock.calls.at(-1)?.[0];
+    expect(saved.data.plan.actions[0]).toMatchObject({
+      kind: "blocked", reason: "unmapped", section: "missing", listingId: null,
+      review: { description: "A complete description of this available vehicle." },
+    });
+    expect(db.listing.create).not.toHaveBeenCalled();
+    expect(db.listing.updateMany).not.toHaveBeenCalled();
+    expect(db.dealerStockSyncAudit.create).toHaveBeenCalledOnce();
+  });
+
   it("rejects unknown attributes, invalid mileage, linked identities and sold titles", async () => {
     const held = await install([blocked()]);
     const unknown = await saveStockReviewVehicle(input(held.fingerprint, {

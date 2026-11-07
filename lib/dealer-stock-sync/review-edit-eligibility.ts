@@ -14,6 +14,9 @@ const CORRECTABLE_BLOCK_REASONS = new Set([
   "not-importable",
   "title-conflict",
   "availability-held",
+  "source-transmission-conflict",
+  "confirm-vehicle-category",
+  "supply-owned-photos",
 ]);
 
 function soldReview(action: PlanAction) {
@@ -25,6 +28,11 @@ function soldReview(action: PlanAction) {
 
 export function canEditStockReviewAction(action: PlanAction) {
   if (!action.sourceIdentityKey?.trim() || action.listingId || soldReview(action)) return false;
+  return action.kind === "create" || action.kind === "blocked";
+}
+
+export function canCorrectStockReviewToCreate(action: PlanAction) {
+  if (!canEditStockReviewAction(action)) return false;
   if (action.kind === "create") return true;
   return action.kind === "blocked" && action.section === "new" && CORRECTABLE_BLOCK_REASONS.has(action.reason);
 }

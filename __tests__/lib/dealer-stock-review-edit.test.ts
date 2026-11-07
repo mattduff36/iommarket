@@ -65,15 +65,15 @@ const snapshot = (actions: PlanAction[]): FingerprintSnapshot => ({
 });
 
 describe("stock review correction helpers", () => {
-  it("blocks sold, linked, identity, conflict and removal rows", () => {
+  it("allows blocked evidence corrections but leaves linked vehicles to the admin listing editor", () => {
     expect(canEditStockReviewAction(blocked())).toBe(true);
     for (const reason of ["source-conflict", "unmatched-archive", "ambiguous-archive"]) {
       expect(canEditStockReviewAction(blocked({ reason }))).toBe(true);
     }
     expect(canEditStockReviewAction(blocked({ reason: "sold-exclude-from-live-import" }))).toBe(false);
-    expect(canEditStockReviewAction(blocked({ reason: "duplicate-source", section: "other" }))).toBe(false);
+    expect(canEditStockReviewAction(blocked({ reason: "duplicate-source", section: "other" }))).toBe(true);
     expect(canEditStockReviewAction(blocked({ reason: "unstable-identity", sourceIdentityKey: null }))).toBe(false);
-    expect(canEditStockReviewAction(blocked({ reason: "unmapped-existing-stock" }))).toBe(false);
+    expect(canEditStockReviewAction(blocked({ reason: "unmapped-existing-stock" }))).toBe(true);
     expect(canEditStockReviewAction(blocked({ listingId: "listing-1" }))).toBe(false);
     expect(canEditStockReviewAction(blocked({ review: review({ availability: "sold" }) }))).toBe(false);
     expect(canEditStockReviewAction(blocked({ review: review({ flags: ["sold-exclude-from-live-import"] }) }))).toBe(false);
@@ -87,6 +87,21 @@ describe("stock review correction helpers", () => {
     const parsed = stockReviewCorrectionSchema.parse(correction);
     const duplicate = correctStockReviewActions([blocked(), blocked()], parsed);
     expect(duplicate).toEqual({ ok: false, error: "This website vehicle is not a single stable record." });
+  });
+
+  it.each(["duplicate-source", "unmapped-existing-stock", "unmapped", "unstable-identity"])("saves %s corrections without turning protected records into new listings", reason => {
+    const result = correctStockReviewActions([blocked({ reason, section: "other" })], stockReviewCorrectionSchema.parse(correction));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.corrected).toMatchObject({ kind: "blocked", reason, listingId: null, displayTitle: correction.title });
+    expect(result.corrected.review?.flags).toEqual(["missing-description"]);
+    expect(stockReviewDraft(result.corrected)?.description).toBe(correction.description);
+    expect(stockReviewDraft(result.corrected)?.attributes).toEqual(correction.attributes);
+  });
+
+  it("allows an unlinked transmission conflict to be corrected for approval", () => {
+    const result = correctStockReviewActions([blocked({ reason: "source-transmission-conflict" })], stockReviewCorrectionSchema.parse(correction));
+    expect(result.ok && result.corrected.kind).toBe("create");
   });
 
   it("leaves missing make, model and description blank instead of guessing", () => {

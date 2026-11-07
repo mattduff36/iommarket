@@ -82,6 +82,8 @@ export interface IdentityPatch {
 
 export interface ReviewedActionEvidence {
   displayTitle: string;
+  description?: string;
+  attributes?: Record<string, string>;
   fuel?: string | null;
   transmission?: string | null;
   flags: string[];

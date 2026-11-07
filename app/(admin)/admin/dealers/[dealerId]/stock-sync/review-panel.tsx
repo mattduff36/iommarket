@@ -7,7 +7,8 @@ import { StockReviewSelectionControls, type StockReviewSelection } from "./revie
 import { ReportableError } from "@/components/monitoring/reportable-error";
 import { DEALER_PLACEHOLDER_PATH, isDealerPlaceholderImage } from "@/lib/images/dealer-placeholder";
 import { stockStatusColour, STOCK_STATUS_BADGE } from "@/lib/dealer-stock-sync/status-colour";
-import Link from "@/components/navigation/link";
+import { AdminListingEditButton } from "@/components/admin/listing-edit-button";
+import { useStockSnapshotRefresh } from "../../../stock-reviews/use-stock-snapshot";
 import { formatGbpFromPence } from "@/lib/formatting/gbp";
 import { canEditStockReviewAction } from "@/lib/dealer-stock-sync/review-edit-eligibility";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
@@ -78,6 +79,7 @@ function Row({
   onSelect: (selected: boolean) => void;
 }) {
   const editable = allowEdit && canEditStockReviewAction(action);
+  const refreshSnapshot = useStockSnapshotRefresh();
   const linked = Boolean(action.listingId) && (action.kind === "blocked" || action.kind === "conflict");
   const corrected = action.review?.provenance.includes("admin-corrected") ?? false;
   const label = stockReviewTitle(action);
@@ -125,10 +127,12 @@ function Row({
         />
       ) : null}
       {linked ? (
-        <Link href={`/listings/${action.listingId}?adminReview=1`} className="mt-2 inline-block text-neon-blue-400 hover:underline">
-          Open listing editor
-        </Link>
+        <AdminListingEditButton listingId={action.listingId!} label={action.kind === "blocked" ? "Edit / override" : "Open listing editor"} onSaved={() => { void refreshSnapshot?.(); }} savedMessage="Listing saved. Run a fresh stock check before approving further changes; this saved review may now be out of date." />
       ) : null}
+      {allowEdit && action.kind === "blocked" && !action.listingId && !action.sourceIdentityKey && <div className="mt-2">
+        <button type="button" disabled className="rounded border border-border px-3 py-2 text-text-secondary">Edit / override</button>
+        <p className="text-text-secondary">Run a fresh stock check first: this saved row has no vehicle reference to safely identify the record to edit.</p>
+      </div>}
     </li>
   );
 }
