@@ -29,6 +29,7 @@ import { RenewListingButton } from "@/components/marketplace/renew-listing-butto
 import { ListingModerationActions } from "@/components/admin/listing-moderation-actions";
 import { PendingRevisionReview } from "@/components/admin/pending-revision-review";
 import { getDraftEditorHref } from "@/lib/listings/draft-editor";
+import { AdminListingEditButton } from "@/components/admin/listing-edit-button";
 import { ListingSpecificationGroups } from "@/components/listings/listing-specification-groups";
 import { ListingImageGallery } from "./listing-image-gallery";
 import { getMarketplacePricing } from "@/lib/config/marketplace-pricing";
@@ -739,7 +740,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           />
         </div>
       )}
-      {isOwner &&
+      {isAdminUser ? <AdminListingEditButton listingId={listing.id} /> : isOwner &&
         (listing.status === "DRAFT" ||
           listing.status === "LIVE" ||
           listing.status === "TAKEN_DOWN" ||

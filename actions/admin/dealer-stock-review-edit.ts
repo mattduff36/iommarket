@@ -218,11 +218,11 @@ export async function saveStockReviewVehicle(input: unknown): Promise<
       const correctedInput = { ...parsed.data, attributes: attributes.attributes };
       const corrected = correctStockReviewActions(actions, correctedInput);
       if (!corrected.ok) return { error: corrected.error };
-      if (soldListingForNewVehicle({ title: corrected.corrected.title }, snapshot.listings)) {
+      if (corrected.corrected.kind === "create" && soldListingForNewVehicle({ title: corrected.corrected.title }, snapshot.listings)) {
         return { error: "This title matches a sold listing and cannot be added." };
       }
       const creates = corrected.actions.filter((action) => action.kind === "create").length;
-      if (snapshot.activeListingCount + creates > snapshot.listingCap) {
+      if (corrected.corrected.kind === "create" && snapshot.activeListingCount + creates > snapshot.listingCap) {
         return { error: "This correction would exceed the dealer listing limit." };
       }
       const nextFingerprint = fingerprintSnapshot({ ...snapshot, actions: corrected.actions });

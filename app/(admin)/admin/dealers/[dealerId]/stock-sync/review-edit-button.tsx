@@ -198,7 +198,7 @@ export function StockReviewEditButton({
             {data.draft.warning ? <p className="text-sm text-text-secondary">Original warning: {data.draft.warning}</p> : null}
             {data.draft.flags.length > 0 ? <p className="text-sm text-text-secondary">Source checks: {data.draft.flags.join(", ")}</p> : null}
             <p className="text-sm text-text-secondary">
-              Save corrections adds this vehicle to the eligible list. You still review and approve the full plan. Nothing is published or emailed now.
+              Save corrections updates this review. Correctable import errors become eligible for approval; identity, matching and removal safeguards remain blocked until resolved. Nothing is published or emailed now.
             </p>
             {source ? <a className="text-sm text-neon-blue-400 hover:underline" href={source} target="_blank" rel="noreferrer">Source listing</a> : null}
             <label className="block text-sm">Title<input className="mt-1 w-full rounded-md border border-border px-2 py-1" value={title} onChange={(event) => setTitle(event.target.value)} required /></label>

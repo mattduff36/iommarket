@@ -13,6 +13,9 @@ vi.mock("@/actions/admin/dealer-stock-sync", () => ({
   approveDealerStockReport: vi.fn(),
   rejectDealerStockReport: vi.fn(),
 }));
+vi.mock("@/components/admin/listing-edit-button", () => ({
+  AdminListingEditButton: ({ listingId, label = "Open listing editor" }: { listingId: string; label?: string }) => <button data-listing-id={listingId}>{label}</button>,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
@@ -90,7 +93,8 @@ describe("stock sync review", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(/preserves its current status/);
     expect(screen.getByRole("tooltip")).toHaveTextContent(/approval requirements/);
     expect(screen.getByRole("link", { name: "Source listing" })).toHaveAttribute("href", "https://dealer.example/car/123");
-    expect(screen.getByRole("link", { name: "Open listing editor" })).toHaveAttribute("href", "/listings/l?adminReview=1");
+    expect(screen.getByRole("button", { name: "Edit / override" })).toHaveAttribute("data-listing-id", "l");
+    expect(screen.queryByRole("link", { name: "Open listing editor" })).not.toBeInTheDocument();
   });
 
   it("identifies old unmatched records and explains missing evidence without inventing vehicle details", () => {

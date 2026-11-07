@@ -1,4 +1,4 @@
-import { canEditStockReviewAction } from "./review-edit-eligibility";
+import { canEditStockReviewAction, canCorrectStockReviewToCreate } from "./review-edit-eligibility";
 export { canEditStockReviewAction } from "./review-edit-eligibility";
 import { isIP } from "node:net";
 import { z } from "zod";
@@ -113,10 +113,10 @@ export function stockReviewDraft(action: PlanAction): StockReviewDraft | null {
   const review = action.review;
   return {
     title: review?.displayTitle ?? action.displayTitle ?? "",
-    description: "",
+    description: review?.description ?? "",
     pricePence: review?.pricePence ?? null,
     categorySlug: categorySlugOf(review?.categorySlug),
-    attributes: blockedAttributes(review),
+    attributes: { ...blockedAttributes(review), ...review?.attributes },
     photoUrls: [...(review?.safePhotoUrls ?? [])],
     sourceUrl: review?.sourceUrl ?? null,
     warning: action.kind === "blocked" ? action.reason : null,
@@ -133,6 +133,8 @@ function correctedReview(action: PlanAction, input: StockReviewCorrectionInput):
   const provenance = [...(previous?.provenance ?? []).filter((item) => item !== "admin-corrected"), "admin-corrected"];
   return {
     displayTitle: input.title,
+    description: input.description,
+    attributes: { ...input.attributes },
     fuel: input.attributes["fuel-type"] ?? null,
     transmission: input.attributes.transmission ?? null,
     flags: [],
@@ -175,14 +177,19 @@ export function buildCorrectedCreateAction(action: PlanAction, input: StockRevie
 export function correctStockReviewActions(
   actions: PlanAction[],
   input: StockReviewCorrectionInput,
-): { ok: false; error: string } | { ok: true; corrected: CreatePlanAction; actions: PlanAction[] } {
+): { ok: false; error: string } | { ok: true; corrected: CreatePlanAction | Extract<PlanAction, { kind: "blocked" }>; actions: PlanAction[] } {
   const matches = actions.filter((action) => action.sourceIdentityKey === input.sourceIdentityKey);
   if (matches.length !== 1) return { ok: false, error: "This website vehicle is not a single stable record." };
   const original = matches[0];
   if (!original || !canEditStockReviewAction(original)) {
     return { ok: false, error: "This vehicle cannot be corrected in the stock review." };
   }
-  const corrected = buildCorrectedCreateAction(original, input);
+  const corrected = original.kind === "blocked" && !canCorrectStockReviewToCreate(original)
+    ? { ...original, displayTitle: input.title, review: {
+      ...correctedReview(original, input), flags: [...(original.review?.flags ?? [])],
+      availability: original.review?.availability ?? "unknown",
+    } }
+    : buildCorrectedCreateAction(original, input);
   return {
     ok: true,
     corrected,
