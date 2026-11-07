@@ -134,3 +134,24 @@ it("shows installer and pairing status only while offline, including reconnects"
   await tick();
   expect(screen.getByRole("button",{name:"Download worker"})).toBeVisible();
 });
+
+ it("collapses an idle dock and lets the logo reopen activity without starting work", () => {
+  render(<StockWorkerDashboard initial={connected()} jobs={[]} readyCount={0} />);
+  const dock = document.querySelector("[data-stock-worker-dock]");
+  expect(dock).toHaveAttribute("data-compact", "true");
+  const start = screen.getByRole("button", { name: "Start worker" });
+  expect(start).toHaveAttribute("data-icon-only", "true");
+  expect(start.querySelector("svg.lucide-play")).toBeTruthy();
+  expect(start.textContent).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Show worker activity" }));
+  expect(dock).toHaveAttribute("data-compact", "false");
+  expect(screen.getByText("Recent worker activity")).toBeVisible();
+  expect(command).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Hide activity" }));
+  expect(dock).toHaveAttribute("data-compact", "true");
+ });
+ it.each(["running", "waiting", "stopping", "error"])("keeps %s worker state expanded", state => {
+  const initial = connected();
+  render(<StockWorkerDashboard initial={{...initial, devices: initial.devices.map(device => ({...device, state: state as typeof device.state}))}} jobs={[]} readyCount={0} />);
+  expect(document.querySelector("[data-stock-worker-dock]")).toHaveAttribute("data-compact", "false");
+ });

@@ -44,23 +44,46 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
       else await perform();
     });
   }
-  return <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 sm:bottom-0 space-y-3 rounded-lg border border-neon-blue-500/30 bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-high" aria-label="Review actions" aria-busy={pending}>
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="font-semibold text-text-primary" aria-live="polite">{chosen.length} selected</p>
-      <Button type="button" variant="ghost" size="sm" onClick={() => selection.setIndexes([])} disabled={pending || !chosen.length} className="min-h-10 border border-border-active px-3">Clear selection</Button>
+  const actionClass = "min-h-11 w-full gap-2 rounded-md px-3 text-xs font-medium normal-case not-italic tracking-normal";
+  return <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 space-y-3 rounded-lg border border-border bg-surface p-3 sm:bottom-0" aria-label="Review actions" aria-busy={pending}>
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-sm font-semibold tabular-nums text-text-primary" aria-live="polite">{chosen.length} selected</p>
+      <Button type="button" variant="ghost" size="sm" onClick={() => selection.setIndexes([])} disabled={pending || !chosen.length}
+        className="min-h-11 gap-1.5 px-2 text-xs text-text-secondary"><X size={14} aria-hidden="true" />Clear selection</Button>
     </div>
-    <div className="flex flex-nowrap items-center gap-1 sm:flex-wrap sm:gap-2 max-sm:[&>div>span]:min-w-0 max-sm:[&>div>span]:flex-1 [&_button]:h-11 [&_button]:w-full [&_button]:px-0 [&_button]:text-xs sm:[&_button]:w-auto sm:[&_button]:px-3">
-    <div className="contents" role="group" aria-label="Selected listing actions">
-      <span title={canApprove ? "Queue only the selected eligible additions and updates. Other items stay in this review." : "Select eligible additions or updates only. Blocked items and removal suggestions cannot be approved here."}>
-        <Button type="button" variant="trust" className="border border-neon-blue-400" disabled={pending || !canApprove} onClick={() => run("approve", selection.indexes)}><Check className="h-5 w-5 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Approve selected</span></Button>
-      </span>
-      <span title="Clear the selected review suggestions. This does not delete the dealer's listings."><Button type="button" variant="ghost" className="border border-neon-red-400 bg-neon-red-500/10 text-neon-red-400 hover:bg-neon-red-500/20 hover:text-neon-red-400" disabled={pending || !chosen.length} onClick={() => run("reject", selection.indexes)}><X className="h-5 w-5 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Reject and clear selected</span></Button></span>
-      <span title={canDraft ? "Send these items to the dealer to edit, submit or delete. Live listings remain live while draft changes are reviewed." : "Select items with a safe source identity. Protected or conflicting listings must be resolved first."}><Button type="button" variant="ghost" className="border border-border-active bg-surface-elevated text-text-primary" disabled={pending || !canDraft} onClick={() => run("draft", selection.indexes)}><Send className="h-5 w-5 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Send selected to dealer drafts</span></Button></span>
+    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Selected listing actions">
+      <Button type="button" variant="ghost" aria-label="Approve selected"
+        title={canApprove ? "Queue the selected eligible additions and updates." : "Select eligible additions or updates. Blocked items and removals cannot be approved here."}
+        className={`${actionClass} bg-neon-blue-600 text-white hover:bg-neon-blue-500 hover:text-white`}
+        disabled={pending || !canApprove} onClick={() => run("approve", selection.indexes)}>
+        <Check className="size-4 shrink-0" aria-hidden="true" /><span>Approve</span>
+      </Button>
+      <Button type="button" variant="ghost" aria-label="Send selected to dealer drafts"
+        title={canDraft ? "Send selected items to dealer drafts. Live listings remain live." : "Select items with a safe source identity. Resolve protected or conflicting listings first."}
+        className={`${actionClass} border border-border bg-surface-elevated text-text-primary`}
+        disabled={pending || !canDraft} onClick={() => run("draft", selection.indexes)}>
+        <Send className="size-4 shrink-0" aria-hidden="true" /><span>To drafts</span>
+      </Button>
+      <Button type="button" variant="ghost" aria-label="Reject and clear selected" title="Reject and clear selected suggestions. Existing listings are not deleted."
+        className={`${actionClass} text-neon-red-400 hover:bg-neon-red-500/10 hover:text-neon-red-400`}
+        disabled={pending || !chosen.length} onClick={() => run("reject", selection.indexes)}>
+        <X className="size-4 shrink-0" aria-hidden="true" /><span>Reject</span>
+      </Button>
     </div>
-    <div className="contents" role="group" aria-label="Whole review actions">
-      <span title={`Approve all ${eligible.length} eligible additions and updates. Blocked items and removal suggestions are excluded.`}><Button type="button" variant="ghost" className="border border-neon-blue-400 bg-neon-blue-500/10 text-neon-blue-400 hover:bg-neon-blue-500/20 hover:text-neon-blue-400" disabled={pending || !eligible.length} onClick={() => run("approve", eligible)}><ListChecks className="h-5 w-5 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Approve all eligible ({eligible.length})</span></Button></span>
-      <span title={`Clear all ${blocked.length} blocked and conflicting suggestions. Existing listings are unaffected.`}><Button type="button" variant="ghost" className="border border-neon-red-400 bg-neon-red-500/10 text-neon-red-400 hover:bg-neon-red-500/20 hover:text-neon-red-400" disabled={pending || !blocked.length} onClick={() => run("reject", blocked)}><ListX className="h-5 w-5 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Reject and clear all blocked ({blocked.length})</span></Button></span>
-    </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2" role="group" aria-label="Whole review actions">
+      <span className="mr-auto text-xs text-text-secondary">Whole review</span>
+      <Button type="button" variant="ghost" aria-label={`Approve all eligible (${eligible.length})`}
+        title="Approve all eligible additions and updates. Blocked items and removals are excluded."
+        className="min-h-11 gap-1.5 px-2 text-xs font-medium normal-case not-italic text-neon-blue-400 hover:text-neon-blue-400"
+        disabled={pending || !eligible.length} onClick={() => run("approve", eligible)}>
+        <ListChecks className="size-4 shrink-0" aria-hidden="true" />Approve eligible <span className="tabular-nums">({eligible.length})</span>
+      </Button>
+      <Button type="button" variant="ghost" aria-label={`Reject and clear all blocked (${blocked.length})`}
+        title="Reject and clear all blocked and conflicting suggestions. Existing listings are unaffected."
+        className="min-h-11 gap-1.5 px-2 text-xs font-medium normal-case not-italic text-neon-red-400 hover:bg-neon-red-500/10 hover:text-neon-red-400"
+        disabled={pending || !blocked.length} onClick={() => run("reject", blocked)}>
+        <ListX className="size-4 shrink-0" aria-hidden="true" />Clear blocked <span className="tabular-nums">({blocked.length})</span>
+      </Button>
     </div>
     {feedback.error && <Alert status="error">{feedback.error}</Alert>}
     {feedback.message && <Alert status="success">{feedback.message}</Alert>}

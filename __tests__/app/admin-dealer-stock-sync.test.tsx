@@ -62,6 +62,50 @@ const actions: PlanAction[] = [
 ];
 
 describe("stock sync review", () => {
+  it("explains protected listings on focus, click and Escape", () => {
+    render(<StockSyncReviewPanel reportId="r" status="PENDING_REVIEW" fingerprint="f" failureReason={null} actions={[
+      { kind: "blocked", sourceIdentityKey: "sourceVehicleId:7", listingId: "l", reason: "paid-feature", section: "missing", displayTitle: "Ford Transit" },
+    ]} />);
+    const help = screen.getByRole("button", { name: /Explain: This featured listing/ });
+    fireEvent.focus(help);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/missing from the latest complete website check/i);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/Open the listing editor/i);
+    fireEvent.keyDown(help, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    fireEvent.click(help);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    fireEvent.blur(help);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    fireEvent.mouseEnter(help.closest("div")!);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    fireEvent.mouseLeave(help.closest("div")!);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("explains non-live status without suggesting bulk approval will publish it", () => {
+    render(<StockSyncReviewPanel reportId="r" status="PENDING_REVIEW" fingerprint="f" failureReason={null} actions={[
+      { kind: "blocked", sourceIdentityKey: "detailUrl:https://dealer.example/car/123", listingId: "l", reason: "status-preserved", section: "change", displayTitle: "Hyundai i10" },
+    ]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Explain: The listing is not currently live/ }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/preserves its current status/);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/approval requirements/);
+    expect(screen.getByRole("link", { name: "Source listing" })).toHaveAttribute("href", "https://dealer.example/car/123");
+    expect(screen.getByRole("link", { name: "Open listing editor" })).toHaveAttribute("href", "/listings/l?adminReview=1");
+  });
+
+  it("identifies old unmatched records and explains missing evidence without inventing vehicle details", () => {
+    render(<StockSyncReviewPanel reportId="r" status="PENDING_REVIEW" fingerprint="f" failureReason={null} actions={[
+      { kind: "blocked", sourceIdentityKey: "sourceVehicleId:old-123", listingId: null, reason: "unmapped", section: "missing", displayTitle: "Vehicle requiring review" },
+      { kind: "blocked", sourceIdentityKey: "detailUrl:javascript:alert(1)", listingId: null, reason: "unmapped", section: "missing" },
+    ]} />);
+    expect(screen.getAllByText(/Previously tracked website record/).length).toBeGreaterThan(0);
+    expect(screen.getByText("sourceVehicleId:old-123")).toBeInTheDocument();
+    expect(screen.getAllByText(/No vehicle details were saved with this review/)).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: "Source listing" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Explain: The website record/ })[0]);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/no linked listing to remove/i);
+  });
+
   it("shows field changes, one absence, a second-absence unpublish, and blocks", () => {
     render(
       <StockSyncReviewPanel
