@@ -386,7 +386,7 @@
 
   <script>
     const ITEMS = [
-      { id: "photo-upload-no-crop", stream: "photos", priority: "P0", area: "Upload", where: "/sell/private or /sell/dealer", check: "Create a listing. There is no mandatory 16:10 crop dialog." },
+      { id: "photo-upload-no-crop", stream: "photos", priority: "P0", area: "Upload", where: "/sell/private or /sell/dealer", check: "Create a listing. There is no mandatory 16:10 crop dialogue." },
       { id: "photo-upload-landscape", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "A landscape JPG uploads and previews." },
       { id: "photo-upload-portrait", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "A portrait photo uploads. Preview shows the full image with blurred edges, not a hard crop." },
       { id: "photo-upload-png-webp", stream: "photos", priority: "P0", area: "Upload", where: "Sell form", check: "PNG and WebP both upload." },
@@ -408,7 +408,7 @@
       { id: "photo-display-lightbox", stream: "photos", priority: "P0", area: "Display", where: "Listing lightbox", check: "Full image, contained on black, not cropped." },
       { id: "photo-display-admin-media", stream: "photos", priority: "P1", area: "Display", where: "/admin/media", check: "Square thumbs use the same fit policy." },
       { id: "photo-display-samples", stream: "photos", priority: "P1", area: "Display", where: "Existing sample listings", check: "Unsplash / external images still render. Missing metadata never crops." },
-      { id: "photo-focal-dialog", stream: "photos", priority: "P1", area: "Focal point", where: "Sell form → Adjust focus", check: "Dialog has Automatic plus a draggable target, with 4:3 and 16:10 previews." },
+      { id: "photo-focal-dialog", stream: "photos", priority: "P1", area: "Focal point", where: "Sell form → Adjust focus", check: "Dialogue has Automatic plus a draggable target, with 4:3 and 16:10 previews." },
       { id: "photo-focal-reset", stream: "photos", priority: "P1", area: "Focal point", where: "Adjust focus", check: "Reset to Automatic clears the seller override." },
       { id: "photo-focal-persist", stream: "photos", priority: "P1", area: "Focal point", where: "Save, reorder, reload", check: "Focal choice survives and does not rewrite the source file." },
       { id: "photo-lock-live", stream: "photos", priority: "P1", area: "Photo locks", where: "LIVE listing edit", check: "Cannot add, reorder, or delete photos while the listing is LIVE." },
@@ -433,7 +433,7 @@
       { id: "admin-reinstate", stream: "admin", priority: "P0", area: "Moderate listings", where: "Taken-down listing that was previously LIVE and not expired", check: "Reinstate live is offered and returns it to public search." },
       { id: "admin-return-draft-takedown", stream: "admin", priority: "P0", area: "Moderate listings", where: "Taken-down listing that cannot be reinstated", check: "Only Return to draft is offered." },
       { id: "admin-return-draft-rejected", stream: "admin", priority: "P0", area: "Moderate listings", where: "Rejected listing", check: "Return to draft. Seller can edit and resubmit." },
-      { id: "admin-reason-codes", stream: "admin", priority: "P1", area: "Moderate listings", where: "Reason dialog", check: "Reasons: Fraud, Prohibited, Misleading, Duplicate, Policy, Safety, Other." },
+      { id: "admin-reason-codes", stream: "admin", priority: "P1", area: "Moderate listings", where: "Reason dialogue", check: "Reasons: Fraud, Prohibited, Misleading, Duplicate, Policy, Safety, Other." },
       { id: "vis-public-404", stream: "admin", priority: "P0", area: "Visibility", where: "Incognito or another user", check: "DRAFT, PENDING, REJECTED, TAKEN_DOWN, and EXPIRED URLs 404, including social metadata." },
       { id: "vis-sold-public", stream: "admin", priority: "P0", area: "Visibility", where: "Sold listing", check: "SOLD stays publicly viewable as sold." },
       { id: "vis-owner-reason", stream: "admin", priority: "P0", area: "Visibility", where: "Owner account", check: "Owner can open their moderated listing and see the public reason, not internal admin notes." },

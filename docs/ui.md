@@ -104,7 +104,7 @@ Variants: **energy**, **trust**, **premium**, **neutral**, **success**, **error*
 
 ### ListingCard
 
-Dark card surface, hover lift + metallic border, image overlay gradient, energy-colored price.
+Dark card surface, hover lift + metallic border, image overlay gradient, energy-coloured price.
 
 ### Navbar (SiteHeader)
 
@@ -136,9 +136,9 @@ The Once UI `ThemeProvider` in `app/layout.tsx` manages the `data-theme` attribu
 ## Accessibility
 
 - **Focus rings**: neon-blue `focus-visible` outline on all interactive elements
-- **Keyboard navigation**: Enter/Space for buttons, Escape for dialogs, arrow keys for sliders
+- **Keyboard navigation**: Enter/Space for buttons, Escape for dialogues, arrow keys for sliders
 - **ARIA attributes**: `aria-label`, `aria-invalid`, `aria-describedby`, `aria-disabled`
-- **Selection color**: neon-blue highlight
+- **Selection colour**: neon-blue highlight
 
 ---
 

@@ -2,6 +2,7 @@ import { COST_OPEN_REQUEST_SLOT } from "@/lib/costs/config";
 import { listInvoiceableEntries } from "@/lib/costs/queries";
 import { sumMinor } from "@/lib/costs/money";
 import { runSerializable } from "@/lib/costs/transaction";
+import { rememberErrorFacts } from "@/lib/monitoring/error-context";
 
 export class CostInvoiceError extends Error {
   constructor(message: string) {
@@ -13,6 +14,8 @@ export class CostInvoiceError extends Error {
 export async function createInvoiceRequest(input: {
   requesterUserId: string;
 }) {
+  const started = Date.now();
+  let stage = "invoice-check-open";
   return runSerializable(async (tx) => {
     const open = await tx.invoiceRequest.findUnique({
       where: { openSlot: COST_OPEN_REQUEST_SLOT },
@@ -21,6 +24,7 @@ export async function createInvoiceRequest(input: {
       throw new CostInvoiceError("An invoice request is already pending.");
     }
 
+    stage = "invoice-read-entries";
     const entries = await listInvoiceableEntries(tx);
     if (entries.length === 0) {
       throw new CostInvoiceError("There is no invoiceable balance to request.");
@@ -31,6 +35,7 @@ export async function createInvoiceRequest(input: {
       throw new CostInvoiceError("There is no invoiceable balance to request.");
     }
 
+    stage = "invoice-create-request";
     const request = await tx.invoiceRequest.create({
       data: {
         status: "PENDING",
@@ -41,6 +46,7 @@ export async function createInvoiceRequest(input: {
       },
     });
 
+    stage = "invoice-freeze-lines";
     await tx.invoiceRequestLine.createMany({
       data: entries.map((entry) => ({
         invoiceRequestId: request.id,
@@ -49,6 +55,7 @@ export async function createInvoiceRequest(input: {
       })),
     });
 
+    stage = "invoice-workflow-event";
     await tx.costWorkflowEvent.create({
       data: {
         invoiceRequestId: request.id,
@@ -58,6 +65,7 @@ export async function createInvoiceRequest(input: {
       },
     });
 
+    stage = "invoice-create-outbox";
     const outbox = await tx.costEmailOutbox.create({
       data: {
         invoiceRequestId: request.id,
@@ -68,7 +76,11 @@ export async function createInvoiceRequest(input: {
     });
 
     return { request, outboxId: outbox.id, entryIds: entries.map((entry) => entry.id) };
-  }, { timeoutMs: 15_000 });
+  }, { timeoutMs: 15_000 }).catch(error => {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    rememberErrorFacts(error, { stage, durationMs: Date.now() - started, ...(/^P\d{4}$/.test(code) ? { databaseCode: code } : {}) });
+    throw error;
+  });
 }
 
 export async function confirmInvoiceRequest(input: {

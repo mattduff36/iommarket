@@ -39,7 +39,7 @@ A managed listing is proposed for unpublish only after two distinct complete scr
 
 New reports freeze source photo URLs. Only after approval does the existing upload pipeline import them. Validated owned receipts are attached in the apply transaction; remote dealer URLs are never attached directly. Failed apply uploads are queued for cleanup. No usable source photos means the vehicle remains blocked. ImageKit keeps its existing environment and activation gates.
 
-New reports supersede older pending/approved reports. Partial sightings reset absence counts without increasing missing counts. Binding-row locks prevent concurrent jobs for one dealer; owner-token leases and heartbeats fence stale workers. Apply rechecks the report, dealer, approver, listing snapshot and cap inside a serializable transaction. Concurrent edits invalidate the report.
+New reports supersede older pending/approved reports. Partial sightings reset absence counts without increasing missing counts. Binding-row locks prevent concurrent jobs for one dealer; owner-token leases and heartbeats fence stale workers. Apply rechecks the report, dealer, approver, listing snapshot and cap inside a serialisable transaction. Concurrent edits invalidate the report.
 
 ## Activation checklist
 

@@ -1,4 +1,5 @@
 import { ReportableError } from "@/components/monitoring/reportable-error";
+import type { ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
@@ -33,9 +34,10 @@ export interface AlertProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof alertVariants> {
   onClose?: () => void;
+  diagnostics?: ClientDiagnostics;
 }
 
-function Alert({ className, status, children, onClose, ...props }: AlertProps) {
+function Alert({ className, status, children, onClose, diagnostics, ...props }: AlertProps) {
   const Icon = iconMap[status ?? "info"];
   return (
     <div
@@ -45,7 +47,7 @@ function Alert({ className, status, children, onClose, ...props }: AlertProps) {
       {...props}
     >
       <Icon className="h-5 w-5 shrink-0 mt-0.5" />
-      <ReportableError data-reportable-error={status === "error" ? "true" : "false"} className="flex-1">{children}</ReportableError>
+      <ReportableError diagnostics={diagnostics} data-reportable-error={status === "error" ? "true" : "false"} className="flex-1">{children}</ReportableError>
       {onClose && (
         <Button
           type="button"

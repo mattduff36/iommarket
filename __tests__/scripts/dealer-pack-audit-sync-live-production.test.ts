@@ -329,10 +329,10 @@ function sidecarDocument(finalPlan: PreviewPackAuditPlan) {
 describe("production live-run binding", () => {
   it("rejects an optional live-run bypass", async () => {
     await expect(loadCliProductionLiveExclusions({ argv: [] }))
-      .rejects.toThrow("--live-run or a sealed finalized preview plan is required");
+      .rejects.toThrow("--live-run or a sealed finalised preview plan is required");
     await expect(loadCliProductionLiveExclusions({
       argv: ["--live-exclusions=sidecar/live-exclusions.json"],
-    })).rejects.toThrow("--live-run or a sealed finalized preview plan is required");
+    })).rejects.toThrow("--live-run or a sealed finalised preview plan is required");
   });
 
   it("rejects a candidate preview plan through --live-run and --live-plan", async () => {
@@ -344,12 +344,12 @@ describe("production live-run binding", () => {
       argv: ["--live-run=run-candidate"],
       cwd: "/workspace",
       readPlan: async () => candidate,
-    })).rejects.toThrow("preview plan is not live-finalized");
+    })).rejects.toThrow("preview plan is not live-finalised");
     await expect(loadCliProductionLiveExclusions({
       argv: ["--live-plan=private/dealer-pack-audit/run-candidate/preview-plan.json"],
       cwd: "/workspace",
       readPlan: async () => candidate,
-    })).rejects.toThrow("preview plan is not live-finalized");
+    })).rejects.toThrow("preview plan is not live-finalised");
   });
 
   it("loads a sealed --live-run plan and rejects a run-id mismatch", async () => {
@@ -367,7 +367,7 @@ describe("production live-run binding", () => {
       argv: ["--live-run=run-other"],
       cwd: "/workspace",
       readPlan: async () => finalPlan,
-    })).rejects.toThrow("--live-run does not match the finalized preview plan");
+    })).rejects.toThrow("--live-run does not match the finalised preview plan");
   });
 
   it("keeps a missing sidecar from downgrading a finalized preview plan", async () => {
@@ -470,7 +470,7 @@ describe("production live-run binding", () => {
     expect(finalPlan.sourceRunId).toBe("source-run-reviewed");
     expect(() =>
       assertProductionSourceRunBinding("other-source-run", finalPlan),
-    ).toThrow("does not match finalized preview plan sourceRunId");
+    ).toThrow("does not match finalised preview plan sourceRunId");
     expect(() =>
       assertProductionSourceRunBinding(finalPlan.sourceRunId, finalPlan),
     ).not.toThrow();

@@ -35,6 +35,14 @@ function postEvent(body: Record<string, unknown>) {
 }
 
 describe("OPS-INGEST-001 monitoring events ingest", () => {
+  it("never invents a server stack for a browser error without a stack", async () => {
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    getCurrentUser.mockResolvedValue(null);
+    await POST(postEvent({ message: "Load failed" }));
+    expect(captureException.mock.calls.at(-1)?.[0].error.stack).toBeUndefined();
+    await POST(postEvent({ message: "Load failed", stack: "at browser.js:1:2" }));
+    expect(captureException.mock.calls.at(-1)?.[0].error.stack).toBe("at browser.js:1:2");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     getCurrentUser.mockResolvedValue(null);
@@ -85,4 +93,12 @@ describe("OPS-INGEST-001 monitoring events ingest", () => {
     expect(response.status).toBe(403);
     expect(captureException).not.toHaveBeenCalled();
   });
+  it("returns a failure when persistence fails instead of acknowledging a lost event", async () => {
+    captureException.mockResolvedValueOnce(null);
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    const response = await POST(postEvent({ message: "client failure", severity: "HIGH" }));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ ok: false, eventId: null });
+  });
+
 });

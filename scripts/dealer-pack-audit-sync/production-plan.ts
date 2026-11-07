@@ -58,7 +58,7 @@ export function assertProductionSourceRunBinding(
 ) {
   if (foundingSourceRunId !== finalPreviewPlan.sourceRunId) {
     throw new Error(
-      "Refusing production plan: founding source run does not match finalized preview plan sourceRunId.",
+      "Refusing production plan: founding source run does not match finalised preview plan sourceRunId.",
     );
   }
 }

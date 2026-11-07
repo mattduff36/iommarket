@@ -150,7 +150,7 @@ export function assertFinalizedPreviewPlan(
   const parsed = previewLiveFinalizationSchema.safeParse(plan.liveFinalization);
   if (!parsed.success) {
     throw new Error(
-      "Refusing production plan: preview plan is not live-finalized.",
+      "Refusing production plan: preview plan is not live-finalised.",
     );
   }
   if (
@@ -158,7 +158,7 @@ export function assertFinalizedPreviewPlan(
     parsed.data.candidateFingerprint === plan.fingerprint
   ) {
     throw new Error(
-      "Refusing production plan: live finalization must bind a distinct candidate.",
+      "Refusing production plan: live finalisation must bind a distinct candidate.",
     );
   }
   if (
@@ -178,30 +178,30 @@ export function assertLiveReportCoversCandidatePlan(input: {
 }) {
   assertPlanIntegrity(input.candidate);
   if (input.candidate.liveFinalization) {
-    throw new Error("Refusing live finalization: candidate plan is already live-finalized.");
+    throw new Error("Refusing live finalisation: candidate plan is already live-finalised.");
   }
   if (input.report.runId !== input.candidate.runId) {
-    throw new Error("Refusing live finalization: report run ID does not match the candidate plan.");
+    throw new Error("Refusing live finalisation: report run ID does not match the candidate plan.");
   }
   if (input.report.planFingerprint !== input.candidate.fingerprint) {
     throw new Error(
-      "Refusing live finalization: report fingerprint does not match the candidate plan.",
+      "Refusing live finalisation: report fingerprint does not match the candidate plan.",
     );
   }
   const planKeys = input.candidate.actions.map((action) => action.dealerKey);
   const reportKeys = input.report.dealers.map((dealer) => dealer.dealerKey);
   if (new Set(planKeys).size !== planKeys.length) {
-    throw new Error("Refusing live finalization: candidate plan has duplicate dealer actions.");
+    throw new Error("Refusing live finalisation: candidate plan has duplicate dealer actions.");
   }
   if (new Set(reportKeys).size !== reportKeys.length) {
-    throw new Error("Refusing live finalization: live report has duplicate dealers.");
+    throw new Error("Refusing live finalisation: live report has duplicate dealers.");
   }
   if (
     planKeys.length !== reportKeys.length ||
     planKeys.some((key) => !reportKeys.includes(key)) ||
     reportKeys.some((key) => !planKeys.includes(key))
   ) {
-    throw new Error("Refusing live finalization: every plan action and report dealer must be covered.");
+    throw new Error("Refusing live finalisation: every plan action and report dealer must be covered.");
   }
 
   const dealers = new Map(
@@ -210,11 +210,11 @@ export function assertLiveReportCoversCandidatePlan(input: {
   for (const action of input.candidate.actions) {
     const dealer = dealers.get(action.dealerKey);
     if (!dealer) {
-      throw new Error(`Refusing live finalization: missing dealer coverage (${action.dealerKey}).`);
+      throw new Error(`Refusing live finalisation: missing dealer coverage (${action.dealerKey}).`);
     }
     if (dealer.actionKind !== action.kind) {
       throw new Error(
-        `Refusing live finalization: action kind mismatch (${action.dealerKey}).`,
+        `Refusing live finalisation: action kind mismatch (${action.dealerKey}).`,
       );
     }
     if (action.kind !== "replace") continue;
@@ -222,7 +222,7 @@ export function assertLiveReportCoversCandidatePlan(input: {
     for (const listing of action.listings) {
       if (!observed.has(normalizeLiveIdentity(listing.identityKey))) {
         throw new Error(
-          `Refusing live finalization: listing is not covered (${action.dealerKey}:${listing.identityKey}).`,
+          `Refusing live finalisation: listing is not covered (${action.dealerKey}:${listing.identityKey}).`,
         );
       }
     }
@@ -232,7 +232,7 @@ export function assertLiveReportCoversCandidatePlan(input: {
           identitiesMatch(planned.identityKey, listing.identityKey))
       ) {
         throw new Error(
-          `Refusing live finalization: unexpected live listing (${action.dealerKey}:${listing.identityKey}).`,
+          `Refusing live finalisation: unexpected live listing (${action.dealerKey}:${listing.identityKey}).`,
         );
       }
     }
@@ -262,7 +262,7 @@ function finalizeReplaceAction(
     const result = observed.get(normalizeLiveIdentity(listing.identityKey));
     if (!result) {
       throw new Error(
-        `Refusing live finalization: listing is not covered (${action.dealerKey}:${listing.identityKey}).`,
+        `Refusing live finalisation: listing is not covered (${action.dealerKey}:${listing.identityKey}).`,
       );
     }
     const reordered = reconcileLiveImageOrder(listing, result);
@@ -380,7 +380,7 @@ export function finalizePreviewActionFromLiveDealer(
   dealer: LiveVisualDealerResult,
 ): PackAuditAction {
   if (action.dealerKey !== dealer.dealerKey) {
-    throw new Error("Refusing live finalization: dealer key mismatch.");
+    throw new Error("Refusing live finalisation: dealer key mismatch.");
   }
   return action.kind === "disable"
     ? finalizeDisableAction(action, dealer)
@@ -394,10 +394,10 @@ export function finalizePreviewPlanFromLiveVisual(input: {
   createdAt?: string;
 }): PreviewPackAuditPlan {
   if (!input.finalRunId.trim()) {
-    throw new Error("Refusing live finalization: final run ID is required.");
+    throw new Error("Refusing live finalisation: final run ID is required.");
   }
   if (input.finalRunId === input.candidate.runId) {
-    throw new Error("Refusing live finalization: final run ID must differ from the candidate run.");
+    throw new Error("Refusing live finalisation: final run ID must differ from the candidate run.");
   }
   const report = parseLiveVisualReport(input.report);
   assertLiveReportCoversCandidatePlan({ candidate: input.candidate, report });
@@ -841,7 +841,7 @@ export function assertProductionLiveExclusionsProvenance(input: {
     JSON.stringify(canonicalLiveExclusions(derived))
   ) {
     throw new Error(
-      "Refusing production live exclusions: sidecar does not exactly match the finalized preview plan.",
+      "Refusing production live exclusions: sidecar does not exactly match the finalised preview plan.",
     );
   }
   return derived;

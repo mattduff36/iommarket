@@ -370,7 +370,7 @@ export function assertPreviewPackSourceCanAdvance(input: {
   if (input.currentRunId === input.nextRunId) return;
   if (input.enabled || input.listingCount > 0) {
     throw new Error(
-      "Refusing preview materialization: the existing pack belongs to a different source run.",
+      "Refusing preview materialisation: the existing pack belongs to a different source run.",
     );
   }
 }
@@ -382,7 +382,7 @@ export async function setPreviewPackEnabled(dealerKey: string, enabled: boolean)
   });
   if (!pack) {
     if (!enabled) return { enabled: false, missing: true as const };
-    throw new Error("Preview pack has not been materialized yet.");
+    throw new Error("Preview pack has not been materialised yet.");
   }
   assertPreviewDealerAllowed({
     dealerKey,
@@ -581,7 +581,7 @@ export async function materializePreviewPack(dealerKey: string) {
     oceanDealerId: oceanDealer?.id,
   });
   if (existing && existing.dealerProfileId !== owners.dealerId) {
-    throw new Error("Refusing preview materialization: pack dealer ownership changed.");
+    throw new Error("Refusing preview materialisation: pack dealer ownership changed.");
   }
   if (existing && sourceRunChanged) {
     const advanced = await db.dealerPreviewPack.updateMany({
@@ -594,7 +594,7 @@ export async function materializePreviewPack(dealerKey: string) {
       data: { sourceRunId: runId },
     });
     if (advanced.count !== 1) {
-      throw new Error("Refusing preview materialization: pack source changed during apply.");
+      throw new Error("Refusing preview materialisation: pack source changed during apply.");
     }
     existing = { ...existing, sourceRunId: runId };
   }
@@ -643,7 +643,7 @@ export async function materializePreviewPack(dealerKey: string) {
     data: { enabled: true, displayName },
   });
   if (updatedPack.count !== 1) {
-    throw new Error("Refusing preview materialization: pack source changed during apply.");
+    throw new Error("Refusing preview materialisation: pack source changed during apply.");
   }
 
   return {

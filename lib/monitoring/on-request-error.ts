@@ -73,6 +73,6 @@ export async function reportRequestError(
       },
     });
   } catch {
-    // Monitoring must never alter the original request/error behavior.
+    // Monitoring must never alter the original request/error behaviour.
   }
 }

@@ -107,7 +107,7 @@ describe("dealer correspondence actions", () => {
     });
 
     await expect(saveDealerCorrespondenceSettings({ ...preferences })).resolves.toEqual({
-      error: "Not authorized to update correspondence settings",
+      error: "Not authorised to update correspondence settings",
     });
     expect(mockDb.dealerCorrespondenceSettings.upsert).not.toHaveBeenCalled();
   });

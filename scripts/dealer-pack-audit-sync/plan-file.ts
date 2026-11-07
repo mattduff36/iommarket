@@ -55,7 +55,7 @@ export function assertProductionPreviewProvenance(plan: ProductionAuditPlan) {
     !plan.finalPreviewFingerprint.trim()
   ) {
     throw new Error(
-      "Refusing production audit sync: frozen plan is missing finalized preview provenance.",
+      "Refusing production audit sync: frozen plan is missing finalised preview provenance.",
     );
   }
 }

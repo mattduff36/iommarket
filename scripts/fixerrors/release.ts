@@ -71,7 +71,7 @@ export function sealReleaseManifest(input: Omit<ReleaseManifest, "checksum">): R
 }
 
 export function verifyReleaseManifest(manifest: ReleaseManifest): ReleaseManifest {
-  if (manifest.version !== 2 || manifest.safetyContract !== FIXERRORS_SAFETY_CONTRACT) {
+  if (manifest.version !== 2 || ![FIXERRORS_SAFETY_CONTRACT, "fixerrors-open-issues-v3"].includes(manifest.safetyContract)) {
     throw new Error("Release manifest safety contract mismatch");
   }
   const { checksum, ...rest } = manifest;

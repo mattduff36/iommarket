@@ -27,7 +27,7 @@ remain active. Do not remove those settings while the live renewal is being test
   Cancel. Three attempts per checkout is our explicit simulation policy; it is
   not a claim about the merchant's configured Cashflows retry limit.
 - Checkout expires after 30 minutes. Refreshes and duplicate submissions cannot
-  change the result of an already-recorded attempt. A row lock serializes changes.
+  change the result of an already-recorded attempt. A row lock serialises changes.
 - Sample subscription signup is blocked for accounts with active real billing,
   including the existing weekly test account. Use another preview account.
 - Sample subscriptions do not initiate real recurring billing. Their access ends
@@ -35,7 +35,7 @@ remain active. Do not remove those settings while the live renewal is being test
 - Simulated records use `DEV`, `sim_` references and the SAMPLE PAYMENT admin label.
   Real Ripple receipt matching excludes these records. No simulated event is sent
   to Ripple, Cashflows, the production webhook or the staging relay. Sample listing
-  fulfillment does not dispatch external notification emails.
+  fulfilment does not dispatch external notification emails.
 - Original tabs refresh server-rendered content automatically. Same-origin storage
   events only request a server refresh; browser messages never establish payment.
 

@@ -135,7 +135,7 @@ describe("fixerrors event snapshot limits", () => {
     // These columns store UTC as timestamp without time zone. AT TIME ZONE
     // would introduce session-timezone-dependent formatting before adding Z.
     expect(eventQuery?.text).not.toContain("AT TIME ZONE");
-    expect(client.calls.find((call) => call.text.includes("WHERE status = 'OPEN'"))?.text).not.toContain("AT TIME ZONE");
+    expect(client.calls.find((call) => call.text.includes("WHERE status IN ('OPEN', 'ACKNOWLEDGED')"))?.text).not.toContain("AT TIME ZONE");
     expect(eventQuery?.text).toContain(`ORDER BY "issueId", ranked_events."occurredAt" DESC, id DESC`);
     expect(eventQuery?.text).toMatch(/row_number\(\) OVER \(PARTITION BY "issueId" ORDER BY "occurredAt" DESC, id DESC\)/i);
     expect(snapshot.issues[0]?.events[0]?.occurredAt).toBe(utcText);
@@ -143,9 +143,9 @@ describe("fixerrors event snapshot limits", () => {
     expect(localShift).toBe("2026-08-16T12:00:00.123Z");
     expect(utcText.startsWith(localShift.slice(0, 19))).toBe(false);
     expect(countQuery?.text).toContain('FROM "MonitoringIssue"');
-    expect(countQuery?.text).not.toContain("WHERE status = 'OPEN'");
+    expect(countQuery?.text).not.toContain("WHERE status IN ('OPEN', 'ACKNOWLEDGED')");
     expect(client.calls.some((call) => call.text.startsWith("BEGIN") && call.text.includes("READ ONLY"))).toBe(true);
     expect(snapshot.issues.map((issue) => issue.status)).toEqual(["OPEN", "OPEN"]);
-    expect(snapshot.queueStatusCounts).toEqual({ OPEN: 2, ACKNOWLEDGED: 4, MUTED: 1, RESOLVED: 9 });
+    expect(snapshot.queueStatusCounts).toEqual({ OPEN: 2, ACKNOWLEDGED: 4, MUTED: 1, RESOLVED: 9, EXPIRED: 0 });
   });
 });

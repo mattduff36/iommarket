@@ -2,20 +2,23 @@
 
 import { createContext, createElement, useContext, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { cleanReportedMessage, sendUserIssueReport, type UserIssueReport } from "@/lib/monitoring/user-report";
+import type { ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 
 const InsideError = createContext(false);
 const reports = new Map<string, { payload: UserIssueReport; result?: string; pending?: Promise<string> }>();
 type Props = HTMLAttributes<HTMLElement> & {
   as?: "p" | "span" | "div" | "section";
   "data-reportable-error"?: string;
+  diagnostics?: ClientDiagnostics;
 };
 
 /** React owns the complete error, including its controls, during server rendering and hydration. */
-export function ReportableError({ as = "div", children, ...props }: Props) {
+export function ReportableError({ as = "div", children, diagnostics, ...props }: Props) {
   const nested = useContext(InsideError);
   const root = useRef<HTMLElement>(null);
-  const [stored, setStatus] = useState({ content: null as ReactNode, pending: false, reference: "", failure: "" });
-  const status = stored.content === children ? stored : { pending: false, reference: "", failure: "" };
+  const diagnosticKey = JSON.stringify(diagnostics ?? {});
+  const [stored, setStatus] = useState({ content: null as ReactNode, diagnosticKey: "", pending: false, reference: "", failure: "" });
+  const status = stored.content === children && stored.diagnosticKey === diagnosticKey ? stored : { pending: false, reference: "", failure: "" };
   const enabled = !nested && props["data-reportable-error"] !== "false" &&
     (props["data-reportable-error"] === "true" || props.role === "alert" || /(?:^|\s)text-(?:text-error|neon-red-400)(?:\s|$)/.test(props.className ?? ""));
 
@@ -25,26 +28,26 @@ export function ReportableError({ as = "div", children, ...props }: Props) {
     copy.querySelectorAll('[data-issue-report-controls],input,textarea,select,button,a,script,style,[hidden],[aria-hidden="true"]').forEach(node => node.remove());
     const message = cleanReportedMessage((copy.textContent ?? "").replace(/\s+/g, " "));
     const route = window.location.pathname;
-    const key = `${route}:${message}`;
+    const key = `${route}:${message}:${diagnosticKey}`;
     let entry = reports.get(key);
     if (!entry) {
       const supportReference = /\breference ([A-Za-z0-9_-]{8,80})\b/.exec(message)?.[1];
-      entry = { payload: { reportId: crypto.randomUUID(), message, route, ...(supportReference ? { supportReference } : {}) } };
+      entry = { payload: { reportId: crypto.randomUUID(), message, route, diagnostics, ...(supportReference ? { supportReference } : {}) } };
       // Retain a bounded click history, without collecting errors that were never reported.
       if (reports.size >= 200) reports.delete(reports.keys().next().value!);
       reports.set(key, entry);
     }
-    setStatus({ content: children, pending: true, reference: "", failure: "" });
+    setStatus({ content: children, diagnosticKey, pending: true, reference: "", failure: "" });
     try {
       entry.pending ??= entry.result ? Promise.resolve(entry.result) : sendUserIssueReport(entry.payload);
       const reference = await entry.pending;
       reports.set(key, { ...entry, result: reference, pending: undefined });
-      setStatus({ content: children, pending: false, reference, failure: "" });
+      setStatus({ content: children, diagnosticKey, pending: false, reference, failure: "" });
     } catch (error) {
       reports.set(key, { ...entry, pending: undefined });
       const failure = error instanceof Error && error.message === "Please wait before reporting another issue."
         ? error.message : "Could not send the report. Try again.";
-      setStatus({ content: children, pending: false, reference: "", failure });
+      setStatus({ content: children, diagnosticKey, pending: false, reference: "", failure });
     }
   }
 

@@ -42,7 +42,7 @@ function errorMessage(error: unknown) {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002"
   ) {
-    return "That normalized vehicle name is already in use for this make.";
+    return "That normalised vehicle name is already in use for this make.";
   }
   return "We could not confirm the catalogue update. Reload the catalogue and check it before importing or saving again.";
 }

@@ -1739,7 +1739,7 @@
 },
 {
 "step": 6,
-"instruction": "Apply outer neon glows AFTER base color fills: render glow layers behind icon with gaussian blur and optional spread, using glowSystem presets. For core variant, render red and blue glows separately with slight positional offsets (blue down-left, red up-right) to match split-energy look."
+"instruction": "Apply outer neon glows AFTER base colour fills: render glow layers behind icon with gaussian blur and optional spread, using glowSystem presets. For core variant, render red and blue glows separately with slight positional offsets (blue down-left, red up-right) to match split-energy look."
 },
 {
 "step": 7,

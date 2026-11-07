@@ -40,6 +40,16 @@ describe("explicit user issue reports", () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ ok: false });
   });
+  it("stores safe diagnostics and rejects arbitrary form data in diagnostics", async () => {
+    const diagnostics = { operation: "sign-in", authCode: "invalid_credentials", httpStatus: 400, online: true, visibility: "visible" };
+    expect((await POST(request({ ...payload, diagnostics }))).status).toBe(201);
+    expect(m.capture.mock.calls[0][0].extra.diagnostics).toEqual(diagnostics);
+    m.capture.mockClear();
+    for (const unsafe of [{ password: "private" }, { authCode: "private" }, { httpStatus: 999 }]) {
+      expect((await POST(request({ ...payload, diagnostics: unsafe }))).status).toBe(400);
+    }
+    expect(m.capture).not.toHaveBeenCalled();
+  });
   it("rejects cross-origin, excessive, and malformed requests without recording them", async () => {
     expect((await POST(request(payload, "https://attacker.example"))).status).toBe(403);
     expect((await POST(request({ ...payload, severity: "CRITICAL", userId: "other" }))).status).toBe(400);

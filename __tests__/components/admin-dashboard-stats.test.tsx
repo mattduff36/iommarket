@@ -26,7 +26,7 @@ describe("buildAdminDashboardStats", () => {
 
     expect(labels).toEqual([
       "Total Users",
-      "Live Listings",
+      "Public Listings",
       "Revenue",
       "Dealers",
     ]);
@@ -43,7 +43,7 @@ describe("AdminDashboardStats", () => {
 
     expect(screen.getByRole("heading", { name: "Marketplace overview" })).toBeTruthy();
     expect(screen.getByText("Total Users")).toBeTruthy();
-    expect(screen.getByText("Live Listings")).toBeTruthy();
+    expect(screen.getByText("Public Listings")).toBeTruthy();
     expect(screen.getByText("Revenue")).toBeTruthy();
     expect(screen.getByText("Dealers")).toBeTruthy();
     expect(screen.getByText("+4 this week")).toBeTruthy();

@@ -1,3 +1,4 @@
+import { readInvestigation } from "@/lib/monitoring/investigation";
 import { clusterRepairBlockReason, suggestClusterDisposition } from "./decision";
 import { extractSourceFilesForIssue, isOpaqueScriptError } from "./source-extraction";
 import type {
@@ -27,7 +28,7 @@ export function groupOpenIssues(
   const patternMap = new Map<string, ErrorPattern>();
 
   for (const issue of issues) {
-    if (issue.status !== "OPEN") continue;
+    if (issue.status !== "OPEN" && issue.status !== "ACKNOWLEDGED") continue;
     const normalizedMessage = normalizeMessage(issue.sampleMessage || issue.title);
     const component = issue.sampleComponent || issue.sampleAction || "Unknown";
     const key = `${issue.source}::${component}::${normalizedMessage}`;
@@ -174,7 +175,7 @@ export function describeCodeBaseline(baseline: CodeBaseline | null): string[] {
 }
 
 export function formatQueueStatusCounts(counts: QueueStatusCounts): string {
-  return `OPEN ${counts.OPEN} | ACKNOWLEDGED ${counts.ACKNOWLEDGED} | MUTED ${counts.MUTED} | RESOLVED ${counts.RESOLVED}`;
+  return `OPEN ${counts.OPEN} | ACKNOWLEDGED ${counts.ACKNOWLEDGED} | MUTED ${counts.MUTED} | RESOLVED ${counts.RESOLVED} | EXPIRED ${counts.EXPIRED ?? 0}`;
 }
 
 export function generateAnalysisReport(
@@ -185,17 +186,22 @@ export function generateAnalysisReport(
   history: string[] = [],
   queueStatusCounts?: QueueStatusCounts,
 ): string {
+  const records = issues.map(issue => ({ issue, record: readInvestigation(issue.investigation) }));
+  const missing = records.filter(({ record }) => !record).length;
+  const overdue = records.filter(({ record }) => record && Date.parse(record.reviewAfter) <= Date.now()).length;
+  const recurred = records.filter(({ issue, record }) => record?.observedLastSeenAt && Date.parse(issue.lastSeenAt) > Date.parse(record.observedLastSeenAt)).length;
   const lines = [
     "# Monitoring Error Analysis Report",
     "",
     `> **Generated:** ${new Date().toISOString()}`,
-    `> **OPEN issues:** ${issues.length} | **Patterns:** ${patterns.length} | **Clusters:** ${clusters.length}`,
+    `> **Unresolved issues:** ${issues.length} | **Patterns:** ${patterns.length} | **Clusters:** ${clusters.length}`,
     ...(queueStatusCounts
-      ? [`> **Queue statuses:** ${formatQueueStatusCounts(queueStatusCounts)} (export and mutation scope is OPEN only)`]
+      ? [`> **Queue statuses:** ${formatQueueStatusCounts(queueStatusCounts)} (export includes OPEN and ACKNOWLEDGED)`]
       : []),
     "",
-    "This file is overwritten each time `npm run fixerrors` runs.",
-    "Use it as context for Cursor to analyze and fix codebase issues.",
+    `Investigation coverage: ${issues.length - missing}/${issues.length}; missing plans: ${missing}; overdue reviews: ${overdue}; recurred since review: ${recurred}.`,
+    "This current report is replaced on export; its per-snapshot archive is retained.",
+    "Use it as context for Cursor to analyse and fix codebase issues.",
     "",
     "## Root Cause Clusters and TEE Routing",
     "",
@@ -215,7 +221,7 @@ export function generateAnalysisReport(
   lines.push("Dispositions are hints. A code fix, or a tooling change that makes monitoring less sensitive, can still resolve the issue after it is deployed to production.");
   lines.push("Clusters are routed independently; a CRITICAL cluster does not escalate unrelated clusters.");
   if (patterns.some((pattern) => /react error #?441|server components render/i.test(pattern.normalizedMessage))) {
-    lines.push("React error #441 is a Server Components render failure with a production-hidden message. Correlate the client digest with a server event using the same route and nearby timestamp; trace IDs can support the match. Without that evidence, keep the issue open and do not attribute it to a neighboring database or payment error.");
+    lines.push("React error #441 is a Server Components render failure with a production-hidden message. Correlate the client digest with a server event using the same route and nearby timestamp; trace IDs can support the match. Without that evidence, keep the issue open and do not attribute it to a neighbouring database or payment error.");
   }
   lines.push("");
   lines.push("## Production and staging code");
@@ -228,7 +234,7 @@ export function generateAnalysisReport(
     "No alert history was attached to this report.",
     "",
   ]));
-  lines.push("## OPEN Issues");
+  lines.push("## Unresolved issues");
   lines.push("");
 
   for (const issue of issues) {
@@ -238,12 +244,21 @@ export function generateAnalysisReport(
     lines.push("");
     lines.push(`- Severity: ${issue.severity}`);
     lines.push(`- Source: ${issue.source}`);
+    lines.push(`- Status: ${issue.status}`);
     lines.push(`- Occurrences: ${issue.occurrences}`);
     lines.push(`- Last seen: ${issue.lastSeenAt}`);
     lines.push(`- Message: ${issue.sampleMessage}`);
     lines.push(`- Route: ${issue.sampleRoute ?? "n/a"}`);
     lines.push(`- Action: ${issue.sampleAction ?? "n/a"}`);
     lines.push(`- Suggested files: ${files}`);
+    if (issue.investigation) lines.push(`- Investigation record: ${JSON.stringify(issue.investigation)}`);
+    lines.push(`- Evidence: ${issue.events.length} retained event(s); ${issue.events.filter(event => event.stack).length} with a stack. Missing evidence is not proof of noise.`);
+    for (const event of issue.events) {
+      if (event.evidence && Object.keys(event.evidence).length > 0) {
+        lines.push(`- Event ${event.id} diagnostic facts (client values are untrusted): ${JSON.stringify(event.evidence)}`);
+      }
+      if (event.requests?.length) lines.push(`- Event ${event.id} request history (client-reported): ${JSON.stringify(event.requests)}`);
+    }
     const correlations = issue.events
       .filter((event) => event.digest || event.traceId)
       .map((event) => `${event.source} ${event.route ?? event.requestPath ?? "route n/a"} at ${event.occurredAt}: digest=${event.digest ?? "n/a"}, traceId=${event.traceId ?? "n/a"}`);

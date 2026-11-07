@@ -49,6 +49,6 @@ destructive tests. Confirm both the acting user's view and an independent sessio
 
 Promote only the verified shared code after release approval. Recheck production
 environment flags and migrations; simulator checkout must remain unavailable.
-Any live payment or outgoing notification test needs its own authorized account
+Any live payment or outgoing notification test needs its own authorised account
 and scope. Observe the existing £1 subscription renewal separately; simulated
 success does not prove recurring provider delivery.

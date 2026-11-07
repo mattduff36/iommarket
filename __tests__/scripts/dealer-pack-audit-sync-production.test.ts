@@ -388,7 +388,7 @@ describe("production frozen plan and cleanup safety", () => {
         ...plan(),
         finalPreviewRunId: "",
       })),
-    ).toThrow("missing finalized preview provenance");
+    ).toThrow("missing finalised preview provenance");
     const tampered = sealProductionPlan(plan());
     tampered.finalPreviewFingerprint = "tampered-preview-fingerprint";
     expect(() => assertProductionPlanIntegrity(tampered)).toThrow("fingerprint");
@@ -411,7 +411,7 @@ describe("production frozen plan and cleanup safety", () => {
         plan: missingApplyProvenance,
         databaseUrl: url,
       }),
-    ).toThrow("missing finalized preview provenance");
+    ).toThrow("missing finalised preview provenance");
 
     const candidatePreview = sealPlan({
       version: DEALER_PACK_AUDIT_VERSION,
@@ -431,17 +431,17 @@ describe("production frozen plan and cleanup safety", () => {
       foundingSourceRunId: "source-run",
       backupId: PRODUCTION_BACKUP_ID,
       finalPreviewPlan: candidatePreview,
-    })).rejects.toThrow("preview plan is not live-finalized");
+    })).rejects.toThrow("preview plan is not live-finalised");
     const missingProvenance = sealProductionPlan({ ...plan(), finalPreviewRunId: "" });
     await expect(applyProductionAuditPlan({
       prisma: {} as PrismaClient,
       plan: missingProvenance,
-    })).rejects.toThrow("missing finalized preview provenance");
+    })).rejects.toThrow("missing finalised preview provenance");
     await expect(verifyProductionAuditPlan({
       prisma: {} as PrismaClient,
       plan: missingProvenance,
       applyReport: null,
-    })).rejects.toThrow("missing finalized preview provenance");
+    })).rejects.toThrow("missing finalised preview provenance");
   });
 
   it("requires an explicit backup ID before building a production plan", async () => {

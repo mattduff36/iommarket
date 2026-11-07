@@ -2,41 +2,41 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 472,
+  "semantic_display_verified_count": 470,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1136,
-    "internal-only": 1299,
+    "displayed": 1130,
+    "internal-only": 1304,
     "duplicate": 793,
-    "irrelevant": 141
+    "irrelevant": 142
   },
   "rule_counts": {
-    "ast-public-return": 540,
-    "ast-no-public-sink": 859,
+    "ast-public-return": 537,
+    "ast-no-public-sink": 865,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
-    "ast-throw-forwarded": 52,
-    "ast-throw-caller-sink": 105,
+    "ast-throw-forwarded": 51,
+    "ast-throw-caller-sink": 101,
     "ast-binding": 20,
-    "ast-throw-unrendered": 352,
+    "ast-throw-unrendered": 350,
     "ast-diagnostic-call": 71,
-    "ast-throw-replaced": 8,
-    "ast-enclosing-public-function": 61,
-    "ast-type-or-import": 104,
+    "ast-throw-replaced": 9,
+    "ast-enclosing-public-function": 65,
+    "ast-type-or-import": 105,
     "ast-public-sink": 234,
-    "ast-jsx-consumer": 128,
+    "ast-jsx-consumer": 126,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
     "ast-signature": 4,
     "ast-diagnostic-text": 3,
     "ast-branch-condition": 6
   },
-  "exception_rows": 713,
+  "exception_rows": 712,
   "implementation_status_counts": {
-    "journey-c-public-boundary": 156,
+    "journey-c-public-boundary": 154,
     "deferred-c": 2354,
     "journey-c-destructive-boundary": 111,
-    "listings-b-public-boundary": 195,
+    "listings-b-public-boundary": 197,
     "payments-b-public-boundary": 125,
     "deferred-c-payment-internals": 236,
     "boundary-d-public": 17,
@@ -75,33 +75,33 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1229,
-    "raw-message": 169,
-    "fragment": 586,
-    "static-literal": 300,
-    "thrown": 891,
+    "public-sink": 1222,
+    "raw-message": 168,
+    "fragment": 588,
+    "static-literal": 304,
+    "thrown": 892,
     "monitoring": 81,
     "rate-limit": 13,
-    "field-errors": 100
+    "field-errors": 101
   },
   "groups": [
     {
       "id": "displayed:ast-public-return:deferred-c:public-sink",
-      "count": 293,
-      "example": "actions/account.ts:73",
+      "count": 292,
+      "example": "actions/account.ts:76",
       "rule_id": "ast-public-return",
       "classification": "displayed"
     },
     {
       "id": "internal-only:ast-throw-unrendered:deferred-c:thrown",
-      "count": 266,
+      "count": 264,
       "example": "actions/dealer-reviews.ts:61",
       "rule_id": "ast-throw-unrendered",
       "classification": "internal-only"
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:fragment",
-      "count": 221,
+      "count": 220,
       "example": "actions/dealer-reviews.ts:49",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
@@ -115,21 +115,21 @@
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c:public-sink",
-      "count": 193,
+      "count": 192,
       "example": "actions/admin.ts:147",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:static-literal",
-      "count": 158,
-      "example": "actions/dealer-reviews.ts:44",
+      "count": 159,
+      "example": "actions/account.ts:73",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:thrown",
-      "count": 153,
+      "count": 155,
       "example": "actions/admin.ts:286",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
@@ -157,14 +157,14 @@
     },
     {
       "id": "displayed:ast-throw-caller-sink:deferred-c:thrown",
-      "count": 93,
+      "count": 89,
       "example": "actions/dealer-onboarding.ts:256",
       "rule_id": "ast-throw-caller-sink",
       "classification": "displayed"
     },
     {
       "id": "displayed:ast-public-return:journey-c-public-boundary:public-sink",
-      "count": 69,
+      "count": 67,
       "example": "actions/account.ts:28",
       "rule_id": "ast-public-return",
       "classification": "displayed"
@@ -185,7 +185,7 @@
     },
     {
       "id": "irrelevant:ast-type-or-import:deferred-c:fragment",
-      "count": 49,
+      "count": 50,
       "example": "actions/admin/profile-edit.ts:62",
       "rule_id": "ast-type-or-import",
       "classification": "irrelevant"
@@ -198,8 +198,15 @@
       "classification": "displayed"
     },
     {
-      "id": "displayed:ast-throw-forwarded:deferred-c:raw-message",
+      "id": "displayed:ast-enclosing-public-function:deferred-c:thrown",
       "count": 42,
+      "example": "actions/admin/dealer-tier.ts:140",
+      "rule_id": "ast-enclosing-public-function",
+      "classification": "displayed"
+    },
+    {
+      "id": "displayed:ast-throw-forwarded:deferred-c:raw-message",
+      "count": 41,
       "example": "actions/dealer-reviews.ts:429",
       "rule_id": "ast-throw-forwarded",
       "classification": "displayed"
@@ -210,13 +217,6 @@
       "example": "actions/admin/database-sync.ts:77",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
-    },
-    {
-      "id": "displayed:ast-enclosing-public-function:deferred-c:thrown",
-      "count": 38,
-      "example": "actions/admin/dealer-tier.ts:140",
-      "rule_id": "ast-enclosing-public-function",
-      "classification": "displayed"
     },
     {
       "id": "internal-only:ast-no-public-sink:deferred-c:field-errors",
@@ -241,7 +241,7 @@
     },
     {
       "id": "duplicate:exact-source-repeat:journey-c-public-boundary:public-sink",
-      "count": 30,
+      "count": 29,
       "example": "actions/account.ts:81",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
@@ -268,18 +268,18 @@
       "classification": "internal-only"
     },
     {
+      "id": "duplicate:exact-source-repeat:deferred-c:field-errors",
+      "count": 26,
+      "example": "app/(public)/listings/[id]/report-button.tsx:27",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:uploads-b-mapped-if-surfaced:thrown",
       "count": 26,
       "example": "lib/listings/photo-upload.ts:24",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
-    },
-    {
-      "id": "duplicate:exact-source-repeat:deferred-c:field-errors",
-      "count": 25,
-      "example": "app/(public)/listings/[id]/report-button.tsx:27",
-      "rule_id": "exact-source-repeat",
-      "classification": "duplicate"
     },
     {
       "id": "displayed:ast-public-return:payments-b-public-boundary:public-sink",
@@ -408,6 +408,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
+      "count": 14,
+      "example": "actions/listings.ts:326",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:static-literal",
       "count": 14,
       "example": "actions/payments.ts:109",
@@ -425,13 +432,6 @@
       "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:field-errors",
       "count": 13,
       "example": "app/(public)/sell/create-listing-form.tsx:124",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
-      "count": 12,
-      "example": "actions/listings.ts:326",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -618,6 +618,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-throw-replaced:deferred-c:thrown",
+      "count": 5,
+      "example": "actions/vehicle-catalogue.ts:85",
+      "rule_id": "ast-throw-replaced",
+      "classification": "internal-only"
+    },
+    {
       "id": "displayed:ast-throw-forwarded:journey-c-destructive-boundary:raw-message",
       "count": 4,
       "example": "actions/dealer-onboarding.ts:174",
@@ -646,6 +653,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-no-public-sink:boundary-d-public:fragment",
+      "count": 4,
+      "example": "components/admin/monitoring-readable-error.tsx:34",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:journey-c-destructive-boundary:raw-message",
       "count": 4,
       "example": "actions/admin/costs.ts:92",
@@ -664,13 +678,6 @@
       "count": 4,
       "example": "lib/images/client-upload.ts:63",
       "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-throw-replaced:deferred-c:thrown",
-      "count": 4,
-      "example": "actions/vehicle-catalogue.ts:85",
-      "rule_id": "ast-throw-replaced",
       "classification": "internal-only"
     },
     {
@@ -699,13 +706,6 @@
       "count": 3,
       "example": "lib/monitoring/alert-outbox.ts:205",
       "rule_id": "ast-enclosing-public-function",
-      "classification": "displayed"
-    },
-    {
-      "id": "displayed:ast-jsx-consumer:boundary-d-public:public-sink",
-      "count": 3,
-      "example": "components/monitoring/error-fallback.tsx:22",
-      "rule_id": "ast-jsx-consumer",
       "classification": "displayed"
     },
     {
@@ -849,13 +849,6 @@
       "classification": "duplicate"
     },
     {
-      "id": "internal-only:ast-no-public-sink:boundary-d-public:fragment",
-      "count": 2,
-      "example": "components/admin/monitoring-readable-error.tsx:34",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "internal-only:ast-no-public-sink:deferred-c-payment-internals:static-literal",
       "count": 2,
       "example": "actions/admin/payments.ts:497",
@@ -968,6 +961,13 @@
       "classification": "displayed"
     },
     {
+      "id": "displayed:ast-jsx-consumer:boundary-d-public:public-sink",
+      "count": 1,
+      "example": "components/monitoring/error-fallback.tsx:22",
+      "rule_id": "ast-jsx-consumer",
+      "classification": "displayed"
+    },
+    {
       "id": "displayed:ast-jsx-consumer:listings-b-public-boundary:public-sink",
       "count": 1,
       "example": "app/(public)/sell/create-listing-form.tsx:733",
@@ -1027,6 +1027,13 @@
       "id": "duplicate:exact-source-repeat:journey-c-destructive-boundary:static-literal",
       "count": 1,
       "example": "actions/admin/costs.ts:370",
+      "rule_id": "exact-source-repeat",
+      "classification": "duplicate"
+    },
+    {
+      "id": "duplicate:exact-source-repeat:journey-c-public-boundary:static-literal",
+      "count": 1,
+      "example": "actions/listings.ts:1223",
       "rule_id": "exact-source-repeat",
       "classification": "duplicate"
     },
@@ -1201,7 +1208,7 @@
   ],
   "deferred": {
     "B-listings": "Save, update, submit, and wizard presentation use the public contract. Withdraw, report, contact, and renew public catches were migrated in C.",
-    "B-payments": "Customer checkout unknown outcomes use non-retryable uncertainty. Charge, webhook and entitlement behavior is unchanged. Admin refund/cancellation public error handling and client recovery were migrated in C.",
+    "B-payments": "Customer checkout unknown outcomes use non-retryable uncertainty. Charge, webhook and entitlement behaviour is unchanged. Admin refund/cancellation public error handling and client recovery were migrated in C.",
     "C": "Auth sign-in stays non-enumerating. Signup still discloses an existing account. Listing lifecycle, refunds, cancellation, purge, onboarding, profile edit, and cost catches use allowlists or uncertain outcomes. Profile, administrative configuration and media, checklist, region and page catches also use monitored uncertainty. Vehicle lookup and partial warnings use stable-code mapping. Unchanged validation and domain paths retain explicit audit status; see rollout-cde.md.",
     "D": "Page and global boundaries show a monitoring reference when capture returns one. Rate-limit recovery includes a wait only when resetAt is reliable. Service summaries do not use the validation heading. Privileged payment, user changes, cancellations and catalogue import UI lock uncertain writes and link to freshly loaded status.",
     "E": "public-boundary-gate flags new raw error.message public returns outside reviewed-public-exceptions.json. Unknown fallbacks are tagged on the existing captureException path. The candidate register still has no separate E rows."

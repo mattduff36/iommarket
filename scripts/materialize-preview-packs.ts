@@ -84,7 +84,7 @@ async function main() {
   if (args.dryRun) return;
 
   for (const { pack, inspect } of pending) {
-    write(`Materializing ${inspect.displayName} (${pack.dealerKey})...`);
+    write(`Materialising ${inspect.displayName} (${pack.dealerKey})...`);
     const result = await materializePreviewPack(pack.dealerKey);
     if (args.leaveHidden) {
       await setPreviewPackEnabled(pack.dealerKey, false);

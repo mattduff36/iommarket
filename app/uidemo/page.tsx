@@ -364,10 +364,10 @@ export default function UIDemoPage() {
         </Section>
 
         {/* ---- Dialog ---- */}
-        <Section title="Dialog">
+        <Section title="Dialogue">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="trust">Open Dialog</Button>
+              <Button variant="trust">Open Dialogue</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

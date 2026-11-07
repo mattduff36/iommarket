@@ -26,7 +26,7 @@ const STATUS_LABELS = {
   SEND_FAILED: "Send failed",
   SENT: "Sent",
   CLAIMING: "Claiming",
-  FINALIZING_AUTH: "Finalizing",
+  FINALIZING_AUTH: "Finalising",
   COMPLETED: "Completed",
   REVOKED: "Revoked",
   EXPIRED: "Expired",

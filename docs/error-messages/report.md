@@ -8,16 +8,16 @@ C-E covers the boundaries named in the batch notes. Other candidates stay deferr
 - Candidates: 3369
 - Files: 421
 - Provenance sha256: 067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7
-- Rows with a static display trace: 472
-- Rows with a static-limit exception: 713
+- Rows with a static display trace: 470
+- Rows with a static-limit exception: 712
 
 ## Counts
 
-- Classification: {"displayed":1136,"internal-only":1299,"duplicate":793,"irrelevant":141}
-- Rule: {"ast-public-return":540,"ast-no-public-sink":859,"exact-source-repeat":793,"ast-value-reaches-return":16,"ast-throw-forwarded":52,"ast-throw-caller-sink":105,"ast-binding":20,"ast-throw-unrendered":352,"ast-diagnostic-call":71,"ast-throw-replaced":8,"ast-enclosing-public-function":61,"ast-type-or-import":104,"ast-public-sink":234,"ast-jsx-consumer":128,"ast-jsx-close":10,"ast-non-message-attribute":3,"ast-signature":4,"ast-diagnostic-text":3,"ast-branch-condition":6}
-- Implementation status: {"journey-c-public-boundary":156,"deferred-c":2354,"journey-c-destructive-boundary":111,"listings-b-public-boundary":195,"payments-b-public-boundary":125,"deferred-c-payment-internals":236,"boundary-d-public":17,"uploads-b-public-boundary":102,"uploads-b-mapped-if-surfaced":73}
+- Classification: {"displayed":1130,"internal-only":1304,"duplicate":793,"irrelevant":142}
+- Rule: {"ast-public-return":537,"ast-no-public-sink":865,"exact-source-repeat":793,"ast-value-reaches-return":16,"ast-throw-forwarded":51,"ast-throw-caller-sink":101,"ast-binding":20,"ast-throw-unrendered":350,"ast-diagnostic-call":71,"ast-throw-replaced":9,"ast-enclosing-public-function":65,"ast-type-or-import":105,"ast-public-sink":234,"ast-jsx-consumer":126,"ast-jsx-close":10,"ast-non-message-attribute":3,"ast-signature":4,"ast-diagnostic-text":3,"ast-branch-condition":6}
+- Implementation status: {"journey-c-public-boundary":154,"deferred-c":2354,"journey-c-destructive-boundary":111,"listings-b-public-boundary":197,"payments-b-public-boundary":125,"deferred-c-payment-internals":236,"boundary-d-public":17,"uploads-b-public-boundary":102,"uploads-b-mapped-if-surfaced":73}
 - Journey: {"accounts":339,"dealer-admin":1041,"action-dev-bypass":8,"listing-save":418,"payments":381,"saved-listings":5,"vehicle-lookup":94,"action-policy":2,"page-boundary":9,"page-page.tsx":11,"api-me":1,"api-webhooks":5,"api-monitoring":9,"api-media":10,"listing-photo-upload":268,"api-internal":47,"api-cron":9,"reports":18,"enquiries":15,"page-listings":4,"ui-dev":2,"ui-layout":2,"ui-marketplace":21,"ui-monitoring":1,"ui-ui":65,"internal-platform":317,"shared-error-contract":81,"monitoring":174,"lib-services":12}
-- Dynamic family: {"public-sink":1229,"raw-message":169,"fragment":586,"static-literal":300,"thrown":891,"monitoring":81,"rate-limit":13,"field-errors":100}
+- Dynamic family: {"public-sink":1222,"raw-message":168,"fragment":588,"static-literal":304,"thrown":892,"monitoring":81,"rate-limit":13,"field-errors":101}
 
 ## Rules
 
@@ -37,7 +37,7 @@ Checkout trace: `trustedCheckoutMessage` or `checkoutUnknownResult` -> `actions/
 ## Batch notes
 
 - B-listings: Save, update, submit, and wizard presentation use the public contract. Withdraw, report, contact, and renew public catches were migrated in C.
-- B-payments: Customer checkout unknown outcomes use non-retryable uncertainty. Charge, webhook and entitlement behavior is unchanged. Admin refund/cancellation public error handling and client recovery were migrated in C.
+- B-payments: Customer checkout unknown outcomes use non-retryable uncertainty. Charge, webhook and entitlement behaviour is unchanged. Admin refund/cancellation public error handling and client recovery were migrated in C.
 - C: Auth sign-in stays non-enumerating. Signup still discloses an existing account. Listing lifecycle, refunds, cancellation, purge, onboarding, profile edit, and cost catches use allowlists or uncertain outcomes. Profile, administrative configuration and media, checklist, region and page catches also use monitored uncertainty. Vehicle lookup and partial warnings use stable-code mapping. Unchanged validation and domain paths retain explicit audit status; see rollout-cde.md.
 - D: Page and global boundaries show a monitoring reference when capture returns one. Rate-limit recovery includes a wait only when resetAt is reliable. Service summaries do not use the validation heading. Privileged payment, user changes, cancellations and catalogue import UI lock uncertain writes and link to freshly loaded status.
 - E: public-boundary-gate flags new raw error.message public returns outside reviewed-public-exceptions.json. Unknown fallbacks are tagged on the existing captureException path. The candidate register still has no separate E rows.

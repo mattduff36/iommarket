@@ -30,7 +30,7 @@ MOT_API_BASE_URL=
 Notes:
 
 - `MOT_API_BASE_URL` can default to `https://history.mot.api.gov.uk`
-- Keep the actual values the same as the current project if you want identical behavior
+- Keep the actual values the same as the current project if you want identical behaviour
 - The services in this project read `process.env` directly
 
 ## 2. Overall Architecture
@@ -45,14 +45,14 @@ Create 3 layers:
    - extracts the current MOT expiry date / status
 3. `Internal sync route or server action`
    - authenticates the user if needed
-   - normalizes the registration
+   - normalises the registration
    - calls DVLA first
    - calls MOT second if configured
    - combines the result
    - persists/logs it if your app has a database
    - returns a clean JSON response to the UI
 
-## 3. Registration Number Normalization
+## 3. Registration Number Normalisation
 
 Before every external API call:
 
@@ -84,7 +84,7 @@ if (!dvlaService) {
 }
 ```
 
-Factory behavior:
+Factory behaviour:
 
 - read `DVLA_API_PROVIDER`, `DVLA_API_KEY`, `DVLA_API_BASE_URL`
 - if any are missing, return `null`
@@ -107,7 +107,7 @@ For official VES provider:
 }
 ```
 
-Expected normalized output shape:
+Expected normalised output shape:
 
 - `registrationNumber`
 - `taxStatus`
@@ -125,7 +125,7 @@ Expected normalized output shape:
 
 Important:
 
-- the current repo supports multiple providers, but the service always normalizes them into one common response shape
+- the current repo supports multiple providers, but the service always normalises them into one common response shape
 
 ## 5. MOT Service
 
@@ -135,7 +135,7 @@ Create a server-side MOT service with a factory:
 const motService = createMotHistoryService();
 ```
 
-Factory behavior:
+Factory behaviour:
 
 - read:
   - `MOT_API_CLIENT_ID`
@@ -206,7 +206,7 @@ Return:
 
 This repo's actual pattern is:
 
-1. normalize registration
+1. normalise registration
 2. call DVLA
 3. call MOT if configured
 4. if MOT succeeds, prefer MOT expiry data for `mot_due_date`
@@ -307,7 +307,7 @@ const response = await fetch('/api/maintenance/sync-dvla', {
 const data = await response.json();
 ```
 
-UI behavior used here:
+UI behaviour used here:
 
 - show loading state while syncing
 - on success, show which fields changed
@@ -404,7 +404,7 @@ Handle these cases explicitly:
   - disable the feature cleanly
   - do not crash the whole app at import time
 
-## 12. Important Project-Specific Behavior Copied From This Repo
+## 12. Important Project-Specific Behaviour Copied From This Repo
 
 - test registrations are excluded from road sync logic
 - MOT is optional, DVLA is required

@@ -26,7 +26,7 @@ Cloned users can upload new images into the managed staging namespace. User owne
 
 Cloned account deletion can complete local anonymisation while preserving lease fencing and legal holds. Auth admin operations validate staging identity before returning any cached client and target only the preview Supabase project.
 
-Sample subscription checkout ignores only Subscription rows proven copied from production in the same transaction. It creates a separate DEV simulation subscription through the existing fulfillment path. Genuine preview subscriptions still block simulation; copied and genuine provider billing rows are preserved. Production payment simulation remains disabled.
+Sample subscription checkout ignores only Subscription rows proven copied from production in the same transaction. It creates a separate DEV simulation subscription through the existing fulfilment path. Genuine preview subscriptions still block simulation; copied and genuine provider billing rows are preserved. Production payment simulation remains disabled.
 
 Cloned cost-ledger rows remain available for diagnosis. Hosted staging uses the separate Accounts preview configuration. Read-only external reference lookups retain their existing behaviour. The next database refresh replaces staging test records and captures; it does not itself clean orphaned staging files from external storage. No Supabase Storage or other chargeable Supabase service is used.
 

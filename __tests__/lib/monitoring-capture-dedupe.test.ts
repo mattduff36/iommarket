@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   issueFindUnique: vi.fn(),
   issueUpsert: vi.fn(),
   dispatch: vi.fn(),
+  issueUpdate: vi.fn(),
+  statusCreate: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -17,9 +19,9 @@ vi.mock("@/lib/db", () => ({
     monitoringIssue: {
       findUnique: mocks.issueFindUnique,
       upsert: mocks.issueUpsert,
-      update: vi.fn(),
+      update: mocks.issueUpdate,
     },
-    monitoringIssueStatusEvent: { create: vi.fn() },
+    monitoringIssueStatusEvent: { create: mocks.statusCreate },
   },
 }));
 vi.mock("@/lib/monitoring/alerts", () => ({
@@ -84,4 +86,11 @@ describe("monitoring capture dedupe", () => {
     expect(mocks.dispatch).toHaveBeenCalledTimes(1);
     expect(mocks.dispatch).toHaveBeenCalledWith(expect.objectContaining({ issueId: "issue-1", eventId: "event-1" }));
   });
+  it("reopens an expired historical issue on new evidence and audits the transition", async () => {
+    mocks.issueUpsert.mockResolvedValue({ id: "issue-1", severity: "HIGH", status: "EXPIRED", occurrences: 2 });
+    await captureBusinessEvent({ source: "CLIENT", severity: "HIGH", message: "Load failed" });
+    expect(mocks.issueUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "OPEN", acknowledgedAt: null }) }));
+    expect(mocks.statusCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ fromStatus: "EXPIRED", toStatus: "OPEN" }) }));
+  });
+
 });

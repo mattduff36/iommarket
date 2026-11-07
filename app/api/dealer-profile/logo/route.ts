@@ -88,7 +88,7 @@ async function removeOwnedLogo({
       route: "/api/dealer-profile/logo",
       requestPath: "/api/dealer-profile/logo",
       userId,
-      tags: { storagePath: path },
+      tags: { stage: "storage-cleanup" },
     });
   }
 }
@@ -143,6 +143,7 @@ export async function POST(request: NextRequest) {
     objectId: randomUUID(),
   });
 
+  let uploadStage = "storage-upload";
   try {
     const supabase = createSupabaseAdminClient();
     const { error: uploadError } = await supabase.storage
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
     const logoUrl = publicUrlData.publicUrl;
 
     try {
+      uploadStage = "profile-save";
       await db.dealerProfile.update({
         where: { id: user.dealerProfile.id },
         data: { logoUrl },
@@ -189,6 +191,7 @@ export async function POST(request: NextRequest) {
       source: "SERVER",
       error,
       action: "uploadDealerLogo",
+      tags: { stage: uploadStage, missingBucket },
       route: "/api/dealer-profile/logo",
       requestPath: "/api/dealer-profile/logo",
       userId: user.id,

@@ -137,7 +137,7 @@ export async function syncRevisionImagesForUser(input: {
     },
   });
   if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== input.userId) return { error: "Not authorized" };
+  if (listing.userId !== input.userId) return { error: "Not authorised" };
   if (listing.lifecycleRevision !== input.expectedListingRevision) {
     return { error: "Listing revision changed. Refresh and try again." };
   }

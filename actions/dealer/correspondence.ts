@@ -39,7 +39,7 @@ const SAME_AS_LOGIN =
 async function requireCorrespondenceDealer() {
   const user = await requireAcceptedAuth();
   if (!hasDealerDashboardAccess(user)) {
-    return { error: "Not authorized to update correspondence settings" };
+    return { error: "Not authorised to update correspondence settings" };
   }
   if (!(await hasOperationalDealerAccess(user))) {
     return { error: "Active dealer access is required to update correspondence settings" };

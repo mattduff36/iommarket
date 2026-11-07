@@ -73,7 +73,7 @@ export async function updateMyProfile(input: UpdateMyProfileInput) {
 export async function updateMyDealerProfile(input: UpdateDealerSelfProfileInput) {
   const user = await requireAcceptedAuth();
   if (!hasDealerDashboardAccess(user)) {
-    return { error: "Not authorized to update a dealer profile" };
+    return { error: "Not authorised to update a dealer profile" };
   }
   if (!(await hasOperationalDealerAccess(user))) {
     return { error: "Active dealer access is required to update a dealer profile" };

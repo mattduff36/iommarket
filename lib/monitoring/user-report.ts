@@ -1,5 +1,7 @@
 import { redactFreeText } from "./redact";
 import { safeSupportReference } from "@/lib/forms/public-error";
+import { browserDiagnostics, type ClientDiagnostics } from "./client-diagnostics";
+import { requestDiagnostics } from "./request-diagnostics";
 
 /** Report only the displayed error and pathname, never form values or URL query parameters. */
 export function cleanReportedMessage(message: string): string {
@@ -14,12 +16,13 @@ export interface UserIssueReport {
   message: string;
   route: string;
   supportReference?: string;
+  diagnostics?: ClientDiagnostics;
 }
 
 export async function sendUserIssueReport(report: UserIssueReport): Promise<string> {
   const response = await fetch("/api/monitoring/report-issue", {
     method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...report, message: cleanReportedMessage(report.message), route: report.route.split(/[?#]/)[0] }),
+    body: JSON.stringify({ ...report, requests: requestDiagnostics(), diagnostics: { ...report.diagnostics, ...browserDiagnostics() }, message: cleanReportedMessage(report.message), route: report.route.split(/[?#]/)[0] }),
     signal: AbortSignal.timeout(15_000),
   });
   const body = await response.json().catch(() => null);

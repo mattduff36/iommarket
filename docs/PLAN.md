@@ -4,7 +4,7 @@
 
 ### Tasks
 
-- Standardize environment contract and document all required variables.
+- Standardise environment contract and document all required variables.
 - Extend Prisma schema with favourites, saved searches, and view tracking.
 - Add migrations and upgrade seed data to 100-300 listings.
 - Tighten write endpoint validation and anti-spam/rate limiting.
@@ -44,7 +44,7 @@
 - Homepage updates for trust stats + dealer spotlight + SEO block.
 - Search page: sticky filters, infinite scroll, grid/list toggle, promoted styling.
 - Canonical and crawlable filter URL strategy.
-- Listing detail enhancements: gallery behavior, sticky contact area, similar listings, share actions.
+- Listing detail enhancements: gallery behaviour, sticky contact area, similar listings, share actions.
 - Seller wizard refactor: multi-step, photo limits (2-20), preview before submit.
 - Implement favourites and saved searches for authenticated users.
 - Implement contact seller flow (no-account) with Resend.
@@ -81,7 +81,7 @@
 - Enforce private listing payment after free period.
 - Enforce dealer subscription active state for posting.
 - Complete featured upsell reliability and idempotency paths.
-- Harden webhook event handling and reconciliation behavior.
+- Harden webhook event handling and reconciliation behaviour.
 
 ### Files/Routes Affected
 
@@ -171,7 +171,7 @@
 - Configure and verify all env vars from `.env.example`.
 - Run Prisma migration and seed target volume (100-300).
 - Verify Supabase auth callbacks and role seeding.
-- Verify Cloudinary upload preset and image delete API behavior.
+- Verify Cloudinary upload preset and image delete API behaviour.
 - Verify Ripple checkout links and payment webhook endpoint in staging.
 - Verify Resend domain sender and transactional delivery.
 - Verify robots and sitemap endpoints.

@@ -37,7 +37,7 @@
 - **Approach**:
   - client upload via upload preset
   - persist `url` + `publicId` on `ListingImage`
-  - use Cloudinary transformations for optimized rendering
+  - use Cloudinary transformations for optimised rendering
   - delete Cloudinary assets when listing/images are removed
 - **Env vars**:
   - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
@@ -68,7 +68,7 @@
   - `RIPPLE_DASHBOARD_URL`
   - `LAUNCH_FREE_UNTIL` (ISO timestamp for time-based free window)
   - `FREE_LISTING_WINDOW_DAYS` (default 30)
-- **Pricing**: Admin Site Settings must match the four fixed Ripple link prices (£4.99, £5.00, £29.99, £49.99). Checkout and fulfillment fail closed on drift.
+- **Pricing**: Admin Site Settings must match the four fixed Ripple link prices (£4.99, £5.00, £29.99, £49.99). Checkout and fulfilment fail closed on drift.
 - **Local**: use the four `/pay/{code}` links and a reachable webhook URL. Keep live checkout disabled unless testing with the kill switch.
 - **Staging / production**: same fixed links, `X-Ripple-Signature` verification, inbox retry cron, and daily portal reconciliation because Ripple does not retry.
 
@@ -140,7 +140,7 @@
   - `DEV_PASS` (holding-page gate on production and local; skipped on Vercel Preview)
   - `PREVIEW_PASS` / `PREVIEW_URL` (optional /preview redirect to a preview deployment)
 - **Notes**:
-  - staging should mirror production behavior as closely as possible.
+  - staging should mirror production behaviour as closely as possible.
   - all secrets must remain server-side and not leak to client bundles.
 
 ---

@@ -24,9 +24,18 @@ export async function compactMonitoringHistory(now = new Date()) {
       status: { in: ["SENT", "FAILED", "SKIPPED"] },
     },
   });
-  const deletedEvents = await db.monitoringEvent.deleteMany({
-    where: { occurredAt: { lt: detailCutoff } },
-  });
+  // Keep three representative events for unresolved issues, without retaining
+  // an unbounded history when an issue recurs for months.
+  const deletedEventCount = await db.$executeRaw`
+    WITH ranked AS (
+      SELECT e.id, e."occurredAt", i.status,
+        row_number() OVER (PARTITION BY e."issueId" ORDER BY e."occurredAt" DESC, e.id DESC) AS event_rank
+      FROM "MonitoringEvent" e JOIN "MonitoringIssue" i ON i.id = e."issueId"
+    )
+    DELETE FROM "MonitoringEvent" e USING ranked r
+    WHERE e.id = r.id AND r."occurredAt" < ${detailCutoff}
+      AND (r.status NOT IN ('OPEN', 'ACKNOWLEDGED') OR r.event_rank > 3)
+  `;
   const deletedIssues = await db.monitoringIssue.deleteMany({
     where: {
       status: "RESOLVED",
@@ -44,7 +53,7 @@ export async function compactMonitoringHistory(now = new Date()) {
   return {
     clearedPrompts: clearedPrompts.count,
     deletedDeliveries: deletedDeliveries.count,
-    deletedEvents: deletedEvents.count,
+    deletedEvents: deletedEventCount,
     deletedIssues: deletedIssues.count,
   };
 }

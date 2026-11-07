@@ -24,7 +24,7 @@ Exclude preview packs, linked preview accounts/listings and dependent rows, all 
 
 ## Implementation
 
-- The copy catalog omits the excluded table families.
+- The copy catalogue omits the excluded table families.
 - No campaign, waitlist, monitoring or pack identity conflict comparisons run.
 - Source rows owned by excluded users/dealers or referencing excluded parents are omitted using the actual foreign-key graph.
 - Excluded destination identities are protected even when production has different IDs.

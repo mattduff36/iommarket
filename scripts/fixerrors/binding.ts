@@ -55,7 +55,7 @@ export function assertBindingMatches(snapshot: OpenIssueSnapshot, binding: Snaps
     snapshot.safetyContract !== binding.safetyContract ||
     snapshot.databaseTargetFingerprint !== binding.databaseTargetFingerprint
   ) {
-    throw new Error("Confirmation does not match the verified snapshot artifact");
+    throw new Error("Confirmation does not match the verified snapshot artefact");
   }
 }
 

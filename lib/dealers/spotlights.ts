@@ -124,7 +124,7 @@ export function sortDealersAlphabetically<
 
 /**
  * Uses Fisher–Yates so every input item has an equal chance of every position.
- * The random source is injectable to keep behavior deterministic in tests.
+ * The random source is injectable to keep behaviour deterministic in tests.
  */
 export function shuffleDealerSpotlights<T>(
   dealers: readonly T[],

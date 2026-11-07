@@ -266,7 +266,7 @@ async function planProduction(
   if (!foundingSourceRunId) throw new Error("--source-run is required.");
   if (foundingSourceRunId !== live.finalPlan.sourceRunId) {
     throw new Error(
-      "Refusing production plan: --source-run does not match the finalized preview plan sourceRunId.",
+      "Refusing production plan: --source-run does not match the finalised preview plan sourceRunId.",
     );
   }
   const backupId = requireBackupId(

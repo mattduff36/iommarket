@@ -98,7 +98,7 @@ export async function syncListingImagesForUser({
     },
   });
   if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== userId) return { error: "Not authorized" };
+  if (listing.userId !== userId) return { error: "Not authorised" };
   if (listing.status === "LIVE") {
     const { getOpenRevision, getOrCreateDraftRevision } = await import(
       "@/lib/listings/revisions"

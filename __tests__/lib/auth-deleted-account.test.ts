@@ -1,3 +1,4 @@
+import { readErrorFacts } from "@/lib/monitoring/error-context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 
@@ -117,7 +118,10 @@ describe("syncUser", () => {
     ));
     mockDb.user.findFirst.mockResolvedValue(null);
 
-    await expect(syncUser("auth-other", "member@example.com", "Member")).rejects.toMatchObject({ code: "P2002" });
+    const failed = await syncUser("auth-other", "member@example.com", "Member").catch(error => error);
+      expect(failed).toMatchObject({ code: "P2002" });
+      expect(readErrorFacts(failed)).toMatchObject({ stage: "auth-profile-persist", databaseCode: "P2002", sameIdentityFound: false, retryAttempted: false });
+      expect(JSON.stringify(readErrorFacts(failed))).not.toContain("member@example.com");
     expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
     expect(mockDb.user.update).not.toHaveBeenCalled();
   });

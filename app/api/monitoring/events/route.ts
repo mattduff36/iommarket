@@ -7,6 +7,7 @@ import { capClientIngestSeverity, coerceSeverity } from "@/lib/monitoring/severi
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { ingestMonitoringClientEventSchema } from "@/lib/validations/monitoring";
+import { safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 
 const MAX_BODY_BYTES = 64_000;
 
@@ -88,9 +89,8 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
 
   const err = new Error(parsed.data.message);
-  if (parsed.data.stack) {
-    err.stack = parsed.data.stack;
-  }
+  // A missing browser stack must stay missing, not point at this ingest route.
+  err.stack = parsed.data.stack || undefined;
 
   const result = await captureException({
     source: "CLIENT",
@@ -106,12 +106,14 @@ export async function POST(req: NextRequest) {
     tags: {
       ...parsed.data.tags,
       userAgent,
+      ingestRelease: process.env.VERCEL_GIT_COMMIT_SHA,
+      clientStackProvided: Boolean(parsed.data.stack),
     },
-    extra: parsed.data.extra,
+    extra: { ...parsed.data.extra, requests: safeRequestDiagnostics(parsed.data.extra?.requests) },
   });
 
   return NextResponse.json(
-    { ok: true, issueId: result?.issueId ?? null, eventId: result?.eventId ?? null },
-    { status: 202 }
+    { ok: Boolean(result?.eventId), issueId: result?.issueId ?? null, eventId: result?.eventId ?? null },
+    { status: result?.eventId ? 202 : 503 }
   );
 }

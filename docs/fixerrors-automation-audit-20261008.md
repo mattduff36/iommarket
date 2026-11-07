@@ -2,7 +2,7 @@
 
 ## Release verification
 
-The fixes were committed as `e40eec5` on staging: typechecking passed, 548 test files passed with one skipped, and 3,106 tests passed with six skipped. Exact-head staging acceptance reproduced the former search failure before deployment and verified 33 results afterward, correct legacy-unit conversion, loaded dealer logos and a fresh upload preview.
+The fixes were committed as `e40eec5` on staging: typechecking passed, 548 test files passed with one skipped, and 3,106 tests passed with six skipped. Exact-head staging acceptance reproduced the former search failure before deployment and verified 33 results afterwards, correct legacy-unit conversion, loaded dealer logos and a fresh upload preview.
 
 Owner-approved PR #31 merged as `f9a5849` and is live in production. Production numeric search returned 36 results; subsequent ImageKit activation and authenticated upload acceptance are recorded in `docs/imagekit-production-readiness.md`. No monitoring issue was automatically marked resolved merely because the release deployed. Payment-inbox events without safe product/customer references and opaque events lacking correlation evidence remain separate investigation items.
 
@@ -21,7 +21,7 @@ Six unjustified opaque-error mutes were reversed through the new audited correct
 - Reviews may identify only the repaired subset of a mixed cluster. Existing release evidence cannot be overwritten.
 - Stack extraction handles separate lines and Next.js route-group parentheses. Additional existing callers are checked against snapshot-bound Git commits; genuinely new helpers/tests require explicit declaration and reviewed content.
 - Event exports limit retained events in SQL, and history lookup indexes fingerprints instead of repeatedly scanning the log.
-- Classification recognizes underscore-separated payment settings and missing-relation database errors.
+- Classification recognises underscore-separated payment settings and missing-relation database errors.
 - `--reopen-muted` supports a dry-run and audited correction of an unchanged mute from an exact original run. It checks the original snapshot/database, issue identity and latest matching audit/status events.
 - Workflow instructions require bounded searches, reuse of unchanged file reads, meaningful regression tests, current evidence for historical configuration claims and explicit opt-in database integration tests.
 
@@ -31,7 +31,7 @@ Numeric search uses the real Prisma table names and guarded numeric conversion. 
 
 New filter URLs carry `numericFilterUnits=v1` for litres/hours. Old integer URL bounds convert from tenths/minutes, and charging-time slider values round-trip with six-decimal hour precision. Historical seed values use inconsistent scales; no persisted customer/demo data were reinterpreted or rewritten without provenance.
 
-Account synchronization retries only when the exact authenticated identity was concurrently created; it never links accounts by email. Dealer onboarding retries a narrowly identified subscription uniqueness race and recomputes entitlement. Invoice requests select only the fields needed to freeze invoice lines and use a bounded longer transaction timeout; email delivery remains outside the transaction.
+Account synchronisation retries only when the exact authenticated identity was concurrently created; it never links accounts by email. Dealer onboarding retries a narrowly identified subscription uniqueness race and recomputes entitlement. Invoice requests select only the fields needed to freeze invoice lines and use a bounded longer transaction timeout; email delivery remains outside the transaction.
 
 Browser-noise capture/classification matches specific observed extension/bridge messages and retains opaque `Script error` reports.
 

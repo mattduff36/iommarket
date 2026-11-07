@@ -9,6 +9,15 @@ vi.mock("@/lib/monitoring/user-report", async () => ({ ...await vi.importActual(
 describe("report controls on displayed errors", () => {
   beforeEach(() => { send.mockReset().mockResolvedValue("event_123456"); });
   afterEach(() => vi.restoreAllMocks());
+  it("allows new diagnostic evidence to be reported for the same displayed message", async () => {
+    const view = render(<ReportableError role="alert" diagnostics={{ operation: "sign-in", authCode: "invalid_credentials" }}>Same auth message.</ReportableError>);
+    fireEvent.click(await screen.findByRole("button", { name: "Report issue" }));
+    await screen.findByRole("button", { name: "Reported" });
+    view.rerender(<ReportableError role="alert" diagnostics={{ operation: "sign-in", authCode: "over_request_rate_limit" }}>Same auth message.</ReportableError>);
+    fireEvent.click(await screen.findByRole("button", { name: "Report issue" }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    expect(send.mock.calls[1][0].diagnostics.authCode).toBe("over_request_rate_limit");
+  });
   it("covers inline and dynamically rendered errors, but not success messages or required markers", async () => {
     const view = render(<><ReportableError as="p" className="text-text-error">Photo verification failed.</ReportableError><ReportableError role="alert" data-reportable-error="false">Saved successfully.</ReportableError><span aria-hidden="true" className="text-text-error">*</span></>);
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Report issue" })).toHaveLength(1));

@@ -2,6 +2,7 @@ import Link from "@/components/navigation/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { MonitoringOriginalError, monitoringErrorCopy } from "@/components/admin/monitoring-readable-error";
 import { Badge } from "@/components/ui/badge";
+import { MonitoringInvestigation } from "./monitoring-investigation";
 
 type TimestampValue = Date | string;
 
@@ -16,6 +17,7 @@ export interface MonitoringIssueCardData {
   fingerprint: string;
   title: string;
   status: string;
+  investigation?: unknown;
   severity: string;
   source: string;
   firstSeenAt: TimestampValue;
@@ -39,7 +41,7 @@ export interface MonitoringIssueCardData {
 
 function statusVariant(status: string): "neutral" | "warning" | "success" | "info" {
   if (status === "OPEN") return "warning";
-  if (status === "MUTED") return "neutral";
+  if (status === "MUTED" || status === "EXPIRED") return "neutral";
   if (status === "ACKNOWLEDGED") return "info";
   return "success";
 }
@@ -98,7 +100,7 @@ export function MonitoringIssueCard({ issue }: { issue: MonitoringIssueCardData 
       <summary className="flex min-h-24 cursor-pointer list-none items-start gap-4 rounded-lg p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neon-blue-500 sm:p-5 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={statusVariant(issue.status)}>{issue.status}</Badge>
+            <Badge variant={statusVariant(issue.status)}>{issue.status === "EXPIRED" ? "Expired — insufficient evidence" : issue.status}</Badge>
             <Badge variant={severityVariant(issue.severity)}>{issue.severity}</Badge>
             <Badge variant="neutral">{issue.source}</Badge>
           </div>
@@ -130,6 +132,7 @@ export function MonitoringIssueCard({ issue }: { issue: MonitoringIssueCardData 
 
       <div className="border-t border-border px-4 py-5 sm:px-5">
         <MonitoringOriginalError title={issue.title} message={issue.sampleMessage} />
+        <MonitoringInvestigation value={issue.investigation} lastSeenAt={issue.lastSeenAt} />
 
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <section aria-labelledby={`context-${issue.id}`}>

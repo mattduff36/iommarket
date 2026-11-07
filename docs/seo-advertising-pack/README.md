@@ -6,7 +6,7 @@ This pack turns the 3 October 2026 code and HTTP audit into an implementation br
 
 Paste `CURSOR-PROMPT.md` into Cursor with this repository open. Read `IMPLEMENTATION.md` for scope and decisions, and `VALIDATION-AND-RELEASE.md` for acceptance and release gates. Cursor should maintain `IMPLEMENTATION-STATUS.md` as it works, recording evidence and unresolved dependencies rather than marking untested items complete.
 
-The pack itself does not change application behavior, provision accounts, install tracking, migrate databases, push branches or deploy anything. At authoring, the working checkout was on `main`; Cursor must establish the correct preview checkout before implementation. These files are initially local and uncommitted; preserve them when preparing that checkout.
+The pack itself does not change application behaviour, provision accounts, install tracking, migrate databases, push branches or deploy anything. At authoring, the working checkout was on `main`; Cursor must establish the correct preview checkout before implementation. These files are initially local and uncommitted; preserve them when preparing that checkout.
 
 ## Audit baseline
 
@@ -23,7 +23,7 @@ Recheck this baseline before changing code; it is a point-in-time observation, n
 | Structured data | Sampled listing emitted Product/Offer AND BreadcrumbList | Extend these; do not add duplicate breadcrumb markup |
 | Measurement | Vercel analytics, marketplace event hooks and business funnel exist | Reuse them; missing advertising integration is not missing all analytics |
 | Advertising | No Meta Pixel/CAPI, dedicated campaign persistence or ad feed found in audited application code | Add an optional, consent-aware integration layer |
-| Unavailable listings | Detail route calls `notFound()` for inaccessible records | Test rendered HTTP/meta behavior before claiming missing noindex |
+| Unavailable listings | Detail route calls `notFound()` for inaccessible records | Test rendered HTTP/meta behaviour before claiming missing noindex |
 
 ## Relevant existing files
 

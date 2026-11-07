@@ -16,7 +16,7 @@ Deployment `dpl_85xTFxFLtk3DsLwtUMsGXeACmGjC` is READY. It was created from GitH
 
 Updated 5 October 2026, after reconnecting Desktop Commander and retrieving the completed test runs.
 
-## Current state and authorization boundary
+## Current state and authorisation boundary
 
 The candidate remains in the separate detached worktree `D:\Websites\iommarket-dbmerge-auth-export`, based on `20879f373222ef7aee3853564e5c9345d9d5e0fe`.
 
@@ -73,7 +73,7 @@ These are local fixture results, not a hosted production-reader or shared-develo
 
 After the run, neither 127.0.0.1:55435 nor :55436 had a listener. No running PostgreSQL process referenced an `iommarket-auth-export-it-*` fixture. The separate MPDEE Accounts PostgreSQL instance was not stopped or modified.
 
-The shared `D:\Websites\iommarket` preflight, clone engine, and integration-test files matched their pre-run SHA-256 hashes. Concurrent admin-profile/ImageKit work and all backup stashes were left intact. Only this status document and a short handover update are synchronized to the shared workspace.
+The shared `D:\Websites\iommarket` preflight, clone engine, and integration-test files matched their pre-run SHA-256 hashes. Concurrent admin-profile/ImageKit work and all backup stashes were left intact. Only this status document and a short handover update are synchronised to the shared workspace.
 
 ## Candidate implementation retained
 
@@ -86,24 +86,24 @@ The shared `D:\Websites\iommarket` preflight, clone engine, and integration-test
 
 The private view's stored definition digest detects later drift; it is not protection against a malicious database owner. API/public grants must remain excluded, and the private schema must not be exposed through the hosted Data API.
 
-## Next gate: not authorized by the local-test approval
+## Next gate: not authorised by the local-test approval
 
-1. Review the current shared staging state and synchronize only the candidate repair, preserving concurrent work. Run the applicable release checks/full build; no full build is claimed by this checkpoint.
+1. Review the current shared staging state and synchronise only the candidate repair, preserving concurrent work. Run the applicable release checks/full build; no full build is claimed by this checkpoint.
 2. Obtain separate approval before executing the exact private-export provisioning SQL on verified production project `snlqivvogfqesxpbjiei` and changing the staging-only `DATABASE_SYNC_AUTH_SOURCE_MODE` setting.
 3. Verify the effective hosted Data API exposed-schema configuration, the real reader permissions, masked source access and view contract. Never replace the restricted reader with an administrator connection.
 4. Deploy the scoped application change only to staging and verify a signed-in Merge PLAN PREPARATION through itrader.dev, without bypassing admin or Origin checks.
 5. Review stored plan coverage, counts, blockers and remaining real-destination trigger/restore risks before asking for separate shared-development Apply approval.
 
-Do not retry the known ineffective auth-schema GRANT as the normal postgres login. Do not apply any hosted/shared-development Merge, Replace, Reset or Restore without separate explicit authorization.
+Do not retry the known ineffective auth-schema GRANT as the normal postgres login. Do not apply any hosted/shared-development Merge, Replace, Reset or Restore without separate explicit authorisation.
 
 
 ## Staging rollout requested - 2026-10-05T00:40:20.494Z
 
-The owner requested immediate deployment without another verification cycle. The previously tested repair has been synchronized into the staging workspace, excluding concurrent admin-profile and ImageKit edits.
+The owner requested immediate deployment without another verification cycle. The previously tested repair has been synchronised into the staging workspace, excluding concurrent admin-profile and ImageKit edits.
 
 The remote tool blocked creation of the production-export provisioning runner before it executed. No production SQL or grants ran, and the private export is NOT installed. This denial was not retried through another tool. The staging code rollout is proceeding independently. DATABASE_SYNC_AUTH_SOURCE_MODE remains its existing default (direct); private-views is not enabled before its required production objects exist. The auth-schema access blocker therefore remains.
 
-No data Merge, Replace, Reset or Restore is authorized or performed by this deployment. No additional integration tests or signed-in Merge preview were run. Deployment result will be appended after Vercel completes.
+No data Merge, Replace, Reset or Restore is authorised or performed by this deployment. No additional integration tests or signed-in Merge preview were run. Deployment result will be appended after Vercel completes.
 
 
 ## Live staging deployment outcome - 2026-10-05T00:47:53.322Z

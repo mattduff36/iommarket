@@ -266,7 +266,7 @@ Verification: `npx tsc --noEmit` passed. Full Vitest: 411 passed, including disp
 ### ALR-29 - Dealer downgrade confirm closes early
 - **Severity:** Low
 - **Evidence:** `dealer-actions.tsx` closes confirm immediately.
-- **Owner decision:** Keep dialog until success/error.
+- **Owner decision:** Keep dialogue until success/error.
 - **Slice / lane:** `small_ux` FAST
 - **Verification:** focused component test
 - **Status:** verified

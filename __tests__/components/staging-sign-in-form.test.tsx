@@ -49,6 +49,19 @@ describe("staging sign-in form access decisions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   }
 
+  it("reports safe provider diagnostics without credentials after a failed sign-in", async () => {
+    signInMock.mockResolvedValue({ data: {}, error: { message: "Invalid login credentials", code: "invalid_credentials", status: 400 } });
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ok: true, reference: "event_auth123456" }), { status: 201 }));
+    render(<SignInForm />);
+    await submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Report issue" }));
+    await screen.findByText(/Reported. Reference event_auth123456/);
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(body.diagnostics).toMatchObject({ operation: "sign-in", authCode: "invalid_credentials", httpStatus: 400 });
+    expect(JSON.stringify(body)).not.toContain("tester@example.com");
+    expect(JSON.stringify(body)).not.toContain("correct horse");
+  });
+
   it("routes an approved non-admin based on the server's staging access result", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({
       role: "USER", stagingAccessAllowed: true,

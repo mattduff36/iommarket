@@ -1,12 +1,12 @@
 # Follow-up preparation after launch verification
 
-This is a preparation backlog, not authorization to change DNS, enable MFA, purchase services or undertake a broad rewrite. Complete the launch payment/access checks first.
+This is a preparation backlog, not authorisation to change DNS, enable MFA, purchase services or undertake a broad rewrite. Complete the launch payment/access checks first.
 
 ## Performance audit
 
 Capture production and preview baselines for home, search/category results, listing details, dealer profiles, account listings and admin users. Use representative mobile and desktop sessions, signed-in and signed-out. Record LCP, INP, CLS, response time, transferred JavaScript/images, query count and slow database queries before selecting changes.
 
-Investigate image sizes and priority loading, initial client bundles, repeated server reads, pagination, search query plans and cache boundaries. Include the launch five-second account update endpoint: measure request volume and aggregate-query cost with realistic listing counts. It polls only visible relevant pages and returns an opaque version; assess a private push mechanism if that traffic becomes material. Preserve authorization and fresh payment/membership state when considering caching.
+Investigate image sizes and priority loading, initial client bundles, repeated server reads, pagination, search query plans and cache boundaries. Include the launch five-second account update endpoint: measure request volume and aggregate-query cost with realistic listing counts. It polls only visible relevant pages and returns an opaque version; assess a private push mechanism if that traffic becomes material. Preserve authorisation and fresh payment/membership state when considering caching.
 
 Choose fixes from measured bottlenecks. Compare before/after results under the same conditions, including checkout, moderation and owner views. Avoid dependency upgrades or global component rewrites without a demonstrated need.
 
@@ -29,9 +29,9 @@ Before any cutover, agree whether the intended change is DNS hosting only or als
 
 ## Two-factor authentication preparation
 
-Review the existing Supabase authentication flow and current MFA support/documentation before designing enrollment. Start with administrators, with an explicit decision on optional versus mandatory use for other members. Define enrollment, challenge, recovery, lost-device support and administrator recovery controls.
+Review the existing Supabase authentication flow and current MFA support/documentation before designing enrolment. Start with administrators, with an explicit decision on optional versus mandatory use for other members. Define enrolment, challenge, recovery, lost-device support and administrator recovery controls.
 
-Enforce the required authentication assurance on the server for sensitive actions as well as in navigation. Plan tests for old sessions, new devices, password reset, recovery, disabled users and sensitive-action authorization. Keep payment webhooks independent of interactive MFA. Do not enable mandatory MFA before recovery and support workflows are proven.
+Enforce the required authentication assurance on the server for sensitive actions as well as in navigation. Plan tests for old sessions, new devices, password reset, recovery, disabled users and sensitive-action authorisation. Keep payment webhooks independent of interactive MFA. Do not enable mandatory MFA before recovery and support workflows are proven.
 
 ## Broader admin workflow testing
 

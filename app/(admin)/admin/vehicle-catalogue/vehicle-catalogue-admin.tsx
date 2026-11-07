@@ -357,7 +357,7 @@ export function VehicleCatalogueAdmin({
                         onComplete={completed}
                       />
                       <p className="text-xs text-text-secondary">
-                        Aliases normalize lookup values to {model.name}.
+                        Aliases normalise lookup values to {model.name}.
                       </p>
                       <EntityEditor
                         kind="alias"

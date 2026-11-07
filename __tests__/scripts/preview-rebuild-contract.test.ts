@@ -575,6 +575,6 @@ describe("catalog resolve-only", () => {
         findMany: async () => [],
       },
     };
-    await expect(resolveCatalog(tx as never)).rejects.toThrow("Missing catalog region");
+    await expect(resolveCatalog(tx as never)).rejects.toThrow("Missing catalogue region");
   });
 });

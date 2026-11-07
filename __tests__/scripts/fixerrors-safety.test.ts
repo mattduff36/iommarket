@@ -114,9 +114,9 @@ class FakePg implements PgClientLike {
       const rows = [...counts.entries()].map(([status, count]) => ({ status, count }));
       return { rows: rows as unknown as T[], rowCount: rows.length };
     }
-    if (text.includes('FROM "MonitoringIssue"') && text.includes("WHERE status = 'OPEN'")) {
+    if (text.includes('FROM "MonitoringIssue"') && text.includes("WHERE status IN ('OPEN', 'ACKNOWLEDGED')")) {
       return {
-        rows: [...this.issues.values()].filter((issue) => issue.status === "OPEN") as unknown as T[],
+        rows: [...this.issues.values()].filter((issue) => ["OPEN", "ACKNOWLEDGED"].includes(issue.status)) as unknown as T[],
         rowCount: this.issues.size,
       };
     }
@@ -233,7 +233,7 @@ describe("FXMON-SNAPSHOT-004 / FIX-SNAPSHOT export", () => {
     expect(client.queries[1]).toContain("to_char");
     expect(snapshot.issues.map((issue) => issue.id)).toEqual(["issue-1"]);
     expect(snapshot.issues[0]?.lastSeenAt).toBe("2026-08-16T12:00:00.012345Z");
-    expect(snapshot.queueStatusCounts).toEqual({ OPEN: 1, ACKNOWLEDGED: 0, MUTED: 0, RESOLVED: 1 });
+    expect(snapshot.queueStatusCounts).toEqual({ OPEN: 1, ACKNOWLEDGED: 0, MUTED: 0, RESOLVED: 1, EXPIRED: 0 });
     expect(snapshot.checksum).toMatch(/^[a-f0-9]{64}$/);
     expect(verifySnapshot(snapshot).issues).toHaveLength(1);
   });

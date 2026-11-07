@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { rememberErrorFacts } from "@/lib/monitoring/error-context";
 import { isSupabaseAuthConfigured } from "@/lib/auth/supabase-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { findBlockingOnboardingInvite, OnboardingIncompleteError } from "@/lib/dealers/onboarding/access-gate";
@@ -196,6 +197,8 @@ export async function syncUser(
     return await persist();
   } catch (err) {
     let finalError = err;
+    let sameIdentityFound = false;
+    let retryAttempted = false;
     const isUniqueViolation = (error: unknown) => {
       const prismaCode =
         typeof error === "object" && error !== null && "code" in error
@@ -214,6 +217,8 @@ export async function syncUser(
       if (concurrentIdentity?.deletedAt) throw new DeletedAccountError();
       if (concurrentIdentity?.disabledAt) return concurrentIdentity;
       if (concurrentIdentity) {
+        sameIdentityFound = true;
+        retryAttempted = true;
         try {
           return await persist();
         } catch (retryError) {
@@ -229,6 +234,8 @@ export async function syncUser(
       });
       if (existing?.deletedAt) throw new DeletedAccountError();
     }
+    rememberErrorFacts(finalError, { stage: "auth-profile-persist", sameIdentityFound, retryAttempted,
+      ...(isUniqueViolation(finalError) ? { databaseCode: "P2002" } : {}) });
     throw finalError;
   }
 }

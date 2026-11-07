@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { readErrorFacts } from "./error-context";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import { createMonitoringFingerprint } from "./fingerprint";
 import {
@@ -152,7 +153,7 @@ async function persistCapture(
 
   const isNew = issue.occurrences === 1;
   const desiredSeverity = maxSeverity(issue.severity, prepared.severity);
-  const shouldReopen = !isNew && issue.status === "RESOLVED";
+  const shouldReopen = !isNew && (issue.status === "RESOLVED" || issue.status === "EXPIRED");
 
   if (desiredSeverity !== issue.severity || shouldReopen) {
     await db.monitoringIssue.update({
@@ -175,7 +176,7 @@ async function persistCapture(
       await db.monitoringIssueStatusEvent.create({
         data: {
           issueId: issue.id,
-          fromStatus: "RESOLVED",
+          fromStatus: issue.status,
           toStatus: "OPEN",
           notes: "Reopened because the issue occurred again",
         },
@@ -201,7 +202,7 @@ async function persistCapture(
       userId: prepared.userId,
       userEmail: prepared.userEmail,
       ipHash: prepared.ipHash,
-      tags: toJson(prepared.tags),
+      tags: toJson({ ...prepared.tags, serverRelease: /^[a-f0-9]{40}$/i.test(process.env.VERCEL_GIT_COMMIT_SHA ?? "") ? process.env.VERCEL_GIT_COMMIT_SHA : undefined }),
       extra: toJson(prepared.extra),
       occurredAt: now,
     },
@@ -238,7 +239,7 @@ export async function captureException(
     const payload = extractErrorPayload(input.error);
     const source = input.source;
     const severity = coerceSeverity(input.severity, source);
-    const context = sanitizeMonitoringContext(input);
+    const context = sanitizeMonitoringContext({ ...input, extra: { ...input.extra, operationFacts: readErrorFacts(input.error) } });
 
     const message = redactFreeText(payload.message);
     return await persistCapture({

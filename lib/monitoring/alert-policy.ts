@@ -21,7 +21,7 @@ export type AlertDecision =
   | { action: "suppress"; reason: "muted" | "acknowledged" | "cooldown" | "no-channel" };
 
 export interface AlertPolicyInput {
-  status: "OPEN" | "ACKNOWLEDGED" | "MUTED" | "RESOLVED";
+  status: "OPEN" | "ACKNOWLEDGED" | "MUTED" | "RESOLVED" | "EXPIRED";
   reopened?: boolean;
   severity: MonitoringSeverity;
   eventSeverity: MonitoringSeverity;

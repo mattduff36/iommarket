@@ -130,7 +130,7 @@ export function RetryCheckoutButton({
                 "Demo checkout is ready in the modal below. Your listing is already submitted.",
               );
             } else if (opened === false) {
-              setNotice("Checkout is ready in the payment dialog below. Your listing is already submitted.");
+              setNotice("Checkout is ready in the payment dialogue below. Your listing is already submitted.");
             } else {
               setNotice(
                 "Featured checkout opened in a new tab. Your listing is already submitted. Keep this itrader tab open while payment completes.",
@@ -151,7 +151,7 @@ export function RetryCheckoutButton({
               "Demo checkout is ready in the modal below. Use the temporary outcome buttons after previewing the hosted tab.",
             );
           } else if (opened === false) {
-            setNotice("Checkout is ready in the payment dialog below.");
+            setNotice("Checkout is ready in the payment dialogue below.");
           } else {
             setNotice(
               "Hosted checkout reopened in a new tab. Keep this itrader tab open while payment completes.",

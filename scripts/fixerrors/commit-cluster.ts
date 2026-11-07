@@ -71,7 +71,7 @@ export function assessClusterCommit(input: {
     return { ok: false, reason: "Cluster fingerprint does not match the signed issue fingerprints" };
   }
   if (input.paths.length === 0 || input.paths.some((file) => BLOCKED_PATH.test(file.replaceAll("\\", "/")))) {
-    return { ok: false, reason: "Commit paths must be explicit and must not include secrets, migrations, or private artifacts" };
+    return { ok: false, reason: "Commit paths must be explicit and must not include secrets, migrations, or private artefacts" };
   }
   return { ok: true };
 }
@@ -124,7 +124,7 @@ export function commitVerifiedCluster(input: {
   }
 
   const cwd = input.root ?? process.cwd();
-  const manifestPath = resolve(cwd, "private", "fixerrors", "runs", input.clusterId, "release.json");
+  const manifestPath = resolve(cwd, "private", "fixerrors", "runs", input.release?.snapshotId ?? "dry-run", input.clusterId, "release.json");
   if (input.apply && existsSync(manifestPath)) {
     return { ok: false as const, committed: false, reason: "A release manifest already exists for this cluster; refusing to overwrite reviewed release evidence" };
   }
@@ -154,7 +154,7 @@ export function commitVerifiedCluster(input: {
   const gitEnv: Record<string, string | undefined> = { GIT_INDEX_FILE: isolatedIndex };
   try {
     const readTree = run(["read-tree", stagedTree.stdout.trim()], cwd, gitEnv);
-    if (readTree.status !== 0) return { ok: false as const, committed: false, reason: "Could not initialize an isolated repair index" };
+    if (readTree.status !== 0) return { ok: false as const, committed: false, reason: "Could not initialise an isolated repair index" };
     const isolatedPaths = run(["diff", "--cached", "--name-only", "-z", "HEAD"], cwd, gitEnv);
     if (isolatedPaths.status !== 0 || isolatedPaths.stdout.split("\0").filter(Boolean).sort().join("\0") !== allowedPathList.join("\0")) {
       return { ok: false as const, committed: false, reason: "Isolated staged tree contains paths outside this reviewed repair" };

@@ -153,7 +153,7 @@ export default async function AdminRevenuePage() {
     <>
       <AdminPageHeader
         title="Revenue"
-        description="Recognized revenue includes only provider-verified payments and charges."
+        description="Recognised revenue includes only provider-verified payments and charges."
         meta={
           <span>
             Generated {new Date().toLocaleString("en-GB")} ·{" "}
@@ -165,7 +165,7 @@ export default async function AdminRevenuePage() {
       <div className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent">
         <MetricCard label="Total revenue" value={`£${totalRevenue.toLocaleString()}`} accent="bg-premium-gold-500" />
         <MetricCard
-          label="Recognized charges"
+          label="Recognised charges"
           value={paymentTotals._count + chargeTotals._count}
           accent="bg-neon-blue-500"
         />
@@ -189,7 +189,7 @@ export default async function AdminRevenuePage() {
             Unresolved checkout activity
           </h2>
           <p className="mb-3 text-xs text-text-secondary">
-            These attempts are not recognized revenue until verified
+            These attempts are not recognised revenue until verified
             reconciliation completes.
           </p>
           <AdminTable minWidth="wide">
@@ -236,10 +236,10 @@ export default async function AdminRevenuePage() {
         </section>
       ) : null}
 
-      {/* Recognized payments */}
+      {/* Recognised payments */}
       <section aria-labelledby="recent-payments-heading">
         <h2 id="recent-payments-heading" className="mb-3 text-sm font-semibold text-text-primary">
-          Recognized listing payments
+          Recognised listing payments
         </h2>
         <AdminTable minWidth="wide">
           <TableHeader>
@@ -289,7 +289,7 @@ export default async function AdminRevenuePage() {
             ))}
             {payments.length === 0 ? (
               <TableRow>
-                <AdminTableEmpty colSpan={6}>No verified payments have been recognized yet.</AdminTableEmpty>
+                <AdminTableEmpty colSpan={6}>No verified payments have been recognised yet.</AdminTableEmpty>
               </TableRow>
             ) : null}
           </TableBody>
