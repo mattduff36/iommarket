@@ -28,9 +28,9 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, downloadFallback, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, header, dealers = [], offlineContent, downloadFallback, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
   managedSnapshot?: boolean; connectionLost?: boolean;
-  dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
+  dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode; header?: ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [now, setNow] = useState(initialNow);
@@ -102,6 +102,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
     <div ref={viewport.ref} style={{ height: viewport.height }} className={online ? "flex min-h-0 flex-col" : undefined}>
     <div data-stock-worker-content="" style={online ? { containerType: "size" } : undefined} className={online ? "min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain pr-2 pb-6" : "space-y-8"}>
+    {header}
     {!online ? offlineContent : null}
     <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
