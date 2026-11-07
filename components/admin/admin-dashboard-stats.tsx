@@ -42,7 +42,7 @@ export function buildAdminDashboardStats(
       iconClassName: "text-neon-blue-400/60",
     },
     {
-      label: "Live Listings",
+      label: "Public Listings",
       value: (input.livePrivateListings + input.liveDealerListings).toLocaleString("en-GB"),
       hint: `Private: ${input.livePrivateListings.toLocaleString("en-GB")} · Dealer: ${input.liveDealerListings.toLocaleString("en-GB")}`,
       icon: CheckCircle,

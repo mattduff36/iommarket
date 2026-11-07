@@ -4,7 +4,8 @@ import type { Metadata } from "next";
 import Link from "@/components/navigation/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { expireStaleLiveListings, liveListingWhere } from "@/lib/listings/expiry";
+import { expireStaleLiveListings } from "@/lib/listings/expiry";
+import { marketplaceListingWhere } from "@/lib/listings/marketplace";
 import {
   applySampleDealerVisibility,
   applySampleListingVisibility,
@@ -56,7 +57,8 @@ export default async function AdminDashboardPage() {
 
   const now = new Date();
   const sampleVisibility = await getSampleVisibility();
-  const liveWhere = applySampleListingVisibility(liveListingWhere(now), sampleVisibility);
+  // Count the public visitor view, including seller eligibility but no admin preview packs.
+  const publicWhere = marketplaceListingWhere({ viewer: null, now, sampleVisibility });
   const catalogWhere = applySampleListingVisibility({}, sampleVisibility);
   const dealerWhere = applySampleDealerVisibility({}, sampleVisibility);
   const userWhere = applySampleUserVisibility({}, sampleVisibility);
@@ -99,7 +101,7 @@ export default async function AdminDashboardPage() {
     recentPaymentsList,
     tradeQueue,
   ] = await Promise.all([
-    db.listing.count({ where: { AND: [liveWhere, { dealerId: null }] } }),
+    db.listing.count({ where: { AND: [publicWhere, { dealerId: null }] } }),
     db.listing.count({
       where: applySampleListingVisibility(
         {
@@ -111,7 +113,7 @@ export default async function AdminDashboardPage() {
         sampleVisibility,
       ),
     }),
-    db.listing.count({ where: { AND: [liveWhere, { dealerId: { not: null } }] } }),
+    db.listing.count({ where: { AND: [publicWhere, { dealerId: { not: null } }] } }),
     db.dealerProfile.count({ where: dealerWhere }),
     db.dealerProfile.count({
       where: applySampleDealerVisibility({ verified: true }, sampleVisibility),

@@ -41,19 +41,29 @@ describe("dashboard recognised revenue", () => {
   });
 });
 
-describe("dashboard live listing breakdown", () => {
-  it("counts private and dealer listings using the same live and expiry filters", async () => {
+describe("dashboard public listing breakdown", () => {
+  it("counts private and dealer listings using public marketplace visibility", async () => {
     mocks.listingCount.mockImplementation(async ({ where }) => {
       if (where.AND?.some((part: { dealerId?: unknown }) => part.dealerId === null)) return 7;
       if (where.AND?.some((part: { dealerId?: { not?: unknown } }) => part.dealerId?.not === null)) return 11;
       return 40; // Other queue/catalog counts must not enter the Live Listings total.
     });
     const page = await Page();
-    const stat = findStats(page)!.stats.find((entry) => entry.label === "Live Listings")!;
+    const stat = findStats(page)!.stats.find((entry) => entry.label === "Public Listings")!;
     expect(stat.value).toBe("18");
     expect(stat.hint).toBe("Private: 7 · Dealer: 11");
     const liveFilter = { status: "LIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: new Date("2026-11-04T12:00:00Z") } }] };
-    const visibleLiveFilter = expect.objectContaining({ AND: expect.arrayContaining([liveFilter]) });
+    const publicFilter = expect.objectContaining({ AND: expect.arrayContaining([
+      liveFilter,
+      expect.objectContaining({
+        user: { disabledAt: null, deletedAt: null },
+        OR: expect.arrayContaining([
+          { dealerId: null },
+          { dealer: { is: expect.objectContaining({ AND: expect.arrayContaining([expect.objectContaining({ subscriptions: expect.any(Object), isAdminPreview: false })]) }) } },
+        ]),
+      }),
+    ]) });
+    const visibleLiveFilter = expect.objectContaining({ AND: expect.arrayContaining([publicFilter]) });
     expect(mocks.listingCount).toHaveBeenCalledWith({ where: { AND: [visibleLiveFilter, { dealerId: null }] } });
     expect(mocks.listingCount).toHaveBeenCalledWith({ where: { AND: [visibleLiveFilter, { dealerId: { not: null } }] } });
     expect(mocks.listingCount.mock.calls[0][0].where.AND[0]).toEqual(mocks.listingCount.mock.calls[2][0].where.AND[0]);
