@@ -112,7 +112,7 @@ export async function deleteSavedSearch(input: { savedSearchId: string }) {
     where: { id: parsed.data.savedSearchId },
     select: { userId: true },
   });
-  if (!existing || existing.userId !== user.id) return { error: "Not authorized" };
+  if (!existing || existing.userId !== user.id) return { error: "Not authorised" };
 
   await db.savedSearch.delete({ where: { id: parsed.data.savedSearchId } });
   revalidatePath("/account/saved-searches");

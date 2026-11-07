@@ -17,6 +17,7 @@ import {
 } from "@/lib/forms/action-error";
 import { emailField } from "@/lib/validations/email";
 import { getSafeNextPath } from "@/lib/auth/return-path";
+import { signInDiagnostics, type ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 
 function getDealerTierIntent(value: unknown): "STARTER" | "PRO" | null {
   if (value === "STARTER" || value === "PRO") return value;
@@ -33,12 +34,14 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ClientDiagnostics>();
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setDiagnostics(undefined);
     const nextErrors: FieldErrors = {};
     const parsedEmail = emailField.safeParse(email);
     if (!parsedEmail.success) {
@@ -62,6 +65,7 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
         password,
       });
       if (err) {
+        setDiagnostics(signInDiagnostics(err));
         setError(
           publicAuthErrorMessage(
             err.message,
@@ -121,7 +125,7 @@ export function SignInForm({ adminOnly = false }: { adminOnly?: boolean }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="mx-auto w-full max-w-sm space-y-4">
-      <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} />
+      <FormErrorSummary messages={uniqueErrorMessages(fieldErrors, error)} diagnostics={diagnostics} />
       <Input
         label="Email"
         type="email"

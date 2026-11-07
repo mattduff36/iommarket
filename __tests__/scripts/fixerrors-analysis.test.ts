@@ -307,7 +307,7 @@ describe("queue status reporting", () => {
     const counts = { OPEN: 2, ACKNOWLEDGED: 5, MUTED: 1, RESOLVED: 8 };
     const openIssue = makeIssue({ id: "open-only" });
     const report = generateAnalysisReport([openIssue], [], [], null, [], counts);
-    expect(report).toContain(`> **Queue statuses:** ${formatQueueStatusCounts(counts)} (export and mutation scope is OPEN only)`);
+    expect(report).toContain(`> **Queue statuses:** ${formatQueueStatusCounts(counts)} (export includes OPEN and ACKNOWLEDGED)`);
     expect(report).toContain("### open-only");
     expect(report).not.toContain("### acknowledged-hidden");
   });

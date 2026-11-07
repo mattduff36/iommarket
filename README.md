@@ -143,7 +143,7 @@ See `docs/payments/ripple-migration.md` for the current provider assumptions, ev
 
 | Event | Action |
 |-------|--------|
-| `payment.received` | Fulfill a referenced one-off, or initialize a recurring dealer subscription and first charge |
+| `payment.received` | Fulfil a referenced one-off, or initialise a recurring dealer subscription and first charge |
 | `payment.success` | Record one renewal charge and extend the paid period |
 | `payment.failed` | Mark the matched subscription past due without extending access |
 | `subscription.created` | Associate or create incomplete state only; never grant access |
@@ -152,7 +152,7 @@ See `docs/payments/ripple-migration.md` for the current provider assumptions, ev
 
 ### Featured Upgrade
 
-Live listings can be upgraded to Featured through the fixed £5.00 Ripple payment link. Admin Site Settings must match that amount or checkout and fulfillment fail closed.
+Live listings can be upgraded to Featured through the fixed £5.00 Ripple payment link. Admin Site Settings must match that amount or checkout and fulfilment fail closed.
 
 ### Dealer Subscriptions
 

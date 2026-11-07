@@ -43,7 +43,7 @@ Both sides returned 1,365 fingerprint lines. The only unpaired lines were two mi
 - `20260930200000_preview_review_metadata`: production `5daedeb41f5b97e79dbb4173351468e53ab87114a5e6ca89073cf35211e923c2` is the git file with LF. Development `aa54297ba0b2c50f6b0f8410d8713c839c78bbe0230788b16479982cf33db91c` is the same file with CRLF.
 - `20260929213000_signup_rate_limit`: production `8e0ea07ee41a42a306888ba2e42a2b7ea23653be597e43c925e97078944cae94` is the committed file with CRLF, applied 2026-09-30T01:16:03Z. Development `ba8cad568a90f446450ad3d25bc850c404317b861875f28c4eae83946918f99b` was applied earlier, 2026-09-29T21:32:06Z, and matches neither the current LF nor CRLF file. `_prisma_migrations.logs` is null, so the older script text is not stored.
 
-Columns, defaults, primary/unique/foreign keys, enums, indexes, triggers, and row-level-security flags match. No fingerprint entries were outside the copy catalog. Production-only `itrader_staging_reader_select` policies are operational reader policies and are not part of this fingerprint. Inspection compared migration names and column signatures, so it could pass while preparation hashed checksum bytes.
+Columns, defaults, primary/unique/foreign keys, enums, indexes, triggers, and row-level-security flags match. No fingerprint entries were outside the copy catalogue. Production-only `itrader_staging_reader_select` policies are operational reader policies and are not part of this fingerprint. Inspection compared migration names and column signatures, so it could pass while preparation hashed checksum bytes.
 
 Code correction: `schemaCompatibility()` is now used by both inspection and preparation. It still requires column, default, constraint, enum, and migration-name equality, and it reports the differing lines. It does not compare checksum bytes. The stored plan/backup hash still uses the unchanged fingerprint SQL, so existing backup hashes were not rewritten. The 02:05 plan still contains the old blocker; prepare a fresh preview after the staging deploy. A real column or migration-name difference still blocks.
 
@@ -61,7 +61,7 @@ Production project `snlqivvogfqesxpbjiei` has the reviewed private schema `itrad
 
 Preview deployment `dpl_85xTFxFLtk3DsLwtUMsGXeACmGjC` is READY. Commit `47256d4fe3d32b53450cc76bd8394b4a99ffddff`, branch `staging`, ready at 2026-10-05T01:01:01.316Z. `itrader.dev` points to that deployment, and its build and runtime environment include `DATABASE_SYNC_AUTH_SOURCE_MODE`. No Merge, Replace, Reset, or Restore was applied.
 
-Nothing is blocked in the authorized setup. Unverified until the manual test: source inspection, merge-plan counts and blockers, and any later apply or restore on the shared development database.
+Nothing is blocked in the authorised setup. Unverified until the manual test: source inspection, merge-plan counts and blockers, and any later apply or restore on the shared development database.
 
 Checkpoint after the isolated PostgreSQL repair and before any staging deploy. This is the production-to-development database merge, not the staging-to-main code release.
 
@@ -154,7 +154,7 @@ This explains that recorded attempt only. It does not identify the discarded exc
 
 ## Production USAGE grant
 
-Authorized statement, and the only statement intended to change privileges:
+Authorised statement, and the only statement intended to change privileges:
 
 `GRANT USAGE ON SCHEMA auth TO itrader_staging_reader`
 
@@ -178,7 +178,7 @@ The statement was executed twice. Neither changed the access list. The instrumen
 | superuser, `BYPASSRLS`, createrole, createdb, replication | absent | unchanged |
 | inherit | off | unchanged |
 
-No other grant, RLS policy, password, or role membership was changed. The deployed reader `LIMIT 0` probe was not run: `DATABASE_SYNC_SOURCE_READONLY_URL` is not in the local env files and was not decrypted. The catalog result is not that reader probe.
+No other grant, RLS policy, password, or role membership was changed. The deployed reader `LIMIT 0` probe was not run: `DATABASE_SYNC_SOURCE_READONLY_URL` is not in the local env files and was not decrypted. The catalogue result is not that reader probe.
 
 ## Preview after the grant attempt
 
@@ -230,11 +230,11 @@ The next gate is separate approval for the scoped production private-view provis
 
 ## Staging rollout requested - 2026-10-05T00:40:20.494Z
 
-The owner requested immediate deployment without another verification cycle. The previously tested repair has been synchronized into the staging workspace, excluding concurrent admin-profile and ImageKit edits.
+The owner requested immediate deployment without another verification cycle. The previously tested repair has been synchronised into the staging workspace, excluding concurrent admin-profile and ImageKit edits.
 
 The remote tool blocked creation of the production-export provisioning runner before it executed. No production SQL or grants ran, and the private export is NOT installed. This denial was not retried through another tool. The staging code rollout is proceeding independently. DATABASE_SYNC_AUTH_SOURCE_MODE remains its existing default (direct); private-views is not enabled before its required production objects exist. The auth-schema access blocker therefore remains.
 
-No data Merge, Replace, Reset or Restore is authorized or performed by this deployment. No additional integration tests or signed-in Merge preview were run. Deployment result will be appended after Vercel completes.
+No data Merge, Replace, Reset or Restore is authorised or performed by this deployment. No additional integration tests or signed-in Merge preview were run. Deployment result will be appended after Vercel completes.
 
 
 ## Live staging deployment outcome - 2026-10-05T00:47:53.322Z

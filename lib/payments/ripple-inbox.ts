@@ -291,6 +291,10 @@ export async function processRippleInboxRecord(inboxId: string) {
         inboxId: inbox.id,
         eventType: inbox.eventType,
         errorCode: code,
+        attemptNumber: claimedAttempt,
+        receiptAgeMs: inbox.createdAt instanceof Date && Number.isFinite(inbox.createdAt.getTime())
+          ? Math.max(0, Date.now() - inbox.createdAt.getTime()) : undefined,
+        processingState: quarantined ? "QUARANTINED" : "FAILED",
       }),
     });
     return { status: quarantined ? "quarantined" as const : "failed" as const };

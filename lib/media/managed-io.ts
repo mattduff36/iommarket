@@ -103,7 +103,7 @@ export async function downloadManagedImageKitBytes(input: {
 export async function uploadImmutableManagedImage(input: { filePath: string; bytes: Buffer } & Options) {
   const env = input.env ?? process.env;
   const parsed = assertManagedMediaMutation(input.filePath, env);
-  if (parsed.kind !== "listings" && parsed.kind !== "imports") throw new Error("Sanitized images must use the managed listing namespace.");
+  if (parsed.kind !== "listings" && parsed.kind !== "imports") throw new Error("Sanitised images must use the managed listing namespace.");
   if (!input.bytes.length || input.bytes.length > IMAGE_CONSTRAINTS.maxFileSizeBytes) throw new Error("Image file size is invalid.");
   const fetchImpl = input.fetchImpl ?? fetch;
   let observed = await findManagedFileByPath(input);
@@ -138,7 +138,7 @@ export async function uploadImmutableManagedImage(input: { filePath: string; byt
   await requireManagedFileDetails({ fileId: observed.fileId, filePath: input.filePath, env, fetchImpl });
   const stored = await downloadManagedImageKitBytes({ filePath: input.filePath, env, fetchImpl });
   const sha = (value: Buffer) => createHash("sha256").update(value).digest("hex");
-  if (sha(stored) !== sha(input.bytes)) throw new Error("The immutable ImageKit file does not match the sanitized upload.");
+  if (sha(stored) !== sha(input.bytes)) throw new Error("The immutable ImageKit file does not match the sanitised upload.");
   return observed;
 }
 

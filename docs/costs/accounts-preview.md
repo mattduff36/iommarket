@@ -40,7 +40,7 @@ Preview configuration deliberately fails closed if copied to production. Product
 
 Set `COST_DASHBOARD_SOURCE` to the exact value `accounts` to show that page, including on a canonical production deployment. `COST_LEDGER_ROLE=accounts-reader` still selects it through the existing reader check. Any other value, including unset, spaced, or differently cased text, keeps the existing ledger selector. That dashboard flag does not change deployment sync or cron; the exact reader role below does.
 
-Admin authorization and `COSTS_ENABLED` still run first. A disabled costs page stays the legacy disabled dashboard. When the Accounts page is selected and Accounts cannot be read, the page shows the existing unavailable state and does not fall back to the local ledger. The Accounts read still needs `COST_ACCOUNTS_READ_TOKEN`; do not print or commit that token. Setting the dashboard source does not by itself approve a production cutover.
+Admin authorisation and `COSTS_ENABLED` still run first. A disabled costs page stays the legacy disabled dashboard. When the Accounts page is selected and Accounts cannot be read, the page shows the existing unavailable state and does not fall back to the local ledger. The Accounts read still needs `COST_ACCOUNTS_READ_TOKEN`; do not print or commit that token. Setting the dashboard source does not by itself approve a production cutover.
 
 ## Read-only Accounts role
 

@@ -280,6 +280,7 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     inboxFindMany.mockResolvedValue([{ id: "inbox-2" }]);
     inboxFindUnique.mockResolvedValue({
       id: "inbox-2",
+      createdAt: new Date(Date.now() - 5000),
       status: "FAILED",
       attemptCount: 0,
       customerEmailNorm: null,
@@ -295,6 +296,7 @@ describe("RIP-TXN-001 webhook inbox recovery", () => {
     expect(captureBusinessEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         message: "A verified Ripple webhook could not be applied (WEBHOOK_PROCESS).",
+        tags: expect.objectContaining({ attemptNumber: "1", processingState: "FAILED", receiptAgeMs: expect.stringMatching(/^\d+$/) }),
       }),
     );
     await expect(retryFailedRippleWebhooks()).resolves.toEqual({

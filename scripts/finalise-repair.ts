@@ -28,7 +28,7 @@ function main() {
   }
   const ageMs = Date.now() - Date.parse(artifact.createdAt);
   if (ageMs < 0 || ageMs > MAX_ARTIFACT_AGE_MS) {
-    fail("failure artifact is stale");
+    fail("failure artefact is stale");
   }
   const repair = getFinaliseRepairCommand(artifact.failedStep);
   if (!repair) {

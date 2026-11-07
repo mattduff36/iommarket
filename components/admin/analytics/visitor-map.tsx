@@ -13,6 +13,7 @@ import { VisitorMapFrame } from "@/components/admin/analytics/visitor-map-frame"
 import type { VisitorMapPoint } from "@/components/admin/analytics/visitor-map-point";
 import { ISLE_OF_MAN_CENTER, defaultVisitorMapBounds } from "@/components/admin/analytics/visitor-map-view";
 import { cn } from "@/lib/cn";
+import { sendClientMonitoringEvent } from "@/lib/monitoring/client-ingest";
 
 const DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const LIGHT_STYLE = "https://tiles.openfreemap.org/styles/positron";
@@ -62,11 +63,13 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
     const container = containerRef.current;
     if (!container) return;
     let ready = false;
+    let reportedError = false;
     const theme = document.documentElement.getAttribute("data-theme");
     // Turbopack cannot preserve MapLibre's worker-relative import.meta.url
     // lookup. Use the same-origin copy prepared from the installed package.
     setWorkerUrl(WORKER_URL);
-    const map = new MapLibreMap({
+    let map: MapLibreMap;
+    try { map = new MapLibreMap({
       container,
       style: theme === "light" ? LIGHT_STYLE : DARK_STYLE,
       center: ISLE_OF_MAN_CENTER,
@@ -74,7 +77,12 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
       cooperativeGestures: true,
       dragRotate: false,
       pitchWithRotate: false,
-    });
+    }); } catch (error) {
+      setState("error");
+      void sendClientMonitoringEvent({ message: "Analytics map initialisation failed", component: "visitor-map",
+        stack: error instanceof Error ? error.stack : undefined, tags: { stage: "map-initialisation" } });
+      return;
+    }
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     const popup = new Popup({
       closeButton: false,
@@ -106,7 +114,12 @@ export function VisitorMap({ points }: { points: VisitorMapPoint[] }) {
     };
     const onError = (event: { error?: { message?: string } }) => {
       const message = event.error?.message ?? "";
-      if (!ready && /style|ajax|fetch|network|failed/i.test(message)) setState("error");
+      if (!ready && !reportedError && /style|ajax|fetch|network|failed/i.test(message)) {
+        reportedError = true;
+        setState("error");
+        void sendClientMonitoringEvent({ message: "Analytics map resource failed", component: "visitor-map",
+          tags: { stage: /worker/i.test(message) ? "map-worker" : "map-style-or-network" } });
+      }
     };
 
     map.on("load", onLoad);

@@ -17,7 +17,7 @@ import { decodeMonitoringCursor, encodeMonitoringCursor } from "@/lib/monitoring
 
 export const metadata: Metadata = { title: "Monitoring | Admin" };
 
-const STATUS_OPTIONS = ["OPEN", "ACKNOWLEDGED", "MUTED", "RESOLVED"] as const;
+const STATUS_OPTIONS = ["OPEN", "ACKNOWLEDGED", "MUTED", "RESOLVED", "EXPIRED"] as const;
 const SEVERITY_OPTIONS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const SOURCE_OPTIONS = ["SERVER", "CLIENT", "WEBHOOK", "BUSINESS"] as const;
 
@@ -87,13 +87,13 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
       : []),
   ];
   const where: Prisma.MonitoringIssueWhereInput = {
-    ...(status ? { status } : {}),
+    ...(status ? { status } : { status: { in: ["OPEN", "ACKNOWLEDGED"] as (typeof STATUS_OPTIONS)[number][] } }),
     ...(severity ? { severity } : {}),
     ...(source ? { source } : {}),
     ...(constraints.length > 0 ? { AND: constraints } : {}),
   };
 
-  const [pageIssues, openCount, criticalOpenCount, recentEvents, previousEvents, recurringCount, failedDeliveries, unresolvedFailedAlerts, failedAlertBatch, health] = await Promise.all([
+  const [pageIssues, unresolvedCount, criticalOpenCount, recentEvents, previousEvents, recurringCount, failedDeliveries, unresolvedFailedAlerts, failedAlertBatch, health] = await Promise.all([
     db.monitoringIssue.findMany({
       where,
       orderBy: [{ lastSeenAt: "desc" }, { id: "desc" }],
@@ -116,7 +116,7 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
         },
       },
     }),
-    db.monitoringIssue.count({ where: { status: "OPEN" } }),
+    db.monitoringIssue.count({ where: { status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
     db.monitoringIssue.count({
       where: { status: { in: ["OPEN", "ACKNOWLEDGED"] }, severity: "CRITICAL" },
     }),
@@ -154,12 +154,12 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
     <>
       <AdminPageHeader
         title="Monitoring"
-        description="Centralized error and anomaly triage for production and staging issues."
+        description="Centralised error and anomaly triage for production and staging issues."
       />
 
       <MonitoringHealthSummary
         health={health}
-        openCount={openCount}
+        unresolvedCount={unresolvedCount}
         criticalCount={criticalOpenCount}
         recentEvents={recentEvents}
         previousEvents={previousEvents}
@@ -198,7 +198,7 @@ export default async function AdminMonitoringPage({ searchParams }: Props) {
             href={buildFilterHref({ q })}
             active={!status && !severity && !source}
           >
-            All
+            Unresolved
           </AdminFilterChip>
           {STATUS_OPTIONS.map((option) => (
             <AdminFilterChip

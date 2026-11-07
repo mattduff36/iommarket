@@ -1600,7 +1600,7 @@ This work is primarily presentation and component architecture.
 Do not change:
 
 - authentication security
-- authorization
+- authorisation
 - entitlement calculations
 - subscription rules
 - dealer lifecycle rules

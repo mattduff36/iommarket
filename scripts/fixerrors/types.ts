@@ -1,12 +1,12 @@
 export const FIXERRORS_COMMAND_ID = "fixerrors" as const;
-export const FIXERRORS_SAFETY_CONTRACT = "fixerrors-open-issues-v3";
+export const FIXERRORS_SAFETY_CONTRACT = "fixerrors-unresolved-issues-v4";
 export const FIXERRORS_SNAPSHOT_VERSION = 2;
 export const ERROR_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 export const EVENTS_PER_ISSUE = 10;
 
-export type MonitoringIssueStatus = "OPEN" | "ACKNOWLEDGED" | "MUTED" | "RESOLVED";
+export type MonitoringIssueStatus = "OPEN" | "ACKNOWLEDGED" | "MUTED" | "RESOLVED" | "EXPIRED";
 
-export type QueueStatusCounts = Record<MonitoringIssueStatus, number>;
+export type QueueStatusCounts = Record<Exclude<MonitoringIssueStatus, "EXPIRED">, number> & { EXPIRED?: number };
 export type ErrorClusterLane = "fast" | "standard" | "guarded" | "critical" | "report-only";
 export type ErrorClusterAction = "fix" | "investigate" | "report-only" | "critical-gates";
 
@@ -29,6 +29,8 @@ export type SnapshotEvent = {
   requestPath: string | null;
   digest?: string | null;
   traceId?: string | null;
+  evidence?: Record<string, string | number | boolean>;
+  requests?: import("@/lib/monitoring/request-diagnostics").RequestDiagnostic[];
   occurredAt: string;
 };
 
@@ -36,7 +38,8 @@ export type SnapshotIssue = {
   id: string;
   fingerprint: string;
   title: string;
-  status: "OPEN";
+  status: "OPEN" | "ACKNOWLEDGED";
+  investigation?: unknown;
   severity: string;
   source: string;
   lastSeenAt: string;

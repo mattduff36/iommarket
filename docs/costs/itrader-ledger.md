@@ -1,6 +1,6 @@
 # iTrader ledger
 
-The production behavior below remains unchanged. The isolated Accounts preview described in [accounts-preview.md](./accounts-preview.md) overrides the older preview-to-live proxy setup only when `COST_LEDGER_ROLE=accounts-preview`. It is a test environment, not a production cutover.
+The production behaviour below remains unchanged. The isolated Accounts preview described in [accounts-preview.md](./accounts-preview.md) overrides the older preview-to-live proxy setup only when `COST_LEDGER_ROLE=accounts-preview`. It is a test environment, not a production cutover.
 
 The canonical ledger stays in the production Postgres database. Live and preview admin pages read it through `/api/internal/cost-ledger`. Preview does not open that database directly. A deployment is the writer only when `COST_LEDGER_ROLE=canonical` and, on Vercel, `VERCEL_PROJECT_ID` matches `COST_CANONICAL_VERCEL_PROJECT_ID`. `VERCEL_ENV` is not that signal, because a staging site can be another project's production deployment.
 
@@ -8,7 +8,7 @@ Cursor client charges are 60% of included nominal value plus 110% of reported on
 
 Vercel hosting can include every project id in `COST_VERCEL_PROJECT_ID`, `COST_VERCEL_PREVIEW_PROJECT_ID` and `COST_VERCEL_PROJECT_IDS`. A marketplace database resource is counted once. Untagged team-level FOCUS rows are ignored by default because they cannot be attributed to iTrader; `COST_FOCUS_UNTAGGED_POLICY=shared` explicitly enables equal allocation, while `unresolved` quarantines them for investigation. Supabase lines missing from FOCUS are entered once as Database manual costs.
 
-Local collection writes the sanitized account event stream and upload outbox to SQLite outside the repository, while uploading only iTrader-attributed events. The provider response does not currently expose a verified account billing-cycle/pool observation, so allowance updates remain a manual import until those fields are available. The former tracked rolling usage file has been removed. Collection failure does not block commit or `/fap`.
+Local collection writes the sanitised account event stream and upload outbox to SQLite outside the repository, while uploading only iTrader-attributed events. The provider response does not currently expose a verified account billing-cycle/pool observation, so allowance updates remain a manual import until those fields are available. The former tracked rolling usage file has been removed. Collection failure does not block commit or `/fap`.
 
 The migration `prisma/migrations/20260926190000_cost_cursor_client_policy` is prepared and not applied. `npm run cost:cursor-reconcile` prints a dry-run reprice report and does not write. Ingestion refuses a day that still has an unreversed `cursor:subscription:` line, preventing old subscription allocation and new request charging from being billed together.
 

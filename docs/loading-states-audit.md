@@ -15,10 +15,10 @@
 
 1. Use the supported Next Link `onNavigate` callback and React transitions, retaining Next prefetch, cancellation, new-tab, external-link and download behaviour. Shared Link and router adapters provide immediate feedback for existing navigation call sites. No Next internals, history patching, global click interception or extra network request.
 2. Keep headers and navigation visible. Hide and make old content inert during cross-path navigation while a destination-shaped skeleton appears. Keep children mounted so pending navigation does not destroy local state. Within account/admin areas retain the sidebar; conceal the entire private area on sign-out or when leaving it.
-3. Add inherited route loading boundaries for every page, with more specific cards, detail, form and table variants. Stream account/dealer chrome within Suspense; keep admin children behind the existing server authorization check within Suspense.
+3. Add inherited route loading boundaries for every page, with more specific cards, detail, form and table variants. Stream account/dealer chrome within Suspense; keep admin children behind the existing server authorisation check within Suspense.
 4. Keep same-path query updates visible with a small updating indicator. Keep existing local operation indicators, add waiting spinners to signup/payment confirmation and a lazy editor fallback. Reduced-motion settings stop new skeleton/spinner animation.
 5. Conceal private content before starting sign-out. Handle returned and thrown auth errors. On success, navigate to sign-in as a fresh document to discard cached private server content. Never restore private content on a successful sign-out timeout; provide a safe sign-in recovery link.
-6. Use a mild 25% black / 2px blur backdrop for burger/account/admin navigation sheets. Keep ordinary dropdowns lightweight and preserve dialog focus/escape handling.
+6. Use a mild 25% black / 2px blur backdrop for burger/account/admin navigation sheets. Keep ordinary dropdowns lightweight and preserve dialogue focus/escape handling.
 
 ## Route coverage
 
@@ -28,10 +28,10 @@
 | Search, categories, dealers | Card skeleton; same-path filter changes retain controls and show updating status |
 | Listing and dealer detail | Detail skeleton for navigation; listing route boundary |
 | Sign-in, signup, password reset | Form skeleton; existing button pending state |
-| Account and dealer, including trade | Table skeleton plus Suspense for account chrome; existing authorization retained |
+| Account and dealer, including trade | Table skeleton plus Suspense for account chrome; existing authorisation retained |
 | Sell, checkout, pay | Form skeleton; existing mutations/payment state machines retained |
 | Payment return | Page skeleton; existing explicit confirmation copy plus local spinner |
-| Admin and nested pages | Table skeleton, streamed authorization gate, persistent header/sidebar |
+| Admin and nested pages | Table skeleton, streamed authorisation gate, persistent header/sidebar |
 | Staging access, early access, sample checkout | Form skeleton; existing form pending state |
 | Holding and UI demo | Root inherited fallback; static content requires no artificial wait |
 

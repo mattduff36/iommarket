@@ -12,6 +12,9 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { redactFreeText, redactStack } from "@/lib/monitoring/redact";
+import { safeEventEvidence } from "./evidence";
+import { safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
+import { readInvestigation } from "@/lib/monitoring/investigation";
 import {
   ERROR_SNAPSHOT_MAX_AGE_MS,
   EVENTS_PER_ISSUE,
@@ -72,7 +75,7 @@ export function writeAndVerifyTextArtifactAtomic(path: string, content: string):
   }
   const readBack = readFileSync(path, "utf8");
   if (readBack !== content) {
-    throw new Error(`Failed to verify artifact at ${path}`);
+    throw new Error(`Failed to verify artefact at ${path}`);
   }
 }
 
@@ -119,7 +122,7 @@ export function verifySnapshot(snapshot: OpenIssueSnapshot): OpenIssueSnapshot {
   if (snapshot.commandId !== FIXERRORS_COMMAND_ID) {
     throw new Error("Snapshot command id mismatch");
   }
-  if (snapshot.safetyContract !== FIXERRORS_SAFETY_CONTRACT) {
+  if (![FIXERRORS_SAFETY_CONTRACT, "fixerrors-open-issues-v3"].includes(snapshot.safetyContract)) {
     throw new Error("Snapshot safety contract mismatch");
   }
   if (!/^[a-f0-9]{64}$/u.test(snapshot.checksum) || !/^[a-f0-9]{64}$/u.test(snapshot.manifestChecksum)) {
@@ -149,6 +152,7 @@ export function assertSnapshotUsable(
   now = new Date(),
 ): void {
   verifySnapshot(snapshot);
+  if (snapshot.safetyContract !== FIXERRORS_SAFETY_CONTRACT) throw new Error("Re-export using the current unresolved-issue safety contract before changing statuses");
   if (snapshot.databaseTargetFingerprint !== expectedTarget) {
     throw new Error("Snapshot belongs to a different database target");
   }
@@ -158,14 +162,15 @@ export function assertSnapshotUsable(
 }
 
 function normalizeIssue(row: Record<string, unknown>, events: SnapshotEvent[]): SnapshotIssue {
-  if (row.status !== "OPEN") {
-    throw new Error("Snapshot export included a non-OPEN issue");
+  if (row.status !== "OPEN" && row.status !== "ACKNOWLEDGED") {
+    throw new Error("Snapshot export included a terminal or muted issue");
   }
   return {
     id: String(row.id),
     fingerprint: String(row.fingerprint),
     title: redactFreeText(String(row.title ?? "")),
-    status: "OPEN",
+    status: row.status,
+    investigation: readInvestigation(row.investigation),
     severity: String(row.severity),
     source: String(row.source),
     lastSeenAt: toPreciseIso(row.lastSeenAt, "lastSeenAt"),
@@ -192,6 +197,8 @@ function normalizeEvent(row: Record<string, unknown>): SnapshotEvent {
     requestPath: row.requestPath == null ? null : redactFreeText(String(row.requestPath)),
     digest: safeCorrelationValue(row.digest),
     traceId: safeCorrelationValue(row.traceId),
+    evidence: safeEventEvidence(row),
+    requests: safeRequestDiagnostics(row.requests),
     occurredAt: toPreciseIso(row.occurredAt, "occurredAt"),
   };
 }
@@ -201,6 +208,7 @@ const QUEUE_STATUS_COUNTS: QueueStatusCounts = {
   ACKNOWLEDGED: 0,
   MUTED: 0,
   RESOLVED: 0,
+  EXPIRED: 0,
 };
 
 function normalizeQueueStatusCounts(rows: Array<Record<string, unknown>>): QueueStatusCounts {
@@ -209,7 +217,7 @@ function normalizeQueueStatusCounts(rows: Array<Record<string, unknown>>): Queue
     const status = String(row.status);
     const count = Number(row.count);
     if (
-      (status === "OPEN" || status === "ACKNOWLEDGED" || status === "MUTED" || status === "RESOLVED")
+      (status === "OPEN" || status === "ACKNOWLEDGED" || status === "MUTED" || status === "RESOLVED" || status === "EXPIRED")
       && Number.isInteger(count)
       && count >= 0
     ) {
@@ -232,9 +240,9 @@ export async function fetchOpenIssueSnapshot(
       `SELECT id, fingerprint, title, status, severity, source,
               to_char("lastSeenAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
               occurrences,
-              "sampleMessage", "sampleRoute", "sampleAction", "sampleComponent"
+              "sampleMessage", "sampleRoute", "sampleAction", "sampleComponent", to_jsonb("MonitoringIssue")->'investigation' AS investigation
        FROM "MonitoringIssue"
-       WHERE status = 'OPEN'
+       WHERE status IN ('OPEN', 'ACKNOWLEDGED')
        ORDER BY severity DESC, "lastSeenAt" DESC, id ASC`,
     );
     const issueIds = issuesResult.rows.map((row) => String(row.id));
@@ -244,13 +252,24 @@ export async function fetchOpenIssueSnapshot(
         `WITH ranked_events AS (
            SELECT id, "issueId", source, severity, environment, message, stack, route, action,
                   component, "requestPath", tags->>'digest' AS digest,
-                  tags->>'traceId' AS "traceId", "occurredAt",
+                  tags->>'traceId' AS "traceId", "requestId",
+                  tags->>'userAgent' AS "userAgent", tags->>'ingestRelease' AS "ingestRelease",
+                  tags->>'clientStackProvided' AS "clientStackProvided",
+                    tags->>'serverRelease' AS "serverRelease", tags->>'clientRelease' AS "clientRelease",
+                  tags->>'filename' AS filename, tags->>'line' AS line, tags->>'col' AS col,
+                  tags->>'inboxId' AS "inboxId", tags->>'attemptId' AS "attemptId", tags->>'errorCode' AS "errorCode",
+                  tags->>'rejectStage' AS "rejectStage", tags->>'envReason' AS "envReason", tags->>'ccyState' AS "ccyState",
+                  tags->>'attemptNumber' AS "attemptNumber", tags->>'receiptAgeMs' AS "receiptAgeMs", tags->>'processingState' AS "processingState",
+                  tags->>'stage' AS stage, tags->>'missingBucket' AS "missingBucket", extra->'operationFacts' AS "operationFacts",
+                  extra->'diagnostics' AS diagnostics, extra->'requests' AS requests,
+                  extra->>'displayedSupportReference' AS "displayedSupportReference", "occurredAt",
                   row_number() OVER (PARTITION BY "issueId" ORDER BY "occurredAt" DESC, id DESC) AS issue_event_rank
            FROM "MonitoringEvent"
            WHERE "issueId" = ANY($1::text[])
          )
          SELECT id, "issueId", source, severity, environment, message, stack, route, action,
-                component, "requestPath", digest, "traceId",
+                component, "requestPath", digest, "traceId", "requestId", "userAgent",
+                "ingestRelease", "serverRelease", "clientRelease", "clientStackProvided", filename, line, col, "inboxId", "attemptId", "errorCode", "rejectStage", "envReason", "ccyState", "attemptNumber", "receiptAgeMs", "processingState", stage, "missingBucket", "operationFacts", diagnostics, requests, "displayedSupportReference",
                 to_char("occurredAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt"
          FROM ranked_events
          WHERE issue_event_rank <= $2

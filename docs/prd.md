@@ -82,7 +82,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 
 ### C) Favourite + Saved Search
 
-1. Authenticated user favorites listing from results/detail.
+1. Authenticated user favourites listing from results/detail.
 2. User saves current search filter state.
 3. User returns to profile area and re-runs saved search quickly.
 
@@ -136,7 +136,7 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
   - location attribute (Isle of Man or UK)
   - keyword
 - Filter state reflected in URLs.
-- URL strategy supports crawlability and canonical normalization.
+- URL strategy supports crawlability and canonical normalisation.
 - Results show featured style subtly.
 
 ### Listing Detail
@@ -180,14 +180,14 @@ iTrader.im solves the lack of a structured, trustworthy marketplace for high-val
 
 ### SEO
 
-- Crawlable filter URLs with canonical normalization.
+- Crawlable filter URLs with canonical normalisation.
 - Listing/detail/category pages include canonical.
 - Include `robots.txt` and sitemap generation.
 - Avoid duplicate index bloat from equivalent filter combinations.
 
 ### Performance
 
-- Optimized image delivery and reasonable sizing.
+- Optimised image delivery and reasonable sizing.
 - Server-render first page of search for crawlability, then incremental load.
 - Cache safe read-heavy queries where possible.
 
@@ -258,7 +258,7 @@ This document is the **source of truth PRD** and a **build-ready implementation 
 Build a trusted, hyper-local marketplace for the Isle of Man that starts with **vehicles** and can expand into high-value specialist categories (HiFi/Home AV, marine, musical instruments, photography gear, etc.) while keeping overhead and admin workload low.
 
 ### Goals
-- **Monetize quickly**:
+- **Monetise quickly**:
   - Private seller paid listing fee (e.g. **£4.99–£9.99** for **60 days**).
   - Dealer subscriptions (e.g. **£29.99–£49.99 / month**, unlimited listings).
   - Featured listing upgrade (e.g. **+£5**).
@@ -270,7 +270,7 @@ Build a trusted, hyper-local marketplace for the Isle of Man that starts with **
 ### Non-goals (v1, to avoid scope creep)
 - No native iOS/Android apps.
 - No real-time chat/messaging system (use **contact form/email** only).
-- No ML ranking, recommendations, or personalization.
+- No ML ranking, recommendations, or personalisation.
 - No shipping, escrow, in-app delivery, multi-currency/tax.
 - No complex dispute automation (manual resolution only).
 
@@ -364,7 +364,7 @@ Mitigations:
 #### Edge cases
 - EXPIRED listings: not returned in search/browse; direct URL shows “expired” state (or 404 if you prefer).
 - TAKEN_DOWN listings: 404 for public; visible in admin.
-- APPROVED but not LIVE: public behavior defined (recommended: treat as LIVE once approved; otherwise use LIVE state explicitly).
+- APPROVED but not LIVE: public behaviour defined (recommended: treat as LIVE once approved; otherwise use LIVE state explicitly).
 
 ### Private seller journeys
 
@@ -477,7 +477,7 @@ Mitigations:
 - Pros: simpler reads; fewer joins.
 - Cons: harder validation; indexing complexity; migrations for shared attributes.
 
-**Decision**: Use **EAV in MVP**. Revisit JSONB/dedicated columns once a category stabilizes and query patterns are known.
+**Decision**: Use **EAV in MVP**. Revisit JSONB/dedicated columns once a category stabilises and query patterns are known.
 
 ### Domain entities (minimum viable)
 - User / DealerProfile
@@ -604,11 +604,11 @@ Do **not** introduce a new UI system.
 ### Accessibility notes
 - Use `focus-visible` ring (`shadow-outline`) consistently
 - Ensure all form inputs have labels / aria-describedby for errors
-- Keyboard navigation parity for dropdowns/sliders/dialogs
+- Keyboard navigation parity for dropdowns/sliders/dialogues
 
 ---
 
-## Implementation Plan (2–6 weeks, side-hustle optimized)
+## Implementation Plan (2–6 weeks, side-hustle optimised)
 
 ### Milestone 0 (Day 1 slice)
 Goal: prove end-to-end value chain.
@@ -644,7 +644,7 @@ Goal: prove end-to-end value chain.
 - Error handling, logs, monitoring
 - Analytics integration (Plausible/PostHog)
 - SEO landing pages (category/region scaffolding)
-- Performance pass (image optimizations, caching strategy)
+- Performance pass (image optimisations, caching strategy)
 - E2E smoke tests (Playwright)
 
 ### Phase 2 improvements (explicitly not v1)

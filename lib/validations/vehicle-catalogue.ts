@@ -122,7 +122,7 @@ export const vehicleCatalogueImportSchema = metadataSchema
         context.addIssue({
           code: "custom",
           path: ["makes", makeIndex, "name"],
-          message: "Make names must be unique after normalization.",
+          message: "Make names must be unique after normalisation.",
         });
       }
       makeKeys.add(makeKey);
@@ -135,7 +135,7 @@ export const vehicleCatalogueImportSchema = metadataSchema
           context.addIssue({
             code: "custom",
             path: ["makes", makeIndex, "models", modelIndex, "name"],
-            message: "Model names must be unique per make after normalization.",
+            message: "Model names must be unique per make after normalisation.",
           });
         }
         modelKeys.add(modelKey);

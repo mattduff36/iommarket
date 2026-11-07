@@ -252,7 +252,7 @@ flowchart TD
 - `FutureGap`: `SellCheckoutRoute` is referenced as a payment cancel destination in `actions/payments.ts` (`/sell/checkout?listing=...`) but no matching route exists under `app/(public)/sell`.
 - `FutureGap`: move in-memory rate limiting (`lib/rate-limit.ts`) to shared/distributed storage for multi-instance reliability.
 - `FutureGap`: add explicit user-facing 401/403 handling where `requireRole` throws in API routes to avoid generic 500 responses.
-- `FutureGap`: replace temporary TLS bypass behavior in `instrumentation.ts` with production-safe certificate handling.
+- `FutureGap`: replace temporary TLS bypass behaviour in `instrumentation.ts` with production-safe certificate handling.
 
 ---
 

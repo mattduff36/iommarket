@@ -21,7 +21,7 @@ function formatTime(value: Date | null) {
 
 export function MonitoringHealthSummary({
   health,
-  openCount,
+  unresolvedCount,
   criticalCount,
   recentEvents,
   previousEvents,
@@ -32,7 +32,7 @@ export function MonitoringHealthSummary({
   latestAlertError,
 }: {
   health: HealthSummary | null;
-  openCount: number;
+  unresolvedCount: number;
   criticalCount: number;
   recentEvents: number;
   previousEvents: number;
@@ -68,7 +68,7 @@ export function MonitoringHealthSummary({
         </div>
       ) : null}
       <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent xl:grid-cols-3">
-        <HealthCard label="Open issues" mobileLabel="Open" value={openCount} accent={openCount > 0 ? "bg-neon-red-500" : "bg-emerald-500"} />
+        <HealthCard label="Unresolved issues" mobileLabel="Unresolved" value={unresolvedCount} accent={unresolvedCount > 0 ? "bg-neon-red-500" : "bg-emerald-500"} />
         <HealthCard label="Critical active" mobileLabel="Critical" value={criticalCount} accent={criticalCount > 0 ? "bg-neon-red-500" : "bg-emerald-500"} />
         <HealthCard label="Recurring in 24h" mobileLabel="Recurring 24h" value={recurringCount} accent={recurringCount > 0 ? "bg-premium-gold-500" : "bg-emerald-500"} />
         <HealthCard label="Events in 24h" mobileLabel="Events 24h" value={recentEvents} accent="bg-neon-blue-500" detail={`Previous 24h: ${previousEvents.toLocaleString()}`} />

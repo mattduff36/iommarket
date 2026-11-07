@@ -14,7 +14,7 @@ import { cancellationPublicMessage } from "@/lib/forms/known-domain-messages";
 export async function requestDealerCancellation(input: { confirmation: boolean }) {
   const user = await requireAcceptedAuth();
   if (!hasDealerDashboardAccess(user) || !user.dealerProfile) {
-    return { error: "Not authorized to request dealer cancellation." };
+    return { error: "Not authorised to request dealer cancellation." };
   }
 
   const parsed = requestDealerCancellationSchema.safeParse(input);

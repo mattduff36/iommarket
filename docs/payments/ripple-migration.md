@@ -51,8 +51,8 @@ Amounts are decimal pounds. `payment_reference` is the only payment id. Renewals
 
 ## Local processing rules
 
-- Persist a minimized inbox row before applying business effects. Exact body-hash duplicates are no-ops, and a `PROCESSING` claim prevents concurrent workers from applying the same row.
-- Listing and featured fulfillment require a valid signed `merchant_reference`.
+- Persist a minimised inbox row before applying business effects. Exact body-hash duplicates are no-ops, and a `PROCESSING` claim prevents concurrent workers from applying the same row.
+- Listing and featured fulfilment require a valid signed `merchant_reference`.
 - Dealer email fallback is allowed only when no reference is present and exactly one active dealer matches.
 - Unknown `link_code` / `package` values are quarantined and never default to Starter.
 - Paid entitlement requires `status=ACTIVE` and `currentPeriodEnd > now`.

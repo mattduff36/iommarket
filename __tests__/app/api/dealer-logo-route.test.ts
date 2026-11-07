@@ -16,6 +16,7 @@ const {
   getPublicUrlMock,
   dealerProfileUpdateMock,
   storageFromMock,
+  captureExceptionMock,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
   requireAcceptedAuthMock: vi.fn(),
@@ -25,6 +26,7 @@ const {
   getPublicUrlMock: vi.fn(),
   dealerProfileUpdateMock: vi.fn(),
   storageFromMock: vi.fn(),
+  captureExceptionMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", async () => {
@@ -58,7 +60,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/monitoring", () => ({
-  captureException: vi.fn(),
+  captureException: captureExceptionMock,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -169,6 +171,7 @@ describe("dealer logo upload route", () => {
     const { POST } = await import("@/app/api/dealer-profile/logo/route");
     const response = await POST(createLogoRequest());
 
+    expect(captureExceptionMock).toHaveBeenCalledWith(expect.objectContaining({ tags: { stage: "storage-upload", missingBucket: true } }));
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       error: "Logo storage is not available. Please try again later.",

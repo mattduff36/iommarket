@@ -41,7 +41,7 @@ export function focalCoverCrop(input: FocalCropInput): FocalCropRect {
     input.focalY < 0 ||
     input.focalY > 1
   ) {
-    throw new Error("Focal point must be normalized between 0 and 1.");
+    throw new Error("Focal point must be normalised between 0 and 1.");
   }
 
   const scale = Math.max(

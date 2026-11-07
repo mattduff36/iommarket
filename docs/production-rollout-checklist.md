@@ -1,7 +1,7 @@
 # Production rollout checklist
 
 This is the manual release procedure for the listing-revision and Ripple
-contract changes. Local verification does not authorize production changes.
+contract changes. Local verification does not authorise production changes.
 
 ## 1. Provider and environment prerequisites
 
@@ -77,7 +77,7 @@ All five `relrowsecurity` values must be `true`.
 Deploy with checkout disabled. Confirm:
 
 - the site and admin listing queue load;
-- the Ripple retry cron is authorized by `CRON_SECRET`;
+- the Ripple retry cron is authorised by `CRON_SECRET`;
 - unsigned, prefixed, uppercase, base64, and invalid signatures return `400`;
 - one correctly signed non-monetary provider probe returns `200`;
 - failed, quarantined, ambiguous, stale-PENDING, stale-PROCESSING, and
@@ -96,7 +96,7 @@ canonical link:
 4. Dealer Pro subscription.
 
 For every payment, verify the inbox row, local payment or charge, listing
-transition or dealer entitlement, email behavior, and Ripple portal record.
+transition or dealer entitlement, email behaviour, and Ripple portal record.
 Refund each payment manually through Ripple.
 
 Only set `RIPPLE_LIVE_CHECKOUT_ENABLED=1` after all four flows pass.
@@ -136,5 +136,5 @@ webhook.
 - Refunds and cancellations remain portal-managed.
 - Reconcile Ripple portal records against local inbox/payment/charge rows
   daily because Ripple does not retry deliveries.
-- Define and apply an operational retention period for minimized processed
+- Define and apply an operational retention period for minimised processed
   inbox data; never store raw bodies, signatures, reference tokens, or secrets.

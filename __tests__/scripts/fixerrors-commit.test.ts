@@ -193,8 +193,8 @@ describe("fixerrors automatic repair gates", () => {
 
   it("refuses to overwrite an existing cluster release manifest", () => {
     const root = mkdtempSync(join(tmpdir(), "fixerrors-manifest-"));
-    const manifestPath = join(root, "private", "fixerrors", "runs", "cluster-1", "release.json");
-    mkdirSync(join(root, "private", "fixerrors", "runs", "cluster-1"), { recursive: true });
+    const manifestPath = join(root, "private", "fixerrors", "runs", "11111111-1111-4111-8111-111111111111", "cluster-1", "release.json");
+    mkdirSync(join(root, "private", "fixerrors", "runs", "11111111-1111-4111-8111-111111111111", "cluster-1"), { recursive: true });
     writeFileSync(manifestPath, "prior manifest");
     const commands: string[][] = [];
     expect(commitVerifiedCluster(commitInput(root, commands))).toMatchObject({

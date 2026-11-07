@@ -24,7 +24,7 @@ describe("SavedSearchActions", () => {
   it("confirms deletion, reports failure, and acknowledges success", async () => {
     const user = userEvent.setup();
     deleteMock
-      .mockResolvedValueOnce({ error: "Not authorized" })
+      .mockResolvedValueOnce({ error: "Not authorised" })
       .mockResolvedValueOnce({ data: { ok: true } });
     render(
       <SavedSearchActions
@@ -51,7 +51,7 @@ describe("SavedSearchActions", () => {
     await user.click(screen.getByRole("button", { name: "Actions for BMW search" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
     await user.click(screen.getByRole("button", { name: "Delete saved search" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Not authorized");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Not authorised");
 
     await user.click(screen.getByRole("button", { name: "Actions for BMW search" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));

@@ -1031,7 +1031,7 @@ export async function renewListing(listingId: string) {
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
-  if (listing.userId !== user.id) return { error: "Not authorized" };
+  if (listing.userId !== user.id) return { error: "Not authorised" };
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
@@ -1291,7 +1291,7 @@ export async function markListingAsSold(listingId: string) {
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { error: "Listing not found" };
   if (listing.userId !== user.id) {
-    return { error: "Not authorized" };
+    return { error: "Not authorised" };
   }
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };

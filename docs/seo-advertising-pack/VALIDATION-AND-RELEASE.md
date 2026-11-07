@@ -8,7 +8,7 @@ Record actual commands, results, URLs and environment in the status file. Use fi
 | --- | --- |
 | Environment rules | Tests cover production open/gated, preview alias/deployment, local and missing/invalid configuration; unknown environments cannot enable marketing delivery or indexing accidentally |
 | Preview indexing | Anonymous live preview HTML has effective noindex; sitemap advertises no indexable preview content; documented robots/removal sequence; preview still usable |
-| Production safety | Production-mode automated checks prove eligible public pages remain indexable and canonicals use production; no branch-name-only behavior |
+| Production safety | Production-mode automated checks prove eligible public pages remain indexable and canonicals use production; no branch-name-only behaviour |
 | Metadata | Home, each category, dealer, listing with photo and listing without photo have correct title/description/canonical and resolved social image |
 | Social fetch | Images return successful anonymous responses with correct MIME and dimensions; use Meta Sharing Debugger when accessible; ordinary HTTP fetch alone is not Facebook crawler verification |
 | Filters | Base/category pages follow chosen indexing policy; invalid categories, sorting, search terms, filters and pagination preserve intended canonicals/noindex |
@@ -19,8 +19,8 @@ Record actual commands, results, URLs and environment in the status file. Use fi
 | Attribution | Allowlist/limits/retention/first-last touch/return visits verified; no PII leakage; consent-denied journeys still work |
 | Events | Correct triggers and IDs; browser plus server counted once; refresh/retry/duplicate webhook do not double-count; actual payment amount used |
 | Isolation | Preview cannot reach production advertising destinations under tested config errors; missing credentials disable providers gracefully |
-| Reliability | Provider failure does not break checkout/contact/listing; retries and diagnostics are bounded and sanitized |
-| Feeds if included | Required fields, stable IDs, image access, eligibility filters, sold removal and update behavior tested; no real publication without approval |
+| Reliability | Provider failure does not break checkout/contact/listing; retries and diagnostics are bounded and sanitised |
+| Feeds if included | Required fields, stable IDs, image access, eligibility filters, sold removal and update behaviour tested; no real publication without approval |
 | User journeys | Anonymous browse/search/detail/dealer, contact, sign-up, selling and preview test checkout still work across mobile and desktop |
 | Performance | Before/after measurements with comparable conditions; no unexplained material regression from tags, images or database work |
 
@@ -55,11 +55,11 @@ Do not merge while required checks are pending. New commits invalidate approval/
 
 ## After production approval
 
-Merge only the approved scope using the repository workflow. Apply only separately authorised migrations/configuration in the documented order. Monitor Vercel until ready; verify the production aliases and user-facing behavior at the released SHA.
+Merge only the approved scope using the repository workflow. Apply only separately authorised migrations/configuration in the documented order. Monitor Vercel until ready; verify the production aliases and user-facing behaviour at the released SHA.
 
 Check production robots, sitemap, canonical host, social images and representative listing/dealer/category pages. Confirm preview remains noindex after the same code reaches main. Verify logs and real user journeys. Activate live measurement only when approved and confirm provider receipt using authorised test methods that do not pollute revenue reporting.
 
-Submit or refresh sitemaps and inspect search-engine indexing when account access/authorization permits. Report indexing as observed over time; deployment does not imply immediate ranking or indexing.
+Submit or refresh sitemaps and inspect search-engine indexing when account access/authorisation permits. Report indexing as observed over time; deployment does not imply immediate ranking or indexing.
 
 ## Rollback
 

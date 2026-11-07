@@ -4,7 +4,7 @@
 
 Production is accessed only through an explicitly verified `REPEATABLE READ READ ONLY` transaction. The session default is also read-only because Supavisor can ignore startup options. Source SQL passes a second SELECT/SHOW guard. No production schema, grants, rows or configuration are modified. The source and destination Supabase projects are pinned independently of request inputs.
 
-Schema drift, unsupported populated authentication features, mismatched application table catalogs, oversized snapshots, and concurrent refreshes fail closed. All copied tables are read back and their complete contents compared before commit. Foreign-key settings are restored before commit. Any failure before commit rolls back the replacement. A lost commit response requires checking the saved run status before retrying.
+Schema drift, unsupported populated authentication features, mismatched application table catalogues, oversized snapshots, and concurrent refreshes fail closed. All copied tables are read back and their complete contents compared before commit. Foreign-key settings are restored before commit. Any failure before commit rolls back the replacement. A lost commit response requires checking the saved run status before retrying.
 
 The Supabase project configuration, auth platform migration history, extensions, storage service and environment credentials remain environment-specific. Uploaded object bytes are not a database backup. Copied production records and their email, payment and media references are registered separately so staging cannot send messages, charge/refund payments or delete production media through the existing external-effect guards.
 

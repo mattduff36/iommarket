@@ -38,7 +38,7 @@ async function main() {
       categoryId,
       regionId,
       title: "Local ImageKit fixture",
-      description: "Sanitized listing used to exercise ImageKit delivery.",
+      description: "Sanitised listing used to exercise ImageKit delivery.",
       price: 100000,
       status: "LIVE",
     },

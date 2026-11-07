@@ -211,7 +211,7 @@ function verifyBackup(input: {
     names.size !== REQUIRED_BACKUP_FILES.size ||
     [...REQUIRED_BACKUP_FILES].some((name) => !names.has(name))
   ) {
-    throw new Error("Refusing audit sync: backup artifact set is incomplete.");
+    throw new Error("Refusing audit sync: backup artefact set is incomplete.");
   }
   for (const record of manifest.files) {
     const path = join(dir, record.name);

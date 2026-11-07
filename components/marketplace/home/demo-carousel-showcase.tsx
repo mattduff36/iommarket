@@ -656,35 +656,35 @@ export function DemoCarouselShowcase({ items }: DemoCarouselShowcaseProps) {
     <div className="space-y-8">
       <ConceptSection
         title="Concept 01 - Spotlight Scale"
-        description="A cinema-like lane where neighboring cards stay visible, while the center card scales up and carries the strongest visual weight."
+        description="A cinema-like lane where neighbouring cards stay visible, while the centre card scales up and carries the strongest visual weight."
       >
         <SpotlightScaleCarousel items={showcaseItems} />
       </ConceptSection>
 
       <ConceptSection
         title="Concept 02 - Poster Stage"
-        description="Tall poster styling with a dramatic center frame and premium highlight ring, designed to feel editorial and promotional."
+        description="Tall poster styling with a dramatic centre frame and premium highlight ring, designed to feel editorial and promotional."
       >
         <PosterStageCarousel items={showcaseItems} />
       </ConceptSection>
 
       <ConceptSection
         title="Concept 03 - Depth Stack"
-        description="A layered deck effect that gives depth and perspective, pushing side slides behind the active center frame."
+        description="A layered deck effect that gives depth and perspective, pushing side slides behind the active centre frame."
       >
         <DepthStackCarousel items={showcaseItems} />
       </ConceptSection>
 
       <ConceptSection
         title="Concept 04 - Cinematic Rail"
-        description="Wide panoramic slides with hard center lock, dramatic masks, and bold directional controls for a premium hero-strip feel."
+        description="Wide panoramic slides with hard centre lock, dramatic masks, and bold directional controls for a premium hero-strip feel."
       >
         <CinematicRailCarousel items={showcaseItems} />
       </ConceptSection>
 
       <ConceptSection
         title="Concept 05 - Hero + Thumbnails"
-        description="A dominant hero panel paired with quick-select thumbnails, ideal when the center image must stay unmistakably primary."
+        description="A dominant hero panel paired with quick-select thumbnails, ideal when the centre image must stay unmistakably primary."
       >
         <HeroThumbCarousel items={showcaseItems} />
       </ConceptSection>

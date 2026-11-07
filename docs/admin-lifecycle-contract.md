@@ -75,7 +75,7 @@ Applies to detail body, metadata/OpenGraph, favourites links, contact/report/fav
 
 CAS mutation, `ListingStatusEvent`, optional report linkage, and `AdminAuditLog` (admin actions only) occur in one transaction. Any failure rolls all four back.
 
-## Authorization by action
+## Authorisation by action
 
 | Action | Allowed actor | Source |
 | --- | --- | --- |

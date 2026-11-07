@@ -693,7 +693,7 @@ describe("finalize live preview plans", () => {
         ]),
         finalRunId: "run-again",
       }),
-    ).toThrow("already live-finalized");
+    ).toThrow("already live-finalised");
   });
 });
 

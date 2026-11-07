@@ -4,7 +4,7 @@ The operational queue is `/admin/monitoring`. Vercel Web Analytics and Vercel er
 
 ## What is stored
 
-- Issues group repeated failures by fingerprint. Events keep the recent occurrence, route, request ID, masked email, IP hash, stack, and sanitized tags.
+- Issues group repeated failures by fingerprint. Events keep the recent occurrence, route, request ID, masked email, IP hash, stack, and sanitised tags.
 - Alert deliveries record email and webhook attempts. Suppressed repeats increment counters instead of writing one skipped row per event.
 - Detailed events and completed deliveries are removed after 90 days. Resolved issue summaries are removed after 12 months. Generated prompts are cleared with the 90-day detail window.
 - Account deletion also removes that user's monitoring events and scrubs issue text, prompts, and alert payloads that contain the email address.
@@ -17,7 +17,7 @@ The operational queue is `/admin/monitoring`. Vercel Web Analytics and Vercel er
 - Acknowledged issues stay quiet until the severity increases or the same issue returns after six quiet hours.
 - Mute expiry reopens the issue. An expired mute does not need a page view before alerts can resume.
 - Resolved issues reopen and alert again on the next occurrence.
-- Lower severities are summarized in a digest about once a day.
+- Lower severities are summarised in a digest about once a day.
 - Webhooks must be public HTTPS URLs. Payloads are signed as `t=<unix-ms>,v1=<hmac>` in `X-IOM-Monitoring-Signature` using `MONITORING_ALERT_WEBHOOK_SECRET`. Delivery fails closed when the secret or destination is unsafe. Redirects are not followed.
 
 ## Independent Vercel alert

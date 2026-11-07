@@ -1,3 +1,4 @@
+import { readErrorFacts } from "@/lib/monitoring/error-context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { runSerializableMock, fakeTx } = vi.hoisted(() => {
@@ -72,6 +73,14 @@ describe("COST-REQUEST-001 pending invoice uniqueness", () => {
     });
     expect(fakeTx.costEmailOutbox.create).toHaveBeenCalled();
     expect(runSerializableMock).toHaveBeenCalledWith(expect.any(Function), { timeoutMs: 15_000 });
+  });
+
+  it("preserves a failed transaction and attaches only safe operation facts", async () => {
+    const error = Object.assign(new Error("transaction expired"), { code: "P2028" });
+    fakeTx.invoiceRequestLine.createMany.mockRejectedValueOnce(error);
+    await expect(createInvoiceRequest({ requesterUserId: "private-admin" })).rejects.toBe(error);
+    expect(readErrorFacts(error)).toEqual({ stage: "invoice-freeze-lines", durationMs: expect.any(Number), databaseCode: "P2028" });
+    expect(fakeTx.costEmailOutbox.create).not.toHaveBeenCalled();
   });
 
   it("rejects a second concurrent open request", async () => {

@@ -72,7 +72,7 @@ The installer requires Windows 11, installs per user without elevation and creat
 
 ## Acceptance evidence and limits
 
-The repository tests cover credential-free responses, strict authentication and inventory boundaries, actual APPLY enqueue payloads, route/integration behavior, device-bound leases, concurrent/replayed/expired mutations, DNS/private-address/redirect/time limits, staged-photo cleanup races, atomic receipt/listing commits, token-only HTTP/bootstrap handling, safe stop and ambiguous failures. Native offline tests cover session DTOs, DPAPI, bounded strict parsing, child bootstrap/environment isolation, late cancellation and fixed status messages.
+The repository tests cover credential-free responses, strict authentication and inventory boundaries, actual APPLY enqueue payloads, route/integration behaviour, device-bound leases, concurrent/replayed/expired mutations, DNS/private-address/redirect/time limits, staged-photo cleanup races, atomic receipt/listing commits, token-only HTTP/bootstrap handling, safe stop and ambiguous failures. Native offline tests cover session DTOs, DPAPI, bounded strict parsing, child bootstrap/environment isolation, late cancellation and fixed status messages.
 
 These automated results establish only their tested scope. Hosted acceptance must separately demonstrate the exact staging deployment, new app sign-in/check, real scrape → review/approval → photo staging → atomic apply, owned photos/receipts/audits, and a repeat scan without repeated changes. Never approve a zero-action plan or bypass missing-photo/incomplete-scrape safeguards to force a pass. A labelled isolated staging fixture requires its scope to be reviewed first if no genuine eligible listing remains.
 
@@ -84,11 +84,11 @@ Signing is explicitly out of scope for this private release. Do not disable Wind
 
 The default Windows view contains Sign in / Open Stock Reviews and Stop safely when running. The View menu exposes Debug layout, off at every launch, with the previous controls and diagnostics. A saved Preview session reconnects presence only; it never starts job processing automatically. Sign in opens Stock Reviews for explicit computer approval.
 
-Stock Reviews polls presence and refreshes saved results every five seconds while visible, deferring refresh during edits or dialogs. Dealer selections remain local. Its sticky iTrader bar shows connection, current job, elapsed time, and bounded safe activity. Website Start and Stop commands are tied to a short-lived connected instance. Network failure safely stops the worker and requires explicit reconnection; it never silently restarts. No database or storage credentials are sent to the app.
+Stock Reviews polls presence and refreshes saved results every five seconds while visible, deferring refresh during edits or dialogues. Dealer selections remain local. Its sticky iTrader bar shows connection, current job, elapsed time, and bounded safe activity. Website Start and Stop commands are tied to a short-lived connected instance. Network failure safely stops the worker and requires explicit reconnection; it never silently restarts. No database or storage credentials are sent to the app.
 
 The online unsigned installer downloads pinned, SHA-256-verified Node and headless Chromium dependencies before changing an existing installation. Internet access is required. Staging dealer choices exclude demo, disabled and deleted accounts; unavailable profiles have a visible explanation. Weekly scheduling is unchanged.
 
-The worker drains the queue and stops automatically. Start is blue and Stop safely is red. Stock Reviews announces new task completion in a persistent dialog, including failed outcomes, and shows explicit finished status.
+The worker drains the queue and stops automatically. Start is blue and Stop safely is red. Stock Reviews announces new task completion in a persistent dialogue, including failed outcomes, and shows explicit finished status.
 
 ## Version 1.1.8 production rollout
 

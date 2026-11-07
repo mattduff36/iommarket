@@ -48,7 +48,7 @@ export function hasStagingAdminRole(user: {
 
 /**
  * Allows only explicitly approved, verified test identities on the exact staging
- * deployment. Admin access keeps its existing behavior; production never accepts
+ * deployment. Admin access keeps its existing behaviour; production never accepts
  * the test-account exception.
  */
 export function hasStagingAccess(user: {

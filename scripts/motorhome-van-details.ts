@@ -38,7 +38,7 @@ function main() {
 
   const sql = readFileSync(MIGRATION, "utf8");
   if (sql !== renderMotorhomeVanDetailsMigrationSql()) {
-    console.error("Migration SQL is out of date with the detail catalog.");
+    console.error("Migration SQL is out of date with the detail catalogue.");
     process.exit(1);
   }
 

@@ -13,10 +13,15 @@
  *   npm run fixerrors -- --reopen --run-id=... --apply
  */
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { acknowledgeSnapshotIssues } from "./fixerrors/acknowledge";
+import { acknowledgedBacklogReport } from "./fixerrors/backlog";
+import { recordInvestigations, readInvestigationManifest } from "./fixerrors/investigations";
+import { pendingReleasePaths, resumeReleases, recordReleaseRecurrences } from "./fixerrors/release-resume";
+import { blobAtRef, originRepository, readOriginUrl, runGit } from "./fixerrors/git-policy";
+import { readVercelProductionStatus } from "./fixerrors/release";
 import {
   appendAlertLog,
   applyAlertHistory,
@@ -47,7 +52,7 @@ import {
 } from "./fixerrors/snapshot";
 import { type CodeBaseline, type OpenIssueSnapshot, type PgClientLike } from "./fixerrors/types";
 
-const MODES = ["--commit-cluster", "--prepare-repair", "--reopen", "--reopen-muted", "--acknowledge", "--close", "--verify-release"] as const;
+const MODES = ["--commit-cluster", "--prepare-repair", "--reopen", "--reopen-muted", "--acknowledge", "--close", "--verify-release", "--record-investigations", "--resume-releases"] as const;
 const CLUSTER_ID = /^cluster-[0-9]+$/u;
 
 export function getSnapshotIssueIds(snapshot: Pick<OpenIssueSnapshot, "issues">): string[] {
@@ -173,11 +178,15 @@ async function closeFromArguments(args: string[], client: PgClientLike, database
     throw new Error("Close requires --close-manifest and the exact snapshot binding printed by export");
   }
   const snapshot = requireBinding(args, "Close requires --close-manifest and the exact snapshot binding printed by export");
+  const entries = readCloseManifest(manifestPath, getSnapshotIssueIds(snapshot));
+  if (entries.some(entry => entry.outcome !== "muted")) {
+    throw new Error("Use --record-investigations with a concrete finding, collector and review date; acknowledgement alone is not a completed investigation");
+  }
   const actorAdminId = await resolveActorAdminId(client);
   const result = await closeSnapshotIssues({
     client,
     snapshot,
-    entries: readCloseManifest(manifestPath, getSnapshotIssueIds(snapshot)),
+    entries,
     apply: args.includes("--apply"),
     databaseTargetFingerprint,
     actorAdminId,
@@ -188,8 +197,9 @@ async function closeFromArguments(args: string[], client: PgClientLike, database
 async function verifyFromArguments(args: string[], client: PgClientLike, databaseTargetFingerprint: string) {
   const clusterId = getArgumentValue(args, "--cluster-id") ?? "";
   if (!CLUSTER_ID.test(clusterId)) throw new Error("--verify-release requires --cluster-id");
-  const snapshot = readAndVerifySnapshot();
-  const manifest = readReleaseManifest(resolve(process.cwd(), "private", "fixerrors", "runs", clusterId, "release.json"));
+  const snapshot = readAndVerifySnapshot(getArgumentValue(args, "--snapshot-file") ?? undefined);
+  const currentPath = resolve(process.cwd(), "private", "fixerrors", "runs", snapshot.snapshotId, clusterId, "release.json");
+  const manifest = readReleaseManifest(existsSync(currentPath) ? currentPath : resolve(process.cwd(), "private", "fixerrors", "runs", clusterId, "release.json"));
   const actorAdminId = await resolveActorAdminId(client);
   const result = await verifyProductionRelease({
     client,
@@ -199,26 +209,7 @@ async function verifyFromArguments(args: string[], client: PgClientLike, databas
     apply: args.includes("--apply"),
     actorAdminId,
   });
-  if (args.includes("--apply") && result.applied && result.recurred.length > 0) {
-    const recordedAt = new Date().toISOString();
-    appendAlertLog(result.recurred.flatMap((issueId) => {
-      const issue = snapshot.issues.find((entry) => entry.id === issueId);
-      if (!issue) return [];
-      return [{
-        at: recordedAt,
-        fingerprint: issue.fingerprint,
-        normalizedMessage: "",
-        source: issue.source,
-        route: issue.sampleRoute,
-        action: issue.sampleAction,
-        severity: issue.severity,
-        occurrences: issue.occurrences,
-        lastSeenAt: issue.lastSeenAt,
-        outcome: "recurred" as const,
-        summary: "The error came back after the fix was deployed.",
-      }];
-    }));
-  }
+  recordReleaseRecurrences(snapshot, result);
   console.log(JSON.stringify({ mode: "verify-release", dryRun: !args.includes("--apply"), ...result }, null, 2));
   if (!result.ok) process.exitCode = 1;
 }
@@ -236,8 +227,18 @@ function printExportFollowUp(snapshot: OpenIssueSnapshot) {
 }
 
 async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint: string) {
-  console.log("FIXERRORS - OPEN monitoring export");
+  console.log("FIXERRORS - unresolved monitoring investigation");
+  if (pendingReleasePaths().length > 0) {
+    const releases = await resumeReleases({ client, databaseTargetFingerprint, actorAdminId: "dry-run", apply: false });
+    writeAndVerifyTextArtifactAtomic(resolve(process.cwd(), "private", "fixerrors", "release-reconciliation.json"), JSON.stringify(releases, null, 2));
+    console.log(`  Release reconciliation: ${releases.filter(result => !result.ok).length} blocked archive(s); details in private/fixerrors/release-reconciliation.json`);
+  }
   let snapshot = await fetchOpenIssueSnapshot(client, databaseTargetFingerprint);
+  writeAndVerifyTextArtifactAtomic(
+    resolve(process.cwd(), "private", "fixerrors", "acknowledged-backlog.md"),
+    await acknowledgedBacklogReport(client),
+  );
+  console.log("  Unresolved acknowledged work: private/fixerrors/acknowledged-backlog.md (read before closing this run)");
   const patterns = groupOpenIssues(snapshot.issues);
   const clusters = clusterErrorPatterns(patterns);
   let baseline: CodeBaseline | null = null;
@@ -275,8 +276,11 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
   );
   snapshot = writeAndVerifySnapshot(snapshot, ERROR_SNAPSHOT_PATH);
   writeAndVerifySnapshot(snapshot, resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}.json`));
+  writeAndVerifyTextArtifactAtomic(resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}.md`), report);
+  writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}-decision.json`), decisions, baseline);
 
-  console.log(`  OPEN issues: ${snapshot.issues.length}`);
+  console.log(`  Unresolved issues (OPEN + ACKNOWLEDGED): ${snapshot.issues.length}`);
+  console.log(`  Archived release records: ${pendingReleasePaths().length}; use --resume-releases, inspect, then --apply`);
   if (snapshot.queueStatusCounts) {
     console.log(`  Queue status counts: ${formatQueueStatusCounts(snapshot.queueStatusCounts)}`);
   }
@@ -290,7 +294,7 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
   console.log("  Snapshot: private/fixerrors/error-snapshot.json");
   console.log(`  Report checksum: ${createHash("sha256").update(report).digest("hex")}`);
   if (snapshot.issues.length === 0) {
-    console.log("  No OPEN issues; acknowledgement is not required.");
+    console.log("  No unresolved issues in this snapshot. Expired, muted and resolved history remains available.");
     return;
   }
   printExportFollowUp(snapshot);
@@ -324,6 +328,34 @@ async function main() {
   const databaseClient = asPgClient(client);
 
   try {
+    if (invocation.mode === "--resume-releases") {
+      const results = await resumeReleases({ client: databaseClient, databaseTargetFingerprint,
+        actorAdminId: await resolveActorAdminId(databaseClient), apply: args.includes("--apply") });
+      console.log(JSON.stringify(results, null, 2));
+      if (results.some(result => !result.ok)) process.exitCode = 1;
+      return;
+    }
+    if (invocation.mode === "--record-investigations") {
+      const path = getArgumentValue(args, "--investigation-manifest");
+      if (!path) throw new Error("--investigation-manifest is required");
+      const snapshot = requireBinding(args, "Investigation update requires the exact snapshot binding");
+      const refs = fetchReleaseRefs(process.cwd());
+      const repo = originRepository(readOriginUrl(process.cwd()));
+      const deployment = await readVercelProductionStatus({ ...repo, sha: refs.productionSha });
+      const result = await recordInvestigations({ client: databaseClient, snapshot, databaseTargetFingerprint,
+        actorAdminId: await resolveActorAdminId(databaseClient), apply: args.includes("--apply"),
+        entries: readInvestigationManifest(path, getSnapshotIssueIds(snapshot)),
+        verifyCollector: async (sha, paths) => deployment.ok && sha === refs.productionSha
+          && paths.every(file => {
+            const local = runGit(["hash-object", "--", file], process.cwd());
+            const deployed = blobAtRef("origin/main", file, process.cwd());
+            return local.status === 0 && local.stdout.trim() === deployed
+              && deployed === blobAtRef("origin/staging", file, process.cwd());
+          }),
+      });
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
     if (invocation.mode === "--reopen-muted") {
       const runId = getArgumentValue(args, "--run-id");
       const snapshotFile = getArgumentValue(args, "--snapshot-file");

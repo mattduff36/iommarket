@@ -1370,6 +1370,7 @@ enum MonitoringIssueStatus {
   ACKNOWLEDGED
   MUTED
   RESOLVED
+  EXPIRED
 }
 
 enum MonitoringSeverity {
@@ -1427,6 +1428,7 @@ model MonitoringIssue {
   lastAlertedAt         DateTime?
   lastGeneratedPrompt   String?
   lastPromptGeneratedAt DateTime?
+  investigation         Json?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 

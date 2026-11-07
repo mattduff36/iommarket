@@ -123,7 +123,7 @@ describe("dealer review response actions MD-REV-001..005", () => {
       reviewId,
       body: "Thank you for taking the time to leave this review.",
     });
-    expect(denied.error).toContain("Not authorized");
+    expect(denied.error).toContain("Not authorised");
     expect(mockDb.dealerReviewResponseRevision.create).not.toHaveBeenCalled();
 
     mockDb.dealerReview.findUnique.mockResolvedValue(approvedReview());
@@ -159,7 +159,7 @@ describe("dealer review response actions MD-REV-001..005", () => {
       reviewId,
       body: "Thank you for taking the time to leave this review.",
     });
-    expect(draft.error).toContain("Not authorized");
+    expect(draft.error).toContain("Not authorised");
     expect(mockDb.dealerReviewResponse.upsert).not.toHaveBeenCalled();
 
     const dispute = await openDealerReviewDispute({
@@ -167,7 +167,7 @@ describe("dealer review response actions MD-REV-001..005", () => {
       reasonCode: "OFF_TOPIC",
       body: "This review concerns a different business and should be assessed.",
     });
-    expect(dispute.error).toContain("Not authorized");
+    expect(dispute.error).toContain("Not authorised");
     expect(mockDb.dealerReviewDispute.create).not.toHaveBeenCalled();
   });
 

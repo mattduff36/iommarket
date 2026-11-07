@@ -48,7 +48,7 @@ export async function selectIssuesForUpdate(
     occurrences: number | string;
   }>(
     `SELECT id, fingerprint, status, severity,
-            to_char("lastSeenAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
+            to_char("lastSeenAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
             occurrences
      FROM "MonitoringIssue"
      WHERE id = ANY($1::text[])

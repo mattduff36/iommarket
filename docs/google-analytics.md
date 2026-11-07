@@ -5,7 +5,7 @@ iTrader tracks public-site page views and marketplace events in GA4 only after a
 ## Tracking and consent
 
 - Set `GA4_MEASUREMENT_ID=G-6PD78XKCZ6` in the Vercel **Production** environment scope only. The app also checks `VERCEL_ENV=production` and the live hostname before sending events, so preview deployments do not send browser analytics.
-- The Google tag waits for the site's analytics consent choice. It sends a limited, fixed page title and public page path; query strings and fragments are removed, and private paths are excluded. Marketplace event properties are sanitized before sending.
+- The Google tag waits for the site's analytics consent choice. It sends a limited, fixed page title and public page path; query strings and fragments are removed, and private paths are excluded. Marketplace event properties are sanitised before sending.
 - In the GA4 web stream, turn **Enhanced Measurement off**. The app sends its own page views for Next.js client-side navigation; GA4's automatic browser-history page views would duplicate them.
 - No DNS change is needed for GA4 tracking or the Data API connection. No historical data can be backfilled by adding the tag; collection starts once it is deployed and visitors consent.
 

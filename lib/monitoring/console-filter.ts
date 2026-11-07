@@ -47,8 +47,8 @@ export function shouldIgnoreClientMonitoringMessage(message: string): boolean {
   if (trimmed === '{"isTrusted":true}' || trimmed === '{"isTrusted": true}') return true;
   if (/Java object is gone/i.test(trimmed)) return true;
   if (isWebKitBridgeNoise(trimmed) || isMetaMaskNoise(trimmed)) return true;
-  if (trimmed === "Load failed" || /TypeError:\s*Load failed\b/i.test(trimmed)) return true;
-  if (/Failed to fetch RSC payload/i.test(trimmed)) return true;
+  // A generic network failure can be an application outage. Keep the evidence;
+  // the existing per-page, fingerprint and server limits bound event volume.
   return false;
 }
 

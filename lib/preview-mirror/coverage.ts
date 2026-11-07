@@ -14,6 +14,6 @@ export function assertSamePublicCatalog(sourceTables: readonly string[], destina
   const present = new Set(source);
   const missing = required.filter((table) => !present.has(table));
   if (missing.length) {
-    throw new PreviewMirrorError(`The public catalog is missing application tables (${missing.slice(0, 5).join(", ")}). Nothing was changed.`);
+    throw new PreviewMirrorError(`The public catalogue is missing application tables (${missing.slice(0, 5).join(", ")}). Nothing was changed.`);
   }
 }

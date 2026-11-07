@@ -58,7 +58,7 @@ export async function requestRemoteCostRefresh(
     throw new Error("The live provider refresh endpoint is not deployed.");
   }
   if (response.status === 401 || response.status === 403) {
-    throw new Error("The live provider refresh is not authorized.");
+    throw new Error("The live provider refresh is not authorised.");
   }
   if (response.status === 504) {
     throw new Error("The live provider refresh timed out.");

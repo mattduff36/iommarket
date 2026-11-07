@@ -36,7 +36,7 @@ Do not migrate auth sitewide, admin, or `app/error.tsx` / `app/global-error.tsx`
 
 ## Listing save and checkout boundaries
 
-`lib/listings/save-public-error.ts` allowlists trusted listing lifecycle sentences. Create, update, submit, and photo sync return `publicErrorBody` for an unexpected exception: outcome uncertain, `retryable: false`, support reference only when capture returns an event id. Missing and unauthorized listings share `This listing isn't available for that action.` Field maps stay field maps. Photo compare-and-swap still returns `conflict: true` and the latest `photoRevision`.
+`lib/listings/save-public-error.ts` allowlists trusted listing lifecycle sentences. Create, update, submit, and photo sync return `publicErrorBody` for an unexpected exception: outcome uncertain, `retryable: false`, support reference only when capture returns an event id. Missing and unauthorised listings share `This listing isn't available for that action.` Field maps stay field maps. Photo compare-and-swap still returns `conflict: true` and the latest `photoRevision`.
 
 `lib/payments/checkout-public-error.ts` maps an exact thrown checkout code, or the exact Ripple amount sentence, to the existing configuration message. Any other checkout, simulator, or sample failure uses `We haven't confirmed the payment result yet. Check payment status before paying again.` with `retryable: false`. Return-page query text does not claim success, decline, or cancellation. Confirmed and failed wording comes from `readHostedCheckoutLink`.
 
@@ -48,6 +48,6 @@ Unknown action responses and lost transport responses lock the current listing/p
 
 The wizard keeps mounted field values, routes photo failures to Photos and optional validation to the applicable optional group, and preserves photo revision/mutation handling. Existing UI components are reused. No new UI framework or error tracking service is added.
 
-Regression coverage includes unknown returned payloads and rejected promises in `featured-upgrade-button`, `retry-checkout-button`, `subscribe-form`, `sample-checkout`, and `create-listing-submit` tests. Action tests reject authentication, database and rate-limit preconditions; recognized checkout errors survive monitoring failure. Full release checks supplement these focused tests.
+Regression coverage includes unknown returned payloads and rejected promises in `featured-upgrade-button`, `retry-checkout-button`, `subscribe-form`, `sample-checkout`, and `create-listing-submit` tests. Action tests reject authentication, database and rate-limit preconditions; recognised checkout errors survive monitoring failure. Full release checks supplement these focused tests.
 
 Inventory status identifies migrated public boundaries, not a claim that every line in a mixed module changed. Listing withdraw/renew/report/contact/mark-sold owners remain C. `deferred-c-payment-internals` records provider plumbing, administrative subscription/refund paths and other payment-related modules outside customer checkout; they are not silently marked implemented. Known provider exceptions reaching B are mapped by B boundaries. The original 3,369 candidate provenance is retained; added B helpers are documented here. Static traces and source-drift exceptions are not runtime proof. C-E remain subject to the owner's next decision.

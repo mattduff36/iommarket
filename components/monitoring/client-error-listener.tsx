@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { diagnosticTarget, installRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 import {
   extractConsoleStack,
   isExpectedClientCancellation,
@@ -30,11 +31,21 @@ export function ClientErrorListener() {
 
   useEffect(() => {
     const limiter = limiterRef.current;
+    const restoreRequests = installRequestDiagnostics(window, window.location.origin, (request) => {
+      const payload = {
+        message: `Request ${request.outcome}: ${request.method} ${request.target} (${request.status ?? "no response"})`,
+        component: "request-diagnostics", severity: "MEDIUM" as const,
+        tags: { type: "request-failure" },
+      };
+      if (limiter.canSend(createClientEventKey(payload))) void sendClientMonitoringEvent(payload);
+    });
 
     function onError(event: ErrorEvent) {
+      const resource = event.target instanceof HTMLScriptElement || event.target instanceof HTMLImageElement
+        ? diagnosticTarget(event.target.src, window.location.origin) : null;
       const message = event.error instanceof Error
         ? event.error.message
-        : event.message || "Unhandled client error";
+        : event.message || (resource ? `Resource failed to load: ${resource}` : "Unhandled client error");
       const stack = event.error instanceof Error ? event.error.stack : undefined;
       if (shouldIgnoreClientMonitoringMessage(message)) return;
       const payload = {
@@ -44,7 +55,7 @@ export function ClientErrorListener() {
         route: window.location.pathname,
         tags: {
           type: "window.onerror",
-          filename: event.filename,
+          filename: event.filename ? diagnosticTarget(event.filename, window.location.origin) : resource,
           line: event.lineno,
           col: event.colno,
         },
@@ -71,7 +82,7 @@ export function ClientErrorListener() {
       void sendClientMonitoringEvent(payload);
     }
 
-    window.addEventListener("error", onError);
+    window.addEventListener("error", onError, true);
     window.addEventListener("unhandledrejection", onUnhandledRejection);
 
     const originalConsoleError = console.error;
@@ -104,9 +115,10 @@ export function ClientErrorListener() {
     }
 
     return () => {
-      window.removeEventListener("error", onError);
+      window.removeEventListener("error", onError, true);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
       restoreConsole();
+      restoreRequests();
     };
   }, []);
 

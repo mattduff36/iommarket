@@ -1,9 +1,11 @@
 import { Alert } from "@/components/ui/alert";
+import type { ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 
 interface FormErrorSummaryProps {
   messages: string[];
   title?: string;
   cause?: "validation" | "service";
+  diagnostics?: ClientDiagnostics;
 }
 
 const SERVICE_MESSAGE =
@@ -25,19 +27,20 @@ export function FormErrorSummary({
   messages,
   title,
   cause,
+  diagnostics,
 }: FormErrorSummaryProps) {
   if (messages.length === 0) return null;
 
   if (messages.length === 1) {
     return (
-      <Alert status="error">
+      <Alert status="error" diagnostics={diagnostics}>
         <p>{messages[0]}</p>
       </Alert>
     );
   }
 
   return (
-    <Alert status="error">
+    <Alert status="error" diagnostics={diagnostics}>
       <p className="font-medium">{summaryTitle(messages, cause, title)}</p>
       <ul className="mt-1 list-disc space-y-1 pl-4">
         {messages.map((message) => (

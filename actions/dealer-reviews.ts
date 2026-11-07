@@ -85,7 +85,7 @@ async function getOwnedReview(
     review.dealer.userId !== user.id ||
     !hasDealerAccountAccess(user)
   ) {
-    throw new DealerReviewActionError("Not authorized for this dealer review.");
+    throw new DealerReviewActionError("Not authorised for this dealer review.");
   }
   return review;
 }
@@ -433,7 +433,7 @@ export async function submitDealerReviewResponse(
         !hasDealerAccountAccess(user)
       ) {
         throw new DealerReviewActionError(
-          "Not authorized for this dealer response.",
+          "Not authorised for this dealer response.",
         );
       }
       if (revision.response.review.id !== parsed.data.reviewId) {

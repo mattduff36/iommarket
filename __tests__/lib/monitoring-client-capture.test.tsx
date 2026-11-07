@@ -33,8 +33,8 @@ describe("MON-CLIENT-001 / MON-CLIENT-002 console and window capture", () => {
     expect(shouldIgnoreConsoleError("Payment action failed: Failed to connect to MetaMask")).toBe(false);
     expect(shouldIgnoreConsoleError("Script error.")).toBe(false);
     expect(shouldIgnoreConsoleError("Script error")).toBe(false);
-    expect(shouldIgnoreConsoleError("Load failed")).toBe(true);
-    expect(shouldIgnoreConsoleError("Console Error: Failed to fetch RSC payload for /admin")).toBe(true);
+    expect(shouldIgnoreConsoleError("Load failed")).toBe(false);
+    expect(shouldIgnoreConsoleError("Console Error: Failed to fetch RSC payload for /admin")).toBe(false);
     expect(
       isExpectedClientCancellation(
         new DOMException("signal is aborted without reason", "AbortError"),
@@ -57,6 +57,21 @@ describe("MON-CLIENT-001 / MON-CLIENT-002 console and window capture", () => {
       fetchImpl as unknown as typeof fetch,
     );
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("captures a generic network rejection with browser context within existing limits", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClientErrorListener />);
+    const event = new Event("unhandledrejection") as PromiseRejectionEvent;
+    Object.defineProperty(event, "reason", { value: new TypeError("Load failed") });
+    window.dispatchEvent(event);
+    window.dispatchEvent(event);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.message).toBe("Load failed");
+    expect(body.extra.diagnostics.online).toBe(navigator.onLine);
+    expect(body.extra.diagnostics.visibility).toBe(document.visibilityState);
   });
 
   it("captures window errors, unhandled rejections, and console.error once", async () => {

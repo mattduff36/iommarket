@@ -19,7 +19,7 @@ secret, webhook receiver, and weekly billing-period logic.
   Preview grants Starter access for seven days per successful charge.
 - `RIPPLE_TEST_FEATURED_URL`: separate dedicated Ripple link, £0.50 one-off.
 - Configure both link URLs in production for routing and on the preview branch
-  for receipt recognition and fulfillment. Neither may reuse a normal product code.
+  for receipt recognition and fulfilment. Neither may reuse a normal product code.
 - `RIPPLE_STAGING_RELAY_SECRET`: matching random secret of at least 32 characters
   on production and preview. Keep server-only.
 - `NEXT_PUBLIC_APP_URL=https://itrader.dev` on the staging deployment.
@@ -29,7 +29,7 @@ secret, webhook receiver, and weekly billing-period logic.
 Ripple's webhook remains `https://itrader.im/api/webhooks/ripple`. Production
 verifies and stores events, and forwards only dedicated test-link events to
 `https://itrader.dev/api/webhooks/ripple-staging`. The relay signs the
-minimized payload with a fresh timestamp; the original body hash is retained for
+minimised payload with a fresh timestamp; the original body hash is retained for
 deduplication. Production's existing retry cron retries failed delivery and
 subscription processing. An unmatched featured receipt is acknowledged once
 durably stored for authenticated browser reconciliation.

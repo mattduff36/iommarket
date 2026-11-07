@@ -6,6 +6,8 @@ import { captureBusinessEvent } from "@/lib/monitoring";
 import { cleanReportedMessage } from "@/lib/monitoring/user-report";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
+import { AUTH_DIAGNOSTIC_CODES } from "@/lib/monitoring/client-diagnostics";
+import { safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,14 @@ const schema = z.object({
   message: z.string().trim().min(3).max(2000),
   route: z.string().max(500).refine(value => value.startsWith("/") && !value.startsWith("//") && !/[\\\u0000-\u001f]/.test(value)),
   supportReference: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
+  requests: z.array(z.unknown()).max(10).optional(),
+  diagnostics: z.object({
+    online: z.boolean().optional(),
+    visibility: z.enum(["visible", "hidden"]).optional(),
+    operation: z.literal("sign-in").optional(),
+    authCode: z.enum(AUTH_DIAGNOSTIC_CODES).optional(),
+    httpStatus: z.number().int().min(100).max(599).optional(),
+  }).strict().optional(),
 }).strict();
 const MAX_BYTES = 8192;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -65,8 +75,8 @@ export async function POST(request: NextRequest) {
       title: `User-reported issue: ${message.slice(0, 140)}`, message, route, requestPath: route,
       dedupeKey: `user-report:${hash(`${user?.id ?? ipHash}:${parsed.data.reportId}`)}`,
       userId: user?.id, ipHash,
-      tags: { type: "user-reported", userAgent: (request.headers.get("user-agent") ?? "unknown").slice(0, 300) },
-      extra: { displayedSupportReference: parsed.data.supportReference ?? null },
+      tags: { type: "user-reported", userAgent: (request.headers.get("user-agent") ?? "unknown").slice(0, 300), ingestRelease: process.env.VERCEL_GIT_COMMIT_SHA },
+      extra: { displayedSupportReference: parsed.data.supportReference ?? null, diagnostics: parsed.data.diagnostics, requests: safeRequestDiagnostics(parsed.data.requests) },
     });
     if (!captured?.eventId) return reply({ ok: false }, 503);
     return reply({ ok: true, reference: captured.eventId }, 201);

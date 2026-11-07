@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { db } from "@/lib/db";
 import { IssueStatusControls } from "./issue-status-controls";
+import { MonitoringInvestigation } from "@/components/admin/monitoring-investigation";
 import { CursorPromptControls } from "./cursor-prompt-controls";
 import { MonitoringEventContext, RetryAlertButton } from "./event-context";
 import { maskMonitoringIdentity } from "@/lib/monitoring/identity";
@@ -38,6 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 function statusVariant(status: string): "neutral" | "warning" | "error" | "success" | "info" {
+  if (status === "EXPIRED") return "neutral";
   if (status === "OPEN") return "warning";
   if (status === "MUTED") return "neutral";
   if (status === "ACKNOWLEDGED") return "info";
@@ -175,6 +177,7 @@ export default async function MonitoringIssuePage({ params }: Props) {
             <CardTitle>Triage Actions</CardTitle>
           </CardHeader>
           <CardContent>
+            <MonitoringInvestigation value={issue.investigation} lastSeenAt={issue.lastSeenAt} />
             <IssueStatusControls issueId={issue.id} />
           </CardContent>
         </Card>

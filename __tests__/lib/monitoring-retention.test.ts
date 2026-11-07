@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const updateMany = vi.fn();
 const deliveryDeleteMany = vi.fn();
-const eventDeleteMany = vi.fn();
+const executeRaw = vi.fn();
 const issueDeleteMany = vi.fn();
 const upsert = vi.fn();
 
@@ -10,7 +10,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     monitoringIssue: { updateMany, deleteMany: issueDeleteMany },
     monitoringAlertDelivery: { deleteMany: deliveryDeleteMany },
-    monitoringEvent: { deleteMany: eventDeleteMany },
+    $executeRaw: executeRaw,
     monitoringPipelineHealth: { upsert },
   },
 }));
@@ -20,7 +20,7 @@ describe("monitoring retention", () => {
     vi.clearAllMocks();
     updateMany.mockResolvedValue({ count: 2 });
     deliveryDeleteMany.mockResolvedValue({ count: 3 });
-    eventDeleteMany.mockResolvedValue({ count: 4 });
+    executeRaw.mockResolvedValue(4);
     issueDeleteMany.mockResolvedValue({ count: 1 });
     upsert.mockResolvedValue({});
   });
@@ -36,9 +36,11 @@ describe("monitoring retention", () => {
       deletedEvents: 4,
       deletedIssues: 1,
     });
-    expect(eventDeleteMany).toHaveBeenCalledWith({
-      where: { occurredAt: { lt: new Date("2026-07-04T00:00:00.000Z") } },
-    });
+    expect(executeRaw).toHaveBeenCalled();
+    const sql = executeRaw.mock.calls[0]![0].join("?");
+    expect(sql).toContain("r.event_rank > 3");
+    expect(sql).toContain("'OPEN', 'ACKNOWLEDGED'");
+    expect(executeRaw.mock.calls[0]![1]).toEqual(new Date("2026-07-04T00:00:00.000Z"));
     expect(issueDeleteMany).toHaveBeenCalledWith({
       where: {
         status: "RESOLVED",

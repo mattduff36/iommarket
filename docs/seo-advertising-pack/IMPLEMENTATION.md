@@ -10,11 +10,11 @@ Core scope comprises phases 1 through 5 below. Phase 6 feed activation depends o
 
 1. Introduce one server-owned environment/indexability policy, reused by robots, sitemap and metadata/response headers. Inspect existing environment helpers before inventing another.
 2. Preview deployments, custom preview domains and local/test runtimes must never opt into search indexing. Production public pages may index only when the existing launch policy allows. Do not classify environments from a user-controlled query, cookie or untrusted Host header.
-3. Set a reliable preview `X-Robots-Tag: noindex` response header for HTML routes, with metadata as appropriate. Publish no indexable preview sitemap entries. Test custom preview aliases explicitly; do not rely solely on Vercel's default deployment behavior.
-4. Choose robots behavior deliberately: crawlers cannot read a page's noindex directive when robots prevents fetching it. If preview URLs may already be indexed, use a crawlable noindex removal phase or a verified search-engine removal process before blanket disallow. Document the chosen sequence. Robots exclusion is not access control.
+3. Set a reliable preview `X-Robots-Tag: noindex` response header for HTML routes, with metadata as appropriate. Publish no indexable preview sitemap entries. Test custom preview aliases explicitly; do not rely solely on Vercel's default deployment behaviour.
+4. Choose robots behaviour deliberately: crawlers cannot read a page's noindex directive when robots prevents fetching it. If preview URLs may already be indexed, use a crawlable noindex removal phase or a verified search-engine removal process before blanket disallow. Document the chosen sequence. Robots exclusion is not access control.
 5. Keep preview navigation and social image fetching usable. Retain existing production launch protections, authentication and private-route security. Define explicit noindex for public utility/auth/payment routes where needed; do not block public inventory accidentally.
 6. Production canonicals and sitemap URLs use `https://itrader.im` consistently. Preview canonicals may remain self-referencing under enforced noindex; do not use cross-domain canonicals as the only preview safeguard.
-7. Check HTTP/HTTPS and www/apex redirects without creating loops. Verify infrastructure behavior before adding application redirects. Changes to domain/project settings require a concrete explanation and appropriate approval.
+7. Check HTTP/HTTPS and www/apex redirects without creating loops. Verify infrastructure behaviour before adding application redirects. Changes to domain/project settings require a concrete explanation and appropriate approval.
 
 ## Phase 2 Metadata and sharing
 
@@ -34,17 +34,17 @@ Core scope comprises phases 1 through 5 below. Phase 6 feed activation depends o
 4. Include relevant buyer/seller guidance using verified facts. Jurisdiction-specific fees, import, registration or legal claims need authoritative sources and dates. Draft uncertain guidance for review rather than inventing it.
 5. Extend existing JSON-LD: consistent Organization/WebSite identity and stable IDs, applicable dealer business identity, and real vehicle condition, make/model, seller and offer URL. Keep Product/Offer and BreadcrumbList working; do not duplicate them. Use vehicle types where semantically valid and distinguish schema validity from Google rich-result eligibility.
 6. Structured data must match visible information, price, GBP currency and stock state. Never manufacture reviews, ratings, opening hours or merchant policies. Dealer sellers and iTrader service provider are different entities.
-7. Define lifecycle behavior for live, sold, expired, removed, missing and private listings. Preserve useful sold pages with clear availability and links to alternatives where appropriate. Keep genuinely unavailable content as genuine not-found/removed responses; do not redirect every dead listing to the homepage.
+7. Define lifecycle behaviour for live, sold, expired, removed, missing and private listings. Preserve useful sold pages with clear availability and links to alternatives where appropriate. Keep genuinely unavailable content as genuine not-found/removed responses; do not redirect every dead listing to the homepage.
 8. Remove silent sitemap record caps using stable pagination or sitemap partitions. Include only eligible canonical public URLs, exclude private/sample/preview records according to existing visibility rules, use truthful modification dates or omit unknown dates, and avoid changing timestamps on every fetch. Test partition boundaries and concurrent stock changes.
 9. Review crawlable pagination and internal discovery. Do not rely on permanently noindexed pages as the sole discovery path to inventory. Preserve a complete sitemap and actual anchor links.
 
 ## Phase 4 Consent and campaign attribution
 
-1. Extend the existing versioned consent model with separate analytics and marketing choices. Default optional providers off. Preserve accept/reject/manage and add withdrawal behavior; an old analytics-only consent must not grant marketing consent.
+1. Extend the existing versioned consent model with separate analytics and marketing choices. Default optional providers off. Preserve accept/reject/manage and add withdrawal behaviour; an old analytics-only consent must not grant marketing consent.
 2. Browser and server delivery must enforce the same consent purpose and policy version. Do not send marketing events merely because they originate on the server. Specify how withdrawal prevents delivery of queued unsent events. Existing strictly necessary operational records need not depend on advertising consent.
 3. Update cookie/privacy disclosures to describe actual providers and retention. Do not claim legal compliance solely from implementation; identify policy decisions requiring owner review before live activation.
 4. Capture only an allowlist of campaign parameters and supported click identifiers, with validation, length limits and an explicit retention limit. Store attribution only under the appropriate consent. Do not persist arbitrary query strings, message text, registration numbers or other accidental personal data.
-5. Preserve current analytics URL sanitisation. Define first and last touch, direct return behavior and checkout continuity without putting personal data in URLs. Browser input is untrusted; never use it to authorise payments or set revenue.
+5. Preserve current analytics URL sanitisation. Define first and last touch, direct return behaviour and checkout continuity without putting personal data in URLs. Browser input is untrusted; never use it to authorise payments or set revenue.
 6. Attach permitted attribution to successful business outcomes using opaque identifiers. Reuse existing records where suitable; propose additive schema only when needed. Document retention/cleanup and consent lifecycle for stored data.
 7. Add campaign/source reporting that reconciles against real enquiries, registrations and successful service payments. Distinguish site totals from consented/attributable subsets; untracked traffic is unknown, not zero.
 
@@ -65,23 +65,23 @@ Build a small provider adapter around existing domain events rather than scatter
 
 1. Never report vehicle asking price as iTrader purchase revenue. Free listings are not purchases. Do not count subscription signup and payment as two purchases for one charge; distinguish recurring renewals deliberately.
 2. Use stable event IDs for browser/server deduplication and stable transaction IDs for payments. Reloads, retries, duplicate webhooks and return-tab navigation must not inflate conversions. Domain success is the source of truth, not the thank-you URL.
-3. Use durable delivery/retry only where needed, following existing job conventions. Handle rate limits, timeouts and invalid payloads, bound retries, and expose sanitized diagnostics. Advertising provider failure must not fail a payment, enquiry or listing submission.
+3. Use durable delivery/retry only where needed, following existing job conventions. Handle rate limits, timeouts and invalid payloads, bound retries, and expose sanitised diagnostics. Advertising provider failure must not fail a payment, enquiry or listing submission.
 4. Preserve Ripple signature verification and existing success transitions. If using a transactional outbox, keep the change additive and narrowly scoped. Never alter paid subscription entitlement semantics for tracking.
 5. Keep credentials server-side; expose only identifiers required by the browser. Do not log access tokens, raw identifiers or customer data. Hashing alone does not make personal data anonymous. Advanced matching is off unless explicitly reviewed and configured.
-6. Separate production and test destinations. Preview must never send to the production advertising dataset by default. Use a dedicated test dataset/account or local mock; a test-event code alone must not be assumed to isolate live measurement. Verify platform behavior.
+6. Separate production and test destinations. Preview must never send to the production advertising dataset by default. Use a dedicated test dataset/account or local mock; a test-event code alone must not be assumed to isolate live measurement. Verify platform behaviour.
 7. When configuration is absent, render normally without throwing and report integration disabled in internal diagnostics. Production marketing delivery requires an explicit activation flag and validated configuration. Restrict diagnostic screens to authorised admins.
 8. Document environment settings in a placeholder-only example and an environment matrix. Suggested concepts are provider enabled, dataset/pixel ID, server token, test destination, analytics measurement ID, ad conversion ID/label and policy version. Resolve exact names against existing conventions; do not duplicate real secrets into the pack.
 9. Implement relevant Google consent signals according to current official guidance if Google measurement is enabled. Use a conservative blocked-before-consent default; cookieless pings are not silently authorised by this brief.
 
 ## Phase 6 Inventory feeds and account operations
 
-Confirm current Meta vehicle-catalog and Google Vehicle Ads eligibility and required schemas before implementing provider-specific exports. Do not treat this as a generic retail shopping feed.
+Confirm current Meta vehicle-catalogue and Google Vehicle Ads eligibility and required schemas before implementing provider-specific exports. Do not treat this as a generic retail shopping feed.
 
 - Feed IDs must match event content IDs. Export canonical public deep links, accessible real images, actual price/currency/availability and required vehicle/dealer fields.
 - Exclude private data, hidden/sample/unapproved/expired stock and unsuitable categories. Separate dealer and private inventory according to platform rules.
 - Handle sold removal, price changes, deletion, pagination, caching and safe refresh. Validate required fields and report rejected rows without silently publishing bad inventory.
-- Test a fixture feed and controlled preview inventory. Publishing a catalog, scheduling an external import or creating/spending on campaigns requires explicit approval.
-- Prepare owner setup steps for Search Console/Bing ownership and sitemap submission; Meta assets/domain/dataset access and test events; GA4/Google Ads conversion setup; and applicable catalog diagnostics. Use available read-only tools before asking the user for information that is already accessible.
+- Test a fixture feed and controlled preview inventory. Publishing a catalogue, scheduling an external import or creating/spending on campaigns requires explicit approval.
+- Prepare owner setup steps for Search Console/Bing ownership and sitemap submission; Meta assets/domain/dataset access and test events; GA4/Google Ads conversion setup; and applicable catalogue diagnostics. Use available read-only tools before asking the user for information that is already accessible.
 - Do not represent account configuration as missing solely because no HTML verification tag exists: DNS verification and external settings may already be in place.
 
 ## Performance and delivery decisions

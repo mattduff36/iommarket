@@ -2,7 +2,7 @@
 
 ## Production data corrections
 
-The owner authorized investigation and resolution of test-only payment events, and explicitly confirmed that the two 7 October 20:04/20:07 BST checkouts on the second test account were unpaid tests.
+The owner authorised investigation and resolution of test-only payment events, and explicitly confirmed that the two 7 October 20:04/20:07 BST checkouts on the second test account were unpaid tests.
 
 - Nine verified synthetic provider events were retained as `QUARANTINED / IGNORED_TEST_EVENT`. Checks established reserved test email addresses, synthetic references/products or a one-penny subscription probe, and no user, payment, charge, claim, observation or subscription linkage. Each change has an admin audit record.
 - Two confirmed abandoned test checkout attempts were changed from `REVIEW` to `EXPIRED`. Their payment rows remain `PENDING`; this does not cancel a provider transaction or prevent later verified payment reconciliation.

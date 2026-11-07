@@ -17,7 +17,7 @@ The plan schedules updates to CostLedgerConfig (1 row), FxRateSnapshot (5), Cost
 ## Changes
 
 - Extracted the insert/upsert SQL builder to lib/database-sync/merge-write.ts. Matching typed writable values are compared before UPDATE. An identical record is not rewritten. New records are inserted. Real changes still encounter normal immutable triggers and other constraints. No permissions, schemas, trigger rules or data exclusions changed.
-- Apply now records the failing subphase/table and a sanitized reference. Confirmed rollback is distinguished from uncertain commit outcome. Successful completion is logged only after COMMIT returns.
+- Apply now records the failing subphase/table and a sanitised reference. Confirmed rollback is distinguished from uncertain commit outcome. Successful completion is logged only after COMMIT returns.
 - Post-commit cache refresh failure returns the saved successful result with a warning, rather than claiming the database save failed.
 - The client acknowledges preparation/application immediately, focuses and scrolls to its feedback, guards double submissions, and confirms success only when the returned state is Applied.
 - A lost/unconfirmed response blocks resubmission and offers a read-only Refresh history action. It never silently reruns Apply.

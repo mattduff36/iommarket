@@ -8,7 +8,7 @@ The Stock Reviews page can open the installed Windows app, connect it to the cur
 2. Register the per-user `itrader-stock-update` Windows protocol in installer 1.1.14. Redeem only against the fixed preview or production origin. Preserve Preview as the default for manual launches.
 3. Pass task IDs through stdin and filter the atomic database lease, preserving existing approval, fingerprint and lease fencing.
 4. Drain active work before closing. Send a terminal authenticated disconnect; reject late heartbeats from retired instances. Stream presence updates to the visible webpage independently of report editing.
-5. Verify native parsing/lifecycle, server authorization/scope, and browser confirmation/cancellation; deploy staging first and production through a staging-to-main PR. Publish the matching signed installer to both channels.
+5. Verify native parsing/lifecycle, server authorisation/scope, and browser confirmation/cancellation; deploy staging first and production through a staging-to-main PR. Publish the matching signed installer to both channels.
 
 ## Operation
 

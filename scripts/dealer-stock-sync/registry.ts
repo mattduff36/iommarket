@@ -504,7 +504,7 @@ export const DEALER_REGISTRY: readonly DealerRecord[] = [
       source("sales", "Rex sales", "https://www.rexmotorcompany.im/sales", "html-structured"),
       source("retail", "Rex retail", "https://www.rexmotorcompany.im/retail", "html-structured"),
     ],
-    notes: "ARCHIVED AT CLIENT REQUEST. Do not scrape, import, materialize, restore, or reactivate without the client's explicit written approval.",
+    notes: "ARCHIVED AT CLIENT REQUEST. Do not scrape, import, materialise, restore, or reactivate without the client's explicit written approval.",
     lastVerifiedAt: "2026-08-22",
   }),
   dealer({

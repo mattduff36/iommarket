@@ -3,7 +3,7 @@
 Rex Motor Company declined involvement and was removed from both preview and
 production on 30 September 2026.
 
-Do not scrape, import, materialize, restore, onboard, publish, or create a
+Do not scrape, import, materialise, restore, onboard, publish, or create a
 temporary profile for this dealer. Do not restore its database snapshot.
 Reactivation requires the client's explicit written approval.
 

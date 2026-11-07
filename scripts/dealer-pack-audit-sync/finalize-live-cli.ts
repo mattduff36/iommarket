@@ -155,7 +155,7 @@ export async function loadCliProductionLiveExclusions(input: {
   const exclusionsArg = parseArgValue(input.argv, "live-exclusions");
   if (!liveRun && !livePlan) {
     throw new Error(
-      "Refusing production plan: --live-run or a sealed finalized preview plan is required.",
+      "Refusing production plan: --live-run or a sealed finalised preview plan is required.",
     );
   }
 
@@ -167,7 +167,7 @@ export async function loadCliProductionLiveExclusions(input: {
   assertFinalizedPreviewPlan(finalPlan);
   if (liveRun && finalPlan.runId !== liveRun) {
     throw new Error(
-      "Refusing production live exclusions: --live-run does not match the finalized preview plan.",
+      "Refusing production live exclusions: --live-run does not match the finalised preview plan.",
     );
   }
 
@@ -208,7 +208,7 @@ async function readFileAsText(path: string) {
 if (process.argv[1]?.includes("finalize-live")) {
   runFinalizeLiveCli().then(({ plan, paths }) => {
     process.stdout.write(
-      `Finalized ${plan.actionCount} preview pack action(s) at ${paths.planPath}\n` +
+      `Finalised ${plan.actionCount} preview pack action(s) at ${paths.planPath}\n` +
         `fingerprint=${plan.fingerprint}\n`,
     );
   }).catch((error) => {
