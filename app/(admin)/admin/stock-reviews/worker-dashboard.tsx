@@ -28,9 +28,9 @@ function fresh(device: WorkerDashboardDevice, now: number) {
   return device.online && device.lastSeenAt !== null && now - Date.parse(device.lastSeenAt) <= 35_000;
 }
 
-export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
+export function StockWorkerDashboard({ initial, jobs, readyCount, children, dealers = [], offlineContent, downloadFallback, initialNow = 0, managedSnapshot = false, connectionLost = false }: {
   managedSnapshot?: boolean; connectionLost?: boolean;
-  dealers?: StockDealer[]; offlineContent?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
+  dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [now, setNow] = useState(initialNow);
@@ -124,6 +124,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, deal
       </div>
       {lifecycle.message ? <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p> : null}
       {lifecycle.launchFallback}
+      {!online && lifecycle.launchFailed ? downloadFallback : null}
       {message && !online ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
       {online ? <>
       {devices.length > 1 ? <label className="block text-sm text-text-secondary">Computer <select disabled={pending} className="ml-2 rounded-md border border-border bg-surface p-2 text-text-primary" value={device?.deviceId ?? ""} onChange={event => setSelected(event.target.value)}>

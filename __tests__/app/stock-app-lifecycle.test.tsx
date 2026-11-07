@@ -6,10 +6,10 @@ vi.mock("@/app/(admin)/admin/stock-reviews/launch-actions", () => ({ launchStock
 vi.mock("@/app/(admin)/admin/stock-reviews/app-launch-navigation", () => ({ openStockUpdateProtocol: mocks.navigate }));
 import { useStockAppLifecycle } from "@/app/(admin)/admin/stock-reviews/app-lifecycle";
 import type { StockWorkerControl } from "@/app/(admin)/admin/stock-reviews/worker-context";
-function Harness({ online = false, target = "device:instance" }: { online?: boolean; target?: string }) {
+function Harness({ online = false, target = "device:instance", connectedLaunchId }: { online?: boolean; target?: string; connectedLaunchId?: string }) {
   const controls = { online, target, running: false, pending: false, stopping: false, dispatch: mocks.dispatch } as unknown as StockWorkerControl;
-  const lifecycle = useStockAppLifecycle(controls);
-  return <><button onClick={() => void lifecycle.requestRun(mocks.task)}>Run task</button>{lifecycle.dialog}<p>{lifecycle.message}</p>{lifecycle.launchFallback}</>;
+  const lifecycle = useStockAppLifecycle(controls, connectedLaunchId);
+  return <><button onClick={() => void lifecycle.open()}>Open Stock Update</button>{lifecycle.launchFailed && <button>Download app</button>}<button onClick={() => void lifecycle.requestRun(mocks.task)}>Run task</button>{lifecycle.dialog}<p>{lifecycle.message}</p>{lifecycle.launchFallback}</>;
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -17,7 +17,7 @@ beforeEach(() => {
   mocks.launch.mockResolvedValue({ ok: true, url: "protocol-link", launchId: "launch-one" });
   mocks.dispatch.mockResolvedValue("ok");
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 it("does not queue or launch before offline confirmation, and cancellation has no effects", async () => {
   render(<Harness />);
   fireEvent.click(screen.getByText("Run task"));
@@ -63,4 +63,27 @@ it("uses the connected instance and preserves its target across an async queue",
   await act(async () => finish(["job-one"]));
   expect(mocks.dispatch).toHaveBeenCalledWith("start", "device:instance");
   expect(mocks.launch).not.toHaveBeenCalled();
+});
+
+it("shows download only after opening fails and clears it on retry and connection", async () => {
+  mocks.launch.mockResolvedValueOnce({ok:false,error:"unavailable"});
+  const view = render(<Harness />);
+  expect(screen.queryByText("Download app")).not.toBeInTheDocument();
+  await act(async () => fireEvent.click(screen.getByText("Open Stock Update")));
+  expect(screen.getByText("Download app")).toBeInTheDocument();
+  await act(async () => fireEvent.click(screen.getByText("Open Stock Update")));
+  expect(screen.queryByText("Download app")).not.toBeInTheDocument();
+  view.rerender(<Harness online connectedLaunchId="launch-one" />);
+  expect(screen.queryByText("Download app")).not.toBeInTheDocument();
+});
+it("offers download after the connection timeout and hides it on a late connection", async () => {
+  vi.useFakeTimers();
+  const view = render(<Harness />);
+  await act(async () => fireEvent.click(screen.getByText("Open Stock Update")));
+  await act(async () => vi.advanceTimersByTimeAsync(44_999));
+  expect(screen.queryByText("Download app")).not.toBeInTheDocument();
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(screen.getByText("Download app")).toBeInTheDocument();
+  view.rerender(<Harness online connectedLaunchId="launch-one" />);
+  expect(screen.queryByText("Download app")).not.toBeInTheDocument();
 });
