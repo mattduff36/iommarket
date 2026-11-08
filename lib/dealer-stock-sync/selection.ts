@@ -20,6 +20,10 @@ export function isApprovableStockAction(action: PlanAction) {
   return !isStockDraftOwnedAction(action) && !isSoldStockReviewAction(action) && (action.kind === "create" || action.kind === "update");
 }
 
+export function isRemovableStockAction(action: PlanAction) {
+  return !isStockDraftOwnedAction(action) && !isSoldStockReviewAction(action) && action.kind === "unpublish";
+}
+
 export function isDraftableStockAction(action: PlanAction) {
   if (!action.sourceIdentityKey?.trim() || isSoldStockReviewAction(action) || isStockDraftOwnedAction(action)) return false;
   if ((action.kind === "blocked" || action.kind === "conflict") && PROTECTED_DRAFT_REASONS.has(action.reason)) return false;

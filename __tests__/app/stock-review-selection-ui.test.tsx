@@ -30,6 +30,18 @@ describe("stock review selection controls", () => {
     await waitFor(() => expect(submit).toHaveBeenCalledWith({reportId: "report", fingerprint: props.fingerprint, operation: "draft", actionIndexes: [0,1]}));
     await waitFor(() => expect(screen.getByText("0 selected")).toBeInTheDocument());
   });
+  it("offers explicit removal approval for a selected removal and excludes mixed selections", async () => {
+    render(<StockSyncReviewPanel {...props} />);
+    fireEvent.click(screen.getByRole("checkbox", {name: "Select Missing car"}));
+    expect(screen.getByRole("button", {name: "Approve selected removals"})).toBeEnabled();
+    expect(screen.getByRole("button", {name: "Send selected to dealer drafts"})).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", {name: "Select Eligible car"}));
+    expect(screen.getByRole("button", {name: "Approve selected removals"})).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", {name: "Select Eligible car"}));
+    fireEvent.click(screen.getByRole("button", {name: "Approve selected removals"}));
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({operation: "remove", actionIndexes: [3]})));
+    expect(await screen.findByText(/Selected removals queued/)).toBeInTheDocument();
+  });
   it("whole-review approval excludes blocked, sold and removal rows", async () => {
     render(<StockSyncReviewPanel {...props} />);
     fireEvent.click(screen.getByRole("button", {name: "Approve all eligible (1)"}));

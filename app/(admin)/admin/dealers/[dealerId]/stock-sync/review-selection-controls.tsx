@@ -3,7 +3,7 @@ import { useState, useTransition } from "react";
 import { Check, X, Send, ListChecks, ListX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { reviewDealerStockSelection } from "@/actions/admin/dealer-stock-selection";
-import { isApprovableStockAction, isDraftableStockAction, isSelectableStockAction } from "@/lib/dealer-stock-sync/selection";
+import { isApprovableStockAction, isRemovableStockAction, isDraftableStockAction, isSelectableStockAction } from "@/lib/dealer-stock-sync/selection";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -24,8 +24,10 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
   const eligible = actions.flatMap((action, index) => isApprovableStockAction(action) ? [index] : []);
   const blocked = actions.flatMap((action, index) => isSelectableStockAction(action) && (action.kind === "blocked" || action.kind === "conflict") ? [index] : []);
   const canApprove = chosen.length > 0 && chosen.every(isApprovableStockAction);
+  const canRemove = chosen.length > 0 && chosen.every(isRemovableStockAction);
+  const hasRemoval = chosen.some(isRemovableStockAction);
   const canDraft = chosen.length > 0 && chosen.every(isDraftableStockAction);
-  function run(operation: "approve" | "reject" | "draft", actionIndexes: number[]) {
+  function run(operation: "approve" | "remove" | "reject" | "draft", actionIndexes: number[]) {
     setFeedback({});
     startTransition(async () => {
       const perform = async (): Promise<string[]> => {
@@ -34,13 +36,13 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
         const result = await reviewDealerStockSelection({ reportId, fingerprint, operation, actionIndexes });
         if ("error" in result) { setFeedback({error: result.error ?? "Could not update this review."}); return []; }
         selection.setIndexes([]);
-        setFeedback({message: "warning" in result && typeof result.warning === "string" ? result.warning : operation === "approve" ? "Selected listings queued for approval. Other items remain for review." : operation === "draft" ? "Selected listings sent to the dealer's drafts." : "Selected items cleared. Listings have not been deleted."});
+        setFeedback({message: "warning" in result && typeof result.warning === "string" ? result.warning : operation === "remove" ? "Selected removals queued. Listings will be taken down; other items remain for review." : operation === "approve" ? "Selected listings queued for approval. Other items remain for review." : operation === "draft" ? "Selected listings sent to the dealer's drafts." : "Selected items cleared. Listings have not been deleted."});
         if (reload) reload(); else router.refresh();
         return result.data.jobId ? [result.data.jobId] : [];
       } catch { setFeedback({error: "Could not update this review. Refresh the results and try again."}); return []; }
       finally { onPendingChange?.(false); }
       };
-      if (operation === "approve" && worker?.requestRun) await worker.requestRun(perform);
+      if ((operation === "approve" || operation === "remove") && worker?.requestRun) await worker.requestRun(perform);
       else await perform();
     });
   }
@@ -53,11 +55,11 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
         title="Clear selection" className="min-h-11 min-w-9 px-2 text-text-secondary"><X size={14} aria-hidden="true" /><span className="sr-only">Clear selection</span></Button>
     </div>
     <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Selected listing actions">
-      <Button type="button" variant="ghost" aria-label="Approve selected"
-        title={canApprove ? "Queue the selected eligible additions and updates." : "Select eligible additions or updates. Blocked items and removals cannot be approved here."}
+      <Button type="button" variant="ghost" aria-label={hasRemoval ? "Approve selected removals" : "Approve selected"}
+        title={hasRemoval ? "Select only removal suggestions to take those listings down. Listings are not deleted." : canApprove ? "Queue the selected eligible additions and updates." : "Select eligible additions or updates. Blocked items and removals cannot be approved here."}
         className={`${actionClass} bg-neon-blue-600 text-white hover:bg-neon-blue-500 hover:text-white`}
-        disabled={pending || !canApprove} onClick={() => run("approve", selection.indexes)}>
-        <Check className="size-4 shrink-0" aria-hidden="true" /><span>Approve</span>
+        disabled={pending || !(hasRemoval ? canRemove : canApprove)} onClick={() => run(hasRemoval ? "remove" : "approve", selection.indexes)}>
+        <Check className="size-4 shrink-0" aria-hidden="true" /><span>{hasRemoval ? "Approve removal" : "Approve"}</span>
       </Button>
       <Button type="button" variant="ghost" aria-label="Send selected to dealer drafts"
         title={canDraft ? "Send selected items to dealer drafts. Live listings remain live." : "Select items with a safe source identity. Resolve protected or conflicting listings first."}
