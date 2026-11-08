@@ -7,7 +7,7 @@ import { capClientIngestSeverity, coerceSeverity } from "@/lib/monitoring/severi
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { ingestMonitoringClientEventSchema } from "@/lib/validations/monitoring";
-import { safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
+import { safeRequestDiagnostic, safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 
 const MAX_BODY_BYTES = 64_000;
 
@@ -109,7 +109,8 @@ export async function POST(req: NextRequest) {
       ingestRelease: process.env.VERCEL_GIT_COMMIT_SHA,
       clientStackProvided: Boolean(parsed.data.stack),
     },
-    extra: { ...parsed.data.extra, requests: safeRequestDiagnostics(parsed.data.extra?.requests) },
+    extra: { ...parsed.data.extra, requests: safeRequestDiagnostics(parsed.data.extra?.requests),
+      triggeringRequest: safeRequestDiagnostic(parsed.data.extra?.triggeringRequest) },
   });
 
   return NextResponse.json(

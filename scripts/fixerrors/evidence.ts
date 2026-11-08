@@ -1,5 +1,5 @@
 import { AUTH_DIAGNOSTIC_CODES } from "@/lib/monitoring/client-diagnostics";
-import { diagnosticTarget } from "@/lib/monitoring/request-diagnostics";
+import { diagnosticTarget, safeRequestDiagnostic } from "@/lib/monitoring/request-diagnostics";
 
 /** Export a closed set of diagnostic facts, never arbitrary tags or extra data. */
 export function safeEventEvidence(row: Record<string, unknown>): Record<string, string | number | boolean> {
@@ -40,6 +40,12 @@ export function safeEventEvidence(row: Record<string, unknown>): Record<string, 
   for (const key of ["serverRelease", "clientRelease"] as const) if (typeof row[key] === "string" && /^[a-f0-9]{40}$/i.test(row[key])) evidence[key] = row[key];
   if (typeof row.ingestRelease === "string" && /^[a-f0-9]{40}$/i.test(row.ingestRelease)) evidence.ingestRelease = row.ingestRelease;
   if (row.clientStackProvided === "true" || row.clientStackProvided === "false") evidence.clientStackProvided = row.clientStackProvided === "true";
+  const triggeringRequest = safeRequestDiagnostic(row.triggeringRequest);
+  if (triggeringRequest) {
+    for (const [key, value] of Object.entries(triggeringRequest)) {
+      if (value !== null && value !== undefined) evidence[`triggeringRequest${key[0].toUpperCase()}${key.slice(1)}`] = value;
+    }
+  }
   if (typeof row.filename === "string") evidence.scriptLocation = diagnosticTarget(row.filename, "https://itrader.im") ?? "unavailable";
   for (const key of ["line", "col"] as const) {
     const value = Number(row[key]);

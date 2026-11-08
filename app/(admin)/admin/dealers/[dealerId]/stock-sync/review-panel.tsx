@@ -171,7 +171,7 @@ export function StockSyncReviewPanel(input: {
   ] as const;
   return (
     <section className="flex min-h-0 max-h-[80dvh] flex-1 flex-col">
-      <div data-stock-review-scroll="" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-2 pb-4">
+      <div data-stock-review-scroll="" className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-2 pb-4">
       <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>
       <p className="text-sm text-text-secondary">
         Status: <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(input.status)}>{stockSyncStatus(input.status)}</span>. {actionable.length} actionable, {blocked.length} blocked{handoffs.length ? `, ${handoffs.length} handed-off drafts tracked separately` : ""}.
