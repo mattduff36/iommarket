@@ -109,7 +109,39 @@ async function renderPage(outstanding: unknown[], recent: unknown[] = [], jobs: 
 describe("admin stock reviews", () => {
   it("associates scrape report outcomes by run id when the job has no report relation", async () => {
     await renderPage([], [report({ status: "FAILED", scrapeRunId: "scan", inventoryCount: 0 })], [job({ id: "scan", status: "SUCCEEDED" })]);
-    expect(dashboardProps).toHaveBeenCalledWith(expect.objectContaining({ jobs: [expect.objectContaining({ id: "scan", reportStatus: "FAILED" })] }));
+    expect(dashboardProps).toHaveBeenCalledWith(expect.objectContaining({ jobs: [expect.objectContaining({ id: "scan", reportStatus: "FAILED", reviewListingCount: 0 })] }));
+  });
+  it("maps full reports by explicit id before scrape run id, without borrowing another scan for apply jobs", async () => {
+    await renderPage([
+      report({ id: "explicit", scrapeRunId: "other", plan: { actions: [{ kind: "blocked", reason: "missing-region", section: "new", sourceIdentityKey: "a", listingId: null }] } }),
+      report({ id: "run-match", scrapeRunId: "scan", plan: { actions: [] } }),
+      report({ id: "not-an-apply-report", scrapeRunId: "apply", plan: { actions: [] } }),
+    ], [], [
+      job({ id: "scan", status: "SUCCEEDED", reportId: "explicit", report: { id: "explicit", status: "PENDING_REVIEW" } }),
+      job({ id: "by-id", status: "SUCCEEDED", reportId: "explicit" }),
+      job({ id: "by-relation", status: "SUCCEEDED", report: { id: "explicit", status: "PENDING_REVIEW" } }),
+      job({ id: "by-run", status: "SUCCEEDED" }),
+      job({ id: "apply", kind: "APPLY", status: "SUCCEEDED" }),
+      job({ id: "missing", status: "SUCCEEDED", reportId: "unloaded", report: { id: "unloaded", status: "PENDING_REVIEW" } }),
+    ]);
+    expect(dashboardProps).toHaveBeenLastCalledWith(expect.objectContaining({ jobs: [
+      expect.objectContaining({ id: "scan", reviewListingCount: 1 }),
+      expect.objectContaining({ id: "by-id", reportStatus: "PENDING_REVIEW", reviewListingCount: 1 }),
+      expect.objectContaining({ id: "by-relation", reportStatus: "PENDING_REVIEW", reviewListingCount: 1 }),
+      expect.objectContaining({ id: "by-run", reportStatus: null, reviewListingCount: null }),
+      expect.objectContaining({ id: "apply", reportStatus: null, reviewListingCount: null }),
+      expect.objectContaining({ id: "missing", reportStatus: "PENDING_REVIEW", reviewListingCount: null }),
+    ] }));
+  });
+  it("maps pending actions and genuine no-change counts from saved scrape reports", async () => {
+    await renderPage([
+      report({ id: "quiet", scrapeRunId: "quiet-scan", plan: { actions: [{ kind: "unchanged", sourceIdentityKey: "same", listingId: null }] } }),
+      report({ id: "pending", scrapeRunId: "pending-scan", plan: { actions: [], pendingReviewActions: [{ kind: "missing_once", sourceIdentityKey: "missing", listingId: "listing" }] } }),
+    ], [], [job({ id: "quiet-scan", status: "SUCCEEDED" }), job({ id: "pending-scan", status: "SUCCEEDED" })]);
+    expect(dashboardProps).toHaveBeenLastCalledWith(expect.objectContaining({ jobs: [
+      expect.objectContaining({ id: "quiet-scan", reportStatus: "PENDING_REVIEW", reviewListingCount: 0 }),
+      expect.objectContaining({ id: "pending-scan", reportStatus: "PENDING_REVIEW", reviewListingCount: 1 }),
+    ] }));
   });
   beforeEach(() => {
     vi.clearAllMocks();

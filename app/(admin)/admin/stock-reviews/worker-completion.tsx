@@ -8,12 +8,21 @@ export function stockJobFinished(job: LiveStockJob) {
   return ["SUCCEEDED", "FAILED", "CANCELLED"].includes(job.status);
 }
 
+function scanReviewSuffix(job: LiveStockJob): string | null {
+  const count = job.reviewListingCount;
+  if (job.status !== "SUCCEEDED" || job.kind !== "SCRAPE" || job.reportStatus !== "PENDING_REVIEW" ||
+      count == null || !Number.isSafeInteger(count) || count < 0) return null;
+  return count === 0 ? "- no new changes" : `- ${count} ${count === 1 ? "listing" : "listings"} for review`;
+}
+
 export function stockJobOutcome(job: LiveStockJob) {
   if (job.status === "FAILED" || job.reportStatus === "FAILED") return `${job.dealerName}: task failed — check the saved result`;
   if (job.status === "CANCELLED") return `${job.dealerName}: task cancelled`;
   if (job.reportStatus === "APPLIED") return `${job.dealerName}: finished — stock update applied`;
-  if (job.reportStatus === "PENDING_REVIEW") return `${job.dealerName}: finished — ready for review`;
   if (job.reportStatus === "APPROVED") return `${job.dealerName}: finished — report approved, awaiting application`;
+  const suffix = scanReviewSuffix(job);
+  if (suffix !== null) return `${job.dealerName}: Success ${suffix}`;
+  if (job.status === "SUCCEEDED" && job.reportStatus === "PENDING_REVIEW") return `${job.dealerName}: Success - check the saved result`;
   return `${job.dealerName}: finished — check the saved result`;
 }
 
@@ -51,16 +60,19 @@ export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs
     <DialogContent onPointerDownOutside={event => event.preventDefault()}>
       <DialogTitle>Stock Update run finished</DialogTitle>
       <DialogDescription className="mt-3">
-        All {notice?.length ?? 0} tasks in this run have ended. Review the results below. Failed tasks need attention; successful scans still require your approval before listings change.
+        All {notice?.length ?? 0} tasks in this run have ended. Review the results below. Failed tasks need attention; any proposed listing changes require your approval.
       </DialogDescription>
       <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm">
         {notice?.map(job => {
           const outcome = stockJobOutcome(job).slice(job.dealerName.length + 2);
           const failed = job.status === "FAILED" || job.reportStatus === "FAILED";
-          return <li key={job.id}>
+          const suffix = scanReviewSuffix(job);
+          return <li key={job.id} className="text-text-primary">
             {job.dealerName}: {failed
               ? <><span className="text-red-400">task failed</span> — check the saved result</>
-              : <span className={job.status === "SUCCEEDED" ? "text-emerald-400" : undefined}>{outcome}</span>}
+              : suffix !== null
+                ? <><span className="text-emerald-400">Success</span>{" "}<span className={job.reviewListingCount === 0 ? "text-text-primary" : "text-emerald-400"}>{suffix}</span></>
+                : <span className={job.status === "SUCCEEDED" ? "text-emerald-400" : undefined}>{outcome}</span>}
           </li>;
         })}
       </ul>

@@ -20,6 +20,7 @@ import { stockApplyOutcome } from "@/lib/dealer-stock-sync/apply-recovery";
 import { StockDealerPicker } from "./dealer-picker";
 import { DownloadStockWorker } from "./download-worker";
 import { StockWorkerDashboard } from "./worker-dashboard";
+import { stockReviewListingCount } from "./worker-review-summary";
 import { StockSyncReviewPanel } from "../dealers/[dealerId]/stock-sync/review-panel";
 
 function actionsOf(plan: unknown, key: "actions" | "pendingReviewActions" = "actions"): PlanAction[] {
@@ -167,7 +168,19 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   const unavailableProfiles = classified.filter(profile => profile.reason).map(profile => ({
     id: profile.id, name: profile.name, reason: profile.reason!,
   }));
-  const reportsByRun = new Map([...outstanding, ...recentReports].map(report => [report.scrapeRunId, report]));
+  const reports = [...outstanding, ...recentReports];
+  const reportsById = new Map(reports.map(report => [report.id, report]));
+  const reportsByRun = new Map(reports.map(report => [report.scrapeRunId, report]));
+  const liveJobs = jobs.map(job => {
+    const reportId = job.reportId ?? job.report?.id;
+    const report = reportId ? reportsById.get(reportId) : job.kind === "SCRAPE" ? reportsByRun.get(job.id) : undefined;
+    return {
+      id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status,
+      reportStatus: report?.status ?? job.report?.status ?? null,
+      reviewListingCount: report ? stockReviewListingCount(report.plan) : null,
+      startedAt: job.startedAt,
+    };
+  });
   const dealers = dealerGroups(outstanding, recentReports, jobs);
   const historyView: ResultHistoryState = query.history === "archived" || query.history === "deleted" ? query.history : "active";
   const visibleJobs = dealers.flatMap(dealer => dealer.jobs);
@@ -196,7 +209,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
         description="Review and approve changes before listings update."
       />
       {pairing}
-      </>} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt }))}>
+      </>} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={liveJobs}>
       <StockDealerPicker retainOnDisconnect={connectionLost} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <StockResultHistory entries={shownHistory} view={historyView}>
       <div data-review-layout={wide ? "split" : "accordion"} className={wide && selectedResult ? "grid min-w-0 grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)] items-start gap-5" : "min-w-0"}>

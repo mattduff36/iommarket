@@ -136,6 +136,18 @@ describe("Stock Reviews live worker", () => {
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByText("Run complete. Review the results above.")).toBeInTheDocument();
  });
+ it.each([0, 1, 3])("keeps the footer and modal summary consistent for %i review listings", async reviewListingCount => {
+  const base = { id: "scan", dealerName: "Island Motors", kind: "SCRAPE", status: "LEASED", startedAt: null, reportStatus: "PENDING_REVIEW", reviewListingCount };
+  const initial = connected();
+  const ui = (status: string) => <StockWorkerDashboard initial={initial} initialNow={Date.now()} managedSnapshot jobs={[{ ...base, status }]} readyCount={0} />;
+  const view = render(ui("LEASED"));
+  const footer = screen.getByRole("contentinfo", { name: "Stock Update" });
+  view.rerender(ui("SUCCEEDED"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+  const suffix = reviewListingCount === 0 ? "no new changes" : `${reviewListingCount} ${reviewListingCount === 1 ? "listing" : "listings"} for review`;
+  expect(within(footer).getByText(`Island Motors: Success - ${suffix}`)).toBeInTheDocument();
+  expect(within(screen.getByRole("dialog")).getByRole("listitem")).toHaveTextContent(`Island Motors: Success - ${suffix}`);
+ });
  it("does not announce old history, and defers new failure notices while editing", async () => {
   const old = { id: "old", dealerName: "Old dealer", kind: "APPLY", status: "SUCCEEDED", reportStatus: "APPLIED", startedAt: null };
   const ui = (extra: typeof old[]) => <StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[old,...extra]} readyCount={0} />;
