@@ -16,7 +16,7 @@ import { useWorkerViewport } from "./use-worker-viewport";
 import { useWorkerPresence } from "./use-worker-presence";
 import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 
-export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null }
+export interface LiveStockJob { id: string; dealerName: string; kind: string; status: string; startedAt: string | null; reportStatus?: string | null; reviewListingCount?: number | null }
 
 
 function elapsed(start: string | null, now: number) {
