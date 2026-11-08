@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { diagnosticTarget, installRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
+import { createResourceDiagnostics } from "@/lib/monitoring/resource-diagnostics";
 import {
   extractConsoleStack,
   isExpectedClientCancellation,
@@ -41,14 +42,17 @@ export function ClientErrorListener() {
       if (limiter.canSend(createClientEventKey(payload))) void sendClientMonitoringEvent(payload);
     });
 
-    function onError(event: ErrorEvent) {
-      const source = event.target instanceof HTMLImageElement ? event.target.currentSrc || event.target.src
-        : event.target instanceof HTMLScriptElement ? event.target.src : null;
-      const resource = source ? diagnosticTarget(source, window.location.origin) : null;
-      const message = event.error instanceof Error
-        ? event.error.message
-        : event.message || (resource ? `Resource failed to load: ${resource}` : "Unhandled client error");
-      const stack = event.error instanceof Error ? event.error.stack : undefined;
+    const collectResource = createResourceDiagnostics(window);
+    function onLoad(event: Event) { collectResource(event); }
+
+    function onError(event: Event) {
+      const resource = collectResource(event);
+      const errorEvent = typeof ErrorEvent !== "undefined" && event instanceof ErrorEvent ? event : undefined;
+      const message = errorEvent?.error instanceof Error
+        ? errorEvent.error.message
+        : errorEvent?.message || (resource.target ? `Resource failed to load: ${resource.target}`
+          : `Unhandled client error (${resource.elementKind})`);
+      const stack = errorEvent?.error instanceof Error ? errorEvent.error.stack : undefined;
       if (shouldIgnoreClientMonitoringMessage(message)) return;
       const payload = {
         message,
@@ -57,10 +61,11 @@ export function ClientErrorListener() {
         route: window.location.pathname,
         tags: {
           type: "window.onerror",
-          filename: event.filename ? diagnosticTarget(event.filename, window.location.origin) : resource,
-          line: event.lineno,
-          col: event.colno,
+          filename: errorEvent?.filename ? diagnosticTarget(errorEvent.filename, window.location.origin) : resource.target,
+          line: errorEvent?.lineno,
+          col: errorEvent?.colno,
         },
+        extra: { resource },
       };
       if (!limiter.canSend(createClientEventKey(payload))) return;
       void sendClientMonitoringEvent(payload);
@@ -84,6 +89,7 @@ export function ClientErrorListener() {
       void sendClientMonitoringEvent(payload);
     }
 
+    window.addEventListener("load", onLoad, true);
     window.addEventListener("error", onError, true);
     window.addEventListener("unhandledrejection", onUnhandledRejection);
 
@@ -117,6 +123,7 @@ export function ClientErrorListener() {
     }
 
     return () => {
+      window.removeEventListener("load", onLoad, true);
       window.removeEventListener("error", onError, true);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
       restoreConsole();

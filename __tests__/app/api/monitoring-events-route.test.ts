@@ -102,6 +102,37 @@ describe("OPS-INGEST-001 monitoring events ingest", () => {
     expect(await response.json()).toMatchObject({ ok: false, eventId: null });
   });
 
+  it("persists only closed resource facts even when a client sends private or malformed fields", async () => {
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    const resource = {
+      elementKind: "link", target: "/_next/static/chunks/:segment", linkRel: "preload", linkAs: "style",
+      responseStatus: 0, durationMs: 12, transferSize: 0, decodedBodySize: 300,
+    };
+    const response = await POST(postEvent({ message: "Resource failed", extra: { resource: {
+      ...resource, url: "https://private.test?secret=value", alt: "private", message: "private", body: "private",
+      mediaErrorCode: 3,
+    } } }));
+    expect(response.status).toBe(202);
+    const captured = captureException.mock.calls.at(-1)?.[0];
+    expect(captured.extra.resource).toEqual(resource);
+    const persisted = sanitizeMonitoringContext(captured);
+    expect(persisted.extra?.resource).toEqual(resource);
+    expect(JSON.stringify(persisted.extra)).not.toMatch(/private|secret|url|alt|message|body/);
+
+    await POST(postEvent({ message: "Resource failed", extra: { resource: {
+      elementKind: "img", target: "/api/media/listing-photo?photoId=private",
+      responseStatus: 999, durationMs: -1, transferSize: "100", decodedBodySize: -1,
+    } } }));
+    expect(captureException.mock.calls.at(-1)?.[0].extra.resource).toEqual({ elementKind: "img" });
+  });
+
+  it.each([null, [], "private", {}, { elementKind: "private" }])("drops malformed resource evidence but still accepts the event (%#)", async (resource) => {
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    const response = await POST(postEvent({ message: "Resource failed", extra: { resource } }));
+    expect(response.status).toBe(202);
+    expect(captureException.mock.calls.at(-1)?.[0].extra.resource).toBeUndefined();
+  });
+
   it("persists validated triggering-request facts independently from request breadcrumbs", async () => {
     const { POST } = await import("@/app/api/monitoring/events/route");
     const triggeringRequest = {

@@ -128,3 +128,149 @@ describe("request diagnostics", () => {
     ]) expect(safeRequestDiagnostics([malformed])).toEqual([]);
   });
 });
+
+
+describe("request purpose and response provenance", () => {
+  it("leaves header-pair accessors to native fetch without consuming them", async () => {
+    let reads = 0;
+    const pair: [string, string] = ["RSC", "1"];
+    Object.defineProperty(pair, "1", { get: () => String(++reads) });
+    let sent: string | null = null;
+    const target = { fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      sent = new Request(input, init).headers.get("rsc");
+      return new Response("ok");
+    }) };
+    const restore = installRequestDiagnostics(target, "https://example.test", vi.fn());
+    try {
+      await target.fetch("https://example.test/search", { headers: [pair] });
+      expect({ reads, sent }).toEqual({ reads: 1, sent: "1" });
+      expect(requestDiagnostics()[0].requestKind).toBeUndefined();
+    } finally { restore(); }
+  });
+
+  it("uses native header storage without calling a shadowed get method", async () => {
+    const headers = new Headers({ RSC: "1" });
+    const shadowedGet = vi.fn(() => { headers.set("RSC", "changed"); return null; });
+    Object.defineProperty(headers, "get", { value: shadowedGet });
+    let sent: string | null = null;
+    const target = { fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      sent = new Request(input, init).headers.get("rsc");
+      return new Response("ok");
+    }) };
+    const restore = installRequestDiagnostics(target, "https://example.test", vi.fn());
+    try {
+      await target.fetch("https://example.test/search", { headers });
+      expect(sent).toBe("1");
+      expect(shadowedGet).not.toHaveBeenCalled();
+      expect(requestDiagnostics()[0].requestKind).toBe("rsc");
+    } finally { restore(); }
+  });
+
+  it("leaves accessor-based init headers to native fetch and marks purpose unknown", async () => {
+    let reads = 0;
+    const init = { get headers() { reads += 1; return { RSC: "1", "x-test-read": String(reads) }; } };
+    let sent: string | null = null;
+    const target = { fetch: vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+      sent = new Request(input, options).headers.get("x-test-read");
+      return new Response("ok");
+    }) };
+    const restore = installRequestDiagnostics(target, "https://example.test", vi.fn());
+    try {
+      await target.fetch("https://example.test/search", init);
+      expect({ reads, sent }).toEqual({ reads: 1, sent: "1" });
+      expect(requestDiagnostics()[0].requestKind).toBeUndefined();
+    } finally { restore(); }
+  });
+
+  it("does not evaluate an input headers override when init supplies the real headers", async () => {
+    const request = new Request("https://example.test/search", { headers: { RSC: "1" } });
+    const getter = vi.fn(() => { throw new Error("must not read shadowed headers"); });
+    Object.defineProperty(request, "headers", { get: getter });
+    const target = { fetch: vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+      expect(new Request(input, options).headers.get("purpose")).toBe("prefetch");
+      return new Response("ok");
+    }) };
+    const restore = installRequestDiagnostics(target, "https://example.test", vi.fn());
+    try {
+      await target.fetch(request, { headers: { purpose: "prefetch" } });
+      expect(getter).not.toHaveBeenCalled();
+      expect(requestDiagnostics()[0].requestKind).toBe("prefetch");
+    } finally { restore(); }
+  });
+
+  it("does not consume a one-use header iterable before the real fetch", async () => {
+    let seenRsc: string | null = null;
+    function* oneUseHeaders() { yield ["RSC", "1"]; }
+    const headers = oneUseHeaders() as unknown as HeadersInit;
+    const target = { fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seenRsc = new Headers(init?.headers).get("RSC");
+      return new Response("ok");
+    }) };
+    const restore = installRequestDiagnostics(target, "https://example.test", vi.fn());
+    try {
+      await target.fetch("/search", { headers });
+      expect(seenRsc).toBe("1");
+    } finally { restore(); }
+  });
+
+  it("distinguishes RSC prefetch and the existing account polling route without exposing headers", async () => {
+    const target = { fetch: vi.fn().mockRejectedValue(new TypeError("private failure")) };
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      await expect(target.fetch("/api/account-updates?scope=private", {
+        headers: { RSC: "1", "Next-Router-Prefetch": "1", authorization: "private-token" },
+      })).rejects.toThrow();
+      expect(failure).toHaveBeenLastCalledWith(expect.objectContaining({
+        target: "/api/account-updates", requestKind: "prefetch",
+      }));
+      await expect(target.fetch("/search", { headers: { RSC: "1" } })).rejects.toThrow();
+      expect(failure).toHaveBeenLastCalledWith(expect.objectContaining({ requestKind: "rsc" }));
+      expect(JSON.stringify(requestDiagnostics())).not.toMatch(/private|authorization|scope/);
+    } finally { restore(); }
+  });
+
+  it("honours Request headers and an explicit init override without altering either", async () => {
+    const original = vi.fn().mockResolvedValue(new Response("ok"));
+    const target = { fetch: original };
+    const restore = installRequestDiagnostics(target, "https://example.test", vi.fn());
+    try {
+      const request = new Request("https://example.test/search", { headers: { RSC: "1" } });
+      await target.fetch(request);
+      const override = { headers: { accept: "text/html" } };
+      await target.fetch(request, override);
+      expect(requestDiagnostics().map(row => row.requestKind)).toEqual(["rsc", "fetch"]);
+      expect(original.mock.calls[1]).toEqual([request, override]);
+      expect(request.headers.get("RSC")).toBe("1");
+    } finally { restore(); }
+  });
+
+  it("retains safe response provenance when a 500 lacks a server request reference", async () => {
+    const response = new Response("private response body", { status: 500, headers: { "content-type": "text/html; charset=utf-8" } });
+    Object.defineProperties(response, {
+      url: { value: "https://example.test/privacy?private=value" },
+      redirected: { value: true },
+      type: { value: "basic" },
+    });
+    const target = { fetch: vi.fn().mockResolvedValue(response) };
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      expect(await target.fetch("/search")).toBe(response);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        requestKind: "fetch", responseType: "basic", responseContentType: "html",
+        redirected: true, responseTarget: "/:segment", status: 500,
+      }));
+      expect(response.bodyUsed).toBe(false);
+      expect(JSON.stringify(requestDiagnostics())).not.toMatch(/private|value|charset/);
+    } finally { restore(); }
+  });
+
+  it("accepts only closed optional provenance values and still rejects malformed request targets", () => {
+    const base = { at: 0, target: "/api/account-updates", method: "GET", status: 500, durationMs: 1, outcome: "http-error" };
+    const safe = { requestKind: "prefetch", responseType: "basic", responseContentType: "html", redirected: false, responseTarget: "/api/media/cloudinary-ref" };
+    expect(safeRequestDiagnostics([{ ...base, ...safe }])).toEqual([{ ...base, ...safe }]);
+    expect(safeRequestDiagnostics([{ ...base, requestKind: "private", responseType: ["basic"], responseContentType: "private", redirected: "true", responseTarget: "/search?secret=value" }])).toEqual([base]);
+    expect(safeRequestDiagnostics([{ ...base, target: "/api/account-updates/private" }])).toEqual([]);
+  });
+});

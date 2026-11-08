@@ -8,6 +8,7 @@ import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { ingestMonitoringClientEventSchema } from "@/lib/validations/monitoring";
 import { safeRequestDiagnostic, safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
+import { safeResourceDiagnostic } from "@/lib/monitoring/resource-diagnostics";
 
 const MAX_BODY_BYTES = 64_000;
 
@@ -110,7 +111,8 @@ export async function POST(req: NextRequest) {
       clientStackProvided: Boolean(parsed.data.stack),
     },
     extra: { ...parsed.data.extra, requests: safeRequestDiagnostics(parsed.data.extra?.requests),
-      triggeringRequest: safeRequestDiagnostic(parsed.data.extra?.triggeringRequest) },
+      triggeringRequest: safeRequestDiagnostic(parsed.data.extra?.triggeringRequest),
+      resource: safeResourceDiagnostic(parsed.data.extra?.resource) },
   });
 
   return NextResponse.json(

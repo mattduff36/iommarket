@@ -68,6 +68,25 @@ describe("actionable monitoring evidence", () => {
     expect(JSON.stringify(httpEvidence)).not.toMatch(/private|secret|message|abortReason/);
   });
 
+  it("exports flattened closed resource facts without URLs, identifiers or error contents", () => {
+    expect(safeEventEvidence({ resource: {
+      elementKind: "video", target: "provider:imagekit", mediaErrorCode: 3,
+      responseStatus: 0, durationMs: 12, transferSize: 0, decodedBodySize: 300,
+      url: "https://private.test?secret=value", id: "private", alt: "private", message: "private", body: "private",
+    } })).toEqual({
+      resourceElementKind: "video", resourceTarget: "provider:imagekit", resourceMediaErrorCode: 3,
+      resourceResponseStatus: 0, resourceDurationMs: 12, resourceTransferSize: 0, resourceDecodedBodySize: 300,
+      browserFamily: "unknown",
+    });
+    expect(safeEventEvidence({ resource: {
+      elementKind: "link", target: "/_next/static/chunks/:segment", linkRel: "stylesheet", linkAs: "style",
+    } })).toMatchObject({ resourceElementKind: "link", resourceLinkRel: "stylesheet", resourceLinkAs: "style" });
+    expect(safeEventEvidence({ resource: {
+      elementKind: "img", target: "https://private.test?secret=value", responseStatus: 500, transferSize: 1e20,
+    } })).toEqual({ resourceElementKind: "img", browserFamily: "unknown" });
+    expect(safeEventEvidence({ resource: { elementKind: "private", target: "/search" } })).toEqual({ browserFamily: "unknown" });
+  });
+
   it("keeps acknowledged work visible with notes without granting mutation authority", async () => {
     const queries: string[] = [];
     const client = { query: async (sql: string) => {
