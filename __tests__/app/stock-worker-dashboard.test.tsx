@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, cleanup } from "@testing-library/react";
+import { act, fireEvent, render, screen, cleanup, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { refresh, dashboard, command } = vi.hoisted(() => ({ refresh: vi.fn(), dashboard: vi.fn(), command: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -8,22 +8,44 @@ vi.mock("@/app/(admin)/admin/stock-reviews/launch-actions", () => ({ launchStock
 import { StockWorkerDashboard } from "@/app/(admin)/admin/stock-reviews/worker-dashboard";
 import { StockDealerPicker } from "@/app/(admin)/admin/stock-reviews/dealer-picker";
 import progressStyles from "@/app/(admin)/admin/stock-reviews/worker-progress.module.css";
-import type { WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
+import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 vi.mock("@/actions/admin/dealer-stock-sync", () => ({ enqueueDealerStockScrape: vi.fn() }));
 const connected = () => ({ ok: true as const, devices: [{ deviceId: "dev_test", deviceName: "Test computer", environment: "preview" as const, instanceId: "instance", state: "connected" as const, online: true, lastSeenAt: new Date().toISOString(), activity: [], pendingCommand: null }] });
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); dashboard.mockResolvedValue(connected()); command.mockResolvedValue({ ok: true }); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 async function tick() { await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); }
 describe("Stock Reviews live worker", () => {
+ it("shows newest activity first without mutating source order or the latest-event status", () => {
+  const activity: WorkerDashboardDevice["activity"] = [
+   { sequence: 1, code: "waiting", at: "2026-11-08T20:00:00Z", text: "First event" },
+   { sequence: 2, code: "waiting", at: "2026-11-08T20:01:00Z", text: "Second event" },
+  ];
+  const initial = { ...connected(), devices: connected().devices.map(device => ({ ...device, state: "waiting" as const, activity })) };
+  const ui = (events: typeof activity) => <StockWorkerDashboard initial={{ ...initial, devices: initial.devices.map(device => ({ ...device, activity: events })) }} initialNow={Date.now()} managedSnapshot jobs={[]} readyCount={0} />;
+  const view = render(ui(activity));
+  fireEvent.click(screen.getByRole("button", { name: "Show worker activity" }));
+  const activityList = () => screen.getByText("Recent worker activity").parentElement!.querySelector("ol")!;
+  expect(within(activityList()).getAllByRole("listitem").map(row => row.textContent)).toEqual([expect.stringContaining("Second event"), expect.stringContaining("First event")]);
+  expect(activity.map(event => event.sequence)).toEqual([1, 2]);
+  const next: typeof activity = [...activity, { sequence: 3, code: "waiting", at: "2026-11-08T20:02:00Z", text: "Newest arrival" }];
+  view.rerender(ui(next));
+  expect(within(activityList()).getAllByRole("listitem")[0]).toHaveTextContent("Newest arrival");
+  expect(next.map(event => event.sequence)).toEqual([1, 2, 3]);
+  expect(screen.getByRole("contentinfo", { name: "Stock Update" }).querySelector("p.text-xs")).toHaveTextContent("Newest arrival");
+ });
  it.each(["running", "waiting", "stopping"] as const)("locks the whole page for %s while retaining the footer and live updates", async state => {
   const initial = { ...connected(), devices: connected().devices.map(device => ({ ...device, state })) };
   const navigation = document.createElement("nav");
   navigation.innerHTML = '<button>Global navigation</button>';
+  const navigate = vi.fn();
+  navigation.addEventListener("click", navigate);
   document.body.append(navigation);
   const ui = (text: string) => <StockWorkerDashboard initial={initial} initialNow={Date.now()} jobs={[]} readyCount={0}><p>{text}</p></StockWorkerDashboard>;
   const view = render(ui("Live result one"));
-  expect(navigation).toHaveAttribute("inert");
-  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
+  expect(navigation).not.toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  fireEvent.click(screen.getByText("Global navigation"));
+  expect(navigate).not.toHaveBeenCalled();
   const dock = screen.getByRole("contentinfo", { name: "Stock Update" });
   expect(dock.closest("[inert]")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show worker activity" }));
@@ -93,7 +115,7 @@ describe("Stock Reviews live worker", () => {
   expect(footer).toHaveAttribute("data-stock-worker-dock");
   expect(footer.className).not.toMatch(/fixed|sticky/);
   expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
-  expect(document.querySelector("[data-stock-worker-content]")).toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
   expect(footer.closest("[inert]")).toBeNull();
   view.rerender(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
