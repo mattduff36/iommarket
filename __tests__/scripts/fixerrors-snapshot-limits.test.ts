@@ -22,6 +22,7 @@ function makeEvent(issueId: string, sequence: number): {
   id: string; issueId: string; source: string; severity: string; environment: string;
   message: string; stack: null; route: string; action: null; component: null;
   requestPath: string; occurredAt: Date | string; digest?: string; traceId?: string;
+  filename?: string; requests?: unknown; triggeringRequest?: unknown;
 } {
   return {
     id: `${issueId}-${sequence}`,
@@ -113,6 +114,35 @@ describe("fixerrors event snapshot limits", () => {
     expect(serialized).not.toContain("unsafe value");
     expect(serialized).not.toContain("trace\\nvalue");
     expect(serialized).not.toContain('"tags"');
+  });
+
+  it("exports explicit failure correlation and provider attribution without private request details", async () => {
+    const client = new SnapshotClient();
+    const triggeringRequest = {
+      at: 123, target: "/api/media/listing-photo", method: "GET", status: null, durationMs: 1,
+      outcome: "network-error", errorCategory: "TypeError", signalAborted: true,
+      url: "https://private.test?secret=value", message: "private", abortReason: "private",
+    };
+    client.events[14] = { ...client.events[14]!, filename: "provider:imagekit", triggeringRequest,
+      requests: [{ ...triggeringRequest, target: "/search", at: 456 }],
+    };
+    client.events[13] = { ...client.events[13]!, triggeringRequest: {
+      ...triggeringRequest, target: "/api/media/listing-photo?photoId=private",
+    } };
+    const snapshot = await fetchOpenIssueSnapshot(client, "a".repeat(64));
+    const eventQuery = client.calls.find((call) => call.text.includes('FROM "MonitoringEvent"'));
+    expect(eventQuery?.text).toContain(`extra->'triggeringRequest' AS "triggeringRequest"`);
+    expect(eventQuery?.text).toContain('diagnostics, requests, "triggeringRequest"');
+    const event = snapshot.issues[0]?.events[0];
+    expect(event?.evidence).toMatchObject({
+      scriptLocation: "provider:imagekit", triggeringRequestTarget: "/api/media/listing-photo",
+      triggeringRequestAt: 123, triggeringRequestErrorCategory: "TypeError", triggeringRequestSignalAborted: true,
+    });
+    expect(event?.requests?.[0]).toMatchObject({
+      target: "/search", at: 456, errorCategory: "TypeError", signalAborted: true,
+    });
+    expect(snapshot.issues[0]?.events[1]?.evidence).not.toHaveProperty("triggeringRequestTarget");
+    expect(JSON.stringify(snapshot.issues)).not.toMatch(/private|secret|abortReason/);
   });
 
   it("serializes occurredAt as UTC text and counts non-OPEN statuses without exporting them", async () => {

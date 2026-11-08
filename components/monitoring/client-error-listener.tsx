@@ -36,13 +36,15 @@ export function ClientErrorListener() {
         message: `Request ${request.outcome}: ${request.method} ${request.target} (${request.status ?? "no response"})`,
         component: "request-diagnostics", severity: "MEDIUM" as const,
         tags: { type: "request-failure" },
+        extra: { triggeringRequest: request },
       };
       if (limiter.canSend(createClientEventKey(payload))) void sendClientMonitoringEvent(payload);
     });
 
     function onError(event: ErrorEvent) {
-      const resource = event.target instanceof HTMLScriptElement || event.target instanceof HTMLImageElement
-        ? diagnosticTarget(event.target.src, window.location.origin) : null;
+      const source = event.target instanceof HTMLImageElement ? event.target.currentSrc || event.target.src
+        : event.target instanceof HTMLScriptElement ? event.target.src : null;
+      const resource = source ? diagnosticTarget(source, window.location.origin) : null;
       const message = event.error instanceof Error
         ? event.error.message
         : event.message || (resource ? `Resource failed to load: ${resource}` : "Unhandled client error");

@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { shouldSampleClientEvent } from "@/lib/monitoring/ingest-guard";
+import { sanitizeMonitoringContext } from "@/lib/monitoring/capture";
 
 const captureException = vi.fn();
 const getCurrentUser = vi.fn();
@@ -99,6 +100,36 @@ describe("OPS-INGEST-001 monitoring events ingest", () => {
     const response = await POST(postEvent({ message: "client failure", severity: "HIGH" }));
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ ok: false, eventId: null });
+  });
+
+  it("persists validated triggering-request facts independently from request breadcrumbs", async () => {
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    const triggeringRequest = {
+      at: 123, target: "/api/media/listing-photo", method: "GET", status: null, durationMs: 1,
+      outcome: "network-error", errorCategory: "TypeError", signalAborted: false,
+    };
+    const breadcrumb = { ...triggeringRequest, target: "/search", status: 200, outcome: "ok" };
+    const response = await POST(postEvent({ message: "Request failed", extra: {
+      triggeringRequest: { ...triggeringRequest, url: "https://private.test?secret=value", message: "private", reason: "private" },
+      requests: [breadcrumb],
+    } }));
+    expect(response.status).toBe(202);
+    const captured = captureException.mock.calls.at(-1)?.[0];
+    expect(captured.extra.triggeringRequest).toEqual(triggeringRequest);
+    expect(captured.extra.requests).toEqual([breadcrumb]);
+    const persisted = sanitizeMonitoringContext(captured);
+    expect(persisted.extra?.triggeringRequest).toEqual(triggeringRequest);
+    expect(JSON.stringify(persisted.extra)).not.toMatch(/private|secret|reason|message/);
+  });
+
+  it.each([
+    null, "private", [], {},
+    { at: 0, target: "/search?secret=value", method: "GET", status: null, durationMs: 1, outcome: "network-error" },
+  ])("does not persist a malformed triggering request (%#)", async (triggeringRequest) => {
+    const { POST } = await import("@/app/api/monitoring/events/route");
+    const response = await POST(postEvent({ message: "Request failed", extra: { triggeringRequest } }));
+    expect(response.status).toBe(202);
+    expect(captureException.mock.calls.at(-1)?.[0].extra.triggeringRequest).toBeUndefined();
   });
 
 });

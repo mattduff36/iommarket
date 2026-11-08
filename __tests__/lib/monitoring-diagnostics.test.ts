@@ -31,6 +31,43 @@ describe("actionable monitoring evidence", () => {
     expect(safeEventEvidence({ inboxId: "person@example.com", errorCode: "private", rejectStage: "password", receiptAgeMs: "secret", body: "private" })).toEqual({ browserFamily: "unknown" });
   });
 
+  it.each(["provider:external", "provider:imagekit", "provider:supabase"])("preserves the exact resource provider token %s", (filename) => {
+    expect(safeEventEvidence({ filename })).toEqual({ scriptLocation: filename, browserFamily: "unknown" });
+  });
+
+  it.each(["provider:private", "provider:external?secret=value", "provider:imagekit/private", "provider:supabase#private"])(
+    "does not accept modified or unallowlisted provider tokens (%#)", (filename) => {
+      expect(safeEventEvidence({ filename })).toEqual({ scriptLocation: "unavailable", browserFamily: "unknown" });
+    },
+  );
+
+  it("exports only the explicitly correlated request and its closed failure facts", () => {
+    const row = {
+      triggeringRequest: {
+        at: 123, target: "/api/media/listing-photo", method: "GET", status: null, durationMs: 2,
+        outcome: "network-error", errorCategory: "TypeError", signalAborted: true,
+        url: "https://private.test?secret=value", message: "private", abortReason: "private",
+      },
+      requests: [{ at: 456, target: "/search", method: "GET", status: 503, durationMs: 1, outcome: "http-error" }],
+    };
+    expect(safeEventEvidence(row)).toEqual({
+      triggeringRequestAt: 123, triggeringRequestTarget: "/api/media/listing-photo", triggeringRequestMethod: "GET",
+      triggeringRequestDurationMs: 2, triggeringRequestOutcome: "network-error",
+      triggeringRequestErrorCategory: "TypeError", triggeringRequestSignalAborted: true, browserFamily: "unknown",
+    });
+    expect(safeEventEvidence({ requests: row.requests })).toEqual({ browserFamily: "unknown" });
+    expect(safeEventEvidence({ triggeringRequest: { ...row.triggeringRequest, target: "https://private.test" } }))
+      .toEqual({ browserFamily: "unknown" });
+    const httpEvidence = safeEventEvidence({ triggeringRequest: {
+      ...row.triggeringRequest, status: 503, outcome: "http-error", requestId: "failed-request-123",
+      errorCategory: "private", signalAborted: "true",
+    } });
+    expect(httpEvidence).toMatchObject({ triggeringRequestStatus: 503, triggeringRequestRequestId: "failed-request-123" });
+    expect(httpEvidence).not.toHaveProperty("triggeringRequestErrorCategory");
+    expect(httpEvidence).not.toHaveProperty("triggeringRequestSignalAborted");
+    expect(JSON.stringify(httpEvidence)).not.toMatch(/private|secret|message|abortReason/);
+  });
+
   it("keeps acknowledged work visible with notes without granting mutation authority", async () => {
     const queries: string[] = [];
     const client = { query: async (sql: string) => {
