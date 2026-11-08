@@ -15,6 +15,8 @@ const {
   checkRateLimit,
   expireAbandonedListingImageIntents,
   processListingImageCleanupJobs,
+  adminStockUpload,
+  bindIntent,
 } = vi.hoisted(() => ({
   requireAcceptedAuth: vi.fn(),
   issueListingImageUploadIntent: vi.fn(),
@@ -22,7 +24,12 @@ const {
   checkRateLimit: vi.fn(),
   expireAbandonedListingImageIntents: vi.fn(),
   processListingImageCleanupJobs: vi.fn(),
+  adminStockUpload: vi.fn(),
+  bindIntent: vi.fn(),
 }));
+
+vi.mock("@/lib/listings/admin-stock-upload", () => ({ canUploadAdminStockPhoto: adminStockUpload }));
+vi.mock("@/lib/db", () => ({ db: { listingImageUploadIntent: { update: bindIntent } } }));
 
 vi.mock("@/lib/policy/gate", async () => {
   const actual = await vi.importActual<typeof import("@/lib/policy/gate")>(
@@ -61,6 +68,7 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     checkRateLimit.mockReturnValue({ allowed: true });
     expireAbandonedListingImageIntents.mockResolvedValue({ expired: 0 });
     processListingImageCleanupJobs.mockResolvedValue({ processed: 0 });
+    adminStockUpload.mockResolvedValue(false);
   });
 
   it("rejects an unauthenticated session with 401", async () => {
@@ -168,6 +176,39 @@ describe("PHOTO-TRUST-001 listing image API routes", () => {
     expect(finalizeListingImageUploadIntent).not.toHaveBeenCalled();
   });
 
+  it("binds admin photo intents to the explicitly authorized recalled listing", async () => {
+    requireAcceptedAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+    adminStockUpload.mockResolvedValue(true);
+    issueListingImageUploadIntent.mockResolvedValue({
+      intent: { id: "admin-intent", publicId: "admin/photo", expiresAt: new Date("2026-11-08T12:00:00Z") },
+      upload: { url: "https://upload.example.test", params: {} },
+    });
+    const metadata = { fileName: "car.jpg", fileType: "image/jpeg", fileSize: 100 };
+    const { POST } = await import("@/app/api/listing-images/intent/route");
+    const response = await POST(new NextRequest("http://localhost:4000/api/listing-images/intent", {
+      method: "POST",
+      headers: { origin: "http://localhost:4000", "content-type": "application/json", "x-stock-review-listing": "recalled-listing" },
+      body: JSON.stringify(metadata),
+    }));
+    expect(response.status).toBe(200);
+    expect(adminStockUpload).toHaveBeenCalledWith({ id: "admin-1", role: "ADMIN" }, { listingId: "recalled-listing" });
+    expect(issueListingImageUploadIntent).toHaveBeenCalledWith("admin-1", metadata);
+    expect(bindIntent).toHaveBeenCalledWith({
+      where: { id: "admin-intent", userId: "admin-1" }, data: { listingId: "recalled-listing" },
+    });
+  });
+  it("rejects a dealer attempting to use the admin stock upload header", async () => {
+    requireAcceptedAuth.mockResolvedValue({ id: "dealer", role: "DEALER" });
+    const { POST } = await import("@/app/api/listing-images/intent/route");
+    const response = await POST(new NextRequest("http://localhost:4000/api/listing-images/intent", {
+      method: "POST",
+      headers: { origin: "http://localhost:4000", "content-type": "application/json", "x-stock-review-listing": "recalled-listing" },
+      body: JSON.stringify({ fileName: "car.jpg", fileType: "image/jpeg", fileSize: 100 }),
+    }));
+    expect(response.status).toBe(403);
+    expect(issueListingImageUploadIntent).not.toHaveBeenCalled();
+    expect(adminStockUpload).not.toHaveBeenCalled();
+  });
   it("rejects forged finalize payloads", async () => {
     finalizeListingImageUploadIntent.mockResolvedValue({
       error: "The uploaded file does not match this request.",

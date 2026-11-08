@@ -16,7 +16,7 @@ const fingerprint = "a".repeat(64);
 const actions = [{ kind: "create", sourceIdentityKey: "new", listingId: null }, { kind: "blocked", sourceIdentityKey: "blocked", listingId: null, section: "new", reason: "missing-price" }];
 const report = () => ({ id: "report", bindingId: "binding", dealerId: "dealer", status: "PENDING_REVIEW", fingerprint, plan: { actions } });
 const tx = { $queryRaw: vi.fn(), dealerStockSyncReport: { findUnique: vi.fn(), updateMany: vi.fn() }, dealerStockSyncJob: { findFirst: vi.fn() }, dealerStockSyncAudit: { create: vi.fn() } };
-const run = (operation: "approve" | "reject" | "draft", actionIndexes = [0]) => reviewDealerStockSelection({ reportId: "report", fingerprint, operation, actionIndexes });
+const run = (operation: "approve" | "remove" | "reject" | "draft", actionIndexes = [0]) => reviewDealerStockSelection({ reportId: "report", fingerprint, operation, actionIndexes });
 beforeEach(() => {
   vi.clearAllMocks(); mocks.role.mockResolvedValue({ id: "admin" });
   mocks.transaction.mockImplementation(async fn => fn(tx));
@@ -24,7 +24,7 @@ beforeEach(() => {
   tx.dealerStockSyncReport.updateMany.mockResolvedValue({ count: 1 });
   tx.dealerStockSyncJob.findFirst.mockResolvedValue(null);
   tx.dealerStockSyncAudit.create.mockResolvedValue({ id: "audit" });
-  mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 0, listingCap: 10, actions });
+  mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 0, listingCap: 10, listings: [], actions });
   mocks.fingerprint.mockReturnValue(fingerprint); mocks.enqueue.mockResolvedValue({ id: "job" });
   mocks.transfer.mockResolvedValue([{ listingId: "draft", revisionId: null }]); mocks.notify.mockResolvedValue(undefined);
 });
@@ -37,6 +37,19 @@ describe("selected stock review mutations", () => {
     const rows = Array.from({ length: 150 }, (_, index) => ({ ...actions[0], sourceIdentityKey: String(index) }));
     tx.dealerStockSyncReport.findUnique.mockResolvedValue({ ...report(), plan: { actions: rows } });
     expect(await run(operation, rows.map((_, index) => index))).toHaveProperty("data.count", 150);
+  });
+  it("queues explicitly selected removals and preserves other review items", async () => {
+    const removal = { kind: "unpublish", sourceIdentityKey: "missing", listingId: "live", absenceCount: 2, lifecycleRevision: 1 };
+    tx.dealerStockSyncReport.findUnique.mockResolvedValue({ ...report(), plan: { actions: [removal, ...actions] } });
+    expect(await run("remove")).toHaveProperty("data.jobId", "job");
+    expect(tx.dealerStockSyncReport.updateMany.mock.calls[0][0].data).toMatchObject({ status: "APPROVED", plan: { actions: [removal], pendingReviewActions: actions } });
+    expect(mocks.enqueue).toHaveBeenCalledWith(tx, expect.objectContaining({ reviewSelection: true }));
+    expect(mocks.transfer).not.toHaveBeenCalled();
+  });
+  it("rejects additions and blocked items submitted as removals", async () => {
+    expect(await run("remove", [0, 1])).toHaveProperty("error", expect.stringContaining("only suggested removals"));
+    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(tx.dealerStockSyncReport.updateMany).not.toHaveBeenCalled();
   });
   it("requires administrator authorization before touching a report", async () => {
     mocks.role.mockRejectedValue(new Error("Forbidden"));
@@ -70,7 +83,7 @@ describe("selected stock review mutations", () => {
     expect(mocks.notify).not.toHaveBeenCalled();
   });
   it("preserves the dealer listing allowance when creating received drafts", async () => {
-    mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 10, listingCap: 10, actions });
+    mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 10, listingCap: 10, listings: [], actions });
     expect(await run("draft")).toHaveProperty("error", expect.stringContaining("allowance"));
     expect(mocks.transfer).not.toHaveBeenCalled();
   });

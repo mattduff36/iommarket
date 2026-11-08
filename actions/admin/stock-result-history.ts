@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { canManageStockReport, RESULT_HISTORY_ACTIONS, resultHistoryState } from "@/lib/dealer-stock-sync/result-history";
+import { decorateStockDraftReports } from "@/lib/dealer-stock-sync/draft-handoff-store";
 
 const schema = z.object({
   id: z.string().min(1).max(160),
@@ -31,9 +32,10 @@ export async function changeStockResultHistory(input: unknown) {
       } else {
         await tx.$queryRaw`SELECT id FROM "DealerStockSyncJob" WHERE id = ${id} FOR UPDATE`;
       }
-      const row = kind === "report"
-        ? await tx.dealerStockSyncReport.findUnique({ where: { id }, select: { status: true, plan: true, scrapeRunId: true } })
+      const saved = kind === "report"
+        ? await tx.dealerStockSyncReport.findUnique({ where: { id }, select: { id: true, dealerId: true, bindingId: true, status: true, plan: true, scrapeRunId: true } })
         : await tx.dealerStockSyncJob.findUnique({ where: { id }, select: { status: true } });
+      const row = saved && "plan" in saved ? (await decorateStockDraftReports([saved], tx))[0] : saved;
       if (!row) return { error: "Result not found." };
       const manageable = kind === "report"
         ? canManageStockReport(row.status, "plan" in row ? row.plan : null)

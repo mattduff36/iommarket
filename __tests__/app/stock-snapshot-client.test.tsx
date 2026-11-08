@@ -14,7 +14,7 @@ import { isStockReviewSnapshot } from "@/app/(admin)/admin/stock-reviews/snapsho
 function snapshot(): StockReviewSnapshot {
   const now = Date.now();
   return {
-    outstanding: [{ id: "report", scrapeRunId: "scan", fingerprint: "fp", status: "PENDING_REVIEW", inventoryCount: 2, failureReason: null, createdAt: new Date(now).toISOString(), plan: { actions: [] }, binding: { dealer: { id: "dealer", name: "Island Motors" } } }],
+    outstanding: [{ id: "report", dealerId: "dealer", bindingId: "binding", scrapeRunId: "scan", fingerprint: "fp", status: "PENDING_REVIEW", inventoryCount: 2, failureReason: null, createdAt: new Date(now).toISOString(), plan: { actions: [] }, binding: { dealer: { id: "dealer", name: "Island Motors" } } }],
     recentReports: [], jobs: [], profiles: [{ id: "dealer", name: "Island Motors", tier: "PRO", isAdminPreview: false, user: { disabledAt: null } }],
     dashboard: { ok: true, devices: [{ deviceId: "dev_test", deviceName: "Server", environment: "production", instanceId: "instance", state: "connected", online: true, lastSeenAt: new Date(now).toISOString(), activity: [], pendingCommand: null }] },
     historyEntries: [{ id: "report", kind: "report", state: "active", manageable: true }], desktopEnabled: false, now,

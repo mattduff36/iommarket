@@ -56,6 +56,7 @@ import {
   trustedCheckoutMessage,
 } from "@/lib/payments/checkout-public-error";
 import { LISTING_UNAVAILABLE } from "@/lib/listings/save-public-error";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -187,6 +188,7 @@ async function payForListingBody(input: PayForListingInput) {
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
+  if (listing.stockReviewHeld) return { error: STOCK_REVIEW_HELD_ERROR };
   if (listing.status === "LIVE") {
     return { data: { checkoutUrl: null, skippedPayment: true } };
   }
@@ -641,6 +643,7 @@ async function upgradeFeaturedBody(listingId: string) {
   if (isAdminSellerBlocked(user.role)) {
     return { error: ADMIN_OWNED_LISTING_ERROR };
   }
+  if (listing.stockReviewHeld) return { error: STOCK_REVIEW_HELD_ERROR };
   if (listing.status !== "LIVE" && listing.status !== "PENDING") {
     return { error: "Only submitted listings can be featured" };
   }

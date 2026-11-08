@@ -11,6 +11,7 @@ import {
 } from "@/lib/listings/errors";
 import { LISTING_DECLARATION_ERROR, WRITE_OFF_SUBMIT_ERROR } from "@/lib/listings/write-off-category";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 
 export const LISTING_SAVE_UNKNOWN =
   "We couldn't confirm that your changes were saved. Check the listing before retrying.";
@@ -32,6 +33,7 @@ export const LISTING_NAME_REQUIRED =
   "Add your name in account settings before saving a listing.";
 
 const DOMAIN_MESSAGES = new Set<string>([
+  STOCK_REVIEW_HELD_ERROR,
   "Payment is required to renew an expired listing.",
   "This listing changed before it could be submitted. Please refresh and try again.",
   "A payment was received for this listing. Please refresh and try again.",

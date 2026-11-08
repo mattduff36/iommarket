@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { uploadAuthErrorBody } from "@/lib/media/upload-auth-error";
 import { issueListingImageUploadIntent } from "@/lib/listings/photo-upload";
+import { canUploadAdminStockPhoto } from "@/lib/listings/admin-stock-upload";
+import { db } from "@/lib/db";
 import { publicErrorBody } from "@/lib/forms/public-error";
 import { captureException } from "@/lib/monitoring";
 import { PHOTO_START_MESSAGE, PHOTO_UNKNOWN_MESSAGE, classifyUploadError, respondToUploadError } from "@/lib/media/upload-error-catalog";
@@ -59,17 +61,21 @@ export async function POST(request: NextRequest) {
       headers: { "Retry-After": String(rateBody.retryAfterSeconds) },
     });
   }
-  if (isAdminSellerBlocked(user.role)) {
-    return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
-  }
-
+  const stockListingId = request.headers.get("x-stock-review-listing");
   let body: unknown;
   try { body = await readUploadJson(request, true); }
   catch { return NextResponse.json(publicErrorBody({ message: "Invalid upload metadata.", code: "validation" }), { status: 400 }); }
   const parsed = inputSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json(publicErrorBody({ message: "Invalid upload metadata.", code: "validation" }), { status: 400 });
   try {
+    if ((stockListingId && user.role !== "ADMIN") ||
+        (isAdminSellerBlocked(user.role) && !(await canUploadAdminStockPhoto(user, { listingId: stockListingId })))) {
+      return NextResponse.json(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), { status: 403 });
+    }
     const issued = await issueListingImageUploadIntent(user.id, "fileName" in parsed.data ? { fileName: String(parsed.data.fileName), fileSize: Number(parsed.data.fileSize), fileType: String(parsed.data.fileType) } : undefined);
+    if (user.role === "ADMIN" && stockListingId) await db.listingImageUploadIntent.update({
+      where: { id: issued.intent.id, userId: user.id }, data: { listingId: stockListingId },
+    });
     return NextResponse.json(
       {
         data: {

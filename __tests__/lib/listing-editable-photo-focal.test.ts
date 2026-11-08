@@ -62,6 +62,12 @@ describe("listing edit focal persistence", () => {
     vi.clearAllMocks();
   });
 
+  it("does not reopen a recalled draft or create a dealer revision", async () => {
+    listingFindFirst.mockResolvedValue({ ...listing("DRAFT"), stockReviewHeld: true });
+    expect(await getEditableDraft({ draftId: "listing-1", userId: "user-1", dealerId: null })).toBeNull();
+    expect(getOpenRevision).not.toHaveBeenCalled();
+    expect(getOrCreateDraftRevision).not.toHaveBeenCalled();
+  });
   it("keeps focal coordinates when an in-place draft is reopened", async () => {
     listingFindFirst.mockResolvedValue(listing("DRAFT"));
 

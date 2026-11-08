@@ -16,11 +16,11 @@ export async function discardReceivedStockDraftInTransaction(tx: Prisma.Transact
   if (initial.revisionId) await tx.$queryRaw`SELECT "id" FROM "ListingRevision" WHERE "id" = ${initial.revisionId} FOR UPDATE`;
   const receipt = await tx.stockReviewDraftReceipt.findUnique({ where: { id: input.receiptId } });
   const listing = await tx.listing.findUnique({ where: { id: initial.listingId }, select: {
-    id: true, userId: true, dealerId: true, status: true, lifecycleRevision: true,
+    id: true, userId: true, dealerId: true, status: true, lifecycleRevision: true, stockReviewHeld: true,
   } });
   if (!receipt || receipt.userId !== input.userId || receipt.listingId !== initial.listingId ||
       receipt.dealerId !== initial.dealerId || receipt.revisionId !== initial.revisionId ||
-      !listing || listing.userId !== input.userId || listing.dealerId !== receipt.dealerId ||
+      !listing || listing.stockReviewHeld || receipt.recalledAt || listing.userId !== input.userId || listing.dealerId !== receipt.dealerId ||
       listing.lifecycleRevision !== input.expectedLifecycleRevision) throw new StockDraftDiscardError(CHANGED);
   const select = { provider: true, publicId: true, imageKitFileId: true, imageKitFilePath: true } as const;
   const images = receipt.revisionId
@@ -33,7 +33,7 @@ export async function discardReceivedStockDraftInTransaction(tx: Prisma.Transact
     if (changed.count !== 1) throw new StockDraftDiscardError(CHANGED);
   } else {
     if (listing.status !== "DRAFT") throw new StockDraftDiscardError(CHANGED);
-    const removed = await tx.listing.deleteMany({ where: { id: listing.id, userId: input.userId, status: "DRAFT", lifecycleRevision: input.expectedLifecycleRevision } });
+    const removed = await tx.listing.deleteMany({ where: { id: listing.id, userId: input.userId, status: "DRAFT", stockReviewHeld: false, lifecycleRevision: input.expectedLifecycleRevision } });
     if (removed.count !== 1) throw new StockDraftDiscardError(CHANGED);
   }
   // Keep immutable provenance in the stock audit after receipt cascade deletion.

@@ -10,6 +10,20 @@ Owned uploaded images are preserved and managed import receipts claimed atomical
 
 `draftListings` is an independent notification preference available to users and dealers, defaulting to true for existing and new accounts. Post-commit email uses existing dealer correspondence routing, opt-out, branded layout, environment delivery guards and a stable delivery key. A delivery failure reports that the drafts were saved. No email is sent during automated tests.
 
+## Dealer handoff ownership and recall
+
+A source-linked `StockReviewDraftReceipt`, matching the listing owner and dealer, is the evidence for **Awaiting dealer review**. An ordinary non-live listing remains blocked. Repeat scans and saved reports are enriched with the current receipt state: DRAFT awaits the dealer, PENDING awaits listing moderation, and a recalled DRAFT/REJECTED awaits admin stock review. Origin reports retain handoff history even when To drafts removed the original action, and pending handoff reports remain discoverable beyond the recent-results limit. Handoff rows are not selectable for another To drafts or bulk approval. Explicit sold-source evidence remains protected rather than becoming a handoff action.
+
+**Pull back to review** requires an administrator's explicit confirmation. It preserves the same listing, source identity, saved dealer details, attributes and photos; it never deletes/recreates or publishes. A serializable transaction locks the binding, report, dealer and listing, checks provenance and exact lifecycle/photo/updated-at versions, and records the recall receipt and audit. Submitted, live, sold, featured, expired, preview, purged, revision-bearing or stale records cannot be recalled. Active stock jobs and newer completed reviews also require refreshing. Repeated successful requests are no-write successes.
+
+Recalled stock is removed from dealer-editable lists, but still consumes the existing listing allowance. Dealer detail/photo/status/deletion writes reject a held draft, including stale tabs. Admin uses the shared listing details editor without resolving away its stock-review row, and the shared image uploader to correct photos. Admin photo uploads are restricted to a recalled DRAFT/REJECTED listing and bound to that listing and the uploading admin; the ordinary admin-seller prohibition remains in place.
+
+After correction, **Send to listing moderation** requires separate explicit admin review and validates stored details, required attributes, active category/location and at least two owned photos. It sends the same held listing to PENDING, not LIVE. This admin confirmation is audited separately and does not fabricate a dealer trust declaration. Dealer editing/withdrawal remains disabled while held; ordinary admin approval clears the hold. If moderation rejects the listing, it returns to the admin correction workflow. Pull back of a live listing's revision is deliberately unsupported: the UI explains this and the transaction rejects it without changing the live parent.
+
+Recall and correction never rebase a stale stock-report fingerprint. Unrelated stale proposals still need a fresh scan; targeted ownership operations additionally require the current saved listing versions.
+
+Deployment prerequisite: apply migration `20261107221000_stock_draft_recall` (Listing ownership hold and receipt recall metadata) and regenerate Prisma before deploying this code. This worker authored the migration only; it did not apply it or validate against hosted data.
+
 ## Deployment and evidence
 
 - Production PR #51 (image upload fixes and issue reporting) was separately approved and merged as `a725653466f58bd302a95337bac4dafdad34cd8f`. Its production deployment was READY and the hosted report controls passed a browser check using a mocked report response.

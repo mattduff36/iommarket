@@ -89,7 +89,7 @@ export async function getEditableDraft({
     },
   });
 
-  if (!listing) return null;
+  if (!listing || listing.stockReviewHeld) return null;
   if (!isInPlaceEditable(listing.status) && !usesPendingRevision(listing.status)) {
     return null;
   }

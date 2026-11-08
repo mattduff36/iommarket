@@ -4,6 +4,7 @@ const { db, auth, rate, refresh } = vi.hoisted(() => ({
   db: {
     $transaction: vi.fn(), $queryRaw: vi.fn(),
     dealerStockSyncReport: {findUnique:vi.fn()},
+    stockReviewDraftReceipt: {findMany:vi.fn().mockResolvedValue([])},
     dealerStockSyncJob: {findUnique:vi.fn(),findFirst:vi.fn()},
     dealerStockSyncAudit: {findFirst:vi.fn(),create:vi.fn()},
   },
@@ -19,13 +20,24 @@ beforeEach(() => {
   rate.mockResolvedValue({allowed:true});
   db.$transaction.mockImplementation(async fn=>fn(db));
   db.$queryRaw.mockResolvedValue([{id:"result"}]);
-  db.dealerStockSyncReport.findUnique.mockResolvedValue({status:"PENDING_REVIEW",plan:{actions:[{kind:"unchanged"}]},scrapeRunId:"scan"});
+  db.dealerStockSyncReport.findUnique.mockResolvedValue({id:"result",dealerId:"dealer",bindingId:"binding",status:"PENDING_REVIEW",plan:{actions:[{kind:"unchanged"}]},scrapeRunId:"scan"});
   db.dealerStockSyncJob.findUnique.mockResolvedValue({status:"SUCCEEDED"});
   db.dealerStockSyncJob.findFirst.mockResolvedValue(null);
   db.dealerStockSyncAudit.findFirst.mockResolvedValue(null);
   db.dealerStockSyncAudit.create.mockResolvedValue({id:"audit"});
 });
 describe("server result history",()=>{
+  it.each(["archive", "delete", "restore"] as const)("allows %s of a superseded snapshot with leftover draft tracking", async action => {
+    db.dealerStockSyncReport.findUnique.mockResolvedValue({id:"old",dealerId:"dealer",bindingId:"binding",status:"SUPERSEDED",plan:{actions:[{kind:"blocked",listingId:"listing",stockDraft:{state:"dealer"}}],pendingReviewActions:[{kind:"blocked",reason:"missing-price"}]},scrapeRunId:"scan"});
+    expect(await changeStockResultHistory({id:"old",kind:"report",action})).toEqual({success:true});
+    expect(db.dealerStockSyncAudit.create).toHaveBeenCalledWith({data:expect.objectContaining({reportId:"old",after:{state:{archive:"archived",delete:"deleted",restore:"active"}[action]}})});
+  });
+  it("still protects a superseded snapshot with a running linked job", async () => {
+    db.dealerStockSyncReport.findUnique.mockResolvedValue({status:"SUPERSEDED",plan:{actions:[]},scrapeRunId:"scan"});
+    db.dealerStockSyncJob.findFirst.mockResolvedValue({id:"active"});
+    expect(await changeStockResultHistory({id:"old",kind:"report",action:"archive"})).toEqual({error:"This result still has active work."});
+    expect(db.dealerStockSyncAudit.create).not.toHaveBeenCalled();
+  });
   it("requires admin before accessing history",async()=>{
     auth.mockRejectedValue(new Error("unauthorized"));
     await expect(changeStockResultHistory({id:"result",kind:"report",action:"archive"})).rejects.toThrow("unauthorized");

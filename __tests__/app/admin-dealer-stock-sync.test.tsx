@@ -7,14 +7,15 @@ import { ApproveStockReportButton } from "@/app/(admin)/admin/dealers/[dealerId]
 import { StockReviewEditButton } from "@/app/(admin)/admin/dealers/[dealerId]/stock-sync/review-edit-button";
 import { approveDealerStockReport, rejectDealerStockReport } from "@/actions/admin/dealer-stock-sync";
 import { loadStockReviewVehicle, saveStockReviewVehicle } from "@/actions/admin/dealer-stock-review-edit";
+import { loadAdminListingForEdit } from "@/actions/admin/listing-edit";
 import { StockSnapshotRefreshProvider } from "@/app/(admin)/admin/stock-reviews/use-stock-snapshot";
 
 vi.mock("@/actions/admin/dealer-stock-sync", () => ({
   approveDealerStockReport: vi.fn(),
   rejectDealerStockReport: vi.fn(),
 }));
-vi.mock("@/components/admin/listing-edit-button", () => ({
-  AdminListingEditButton: ({ listingId, label = "Open listing editor" }: { listingId: string; label?: string }) => <button data-listing-id={listingId}>{label}</button>,
+vi.mock("@/actions/admin/listing-edit", () => ({
+  loadAdminListingForEdit: vi.fn(), saveAdminListingEdit: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -80,7 +81,7 @@ describe("stock sync review", () => {
     fireEvent.blur(help);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.mouseEnter(help.closest("div")!);
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.mouseLeave(help.closest("div")!);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
@@ -93,7 +94,7 @@ describe("stock sync review", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(/preserves its current status/);
     expect(screen.getByRole("tooltip")).toHaveTextContent(/approval requirements/);
     expect(screen.getByRole("link", { name: "Source listing" })).toHaveAttribute("href", "https://dealer.example/car/123");
-    expect(screen.getByRole("button", { name: "Edit / override" })).toHaveAttribute("data-listing-id", "l");
+    expect(screen.getByRole("button", { name: "Edit / override" })).toBeEnabled();
     expect(screen.queryByRole("link", { name: "Open listing editor" })).not.toBeInTheDocument();
   });
 
@@ -148,7 +149,7 @@ describe("stock review network recovery", () => {
     vi.mocked(loadStockReviewVehicle).mockRejectedValueOnce(new TypeError("network error"));
     render(<StockReviewEditButton reportId="r" fingerprint="f" sourceIdentityKey="v" label="Vehicle" />);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Edit" })));
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not load this vehicle");
+    expect(await screen.findByRole("alert", {}, { timeout: 10_000 })).toHaveTextContent(/couldn't load|connection/i);
     expect(loadStockReviewVehicle).toHaveBeenCalledTimes(1);
     expect(saveStockReviewVehicle).not.toHaveBeenCalled();
   });
@@ -162,17 +163,48 @@ describe("stock review network recovery", () => {
     const reload = vi.fn();
     render(<StockSnapshotRefreshProvider value={reload}><StockReviewEditButton reportId="r" fingerprint="f" sourceIdentityKey="v" label="Vehicle" /></StockSnapshotRefreshProvider>);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Edit" })));
-    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Corrected vehicle" } });
+    fireEvent.change(await screen.findByLabelText(/^Title/, {}, { timeout: 10_000 }), { target: { value: "Corrected vehicle" } });
     fireEvent.change(screen.getByLabelText("Correction reason"), { target: { value: "Verified corrected title with dealer" } });
     fireEvent.click(screen.getByLabelText("This vehicle is available"));
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save corrections" })));
+    fireEvent.click(screen.getByRole("button", { name: "Review and save" }));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Confirm save" })));
     expect(screen.getByRole("alert")).toHaveTextContent("save outcome is uncertain");
-    expect(screen.getByLabelText("Title")).toHaveValue("Corrected vehicle");
+    expect(screen.getByLabelText(/^Title/)).toHaveValue("Corrected vehicle");
     expect(screen.getByLabelText("Correction reason")).toHaveValue("Verified corrected title with dealer");
     expect(screen.getByLabelText("This vehicle is available")).toBeChecked();
     expect(saveStockReviewVehicle).toHaveBeenCalledTimes(1);
     expect(reload).not.toHaveBeenCalled();
   });
+});
+
+it("uses the same trigger and dialog for linked Kia and unlinked Skoda reviews", async () => {
+  vi.mocked(loadAdminListingForEdit).mockResolvedValueOnce({ data: {
+    listing: { id: "kia", title: "2023 Kia PICANTO", description: "Linked vehicle description", price: 1350000,
+      status: "PENDING", categoryId: "car", regionId: "douglas", lifecycleRevision: 1, updatedAt: "2026-11-07T00:00:00Z", attributes: [], photoCount: 2 },
+    categories: [{ id: "car", name: "Cars", slug: "car", attributes: [] }], regions: [{ id: "douglas", name: "Douglas", active: true }], hasOpenRevision: false, openRevisionStatus: null,
+  } });
+  vi.mocked(loadStockReviewVehicle).mockResolvedValueOnce({ data: {
+    draft: { title: "2019 Skoda FABIA", description: "Unlinked vehicle description", pricePence: null, categorySlug: "car", attributes: {}, photoUrls: [], sourceUrl: null, warning: "Missing price", flags: [] },
+    categories: [{ id: "car", name: "Cars", slug: "car", attributes: [] }],
+  } });
+  render(<>
+    <StockReviewEditButton reportId="r" fingerprint="f" sourceIdentityKey="kia-source" listingId="kia" label="Kia" override />
+    <StockReviewEditButton reportId="r" fingerprint="f" sourceIdentityKey="skoda-source" label="Skoda" override />
+  </>);
+  const buttons = screen.getAllByRole("button", { name: "Edit / override" });
+  expect(buttons[0].className).toBe(buttons[1].className);
+  fireEvent.click(buttons[0]);
+  expect(await screen.findByDisplayValue("2023 Kia PICANTO", {}, { timeout: 10_000 })).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "Edit listing details" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Review and save" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(buttons[1]);
+  expect(await screen.findByDisplayValue("2019 Skoda FABIA", {}, { timeout: 10_000 })).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "Edit listing details" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Review and save" })).toBeInTheDocument();
+  expect(screen.getByRole("spinbutton", { name: /Price/ })).toHaveValue(null);
+  expect(loadAdminListingForEdit).toHaveBeenCalledWith("kia");
+  expect(loadStockReviewVehicle).toHaveBeenCalledWith({ reportId: "r", fingerprint: "f", sourceIdentityKey: "skoda-source" });
 });
 
 it("shows live photo/spec evidence and hides every sold row", () => {

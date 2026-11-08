@@ -39,11 +39,15 @@ function warningOf(plan: unknown) {
 
 function needsReview(actions: PlanAction[]) {
   return actions.some((action) =>
-    action.kind === "create" || action.kind === "update" || action.kind === "unpublish" || action.kind === "blocked" || action.kind === "conflict",
+    action.stockDraft?.state === "admin" || (!action.stockDraft && (action.kind === "create" || action.kind === "update" || action.kind === "unpublish" || action.kind === "blocked" || action.kind === "conflict")),
   );
 }
 
 function reportOutcome(status: string, actions: PlanAction[]) {
+  if (status !== "SUPERSEDED" && !needsReview(actions)) {
+    if (actions.some(action => action.stockDraft?.state === "dealer")) return "Awaiting dealer review";
+    if (actions.some(action => action.stockDraft?.state === "moderation")) return "Awaiting listing moderation";
+  }
   if (status === "PENDING_REVIEW") return needsReview(actions) ? "Awaiting review" : "No change";
   if (status === "SUPERSEDED" && !needsReview(actions)) return "No change";
   if (status === "APPROVED") return "Approved, not applied yet";
@@ -118,17 +122,18 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
   const visibleCount = Math.max(0, report.inventoryCount - allActions.filter(isSoldStockReviewAction).length);
   const warning = warningOf(report.plan);
   const actionable = actions.filter((action) => action.kind === "create" || action.kind === "update").length;
-  const blocked = actions.filter((action) => action.kind === "blocked" || action.kind === "conflict").length;
+  const blocked = actions.filter((action) => !action.stockDraft && (action.kind === "blocked" || action.kind === "conflict")).length;
+  const handoffs = actions.filter(action => action.stockDraft).length;
   const removals = removalLabel(report.status, actions);
   const outcome = reportOutcome(report.status, actions);
   const when = new Date(report.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" });
   return (
-    <li className={`relative isolate rounded-lg border px-4 py-3 text-sm transition-colors ${open ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border bg-surface"}`}>
+    <li id={`stock-review-result-${report.id}`} className={`relative isolate rounded-lg border px-4 py-3 text-sm transition-colors ${open ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border bg-surface"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary">
         <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(outcome === "No change" ? "no_change" : report.status)}>{outcome}</span> · {visibleCount} vehicles
       </p><div className="relative z-10"><StockResultActions id={report.id} /></div></div>
       <p className="text-text-secondary">
-        {actionable} actionable · {blocked} blocked{removals ? ` · ${removals}` : ""} · {when}
+        {actionable} actionable · {blocked} blocked{handoffs ? ` · ${handoffs} tracked drafts` : ""}{removals ? ` · ${removals}` : ""} · {when}
       </p>
       {outcome === "No change" ? <p className="text-text-secondary">Nothing to approve. Listings were not changed.</p> : null}
       {report.status === "APPROVED" ? <p className="text-text-secondary">Approval queues processing and does not apply listings by itself.</p> : null}
@@ -171,8 +176,8 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   const selectedResult = selectedJob ?? selectedReport;
   const [chosen, setChosen] = useState<{ key: string; indexes: number[] }>({ key: "", indexes: [] });
   const selectionKey = selectedReport ? `${selectedReport.id}:${selectedReport.fingerprint}` : "";
-  const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="space-y-4 scroll-mt-6">
-    <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
+  const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="flex h-[min(80dvh,calc(100cqh-4rem))] min-h-0 flex-col gap-4 scroll-mt-6">
+    <div className="flex shrink-0 items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
     {selectedJob && <div className="space-y-2 rounded-lg border border-border p-4 text-sm"><p className="font-semibold">{jobOutcome(selectedJob)}</p>{selectedJob.error && <ReportableError as="p" className="text-text-error">{selectedJob.error}</ReportableError>}{!selectedReport && <p>No saved review is available for this task yet. Check processing status above, or run a fresh check after a failure.</p>}</div>}
     {selectedReport && <StockSyncReviewPanel key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
   </section> : null;
@@ -181,12 +186,13 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   return (
     <StockSnapshotRefreshProvider value={reload}><div className="space-y-8">
       {connectionLost ? <div role="status" className="rounded-md border border-amber-500/40 p-3 text-sm">Updates paused. Showing the last received results; retrying automatically. The worker may still be running. <button type="button" onClick={reload} className="underline">Retry now</button></div> : null}
+      <StockWorkerDashboard header={<>
       <AdminPageHeader
         title="Dealer scrapes"
         description="Review and approve changes before listings update."
       />
       {pairing}
-      <StockWorkerDashboard dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt }))}>
+      </>} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} offlineContent={offlineStatus} downloadFallback={snapshot.desktopEnabled ? <DownloadStockWorker /> : null} initialNow={snapshot.now} initial={dashboard} managedSnapshot connectionLost={connectionLost} readyCount={readyCount} jobs={jobs.map(job => ({ id: job.id, dealerName: job.binding.dealer.name, kind: job.kind, status: job.status, reportStatus: job.report?.status ?? reportsByRun.get(job.id)?.status ?? null, startedAt: job.startedAt }))}>
       <StockDealerPicker retainOnDisconnect={connectionLost} dealers={availableProfiles.map(({ id, name }) => ({ id, name }))} unavailable={unavailableProfiles} />
       <StockResultHistory entries={shownHistory} view={historyView}>
       <div data-review-layout={wide ? "split" : "accordion"} className={wide && selectedResult ? "grid min-w-0 grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)] items-start gap-5" : "min-w-0"}>
@@ -216,7 +222,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
                     <StockResultVisibility key={report.id} ids={[report.id]}><ReportCard report={report} open={selectedId === report.id} onToggle={() => toggle(report.id)} detail={!wide && selectedId === report.id ? detail : undefined} /></StockResultVisibility>
                   ))}
                   {dealer.jobs.map((job) => (
-                    <StockResultVisibility key={job.id} ids={[job.id]}><li className="relative isolate rounded-md border border-border px-4 py-3 text-sm">
+                    <StockResultVisibility key={job.id} ids={[job.id]}><li id={`stock-review-result-job:${job.id}`} className="relative isolate rounded-md border border-border px-4 py-3 text-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary"><span className={STOCK_STATUS_BADGE + " " + stockStatusColour(job.status)}>{jobOutcome(job)}</span></p><div className="relative z-10"><StockResultActions id={job.id} /></div></div>
                       {job.status === "SUCCEEDED" ? <p className="text-sm text-text-secondary">Open the dealer stock review to check the saved result.</p> : null}
                       {job.status === "FAILED" && !job.reportId ? <p className="text-sm text-text-secondary">No report was saved.</p> : null}
@@ -233,7 +239,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
         ))
       )}
       </div>
-      {wide && selectedResult && <aside className="sticky top-4 h-[calc(100dvh-8rem)] min-w-0 overflow-y-auto rounded-xl border border-neon-blue-500/30 bg-surface p-5">{detail}</aside>}
+      {wide && selectedResult && <aside id="stock-review-pane" className="sticky top-4 min-h-0 min-w-0 overflow-hidden rounded-xl border border-neon-blue-500/30 bg-surface p-5">{detail}</aside>}
       </div>
       </StockResultHistory>
       </StockWorkerDashboard>

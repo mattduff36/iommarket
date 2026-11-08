@@ -1,7 +1,7 @@
 "use client";
 
 import { ReportableError } from "@/components/monitoring/reportable-error";
-import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useStockSnapshotRefresh } from "./use-stock-snapshot";
 import Link from "@/components/navigation/link";
@@ -46,10 +46,15 @@ export function StockResultActions({ id }: { id: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  if (!entry?.manageable) return null;
+  const unavailableId = useId();
+  if (!entry) return null;
+  const disabled = pending || !entry.manageable;
+  const unavailableReason = entry.kind === "job"
+    ? "Finish or cancel this task before archiving or deleting its result."
+    : "Resolve outstanding review items and draft handoffs before archiving or deleting this result.";
 
   function run(action: "archive" | "delete" | "restore") {
-    if (!entry) return;
+    if (!entry?.manageable) return;
     setError(null);
     startTransition(async () => {
       try {
@@ -60,18 +65,19 @@ export function StockResultActions({ id }: { id: string }) {
       } catch { setError("Could not update this result. Please try again."); }
     });
   }
-  return <div className="ml-auto flex max-w-full flex-col items-end gap-2">
+  return <div className="ml-auto flex max-w-full flex-col items-end gap-2" aria-describedby={!entry.manageable ? unavailableId : undefined} title={!entry.manageable ? unavailableReason : undefined}>
     {confirmDelete ? <div role="group" aria-label="Confirm result deletion" className="max-w-sm rounded-md border border-border bg-surface p-3 text-sm">
       <p>Delete this result from the results list? Listings are unaffected. You can restore it from Deleted.</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" disabled={pending} className={BUTTON + " text-red-300"} onClick={() => run("delete")}>Confirm delete</button>
-        <button type="button" disabled={pending} className={BUTTON} onClick={() => setConfirmDelete(false)}>Cancel</button>
+        <button type="button" disabled={disabled} className={BUTTON + " text-red-300"} onClick={() => run("delete")}>Confirm delete</button>
+        <button type="button" disabled={disabled} className={BUTTON} onClick={() => setConfirmDelete(false)}>Cancel</button>
       </div>
     </div> : <div className="flex flex-wrap justify-end gap-2">
-      {entry.state === "active" ? <button type="button" disabled={pending} className={BUTTON} onClick={() => run("archive")}>Archive</button>
-        : <button type="button" disabled={pending} className={BUTTON} onClick={() => run("restore")}>Restore</button>}
-      {entry.state !== "deleted" ? <button type="button" disabled={pending} className={BUTTON + " text-red-300"} onClick={() => setConfirmDelete(true)}>Delete</button> : null}
+      {entry.state === "active" ? <button type="button" disabled={disabled} className={BUTTON} onClick={() => run("archive")}>Archive</button>
+        : <button type="button" disabled={disabled} className={BUTTON} onClick={() => run("restore")}>Restore</button>}
+      {entry.state !== "deleted" ? <button type="button" disabled={disabled} className={BUTTON + " text-red-300"} onClick={() => setConfirmDelete(true)}>Delete</button> : null}
     </div>}
+    {!entry.manageable ? <p id={unavailableId} className="max-w-xs text-xs text-text-secondary">{unavailableReason}</p> : null}
     {error ? <ReportableError as="p" role="alert" className="text-sm text-red-300">{error}</ReportableError> : null}
   </div>;
 }

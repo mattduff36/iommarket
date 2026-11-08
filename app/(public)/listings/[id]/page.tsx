@@ -376,6 +376,7 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
 
   const isOwner = currentUser && (listing.userId === currentUser.id || isAdminUser);
   const canUpgradeToFeatured =
+    !listing.stockReviewHeld &&
     currentUser?.id === listing.userId &&
     (listing.status === "PENDING" || listing.status === "LIVE") &&
     !listing.featured &&
@@ -740,7 +741,8 @@ export default async function ListingDetailPage({ params, searchParams }: Props)
           />
         </div>
       )}
-      {isAdminUser ? <AdminListingEditButton listingId={listing.id} /> : isOwner &&
+      {listing.stockReviewHeld && !isAdminUser ? <p role="status" className="mt-6 text-sm text-text-secondary">This draft has been pulled back to admin stock review. Your saved details and photos are preserved; dealer editing and submission are no longer available.</p> : null}
+      {isAdminUser ? <AdminListingEditButton listingId={listing.id} /> : isOwner && !listing.stockReviewHeld &&
         (listing.status === "DRAFT" ||
           listing.status === "LIVE" ||
           listing.status === "TAKEN_DOWN" ||

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAcceptedAuth } from "@/lib/policy/gate";
 import { finalizeManagedImageKitUpload } from "@/lib/media/managed-upload";
+import { canUploadAdminStockPhoto } from "@/lib/listings/admin-stock-upload";
 import { respondToUploadError } from "@/lib/media/upload-error-catalog";
 import { imageRecordFromIntent } from "@/lib/media/stored-image";
 import { captureException } from "@/lib/monitoring";
@@ -40,9 +41,6 @@ export async function POST(request: NextRequest) {
     }));
     return reply(auth.body, auth.status);
   }
-  if (isAdminSellerBlocked(user.role)) {
-    return reply(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), 403);
-  }
   const rateBody = rateLimitPublicError(await checkRateLimit(makeRateLimitKey("imagekit-finalize", user.id), {
     // Match the intent allowance: a supported 20-photo selection must fit in one window.
     windowMs: 60_000, maxRequests: 20, policy: "listing-image-imagekit",
@@ -52,6 +50,9 @@ export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await readUploadJson(request).catch(() => null));
   if (!parsed.success) return reply(publicErrorBody({ message: "Invalid upload request.", code: "validation" }), 400);
   try {
+    if (isAdminSellerBlocked(user.role) && !(await canUploadAdminStockPhoto(user, { intentId: parsed.data.uploadIntentId }))) {
+      return reply(publicErrorBody({ message: ADMIN_OWNED_LISTING_ERROR, code: "forbidden" }), 403);
+    }
     const intent = await finalizeManagedImageKitUpload({ userId: user.id, intentId: parsed.data.uploadIntentId, fileId: parsed.data.fileId });
     const stored = imageRecordFromIntent(intent);
     return reply({ data: {

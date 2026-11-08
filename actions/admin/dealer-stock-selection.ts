@@ -11,7 +11,7 @@ import { dealerSyncBlockReason } from "@/lib/dealer-stock-sync/eligibility";
 import { fingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
 import { loadStockSyncSnapshot } from "@/lib/dealer-stock-sync/snapshot";
 import { readPlanActions, planAfterCorrection } from "@/lib/dealer-stock-sync/review-edit";
-import { isApprovableStockAction, isDraftableStockAction, isSelectableStockAction, selectReviewActions, MAX_STOCK_REVIEW_SELECTION, MAX_STOCK_DRAFT_SELECTION } from "@/lib/dealer-stock-sync/selection";
+import { isApprovableStockAction, isRemovableStockAction, isDraftableStockAction, isSelectableStockAction, selectReviewActions, MAX_STOCK_REVIEW_SELECTION, MAX_STOCK_DRAFT_SELECTION } from "@/lib/dealer-stock-sync/selection";
 import { transferStockDrafts } from "@/lib/dealer-stock-sync/draft-transfer";
 import { enqueueApplyJob } from "@/lib/dealer-stock-sync/enqueue";
 import { notifyReceivedDraftListings } from "@/lib/email/draft-listing-notifications";
@@ -19,7 +19,7 @@ import { captureException } from "@/lib/monitoring";
 
 const schema = z.object({
   reportId: z.string().trim().min(1).max(64), fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  operation: z.enum(["approve", "reject", "draft"]),
+  operation: z.enum(["approve", "remove", "reject", "draft"]),
   actionIndexes: z.array(z.number().int().min(0).max(MAX_STOCK_REVIEW_SELECTION - 1)).min(1).max(MAX_STOCK_REVIEW_SELECTION),
 }).strict();
 const STALE = "This review changed. Refresh it and select the listings again.";
@@ -35,6 +35,7 @@ export async function reviewDealerStockSelection(input: unknown) {
   if (parsed.data.operation === "draft" && parsed.data.actionIndexes.length > MAX_STOCK_DRAFT_SELECTION) {
     return { error: `Send up to ${MAX_STOCK_DRAFT_SELECTION} listings to dealer drafts at a time. Select a smaller batch.` };
   }
+  const queuesChanges = parsed.data.operation === "approve" || parsed.data.operation === "remove";
   try {
     const result = await db.$transaction(async tx => {
       const initial = await tx.dealerStockSyncReport.findUnique({ where: { id: parsed.data.reportId }, select: { bindingId: true } });
@@ -57,9 +58,16 @@ export async function reviewDealerStockSelection(input: unknown) {
       const busy = await tx.dealerStockSyncJob.findFirst({ where: { bindingId: report.bindingId, status: { in: ["QUEUED", "LEASED"] } }, select: { id: true } });
       if (busy) return { error: "Wait for this dealer's current stock task to finish before changing the review." };
       const { selected, remaining } = selectReviewActions(actions, parsed.data.actionIndexes);
+      if (selected.some(action => snapshot.listings.some(listing => listing.stockDraft &&
+        (listing.id === action.listingId || listing.stockDraft.sourceIdentityKey === action.sourceIdentityKey)))) {
+        return { error: "These drafts already belong to dealer review or admin recall. Refresh the review; they cannot be sent or approved again." };
+      }
       if (selected.some(action => !isSelectableStockAction(action))) return { error: "Sold or unchanged vehicles cannot be selected." };
       if (parsed.data.operation === "approve" && selected.some(action => !isApprovableStockAction(action))) {
         return { error: "Only eligible new listings and updates can be approved. Blocked vehicles and suggested removals are not approved by this action." };
+      }
+      if (parsed.data.operation === "remove" && selected.some(action => !isRemovableStockAction(action))) {
+        return { error: "Select only suggested removals to approve removal. Other items must be reviewed separately." };
       }
       if (parsed.data.operation === "draft" && selected.some(action => !isDraftableStockAction(action))) {
         return { error: "One of these vehicles has protected stock or an identity conflict. Resolve it as an administrator before sending drafts." };
@@ -70,24 +78,24 @@ export async function reviewDealerStockSelection(input: unknown) {
       const drafts = parsed.data.operation === "draft" ? await transferStockDrafts(tx, {
         reportId: report.id, fingerprint: report.fingerprint, snapshot, actions, indexes: parsed.data.actionIndexes,
       }) : [];
-      const nextActions = parsed.data.operation === "approve" ? selected : remaining;
+      const nextActions = queuesChanges ? selected : remaining;
       const nextSnapshot = parsed.data.operation === "draft"
         ? await loadStockSyncSnapshot(report.dealerId, nextActions, tx) : { ...snapshot, actions: nextActions };
       if (!nextSnapshot) throw new Error("Stock snapshot unavailable.");
       const fingerprint = fingerprintSnapshot(nextSnapshot);
       const nextPlan = { ...planAfterCorrection(report.plan, nextActions),
-        ...(parsed.data.operation === "approve" ? { pendingReviewActions: remaining } : {}),
+        ...(queuesChanges ? { pendingReviewActions: remaining } : {}),
       };
       const changed = await tx.dealerStockSyncReport.updateMany({
         where: { id: report.id, status: "PENDING_REVIEW", fingerprint: report.fingerprint },
         data: {
           plan: nextPlan as unknown as Prisma.InputJsonValue, fingerprint,
-          status: parsed.data.operation === "approve" ? "APPROVED" : remaining.some(isSelectableStockAction) ? "PENDING_REVIEW" : "REJECTED",
-          ...(parsed.data.operation === "approve" ? { approvedAt: new Date(), approvedById: admin.id } : {}),
+          status: queuesChanges ? "APPROVED" : remaining.some(isSelectableStockAction) ? "PENDING_REVIEW" : "REJECTED",
+          ...(queuesChanges ? { approvedAt: new Date(), approvedById: admin.id } : {}),
         },
       });
       if (changed.count !== 1) throw new Error(STALE);
-      const job = parsed.data.operation === "approve" ? await enqueueApplyJob(tx, {
+      const job = queuesChanges ? await enqueueApplyJob(tx, {
         bindingId: report.bindingId, dealerId: report.dealerId, reportId: report.id, fingerprint, actorId: admin.id, reviewSelection: true,
       }) : null;
       const audit = await tx.dealerStockSyncAudit.create({ data: {

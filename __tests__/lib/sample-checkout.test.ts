@@ -103,4 +103,15 @@ describe("sample checkout service", () => {
     expect(tx.sampleCheckout.create).not.toHaveBeenCalled();
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
+  it("rechecks the recall hold under the listing lock before creating or reusing a checkout", async () => {
+    state.listing = { ...state.listing, stockReviewHeld: true };
+    await expect(createSampleCheckout({
+      userId: "user-1", kind: "listing_payment", targetId: "listing-1",
+      description: "Listing payment", amountPence: 499, returnUrl: "/sell/checkout",
+    })).rejects.toThrow("pulled back to admin stock review");
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(tx.sampleCheckout.findFirst).not.toHaveBeenCalled();
+    expect(tx.sampleCheckout.create).not.toHaveBeenCalled();
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
 });

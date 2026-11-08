@@ -3,7 +3,7 @@
 import { ReportableError } from "@/components/monitoring/reportable-error";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { loadAdminListingForEdit, saveAdminListingEdit } from "@/actions/admin/listing-edit";
+import { loadListingEditor, saveListingEditor, listingEditorSourceUrl, type ListingEditorData, type StockReviewEditTarget } from "./listing-edit-source";
 import {
   AdminActionButton,
   AdminActionSelect,
@@ -30,18 +30,14 @@ import { getAttributeFieldConfig } from "@/lib/listings/attribute-ui";
 import { CreateListingAttributeFields } from "@/app/(public)/sell/create-listing-attribute-fields";
 import { pruneHiddenAttributes } from "@/app/(public)/sell/create-listing-form.helpers";
 
-type ListingEditLoad = NonNullable<
-  Extract<
-    Awaited<ReturnType<typeof loadAdminListingForEdit>>,
-    { data?: unknown }
-  >["data"]
->;
+type ListingEditLoad = ListingEditorData;
 
 interface ListingEditDialogProps {
   listingId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
+  stockReview?: StockReviewEditTarget;
 }
 
 export function ListingEditDialog({
@@ -49,6 +45,7 @@ export function ListingEditDialog({
   open,
   onOpenChange,
   onSaved,
+  stockReview,
 }: ListingEditDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -63,6 +60,9 @@ export function ListingEditDialog({
   const [categoryId, setCategoryId] = useState("");
   const [regionId, setRegionId] = useState("");
   const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
+  const [photos, setPhotos] = useState("");
+  const [reason, setReason] = useState("");
+  const [confirmAvailable, setConfirmAvailable] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const saving = useRef(false);
@@ -78,7 +78,7 @@ export function ListingEditDialog({
     setConfirming(false);
     setLoading(true);
 
-    void loadAdminListingForEdit(listingId).then((result) => {
+    void loadListingEditor(listingId, stockReview).then((result) => {
       if (!active) return;
       if (result.error || !result.data) {
         setLoadError(
@@ -94,7 +94,10 @@ export function ListingEditDialog({
       setData(loaded);
       setTitle(loaded.listing.title);
       setDescription(loaded.listing.description);
-      setPriceText((loaded.listing.price / 100).toFixed(2));
+      setPriceText(loaded.stockReview?.draft.pricePence === null ? "" : (loaded.listing.price / 100).toFixed(2));
+      setPhotos(loaded.stockReview?.draft.photoUrls.join("\n") ?? "");
+      setReason("");
+      setConfirmAvailable(false);
       setCategoryId(loaded.listing.categoryId);
       setRegionId(loaded.listing.regionId);
       setAttributeValues(
@@ -119,7 +122,7 @@ export function ListingEditDialog({
     return () => {
       active = false;
     };
-  }, [listingId, open]);
+  }, [listingId, open, stockReview]);
 
   const selectedCategory = data?.categories.find((category) => category.id === categoryId);
   const visibleAttributes = useMemo(() => {
@@ -163,7 +166,8 @@ export function ListingEditDialog({
   const hasUnsavedChanges = Boolean(data && (
     title !== data.listing.title ||
     description !== data.listing.description ||
-    priceText !== (data.listing.price / 100).toFixed(2) ||
+    priceText !== (data.stockReview?.draft.pricePence === null ? "" : (data.listing.price / 100).toFixed(2)) ||
+    photos !== (data.stockReview?.draft.photoUrls.join("\n") ?? "") || reason !== "" || confirmAvailable ||
     categoryId !== data.listing.categoryId ||
     regionId !== data.listing.regionId ||
     JSON.stringify(attributeValues) !== JSON.stringify(Object.fromEntries(
@@ -207,18 +211,17 @@ export function ListingEditDialog({
     saving.current = true;
     startTransition(async () => {
       try {
-      const result = await saveAdminListingEdit({
-        listingId,
-        expectedLifecycleRevision: data.listing.lifecycleRevision,
-        expectedUpdatedAt: data.listing.updatedAt,
+      const result = await saveListingEditor(data, {
         title,
         description,
         price: pricePence,
         categoryId,
         regionId,
         attributes,
+        photoUrls: photos.split("\n").map(value => value.trim()).filter(Boolean),
+        reason, confirmAvailable,
       });
-      if (result.error) {
+      if ("error" in result && result.error) {
         const split = splitActionError(result.error);
         setFieldErrors(split.fieldErrors);
         setError(
@@ -236,7 +239,7 @@ export function ListingEditDialog({
       onSaved?.();
       router.refresh();
       } catch {
-        setError("Unable to save listing changes. Your edits are still here; please try again.");
+        setError("The save outcome is uncertain. Your edits are still here. Check the saved result before trying again.");
         setConfirming(false);
       } finally {
         saving.current = false;
@@ -245,6 +248,7 @@ export function ListingEditDialog({
   }
 
   const blockedByRevision = data?.hasOpenRevision === true;
+  const sourceUrl = listingEditorSourceUrl(data);
   const messages = uniqueErrorMessages(fieldErrors, loadError ?? error);
 
   return (
@@ -254,7 +258,7 @@ export function ListingEditDialog({
         <DialogHeader>
           <DialogTitle>Edit listing details</DialogTitle>
           <DialogDescription>
-            Admin changes save immediately. Listing status, payment, seller details, and photos stay unchanged.
+            {data?.linkedReview ? "Saving updates this listing and removes its item from this stock review. Listing status and photos stay unchanged." : data?.stockReview ? "Corrections are saved to the stock review for approval. Identity, matching and removal safeguards remain in place. Nothing is published or emailed now." : "Admin changes save immediately. Listing status, payment, seller details, and photos stay unchanged."}
           </DialogDescription>
         </DialogHeader>
 
@@ -267,6 +271,8 @@ export function ListingEditDialog({
         ) : data ? (
           <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-5">
             <FormErrorSummary messages={messages} />
+            {data.stockReview?.draft.warning && <p className="text-sm text-text-secondary">Original warning: {data.stockReview.draft.warning}</p>}
+            {sourceUrl && <a href={sourceUrl} target="_blank" rel="noreferrer" className="text-sm text-neon-blue-400 hover:underline">Source listing</a>}
             {blockedByRevision ? (
               <ReportableError as="div" className="rounded-md border border-premium-gold-500/30 bg-premium-gold-500/5 p-3 text-sm text-text-primary" role="alert">
                 A seller revision is {data.openRevisionStatus?.toLowerCase()} and must be resolved before these listing details can be edited.
@@ -341,7 +347,7 @@ export function ListingEditDialog({
                     <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "categoryId")}</ReportableError>
                   ) : null}
                 </div>
-                <div className="flex flex-col gap-1">
+                {!data.stockReview && <div className="flex flex-col gap-1">
                   <label htmlFor="admin-listing-region" className="text-sm font-medium text-text-primary">Region</label>
                   <AdminActionSelect
                     id="admin-listing-region"
@@ -357,7 +363,7 @@ export function ListingEditDialog({
                   {firstFieldError(fieldErrors, "regionId") ? (
                     <ReportableError as="p" className="text-xs text-text-error">{firstFieldError(fieldErrors, "regionId")}</ReportableError>
                   ) : null}
-                </div>
+                </div>}
               </div>
 
               {selectedCategory ? (
@@ -382,13 +388,17 @@ export function ListingEditDialog({
               ) : null}
             </fieldset>
 
-            <p className="rounded-md border border-border bg-canvas/40 p-3 text-xs leading-5 text-text-secondary">
+            {data.stockReview ? <fieldset disabled={isPending || confirming} className="space-y-4">
+              <label className="block text-sm">Photo URLs, one per line<AdminActionTextarea value={photos} onChange={event => setPhotos(event.target.value)} rows={4} /></label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={confirmAvailable} onChange={event => setConfirmAvailable(event.target.checked)} />This vehicle is available</label>
+              <label className="block text-sm">Correction reason<AdminActionTextarea value={reason} onChange={event => setReason(event.target.value)} minLength={10} maxLength={1000} rows={3} /></label>
+            </fieldset> : <p className="rounded-md border border-border bg-canvas/40 p-3 text-xs leading-5 text-text-secondary">
               Photos are read-only here ({data.listing.photoCount}). This editor cannot add, remove, or reorder listing images.
-            </p>
+            </p>}
 
             {confirming ? (
               <div className="rounded-md border border-premium-gold-500/30 bg-premium-gold-500/5 p-3 text-sm text-text-primary" role="alert">
-                {data.listing.status === "LIVE"
+                {data.stockReview ? "Confirm these corrections. They update the review and still require approval; protected records remain blocked." : data.linkedReview ? "Confirm this correction and remove the item from this review. The listing keeps its current status." : data.listing.status === "LIVE"
                   ? "Confirm this edit. The changed details will appear on the public listing immediately."
                   : "Confirm this edit. The changed listing details will be saved immediately."}
               </div>

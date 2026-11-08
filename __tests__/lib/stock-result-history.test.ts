@@ -2,12 +2,29 @@ import { describe, expect, it } from "vitest";
 import { canManageStockReport, resultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 
 describe("stock result history policy", () => {
+  it("keeps receipt-backed ownership visible and unarchivable while dealer/admin/moderation work is pending", () => {
+    for (const state of ["dealer", "admin", "moderation"]) {
+      for (const key of ["actions", "pendingReviewActions"]) {
+        const plan = { [key]: [{ kind: "blocked", stockDraft: { state } }] };
+        expect(resultHistoryState("REJECTED", "RESULT_DELETED", plan)).toBe("active");
+        expect(canManageStockReport("APPLIED", plan)).toBe(false);
+      }
+    }
+  });
   it("retains unprocessed selection remainder even after failed jobs or archive requests", () => {
     const plan = { actions: [], pendingReviewActions: [{ kind: "blocked", reason: "missing-price" }] };
-    for (const status of ["APPROVED", "FAILED", "APPLIED", "SUPERSEDED"]) {
+    for (const status of ["APPROVED", "FAILED", "APPLIED"]) {
       expect(resultHistoryState(status, "RESULT_ARCHIVED", plan)).toBe("active");
       expect(canManageStockReport(status, plan)).toBe(false);
     }
+  });
+  it("allows superseded snapshots to be archived, deleted and restored despite old pending work", () => {
+    const plan = { actions: [{ kind: "blocked", stockDraft: { state: "dealer" } }], pendingReviewActions: [{ kind: "blocked", reason: "missing-price" }] };
+    expect(canManageStockReport("SUPERSEDED", plan)).toBe(true);
+    expect(resultHistoryState("SUPERSEDED", "RESULT_ARCHIVED", plan)).toBe("archived");
+    expect(resultHistoryState("SUPERSEDED", "RESULT_DELETED", plan)).toBe("deleted");
+    expect(resultHistoryState("SUPERSEDED", "RESULT_RESTORED", plan)).toBe("active");
+    expect(canManageStockReport("PENDING_REVIEW", plan)).toBe(false);
   });
   it("automatically archives applied reports but leaves no-change reports active", () => {
     expect(resultHistoryState("APPLIED", null)).toBe("archived");

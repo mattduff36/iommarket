@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
+import { prepareLinkedReviewResolution } from "@/lib/dealer-stock-sync/resolve-listing-edit";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { logAdminAction } from "@/lib/admin/audit";
@@ -21,6 +23,7 @@ const adminListingEditSchema = listingDetailsSchema
   })
   .extend({
     listingId: listingIdSchema,
+    stockReview: z.object({ reportId: z.string().min(1).max(64), fingerprint: z.string().regex(/^[a-f0-9]{64}$/), sourceIdentityKey: z.string().min(1).max(500) }).strict().optional(),
     expectedLifecycleRevision: z.number().int().min(0),
     expectedUpdatedAt: z.string().datetime(),
     attributes: z
@@ -139,6 +142,8 @@ export async function saveAdminListingEdit(input: unknown) {
 
   try {
     const result = await db.$transaction(async (tx) => {
+      const resolveReview = parsed.data.stockReview
+        ? await prepareLinkedReviewResolution(tx, parsed.data.stockReview, parsed.data.listingId, admin.id) : undefined;
       const [locked] = await tx.$queryRaw<
         Array<{ id: string; lifecycleRevision: number; updatedAt: Date }>
       >`
@@ -258,6 +263,7 @@ export async function saveAdminListingEdit(input: unknown) {
         next: sortedNextAttributes,
       });
       if (Object.keys(changedFields).length === 0) {
+        await resolveReview?.();
         return {
           data: {
             listingId: listing.id,
@@ -300,6 +306,7 @@ export async function saveAdminListingEdit(input: unknown) {
         });
       }
 
+      await resolveReview?.();
       const updatedListing = await tx.listing.findUniqueOrThrow({
         where: { id: listing.id },
         select: { lifecycleRevision: true, updatedAt: true },
@@ -323,7 +330,7 @@ export async function saveAdminListingEdit(input: unknown) {
           updatedAt: updatedListing.updatedAt.toISOString(),
         },
       };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30_000 });
 
     if ("data" in result && result.data && !result.data.unchanged) {
       revalidatePath(`/listings/${parsed.data.listingId}`);
@@ -333,6 +340,7 @@ export async function saveAdminListingEdit(input: unknown) {
       revalidatePath("/account/listings");
       revalidatePath("/dealer/dashboard");
     }
+    if ("data" in result && result.data && parsed.data.stockReview) revalidatePath("/admin/stock-reviews");
     return result;
   } catch (error) {
     await reportHandledException({

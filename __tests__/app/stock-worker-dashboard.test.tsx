@@ -37,12 +37,10 @@ describe("Stock Reviews live worker", () => {
   const view = render(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[job]} readyCount={0} />);
   expect(screen.getByRole("progressbar", { name: "Stock update in progress" })).not.toHaveAttribute("aria-valuenow");
   expect(document.querySelector(`.${progressStyles.moving}`)).toBeTruthy();
-  expect(screen.getByRole("img", { name: "iTrader" })).toHaveAttribute("src", expect.stringContaining("logo-itrader-hq.png"));
-  expect(document.querySelector("[data-stock-worker-dock]")?.className).toContain(progressStyles.dock);
-  expect(document.querySelector("[data-stock-worker-backdrop]")?.className).toContain(progressStyles.backdrop);
-  const panel = document.querySelector("[data-stock-worker-panel]");
-  expect(panel?.className).toContain("bg-surface");
-  expect(panel?.className).not.toContain("bg-surface/");
+  const footer = screen.getByRole("contentinfo", { name: "Stock Update" });
+  expect(footer).toHaveAttribute("data-stock-worker-dock");
+  expect(footer.className).not.toMatch(/fixed|sticky/);
+  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeNull();
   view.rerender(<StockWorkerDashboard dealers={[{ id: "dealer", name: "Island Motors" }]} initial={connected()} jobs={[]} readyCount={0} />);
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
  });
@@ -58,7 +56,7 @@ describe("Stock Reviews live worker", () => {
   view.rerender(ui("SUCCEEDED"));
   await tick();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(screen.getByText("Run complete. Review the results below.")).toBeInTheDocument();
+  expect(screen.getByText("Run complete. Review the results above.")).toBeInTheDocument();
  });
  it("does not announce old history, and defers new failure notices while editing", async () => {
   const old = { id: "old", dealerName: "Old dealer", kind: "APPLY", status: "SUCCEEDED", reportStatus: "APPLIED", startedAt: null };

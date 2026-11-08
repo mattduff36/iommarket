@@ -3,6 +3,7 @@ import { getDealerListingCap } from "@/lib/config/dealer-tiers";
 import { db } from "@/lib/db";
 import type { FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
 import type { SyncIdentity, SyncListing } from "@/lib/dealer-stock-sync/types";
+import { classifyStockDraftHandoff } from "./draft-handoff";
 
 const CAP_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
@@ -55,6 +56,11 @@ export async function loadStockSyncSnapshot(
         reviewSourceIdentity: true,
         slug: true,
         previewPackId: true,
+        stockReviewHeld: true,
+        retentionPurgedAt: true,
+        stockDraftReceipts: { orderBy: { createdAt: "desc" }, include: {
+          revision: { select: { id: true, listingId: true, status: true, version: true } },
+        } },
         attributeValues: { select: { value: true, attributeDefinition: { select: { slug: true } } } },
         revisions: { where: { status: { in: ["DRAFT", "PENDING"] } }, select: { id: true } },
       },
@@ -81,6 +87,13 @@ export async function loadStockSyncSnapshot(
     slug: listing.slug,
     previewPackId: listing.previewPackId,
     openRevision: listing.revisions.length > 0,
+    ...(listing.stockReviewHeld ? { stockReviewHeld: true } : {}),
+    ...(() => {
+      const identity = dealer.stockSourceBinding!.identities.find(item => item.listingId === listing.id);
+      const stockDraft = (listing.stockDraftReceipts ?? []).map(receipt =>
+        classifyStockDraftHandoff({ ...receipt, listing: { ...listing, dealerId } }, identity)).find(item => item !== null);
+      return stockDraft ? { stockDraft } : {};
+    })(),
   }));
   const identities: SyncIdentity[] = dealer.stockSourceBinding.identities.map((identity) => ({
     sourceIdentityKey: identity.sourceIdentityKey,

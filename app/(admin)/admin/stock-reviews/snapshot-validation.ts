@@ -10,7 +10,14 @@ const evidence = z.object({
   availability: z.enum(["available", "reserved", "sold", "unknown"]),
   coverageWarning: z.string().nullable(), capacityWarning: z.string().nullable(),
 });
-const base = z.object({ displayTitle: z.string().optional(), sourceIdentityKey: z.string().nullable(), listingId: z.string().nullable(), review: evidence.optional() });
+const stockDraft = z.object({
+  receiptId: z.string(), dealerId: z.string(), reportId: z.string(), listingId: z.string(),
+  sourceIdentityKey: z.string(), revisionId: z.string().nullable(),
+  state: z.enum(["dealer", "moderation", "admin"]), sentAt: z.iso.datetime(), recalledAt: z.iso.datetime().nullable(),
+  blockers: z.array(z.string()), title: z.string(), lifecycleRevision: z.number().int().nonnegative(),
+  photoRevision: z.number().int().nonnegative(), updatedAt: z.iso.datetime(), revisionVersion: z.number().int().nullable(),
+});
+const base = z.object({ displayTitle: z.string().optional(), sourceIdentityKey: z.string().nullable(), listingId: z.string().nullable(), review: evidence.optional(), stockDraft: stockDraft.optional() });
 const changes = z.array(z.object({ field: z.enum(["price", "mileage"]), before: z.number().nullable(), after: z.number().nullable() }));
 const action = z.discriminatedUnion("kind", [
   base.extend({ kind: z.literal("create"), categorySlug: z.string(), pricePence: z.number(), attributes: z.record(z.string(), z.string()), changes }),
@@ -22,9 +29,9 @@ const action = z.discriminatedUnion("kind", [
   base.extend({ kind: z.literal("unchanged") }),
 ]);
 const report = z.object({
-  id: z.string(), scrapeRunId: z.string(), fingerprint: z.string(), status: z.string(),
+  id: z.string(), dealerId: z.string(), bindingId: z.string(), scrapeRunId: z.string(), fingerprint: z.string(), status: z.string(),
   inventoryCount: z.number(), failureReason: z.string().nullable(), createdAt: z.iso.datetime(),
-  plan: z.object({ actions: z.array(action) }), binding,
+  plan: z.object({ actions: z.array(action), pendingReviewActions: z.array(action).optional() }), binding,
 });
 const job = z.object({
   id: z.string(), kind: z.string(), status: z.string(), error: z.string().nullable(),

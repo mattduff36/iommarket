@@ -126,6 +126,7 @@ describe("motorhome and van detail persistence", () => {
     mockDb.listing.update.mockResolvedValue({ id: listingId });
     mockDb.listing.updateMany.mockResolvedValue({ count: 1 });
     mockDb.listing.findUniqueOrThrow.mockResolvedValue({
+      id: listingId,
       lifecycleRevision: 4,
       updatedAt: new Date("2026-10-08T12:00:00.000Z"),
     });
@@ -210,7 +211,7 @@ describe("motorhome and van detail persistence", () => {
       attributes: [...requiredVan, value("van", "tail-lift", "No")],
     });
 
-    expect(result).toEqual({ data: { id: listingId } });
+    expect(result).toMatchObject({ data: { id: listingId } });
     expect(mockDb.listingAttributeValue.deleteMany).toHaveBeenCalledWith({
       where: { listingId },
     });

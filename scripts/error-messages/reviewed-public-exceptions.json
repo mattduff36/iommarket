@@ -190,5 +190,11 @@
     "snippet": "return { error: error instanceof StockDraftDiscardError ? error.message : \"This draft could not be deleted. Refresh and try again.\" };",
     "reason": "StockDraftDiscardError is constructed only from the fixed CHANGED sentence in discard-draft; unknown database/provider errors use the fixed fallback.",
     "occurrences": 1
+  },
+  {
+    "file": "actions/admin/dealer-stock-draft-ownership.ts",
+    "snippet": "if (error instanceof StockDraftRecallError || error instanceof ListingLifecycleError) return { error: error.message };",
+    "reason": "Admin-only action returns deliberate recall domain messages and stored-listing validation feedback from assertStoredStockDraftReady. Database/provider exceptions use a fixed fallback; authorization runs before the boundary.",
+    "occurrences": 1
   }
 ]

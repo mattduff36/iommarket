@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StockResultHistory, StockResultVisibility, StockResultActions } from "@/app/(admin)/admin/stock-reviews/result-history";
 import type { ResultHistoryEntry, ResultHistoryState } from "@/lib/dealer-stock-sync/result-history";
@@ -29,22 +29,33 @@ describe("result history", () => {
     expect(screen.getByText("quiet")).toBeInTheDocument();
     expect(screen.getByText("pending")).toBeInTheDocument();
     expect(screen.getByText("running")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", {name:"Archive"})).toHaveLength(1);
+    expect(screen.getAllByRole("button", {name:"Archive"})).toHaveLength(3);
     expect(screen.getByRole("link",{name:"Archived (1)"})).toHaveAttribute("href","/admin/stock-reviews?history=archived#stock-review-results");
+  });
+  it("keeps protected result controls visible with an explanation and no write", () => {
+    render(<Results />);
+    for (const name of ["pending", "running"]) {
+      const card = within(screen.getByRole("region", { name }));
+      expect(card.getByRole("button", { name: "Archive" })).toBeDisabled();
+      expect(card.getByRole("button", { name: "Delete" })).toBeDisabled();
+      expect(card.getByText(/before archiving or deleting/)).toBeInTheDocument();
+      fireEvent.click(card.getByRole("button", { name: "Delete" }));
+    }
+    expect(change).not.toHaveBeenCalled();
   });
   it("archives one no-change result through the server and refreshes", async () => {
     render(<Results />);
-    fireEvent.click(screen.getByRole("button",{name:"Archive"}));
+    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Archive"}));
     await waitFor(() => expect(change).toHaveBeenCalledWith({id:"quiet",kind:"report",action:"archive"}));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
   it("requires confirmation before deleting and can cancel without a write", async () => {
     render(<Results />);
-    fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Delete"}));
     expect(change).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"Cancel"}));
     expect(change).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button",{name:"Delete"}));
+    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Delete"}));
     fireEvent.click(screen.getByRole("button",{name:"Confirm delete"}));
     await waitFor(() => expect(change).toHaveBeenCalledWith({id:"quiet",kind:"report",action:"delete"}));
   });
@@ -58,7 +69,7 @@ describe("result history", () => {
   it("keeps failed changes visible with an error", async () => {
     change.mockResolvedValue({error:"Could not update result."});
     render(<Results />);
-    fireEvent.click(screen.getByRole("button",{name:"Archive"}));
+    fireEvent.click(within(screen.getByRole("region", {name:"quiet"})).getByRole("button",{name:"Archive"}));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not update result.");
     expect(screen.getByText("quiet")).toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();

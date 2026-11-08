@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ auth: vi.fn(), finalize: vi.fn(), rate: vi.fn(), capture: vi.fn() }));
+const m = vi.hoisted(() => ({ auth: vi.fn(), finalize: vi.fn(), rate: vi.fn(), capture: vi.fn(), stockUpload: vi.fn() }));
+vi.mock("@/lib/listings/admin-stock-upload", () => ({ canUploadAdminStockPhoto: m.stockUpload }));
 vi.mock("@/lib/policy/gate", async () => {
   const actual = await vi.importActual<typeof import("@/lib/policy/gate")>("@/lib/policy/gate");
   return {
@@ -28,6 +29,7 @@ describe("managed ImageKit finalize route", () => {
     vi.clearAllMocks(); vi.stubEnv("IMAGEKIT_UPLOADS_ENABLED", "1");
     m.auth.mockResolvedValue({ id: "user", role: "USER" }); m.rate.mockResolvedValue({ allowed: true }); m.finalize.mockResolvedValue(finalIntent);
     m.capture.mockResolvedValue(null);
+    m.stockUpload.mockResolvedValue(false);
   });
   afterEach(() => vi.unstubAllEnvs());
   it("accepts a complete 20-photo batch before rate limiting further attempts", async () => {
@@ -45,6 +47,13 @@ describe("managed ImageKit finalize route", () => {
     expect(response.status).toBe(200); expect(response.headers.get("cache-control")).toBe("no-store");
     expect(m.finalize).toHaveBeenCalledWith({ userId: "user", intentId: "intent", fileId: "raw-file" });
     expect(await response.json()).toMatchObject({ data: { uploadIntentId: "intent", imageKitFileId: "final-file", provider: "IMAGEKIT" } });
+  });
+  it("permits an admin upload only through the actor-owned intent bound to a recalled draft", async () => {
+    m.auth.mockResolvedValue({ id: "admin", role: "ADMIN" });
+    m.stockUpload.mockResolvedValue(true);
+    expect((await POST(request())).status).toBe(200);
+    expect(m.stockUpload).toHaveBeenCalledWith({ id: "admin", role: "ADMIN" }, { intentId: "intent" });
+    expect(m.finalize).toHaveBeenCalledWith({ userId: "admin", intentId: "intent", fileId: "raw-file" });
   });
   it("fails closed when disabled or called cross-origin", async () => {
     expect((await POST(request(body, "https://attacker.example"))).status).toBe(403);

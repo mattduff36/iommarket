@@ -256,7 +256,7 @@ describe("dealer account pages", () => {
     expect(screen.queryByText(/actions:/)).toBeNull();
     expect(tradeStockSummaryMock).not.toHaveBeenCalled();
     expect(dealerWhere(dbMock.listing.groupBy.mock.calls[0]?.[0])).toBe("dealer-1");
-    expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.where).toEqual({ dealerId: "dealer-1" });
+    expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.where).toEqual({ dealerId: "dealer-1", stockReviewHeld: false });
     expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.take).toBe(5);
   });
 
@@ -278,6 +278,7 @@ describe("dealer account pages", () => {
     );
     expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.where).toEqual({
       dealerId: "dealer-1",
+      stockReviewHeld: false,
       title: { contains: "ford", mode: "insensitive" },
       status: "LIVE",
     });
@@ -309,8 +310,8 @@ describe("dealer account pages", () => {
   it("includes received revisions of live listings in the Drafts filter", async () => {
     const { default: Page } = await import("@/app/(public)/dealer/listings/page");
     render(await Page({ searchParams: Promise.resolve({ status: "DRAFT" }) }));
-    expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.where).toEqual({dealerId:"dealer-1",OR:[{status:"DRAFT"},{revisions:{some:{status:"DRAFT"}}}]});
-    expect(dbMock.listing.count).toHaveBeenCalledWith({where:{dealerId:"dealer-1",OR:[{status:"DRAFT"},{revisions:{some:{status:"DRAFT"}}}]}});
+    expect(dbMock.listing.findMany.mock.calls[0]?.[0]?.where).toEqual({dealerId:"dealer-1",stockReviewHeld:false,OR:[{status:"DRAFT"},{revisions:{some:{status:"DRAFT"}}}]});
+    expect(dbMock.listing.count).toHaveBeenCalledWith({where:{dealerId:"dealer-1",stockReviewHeld:false,OR:[{status:"DRAFT"},{revisions:{some:{status:"DRAFT"}}}]}});
   });
 
   it("loads correspondence for the signed-in dealer and points optional alerts elsewhere", async () => {

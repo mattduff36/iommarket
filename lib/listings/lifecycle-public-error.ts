@@ -1,4 +1,5 @@
 import { LISTING_UNAVAILABLE } from "@/lib/listings/save-public-error";
+import { STOCK_REVIEW_HELD_ERROR } from "@/lib/dealer-stock-sync/draft-handoff";
 import {
   isListingConflictError,
   isListingLifecycleDomainError,
@@ -16,6 +17,7 @@ const HIDDEN = new Set<string>([
 ]);
 
 const ALLOWED = new Set<string>([
+  STOCK_REVIEW_HELD_ERROR,
   "Payment is required to renew an expired listing.",
   "This listing changed before it could be submitted. Please refresh and try again.",
   "A payment was received for this listing. Please refresh and try again.",
