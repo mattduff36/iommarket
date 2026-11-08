@@ -98,6 +98,7 @@ export interface ReviewedActionEvidence {
   availability: "available" | "reserved" | "sold" | "unknown";
   provenance: string[];
   sourceHash: string;
+  sourceSignature?: { version: 1; digest: string };
   capturedAt: string;
   coverageWarning: string | null;
   capacityWarning: string | null;

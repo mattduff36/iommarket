@@ -57,7 +57,10 @@ interface SeedClient {
     create(args: { data: object }): Promise<{ id: string; fingerprint: string }>;
     update(args: { where: object; data: object }): Promise<unknown>;
   };
-  dealerStockSyncAudit: { create(args: { data: object }): Promise<{ id: string }> };
+  dealerStockSyncAudit: {
+    findMany(args: { where: object; orderBy: object[]; select: { before: true } }): Promise<Array<{ before: unknown }>>;
+    create(args: { data: object }): Promise<{ id: string }>;
+  };
   $transaction<T>(work: (tx: SeedClient) => Promise<T>, options?: object): Promise<T>;
 }
 
@@ -272,7 +275,7 @@ export async function applyReviewedDealerSeed(client: SeedClient, input: Reviewe
       where: { id: saved.report.id },
       data: {
         plan: {
-          actions: planned.actions,
+          actions: saved.actions,
           reviewSource: {
             sourceHash: input.sourceHash,
             capturedAt: input.adaptation.capturedAt,

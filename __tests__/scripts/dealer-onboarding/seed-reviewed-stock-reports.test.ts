@@ -10,6 +10,7 @@ import {
   type ReviewedSeedRequest,
 } from "../../../scripts/dealer-onboarding/seed-reviewed-stock-reports";
 import type { ReviewedAdaptation } from "../../../scripts/dealer-stock-sync/reviewed-source";
+import { blockedDismissalEvidence } from "../../../lib/dealer-stock-sync/blocked-dismissals";
 
 const previewEnv = {
   DEALER_STOCK_SYNC_TARGET: "preview",
@@ -52,6 +53,7 @@ function request(overrides: Partial<ReviewedSeedRequest> = {}): ReviewedSeedRequ
 
 function fakeClient(state: {
   reports?: Array<{ id: string; plan: unknown }>;
+  audits?: Array<{ before: unknown }>;
   listings?: number;
   identities?: number;
   jobs?: number;
@@ -76,7 +78,7 @@ function fakeClient(state: {
       create: () => Promise<{ id: string; fingerprint: string }>;
       update: (args: { data: { plan: unknown } }) => Promise<unknown>;
     };
-    dealerStockSyncAudit: { create: () => Promise<{ id: string }> };
+    dealerStockSyncAudit: { findMany: () => Promise<Array<{ before: unknown }>>; create: () => Promise<{ id: string }> };
     $transaction: (work: (tx: never) => Promise<unknown>) => Promise<unknown>;
   } = {
     user: { findUnique: async () => ({ id: "admin-user-1", role: "ADMIN", disabledAt: null, deletedAt: null }) },
@@ -103,7 +105,7 @@ function fakeClient(state: {
       create: async () => { calls.reports += 1; return { id: "report-new", fingerprint: "f".repeat(64) }; },
       update: async (args: { data: { plan: unknown } }) => { calls.plan = args.data.plan; return {}; },
     },
-    dealerStockSyncAudit: { create: async () => ({ id: "audit-1" }) },
+    dealerStockSyncAudit: { findMany: async () => state.audits ?? [], create: async () => ({ id: "audit-1" }) },
     $transaction: async (work) => {
       calls.transactions += 1;
       return work(client as never);
@@ -113,6 +115,29 @@ function fakeClient(state: {
 }
 
 describe("reviewed stock seed guards", () => {
+  it("keeps effective filtered actions when adding reviewed-source metadata after persistence", async () => {
+    const vehicle: InventoryVehicle = { sourceIdentityKey: "sourceVehicleId:abc", availability: "available", isPoa: true,
+      pricePence: null, mileage: 100, importable: false, skipReason: "missing-price", title: "Ford Focus",
+      description: null, categorySlug: "car", attributes: null, ownedImages: [], remoteImageCount: 0 };
+    const reviewed: ReviewedAdaptation = { ...adaptation, vehicles: [vehicle], evidence: {
+      "sourceVehicleId:abc": { displayTitle: "Ford Focus", description: "", attributes: {}, fuel: null, transmission: null,
+        flags: [], pricePence: null, mileage: 100, year: 2020,
+        categorySlug: "car", sourceUrl: null, safePhotoUrls: [], availability: "available", provenance: ["reviewed-snapshot"],
+        sourceHash: "old-whole-document-hash", capturedAt: adaptation.capturedAt, coverageWarning: adaptation.coverageWarning, capacityWarning: null },
+    } };
+    const planned = planReviewedAdditions({ registryKey: "dw-cars", scrapeRunId: `reviewed-${"c".repeat(16)}`, regionId: "region-1", listings: [], identities: [], adaptation: reviewed, activeListingCount: 0, listingCap: 30 });
+    const frozen = {
+      dealer: { id: "dealer-1", userId: "user-1", regionId: "region-1", tier: "STARTER", isAdminPreview: false, role: "DEALER", disabledAt: null, deletedAt: null },
+      binding: { id: "binding-1", registryKey: "dw-cars", enabled: false, verifiedAt: adaptation.capturedAt },
+      activeListingCount: 0, listingCap: 30, listings: [], identities: planned.identities, actions: planned.actions,
+    };
+    const seeded = fakeClient({ binding: { id: "binding-1", dealerId: "dealer-1", registryKey: "dw-cars", enabled: false, verifiedAt: new Date(adaptation.capturedAt) },
+      audits: [{ before: { actions: planned.actions, blockedDismissals: blockedDismissalEvidence(frozen, planned.actions) } }],
+    });
+    const result = await applyReviewedDealerSeed(seeded.client as never, request({ adaptation: reviewed }));
+    expect(seeded.calls.plan).toMatchObject({ actions: [], reviewSource: { sourceHash: "c".repeat(64) } });
+    expect(result).toHaveProperty("fingerprint", fingerprintSnapshot({ ...frozen, actions: [] }));
+  });
   it("allows only an explicit verified preview target", () => {
     expect(reviewedSeedApplyBlock(previewEnv)).toBeNull();
     expect(reviewedSeedApplyBlock({ ...previewEnv, DEALER_STOCK_SYNC_TARGET: "production", VERCEL_ENV: "production" })).toMatch(/production/i);

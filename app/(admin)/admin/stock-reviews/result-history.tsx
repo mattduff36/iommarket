@@ -27,7 +27,7 @@ export function StockResultHistory({ entries, view, children }: {
         </Link>)}
       </nav>
     </div>
-    <p className="text-sm text-text-secondary">Applied results are archived automatically. No change results stay active until you archive or delete them. Changes are saved across computers. Deleting a result never deletes listings.</p>
+    <p className="text-sm text-text-secondary">Applied and no change results are archived automatically. Restoring a deleted no change result returns it to Archived. Changes are saved across computers. Deleting a result never deletes listings.</p>
     {visible.length === 0 ? <p className="text-sm text-text-secondary">No {view} results.</p> : null}
     {children}
   </History.Provider>;
@@ -74,7 +74,8 @@ export function StockResultActions({ id }: { id: string }) {
       </div>
     </div> : <div className="flex flex-wrap justify-end gap-2">
       {entry.state === "active" ? <button type="button" disabled={disabled} className={BUTTON} onClick={() => run("archive")}>Archive</button>
-        : <button type="button" disabled={disabled} className={BUTTON} onClick={() => run("restore")}>Restore</button>}
+        : entry.state === "archived" && entry.restoreState === "archived" ? null
+          : <button type="button" disabled={disabled} className={BUTTON} onClick={() => run("restore")}>{entry.restoreState === "archived" ? "Restore to Archived" : "Restore"}</button>}
       {entry.state !== "deleted" ? <button type="button" disabled={disabled} className={BUTTON + " text-red-300"} onClick={() => setConfirmDelete(true)}>Delete</button> : null}
     </div>}
     {!entry.manageable ? <p id={unavailableId} className="max-w-xs text-xs text-text-secondary">{unavailableReason}</p> : null}

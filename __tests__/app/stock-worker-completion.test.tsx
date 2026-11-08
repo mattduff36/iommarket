@@ -8,6 +8,21 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 const tick = () => act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 
 describe("whole-run completion", () => {
+  it("defers completion until the page unlocks and retains a notice across a new lock", async () => {
+    const canShow = () => true;
+    const ui = (status: string, blocked: boolean) => <StockWorkerCompletion jobs={[job("A", status)]} canShow={canShow} blocked={blocked} />;
+    const view = render(ui("LEASED", true));
+    view.rerender(ui("SUCCEEDED", true));
+    await tick(); expect(screen.queryByRole("dialog")).toBeNull();
+    view.rerender(ui("SUCCEEDED", false));
+    expect(screen.getByRole("dialog", { name: "Stock Update run finished" })).toBeInTheDocument();
+    view.rerender(ui("SUCCEEDED", true));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    view.rerender(ui("SUCCEEDED", false));
+    expect(screen.getByRole("button", { name: "Got it" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    await tick(); expect(screen.queryByRole("dialog")).toBeNull();
+  });
   it("shows one summary after all dealers finish, retaining earlier results", async () => {
     const canShow = () => true;
     const view = render(<StockWorkerCompletion jobs={[job("A", "LEASED"), job("B", "QUEUED")]} canShow={canShow} />);

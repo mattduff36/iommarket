@@ -1,8 +1,45 @@
 import { describe, expect, it, vi } from "vitest";
 import { persistCompleteScrape, persistFailedScrape } from "@/lib/dealer-stock-sync/persist-report";
-import type { FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { fingerprintSnapshot, type FingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { blockedDismissalEvidence } from "@/lib/dealer-stock-sync/blocked-dismissals";
 
 describe("restricted worker report persistence", () => {
+  it("filters audited dismissals before fingerprinting while preserving patches and inventory", async () => {
+    const action = {
+      kind: "blocked" as const, reason: "missing-price", section: "new" as const,
+      sourceIdentityKey: "sourceVehicleId:abc", listingId: null,
+      review: { displayTitle: "Ford", description: "", attributes: {}, fuel: null, transmission: null,
+        flags: [], pricePence: null, mileage: 100, year: 2020, categorySlug: "car" as const,
+        sourceUrl: null, safePhotoUrls: [], availability: "available" as const, provenance: [], sourceHash: "document",
+        capturedAt: "2026-11-08", coverageWarning: null, capacityWarning: null },
+    };
+    const patch = { sourceIdentityKey: action.sourceIdentityKey, listingId: null, absenceCount: 0,
+      lastSeenRunId: "new-run", lastAbsenceRunId: null, baselinePricePence: null, baselineMileage: null };
+    const snapshot: FingerprintSnapshot = {
+      dealer: { id: "dealer", userId: "user", regionId: "region", tier: "PRO", isAdminPreview: false, role: "DEALER", disabledAt: null, deletedAt: null },
+      binding: { id: "binding", registryKey: "dw-cars", enabled: false, verifiedAt: null },
+      activeListingCount: 0, listingCap: 30, listings: [], identities: [patch], actions: [action],
+    };
+    const client = {
+      dealerStockSourceIdentity: { upsert: vi.fn(async () => ({ id: "identity" })) },
+      dealerStockSyncReport: { updateMany: vi.fn(async () => ({ count: 1 })), create: vi.fn(async () => ({ id: "report", fingerprint: "saved" })) },
+      dealerStockSyncAudit: { findMany: vi.fn(async () => [{ before: { actions: [action], blockedDismissals: blockedDismissalEvidence(snapshot, [action]) } }]), create: vi.fn(async () => ({ id: "audit" })) },
+    };
+    const saved = await persistCompleteScrape(client, { dealerId: "dealer", bindingId: "binding", jobId: "job", scrapeRunId: "new-run", inventoryCount: 1, patches: [patch], snapshot });
+    expect(saved.actions).toEqual([]);
+    expect(saved.fingerprint).toBe(fingerprintSnapshot({ ...snapshot, actions: [] }));
+    expect(snapshot.actions).toEqual([action]);
+    expect(client.dealerStockSyncReport.create).toHaveBeenCalledWith({ data: expect.objectContaining({ fingerprint: saved.fingerprint, plan: { actions: [] }, inventoryCount: 1 }) });
+    expect(client.dealerStockSourceIdentity.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { dealerId: "dealer", bindingId: "binding", ...patch } }));
+    expect(client.dealerStockSyncAudit.findMany).toHaveBeenCalledWith({
+      where: { action: "review-selection-reject", report: { dealerId: "dealer", bindingId: "binding" } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { before: true },
+    });
+    client.dealerStockSyncAudit.findMany.mockRejectedValueOnce(new Error("Audit read denied"));
+    client.dealerStockSyncReport.create.mockClear();
+    await expect(persistCompleteScrape(client, { dealerId: "dealer", bindingId: "binding", jobId: "job", scrapeRunId: "later", inventoryCount: 1, patches: [patch], snapshot })).rejects.toThrow("Audit read denied");
+    expect(client.dealerStockSyncReport.create).not.toHaveBeenCalled();
+  });
   it("creates source identities but updates only mutable stock fields", async () => {
     const patch = {
       sourceIdentityKey: "sourceVehicleId:123", listingId: null, absenceCount: 0,
@@ -21,7 +58,7 @@ describe("restricted worker report persistence", () => {
         updateMany: vi.fn(async () => ({ count: 0 })),
         create: vi.fn(async () => ({ id: "report", fingerprint: "fingerprint" })),
       },
-      dealerStockSyncAudit: { create: vi.fn(async () => ({ id: "audit" })) },
+      dealerStockSyncAudit: { findMany: vi.fn(async () => []), create: vi.fn(async () => ({ id: "audit" })) },
     };
     const snapshot: FingerprintSnapshot = {
       dealer: { id: "dealer", userId: "user", regionId: "region", tier: "STARTER", isAdminPreview: false, role: "DEALER", disabledAt: null, deletedAt: null },

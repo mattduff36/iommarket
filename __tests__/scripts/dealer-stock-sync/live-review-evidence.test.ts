@@ -66,6 +66,29 @@ function reconciled(vehicle: CanonicalVehicle): ReconciledVehicle {
 }
 
 describe("live review evidence", () => {
+  it("tracks a changed resolved category while ignoring equivalent source section names", () => {
+    const evidence = (sourceKey: string) => liveReviewEvidence({
+      reconciled: [reconciled(canonical({ sourceKey, vehicleType: null }))],
+      capturedAt: "2026-11-08T00:00:00.000Z",
+    })["sourceVehicleId:abc1"]!;
+    const car = evidence("used");
+    const sameCar = evidence("stock");
+    const van = evidence("used-vans");
+    expect(car.categorySlug).toBe("car");
+    expect(sameCar.sourceSignature).toEqual(car.sourceSignature);
+    expect(van.categorySlug).toBe("van");
+    expect(van.sourceSignature).not.toEqual(car.sourceSignature);
+  });
+  it("freezes all per-vehicle source facts, excluding capture, source timestamps and provenance", () => {
+    const signature = (vehicle: CanonicalVehicle) => liveReviewEvidence({ reconciled: [reconciled(vehicle)], capturedAt: "2026-11-08" })["sourceVehicleId:abc1"]?.sourceSignature;
+    const original = canonical({ imageUrls: ["https://images.example/a.jpg?v=1&X-Amz-Signature=old", "https://images.example/b.jpg"] });
+    const stable = signature(original);
+    expect(stable).toMatchObject({ version: 1, digest: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(signature({ ...original, scrapedAt: "later", sourceCreatedAt: "later", sourceUpdatedAt: "later", provenance: { startUrl: null, sourceKeys: ["different"], rawIdentityHints: [] }, imageUrls: ["https://images.example/b.jpg", "https://images.example/a.jpg?X-Amz-Signature=new&v=1"] })).toEqual(stable);
+    for (const changes of [{ colour: "Red" }, { enginePower: 200 }, { description: "New description" }, { availability: "reserved" as const }, { imageUrls: ["https://images.example/a.jpg?v=2"] }]) {
+      expect(signature({ ...original, ...changes })).not.toEqual(stable);
+    }
+  });
   it("maps specs and safe photos onto create, update, and blocked actions", () => {
     const capturedAt = "2026-10-22T18:00:00.000Z";
     const available = canonical();

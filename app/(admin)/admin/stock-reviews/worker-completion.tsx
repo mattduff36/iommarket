@@ -17,7 +17,7 @@ export function stockJobOutcome(job: LiveStockJob) {
   return `${job.dealerName}: finished — check the saved result`;
 }
 
-export function StockWorkerCompletion({ jobs, canShow }: { jobs: LiveStockJob[]; canShow: () => boolean }) {
+export function StockWorkerCompletion({ jobs, canShow, blocked = false }: { jobs: LiveStockJob[]; canShow: () => boolean; blocked?: boolean }) {
   // Existing history is a baseline, not a new completion notification.
   const seen = useRef(new Set(jobs.map(job => job.id)));
   const run = useRef(new Map(jobs.filter(job => !stockJobFinished(job)).map(job => [job.id, job])));
@@ -39,15 +39,15 @@ export function StockWorkerCompletion({ jobs, canShow }: { jobs: LiveStockJob[];
 
   useEffect(() => {
     function showNext() {
-      if (!notice && waiting.current.length && canShow()) setNotice(waiting.current.shift()!);
+      if (!blocked && !notice && waiting.current.length && canShow()) setNotice(waiting.current.shift()!);
     }
     showNext();
     // A completion that arrives during editing waits until the editor closes.
     const timer = window.setInterval(showNext, 1_000);
     return () => window.clearInterval(timer);
-  }, [notice, canShow]);
+  }, [notice, canShow, blocked]);
 
-  return <Dialog open={notice !== null} onOpenChange={open => { if (!open) setNotice(null); }}>
+  return <Dialog open={!blocked && notice !== null} onOpenChange={open => { if (!open && !blocked) setNotice(null); }}>
     <DialogContent onPointerDownOutside={event => event.preventDefault()}>
       <DialogTitle>Stock Update run finished</DialogTitle>
       <DialogDescription className="mt-3">

@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { canManageStockReport, resultHistoryState } from "@/lib/dealer-stock-sync/result-history";
+import { canManageStockReport, isGenuineNoChangeReview, resultHistoryState } from "@/lib/dealer-stock-sync/result-history";
 
 describe("stock result history policy", () => {
+  it("requires a valid genuine no-change plan and does not confuse manageable missing observations with no work", () => {
+    const unchanged = { kind: "unchanged", sourceIdentityKey: "sourceVehicleId:same", listingId: null };
+    const sold = { kind: "blocked", sourceIdentityKey: "sourceVehicleId:sold", listingId: null, reason: "source-sold", section: "new" };
+    for (const status of ["PENDING_REVIEW", "SUPERSEDED", "REJECTED"]) {
+      for (const actions of [[], [unchanged], [sold], [unchanged, sold]]) {
+        const plan = { actions };
+        expect(isGenuineNoChangeReview(status, plan)).toBe(true);
+        for (const event of [null, "RESULT_ARCHIVED", "RESULT_RESTORED"]) expect(resultHistoryState(status, event, plan)).toBe("archived");
+        expect(resultHistoryState(status, "RESULT_DELETED", plan)).toBe("deleted");
+      }
+    }
+    for (const plan of [null, {}, { actions: null }, { actions: [null] }, { actions: [{ kind: "unchanged" }] },
+      { actions: [], pendingReviewActions: "broken" }, { actions: [], pendingReviewActions: [{ kind: "blocked" }] },
+      { actions: [{ ...unchanged, stockDraft: { state: "dealer" } }] },
+      ...["awaiting-dealer-review", "submitted-dealer-review", "admin-stock-review"].map(reason => ({ actions: [{ ...sold, reason, review: { availability: "sold", flags: [] } }] })),
+      ...["missing_once", "unpublish", "conflict", "blocked", "create", "update"].map(kind => ({ actions: [{ ...unchanged, kind }] }))]) {
+      expect(isGenuineNoChangeReview("PENDING_REVIEW", plan)).toBe(false);
+      expect(resultHistoryState("PENDING_REVIEW", null, plan)).toBe("active");
+    }
+    for (const status of ["FAILED", "APPROVED"]) {
+      expect(isGenuineNoChangeReview(status, { actions: [] })).toBe(false);
+      expect(resultHistoryState(status, null, { actions: [] })).toBe("active");
+    }
+  });
   it("keeps receipt-backed ownership visible and unarchivable while dealer/admin/moderation work is pending", () => {
     for (const state of ["dealer", "admin", "moderation"]) {
       for (const key of ["actions", "pendingReviewActions"]) {
@@ -26,13 +50,17 @@ describe("stock result history policy", () => {
     expect(resultHistoryState("SUPERSEDED", "RESULT_RESTORED", plan)).toBe("active");
     expect(canManageStockReport("PENDING_REVIEW", plan)).toBe(false);
   });
-  it("automatically archives applied reports but leaves no-change reports active", () => {
+  it("automatically archives applied and genuine no-change reports", () => {
     expect(resultHistoryState("APPLIED", null)).toBe("archived");
     expect(resultHistoryState("PENDING_REVIEW", null)).toBe("active");
     expect(resultHistoryState("APPLIED", "RESULT_DELETED")).toBe("deleted");
     expect(resultHistoryState("APPLIED", "RESULT_RESTORED")).toBe("active");
     expect(resultHistoryState("REJECTED", null)).toBe("archived");
-    expect(resultHistoryState("SUPERSEDED", null, {actions:[{kind:"unchanged"}]})).toBe("active");
+    expect(resultHistoryState("SUPERSEDED", null, {actions:[{kind:"unchanged", sourceIdentityKey:"sourceVehicleId:same", listingId:null}]})).toBe("archived");
+    expect(resultHistoryState("PENDING_REVIEW", null, {actions:[]})).toBe("archived");
+    expect(resultHistoryState("PENDING_REVIEW", "RESULT_RESTORED", {actions:[]})).toBe("archived");
+    expect(resultHistoryState("FAILED", null, {actions:[]})).toBe("active");
+    expect(resultHistoryState("APPROVED", null, {actions:[]})).toBe("active");
   });
   it("allows no-change history management without allowing actionable reviews or approved work", () => {
     expect(canManageStockReport("PENDING_REVIEW", { actions: [{kind:"unchanged"}] })).toBe(true);

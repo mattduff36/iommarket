@@ -24,11 +24,30 @@ beforeEach(() => {
   tx.dealerStockSyncReport.updateMany.mockResolvedValue({ count: 1 });
   tx.dealerStockSyncJob.findFirst.mockResolvedValue(null);
   tx.dealerStockSyncAudit.create.mockResolvedValue({ id: "audit" });
-  mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding" }, activeListingCount: 0, listingCap: 10, listings: [], actions });
+  mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding", registryKey: "dw-cars" }, identities: [], activeListingCount: 0, listingCap: 10, listings: [], actions });
   mocks.fingerprint.mockReturnValue(fingerprint); mocks.enqueue.mockResolvedValue({ id: "job" });
   mocks.transfer.mockResolvedValue([{ listingId: "draft", revisionId: null }]); mocks.notify.mockResolvedValue(undefined);
 });
 describe("selected stock review mutations", () => {
+  it("records server-generated comparison evidence alongside the selection in the same transaction", async () => {
+    const blocked = { ...actions[1], sourceIdentityKey: "sourceVehicleId:abc", review: {
+      displayTitle: "Ford Focus", flags: [], pricePence: null, mileage: 100, year: 2020, categorySlug: "car",
+      sourceUrl: null, safePhotoUrls: [], availability: "available", provenance: [], sourceHash: "document",
+      capturedAt: "2026-11-08", coverageWarning: null, capacityWarning: null,
+      sourceSignature: { version: 1, digest: "b".repeat(64) },
+    } };
+    const rows = [actions[0], blocked];
+    tx.dealerStockSyncReport.findUnique.mockResolvedValue({ ...report(), plan: { actions: rows } });
+    mocks.load.mockResolvedValue({ dealer: { id: "dealer", userId: "owner", role: "DEALER" }, binding: { id: "binding", registryKey: "dw-cars" }, identities: [], activeListingCount: 0, listingCap: 10, listings: [], actions: rows });
+    expect(await run("reject", [1])).toHaveProperty("data.count", 1);
+    expect(tx.dealerStockSyncAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      action: "review-selection-reject", before: expect.objectContaining({ actions: [blocked], blockedDismissals: {
+        version: 1, dealerId: "dealer", bindingId: "binding", registryKey: "dw-cars",
+        entries: [{ sourceIdentityKey: "sourceVehicleId:abc", signature: expect.stringMatching(/^[a-f0-9]{64}$/) }],
+      } }),
+    }) });
+    expect(tx.dealerStockSyncReport.updateMany.mock.calls[0][0].data.plan.actions).toEqual([actions[0]]);
+  });
   it("gives an explicit smaller-batch message for more than 100 drafts", async () => {
     expect(await run("draft", Array.from({ length: 101 }, (_, index) => index))).toHaveProperty("error", expect.stringContaining("100"));
     expect(mocks.transaction).not.toHaveBeenCalled();
@@ -70,6 +89,13 @@ describe("selected stock review mutations", () => {
     await run("reject", [1]);
     expect(tx.dealerStockSyncReport.updateMany.mock.calls[0][0].data).toMatchObject({ status: "PENDING_REVIEW", plan: { actions: [actions[0]] } });
     expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(tx.dealerStockSyncAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      action: "review-selection-reject",
+      before: expect.objectContaining({ actions: [actions[1]], blockedDismissals: {
+        version: 1, dealerId: "dealer", bindingId: "binding", registryKey: "dw-cars",
+        entries: [{ sourceIdentityKey: "blocked", signature: null }],
+      } }),
+    }) });
   });
   it("blocks overlapping jobs and blocked approvals", async () => {
     expect(await run("approve", [1])).toHaveProperty("error");

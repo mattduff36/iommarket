@@ -8,6 +8,7 @@ import {
   stockReviewDraft,
 } from "@/lib/dealer-stock-sync/review-edit";
 import type { PlanAction, ReviewedActionEvidence } from "@/lib/dealer-stock-sync/types";
+import { blockedDismissalEvidence, omitDismissedBlockedActions } from "@/lib/dealer-stock-sync/blocked-dismissals";
 
 const review = (overrides: Partial<ReviewedActionEvidence> = {}): ReviewedActionEvidence => ({
   displayTitle: "2020 Ford Focus",
@@ -65,6 +66,18 @@ const snapshot = (actions: PlanAction[]): FingerprintSnapshot => ({
 });
 
 describe("stock review correction helpers", () => {
+  it("preserves frozen raw source evidence through correct-then-clear without comparing admin display edits", () => {
+    const sourceSignature = { version: 1 as const, digest: "b".repeat(64) };
+    const original = blocked({ reason: "unmapped-existing-stock", review: review({ sourceSignature }) });
+    const corrected = correctStockReviewActions([original], stockReviewCorrectionSchema.parse(correction));
+    expect(corrected.ok).toBe(true);
+    if (!corrected.ok) return;
+    expect(corrected.corrected.kind).toBe("blocked");
+    expect(corrected.corrected.review?.sourceSignature).toEqual(sourceSignature);
+    expect(corrected.corrected.review?.description).toBe(correction.description);
+    const before = { actions: corrected.actions, blockedDismissals: blockedDismissalEvidence(snapshot(corrected.actions), corrected.actions) };
+    expect(omitDismissedBlockedActions(snapshot([original]), [{ before }])).toEqual([]);
+  });
   it("allows blocked evidence corrections but leaves linked vehicles to the admin listing editor", () => {
     expect(canEditStockReviewAction(blocked())).toBe(true);
     for (const reason of ["source-conflict", "unmatched-archive", "ambiguous-archive"]) {

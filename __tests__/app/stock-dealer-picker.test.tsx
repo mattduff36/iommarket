@@ -96,18 +96,23 @@ it("starts the dashboard-selected computer", async () => {
   await waitFor(() => expect(command).toHaveBeenCalledWith({ deviceId: "dev_other", instanceId: "other-instance", action: "start" }));
 });
 
-it("stops without a selection and does not enqueue", async () => {
+it("locks the picker while retaining footer STOP without selection or new queues", async () => {
   renderPicker(connected([device({ state: "running" })]));
-  expect(picker().getByRole("button", { name: "Stop safely" })).toBeEnabled();
+  const footer = within(screen.getByRole("contentinfo", { name: "Stock Update" }));
+  expect(document.querySelector("[data-stock-worker-content]")).not.toHaveAttribute("inert");
+  expect(document.querySelector("[data-stock-worker-backdrop]")).toBeInTheDocument();
   fireEvent.click(picker().getByRole("button", { name: "Stop safely" }));
-  await waitFor(() => expect(command).toHaveBeenCalledWith({ deviceId: "dev_test", instanceId: "instance", action: "stop" }));
+  expect(command).not.toHaveBeenCalled();
+  expect(footer.getByRole("button", { name: "Stop safely" })).toBeEnabled();
+  fireEvent.click(footer.getByRole("button", { name: "Stop safely" }));
+  await waitFor(() => expect(command).toHaveBeenCalledExactlyOnceWith({ deviceId: "dev_test", instanceId: "instance", action: "stop" }));
   expect(enqueue).not.toHaveBeenCalled();
-  await waitFor(() => expect(picker().getByRole("button", { name: "Stop safely" })).toBeEnabled());
+  await waitFor(() => expect(footer.getByRole("button", { name: "Stop safely" })).toBeEnabled());
   fireEvent.click(picker().getByLabelText("Alpha"));
-  fireEvent.click(picker().getByRole("button", { name: "Stop safely" }));
-  await waitFor(() => expect(command).toHaveBeenCalledWith({ deviceId: "dev_test", instanceId: "instance", action: "stop" }));
+  expect(picker().getByLabelText("Alpha")).not.toBeChecked();
+  fireEvent.click(footer.getByRole("button", { name: "Stop safely" }));
+  await waitFor(() => expect(command).toHaveBeenCalledTimes(2));
   expect(enqueue).not.toHaveBeenCalled();
-  expect(picker().getByLabelText("Alpha")).toBeChecked();
 });
 
 it("hides controls offline and disables start while awaiting acknowledgement or stopping", () => {

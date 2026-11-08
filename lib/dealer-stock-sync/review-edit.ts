@@ -147,6 +147,7 @@ function correctedReview(action: PlanAction, input: StockReviewCorrectionInput):
     availability: "available",
     provenance,
     sourceHash: previous?.sourceHash ?? "not-recorded",
+    ...(previous?.sourceSignature ? { sourceSignature: previous.sourceSignature } : {}),
     capturedAt: previous?.capturedAt ?? "not-recorded",
     coverageWarning: previous?.coverageWarning ?? null,
     capacityWarning: previous?.capacityWarning ?? null,
