@@ -1,5 +1,6 @@
 /* @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 const mocks = vi.hoisted(() => ({
   enabled: vi.fn(), query: vi.fn(), find: vi.fn(), binding: vi.fn(), transaction: vi.fn(), jobUpdateMany: vi.fn(),
 }));
@@ -20,6 +21,7 @@ describe("stock executor guard seam", () => {
     mocks.query.mockResolvedValue([{ id: "job" }]);
     mocks.find.mockResolvedValue(null);
   });
+  afterEach(() => vi.restoreAllMocks());
 
   it("retains the legacy default guard and blocks database access when disabled", async () => {
     mocks.enabled.mockImplementation(() => { throw new Error("disabled"); });
@@ -52,6 +54,33 @@ describe("stock executor guard seam", () => {
       await runLeasedJob({ id: "job", owner: "owner" }, scrape, undefined, guard);
     }
     expect(scrape).not.toHaveBeenCalled();
+  });
+
+  it("does not extend APPLY conflict retries to scrape transactions", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.find.mockResolvedValue({
+      id: "job", kind: "SCRAPE", status: "LEASED", leaseOwner: "owner",
+      leaseExpiresAt: new Date(Date.now() + 60_000), bindingId: "binding", dealerId: "dealer",
+      payload: { registryKey: "mikes-motors" },
+    });
+    mocks.binding.mockResolvedValue({
+      registryKey: "mikes-motors", verifiedAt: new Date(), dealerId: "dealer",
+      dealer: { isAdminPreview: false, user: { role: "DEALER", disabledAt: new Date(), deletedAt: null } },
+    });
+    mocks.transaction.mockRejectedValue(new Prisma.PrismaClientKnownRequestError(
+      "serialization conflict", { code: "P2034", clientVersion: "test" },
+    ));
+    mocks.jobUpdateMany.mockResolvedValue({ count: 1 });
+    const scrape = vi.fn();
+    await runLeasedJob({ id: "job", owner: "owner" }, scrape, undefined, vi.fn());
+    expect(mocks.transaction).toHaveBeenCalledOnce();
+    expect(scrape).not.toHaveBeenCalled();
+    expect(mocks.jobUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "FAILED", error: "Stock sync job failed." }),
+    }));
+    expect(console.error).toHaveBeenCalledWith("Stock sync atomic transaction failed.", expect.objectContaining({
+      failureCode: "P2034", attempt: 1, maxAttempts: 1,
+    }));
   });
 
   it("keeps a failed scrape report failed with its report id and still runs the next dealer", async () => {
