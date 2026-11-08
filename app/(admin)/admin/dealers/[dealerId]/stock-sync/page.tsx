@@ -9,6 +9,7 @@ import { requireRole } from "@/lib/auth";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
 import { db } from "@/lib/db";
 import { decorateStockDraftReports } from "@/lib/dealer-stock-sync/draft-handoff-store";
+import { decorateStockApplyRecovery } from "@/lib/dealer-stock-sync/apply-recovery-store";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 import { StockBindingForm } from "./binding-form";
 import { StockSyncReviewPanel } from "./review-panel";
@@ -66,7 +67,7 @@ export default async function DealerStockSyncPage({
     notFound();
   }
   const binding = dealer.stockSourceBinding;
-  const latest = (await decorateStockDraftReports(binding?.reports.slice(0, 1) ?? []))[0] ?? null;
+  const latest = (await decorateStockApplyRecovery(await decorateStockDraftReports(binding?.reports.slice(0, 1) ?? [])))[0] ?? null;
 
   return (
     <div className="space-y-8">
@@ -98,6 +99,7 @@ export default async function DealerStockSyncPage({
           status={latest.status}
           fingerprint={latest.fingerprint}
           failureReason={latest.failureReason}
+          applyRecovery={latest.applyRecovery}
           actions={asActions(latest.plan)}
           pendingActions={asActions(latest.plan, "pendingReviewActions")}
         />

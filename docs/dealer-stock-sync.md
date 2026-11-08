@@ -70,3 +70,13 @@ The stock-reviews picker uses the real dealer account's stored tier. Disabled ac
 Applied reports are automatically shown under Archived. Rejected and superseded actionable reviews are archived too; superseded No change reports remain Active until an admin dismisses them. Archive, Delete and Restore are per-result admin actions saved as RESULT_ARCHIVED, RESULT_DELETED and RESULT_RESTORED events in DealerStockSyncAudit. They affect results-history visibility across computers, not report status, worker job state or listings. Deleted results can be restored from the Deleted view. The old browser-only clear list is no longer used.
 
 Active jobs, approved work and actionable reviews awaiting a decision cannot be archived or deleted. Completed job cards are suppressed when their corresponding report is shown, including rejected reports, so one scrape is represented once. Status badges contain short labels; explanatory text is outside the badge.
+
+## Recovering an interrupted apply
+
+An approved report keeps its processing state and recovery actions even when the failed job's history notification is archived or deleted. Recovery looks up retained attempts directly, independently of the recent-results limit.
+
+Use **Retry approved changes** after a failed or cancelled APPLY attempt. The server rechecks admin access, the saved approval, the current dealer/source and stock fingerprint under the existing binding/dealer/listing locks. It queues one new attempt with a key tied to the failed attempt. The new payload contains no old staged-photo receipts; the original attempt stays in history. Manual recovery does not require weekly scheduling to be enabled.
+
+Queued or leased work for the same dealer blocks another recovery attempt. A changed or incompatible approval requires **Run a fresh check**, which uses the normal scrape queue and requires review and approval of its new results. Neither recovery action directly changes listings, resets a failed job, changes the frozen approval, or applies the unapproved remainder. Normal successful apply still restores that remainder for review.
+
+From an individual dealer page, **Open stock recovery** opens the saved report in Stock Reviews, where the desktop app launch and live status polling are available. Recovery never queues an unattended job from that standalone page.

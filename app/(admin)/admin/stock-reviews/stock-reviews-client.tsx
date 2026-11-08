@@ -14,6 +14,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ReportableError } from "@/components/monitoring/reportable-error";
 import { stockSyncReason, stockSyncStatus, isSoldStockReviewAction } from "@/lib/dealer-stock-sync/review";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
+import { stockApplyOutcome } from "@/lib/dealer-stock-sync/apply-recovery";
 
 
 import { StockDealerPicker } from "./dealer-picker";
@@ -125,18 +126,21 @@ function ReportCard({ report, open, onToggle, detail }: { report: ReportRow; ope
   const blocked = actions.filter((action) => !action.stockDraft && (action.kind === "blocked" || action.kind === "conflict")).length;
   const handoffs = actions.filter(action => action.stockDraft).length;
   const removals = removalLabel(report.status, actions);
-  const outcome = reportOutcome(report.status, actions);
+  const processingOutcome = report.status === "APPROVED" ? stockApplyOutcome(report.applyRecovery) : null;
+  const outcome = processingOutcome ?? reportOutcome(report.status, actions);
+  const badgeStatus = outcome === "No change" ? "no_change" : processingOutcome
+    ? report.applyRecovery?.activeJob?.status ?? report.applyRecovery?.attempt?.status ?? report.status : report.status;
   const when = new Date(report.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" });
   return (
     <li id={`stock-review-result-${report.id}`} className={`relative isolate rounded-lg border px-4 py-3 text-sm transition-colors ${open ? "border-neon-blue-500 bg-neon-blue-500/5" : "border-border bg-surface"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium text-text-primary">
-        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(outcome === "No change" ? "no_change" : report.status)}>{outcome}</span> · {visibleCount} vehicles
+        <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(badgeStatus)}>{outcome}</span> · {visibleCount} vehicles
       </p><div className="relative z-10"><StockResultActions id={report.id} /></div></div>
       <p className="text-text-secondary">
         {actionable} actionable · {blocked} blocked{handoffs ? ` · ${handoffs} tracked drafts` : ""}{removals ? ` · ${removals}` : ""} · {when}
       </p>
       {outcome === "No change" ? <p className="text-text-secondary">Nothing to approve. Listings were not changed.</p> : null}
-      {report.status === "APPROVED" ? <p className="text-text-secondary">Approval queues processing and does not apply listings by itself.</p> : null}
+      {report.status === "APPROVED" ? <p className="text-text-secondary">{report.applyRecovery?.retryable ? "Open this review to retry the approved changes or run a fresh check." : report.applyRecovery?.activeJob ? "This dealer has a stock task queued or processing." : "Open this review to check processing status or run a fresh check."}</p> : null}
       {report.status === "APPLIED" ? <p className="text-text-secondary">Listings from this approved plan were applied.</p> : null}
       {report.status === "FAILED" && report.failureReason ? <p className="text-text-secondary">{stockSyncReason(report.failureReason)}</p> : null}
       {warning?.coverageWarning ? <p className="text-text-secondary">{warning.coverageWarning}</p> : null}
@@ -179,7 +183,7 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   const detail = selectedResult ? <section id="stock-review-detail" aria-label={`${selectedResult.binding.dealer.name} stock review`} className="flex h-[min(80dvh,calc(100cqh-4rem))] min-h-0 flex-col gap-4 scroll-mt-6">
     <div className="flex shrink-0 items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-neon-blue-400">Stock review</p><h2 className="text-xl font-semibold text-text-primary">{selectedResult.binding.dealer.name}</h2></div><button type="button" onClick={() => { toggle(selectedId!); document.getElementById(`review-toggle-${selectedId}`)?.focus(); }} className="min-h-11 rounded-md border border-border px-3 text-sm">Close review</button></div>
     {selectedJob && <div className="space-y-2 rounded-lg border border-border p-4 text-sm"><p className="font-semibold">{jobOutcome(selectedJob)}</p>{selectedJob.error && <ReportableError as="p" className="text-text-error">{selectedJob.error}</ReportableError>}{!selectedReport && <p>No saved review is available for this task yet. Check processing status above, or run a fresh check after a failure.</p>}</div>}
-    {selectedReport && <StockSyncReviewPanel key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
+    {selectedReport && <StockSyncReviewPanel key={selectionKey} reportId={selectedReport.id} status={selectedReport.status} fingerprint={selectedReport.fingerprint} failureReason={selectedReport.failureReason} applyRecovery={selectedReport.applyRecovery} actions={actionsOf(selectedReport.plan)} pendingActions={actionsOf(selectedReport.plan, "pendingReviewActions")} selection={{ indexes: chosen.key === selectionKey ? chosen.indexes : [], setIndexes: indexes => setChosen({ key: selectionKey, indexes }) }} />}
   </section> : null;
   const readyCount = outstanding.filter(report => report.status === "PENDING_REVIEW" && needsReview(actionsOf(report.plan).filter(action => !isSoldStockReviewAction(action)))).length;
 

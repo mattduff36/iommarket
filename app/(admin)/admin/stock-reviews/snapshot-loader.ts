@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { decorateStockDraftReports } from "@/lib/dealer-stock-sync/draft-handoff-store";
+import { decorateStockApplyRecovery } from "@/lib/dealer-stock-sync/apply-recovery-store";
 import { requireRole } from "@/lib/auth";
 import { loadResultHistory } from "@/lib/dealer-stock-sync/result-history-store";
 import { resolveDesktopGate } from "@/lib/dealer-stock-sync/desktop-config";
@@ -78,10 +79,10 @@ export async function loadStockReviewSnapshot() {
   ]);
   const legacy = await loadHandoffReports([...outstanding, ...recentReports].map(report => report.id));
   const savedReports = [...recentReports, ...legacy];
-  const enriched = await decorateStockDraftReports([...outstanding, ...savedReports]);
+  const enriched = await decorateStockApplyRecovery(await decorateStockDraftReports([...outstanding, ...savedReports]));
   const historyEntries = await loadResultHistory(enriched, jobs);
   const decorated = new Map(enriched.map(report => [report.id, report]));
-  const serializeReport = (report: Awaited<ReturnType<typeof loadReports>>[number]) => ({ ...report, createdAt: report.createdAt.toISOString() });
+  const serializeReport = (report: (typeof enriched)[number]) => ({ ...report, createdAt: report.createdAt.toISOString() });
   return {
     outstanding: outstanding.map(report => serializeReport(decorated.get(report.id)!)), recentReports: savedReports.map(report => serializeReport(decorated.get(report.id)!)),
     jobs: jobs.map(job => ({ ...job, createdAt: job.createdAt.toISOString(), startedAt: job.startedAt?.toISOString() ?? null })),
