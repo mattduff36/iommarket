@@ -7,6 +7,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-actions", () => ({ getWorkerDashboard: mocks.dashboard, commandWorker: mocks.command }));
 vi.mock("@/app/(admin)/admin/stock-reviews/worker-pairing", () => ({ StockWorkerPairing: () => null }));
 vi.mock("@/actions/admin/stock-result-history", () => ({ changeStockResultHistory: vi.fn() }));
+vi.mock("@/actions/admin/dealer-stock-recovery", () => ({ recoverDealerStockReport: vi.fn() }));
 vi.mock("@/actions/admin/dealer-stock-sync", () => ({ enqueueDealerStockScrape: vi.fn(), approveDealerStockReport: vi.fn(), rejectDealerStockReport: vi.fn() }));
 vi.mock("@/actions/admin/dealer-stock-review-edit", () => ({ loadStockReviewVehicle: vi.fn(), saveStockReviewVehicle: vi.fn() }));
 import { StockReviewsClient } from "@/app/(admin)/admin/stock-reviews/stock-reviews-client";
@@ -14,7 +15,7 @@ import { isStockReviewSnapshot } from "@/app/(admin)/admin/stock-reviews/snapsho
 function snapshot(): StockReviewSnapshot {
   const now = Date.now();
   return {
-    outstanding: [{ id: "report", dealerId: "dealer", bindingId: "binding", scrapeRunId: "scan", fingerprint: "fp", status: "PENDING_REVIEW", inventoryCount: 2, failureReason: null, createdAt: new Date(now).toISOString(), plan: { actions: [] }, binding: { dealer: { id: "dealer", name: "Island Motors" } } }],
+    outstanding: [{ id: "report", dealerId: "dealer", bindingId: "binding", scrapeRunId: "scan", fingerprint: "fp", status: "PENDING_REVIEW", inventoryCount: 2, failureReason: null, applyRecovery: null, createdAt: new Date(now).toISOString(), plan: { actions: [] }, binding: { dealer: { id: "dealer", name: "Island Motors" } } }],
     recentReports: [], jobs: [], profiles: [{ id: "dealer", name: "Island Motors", tier: "PRO", isAdminPreview: false, user: { disabledAt: null } }],
     dashboard: { ok: true, devices: [{ deviceId: "dev_test", deviceName: "Server", environment: "production", instanceId: "instance", state: "connected", online: true, lastSeenAt: new Date(now).toISOString(), activity: [], pendingCommand: null }] },
     historyEntries: [{ id: "report", kind: "report", state: "active", manageable: true }], desktopEnabled: false, now,
@@ -24,6 +25,20 @@ beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); vi.stubGlobal("fetch"
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 const tick = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(15_000); }); };
 describe("stock page retained snapshot", () => {
+  it("shows recovery when the old failed notification is deleted and absent from recent jobs", () => {
+    const initial = snapshot();
+    initial.outstanding[0] = { ...initial.outstanding[0], status: "APPROVED",
+      applyRecovery: { attempt: { id: "old-failure", status: "FAILED" }, activeJob: null, retryable: true, reason: null } };
+    initial.historyEntries = [
+      { id: "report", kind: "report", state: "active", manageable: false },
+      { id: "old-failure", kind: "job", state: "deleted", manageable: true },
+    ];
+    render(<StockReviewsClient initial={initial} query={{ report: "report" }} />);
+    expect(screen.getByRole("button", { name: "Retry approved changes" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Run a fresh check" })).toBeEnabled();
+    expect(screen.getAllByText("Apply failed").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Archive" })).toBeDisabled();
+  });
   it("retains results and selection on connection failure, then updates without navigation", async () => {
     const initial = snapshot(); mocks.fetch.mockRejectedValueOnce(new TypeError("network error"));
     render(<StockReviewsClient initial={initial} query={{}} />);

@@ -17,6 +17,8 @@ import { StockReviewPhoto } from "./review-photo";
 import { StockReviewReason } from "./review-reason";
 import { stockReviewTitle } from "@/lib/dealer-stock-sync/review-help";
 import { StockDraftOwnership } from "./draft-ownership";
+import type { StockApplyRecovery } from "@/lib/dealer-stock-sync/apply-recovery";
+import { StockApplyRecoveryControls } from "./recovery-controls";
 
 function changesFor(action: PlanAction) {
   if (action.kind !== "update" && action.kind !== "conflict" && action.kind !== "create") return [];
@@ -145,6 +147,7 @@ export function StockSyncReviewPanel(input: {
   status: string;
   fingerprint: string;
   failureReason: string | null;
+  applyRecovery?: StockApplyRecovery | null;
   actions: PlanAction[];
   pendingActions?: PlanAction[];
   selection?: StockReviewSelection;
@@ -152,6 +155,8 @@ export function StockSyncReviewPanel(input: {
   const [localSelection, setLocalSelection] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const selection = input.selection ?? { indexes: localSelection, setIndexes: setLocalSelection };
+  const recoveryKey = [input.reportId, input.fingerprint, input.applyRecovery?.attempt?.id,
+    input.applyRecovery?.attempt?.status, input.applyRecovery?.activeJob?.id, input.applyRecovery?.activeJob?.status].join(":");
   const visible = input.actions.filter(action => !isSoldStockReviewAction(action));
   const actionable = visible.filter((action) => action.kind === "create" || action.kind === "update");
   const blocked = visible.filter((action) =>
@@ -216,10 +221,11 @@ export function StockSyncReviewPanel(input: {
       </fieldset>
       {Boolean(input.pendingActions?.some(action => isSelectableStockAction(action) || action.stockDraft)) && <div className="space-y-3 rounded-lg border border-border p-4">
         <h3 className="font-semibold text-text-primary">Still awaiting your review</h3>
-        <p className="text-sm text-text-secondary">These items were not included in the approval. They become selectable again when processing finishes successfully. If processing fails, run a fresh stock check to recover an up-to-date review.</p>
+        <p className="text-sm text-text-secondary">These items were not included in the approval. They become selectable again when processing finishes successfully. If processing fails, use the recovery actions below to retry the approved changes or run a fresh stock check.</p>
         <ul className="space-y-2">{input.pendingActions!.filter(action => isSelectableStockAction(action) || action.stockDraft).map((action, index) => <Row key={index} action={action} reportId={input.reportId} fingerprint={input.fingerprint} selected={false} onSelect={() => undefined} allowEdit={false} status={input.status} />)}</ul>
       </div>}
       </div>
+      {input.status === "APPROVED" && <StockApplyRecoveryControls key={recoveryKey} reportId={input.reportId} fingerprint={input.fingerprint} recovery={input.applyRecovery} />}
       {input.status === "PENDING_REVIEW" && <StockReviewSelectionControls reportId={input.reportId} fingerprint={input.fingerprint} actions={input.actions} selection={selection} onPendingChange={setBusy} />}
     </section>
   );

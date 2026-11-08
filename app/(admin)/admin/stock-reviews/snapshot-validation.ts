@@ -28,10 +28,16 @@ const action = z.discriminatedUnion("kind", [
   base.extend({ kind: z.literal("unpublish"), absenceCount: z.number() }),
   base.extend({ kind: z.literal("unchanged") }),
 ]);
+const applyRecovery = z.object({
+  attempt: z.object({ id: z.string(), status: z.enum(["QUEUED", "LEASED", "SUCCEEDED", "FAILED", "CANCELLED"]) }).nullable(),
+  activeJob: z.object({ id: z.string(), kind: z.enum(["APPLY", "SCRAPE"]), status: z.enum(["QUEUED", "LEASED"]) }).nullable(),
+  retryable: z.boolean(), reason: z.string().nullable(),
+});
 const report = z.object({
   id: z.string(), dealerId: z.string(), bindingId: z.string(), scrapeRunId: z.string(), fingerprint: z.string(), status: z.string(),
   inventoryCount: z.number(), failureReason: z.string().nullable(), createdAt: z.iso.datetime(),
   plan: z.object({ actions: z.array(action), pendingReviewActions: z.array(action).optional() }), binding,
+  applyRecovery: applyRecovery.nullable().optional(),
 });
 const job = z.object({
   id: z.string(), kind: z.string(), status: z.string(), error: z.string().nullable(),

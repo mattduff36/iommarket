@@ -51,6 +51,7 @@ function report(overrides: Record<string, unknown>) {
     id: "report",
     dealerId: "dealer-1",
     bindingId: "binding-1",
+    fingerprint: "a".repeat(64),
     status: "PENDING_REVIEW",
     inventoryCount: 4,
     failureReason: null,
@@ -64,6 +65,9 @@ function report(overrides: Record<string, unknown>) {
 function job(overrides: Record<string, unknown>) {
   return {
     id: "job",
+    dealerId: "dealer-1",
+    bindingId: "binding-1",
+    payload: { reportId: overrides.reportId ?? null, fingerprint: "a".repeat(64) },
     kind: "SCRAPE",
     status: "QUEUED",
     error: null,
@@ -89,7 +93,16 @@ async function renderPage(outstanding: unknown[], recent: unknown[] = [], jobs: 
   reportFindMany.mockImplementation(async (args: { where: { status: { in: string[] } } }) => {
     return args.where.status.in.includes("PENDING_REVIEW") ? outstanding : recent;
   });
-  jobFindMany.mockResolvedValue(jobs);
+  jobFindMany.mockImplementation(async (args: { where?: {
+    reportId?: { in: string[] }; bindingId?: { in: string[] };
+  } }) => {
+    const rows = jobs as Array<{ reportId?: string; bindingId?: string; kind: string; status: string }>;
+    if (args.where?.reportId) return rows.filter(row =>
+      row.kind === "APPLY" && args.where!.reportId!.in.includes(row.reportId ?? ""));
+    if (args.where?.bindingId) return rows.filter(row =>
+      args.where!.bindingId!.in.includes(row.bindingId ?? "") && ["QUEUED", "LEASED"].includes(row.status));
+    return jobs;
+  });
   render(await AdminStockReviewsPage({ searchParams: Promise.resolve({history}) }));
 }
 
@@ -148,7 +161,7 @@ describe("admin stock reviews", () => {
     expect(screen.getAllByText("The website did not confirm every stock page.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("More vehicles were advertised than this check can hold.").length).toBeGreaterThan(0);
     expect(screen.getByText("Approved, not applied yet").parentElement).toHaveTextContent("Approved, not applied yet · 4 vehicles");
-    expect(screen.getByText("Approval queues processing and does not apply listings by itself.")).toBeInTheDocument();
+    expect(screen.getByText("Open this review to check processing status or run a fresh check.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open dealer stock review" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
@@ -234,7 +247,8 @@ describe("admin stock reviews", () => {
     await renderPage([report({ id: "approved", status: "APPROVED" })], [], [
       job({ kind: "APPLY", status: "FAILED", reportId: "approved", report: { id: "approved", status: "APPROVED" }, error: "Stock sync job failed." }),
     ]);
-    expect(screen.getByText("Apply failed")).toBeInTheDocument();
+    expect(screen.getAllByText("Apply failed")).toHaveLength(2);
+    expect(screen.getByText("Open this review to retry the approved changes or run a fresh check.")).toBeInTheDocument();
     expect(screen.getByText("Stock sync job failed.")).toBeInTheDocument();
   });
 
