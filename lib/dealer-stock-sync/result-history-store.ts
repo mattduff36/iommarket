@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { canManageStockReport, RESULT_HISTORY_ACTIONS, resultHistoryState, type ResultHistoryEntry } from "./result-history";
+import { canManageStockReport, isGenuineNoChangeReview, RESULT_HISTORY_ACTIONS, resultHistoryState, type ResultHistoryEntry } from "./result-history";
 
 export async function loadResultHistory(
   reports: Array<{ id: string; status: string; plan: unknown; scrapeRunId: string }>,
@@ -20,6 +20,7 @@ export async function loadResultHistory(
       const activeJob = jobs.some(job => ["QUEUED", "LEASED"].includes(job.status) && (job.reportId === row.id || job.id === row.scrapeRunId));
       const manageable = !activeJob && canManageStockReport(row.status, row.plan);
       return { id: row.id, kind: "report" as const, manageable,
+        ...(isGenuineNoChangeReview(row.status, row.plan) ? { restoreState: "archived" as const } : {}),
         state: manageable ? resultHistoryState(row.status, latest.get(row.id) ?? null, row.plan) : "active" as const };
     }),
     ...jobs.map(row => {

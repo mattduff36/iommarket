@@ -1,4 +1,5 @@
 import { fingerprintSnapshot, type FingerprintSnapshot } from "./fingerprint";
+import { omitDismissedBlockedActions } from "./blocked-dismissals";
 import type { IdentityPatch, PlanAction } from "./types";
 
 const DIAGNOSTIC_STATUSES = new Set(["ok", "failed", "blocked_requires_feed", "no_public_stock", "skipped"]);
@@ -73,7 +74,9 @@ export async function persistFailedScrape(
 }
 
 export async function persistCompleteScrape(
-  client: PersistClient,
+  client: PersistClient & { dealerStockSyncAudit: {
+    findMany(args: { where: object; orderBy: object[]; select: { before: true } }): Promise<Array<{ before: unknown }>>;
+  } },
   input: {
     bindingId: string;
     dealerId: string;
@@ -84,7 +87,16 @@ export async function persistCompleteScrape(
     inventoryCount: number;
   },
 ) {
-  const fingerprint = fingerprintSnapshot(input.snapshot);
+  if (input.snapshot.dealer.id !== input.dealerId || input.snapshot.binding.id !== input.bindingId) {
+    throw new Error("Stock report scope does not match its snapshot.");
+  }
+  const rejections = await client.dealerStockSyncAudit.findMany({
+    where: { action: "review-selection-reject", report: { dealerId: input.dealerId, bindingId: input.bindingId } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { before: true },
+  });
+  const actions = omitDismissedBlockedActions(input.snapshot, rejections);
+  const fingerprint = fingerprintSnapshot({ ...input.snapshot, actions });
   await client.dealerStockSyncReport.updateMany({
     where: { bindingId: input.bindingId, status: { in: ["PENDING_REVIEW", "APPROVED"] } },
     data: { status: "SUPERSEDED", supersededAt: new Date() },
@@ -114,7 +126,7 @@ export async function persistCompleteScrape(
       scrapeRunId: input.scrapeRunId,
       status: "PENDING_REVIEW",
       fingerprint,
-      plan: { actions: input.snapshot.actions satisfies PlanAction[] },
+      plan: { actions: actions satisfies PlanAction[] },
       inventoryCount: input.inventoryCount,
     },
   });
@@ -128,5 +140,5 @@ export async function persistCompleteScrape(
       after: { fingerprint, scrapeRunId: input.scrapeRunId },
     },
   });
-  return { report, fingerprint };
+  return { report, fingerprint, actions };
 }

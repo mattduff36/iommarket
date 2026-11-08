@@ -54,7 +54,7 @@ export async function changeStockResultHistory(input: unknown) {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { action: true },
       });
       const before = resultHistoryState(row.status, previous?.action ?? null, "plan" in row ? row.plan : null);
-      const after = resultHistoryState(row.status, actions[action]);
+      const after = resultHistoryState(row.status, actions[action], "plan" in row ? row.plan : null);
       await tx.dealerStockSyncAudit.create({
         data: { ...where, actorId: admin.id, createdAt: new Date(), action: actions[action], before: { state: before }, after: { state: after } },
       });

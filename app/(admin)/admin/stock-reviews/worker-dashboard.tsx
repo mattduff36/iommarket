@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { canRefreshStockPage } from "./refresh-guard";
 export { canRefreshStockPage } from "./refresh-guard";
 import { StockWorkerCommandButton } from "./worker-command-button";
 import type { WorkerDashboardDevice, WorkerDashboardResult } from "@/lib/dealer-stock-sync/worker-control";
 import { getWorkerDashboard } from "./worker-actions";
 import { StockWorkerCompletion, stockJobFinished, stockJobOutcome } from "./worker-completion";
-import { StockWorkerControlProvider, useStockWorkerCommands } from "./worker-context";
+import { StockWorkerControlProvider, stockWorkerIsRunning, useStockWorkerCommands } from "./worker-context";
+import { StockWorkerPageLock } from "./worker-page-lock";
 import { StockDealerSelectionProvider, useDealerSelection, type StockDealer } from "./worker-selection";
 import progressStyles from "./worker-progress.module.css";
 import { useStockAppLifecycle } from "./app-lifecycle";
@@ -33,6 +34,9 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   dealers?: StockDealer[]; offlineContent?: ReactNode; downloadFallback?: ReactNode; initialNow?: number; initial: WorkerDashboardResult; jobs: LiveStockJob[]; readyCount: number; children?: ReactNode; header?: ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
+  const lastAvailable = useRef(initial);
+  useEffect(() => { if (snapshot.ok) lastAvailable.current = snapshot; }, [snapshot]);
+  const visibleSnapshot = snapshot.ok ? snapshot : managedSnapshot && connectionLost ? lastAvailable.current : snapshot;
   const [now, setNow] = useState(initialNow);
   const mergeSnapshot = (next: WorkerDashboardResult) => setSnapshot(previous => {
     if (!previous.ok || !next.ok) return next;
@@ -46,15 +50,18 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
   useWorkerPresence(value => { mergeSnapshot(value); setNow(Date.now()); }, refresh);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const devices = snapshot.ok ? snapshot.devices : [];
+  const devices = visibleSnapshot.ok ? visibleSnapshot.devices : [];
   const device = devices.find(row => row.deviceId === selected && fresh(row, now)) ?? devices.find(row => fresh(row, now)) ?? devices[0];
-  const online = snapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
-  const viewport = useWorkerViewport(online);
+  const online = visibleSnapshot.ok && Boolean(device && (connectionLost ? device.online : fresh(device, now)));
   const baseControls = useStockWorkerCommands(device, online && !connectionLost, mergeSnapshot);
   const lifecycle = useStockAppLifecycle(baseControls, devices.filter(row => row.launchId).sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""))[0]?.launchId);
   const controls = { ...baseControls, requestRun: connectionLost ? undefined : lifecycle.requestRun, pending: baseControls.pending || lifecycle.pending };
   const { pending, message, running } = controls;
   const activeJobs = jobs.filter(job => job.status === "LEASED");
+  const pageLocked = activeJobs.length > 0 || stockWorkerIsRunning(online, device?.state);
+  const dockVisible = online || pageLocked;
+  const viewport = useWorkerViewport(dockVisible);
+  const footer = useRef<HTMLElement>(null);
   const queued = jobs.filter(job => job.status === "QUEUED").length;
   const selection = useDealerSelection(dealers, controls, queued > 0, jobs.filter(job => job.status === "QUEUED").map(job => job.id));
   const active = activeJobs[0];
@@ -101,9 +108,9 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
 
   return <StockWorkerControlProvider value={controls}><StockDealerSelectionProvider value={selection}>
     {/* Keep document height stable as the navbar scrolls out and the inner viewport expands. */}
-    <div className={online ? "min-h-[calc(100dvh-1rem)]" : undefined}>
-    <div ref={viewport.ref} style={{ height: viewport.height }} className={online ? "flex min-h-0 flex-col" : undefined}>
-    <div data-stock-worker-content="" style={online ? { containerType: "size" } : undefined} className={online ? "min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6" : "space-y-8"}>
+    <div className={dockVisible ? "min-h-[calc(100dvh-1rem)]" : undefined}>
+    <div ref={viewport.ref} style={{ height: viewport.height }} className={dockVisible ? "flex min-h-0 flex-col" : undefined}>
+    <div data-stock-worker-content="" style={dockVisible ? { containerType: "size" } : undefined} className={dockVisible ? "min-h-0 flex-1 space-y-8 overflow-y-auto pr-2 pb-6" : "space-y-8"}>
     {header}
     {!online ? offlineContent : null}
     <section aria-label="Worker connection" className="space-y-3 rounded-xl border border-border bg-surface-elevated p-4">
@@ -132,7 +139,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     </section>
     {children}
     </div>
-    <footer aria-label="Stock Update" hidden={!online} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t-2 border-neon-blue-500/70 bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
+    <footer ref={footer} aria-label="Stock Update" hidden={!dockVisible} data-stock-worker-dock="" data-compact={compact} className="shrink-0 border-t-2 border-neon-blue-500/70 bg-canvas pb-[env(safe-area-inset-bottom)] text-text-secondary">
       <div className="h-0.5 overflow-hidden" role={busy ? "progressbar" : undefined}
         aria-label={busy ? "Stock update in progress" : undefined} aria-hidden={busy ? undefined : true}>
         <div className={`h-full bg-neon-blue-500 ${busy ? progressStyles.moving : "w-0"}`} />
@@ -145,7 +152,7 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
         </button>
         <div className="min-w-0 flex-1"><p role="status" className="text-sm text-text-secondary">{title}</p>
           <p className="text-xs text-text-secondary">{active ? elapsed(active.startedAt, now) : online && latestFinished && queued === 0 ? "Run complete. Review the results above." : online ? phase : "Waiting for a connection"}{activeJobs.length > 1 ? ` · ${activeJobs.length} jobs processing` : ""}</p></div>
-        <div className="flex flex-wrap gap-2">{buttons}</div>
+        <div data-stock-worker-commands="" className="flex flex-wrap gap-2">{buttons}</div>
       </div>
       {message ? <p role="status" className="px-4 pb-3 text-sm text-text-secondary">{message}</p> : null}
       {device?.pendingCommand ? <p className="px-4 pb-3 text-xs text-text-secondary">{device.pendingCommand.action === "start" ? "Start" : device.pendingCommand.action === "close" ? "Close app" : "Safe stop"} is awaiting acknowledgement from the app.</p> : null}
@@ -156,7 +163,8 @@ export function StockWorkerDashboard({ initial, jobs, readyCount, children, head
     </footer>
     </div>
     </div>
-    <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} />
+    <StockWorkerPageLock active={pageLocked} footer={footer} />
+    <StockWorkerCompletion jobs={jobs} canShow={canRefreshStockPage} blocked={pageLocked} />
     {lifecycle.dialog}
   </StockDealerSelectionProvider></StockWorkerControlProvider>;
 }

@@ -9,6 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getDealerStockSyncAvailability } from "@/lib/deployment/dealer-stock-sync";
 import { dealerSyncBlockReason } from "@/lib/dealer-stock-sync/eligibility";
 import { fingerprintSnapshot } from "@/lib/dealer-stock-sync/fingerprint";
+import { blockedDismissalEvidence } from "@/lib/dealer-stock-sync/blocked-dismissals";
 import { loadStockSyncSnapshot } from "@/lib/dealer-stock-sync/snapshot";
 import { readPlanActions, planAfterCorrection } from "@/lib/dealer-stock-sync/review-edit";
 import { isApprovableStockAction, isRemovableStockAction, isDraftableStockAction, isSelectableStockAction, selectReviewActions, MAX_STOCK_REVIEW_SELECTION, MAX_STOCK_DRAFT_SELECTION } from "@/lib/dealer-stock-sync/selection";
@@ -100,7 +101,9 @@ export async function reviewDealerStockSelection(input: unknown) {
       }) : null;
       const audit = await tx.dealerStockSyncAudit.create({ data: {
         reportId: report.id, actorId: admin.id, action: `review-selection-${parsed.data.operation}`,
-        before: { fingerprint: report.fingerprint, actions: selected } as unknown as Prisma.InputJsonValue,
+        before: { fingerprint: report.fingerprint, actions: selected,
+          ...(parsed.data.operation === "reject" ? { blockedDismissals: blockedDismissalEvidence(snapshot, selected) } : {}),
+        } as unknown as Prisma.InputJsonValue,
         after: { fingerprint, remainingCount: remaining.length, drafts, jobId: job?.id ?? null } as unknown as Prisma.InputJsonValue,
       } });
       return { data: {

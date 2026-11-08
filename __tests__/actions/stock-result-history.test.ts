@@ -20,13 +20,20 @@ beforeEach(() => {
   rate.mockResolvedValue({allowed:true});
   db.$transaction.mockImplementation(async fn=>fn(db));
   db.$queryRaw.mockResolvedValue([{id:"result"}]);
-  db.dealerStockSyncReport.findUnique.mockResolvedValue({id:"result",dealerId:"dealer",bindingId:"binding",status:"PENDING_REVIEW",plan:{actions:[{kind:"unchanged"}]},scrapeRunId:"scan"});
+  db.dealerStockSyncReport.findUnique.mockResolvedValue({id:"result",dealerId:"dealer",bindingId:"binding",status:"PENDING_REVIEW",plan:{actions:[{kind:"unchanged",sourceIdentityKey:"sourceVehicleId:same",listingId:null}]},scrapeRunId:"scan"});
   db.dealerStockSyncJob.findUnique.mockResolvedValue({status:"SUCCEEDED"});
   db.dealerStockSyncJob.findFirst.mockResolvedValue(null);
   db.dealerStockSyncAudit.findFirst.mockResolvedValue(null);
   db.dealerStockSyncAudit.create.mockResolvedValue({id:"audit"});
 });
 describe("server result history",()=>{
+  it("restores deleted no-change reviews into Archived and records the actual after classification", async () => {
+    db.dealerStockSyncAudit.findFirst.mockResolvedValue({ action: "RESULT_DELETED" });
+    expect(await changeStockResultHistory({ id: "result", kind: "report", action: "restore" })).toEqual({ success: true });
+    expect(db.dealerStockSyncAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      action: "RESULT_RESTORED", before: { state: "deleted" }, after: { state: "archived" },
+    }) });
+  });
   it.each(["archive", "delete", "restore"] as const)("allows %s of a superseded snapshot with leftover draft tracking", async action => {
     db.dealerStockSyncReport.findUnique.mockResolvedValue({id:"old",dealerId:"dealer",bindingId:"binding",status:"SUPERSEDED",plan:{actions:[{kind:"blocked",listingId:"listing",stockDraft:{state:"dealer"}}],pendingReviewActions:[{kind:"blocked",reason:"missing-price"}]},scrapeRunId:"scan"});
     expect(await changeStockResultHistory({id:"old",kind:"report",action})).toEqual({success:true});

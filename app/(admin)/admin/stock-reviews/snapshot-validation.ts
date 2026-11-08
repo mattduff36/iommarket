@@ -55,7 +55,7 @@ const snapshot = z.object({
   outstanding: z.array(report), recentReports: z.array(report), jobs: z.array(job),
   profiles: z.array(z.object({ id: z.string(), name: z.string(), tier: z.string(), isAdminPreview: z.boolean(), user: z.object({ disabledAt: z.iso.datetime().nullable() }) })),
   dashboard: z.union([z.object({ ok: z.literal(true), devices: z.array(device) }), z.object({ ok: z.literal(false), error: z.string() })]),
-  historyEntries: z.array(z.object({ id: z.string(), kind: z.enum(["report", "job"]), state: z.enum(["active", "archived", "deleted"]), manageable: z.boolean() })),
+  historyEntries: z.array(z.object({ id: z.string(), kind: z.enum(["report", "job"]), state: z.enum(["active", "archived", "deleted"]), manageable: z.boolean(), restoreState: z.literal("archived").optional() })),
   desktopEnabled: z.boolean(), now: z.number().finite(),
 });
 

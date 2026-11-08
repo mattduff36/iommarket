@@ -1,5 +1,6 @@
 import type { ReviewedActionEvidence } from "../../lib/dealer-stock-sync/types";
 import { identityFor, vehicleContentHash } from "./identity";
+import { sortedStockSet, stableStockContentSignature, stableStockSourceUrl } from "../../lib/dealer-stock-sync/stock-content-signature";
 import { buildTitle, hasSourceTransmissionConflict, resolveCategorySlug } from "./map-listing";
 import type { CanonicalVehicle, ReconciledVehicle } from "./types";
 
@@ -39,10 +40,24 @@ function evidenceFor(vehicle: CanonicalVehicle, capturedAt: string): ReviewedAct
     availability: vehicle.availability,
     provenance: [...vehicle.provenance.sourceKeys],
     sourceHash: vehicleContentHash(vehicle),
+    sourceSignature: { version: 1, digest: vehicleSourceSignature(vehicle) },
     capturedAt,
     coverageWarning: null,
     capacityWarning: null,
   };
+}
+
+function vehicleSourceSignature(vehicle: CanonicalVehicle) {
+  return stableStockContentSignature({
+    sourceVehicleId: vehicle.sourceVehicleId, registration: vehicle.registration, vin: vehicle.vin, stockReference: vehicle.stockReference,
+    make: vehicle.make, model: vehicle.model, derivative: vehicle.derivative, year: vehicle.year,
+    firstRegistrationDate: vehicle.firstRegistrationDate, mileage: vehicle.mileage, pricePence: vehicle.pricePence, isPoa: vehicle.isPoa,
+    fuel: vehicle.fuel, transmission: vehicle.transmission, bodyType: vehicle.bodyType, colour: vehicle.colour,
+    doors: vehicle.doors, seats: vehicle.seats, engineSize: vehicle.engineSize, enginePower: vehicle.enginePower,
+    vehicleType: vehicle.vehicleType, categorySlug: resolveCategorySlug(vehicle), description: vehicle.description, locationName: vehicle.locationName,
+    detailUrl: vehicle.detailUrl ? stableStockSourceUrl(vehicle.detailUrl) : null,
+    imageUrls: sortedStockSet(vehicle.imageUrls.map(stableStockSourceUrl)), availability: vehicle.availability,
+  });
 }
 
 function validCapturedAt(value: string) {

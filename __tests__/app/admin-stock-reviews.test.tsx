@@ -205,19 +205,29 @@ describe("admin stock reviews", () => {
     expect(screen.getByRole("button", { name: "Open dealer stock review" })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("shows queued and processing jobs and a no-change review", async () => {
+  it("shows queued and processing jobs but archives a no-change review", async () => {
     await renderPage([
-      report({ id: "quiet-1", status: "PENDING_REVIEW", plan: { actions: [{ kind: "unchanged", sourceIdentityKey: "same" }] } }),
+      report({ id: "quiet-1", status: "PENDING_REVIEW", plan: { actions: [{ kind: "unchanged", sourceIdentityKey: "same", listingId: null }] } }),
     ], [], [
       job({ id: "queued-job", status: "QUEUED", kind: "SCRAPE" }),
       job({ id: "leased-job", status: "LEASED", kind: "APPLY", binding: { dealer: { id: "dealer-4", name: "Processing Cars" } } }),
     ]);
 
-    expect(screen.getByText("No change").parentElement).toHaveTextContent("No change · 4 vehicles");
-    expect(screen.getByText("Nothing to approve. Listings were not changed.")).toBeInTheDocument();
+    expect(screen.queryByText("No change")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing to approve. Listings were not changed.")).not.toBeInTheDocument();
     expect(screen.getByText("Check queued")).toBeInTheDocument();
     expect(screen.getByText("Apply processing")).toBeInTheDocument();
     expect(screen.queryByText("Awaiting review")).not.toBeInTheDocument();
+  });
+
+  it("renders genuine no-change and empty reviews in Archived, without a misleading Restore action", async () => {
+    await renderPage([
+      report({ id: "quiet", plan: { actions: [{ kind: "unchanged", sourceIdentityKey: "sourceVehicleId:same", listingId: null }] } }),
+      report({ id: "empty", ...dealer("dealer-2", "Empty Motors"), plan: { actions: [] } }),
+    ], [], [], "archived");
+    expect(screen.getAllByText("No change")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
   });
 
   it("shows a failed report and an empty history", async () => {
@@ -253,7 +263,7 @@ describe("admin stock reviews", () => {
   });
 
   it("matches a scrape job to its report by scrapeRunId without claiming no report exists", async () => {
-    await renderPage([report({ scrapeRunId: "scrape-job" })], [], [job({ id: "scrape-job", status: "SUCCEEDED" })]);
+    await renderPage([report({ scrapeRunId: "scrape-job" })], [], [job({ id: "scrape-job", status: "SUCCEEDED" })], "archived");
     expect(screen.getByText("No change").parentElement).toHaveTextContent("No change · 4 vehicles");
     expect(screen.queryByText(/Finished processing/)).not.toBeInTheDocument();
   });
@@ -291,10 +301,11 @@ it("automatically hides applied reports and does not leave their jobs behind", a
   expect(screen.queryByText("Finished processing")).not.toBeInTheDocument();
   expect(screen.getByRole("link", {name:"Archived (1)"})).toBeInTheDocument();
 });
-it("keeps older no-change reports visible after a newer scrape supersedes them", async () => {
-  await renderPage([report({id:"old",status:"SUPERSEDED",plan:{actions:[{kind:"unchanged"}]}})]);
+it("retains superseded genuine no-change reviews in Archived", async () => {
+  await renderPage([report({id:"old",status:"SUPERSEDED",plan:{actions:[{kind:"unchanged",sourceIdentityKey:"sourceVehicleId:old",listingId:null}]}})], [], [], "archived");
   expect(screen.getByText("No change", {exact:true})).toBeInTheDocument();
-  expect(screen.getByRole("button", {name:"Archive"})).toBeInTheDocument();
+  expect(screen.queryByRole("button", {name:"Restore"})).not.toBeInTheDocument();
+  expect(screen.getByRole("button", {name:"Delete"})).toBeInTheDocument();
 });
 it("represents rejected reviews once in the archive instead of an orphan finished-job card", async () => {
   await renderPage([], [report({id:"rejected",status:"REJECTED",scrapeRunId:"old-scan"})], [job({id:"old-scan",status:"SUCCEEDED"})], "archived");
@@ -303,7 +314,7 @@ it("represents rejected reviews once in the archive instead of an orphan finishe
 });
 
 it("opens only one result and can collapse it again", async () => {
-  await renderPage([report({id:"review-one"}),report({id:"review-two"})]);
+  await renderPage([report({id:"review-one"}),report({id:"review-two"})], [], [], "archived");
   const controls = screen.getAllByRole("button", {name: /open dealer stock review/i});
   fireEvent.click(controls[0]);
   expect(screen.getAllByTestId("review-detail")).toHaveLength(1);
