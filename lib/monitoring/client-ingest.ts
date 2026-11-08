@@ -1,6 +1,7 @@
 import { safeSupportReference } from "@/lib/forms/public-error";
 import { browserDiagnostics } from "./client-diagnostics";
 import { requestDiagnostics, safeRequestDiagnostic } from "./request-diagnostics";
+import { safeResourceDiagnostic } from "./resource-diagnostics";
 import { isConsoleCaptureEnabled } from "./flags";
 import { isMonitoringIngestPath, redactFreeText, redactStack } from "./redact";
 
@@ -65,7 +66,8 @@ export async function sendClientMonitoringEvent(
         ...payload,
         tags: { ...payload.tags, clientRelease: process.env.NEXT_PUBLIC_MONITORING_RELEASE || undefined },
         extra: { ...payload.extra, diagnostics: browserDiagnostics(), requests: requestDiagnostics(),
-          triggeringRequest: safeRequestDiagnostic(payload.extra?.triggeringRequest) },
+          triggeringRequest: safeRequestDiagnostic(payload.extra?.triggeringRequest),
+          resource: safeResourceDiagnostic(payload.extra?.resource) },
         message: redactFreeText(payload.message).slice(0, 2000),
         stack: redactStack(payload.stack) ?? undefined,
         route,

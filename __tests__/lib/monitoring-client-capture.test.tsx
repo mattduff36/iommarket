@@ -113,6 +113,106 @@ describe("MON-CLIENT-001 / MON-CLIENT-002 console and window capture", () => {
     } finally { script.remove(); }
   });
 
+  it.each(["link", "video", "audio", "source"] as const)("captures previously generic %s failures with safe element evidence", async (kind) => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClientErrorListener />);
+    const element = document.createElement(kind);
+    if (element instanceof HTMLLinkElement) {
+      element.href = "https://external.test/private.css?secret=value";
+      element.rel = "stylesheet";
+    } else {
+      element.src = "https://external.test/private.mp4?secret=value";
+      if (element instanceof HTMLMediaElement) Object.defineProperty(element, "error", {
+        value: { code: 4, message: "private media detail" },
+      });
+    }
+    document.body.appendChild(element);
+    try {
+      element.dispatchEvent(new Event("error"));
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+      expect(body.message).toBe("Resource failed to load: provider:external");
+      expect(body.extra.resource).toMatchObject({ elementKind: kind, target: "provider:external" });
+      if (kind === "link") expect(body.extra.resource.linkRel).toBe("stylesheet");
+      if (kind === "audio" || kind === "video") expect(body.extra.resource.mediaErrorCode).toBe(4);
+      expect(JSON.stringify(body)).not.toMatch(/external\.test|private|secret/);
+    } finally { element.remove(); }
+  });
+
+  it("reports unknown window and element errors while preserving genuine JavaScript message and stack", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClientErrorListener />);
+    window.dispatchEvent(new Event("error"));
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    try {
+      element.dispatchEvent(new Event("error"));
+      const error = new Error("JavaScript failure");
+      error.stack = "Error: JavaScript failure\n    at browser.js:10:2";
+      window.dispatchEvent(new ErrorEvent("error", { message: "JavaScript failure", error }));
+      await vi.waitFor(() => expect(fetchMock.mock.calls.map(call => JSON.parse(String(call[1]?.body)).message)).toEqual([
+        "Unhandled client error (window)", "Unhandled client error (other)", "JavaScript failure",
+      ]));
+      const bodies = fetchMock.mock.calls.map(call => JSON.parse(String(call[1]?.body)));
+      expect(bodies).toEqual(expect.arrayContaining([
+        expect.objectContaining({ extra: expect.objectContaining({ resource: { elementKind: "window" } }) }),
+        expect.objectContaining({ extra: expect.objectContaining({ resource: { elementKind: "other" } }) }),
+        expect.objectContaining({ message: error.message, stack: "Error: JavaScript failure\nat browser.js:10:2" }),
+      ]));
+    } finally { element.remove(); }
+  });
+
+  it("observes successful loads without reports and never attributes their timing to a later failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(window.performance, "now").mockReturnValueOnce(100).mockReturnValue(200);
+    const selectedUrl = "https://ik.imagekit.io/private/responsive.jpg?token=private";
+    const getEntries = vi.fn().mockReturnValue([{
+      name: selectedUrl, entryType: "resource", initiatorType: "img", startTime: 110,
+      responseEnd: 190, duration: 80, responseStatus: 200, transferSize: 120, decodedBodySize: 90,
+    }]);
+    Object.defineProperty(window.performance, "getEntriesByName", { configurable: true, value: getEntries });
+    const image = document.createElement("img");
+    image.src = selectedUrl;
+    document.body.appendChild(image);
+    const mounted = render(<ClientErrorListener />);
+    try {
+      const load = new Event("load");
+      Object.defineProperty(load, "timeStamp", { value: 195 });
+      image.dispatchEvent(load);
+      expect(fetchMock).not.toHaveBeenCalled();
+      const error = new Event("error");
+      Object.defineProperty(error, "timeStamp", { value: 200 });
+      image.dispatchEvent(error);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+      expect(body.extra.resource).toEqual({ elementKind: "img", target: "provider:imagekit" });
+      mounted.unmount();
+      image.dispatchEvent(new Event("error"));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      image.remove();
+      Reflect.deleteProperty(window.performance, "getEntriesByName");
+    }
+  });
+
+  it("sanitizes resource evidence before transmission without sending arbitrary properties", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true });
+    await sendClientMonitoringEvent({ message: "Resource failed", extra: { resource: {
+      elementKind: "video", target: "/api/media/listing-photo", mediaErrorCode: 3, responseStatus: 0,
+      durationMs: 12, transferSize: 0, decodedBodySize: 300,
+      url: "https://private.test?secret=value", alt: "private", message: "private", body: "private",
+    } } }, fetchImpl);
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body));
+    expect(body.extra.resource).toEqual({
+      elementKind: "video", target: "/api/media/listing-photo", mediaErrorCode: 3, responseStatus: 0,
+      durationMs: 12, transferSize: 0, decodedBodySize: 300,
+    });
+    expect(JSON.stringify(body.extra.resource)).not.toMatch(/private|secret|url|alt|message|body/);
+  });
+
   it("attaches the failing request explicitly without suppressing generic hidden-page failures", async () => {
     const error = new TypeError("private network detail");
     const controller = new AbortController();
