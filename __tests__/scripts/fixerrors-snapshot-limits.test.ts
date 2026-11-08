@@ -22,7 +22,7 @@ function makeEvent(issueId: string, sequence: number): {
   id: string; issueId: string; source: string; severity: string; environment: string;
   message: string; stack: null; route: string; action: null; component: null;
   requestPath: string; occurredAt: Date | string; digest?: string; traceId?: string;
-  filename?: string; requests?: unknown; triggeringRequest?: unknown;
+  filename?: string; requests?: unknown; triggeringRequest?: unknown; resource?: unknown;
 } {
   return {
     id: `${issueId}-${sequence}`,
@@ -143,6 +143,56 @@ describe("fixerrors event snapshot limits", () => {
     });
     expect(snapshot.issues[0]?.events[1]?.evidence).not.toHaveProperty("triggeringRequestTarget");
     expect(JSON.stringify(snapshot.issues)).not.toMatch(/private|secret|abortReason/);
+  });
+
+  it("selects resource facts through both SQL projections and exports only sanitized evidence", async () => {
+    const client = new SnapshotClient();
+    const resources = [
+      {
+        elementKind: "video", target: "provider:imagekit", mediaErrorCode: 3,
+        responseStatus: 0, durationMs: 300_000, transferSize: 0, decodedBodySize: 1_073_741_824,
+        url: "https://private.test?secret=value", id: "private", alt: "private", message: "private", body: "private",
+      },
+      {
+        elementKind: "link", target: "/_next/static/chunks/:segment", linkRel: "stylesheet", linkAs: "style",
+        responseStatus: 503, durationMs: 12.5, transferSize: 123, decodedBodySize: 456,
+      },
+      {
+        elementKind: "video", target: "provider:imagekit", mediaErrorCode: "3",
+        responseStatus: 600, durationMs: -1, transferSize: 1_073_741_825, decodedBodySize: 1.5,
+      },
+      {
+        elementKind: "link", target: "/_next/static/chunks/:segment", linkRel: "private", linkAs: "private",
+        mediaErrorCode: 3, responseStatus: "503", durationMs: NaN,
+      },
+      { elementKind: "img", target: "https://private.test?secret=value", responseStatus: 500, durationMs: 12 },
+      { elementKind: "private", target: "/search" },
+      [{ elementKind: "img", target: "/search" }],
+    ];
+    client.events = resources.map((resource, index) => ({ ...makeEvent("issue-a", resources.length - index), resource }));
+    const snapshot = await fetchOpenIssueSnapshot(client, "a".repeat(64));
+    const eventQuery = client.calls.find((call) => call.text.includes('FROM "MonitoringEvent"'));
+
+    expect(eventQuery?.text).toMatch(/extra\s*->\s*'resource'\s+AS resource\b/i);
+    expect(eventQuery?.text).toMatch(/\)\s+SELECT\b[\s\S]*,\s*resource\s*,[\s\S]*FROM ranked_events/i);
+    expect(snapshot.issues[0]?.events.map((event) => event.evidence)).toEqual([
+      {
+        resourceElementKind: "video", resourceTarget: "provider:imagekit", resourceMediaErrorCode: 3,
+        resourceResponseStatus: 0, resourceDurationMs: 300_000, resourceTransferSize: 0,
+        resourceDecodedBodySize: 1_073_741_824, browserFamily: "unknown",
+      },
+      {
+        resourceElementKind: "link", resourceTarget: "/_next/static/chunks/:segment",
+        resourceLinkRel: "stylesheet", resourceLinkAs: "style", resourceResponseStatus: 503,
+        resourceDurationMs: 12.5, resourceTransferSize: 123, resourceDecodedBodySize: 456, browserFamily: "unknown",
+      },
+      { resourceElementKind: "video", resourceTarget: "provider:imagekit", browserFamily: "unknown" },
+      { resourceElementKind: "link", resourceTarget: "/_next/static/chunks/:segment", browserFamily: "unknown" },
+      { resourceElementKind: "img", browserFamily: "unknown" },
+      { browserFamily: "unknown" },
+      { browserFamily: "unknown" },
+    ]);
+    expect(JSON.stringify(snapshot.issues)).not.toMatch(/private|secret|"resource"|"url"|"alt"|"body"/);
   });
 
   it("serializes occurredAt as UTC text and counts non-OPEN statuses without exporting them", async () => {
