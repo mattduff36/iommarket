@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { stockSyncReason } from "@/lib/dealer-stock-sync/review";
 import { stockReviewHelp } from "@/lib/dealer-stock-sync/review-help";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
@@ -8,16 +8,26 @@ import type { PlanAction } from "@/lib/dealer-stock-sync/types";
 export function StockReviewReason({ action }: { action: PlanAction }) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function cancelHover() {
+    if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  }
+  function show() { cancelHover(); setOpen(true); }
+  function close() { cancelHover(); setOpen(false); }
+  function scheduleHover() { cancelHover(); hoverTimer.current = setTimeout(show, 400); }
+  useEffect(() => () => { if (hoverTimer.current !== null) clearTimeout(hoverTimer.current); }, []);
   if (action.kind !== "blocked" && action.kind !== "conflict") return null;
   const reason = stockSyncReason(action.reason);
   return (
-    <div className="text-text-secondary" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <div className="text-text-secondary" onMouseLeave={close}>
       <p>{reason}{" "}
         <button type="button" aria-label={`Explain: ${reason}`} aria-describedby={open ? id : undefined}
           aria-expanded={open} aria-controls={open ? id : undefined}
           className="min-h-11 rounded px-2 text-neon-blue-400 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon-blue-400"
-          onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
-          onClick={() => setOpen(true)} onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
+          onMouseEnter={scheduleHover} onMouseLeave={cancelHover}
+          onFocus={show} onBlur={close}
+          onClick={show} onKeyDown={event => { if (event.key === "Escape") close(); }}>
           Why? / Next steps
         </button>
       </p>

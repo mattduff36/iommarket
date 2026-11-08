@@ -18,6 +18,13 @@ export const RESULT_HISTORY_ACTIONS = ["RESULT_ARCHIVED", "RESULT_DELETED", "RES
 export type ResultHistoryAction = typeof RESULT_HISTORY_ACTIONS[number];
 
 export function resultHistoryState(status: string, action: string | null, plan?: unknown): ResultHistoryState {
+  // Superseded snapshots no longer own review work. Keep explicit history choices
+  // even when their saved plan still contains selections or tracked drafts.
+  if (status === "SUPERSEDED") {
+    if (action === "RESULT_DELETED") return "deleted";
+    if (action === "RESULT_ARCHIVED") return "archived";
+    if (action === "RESULT_RESTORED") return "active";
+  }
   if (hasPendingSelection(plan) || hasDraftOwnership(plan)) return "active";
   if (action === "RESULT_DELETED") return "deleted";
   if (action === "RESULT_ARCHIVED") return "archived";
@@ -27,6 +34,7 @@ export function resultHistoryState(status: string, action: string | null, plan?:
 }
 
 export function canManageStockReport(status: string, plan: unknown): boolean {
+  if (status === "SUPERSEDED") return true;
   if (hasPendingSelection(plan) || hasDraftOwnership(plan)) return false;
   if (["APPLIED", "FAILED", "REJECTED", "SUPERSEDED"].includes(status)) return true;
   if (status !== "PENDING_REVIEW" || !plan || typeof plan !== "object" || !("actions" in plan)) return false;

@@ -81,7 +81,7 @@ describe("stock sync review", () => {
     fireEvent.blur(help);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.mouseEnter(help.closest("div")!);
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.mouseLeave(help.closest("div")!);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
