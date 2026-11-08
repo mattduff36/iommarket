@@ -1,5 +1,6 @@
 import type { uploadPreviewPackImages, PreviewUploadedImage } from "../../lib/preview-packs/upload";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { Prisma } from "@prisma/client";
 import { assertWorkerEnabled } from "../../lib/dealer-stock-sync/worker-guard";
 import { applyFrozenPlan, type ApplyWriter } from "../../lib/dealer-stock-sync/apply";
@@ -20,6 +21,7 @@ import { inventoryFromReconciled } from "./to-inventory";
 import type { PipelineResult } from "./types";
 
 const LEASE_MS = 15 * 60 * 1000;
+const APPLY_RETRY_START_WINDOW_MS = 30_000;
 
 /** CLI calls omit this and keep assertWorkerEnabled. The jobs API passes a closed-over environment check. */
 export type DealerStockSyncGuard = () => void;
@@ -190,42 +192,52 @@ async function withLease<T>(
   guard: DealerStockSyncGuard = assertWorkerEnabled,
   timeoutMs: 30_000 | 180_000 = 30_000,
 ) {
-  guard();
-  const startedAt = Date.now();
-  try {
-    const result = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "DealerStockSourceBinding" WHERE "id" = ${job.bindingId} FOR UPDATE`;
-      const binding = await tx.dealerStockSourceBinding.findUnique({ where: { id: job.bindingId } });
-      if (!binding || binding.dealerId !== job.dealerId || !binding.verifiedAt ||
-        (job.kind === "SCRAPE" && binding.registryKey !== (job.payload as { registryKey?: string }).registryKey)) {
-        throw new Error("Source binding changed while the job was running");
-      }
-      const fence = await tx.dealerStockSyncJob.updateMany({
-        where: { id: job.id, status: "LEASED", leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: new Date() } },
-        data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
-      });
-      if (fence.count !== 1) throw new Error("Lease lost");
-      await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
-      await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
-      const result = await work(tx);
-      await tx.dealerStockSyncJob.update({
-        where: { id: job.id },
-        data: terminalJobData(result, new Date()),
+  const retryStartDeadline = Date.now() + APPLY_RETRY_START_WINDOW_MS;
+  // APPLY work is transaction-local; its prepared uploads stay outside this retry loop.
+  const maxAttempts = job.kind === "APPLY" ? 3 : 1;
+  for (let attempt = 1; ; attempt += 1) {
+    const startedAt = Date.now();
+    try {
+      guard();
+      const result = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "DealerStockSourceBinding" WHERE "id" = ${job.bindingId} FOR UPDATE`;
+        const binding = await tx.dealerStockSourceBinding.findUnique({ where: { id: job.bindingId } });
+        if (!binding || binding.dealerId !== job.dealerId || !binding.verifiedAt ||
+          (job.kind === "SCRAPE" && binding.registryKey !== (job.payload as { registryKey?: string }).registryKey)) {
+          throw new Error("Source binding changed while the job was running");
+        }
+        const fence = await tx.dealerStockSyncJob.updateMany({
+          where: { id: job.id, status: "LEASED", leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: new Date() } },
+          data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
+        });
+        if (fence.count !== 1) throw new Error("Lease lost");
+        await tx.$queryRaw`SELECT "id" FROM "DealerProfile" WHERE "id" = ${job.dealerId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT "id" FROM "Listing" WHERE "dealerId" = ${job.dealerId} FOR UPDATE`;
+        const result = await work(tx);
+        await tx.dealerStockSyncJob.update({
+          where: { id: job.id },
+          data: terminalJobData(result, new Date()),
+        });
+        return result;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: timeoutMs });
+      if (job.kind === "APPLY") console.info("Stock sync atomic transaction completed.", {
+        jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs, attempt, maxAttempts,
       });
       return result;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: timeoutMs });
-    if (job.kind === "APPLY") console.info("Stock sync atomic transaction completed.", {
-      jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs,
-    });
-    return result;
-  } catch (error) {
-    const failureCode = error instanceof Prisma.PrismaClientKnownRequestError &&
-      ["P2028", "P2034", "P2002"].includes(error.code) ? error.code :
-      error instanceof Error && error.name === "StalePlanError" ? "STALE_PLAN" : "UNKNOWN";
-    console.error("Stock sync atomic transaction failed.", {
-      jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs, failureCode,
-    });
-    throw error;
+    } catch (error) {
+      const failureCode = error instanceof Prisma.PrismaClientKnownRequestError &&
+        ["P2028", "P2034", "P2002"].includes(error.code) ? error.code :
+        error instanceof Error && error.name === "StalePlanError" ? "STALE_PLAN" : "UNKNOWN";
+      const diagnostics = { jobId: job.id, elapsedMs: Date.now() - startedAt, timeoutMs, failureCode, attempt, maxAttempts };
+      if (failureCode === "P2034" && attempt < maxAttempts && Date.now() < retryStartDeadline) {
+        const retryDelayMs = 100 * attempt;
+        console.warn("Stock sync atomic transaction retrying.", { ...diagnostics, retryDelayMs });
+        await delay(retryDelayMs);
+        if (Date.now() < retryStartDeadline) continue;
+      }
+      console.error("Stock sync atomic transaction failed.", diagnostics);
+      throw error;
+    }
   }
 }
 

@@ -84,6 +84,27 @@
         "bf9d9b1f4375d951f227e9a635b5c31839f69803be3e9cce3f6779cb45a4c0f6"
       ],
       "recordedAt": "2026-10-30T21:54:16.064Z"
+    },
+    {
+      "fingerprint": "14cf93177f5adaa5eb4132d0c3a060912b8f3ca1eb67bba84fd2bbd749e739bb",
+      "lane": "fast",
+      "outcome": "fixed",
+      "summary": "Retry rolled-back stock APPLY serialization conflicts within a bounded start window",
+      "files": [
+        "scripts/dealer-stock-sync/execute-job.ts",
+        "__tests__/lib/dealer-stock-sync/execute-job-apply.test.ts",
+        "__tests__/lib/dealer-stock-sync/execute-job-guard.test.ts"
+      ],
+      "tests": [
+        "Worker run 2: npm run test:run -- __tests__/lib/dealer-stock-sync/execute-job-apply.test.ts __tests__/lib/dealer-stock-sync/execute-job-guard.test.ts: 33/33 passed, exit 0; independently inspected event receipts.",
+        "Worker run 2: npm run typecheck passed, exit 0; independently inspected event receipts.",
+        "Root: git diff --cached --check passed on the independently reviewed candidate.",
+        "Regression coverage: recovery, simulated commit rollback without duplicate committed writes, upload reuse, three-attempt exhaustion, unrelated errors, changed safeguards, unchanged SCRAPE and four cumulative deadline cases."
+      ],
+      "issueFingerprints": [
+        "1cbc293062214d5fa6b204c507c9d47e9d1535f1a8614464459c369af934bb23"
+      ],
+      "recordedAt": "2026-11-08T01:28:05.861Z"
     }
   ]
 }
