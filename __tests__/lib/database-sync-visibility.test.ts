@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { getDatabaseSyncVisibility, parseDatabaseSyncVisibility } from "@/lib/database-sync/visibility";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DATABASE_SYNC_VISIBILITY_KEY, getDatabaseSyncVisibility, parseDatabaseSyncVisibility } from "@/lib/database-sync/visibility";
 import { applySampleListingVisibility, getSampleVisibility, isHiddenSampleDealer, isHiddenSampleListing } from "@/lib/listings/sample-visibility";
 import { canViewMarketplaceDealerProfile, getMarketplaceDealerWhere, getPublicDealerWhere } from "@/lib/dealers/access";
 import { excludePreviewPackDealersWhere, excludePreviewPackListingsWhere } from "@/lib/preview-packs/frontend-visibility";
 import { verifiedStagingEnv } from "./verified-staging-env";
-const mock = vi.hoisted(() => ({ getSetting: vi.fn(), getBoolSetting: vi.fn().mockResolvedValue(true) }));
-vi.mock("@/lib/config/site-settings", () => ({ ...mock, SETTING_KEYS: { SAMPLE_PRIVATE_LISTINGS_VISIBLE: "private", SAMPLE_DEALER_LISTINGS_VISIBLE: "dealer" } }));
+import { SETTING_KEYS } from "@/lib/config/site-settings";
+const mock = vi.hoisted(() => ({ findMany: vi.fn() }));
+vi.mock("@/lib/db", () => ({ db: { siteSetting: { findMany: mock.findMany } } }));
 const registry = { archivedListingIds: ["old-listing"], archivedDealerIds: ["old-dealer"], visibleDealerIds: ["copied-dealer"] };
 const sample = { privateListings: true, dealerListings: true, ...registry };
 function staging() {
@@ -14,18 +15,66 @@ function staging() {
   for (const key of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_URL_NON_POOLING"]) vi.stubEnv(key, "postgres://postgres@db.syneonzucehwlghqmfbg.supabase.co/postgres");
 }
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });
+beforeEach(() => { mock.findMany.mockReset().mockResolvedValue([]); });
 describe("staging archive visibility", () => {
   it("ignores the registry on production without reading it", async () => {
-    staging(); vi.stubEnv("VERCEL_ENV", "production"); mock.getSetting.mockRejectedValue(new Error("must not read"));
+    staging(); vi.stubEnv("VERCEL_ENV", "production");
+    mock.findMany.mockResolvedValue([{ key: DATABASE_SYNC_VISIBILITY_KEY, value: { invalid: true } }]);
     expect(await getDatabaseSyncVisibility()).toBeUndefined();
-    expect(mock.getSetting).not.toHaveBeenCalled();
+    expect(await getDatabaseSyncVisibility(new Map([[DATABASE_SYNC_VISIBILITY_KEY, { invalid: true }]]))).toBeUndefined();
+    expect(mock.findMany).not.toHaveBeenCalled();
     expect(await getSampleVisibility()).toEqual({ privateListings: true, dealerListings: true });
+    expect(mock.findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { key: { in: [SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE, SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE] } },
+      select: { key: true, value: true },
+    });
+  });
+  it("keeps standalone registry reads targeted and defaults a null registry to empty", async () => {
+    staging();
+    mock.findMany.mockResolvedValue([{ key: DATABASE_SYNC_VISIBILITY_KEY, value: null }]);
+    expect(await getDatabaseSyncVisibility()).toEqual({ archivedListingIds: [], archivedDealerIds: [], visibleDealerIds: [] });
+    expect(mock.findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { key: { in: [DATABASE_SYNC_VISIBILITY_KEY] } },
+      select: { key: true, value: true },
+    });
   });
   it("loads and validates the registry only on the verified staging target", async () => {
-    staging(); mock.getSetting.mockResolvedValue(registry);
+    staging(); mock.findMany.mockResolvedValue([{ key: DATABASE_SYNC_VISIBILITY_KEY, value: registry }]);
     expect(await getSampleVisibility()).toEqual(sample);
-    mock.getSetting.mockResolvedValue({ ...registry, archivedListingIds: "invalid" });
+    expect(mock.findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { key: { in: [
+        SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE,
+        SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE,
+        DATABASE_SYNC_VISIBILITY_KEY,
+      ] } },
+      select: { key: true, value: true },
+    });
+    mock.findMany.mockResolvedValue([{ key: DATABASE_SYNC_VISIBILITY_KEY, value: { ...registry, archivedListingIds: "invalid" } }]);
     await expect(getSampleVisibility()).rejects.toThrow("registry is invalid");
+  });
+  it("reads fresh booleans each time and preserves defaults for missing, null and non-boolean settings", async () => {
+    staging();
+    mock.findMany.mockResolvedValueOnce([
+      { key: SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE, value: false },
+      { key: SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE, value: false },
+    ]).mockResolvedValueOnce([
+      { key: SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE, value: null },
+      { key: SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE, value: "false" },
+    ]);
+    expect(await getSampleVisibility()).toEqual({ privateListings: false, dealerListings: false, archivedListingIds: [], archivedDealerIds: [], visibleDealerIds: [] });
+    expect(await getSampleVisibility()).toEqual({ privateListings: true, dealerListings: true, archivedListingIds: [], archivedDealerIds: [], visibleDealerIds: [] });
+    expect(mock.findMany).toHaveBeenCalledTimes(2);
+  });
+  it("never selects or parses the registry against an unverified database", async () => {
+    staging(); vi.stubEnv("DATABASE_URL", "postgres://postgres@db.unverified.supabase.co/postgres");
+    mock.findMany.mockResolvedValue([{ key: DATABASE_SYNC_VISIBILITY_KEY, value: { invalid: true } }]);
+    expect(await getSampleVisibility()).toEqual({ privateListings: true, dealerListings: true });
+    expect(mock.findMany.mock.calls[0][0].where.key.in).not.toContain(DATABASE_SYNC_VISIBILITY_KEY);
+  });
+  it("propagates settings read failures without falling back to visible samples", async () => {
+    mock.findMany.mockRejectedValue(new Error("settings unavailable"));
+    await expect(getSampleVisibility()).rejects.toThrow("settings unavailable");
+    expect(mock.findMany).toHaveBeenCalledTimes(1);
   });
   it("rejects unknown fields, malformed ids and oversized lists", () => {
     for (const value of [null, { ...registry, privileged: true }, { ...registry, archivedDealerIds: [""] }, { ...registry, visibleDealerIds: Array(50_001).fill("dealer") }]) {

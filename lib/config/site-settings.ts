@@ -2,6 +2,15 @@ import { db } from "@/lib/db";
 
 export { SETTING_KEYS } from "./setting-keys";
 
+/** Read a fresh, targeted snapshot for settings evaluated together. */
+export async function getSettings(keys: readonly string[]): Promise<ReadonlyMap<string, unknown>> {
+  const rows = await db.siteSetting.findMany({
+    where: { key: { in: [...keys] } },
+    select: { key: true, value: true },
+  });
+  return new Map(rows.map((row) => [row.key, row.value]));
+}
+
 async function loadSettings(): Promise<Map<string, unknown>> {
   const rows = await db.siteSetting.findMany();
   const map = new Map<string, unknown>();
