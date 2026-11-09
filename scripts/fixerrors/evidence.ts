@@ -12,9 +12,20 @@ export function safeEventEvidence(row: Record<string, unknown>): Record<string, 
     rejectStage: ["hmac", "envelope"], envReason: ["json", "event", "client", "time", "data", "ccy", "shape", "other"],
     ccyState: ["missing", "blank", "wrongtype", "unsupported"],
     processingState: ["FAILED", "QUARANTINED"],
+    imageProbePhase: ["origin", "homepage", "listing-photo", "redirect", "provider", "image-body"],
+    imageProbeReason: ["ok", "invalid-origin", "http-status", "missing-body", "homepage-too-large", "photo-not-found",
+      "unsafe-redirect", "invalid-redirect", "redirect-limit", "invalid-content-type", "invalid-image-body",
+      "request-failed", "body-read-failed", "timeout"],
     errorCode: ["UNKNOWN_PRODUCT", "INVALID_REFERENCE", "MISSING_REFERENCE", "AMBIGUOUS_DEALER", "AMOUNT_MISMATCH", "CHARGE_COLLISION", "MISSING_DEALER", "WEBHOOK_PROCESS", "STAGING_RELAY_FAILED"],
   };
   for (const [key, allowed] of Object.entries(categories)) if (allowed.includes(String(row[key]))) evidence[key] = String(row[key]);
+  for (const key of ["imageAvailable", "rateLimitAvailable"] as const) {
+    if (typeof row[key] === "boolean") evidence[key] = row[key];
+  }
+  const probeStatus = row.imageProbeHttpStatus;
+  if (typeof probeStatus === "number" && Number.isInteger(probeStatus) && probeStatus >= 100 && probeStatus <= 599) {
+    evidence.imageProbeHttpStatus = probeStatus;
+  }
   for (const key of ["attemptNumber", "receiptAgeMs"] as const) {
     const value = Number(row[key]);
     if (row[key] != null && Number.isSafeInteger(value) && value >= 0 && value <= 31_536_000_000) evidence[key] = value;

@@ -31,6 +31,20 @@ describe("actionable monitoring evidence", () => {
     expect(safeEventEvidence({ inboxId: "person@example.com", errorCode: "private", rejectStage: "password", receiptAgeMs: "secret", body: "private" })).toEqual({ browserFamily: "unknown" });
   });
 
+  it("exports only bounded media health facts", () => {
+    expect(safeEventEvidence({
+      imageAvailable: false, rateLimitAvailable: true, imageProbePhase: "provider",
+      imageProbeReason: "http-status", imageProbeHttpStatus: 503,
+    })).toEqual({
+      browserFamily: "unknown", imageAvailable: false, rateLimitAvailable: true,
+      imageProbePhase: "provider", imageProbeReason: "http-status", imageProbeHttpStatus: 503,
+    });
+    expect(safeEventEvidence({
+      imageAvailable: "false", imageProbePhase: "https://private.test",
+      imageProbeReason: "private", imageProbeHttpStatus: 999,
+    })).toEqual({ browserFamily: "unknown" });
+  });
+
   it.each(["provider:external", "provider:imagekit", "provider:supabase"])("preserves the exact resource provider token %s", (filename) => {
     expect(safeEventEvidence({ filename })).toEqual({ scriptLocation: filename, browserFamily: "unknown" });
   });

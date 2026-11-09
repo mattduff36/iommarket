@@ -27,12 +27,13 @@ export const hasPublicListingSellerAccess = cache(
     dealerId: string | null,
     ownerDisabled: boolean,
     ownerDeleted: boolean,
+    sampleVisibility?: SampleVisibility,
   ) => {
     if (ownerDisabled || ownerDeleted) return false;
     if (!dealerId) return true;
     return Boolean(await db.dealerProfile.findFirst({
       where: {
-        AND: [{ id: dealerId }, getPublicDealerWhere(new Date(), await getSampleVisibility())],
+        AND: [{ id: dealerId }, getPublicDealerWhere(new Date(), sampleVisibility ?? await getSampleVisibility())],
       },
       select: { id: true },
     }));

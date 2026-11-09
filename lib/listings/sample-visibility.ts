@@ -1,6 +1,7 @@
-import { getDatabaseSyncVisibility, type DatabaseSyncVisibility } from "@/lib/database-sync/visibility";
+import { DATABASE_SYNC_VISIBILITY_KEY, getDatabaseSyncVisibility, type DatabaseSyncVisibility } from "@/lib/database-sync/visibility";
 import type { Prisma } from "@prisma/client";
-import { getBoolSetting, SETTING_KEYS } from "@/lib/config/site-settings";
+import { getSettings, SETTING_KEYS } from "@/lib/config/site-settings";
+import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 import {
   excludePreviewPackDealersWhere,
   excludePreviewPackListingsWhere,
@@ -170,10 +171,16 @@ export function isHiddenSampleUser(input: {
 }
 
 export async function getSampleVisibility(): Promise<SampleVisibility> {
-  const [privateListings, dealerListings, syncVisibility] = await Promise.all([
-    getBoolSetting(SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE, true),
-    getBoolSetting(SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE, true),
-    getDatabaseSyncVisibility(),
+  const settings = await getSettings([
+    SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE,
+    SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE,
+    ...(isStagingOnlyFeatureEnabled() ? [DATABASE_SYNC_VISIBILITY_KEY] : []),
   ]);
-  return { privateListings, dealerListings, ...syncVisibility };
+  const privateListings = settings.get(SETTING_KEYS.SAMPLE_PRIVATE_LISTINGS_VISIBLE);
+  const dealerListings = settings.get(SETTING_KEYS.SAMPLE_DEALER_LISTINGS_VISIBLE);
+  return {
+    privateListings: typeof privateListings === "boolean" ? privateListings : true,
+    dealerListings: typeof dealerListings === "boolean" ? dealerListings : true,
+    ...await getDatabaseSyncVisibility(settings),
+  };
 }

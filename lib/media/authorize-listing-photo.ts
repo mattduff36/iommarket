@@ -48,12 +48,13 @@ export const loadAuthorizedListingPhoto = cache(async (imageId: string): Promise
   });
   if (!image) return null;
   const viewer = await getCurrentUser();
+  const sampleVisibility = await getSampleVisibility();
   const dealerAccess = await hasPublicListingSellerAccess(
     image.listing.dealerId,
     Boolean(image.listing.user.disabledAt),
     Boolean(image.listing.user.deletedAt),
+    sampleVisibility,
   );
-  const sampleVisibility = await getSampleVisibility();
   if (
     blocksSignedListingDelivery({
       listingId: image.listing.id,

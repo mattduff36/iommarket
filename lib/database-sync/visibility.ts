@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSetting } from "@/lib/config/site-settings";
+import { getSettings } from "@/lib/config/site-settings";
 import { isStagingOnlyFeatureEnabled } from "@/lib/deployment/environment";
 
 export const DATABASE_SYNC_VISIBILITY_KEY = "database_sync_marketplace_visibility";
@@ -21,7 +21,10 @@ export function parseDatabaseSyncVisibility(value: unknown): DatabaseSyncVisibil
 }
 
 /** Production never reads or applies the development-only visibility registry. */
-export async function getDatabaseSyncVisibility(): Promise<DatabaseSyncVisibility | undefined> {
+export async function getDatabaseSyncVisibility(
+  settings?: ReadonlyMap<string, unknown>,
+): Promise<DatabaseSyncVisibility | undefined> {
   if (!isStagingOnlyFeatureEnabled()) return undefined;
-  return parseDatabaseSyncVisibility(await getSetting<unknown>(DATABASE_SYNC_VISIBILITY_KEY, EMPTY_DATABASE_SYNC_VISIBILITY));
+  const snapshot = settings ?? await getSettings([DATABASE_SYNC_VISIBILITY_KEY]);
+  return parseDatabaseSyncVisibility(snapshot.get(DATABASE_SYNC_VISIBILITY_KEY) ?? EMPTY_DATABASE_SYNC_VISIBILITY);
 }

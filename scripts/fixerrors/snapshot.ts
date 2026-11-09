@@ -261,6 +261,9 @@ export async function fetchOpenIssueSnapshot(
                   tags->>'rejectStage' AS "rejectStage", tags->>'envReason' AS "envReason", tags->>'ccyState' AS "ccyState",
                   tags->>'attemptNumber' AS "attemptNumber", tags->>'receiptAgeMs' AS "receiptAgeMs", tags->>'processingState' AS "processingState",
                   tags->>'stage' AS stage, tags->>'missingBucket' AS "missingBucket", extra->'operationFacts' AS "operationFacts",
+                  tags->'imageAvailable' AS "imageAvailable", tags->'rateLimitAvailable' AS "rateLimitAvailable",
+                  tags->>'imageProbePhase' AS "imageProbePhase", tags->>'imageProbeReason' AS "imageProbeReason",
+                  tags->'imageProbeHttpStatus' AS "imageProbeHttpStatus",
                   extra->'diagnostics' AS diagnostics, extra->'requests' AS requests,
                   extra->'resource' AS resource,
                   extra->'triggeringRequest' AS "triggeringRequest",
@@ -272,7 +275,7 @@ export async function fetchOpenIssueSnapshot(
          SELECT id, "issueId", source, severity, environment, message, stack, route, action,
                 component, "requestPath", digest, "traceId", "requestId", "userAgent",
                 "ingestRelease", "serverRelease", "clientRelease", "clientStackProvided", filename, line, col, "inboxId", "attemptId", "errorCode", "rejectStage", "envReason", "ccyState", "attemptNumber", "receiptAgeMs", "processingState", stage, "missingBucket", "operationFacts", diagnostics, requests, "triggeringRequest", "displayedSupportReference",
-                resource,
+                resource, "imageAvailable", "rateLimitAvailable", "imageProbePhase", "imageProbeReason", "imageProbeHttpStatus",
                 to_char("occurredAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt"
          FROM ranked_events
          WHERE issue_event_rank <= $2
