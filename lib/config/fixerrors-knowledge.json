@@ -105,6 +105,26 @@
         "1cbc293062214d5fa6b204c507c9d47e9d1535f1a8614464459c369af934bb23"
       ],
       "recordedAt": "2026-11-08T01:28:05.861Z"
+    },
+    {
+      "fingerprint": "520d80bde01aefec2bcc779cc029c62a80229300223d6738739cccf5d9466724",
+      "lane": "fast",
+      "outcome": "fixed",
+      "summary": "Record fresh media health failures with the failing probe step",
+      "files": [
+        "lib/monitoring/media-health.ts",
+        "__tests__/lib/media-health.test.ts",
+        "scripts/fixerrors/snapshot.ts",
+        "scripts/fixerrors/evidence.ts",
+        "__tests__/lib/monitoring-diagnostics.test.ts"
+      ],
+      "tests": [
+        "57 targeted Vitest tests passed in media-health and monitoring-diagnostics"
+      ],
+      "issueFingerprints": [
+        "0a7b3f05218cd69650a3f29eb22d450dff4df776660334069c4bb8a10235bdd6"
+      ],
+      "recordedAt": "2026-11-09T22:18:59.282Z"
     }
   ]
 }
