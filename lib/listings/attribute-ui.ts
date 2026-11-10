@@ -16,6 +16,7 @@ import {
   maximumRecordedCheckDate,
   withRetainedSelectOption,
 } from "@/lib/listings/vehicle-detail-catalog";
+import { normalizeVehicleMakeModel } from "@/lib/vehicle-catalogue/vehicle-normalization";
 
 export interface ListingAttributeDefinitionLike {
   id: string;
@@ -473,6 +474,16 @@ export function validateListingAttributes(params: {
       attribute.value.trim(),
     ])
   );
+  if (isVehicleCategorySlug(params.categorySlug)) {
+    const make = params.definitions.find((definition) => definition.slug === "make");
+    const model = params.definitions.find((definition) => definition.slug === "model");
+    const identity = normalizeVehicleMakeModel(
+      make ? submittedValues.get(make.id) : null,
+      model ? submittedValues.get(model.id) : null,
+    );
+    if (make && submittedValues.has(make.id)) submittedValues.set(make.id, identity.make ?? "");
+    if (model && submittedValues.has(model.id)) submittedValues.set(model.id, identity.model ?? "");
+  }
   const fuelTypeDefinition = params.definitions.find((attribute) => attribute.slug === "fuel-type");
   const fuelType = fuelTypeDefinition
     ? submittedValues.get(fuelTypeDefinition.id)

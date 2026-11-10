@@ -4,7 +4,7 @@ import {
   type ListingAttributeDefinitionLike,
 } from "@/lib/listings/attribute-ui";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
-import { canonicalizeKnownMake } from "@/lib/vehicle-catalogue/make-canonicalization";
+import { normalizeVehicleMakeModel } from "@/lib/vehicle-catalogue/vehicle-normalization";
 
 const FUEL_ALIASES: Record<string, string> = {
   BEV: "Electric",
@@ -56,11 +56,6 @@ function matchOption(value: string, options: string[]): string | null {
   }
 
   return null;
-}
-
-function normalizeMake(rawValue: string | null): string | null {
-  if (!rawValue) return null;
-  return canonicalizeKnownMake(rawValue);
 }
 
 function normalizeFuelType(
@@ -115,12 +110,6 @@ function parseTaxPerYear(roadTax12Month: string | null): string | null {
   return String(Math.round(Number.parseFloat(match[1])));
 }
 
-function normalizeModel(model: string | null): string | null {
-  if (!model) return null;
-  const trimmed = model.trim().replace(/\s+/g, " ");
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 export function mapVehicleResultToListingAttributes(params: {
   definitions: ListingAttributeDefinitionLike[];
   result: VehicleCheckResult;
@@ -133,6 +122,14 @@ export function mapVehicleResultToListingAttributes(params: {
   if (!vehicle && !motHistory) {
     return { values, appliedAttributeIds };
   }
+  const rawMake = vehicle?.make ?? motHistory?.make ?? null;
+  const rawModel = vehicle?.model ??
+    (params.result.isManx || vehicle?.lookupPath === "iom" ? null : motHistory?.model) ?? null;
+  const variant = vehicle?.modelVariant?.trim();
+  const modelWithVariant = rawModel && variant &&
+    !rawModel.toLowerCase().endsWith(variant.toLowerCase())
+    ? `${rawModel} ${variant}` : rawModel;
+  const identity = normalizeVehicleMakeModel(rawMake, modelWithVariant);
 
   for (const definition of params.definitions) {
     const options = parseAttributeOptions(definition.options);
@@ -140,14 +137,10 @@ export function mapVehicleResultToListingAttributes(params: {
 
     switch (definition.slug) {
       case "make":
-        nextValue = normalizeMake(vehicle?.make ?? motHistory?.make ?? null);
+        nextValue = identity.make;
         break;
       case "model":
-        nextValue = normalizeModel(vehicle?.model ?? (params.result.isManx || vehicle?.lookupPath === "iom" ? null : motHistory?.model) ?? null);
-        if (nextValue && vehicle?.modelVariant) {
-          const variant = vehicle.modelVariant.trim();
-          if (variant && !nextValue.toLowerCase().endsWith(variant.toLowerCase())) nextValue = `${nextValue} ${variant}`;
-        }
+        nextValue = identity.model;
         break;
       case "year":
         nextValue = toWholeNumberString(vehicle?.yearOfManufacture ?? null);

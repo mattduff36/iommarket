@@ -112,7 +112,7 @@ describe("mapVehicleResultToListingAttributes", () => {
 
     expect(result.values).toMatchObject({
       make: "Mercedes-Benz",
-      model: "A 200 AMG LINE",
+      model: "A 200 AMG Line",
       year: "2020",
       fuel: "Petrol",
       colour: "Grey",
@@ -146,7 +146,7 @@ describe("mapVehicleResultToListingAttributes", () => {
     });
 
     expect(result.values.make).toBe("Ford");
-    expect(result.values.model).toBe("FIESTA");
+    expect(result.values.model).toBe("Fiesta");
     expect(result.values.fuel).toBe("Diesel");
     expect(result.values.colour).toBe("Blue");
   });
@@ -183,7 +183,7 @@ describe("mapVehicleResultToListingAttributes", () => {
       }),
     });
 
-    expect(result.values).toEqual({ make: "UNKNOWN MOTORS" });
+    expect(result.values).toEqual({ make: "Unknown Motors" });
     expect(result.appliedAttributeIds).toEqual(["make"]);
   });
 

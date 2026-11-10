@@ -31,7 +31,7 @@ const { mockDb, mockTx } = vi.hoisted(() => {
         findMany: vi.fn(),
         findUnique: vi.fn(),
       },
-      vehicleModel: { findFirst: vi.fn() },
+      vehicleModel: { findFirst: vi.fn(), findMany: vi.fn() },
       $transaction: vi.fn(),
     },
   };
@@ -251,6 +251,33 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
     });
   });
 
+  it.each(["S", "AMG LINE", "D SPORT AUTO", "SE P300E A"])(
+    "never assigns a trim-only input %s to a catalogue model",
+    async (model) => {
+      const lookup = {
+        findMake: vi.fn(async () => ({ name: "Porsche", normalizedName: "porsche" })),
+        findModel: vi.fn(async () => ({ name: "Cayman S" })),
+      };
+      const result = await normalizeVehicleIdentity("Porsche", model, lookup);
+      expect(result.modelMatched).toBe(false);
+      expect(lookup.findModel).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects catalogue aliases that would discard trims or collapse unknown punctuation", async () => {
+    const lookup = {
+      findMake: vi.fn(async () => ({ name: "Ford", normalizedName: "ford" })),
+      findModel: vi.fn(async () => ({ name: "Focus" })),
+    };
+    expect(await normalizeVehicleIdentity("Ford", "Focus ST-Line", lookup)).toMatchObject({
+      model: "Focus ST-Line", modelMatched: false,
+    });
+    lookup.findModel.mockResolvedValue({ name: "AB12" });
+    expect(await normalizeVehicleIdentity("Ford", "AB-12", lookup)).toMatchObject({
+      model: "Ab-12", modelMatched: false,
+    });
+  });
+
   it("validates canonical pairs server-side while accepting manual fallback", async () => {
     const definitions = [
       {
@@ -274,7 +301,7 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
       { attributeDefinitionId: "make-id", value: "Volkswagen" },
       { attributeDefinitionId: "model-id", value: "T-Roc R-Line" },
     ];
-    mockDb.vehicleModel.findFirst.mockResolvedValue({ id: "model-1" });
+    mockDb.vehicleModel.findMany.mockResolvedValue([{ name: "T-Roc", make: { name: "Volkswagen" } }]);
 
     await expect(
       validateVehicleCatalogueSubmission({
@@ -299,7 +326,7 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
         selection: { makeMode: "manual", modelMode: "manual" },
       }),
     ).resolves.toEqual({});
-    expect(mockDb.vehicleModel.findFirst).toHaveBeenCalledTimes(1);
+    expect(mockDb.vehicleModel.findMany).toHaveBeenCalledTimes(1);
   });
 
   it("accepts VW and merc submitted makes against catalogue canonical names", async () => {
@@ -321,8 +348,8 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
         options: null,
       },
     ];
-    mockDb.vehicleModel.findFirst.mockResolvedValue({ id: "model-1" });
-    mockDb.vehicleMake.findUnique.mockResolvedValue({ id: "make-mb" });
+    mockDb.vehicleModel.findMany.mockResolvedValue([{ name: "T-Roc", make: { name: "VW" } }]);
+    mockDb.vehicleMake.findMany.mockResolvedValue([{ id: "make-mb" }]);
 
     await expect(
       validateVehicleCatalogueSubmission({
@@ -339,11 +366,11 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
         },
       }),
     ).resolves.toEqual({});
-    expect(mockDb.vehicleModel.findFirst).toHaveBeenCalledWith(
+    expect(mockDb.vehicleModel.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          normalizedName: "troc",
-          make: { active: true, normalizedName: "volkswagen" },
+          normalizedName: { in: ["troc"] },
+          make: { active: true, normalizedName: { in: ["volkswagen", "vw"] } },
         }),
       }),
     );
@@ -362,10 +389,38 @@ describe("vehicle catalogue normalization MD-CAT-002", () => {
         },
       }),
     ).resolves.toEqual({});
-    expect(mockDb.vehicleMake.findUnique).toHaveBeenCalledWith({
-      where: { normalizedName: "mercedesbenz", active: true },
+    expect(mockDb.vehicleMake.findMany).toHaveBeenCalledWith({
+      where: { normalizedName: { in: ["mercedesbenz", "merc", "mercedes", "mercedesamg", "mercedesbenzamg"] }, active: true },
+      take: 5,
       select: { id: true },
     });
+  });
+
+  it.each([
+    ["Range Rover", "EVOQUE", "Land Rover", "Range Rover Evoque"],
+    ["Range Rover", "DISCOVERY SPORT", "Land Rover", "Discovery Sport"],
+    ["Range Rover", "RANGE ROVER DISCOVERY", "Land Rover", "Discovery"],
+    ["Mercedes AMG", "C CLASS", "Mercedes-Benz", "C-Class AMG"],
+  ])("validates canonical dropdown values backed by legacy %s catalogue rows", async (
+    rawMake, rawModel, make, model,
+  ) => {
+    mockDb.vehicleModel.findMany.mockResolvedValue([{ name: rawModel, make: { name: rawMake } }]);
+    expect(await validateVehicleCatalogueSubmission({
+      definitions: [
+        { id: "make-id", slug: "make", name: "Make", dataType: "text", required: true, options: null },
+        { id: "model-id", slug: "model", name: "Model", dataType: "text", required: true, options: null },
+      ],
+      attributes: [
+        { attributeDefinitionId: "make-id", value: make },
+        { attributeDefinitionId: "model-id", value: model },
+      ],
+      selection: { makeMode: "catalogue", modelMode: "catalogue", canonicalMake: make, canonicalModel: model },
+    })).toEqual({});
+    expect(mockDb.vehicleModel.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        normalizedName: { in: expect.arrayContaining([rawModel.toLowerCase().replace(/[^a-z0-9]/g, "")]) },
+      }),
+    }));
   });
 });
 

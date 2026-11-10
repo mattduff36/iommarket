@@ -20,6 +20,19 @@ function reconciled(overrides: Parameters<typeof vehicle>[0] = {}): ReconciledVe
 }
 
 describe("FDP-MAP-001 category mapping", () => {
+  it.each([
+    ["MERCEDES AMG", "A CLASS", "Mercedes-Benz", "A-Class AMG"],
+    ["VW", "GOLF GTI", "Volkswagen", "Golf GTI"],
+    ["Range Rover", "DISCOVERY SPORT", "Land Rover", "Discovery Sport"],
+    ["HONDA", "CRV EX", "Honda", "CR-V EX"],
+  ])("normalizes future imported %s values without losing trims", (make, model, expectedMake, expectedModel) => {
+    const input = reconciled({ make, model });
+    expect(mapReconciledVehicle(input).listing?.attributes).toMatchObject({
+      make: expectedMake, model: expectedModel,
+    });
+    expect(input.vehicle).toMatchObject({ make, model });
+  });
+
   it("holds contradictory source transmissions without misreading AUTO TRAIL as automatic", () => {
     expect(inventoryFromReconciled([reconciled({ model: "PICANTO", derivative: "1.0 AUTOMATIC", transmission: "Manual" })])[0]?.skipReason).toBe("source-transmission-conflict");
     expect(inventoryFromReconciled([reconciled({ model: "Polo Manual", transmission: "Automatic" })])[0]?.skipReason).toBe("source-transmission-conflict");

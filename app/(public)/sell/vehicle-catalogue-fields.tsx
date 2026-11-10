@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { normalizeMakeLookupKey } from "@/lib/vehicle-catalogue/make-canonicalization";
-import {
-  cleanCatalogueName,
-  normalizeCatalogueName,
-} from "@/lib/vehicle-catalogue/normalize";
+import { cleanCatalogueName } from "@/lib/vehicle-catalogue/normalize";
+import { normalizeVehicleModelLookupKey } from "@/lib/vehicle-catalogue/vehicle-normalization";
 import type {
   VehicleMakeOption,
   VehicleModelOption,
@@ -54,6 +52,7 @@ function matchMake(makes: VehicleMakeOption[], value: string) {
 function parseModelValue(
   models: VehicleModelOption[],
   value: string,
+  make: string,
 ): ParsedModelValue | null {
   const cleaned = cleanCatalogueName(value);
   if (!cleaned) return null;
@@ -63,12 +62,11 @@ function parseModelValue(
     | null = null;
 
   for (const model of models) {
-    const names = [model.name, ...model.aliases];
-    const keys = new Set(names.map(normalizeCatalogueName));
+    const key = normalizeVehicleModelLookupKey(make, model.name);
     for (let tokenCount = 1; tokenCount <= tokens.length; tokenCount += 1) {
       const candidate = tokens.slice(0, tokenCount).join(" ");
-      const candidateKey = normalizeCatalogueName(candidate);
-      if (!keys.has(candidateKey)) continue;
+      const candidateKey = normalizeVehicleModelLookupKey(make, candidate);
+      if (candidateKey !== key) continue;
       const next = {
         model,
         variant: cleanCatalogueName(tokens.slice(tokenCount).join(" ")),
@@ -155,9 +153,9 @@ export function VehicleCatalogueFields({
   const parsedModel = useMemo(
     () =>
       modelMode === "catalogue"
-        ? parseModelValue(models, fullModelValue)
+        ? parseModelValue(models, fullModelValue, makeValue)
         : null,
-    [fullModelValue, modelMode, models],
+    [fullModelValue, makeValue, modelMode, models],
   );
 
   const emitModel = useCallback(
@@ -246,7 +244,7 @@ export function VehicleCatalogueFields({
         variantRef.current,
       );
       if (!currentValue) return;
-      const parsed = parseModelValue(nextModels, currentValue);
+      const parsed = parseModelValue(nextModels, currentValue, makeValue);
       if (parsed) {
         modelTextRef.current = parsed.model.name;
         variantRef.current = parsed.variant;
@@ -303,7 +301,7 @@ export function VehicleCatalogueFields({
 
     void loadModels();
     return () => controller.abort();
-  }, [emitModel, selectedMake]);
+  }, [emitModel, makeValue, selectedMake]);
 
   function chooseMake(value: string) {
     const matchedMake = matchMake(makes, value);
@@ -327,7 +325,7 @@ export function VehicleCatalogueFields({
 
   function chooseModel(value: string) {
     modelEditedRef.current = true;
-    const matchedModel = parseModelValue(models, value);
+    const matchedModel = parseModelValue(models, value, makeValue);
     if (matchedModel) {
       setModelMode("catalogue");
       updateModelText(matchedModel.model.name);
@@ -374,7 +372,7 @@ export function VehicleCatalogueFields({
           }
           helperText={
             makeMode === "manual"
-              ? "This make is not linked to the catalogue and will be saved as entered."
+              ? "This make is not linked to the catalogue. Standard make formatting still applies."
               : "Start typing to search the active manufacturer catalogue."
           }
           error={makeError}
@@ -428,7 +426,7 @@ export function VehicleCatalogueFields({
             helperText={
               modelsError ??
               (modelMode === "manual"
-                ? "This model will be saved as entered."
+                ? "Standard model formatting applies without guessing a different model."
                 : models.length === 0 && !modelsPending
                   ? "No catalogue models found. Use manual entry."
                   : "Start typing to search models for the selected make.")

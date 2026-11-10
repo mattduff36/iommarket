@@ -31,6 +31,7 @@ import {
   resolveVehicleCategorySlug,
   type VehicleCategorySlug,
 } from "@/lib/search/category-filters";
+import { buildVehicleInventory, type VehicleInventoryRow } from "@/lib/search/vehicle-inventory";
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -252,43 +253,23 @@ function buildCategoryInventory(
   }>,
   modelByListingId: ReadonlyMap<string, string>,
 ): Partial<Record<VehicleCategorySlug, HeroCategoryInventory>> {
-  const buckets = new Map<VehicleCategorySlug, {
-    makeCounts: Record<string, number>;
-    modelCountsByMake: Record<string, Record<string, number>>;
-  }>();
+  const buckets = new Map<VehicleCategorySlug, VehicleInventoryRow[]>();
 
   for (const row of makeRows) {
     const slug = resolveVehicleCategorySlug(row.listing.category.slug, [
       { label: row.listing.category.name, value: row.listing.category.slug },
     ]);
     if (!slug) continue;
-    const bucket = buckets.get(slug) ?? { makeCounts: {}, modelCountsByMake: {} };
-    const makeCounts = { ...bucket.makeCounts, [row.value]: (bucket.makeCounts[row.value] ?? 0) + 1 };
-    const model = modelByListingId.get(row.listingId);
-    const modelCountsByMake = { ...bucket.modelCountsByMake };
-    if (model) {
-      const counts = { ...(modelCountsByMake[row.value] ?? {}) };
-      counts[model] = (counts[model] ?? 0) + 1;
-      modelCountsByMake[row.value] = counts;
-    }
-    buckets.set(slug, { makeCounts, modelCountsByMake });
+    buckets.set(slug, [...(buckets.get(slug) ?? []), {
+      listingId: row.listingId,
+      make: row.value,
+      model: modelByListingId.get(row.listingId) ?? null,
+    }]);
   }
 
   const inventory: Partial<Record<VehicleCategorySlug, HeroCategoryInventory>> = {};
-  for (const [slug, bucket] of buckets) {
-    const modelsByMake: Record<string, string[]> = {};
-    for (const [make, models] of Object.entries(bucket.modelCountsByMake)) {
-      modelsByMake[make] = Object.keys(models).sort((a, b) =>
-        a.localeCompare(b, undefined, { sensitivity: "base" }),
-      );
-    }
-    inventory[slug] = {
-      makes: Object.entries(bucket.makeCounts)
-        .map(([label, count]) => ({ label, value: label, count }))
-        .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),
-      modelsByMake,
-      modelCountsByMake: bucket.modelCountsByMake,
-    };
+  for (const [slug, rows] of buckets) {
+    inventory[slug] = buildVehicleInventory(rows);
   }
   return inventory;
 }

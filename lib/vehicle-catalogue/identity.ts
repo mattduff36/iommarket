@@ -1,7 +1,12 @@
 import { db } from "@/lib/db";
 import type { VehicleCheckResult } from "@/lib/services/vehicle-check-types";
-import { cleanCatalogueName, normalizeCatalogueName } from "./normalize";
+import { normalizeCatalogueName } from "./normalize";
 import { normalizeMakeLookupKey } from "./make-canonicalization";
+import {
+  isUnassignedVehicleModel,
+  normalizeVehicleMakeModel,
+  normalizeVehicleModelLookupKey,
+} from "./vehicle-normalization";
 
 export interface CatalogueIdentity {
   make: string | null;
@@ -50,10 +55,10 @@ export async function normalizeVehicleIdentity(
   rawModel: string | null,
   lookup: CatalogueIdentityLookup = databaseLookup,
 ): Promise<CatalogueIdentity> {
-  const cleanedMake = rawMake ? cleanCatalogueName(rawMake) : null;
-  const cleanedModel = rawModel ? cleanCatalogueName(rawModel) : null;
-  const makeKey = cleanedMake ? normalizeMakeLookupKey(cleanedMake) : "";
-  const modelKey = cleanedModel ? normalizeCatalogueName(cleanedModel) : "";
+  const identity = normalizeVehicleMakeModel(rawMake, rawModel);
+  const makeKey = identity.make ? normalizeMakeLookupKey(identity.make) : "";
+  const modelKey = identity.model && !isUnassignedVehicleModel(identity.model)
+    ? normalizeCatalogueName(identity.model) : "";
 
   const [makeRow, candidateModel] = await Promise.all([
     makeKey ? lookup.findMake(makeKey) : Promise.resolve(null),
@@ -61,11 +66,17 @@ export async function normalizeVehicleIdentity(
       ? lookup.findModel(makeKey, modelKey)
       : Promise.resolve(null),
   ]);
-  const modelRow = makeRow ? candidateModel : null;
+  const modelRow = makeRow && candidateModel &&
+    normalizeVehicleModelLookupKey(identity.make, candidateModel.name) ===
+    normalizeVehicleModelLookupKey(identity.make, identity.model)
+    ? candidateModel : null;
+  const canonical = normalizeVehicleMakeModel(
+    makeRow?.name ?? identity.make,
+    modelRow?.name ?? identity.model,
+  );
 
   return {
-    make: makeRow?.name ?? cleanedMake,
-    model: modelRow?.name ?? cleanedModel,
+    ...canonical,
     makeMatched: Boolean(makeRow),
     modelMatched: Boolean(modelRow),
   };

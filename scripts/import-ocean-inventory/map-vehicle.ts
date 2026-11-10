@@ -3,6 +3,8 @@ import { uniqueImageUrls } from "../dealer-stock-sync/image-urls";
 import { IMPORT_REGION_SLUG } from "./target";
 import type { CanonicalOceanLocation } from "./locations";
 import type { MappedListing, MappingOutcome, NormalizedVehicle, ReconciledVehicle } from "./types";
+import { normalizeVehicleMakeModel, normalizeVehicleModelLookupKey } from "../../lib/vehicle-catalogue/vehicle-normalization";
+import { normalizeMakeLookupKey } from "../../lib/vehicle-catalogue/make-canonicalization";
 
 export { uniqueImageUrls };
 
@@ -177,7 +179,12 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
     };
   }
 
-  const vehicle = reconciled.vehicle;
+  const identity = normalizeVehicleMakeModel(reconciled.vehicle.make, reconciled.vehicle.model);
+  const vehicle = {
+    ...reconciled.vehicle,
+    make: identity.make ?? "",
+    model: identity.model ?? "",
+  };
   if (vehicle.isPoa) {
     return { reconciled, listing: null, skipReason: "poa", skipDetail: "POA" };
   }
@@ -270,8 +277,9 @@ export function matchesExistingListing(
   return existing.some(
     (item) =>
       item.year === listing.identity.year.toString() &&
-      item.make.toLowerCase() === listing.identity.make.toLowerCase() &&
-      item.model.toLowerCase() === listing.identity.model.toLowerCase() &&
+      normalizeMakeLookupKey(item.make) === normalizeMakeLookupKey(listing.identity.make) &&
+      normalizeVehicleModelLookupKey(item.make, item.model) ===
+        normalizeVehicleModelLookupKey(listing.identity.make, listing.identity.model) &&
       item.mileage === listing.identity.mileage.toString() &&
       item.pricePence === listing.identity.pricePence,
   );

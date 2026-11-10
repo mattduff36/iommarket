@@ -5,6 +5,7 @@ import { dealerSyncBlockReason } from "./eligibility";
 import { fingerprintSnapshot, type FingerprintSnapshot } from "./fingerprint";
 import { isOwnedListingImage } from "./images";
 import type { OwnedListingImage, CreatePlanAction, PlanAction, UpdatePlanAction } from "./types";
+import { normalizeVehicleAttributeRecord } from "../vehicle-catalogue/vehicle-normalization";
 
 export class StalePlanError extends Error {
   constructor(message = "The stock sync plan is stale.") {
@@ -127,7 +128,8 @@ async function applyCreate(
     : null;
   if (!category || !region) throw new StalePlanError("Category or region is no longer available.");
   const definitions = await client.attributeDefinition.findMany({ where: { categoryId: category.id } });
-  const missing = definitions.filter((definition) => definition.required && !action.attributes[definition.slug]);
+  const attributes = normalizeVehicleAttributeRecord(action.attributes);
+  const missing = definitions.filter((definition) => definition.required && !attributes[definition.slug]);
   if (missing.length > 0) throw new StalePlanError("Required vehicle details are missing.");
   const listing = await client.listing.create({
     data: {
@@ -163,11 +165,11 @@ async function applyCreate(
     })),
   });
   const values = definitions
-    .filter((definition) => action.attributes[definition.slug] != null)
+    .filter((definition) => attributes[definition.slug] != null)
     .map((definition) => ({
       listingId: listing.id,
       attributeDefinitionId: definition.id,
-      value: action.attributes[definition.slug] ?? "",
+      value: attributes[definition.slug] ?? "",
     }));
   if (values.length > 0) await client.listingAttributeValue.createMany({ data: values });
   const linked = await client.dealerStockSourceIdentity.updateMany({

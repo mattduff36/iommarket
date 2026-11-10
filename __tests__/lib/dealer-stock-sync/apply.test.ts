@@ -62,7 +62,10 @@ function writer() {
       listingStatusEvent: { create: vi.fn(async () => ({ id: "event" })) },
       category: { findFirst: vi.fn(async () => ({ id: "car" })) },
       region: { findFirst: vi.fn(async () => ({ id: "region" })) },
-      attributeDefinition: { findMany: vi.fn(async () => []) },
+      attributeDefinition: { findMany: vi.fn(async () => [
+        { id: "make", slug: "make", required: true },
+        { id: "model", slug: "model", required: true },
+      ]) },
       dealerStockSourceIdentity: { updateMany },
       dealerStockSyncReport: { updateMany },
       dealerStockSyncAudit: { create: vi.fn(async () => ({ id: "audit" })) },
@@ -81,6 +84,35 @@ const update: PlanAction = {
 };
 
 describe("applyFrozenPlan", () => {
+  it("normalizes new stock at the final write boundary without modifying approved evidence", async () => {
+    const action: PlanAction = {
+      kind: "create", sourceIdentityKey: "sourceVehicleId:2", listingId: null,
+      title: "2018 Volkswagen Golf GTI", description: "A complete description for a new listing.",
+      pricePence: 500_000, categorySlug: "car", attributes: { make: "VW", model: "GOLF GTI" },
+      ownedImages: [{
+        publicId: "iommarket/listings/dealer/listing/1",
+        url: "https://res.cloudinary.com/demo/image/upload/v1/iommarket/listings/dealer/listing/1.jpg",
+        provider: "CLOUDINARY", width: 1200, height: 800, order: 0,
+      }], changes: [],
+    };
+    const current = snapshot([action]);
+    const { client } = writer();
+    const fingerprint = fingerprintSnapshot(current);
+    await applyFrozenPlan({
+      client, snapshot: current, storedFingerprint: fingerprint, reportId: "report",
+      reportStatus: "APPROVED", actorId: "admin", jobId: "job",
+      now: new Date("2026-06-19T05:00:00.000Z"), takeDown: vi.fn(),
+    });
+    expect(client.listingAttributeValue.createMany).toHaveBeenCalledWith({
+      data: [
+        { listingId: "created", attributeDefinitionId: "make", value: "Volkswagen" },
+        { listingId: "created", attributeDefinitionId: "model", value: "Golf GTI" },
+      ],
+    });
+    expect(action.attributes).toEqual({ make: "VW", model: "GOLF GTI" });
+    expect(fingerprintSnapshot(current)).toBe(fingerprint);
+  });
+
   it("rejects an older approved creation plan that duplicates sold stock", async () => {
     const current = snapshot([{ kind: "create", sourceIdentityKey: "changed-source", listingId: null,
       title: "2018 Ford Focus", description: "Vehicle details", pricePence: 500000,

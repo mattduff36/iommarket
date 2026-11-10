@@ -893,7 +893,7 @@ describe("CreateListingForm registration lookup", () => {
       expect(
         (screen.getByLabelText(/^Model \(manual entry\)/) as HTMLInputElement)
           .value,
-      ).toBe("A 200 AMG LINE"),
+      ).toBe("A 200 AMG Line"),
     );
     expect((screen.getByLabelText(/Year/i) as HTMLInputElement).value).toBe("2020");
     expect((screen.getByLabelText(/Mileage/i) as HTMLInputElement).value).toBe("");
@@ -906,7 +906,7 @@ describe("CreateListingForm registration lookup", () => {
       "Grey",
     );
     expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe(
-      "2020 Mercedes-Benz A 200 AMG LINE"
+      "2020 Mercedes-Benz A 200 AMG Line"
     );
   });
 

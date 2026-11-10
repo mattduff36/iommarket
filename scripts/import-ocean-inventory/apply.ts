@@ -4,6 +4,7 @@ import { calculateExpiryDate } from "../../lib/listing-status";
 import { IMPORT_DEALER_EMAIL, IMPORT_DEALER_NAME, EXPECTED_PRO_CAP } from "./target";
 import type { ExistingDealerListing, MappedListing } from "./types";
 import type { UploadedListingImage } from "./upload";
+import { normalizeVehicleAttributeRecord } from "../../lib/vehicle-catalogue/vehicle-normalization";
 
 const ACTIVE_STATUSES = ["DRAFT", "PENDING", "APPROVED", "LIVE"] as const;
 
@@ -161,7 +162,7 @@ export async function insertLiveListing(
       .map((item) => [item.slug, item.id]),
   );
   await tx.listingAttributeValue.createMany({
-    data: Object.entries(input.listing.attributes)
+    data: Object.entries(normalizeVehicleAttributeRecord(input.listing.attributes))
       .filter(([slug]) => attrIds[slug])
       .map(([slug, value]) => ({
         listingId: created.id,

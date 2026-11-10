@@ -5,8 +5,9 @@ import type {
 } from "@/lib/listings/attribute-ui";
 import type { z } from "zod";
 import type { vehicleCatalogueSelectionSchema } from "@/lib/validations/listing";
-import { normalizeMakeLookupKey } from "./make-canonicalization";
+import { makeCatalogueLookupKeys, normalizeMakeLookupKey } from "./make-canonicalization";
 import { normalizeCatalogueName } from "./normalize";
+import { normalizeVehicleMakeModel, normalizeVehicleModelLookupKey } from "./vehicle-normalization";
 
 type VehicleCatalogueSelection = z.infer<typeof vehicleCatalogueSelectionSchema>;
 
@@ -40,6 +41,7 @@ export async function validateVehicleCatalogueSubmission(params: {
   }
 
   const canonicalMakeKey = normalizeMakeLookupKey(selection.canonicalMake ?? "");
+  const makeKeys = makeCatalogueLookupKeys(canonicalMakeKey);
   if (
     selection.makeMode === "catalogue" &&
     (!canonicalMakeKey ||
@@ -53,8 +55,9 @@ export async function validateVehicleCatalogueSubmission(params: {
 
   if (selection.modelMode === "catalogue") {
     const canonicalModelKey = normalizeCatalogueName(selection.canonicalModel ?? "");
-    const submittedModelKey = normalizeCatalogueName(submittedModel);
-    const expectedModelKey = normalizeCatalogueName(
+    const submittedModelKey = normalizeVehicleModelLookupKey(submittedMake, submittedModel);
+    const expectedModelKey = normalizeVehicleModelLookupKey(
+      selection.canonicalMake,
       [selection.canonicalModel, selection.variant]
         .filter((value): value is string => Boolean(value?.trim()))
         .join(" "),
@@ -66,15 +69,35 @@ export async function validateVehicleCatalogueSubmission(params: {
       return errors;
     }
 
-    const model = await db.vehicleModel.findFirst({
+    const canonicalModel = normalizeVehicleMakeModel(selection.canonicalMake, selection.canonicalModel).model ?? "";
+    const modelKeys = [...new Set([
+      canonicalModelKey,
+      normalizeCatalogueName(canonicalModel),
+      ...(canonicalMakeKey === "landrover"
+        ? [
+            normalizeCatalogueName(canonicalModel.replace(/^Range Rover\s+/i, "")),
+            ...(/^Discovery\b/i.test(canonicalModel)
+              ? [normalizeCatalogueName(`Range Rover ${canonicalModel}`)]
+              : []),
+          ]
+        : []),
+      ...(canonicalMakeKey === "mercedesbenz"
+        ? [normalizeCatalogueName(canonicalModel.replace(/\s+AMG$/i, ""))]
+        : []),
+    ])];
+    const models = await db.vehicleModel.findMany({
       where: {
         active: true,
-        normalizedName: canonicalModelKey,
-        make: { active: true, normalizedName: canonicalMakeKey },
+        normalizedName: { in: modelKeys },
+        make: { active: true, normalizedName: { in: makeKeys } },
       },
-      select: { id: true },
+      take: 20,
+      select: { name: true, make: { select: { name: true } } },
     });
-    if (!model) {
+    if (!models.some((model) =>
+      normalizeVehicleModelLookupKey(model.make.name, model.name) ===
+      normalizeVehicleModelLookupKey(selection.canonicalMake, selection.canonicalModel)
+    )) {
       errors[`attr-${modelDefinition.id}`] = [
         "This make and model pair is no longer active. Choose another or use manual entry.",
       ];
@@ -83,11 +106,12 @@ export async function validateVehicleCatalogueSubmission(params: {
   }
 
   if (selection.makeMode === "catalogue") {
-    const make = await db.vehicleMake.findUnique({
-      where: { normalizedName: canonicalMakeKey, active: true },
+    const makes = await db.vehicleMake.findMany({
+      where: { normalizedName: { in: makeKeys }, active: true },
+      take: makeKeys.length,
       select: { id: true },
     });
-    if (!make) {
+    if (makes.length === 0) {
       errors[`attr-${makeDefinition.id}`] = [
         "This make is no longer active. Choose another or use manual entry.",
       ];
