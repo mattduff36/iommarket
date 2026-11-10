@@ -111,6 +111,34 @@ describe("validateListingAttributes", () => {
     locationDef,
   ];
 
+  it("normalizes submitted vehicle pairs without mutating source or retained values", () => {
+    const attributes = [
+      { attributeDefinitionId: makeDef.id, value: "Mercedes AMG" },
+      { attributeDefinitionId: modelDef.id, value: "A CLASS" },
+    ];
+    const retainedAttributes = [{ attributeDefinitionId: makeDef.id, value: "MERC" }];
+    const result = validateListingAttributes({
+      categorySlug: "car", definitions, attributes, retainedAttributes,
+    });
+    expect(result.sanitizedAttributes).toEqual(expect.arrayContaining([
+      { attributeDefinitionId: makeDef.id, value: "Mercedes-Benz" },
+      { attributeDefinitionId: modelDef.id, value: "A-Class AMG" },
+    ]));
+    expect(attributes[0].value).toBe("Mercedes AMG");
+    expect(retainedAttributes[0].value).toBe("MERC");
+  });
+
+  it("validates normalized lengths and leaves nonvehicle values alone", () => {
+    const attributes = [
+      { attributeDefinitionId: makeDef.id, value: "Mercedes AMG" },
+      { attributeDefinitionId: modelDef.id, value: "X".repeat(78) },
+    ];
+    const vehicle = validateListingAttributes({ categorySlug: "car", definitions, attributes });
+    expect(vehicle.fieldErrors[`attr-${modelDef.id}`]).toBeDefined();
+    const other = validateListingAttributes({ categorySlug: "furniture", definitions, attributes });
+    expect(other.sanitizedAttributes).toEqual(expect.arrayContaining(attributes));
+  });
+
   it("requires missing required vehicle attributes", () => {
     const result = validateListingAttributes({
       categorySlug: "car",

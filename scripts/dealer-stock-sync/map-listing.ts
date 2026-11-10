@@ -2,6 +2,7 @@ import { FUEL_TYPE_OPTIONS } from "../../lib/constants/fuel-types";
 import type { DealerStockCategorySlug } from "../../lib/dealer-stock-sync/types";
 import { uniqueImageUrls } from "./image-urls";
 import type { CanonicalVehicle, ReconciledVehicle } from "./types";
+import { normalizeVehicleMakeModel } from "../../lib/vehicle-catalogue/vehicle-normalization";
 
 export { uniqueImageUrls };
 
@@ -130,7 +131,12 @@ export function mapReconciledVehicle(reconciled: ReconciledVehicle): MappingOutc
   if (reconciled.identityConflict) {
     return { reconciled, listing: null, skipReason: reconciled.conflictReason ?? "identity-conflict" };
   }
-  const vehicle = reconciled.vehicle;
+  const identity = normalizeVehicleMakeModel(reconciled.vehicle.make, reconciled.vehicle.model);
+  const vehicle = {
+    ...reconciled.vehicle,
+    make: identity.make ?? "",
+    model: identity.model ?? "",
+  };
   if (vehicle.availability === "sold") {
     return { reconciled, listing: null, skipReason: "sold" };
   }

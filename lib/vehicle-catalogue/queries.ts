@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
-import { normalizeMakeLookupKey } from "./make-canonicalization";
+import { makeCatalogueLookupKeys, normalizeMakeLookupKey } from "./make-canonicalization";
+import { canonicalMakeOptions, canonicalModelOptions } from "./options";
 
 export const VEHICLE_MAKE_LIMIT = 250;
 export const VEHICLE_MODEL_LIMIT = 300;
@@ -24,23 +25,28 @@ export const getActiveVehicleMakes = unstable_cache(
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       take: VEHICLE_MAKE_LIMIT,
       select: { id: true, name: true, normalizedName: true },
-    }),
-  ["vehicle-catalogue-active-makes-v1"],
+    }).then(canonicalMakeOptions),
+  ["vehicle-catalogue-active-makes-v2"],
   { tags: ["vehicle-catalogue"], revalidate: 3_600 },
 );
 
 const getCachedActiveModelsByNormalizedMake = unstable_cache(
   async (normalizedMake: string): Promise<VehicleModelOption[]> => {
+    const makeKeys = makeCatalogueLookupKeys(normalizedMake);
     const rows = await db.vehicleModel.findMany({
       where: {
         active: true,
-        make: { active: true, normalizedName: normalizedMake },
+        make: {
+          active: true,
+          normalizedName: makeKeys.length === 1 ? makeKeys[0] : { in: makeKeys },
+        },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       take: VEHICLE_MODEL_LIMIT,
       select: {
         id: true,
         name: true,
+        make: { select: { name: true } },
         aliases: {
           where: { active: true },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -50,13 +56,14 @@ const getCachedActiveModelsByNormalizedMake = unstable_cache(
       },
     });
 
-    return rows.map((row) => ({
+    return canonicalModelOptions(normalizedMake, rows.map((row) => ({
       id: row.id,
       name: row.name,
       aliases: row.aliases.map((alias) => alias.name),
-    }));
+      make: row.make,
+    })));
   },
-  ["vehicle-catalogue-active-models-v1"],
+  ["vehicle-catalogue-active-models-v2"],
   { tags: ["vehicle-catalogue"], revalidate: 3_600 },
 );
 

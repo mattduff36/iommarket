@@ -7,6 +7,7 @@ import { isOwnedListingImage } from "./images";
 import { claimManagedImportsForAttachment } from "@/lib/media/managed-import";
 import type { FingerprintSnapshot } from "./fingerprint";
 import type { PlanAction } from "./types";
+import { normalizeVehicleAttributeRecord } from "@/lib/vehicle-catalogue/vehicle-normalization";
 
 const VEHICLE_CATEGORIES = ["car", "van", "motorbike", "motorhome"];
 
@@ -58,7 +59,7 @@ async function newListingDraft(tx: Prisma.TransactionClient, snapshot: Fingerpri
   const region = snapshot.dealer.regionId ? await tx.region.findFirst({ where: { id: snapshot.dealer.regionId, active: true }, select: { id: true } }) : null;
   if (!category || !region) throw new Error("Choose an active dealer location and vehicle category before sending drafts.");
   const title = source?.title ?? action.review?.displayTitle ?? action.displayTitle ?? "";
-  const attributes = source?.attributes ?? {};
+  const attributes = normalizeVehicleAttributeRecord(source?.attributes ?? {});
   const images = action.kind === "create" ? action.ownedImages ?? [] : [];
   if (images.some(image => !isOwnedListingImage(image))) throw new Error("A saved stock photo no longer has valid ownership evidence. Run a fresh stock check.");
   await claimManagedImportsForAttachment(tx, images);

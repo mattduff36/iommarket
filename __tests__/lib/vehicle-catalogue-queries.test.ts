@@ -53,7 +53,7 @@ describe("vehicle catalogue query behavior MD-CAT-001", () => {
       expect.objectContaining({
         where: {
           active: true,
-          make: { active: true, normalizedName: "volkswagen" },
+          make: { active: true, normalizedName: { in: ["volkswagen", "vw"] } },
         },
         take: VEHICLE_MODEL_LIMIT,
         select: expect.objectContaining({
@@ -70,13 +70,13 @@ describe("vehicle catalogue query behavior MD-CAT-001", () => {
       expect.objectContaining({
         where: {
           active: true,
-          make: { active: true, normalizedName: "volkswagen" },
+          make: { active: true, normalizedName: { in: ["volkswagen", "vw"] } },
         },
       }),
     );
     expect(
       cacheCalls
-        .filter((call) => call.key[0] === "vehicle-catalogue-active-models-v1")
+        .filter((call) => call.key[0] === "vehicle-catalogue-active-models-v2")
         .map((call) => call.args),
     ).toEqual([["volkswagen"]]);
   });
@@ -86,7 +86,7 @@ describe("vehicle catalogue query behavior MD-CAT-001", () => {
     await getActiveModelsByMake("Volkswagen");
 
     const modelCacheCalls = cacheCalls.filter(
-      (call) => call.key[0] === "vehicle-catalogue-active-models-v1",
+      (call) => call.key[0] === "vehicle-catalogue-active-models-v2",
     );
     expect(modelCacheCalls.map((call) => call.args)).toEqual([
       ["volkswagen"],
@@ -101,5 +101,43 @@ describe("vehicle catalogue query behavior MD-CAT-001", () => {
       [],
     );
     expect(mockDb.vehicleModel.findMany).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates make labels and resolves models held under legacy catalogue aliases", async () => {
+    mockDb.vehicleMake.findMany.mockResolvedValue([
+      { id: "vw", name: "VW", normalizedName: "vw" },
+      { id: "volkswagen", name: "VOLKSWAGEN", normalizedName: "volkswagen" },
+      { id: "rr", name: "Range Rover", normalizedName: "rangerover" },
+    ]);
+    expect(await getActiveVehicleMakes()).toEqual([
+      { id: "vw", name: "Volkswagen", normalizedName: "volkswagen" },
+      { id: "rr", name: "Land Rover", normalizedName: "landrover" },
+    ]);
+    mockDb.vehicleModel.findMany.mockResolvedValue([
+      { id: "raw", name: "EVOQUE", make: { name: "Range Rover" }, aliases: [] },
+      { id: "canonical", name: "Range Rover Evoque", make: { name: "Land Rover" }, aliases: [] },
+      { id: "discovery", name: "DISCOVERY SPORT", make: { name: "Range Rover" }, aliases: [] },
+    ]);
+    expect(await getActiveModelsByMake("Land Rover")).toMatchObject([
+      { id: "raw", name: "Range Rover Evoque" },
+      { id: "discovery", name: "Discovery Sport" },
+    ]);
+    expect(mockDb.vehicleModel.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { active: true, make: { active: true, normalizedName: { in: ["landrover", "rangerover"] } } },
+    }));
+  });
+
+  it("deduplicates scoped spellings without hiding trims or attaching ambiguous aliases", async () => {
+    mockDb.vehicleMake.findMany.mockResolvedValue([
+      { id: "honda", name: "HONDA", normalizedName: "honda" },
+    ]);
+    mockDb.vehicleModel.findMany.mockResolvedValue([
+      { id: "a", name: "CRV EX", make: { name: "Honda" }, aliases: [{ name: "S" }] },
+      { id: "b", name: "CR - V EX", make: { name: "Honda" }, aliases: [] },
+      { id: "c", name: "CR-V SE", make: { name: "Honda" }, aliases: [] },
+    ]);
+    const models = await getActiveModelsByMake("Honda");
+    expect(models.map((model) => model.name)).toEqual(["CR-V EX", "CR-V SE"]);
+    expect(models[0].aliases).toEqual(["CRV EX", "CR - V EX"]);
   });
 });

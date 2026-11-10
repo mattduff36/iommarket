@@ -168,6 +168,56 @@ describe("motorhome and van detail persistence", () => {
     );
   });
 
+  it("persists a canonical pair on new submissions, retaining AMG context", async () => {
+    const { createListing } = await import("@/actions/listings");
+    const result = await createListing({
+      ...baseListing, flow: "private",
+      attributes: [
+        value("van", "make", "Mercedes AMG"), value("van", "model", "A CLASS"),
+        value("van", "year", "2019"), value("van", "mileage", "42000"),
+      ],
+    });
+    expect(result).toEqual({ data: { id: listingId } });
+    expect(mockDb.listing.create.mock.calls[0][0].data.attributeValues.create).toEqual(
+      expect.arrayContaining([
+        value("van", "make", "Mercedes-Benz"), value("van", "model", "A-Class AMG"),
+      ]),
+    );
+  });
+
+  it.each(["DRAFT", "LIVE"])("normalizes future %s submissions without rewriting live attributes", async (status) => {
+    mockDb.listing.findUnique.mockResolvedValue({
+      id: listingId, userId: "user_123", categoryId: vanCategoryId, status,
+      trustDeclarationAcceptedAt: new Date("2026-10-01T00:00:00.000Z"), lifecycleRevision: 3,
+    });
+    getOpenRevisionMock.mockResolvedValue({
+      id: "revision-1", version: 4, categoryId: vanCategoryId, attributeValues: [],
+    });
+    const { updateListing } = await import("@/actions/listings");
+    const result = await updateListing({
+      id: listingId, categoryId: vanCategoryId,
+      attributes: [
+        value("van", "make", "Range Rover"), value("van", "model", "EVOQUE"),
+        value("van", "year", "2019"), value("van", "mileage", "42000"),
+      ],
+    });
+    expect(result.error).toBeUndefined();
+    const expected = expect.arrayContaining([
+      value("van", "make", "Land Rover"), value("van", "model", "Range Rover Evoque"),
+    ]);
+    if (status === "LIVE") {
+      expect(updateDraftRevisionMock).toHaveBeenCalledWith(expect.objectContaining({ attributes: expected }));
+      expect(mockDb.listingAttributeValue.createMany).not.toHaveBeenCalled();
+    } else {
+      expect(mockDb.listingAttributeValue.createMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.arrayContaining([
+          { ...value("van", "make", "Land Rover"), listingId },
+          { ...value("van", "model", "Range Rover Evoque"), listingId },
+        ]),
+      }));
+    }
+  });
+
   it("rejects a hidden tail-lift capacity before any listing write", async () => {
     const { createListing } = await import("@/actions/listings");
     const result = await createListing({

@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { Prisma } from "@prisma/client";
+import { insertLiveListing } from "../../scripts/import-ocean-inventory/apply";
 import { classifyLocation, isOceanEligibleLocation } from "../../scripts/import-ocean-inventory/locations";
 import {
   buildTitle,
   mapColour,
   mapFuelType,
   mapReconciledVehicle,
+  matchesExistingListing,
   mapTransmission,
   poundsToPence,
   resolveCategorySlug,
@@ -106,6 +109,43 @@ describe("import ocean inventory locations", () => {
 });
 
 describe("import ocean inventory mapper", () => {
+  it("normalizes new stock and detects legacy alias duplicates without collapsing trims", async () => {
+    const outcome = mapReconciledVehicle({
+      identityKey: "stockId:1", identityKind: "stockId", sources: ["ocean-ford"],
+      preferredSource: "ocean-ford", locationName: "Ocean Ford",
+      vehicle: vehicle({ make: "VW", model: "GOLF GTI" }),
+      priceMismatch: false, identityConflict: false, conflictReason: null,
+    });
+    const listing = outcome.listing;
+    if (!listing) throw new Error("Expected a mapped fixture");
+    expect(listing.attributes).toMatchObject({ make: "Volkswagen", model: "Golf GTI" });
+    const existing = { make: "VW", model: "GOLF GTI", year: "2022", mileage: "12000", pricePence: 1_850_000 };
+    expect(matchesExistingListing([existing], listing)).toBe(true);
+    expect(matchesExistingListing([{ ...existing, model: "Golf GTE" }], listing)).toBe(false);
+    const tx = {
+      listing: { create: vi.fn(async () => ({ id: "new" })) },
+      listingAttributeValue: { createMany: vi.fn() },
+      listingStatusEvent: { createMany: vi.fn() },
+    };
+    await insertLiveListing(tx as unknown as Prisma.TransactionClient, {
+      userId: "user", dealerId: "dealer", images: [],
+      listing: { ...listing, attributes: { make: "VW", model: "GOLF GTI" } },
+      catalog: {
+        categories: { car: "car" }, regions: { [listing.regionSlug]: "region" },
+        attributes: [
+          { id: "make", slug: "make", categoryId: "car" },
+          { id: "model", slug: "model", categoryId: "car" },
+        ],
+      },
+    });
+    expect(tx.listingAttributeValue.createMany).toHaveBeenCalledWith({
+      data: [
+        { listingId: "new", attributeDefinitionId: "make", value: "Volkswagen" },
+        { listingId: "new", attributeDefinitionId: "model", value: "Golf GTI" },
+      ],
+    });
+  });
+
   it("converts pounds to pence and skips POA", () => {
     expect(poundsToPence(18500)).toBe(1_850_000);
     const poa = mapReconciledVehicle({

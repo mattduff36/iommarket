@@ -61,6 +61,12 @@ import {
   getCurrentYear,
   parseOptionalBoundedInteger,
 } from "@/lib/constants/search-filters";
+import { normalizeVehicleMakeModel } from "@/lib/vehicle-catalogue/vehicle-normalization";
+import {
+  buildVehicleInventory,
+  matchingVehicleListingIds,
+  vehicleInventoryRows,
+} from "@/lib/search/vehicle-inventory";
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -110,7 +116,13 @@ export default async function SearchPage({ searchParams }: Props) {
       })
     : null;
   const vehicleSlug = knownVehicleCategorySlug(selectedCategory?.slug);
-  const sp = scopeCategorySearchRecord(requested, vehicleSlug);
+  const scoped = scopeCategorySearchRecord(requested, vehicleSlug);
+  const identity = normalizeVehicleMakeModel(scoped.make, scoped.model);
+  const sp = {
+    ...scoped,
+    ...(scoped.make ? { make: identity.make ?? scoped.make } : {}),
+    ...(scoped.model ? { model: identity.model ?? scoped.model } : {}),
+  };
   const currentUser = await getCurrentUser();
   const query = sp.q?.trim() ?? "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
@@ -249,26 +261,36 @@ export default async function SearchPage({ searchParams }: Props) {
   if (sp.location) exactAttrFilters.push({ slug: "location", values: [sp.location] });
   exactAttrFilters.push(...categoryExactFilters(sp, vehicleSlug));
 
+  const statusFilter = await marketplaceListingWhereWithSettings({
+    viewer: currentUser,
+    includeSold,
+    now,
+    includeDisabledPreviewPacks: true,
+  });
+  const [makeRows, modelRows, liveMakeRows] = await Promise.all([
+    db.listingAttributeValue.findMany({
+      where: { attributeDefinition: { slug: "make" }, listing: statusFilter },
+      select: { listingId: true, value: true },
+    }),
+    db.listingAttributeValue.findMany({
+      where: { attributeDefinition: { slug: "model" }, listing: statusFilter },
+      select: { listingId: true, value: true },
+    }),
+    includeSold
+      ? db.listingAttributeValue.findMany({
+          where: { attributeDefinition: { slug: "make" }, listing: liveVisibilityWhere },
+          select: { listingId: true, value: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  const inventoryRows = vehicleInventoryRows(makeRows, modelRows);
+  const { makes, modelsByMake, modelCountsByMake } = buildVehicleInventory(
+    vehicleInventoryRows(liveMakeRows ?? makeRows, modelRows),
+  );
+
   const attrAndClauses = [
-    ...(sp.make
-      ? [{
-          attributeValues: {
-            some: {
-              attributeDefinition: { slug: "make" },
-              value: { equals: sp.make, mode: "insensitive" as const },
-            },
-          },
-        }]
-      : []),
-    ...(sp.model
-      ? [{
-          attributeValues: {
-            some: {
-              attributeDefinition: { slug: "model" },
-              value: { equals: sp.model, mode: "insensitive" as const },
-            },
-          },
-        }]
+    ...(sp.make || sp.model
+      ? [{ id: { in: matchingVehicleListingIds(inventoryRows, sp) } }]
       : []),
     ...exactAttrFilters.map((f) => ({
       attributeValues: {
@@ -282,13 +304,6 @@ export default async function SearchPage({ searchParams }: Props) {
       },
     })),
   ];
-
-  const statusFilter = await marketplaceListingWhereWithSettings({
-    viewer: currentUser,
-    includeSold,
-    now,
-    includeDisabledPreviewPacks: true,
-  });
 
   const where = combineMarketplaceListingWhere({
     visibility: statusFilter,
@@ -365,8 +380,6 @@ export default async function SearchPage({ searchParams }: Props) {
     total,
     categories,
     regions,
-    makeDefs,
-    modelDefs,
   ] = await Promise.all([
     listingsQuery,
     db.listing.count({ where }),
@@ -380,14 +393,6 @@ export default async function SearchPage({ searchParams }: Props) {
     db.region.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    db.attributeDefinition.findMany({
-      where: { slug: "make" },
-      select: { id: true },
-    }),
-    db.attributeDefinition.findMany({
-      where: { slug: "model" },
-      select: { id: true },
     }),
   ]);
   const favouriteListingIds = currentUser
@@ -404,50 +409,6 @@ export default async function SearchPage({ searchParams }: Props) {
       )
     : new Set<string>();
 
-  const makeIds = makeDefs.map((d) => d.id);
-  const modelIds = modelDefs.map((d) => d.id);
-  const [makeRows, modelRows] = await Promise.all([
-    makeIds.length > 0
-      ? db.listingAttributeValue.findMany({
-          where: {
-            attributeDefinitionId: { in: makeIds },
-            listing: liveVisibilityWhere,
-          },
-          select: { listingId: true, value: true },
-        })
-      : Promise.resolve([]),
-    modelIds.length > 0
-      ? db.listingAttributeValue.findMany({
-          where: {
-            attributeDefinitionId: { in: modelIds },
-            listing: liveVisibilityWhere,
-          },
-          select: { listingId: true, value: true },
-        })
-      : Promise.resolve([]),
-  ]);
-
-  const modelByListingId = new Map(modelRows.map((r) => [r.listingId, r.value]));
-  const modelCountsByMake: Record<string, Record<string, number>> = {};
-  for (const row of makeRows) {
-    const mdl = modelByListingId.get(row.listingId);
-    if (mdl) {
-      if (!modelCountsByMake[row.value]) modelCountsByMake[row.value] = {};
-      modelCountsByMake[row.value][mdl] = (modelCountsByMake[row.value][mdl] ?? 0) + 1;
-    }
-  }
-  const modelsByMake: Record<string, string[]> = {};
-  for (const [make, models] of Object.entries(modelCountsByMake)) {
-    modelsByMake[make] = Object.keys(models).sort();
-  }
-
-  const makeCounts: Record<string, number> = {};
-  for (const row of makeRows) {
-    makeCounts[row.value] = (makeCounts[row.value] ?? 0) + 1;
-  }
-  const makes = Object.entries(makeCounts)
-    .map(([label, count]) => ({ label, value: label, count }))
-    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
   const searchSeo = getSearchSeoState(sp, selectedCategory?.slug);
   const canonicalPath = searchSeo.canonicalPath;
   const categoryCopy = selectedCategory

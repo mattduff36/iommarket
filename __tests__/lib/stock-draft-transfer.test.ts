@@ -31,6 +31,38 @@ describe("stock draft transfer", () => {
     expect(await run()).toEqual([{ listingId: "listing", revisionId: "revision" }]);
     expect(tx.listing.findUnique).not.toHaveBeenCalled(); expect(tx.listingRevision.create).not.toHaveBeenCalled();
   });
+  it("preserves legacy identity attributes in existing live revisions", async () => {
+    const attributes = [
+      { attributeDefinitionId: "make", value: "VW" },
+      { attributeDefinitionId: "model", value: "GOLF GTI" },
+    ];
+    tx.listing.findUnique.mockResolvedValue({ ...live(), attributeValues: attributes });
+    await run();
+    expect(tx.listingRevision.create.mock.calls[0][0].data.attributeValues.create).toEqual(attributes);
+  });
+  it("normalizes only new stock draft identity values at the write boundary", async () => {
+    tx.category.findFirst.mockResolvedValue({ id: "car", attributeDefinitions: [
+      { id: "make", slug: "make" }, { id: "model", slug: "model" },
+    ] });
+    tx.region.findFirst.mockResolvedValue({ id: "region" });
+    tx.listing.create.mockResolvedValue({ id: "new-draft" });
+    tx.dealerStockSourceIdentity.updateMany.mockResolvedValue({ count: 1 });
+    const created: PlanAction = {
+      kind: "create", sourceIdentityKey: "source", listingId: null, title: "Vehicle", description: "Details",
+      pricePence: 1000, categorySlug: "car", attributes: { make: "Range Rover", model: "EVOQUE" },
+      changes: [], ownedImages: [],
+    };
+    await transferStockDrafts(tx as unknown as Prisma.TransactionClient, {
+      reportId: "report", fingerprint: "fp", indexes: [0], actions: [created],
+      snapshot: { ...snapshot, dealer: { ...snapshot.dealer, regionId: "region" },
+        identities: [{ sourceIdentityKey: "source", listingId: null }] } as FingerprintSnapshot,
+    });
+    expect(tx.listing.create.mock.calls[0][0].data.attributeValues.create).toEqual([
+      { attributeDefinitionId: "make", value: "Land Rover" },
+      { attributeDefinitionId: "model", value: "Range Rover Evoque" },
+    ]);
+    expect(created.attributes).toEqual({ make: "Range Rover", model: "EVOQUE" });
+  });
   it.each([{ userId: "other" }, { dealerId: "other" }, { status: "SOLD" }, { soldAt: new Date() }, { expiresAt: new Date(0) }])("refuses foreign or protected stock: %j", async override => {
     tx.listing.findUnique.mockResolvedValue({ ...live(), ...override });
     await expect(run()).rejects.toThrow(); expect(tx.listingRevision.create).not.toHaveBeenCalled();
@@ -71,4 +103,3 @@ describe("stock draft transfer", () => {
     expect(tx.listing.create).not.toHaveBeenCalled();
   });
 });
-
