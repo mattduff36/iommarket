@@ -428,7 +428,7 @@ export function SearchControls({
             value={priceRange}
             onValueChange={setPriceRange}
             onValueCommit={handlePriceCommit}
-            formatValue={(v) => `£${v.toLocaleString()}`}
+            formatValue={(v) => `£${v.toLocaleString("en-GB")}`}
             scale="logarithmic"
           />
           <RangeSlider
@@ -439,7 +439,7 @@ export function SearchControls({
             value={mileageRange}
             onValueChange={setMileageRange}
             onValueCommit={handleMileageCommit}
-            formatValue={(v) => `${v.toLocaleString()} mi`}
+            formatValue={(v) => `${v.toLocaleString("en-GB")} mi`}
           />
           <RangeSlider
             label="Year"

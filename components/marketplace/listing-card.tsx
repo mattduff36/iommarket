@@ -38,8 +38,8 @@ export interface ListingCardProps extends React.HTMLAttributes<HTMLElement> {
 
 function formatPrice(price: number, currency = "£"): string {
   return Number.isInteger(price)
-    ? `${currency}${price.toLocaleString()}`
-    : `${currency}${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    ? `${currency}${price.toLocaleString("en-GB")}`
+    : `${currency}${price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const ListingCard = React.forwardRef<HTMLElement, ListingCardProps>(
