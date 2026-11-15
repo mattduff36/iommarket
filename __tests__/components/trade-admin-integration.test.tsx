@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { dbMock, requireRole, expireStaleLiveListings, getSampleVisibility, resolveVisibleAdminPaymentWhere } = vi.hoisted(() => ({
   requireRole: vi.fn(),
@@ -120,7 +120,10 @@ function dealerUser(overrides?: { membership?: { id: string; status: "PENDING" }
 }
 
 describe("trade admin integration", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
     vi.clearAllMocks();
     process.env.TRADE_EXCHANGE_ENABLED = "1";
     getSampleVisibility.mockResolvedValue({ privateListings: true, dealerListings: true });
