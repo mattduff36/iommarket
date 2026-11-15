@@ -20,7 +20,7 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 1, resetAt: 0, unavailable: false })),
 }));
 
-const { approveDealerStockReport, saveDealerStockBinding } = await import(
+const { approveDealerStockReport, saveDealerStockBinding, enqueueEnabledDealerStockScrapes } = await import(
   "@/actions/admin/dealer-stock-sync"
 );
 
@@ -40,6 +40,19 @@ describe("admin dealer stock sync actions", () => {
     for (const key of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_URL_NON_POOLING"]) vi.stubEnv(key, "postgresql://fixture@127.0.0.1:5432/test");
     requireRole.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
     db.$transaction.mockImplementation(async (callback: (tx: typeof db) => Promise<unknown>) => callback(db));
+  });
+
+
+  it("returns exact new and existing job IDs for the app without including ineligible dealers", async () => {
+    const binding = { id: "binding", dealerId: "dealer", registryKey: "dw-cars", enabled: true, verifiedAt: new Date(), dealer: liveDealer };
+    db.dealerStockSourceBinding.findMany.mockResolvedValue([
+      { ...binding, id: "new" }, { ...binding, id: "existing" },
+      { ...binding, id: "disabled", dealer: { ...liveDealer, user: { ...liveDealer.user, disabledAt: new Date() } } },
+    ]);
+    db.dealerStockSyncJob.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "existing-job" });
+    db.dealerStockSyncJob.create.mockResolvedValue({ id: "new-job" });
+    expect(await enqueueEnabledDealerStockScrapes()).toEqual({ data: { queued: 1, jobIds: ["new-job", "existing-job"] } });
+    expect(db.dealerStockSyncJob.create).toHaveBeenCalledTimes(1);
   });
 
   it("keeps production disabled before any database access", async () => {

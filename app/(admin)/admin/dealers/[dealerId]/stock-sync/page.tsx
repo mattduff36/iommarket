@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { decorateStockDraftReports } from "@/lib/dealer-stock-sync/draft-handoff-store";
 import { decorateStockApplyRecovery } from "@/lib/dealer-stock-sync/apply-recovery-store";
 import type { PlanAction } from "@/lib/dealer-stock-sync/types";
+import { StockAppTaskBoundary } from "../../../stock-reviews/app-task-boundary";
 import { StockBindingForm } from "./binding-form";
 import { StockSyncReviewPanel } from "./review-panel";
 
@@ -86,6 +87,7 @@ export default async function DealerStockSyncPage({
       {binding?.jobs[0] ? <p className="text-sm text-text-secondary" role="status">
         Latest job: {stockSyncStatus(binding.jobs[0].status)}. {binding.jobs[0].error}
       </p> : null}
+      <StockAppTaskBoundary>
       <StockBindingForm
         dealerId={dealer.id}
         registryKey={binding?.registryKey ?? null}
@@ -106,6 +108,7 @@ export default async function DealerStockSyncPage({
       ) : (
         <p className="text-sm text-text-tertiary">No scrape reports yet.</p>
       )}
+      </StockAppTaskBoundary>
       {binding && binding.reports.length > 0 ? (
         <section>
           <h2 className="mb-2 text-lg font-semibold text-text-primary">Run history</h2>

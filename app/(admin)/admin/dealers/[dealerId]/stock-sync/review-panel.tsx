@@ -180,7 +180,7 @@ export function StockSyncReviewPanel(input: {
       <h2 className="text-lg font-semibold text-text-primary">Latest review</h2>
       <p className="text-sm text-text-secondary">
         Status: <span className={STOCK_STATUS_BADGE + " " + stockStatusColour(input.status)}>{stockSyncStatus(input.status)}</span>. {actionable.length} actionable, {blocked.length} blocked{handoffs.length ? `, ${handoffs.length} handed-off drafts tracked separately` : ""}.
-        Approving queues processing. It does not publish listings immediately.
+        Approving queues processing with Stock Update, including removals. If the app is not connected, you will be asked to open it. Listings do not change until processing succeeds.
       </p>
       {summary && Number.isFinite(Date.parse(summary.capturedAt)) ? (
         <div className="rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
