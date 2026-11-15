@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -16,36 +16,36 @@ export function StockApplyRecoveryControls({ reportId, fingerprint, recovery }: 
   const reload = useStockSnapshotRefresh();
   const worker = useOptionalStockWorkerControl();
   const requestRun = worker?.requestRun;
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const lock = useRef(false);
   const [queued, setQueued] = useState(false);
   const [feedback, setFeedback] = useState<{ error?: string; message?: string }>({});
   const refresh = () => { if (reload) reload(); else router.refresh(); };
-  function run(operation: "retry" | "fresh") {
+  async function run(operation: "retry" | "fresh") {
     if (!requestRun || lock.current || queued || recovery?.activeJob) return;
     lock.current = true;
     setFeedback({});
-    startTransition(async () => {
-      const perform = async (): Promise<string[]> => {
-        try {
-          const result = await recoverDealerStockReport(operation === "retry" ? {
-            reportId, fingerprint, operation, expectedJobId: recovery?.attempt?.id,
-          } : { reportId, fingerprint, operation });
-          if (!("data" in result) || !result.data) { setFeedback({ error: result.error }); refresh(); return []; }
-          setQueued(true);
-          setFeedback({ message: operation === "retry" ? "Approved changes queued for retry. The saved approval is unchanged." : "Fresh check queued. Review and approve its new results before listings change." });
-          refresh();
-          return [result.data.jobId];
-        } catch {
-          setFeedback({ error: "The request outcome is uncertain. Refresh the results and check the current task before trying again." });
-          refresh();
-          return [];
-        }
-      };
-      try { await requestRun(perform); }
-      catch { setFeedback({ error: "The worker request outcome is uncertain. Refresh and check the current task." }); refresh(); }
-      finally { lock.current = false; }
-    });
+    // App confirmation must render immediately, outside an async React transition.
+    setPending(true);
+    const perform = async (): Promise<string[]> => {
+      try {
+        const result = await recoverDealerStockReport(operation === "retry" ? {
+          reportId, fingerprint, operation, expectedJobId: recovery?.attempt?.id,
+        } : { reportId, fingerprint, operation });
+        if (!("data" in result) || !result.data) { setFeedback({ error: result.error }); refresh(); return []; }
+        setQueued(true);
+        setFeedback({ message: operation === "retry" ? "Approved changes queued for retry. The saved approval is unchanged." : "Fresh check queued. Review and approve its new results before listings change." });
+        refresh();
+        return [result.data.jobId];
+      } catch {
+        setFeedback({ error: "The request outcome is uncertain. Refresh the results and check the current task before trying again." });
+        refresh();
+        return [];
+      }
+    };
+    try { await requestRun(perform); }
+    catch { setFeedback({ error: "The worker request outcome is uncertain. Refresh and check the current task." }); refresh(); }
+    finally { lock.current = false; setPending(false); }
   }
   const blocked = pending || queued || Boolean(recovery?.activeJob) || Boolean(worker?.pending || worker?.stopping);
   if (!requestRun) return <footer aria-label="Approved review recovery" className="shrink-0 space-y-2 border-t border-border bg-surface p-3">

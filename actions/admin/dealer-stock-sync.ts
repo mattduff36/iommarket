@@ -199,6 +199,7 @@ export async function enqueueEnabledDealerStockScrapes() {
     },
   });
   let queued = 0;
+  const jobIds: string[] = [];
   for (const binding of bindings) {
     const result = await enqueueScrapeJob(db, {
       binding: {
@@ -215,9 +216,10 @@ export async function enqueueEnabledDealerStockScrapes() {
       createdById: admin.id,
     });
     if (result.status === "queued") queued += 1;
+    if (result.status !== "skipped" && result.jobId) jobIds.push(result.jobId);
   }
   revalidatePath("/admin/dealers");
-  return { data: { queued } };
+  return { data: { queued, jobIds } };
 }
 
 export async function approveDealerStockReport(input: unknown) {

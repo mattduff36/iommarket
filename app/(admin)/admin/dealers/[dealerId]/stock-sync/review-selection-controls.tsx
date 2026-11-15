@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { Check, X, Send, ListChecks, ListX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { reviewDealerStockSelection } from "@/actions/admin/dealer-stock-selection";
@@ -18,7 +18,8 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
   const router = useRouter();
   const reload = useStockSnapshotRefresh();
   const worker = useOptionalStockWorkerControl();
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+  const lock = useRef(false);
   const [feedback, setFeedback] = useState<{error?: string; message?: string}>({});
   const chosen = selection.indexes.map(index => actions[index]).filter(Boolean);
   const eligible = actions.flatMap((action, index) => isApprovableStockAction(action) ? [index] : []);
@@ -27,25 +28,35 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
   const canRemove = chosen.length > 0 && chosen.every(isRemovableStockAction);
   const hasRemoval = chosen.some(isRemovableStockAction);
   const canDraft = chosen.length > 0 && chosen.every(isDraftableStockAction);
-  function run(operation: "approve" | "remove" | "reject" | "draft", actionIndexes: number[]) {
+  async function run(operation: "approve" | "remove" | "reject" | "draft", actionIndexes: number[]) {
+    if (lock.current || ((operation === "approve" || operation === "remove") && worker && (!worker.requestRun || worker.pending || worker.stopping))) return;
+    lock.current = true;
+    setPending(true);
     setFeedback({});
-    startTransition(async () => {
+    // App confirmation must render immediately, outside an async React transition.
+    try {
       const perform = async (): Promise<string[]> => {
-      onPendingChange?.(true);
-      try {
-        const result = await reviewDealerStockSelection({ reportId, fingerprint, operation, actionIndexes });
-        if ("error" in result) { setFeedback({error: result.error ?? "Could not update this review."}); return []; }
-        selection.setIndexes([]);
-        setFeedback({message: "warning" in result && typeof result.warning === "string" ? result.warning : operation === "remove" ? "Selected removals queued. Listings will be taken down; other items remain for review." : operation === "approve" ? "Selected listings queued for approval. Other items remain for review." : operation === "draft" ? "Selected listings sent to the dealer's drafts." : "Selected items cleared. Listings have not been deleted."});
-        if (reload) reload(); else router.refresh();
-        return result.data.jobId ? [result.data.jobId] : [];
-      } catch { setFeedback({error: "Could not update this review. Refresh the results and try again."}); return []; }
-      finally { onPendingChange?.(false); }
+        onPendingChange?.(true);
+        try {
+          const result = await reviewDealerStockSelection({ reportId, fingerprint, operation, actionIndexes });
+          if ("error" in result) { setFeedback({error: result.error ?? "Could not update this review."}); return []; }
+          selection.setIndexes([]);
+          setFeedback({message: "warning" in result && typeof result.warning === "string" ? result.warning : operation === "remove" ? "Selected removals queued. Listings will be taken down; other items remain for review." : operation === "approve" ? "Selected listings queued for approval. Other items remain for review." : operation === "draft" ? "Selected listings sent to the dealer's drafts." : "Selected items cleared. Listings have not been deleted."});
+          if (reload) reload(); else router.refresh();
+          return result.data.jobId ? [result.data.jobId] : [];
+        } catch { setFeedback({error: "Could not update this review. Refresh the results and try again."}); return []; }
+        finally { onPendingChange?.(false); }
       };
       if ((operation === "approve" || operation === "remove") && worker?.requestRun) await worker.requestRun(perform);
       else await perform();
-    });
+    } catch {
+      setFeedback({error: "The worker request outcome is uncertain. Refresh and check the current task."});
+    } finally {
+      lock.current = false;
+      setPending(false);
+    }
   }
+  const appUnavailable = Boolean(worker && (!worker.requestRun || worker.pending || worker.stopping));
   const actionClass = "min-h-11 shrink-0 gap-1.5 rounded-md px-2 text-xs font-medium normal-case not-italic tracking-normal";
   return <footer className="shrink-0 space-y-2 border-t border-border bg-surface p-2" aria-label="Review actions" aria-busy={pending}>
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -58,7 +69,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
       <Button type="button" variant="ghost" aria-label={hasRemoval ? "Approve selected removals" : "Approve selected"}
         title={hasRemoval ? "Select only removal suggestions to take those listings down. Listings are not deleted." : canApprove ? "Queue the selected eligible additions and updates." : "Select eligible additions or updates. Blocked items and removals cannot be approved here."}
         className={`${actionClass} bg-neon-blue-600 text-white hover:bg-neon-blue-500 hover:text-white`}
-        disabled={pending || !(hasRemoval ? canRemove : canApprove)} onClick={() => run(hasRemoval ? "remove" : "approve", selection.indexes)}>
+        disabled={pending || appUnavailable || !(hasRemoval ? canRemove : canApprove)} onClick={() => run(hasRemoval ? "remove" : "approve", selection.indexes)}>
         <Check className="size-4 shrink-0" aria-hidden="true" /><span>{hasRemoval ? "Approve removal" : "Approve"}</span>
       </Button>
       <Button type="button" variant="ghost" aria-label="Send selected to dealer drafts"
@@ -77,7 +88,7 @@ export function StockReviewSelectionControls({ reportId, fingerprint, actions, s
       <Button type="button" variant="ghost" aria-label={`Approve all eligible (${eligible.length})`}
         title="Approve all eligible additions and updates. Blocked items and removals are excluded."
         className="min-h-11 gap-1.5 px-2 text-xs font-medium normal-case not-italic text-neon-blue-400 hover:text-neon-blue-400"
-        disabled={pending || !eligible.length} onClick={() => run("approve", eligible)}>
+        disabled={pending || appUnavailable || !eligible.length} onClick={() => run("approve", eligible)}>
         <ListChecks className="size-4 shrink-0" aria-hidden="true" />Approve eligible <span className="tabular-nums">({eligible.length})</span>
       </Button>
       <Button type="button" variant="ghost" aria-label={`Reject and clear all blocked (${blocked.length})`}
