@@ -69,6 +69,7 @@ export function assertAutoRepairDecision(
   decisions: FixerrorsDecision[],
   clusterId: string,
   issueIds: string[],
+  engineerReviewed = false,
 ): void {
   const decision = decisions.find((entry) => entry.clusterId === clusterId);
   const requested = new Set(issueIds);
@@ -82,7 +83,7 @@ export function assertAutoRepairDecision(
   ) {
     throw new Error("Requested issue IDs are not a unique subset of the signed decision manifest");
   }
-  if (decision.action !== "auto-repair" || decision.blockReason) {
+  if (!engineerReviewed && (decision.action !== "auto-repair" || decision.blockReason)) {
     throw new Error(decision.blockReason ?? "Cluster is not an unblocked auto-repair");
   }
 }
@@ -116,7 +117,7 @@ export function serializeDecisionManifest(snapshot: OpenIssueSnapshot, decisions
   return `${JSON.stringify({ version: 3, snapshotId: snapshot.snapshotId, issueChecksum: snapshot.checksum, codeBaseline, decisions }, null, 2)}\n`;
 }
 
-export function assertBoundRepairDecision(snapshot: OpenIssueSnapshot, text: string, clusterId: string, issueIds: string[], lane: string, now = new Date()): void {
+export function assertBoundRepairDecision(snapshot: OpenIssueSnapshot, text: string, clusterId: string, issueIds: string[], lane: string, now = new Date(), engineerReviewed = false): void {
   if (!snapshot.analysis.decisionChecksum) throw new Error("Unbound decision manifest; re-export before committing");
   if (createHash("sha256").update(text).digest("hex") !== snapshot.analysis.decisionChecksum) throw new Error("Decision manifest checksum mismatch");
   const manifest = decisionManifestSchema.parse(JSON.parse(text));
@@ -132,8 +133,8 @@ export function assertBoundRepairDecision(snapshot: OpenIssueSnapshot, text: str
     throw new Error("Decision manifest issue membership is invalid");
   }
   const selected = manifest.decisions.find(decision => decision.clusterId === clusterId);
-  if (selected?.lane !== lane || !AUTO_REPAIR_LANES.has(lane)) throw new Error("Requested repair lane does not match the bound decision");
+  if (selected?.lane !== lane || (!AUTO_REPAIR_LANES.has(lane) && !(engineerReviewed && lane === "report-only"))) throw new Error("Requested repair lane does not match the bound decision");
   if (snapshot.issues.some(issue => selected.issueIds.includes(issue.id) && issue.severity === "CRITICAL")) throw new Error("CRITICAL issue requires approval gates");
   assertSnapshotUsable(snapshot, snapshot.databaseTargetFingerprint, now);
-  assertAutoRepairDecision(manifest.decisions, clusterId, issueIds);
+  assertAutoRepairDecision(manifest.decisions, clusterId, issueIds, engineerReviewed);
 }

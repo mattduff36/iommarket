@@ -2,17 +2,17 @@
   "candidate_count": 3369,
   "file_count": 421,
   "csv_sha256": "067f8052f4a9601832f79a6b7762529f567a35995dfd76d9dad8ace07debfec7",
-  "semantic_display_verified_count": 471,
+  "semantic_display_verified_count": 469,
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
-    "displayed": 1132,
-    "internal-only": 1302,
+    "displayed": 1130,
+    "internal-only": 1304,
     "duplicate": 793,
     "irrelevant": 142
   },
   "rule_counts": {
     "ast-public-return": 540,
-    "ast-no-public-sink": 864,
+    "ast-no-public-sink": 866,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
@@ -24,7 +24,7 @@
     "ast-branch-condition": 7,
     "ast-enclosing-public-function": 65,
     "ast-type-or-import": 105,
-    "ast-public-sink": 233,
+    "ast-public-sink": 231,
     "ast-jsx-consumer": 126,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
@@ -75,10 +75,10 @@
     "lib-services": 12
   },
   "family_counts": {
-    "public-sink": 1227,
-    "raw-message": 168,
+    "public-sink": 1225,
+    "raw-message": 169,
     "fragment": 588,
-    "static-literal": 300,
+    "static-literal": 301,
     "thrown": 892,
     "monitoring": 80,
     "rate-limit": 13,
@@ -373,13 +373,6 @@
       "classification": "internal-only"
     },
     {
-      "id": "displayed:ast-public-sink:listings-b-public-boundary:public-sink",
-      "count": 16,
-      "example": "app/(public)/sell/create-listing-form.tsx:326",
-      "rule_id": "ast-public-sink",
-      "classification": "displayed"
-    },
-    {
       "id": "displayed:ast-public-return:deferred-c-payment-internals:public-sink",
       "count": 15,
       "example": "actions/admin/payments.ts:201",
@@ -387,11 +380,25 @@
       "classification": "displayed"
     },
     {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
+      "count": 15,
+      "example": "actions/listings.ts:326",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:fragment",
       "count": 15,
       "example": "app/api/listing-images/finalize/route.ts:74",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
+    },
+    {
+      "id": "displayed:ast-public-sink:listings-b-public-boundary:public-sink",
+      "count": 14,
+      "example": "app/(public)/sell/create-listing-form.tsx:326",
+      "rule_id": "ast-public-sink",
+      "classification": "displayed"
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:fragment",
@@ -405,13 +412,6 @@
       "count": 14,
       "example": "actions/listings.ts:289",
       "rule_id": "ast-diagnostic-call",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:static-literal",
-      "count": 14,
-      "example": "actions/listings.ts:326",
-      "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
     {
@@ -772,6 +772,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:raw-message",
+      "count": 3,
+      "example": "actions/listings.ts:296",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "internal-only:ast-no-public-sink:payments-b-public-boundary:raw-message",
       "count": 3,
       "example": "actions/payments.ts:426",
@@ -873,13 +880,6 @@
       "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:static-literal",
       "count": 2,
       "example": "lib/services/vehicle-check-aggregator.ts:295",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:listings-b-public-boundary:raw-message",
-      "count": 2,
-      "example": "actions/listings.ts:296",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },

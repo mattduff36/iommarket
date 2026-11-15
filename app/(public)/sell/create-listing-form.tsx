@@ -18,6 +18,7 @@ import {
   buildOptionalDetailSections,
   focusIdForFieldErrors,
   guidedNavigationBlock,
+  photoBlockMessage,
   guidedStepForFieldErrors,
   MIN_GUIDED_LISTING_PHOTOS,
   optionalSectionForAttribute,
@@ -459,7 +460,8 @@ export function CreateListingForm({
       advertComplete,
     });
     if (block) {
-      setError(block.message);
+      setError(photoBlockMessage({ uploading: photoUploadsBusy, recovering: localDraft.recovering,
+        needsAttention: localDraft.photosNeedAttention }, "continuing") ?? block.message);
       if (block.step === 2 && photoBusy) setPhotoErrorDiagnostics(photoGuardDiagnostics({
         uploading: photoUploadsBusy, recovering: localDraft.recovering,
         needsAttention: localDraft.photosNeedAttention, photoCount: uploadedImages.length,
@@ -520,7 +522,8 @@ export function CreateListingForm({
     }
     setPhotoErrorDiagnostics(undefined);
     if (photoBusy) {
-      setError("Please wait for all photo uploads to finish before submitting.");
+      setError(photoBlockMessage({ uploading: photoUploadsBusy, recovering: localDraft.recovering,
+        needsAttention: localDraft.photosNeedAttention }, "submitting"));
       setPhotoErrorDiagnostics(photoGuardDiagnostics({ uploading: photoUploadsBusy, recovering: localDraft.recovering,
         needsAttention: localDraft.photosNeedAttention, photoCount: uploadedImages.length }));
       releaseSubmitFlight(submitFlightRef);

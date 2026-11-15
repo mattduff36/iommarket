@@ -5,6 +5,7 @@ import {
   buildOptionalDetailSections,
   guidedCardStatus,
   guidedNavigationBlock,
+  photoBlockMessage,
   guidedStepForFieldErrors,
   isMeaningfulDetailValue,
   partitionGuidedAttributeFields,
@@ -23,6 +24,16 @@ const carFields = [
 ];
 
 describe("guided listing workflow", () => {
+  it("directs failed photo recovery to an action instead of indefinite waiting", () => {
+    expect(photoBlockMessage({ uploading: false, recovering: false, needsAttention: true }, "continuing"))
+      .toContain("Choose Retry photo recovery");
+    expect(photoBlockMessage({ uploading: false, recovering: true, needsAttention: true }, "submitting"))
+      .toContain("being recovered");
+    expect(photoBlockMessage({ uploading: true, recovering: true, needsAttention: true }, "continuing"))
+      .toBe("Please wait for all photo uploads to finish before continuing.");
+    expect(photoBlockMessage({ uploading: false, recovering: false, needsAttention: false }, "submitting"))
+      .toBeNull();
+  });
   it("keeps the approved four-step order", () => {
     expect(GUIDED_LISTING_STEPS.map((step) => step.label)).toEqual([
       "Details",

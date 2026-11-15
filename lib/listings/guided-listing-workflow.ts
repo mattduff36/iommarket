@@ -231,6 +231,16 @@ export function guidedStatusLabel(status: GuidedCardStatus): string {
   return "To do";
 }
 
+export function photoBlockMessage(
+  state: { uploading: boolean; recovering: boolean; needsAttention: boolean },
+  action: "continuing" | "submitting",
+): string | null {
+  if (state.uploading) return `Please wait for all photo uploads to finish before ${action}.`;
+  if (state.recovering) return `Your saved photos are being recovered. Please wait before ${action}.`;
+  if (state.needsAttention) return `Some saved photos could not be recovered. Choose Retry photo recovery before ${action}.`;
+  return null;
+}
+
 export function guidedNavigationBlock(input: {
   from: GuidedListingStep;
   to: GuidedListingStep;
