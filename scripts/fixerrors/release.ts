@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { fixerrorsTimeouts, runBoundedProcess } from "./operations";
 import { readFileSync } from "node:fs";
 import { insertAdminAudit, insertStatusEvent } from "./audit";
 import {
@@ -423,6 +423,5 @@ function sha256(value: string): string {
 }
 
 function runGh(args: string[]) {
-  const result = spawnSync("gh", args, { encoding: "utf8" });
-  return { status: result.status, stdout: typeof result.stdout === "string" ? result.stdout : "" };
+  return runBoundedProcess("gh", args, { timeout: fixerrorsTimeouts().FIXERRORS_GITHUB_TIMEOUT_MS, label: "GitHub read" });
 }

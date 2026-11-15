@@ -10,12 +10,14 @@ import {
   PHOTO_UNKNOWN_MESSAGE,
   uploadMessageCode,
 } from "@/lib/media/upload-error-catalog";
+import { clientDiagnosticsSchema, type ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 
 export class UploadClientError extends Error {
   readonly code: PublicErrorCode;
   readonly retryable: boolean;
   readonly retryAfterSeconds?: number;
   readonly supportReference?: string;
+  readonly diagnostics?: ClientDiagnostics;
 
   constructor(
     message: string,
@@ -24,6 +26,7 @@ export class UploadClientError extends Error {
       retryable?: boolean;
       retryAfterSeconds?: number;
       supportReference?: string;
+      diagnostics?: ClientDiagnostics;
     },
   ) {
     super(message);
@@ -32,7 +35,22 @@ export class UploadClientError extends Error {
     this.retryable = details.retryable ?? defaultPublicRetryable(details.code);
     this.retryAfterSeconds = details.retryAfterSeconds;
     this.supportReference = details.supportReference;
+    this.diagnostics = details.diagnostics;
   }
+}
+
+export function withUploadDiagnostic(error: unknown, imagePhase: NonNullable<ClientDiagnostics["imagePhase"]>, response?: Response): UploadClientError {
+  const normalized = normalizeUploadClientError(error);
+  const correlation = response?.headers?.get("x-request-id");
+  const diagnostics = clientDiagnosticsSchema.parse({
+    operation: "photo-upload",
+    imagePhase,
+    ...(response && Number.isInteger(response.status) && response.status >= 100 && response.status <= 599 ? { httpStatus: response.status } : {}),
+    ...(correlation && /^[A-Za-z0-9:_-]{8,160}$/.test(correlation) ? { imageRequestId: correlation } : {}),
+  });
+  return new UploadClientError(normalized.message, { code: normalized.code, retryable: normalized.retryable,
+    retryAfterSeconds: normalized.retryAfterSeconds, supportReference: normalized.supportReference,
+    diagnostics: normalized.diagnostics ?? diagnostics });
 }
 
 export function isNetworkUploadFailure(error: unknown): boolean {

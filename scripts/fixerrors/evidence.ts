@@ -1,4 +1,4 @@
-import { AUTH_DIAGNOSTIC_CODES } from "@/lib/monitoring/client-diagnostics";
+import { clientDiagnosticsSchema } from "@/lib/monitoring/client-diagnostics";
 import { diagnosticTarget, safeRequestDiagnostic } from "@/lib/monitoring/request-diagnostics";
 import { safeResourceDiagnostic } from "@/lib/monitoring/resource-diagnostics";
 
@@ -32,7 +32,10 @@ export function safeEventEvidence(row: Record<string, unknown>): Record<string, 
   }
   const diagnostics = row.diagnostics && typeof row.diagnostics === "object"
     ? row.diagnostics as Record<string, unknown> : {};
-  if (typeof diagnostics.online === "boolean") evidence.online = diagnostics.online;
+  for (const [key, field] of Object.entries(clientDiagnosticsSchema.shape)) {
+    const parsed = field.safeParse(diagnostics[key]);
+    if (parsed.success && parsed.data !== undefined) evidence[key] = parsed.data;
+  }
   const facts = row.operationFacts && typeof row.operationFacts === "object" ? row.operationFacts as Record<string, unknown> : {};
   const stages = ["auth-profile-persist", "invoice-check-open", "invoice-read-entries", "invoice-create-request", "invoice-freeze-lines", "invoice-workflow-event", "invoice-create-outbox", "storage-upload", "profile-save", "storage-cleanup", "map-worker", "map-initialisation", "map-style-or-network"];
   if (stages.includes(String(facts.stage ?? row.stage))) evidence.stage = String(facts.stage ?? row.stage);
@@ -40,11 +43,6 @@ export function safeEventEvidence(row: Record<string, unknown>): Record<string, 
   if (typeof facts.durationMs === "number" && Number.isFinite(facts.durationMs) && facts.durationMs >= 0) evidence.durationMs = Math.min(facts.durationMs, 300_000);
   for (const key of ["sameIdentityFound", "retryAttempted"] as const) if (typeof facts[key] === "boolean") evidence[key] = facts[key];
   if (row.missingBucket === "true" || row.missingBucket === "false") evidence.missingBucket = row.missingBucket === "true";
-  if (diagnostics.visibility === "visible" || diagnostics.visibility === "hidden") evidence.visibility = diagnostics.visibility;
-  if (diagnostics.operation === "sign-in") evidence.operation = "sign-in";
-  if (AUTH_DIAGNOSTIC_CODES.some(code => code === diagnostics.authCode)) evidence.authCode = String(diagnostics.authCode);
-  if (typeof diagnostics.httpStatus === "number" && Number.isInteger(diagnostics.httpStatus)
-    && diagnostics.httpStatus >= 100 && diagnostics.httpStatus <= 599) evidence.httpStatus = diagnostics.httpStatus;
   for (const key of ["requestId", "displayedSupportReference"] as const) {
     const value = row[key];
     if (typeof value === "string" && /^[A-Za-z0-9:_-]{8,160}$/.test(value)) evidence[key] = value;

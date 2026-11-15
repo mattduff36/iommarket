@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { fixerrorsTimeouts, runBoundedProcess } from "./operations";
 import type { CodeBaseline, CodePathBaseline } from "./types";
 
 const GIT_SHA = /^[0-9a-f]{40}$/iu;
@@ -17,16 +17,12 @@ export type RepairWorkspace = {
 };
 
 export function runGit(args: string[], cwd: string, env?: Record<string, string | undefined>): GitResult {
-  const result = spawnSync("git", args, {
+  return runBoundedProcess("git", args, {
     cwd,
-    encoding: "utf8",
+    timeout: fixerrorsTimeouts().FIXERRORS_GIT_TIMEOUT_MS,
+    label: `git ${args[0] ?? "operation"}`,
     ...(env ? { env: { ...process.env, ...env } } : {}),
   });
-  return {
-    status: result.status,
-    stdout: typeof result.stdout === "string" ? result.stdout : "",
-    stderr: typeof result.stderr === "string" ? result.stderr : "",
-  };
 }
 
 export function fetchReleaseRefs(

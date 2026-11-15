@@ -1,6 +1,6 @@
 import { readInvestigation } from "@/lib/monitoring/investigation";
-import { clusterRepairBlockReason, suggestClusterDisposition } from "./decision";
-import { extractSourceFilesForIssue, isOpaqueScriptError } from "./source-extraction";
+import { buildFixerrorsDecisions, type FixerrorsDecision } from "./decision";
+import { buildSourceIndex, extractSourceFilesForIssue, isOpaqueScriptError } from "./source-extraction";
 import type {
   CodeBaseline,
   ErrorClusterAction,
@@ -26,6 +26,7 @@ export function groupOpenIssues(
   repoRoot = process.cwd(),
 ): ErrorPattern[] {
   const patternMap = new Map<string, ErrorPattern>();
+  const sourceIndex = buildSourceIndex(repoRoot);
 
   for (const issue of issues) {
     if (issue.status !== "OPEN" && issue.status !== "ACKNOWLEDGED") continue;
@@ -41,6 +42,7 @@ export function groupOpenIssues(
         normalizedMessage,
         occurrences: 0,
         sourceFiles: [],
+        issueEvidence: {},
         affectedPages: [],
         firstSeen: issue.lastSeenAt,
         lastSeen: issue.lastSeenAt,
@@ -53,7 +55,9 @@ export function groupOpenIssues(
     if (issue.lastSeenAt > pattern.lastSeen) pattern.lastSeen = issue.lastSeenAt;
     const page = issue.sampleRoute || issue.events[0]?.requestPath;
     if (page && !pattern.affectedPages.includes(page)) pattern.affectedPages.push(page);
-    for (const ref of extractSourceFilesForIssue(issue, repoRoot)) {
+    const refs = extractSourceFilesForIssue(issue, repoRoot, sourceIndex);
+    pattern.issueEvidence = { ...pattern.issueEvidence, [issue.id]: { severity: issue.severity, sourceFiles: refs } };
+    for (const ref of refs) {
       if (!pattern.sourceFiles.some((existing) => existing.file === ref.file && existing.line === ref.line)) {
         pattern.sourceFiles.push(ref);
       }
@@ -116,7 +120,8 @@ function classifyCluster(
   rootCauseFamily: string,
   patterns: ErrorPattern[],
 ): { lane: ErrorClusterLane; action: ErrorClusterAction } {
-  if (isCriticalRootCauseFamily(rootCauseFamily)) {
+  if (isCriticalRootCauseFamily(rootCauseFamily)
+    || patterns.some(pattern => Object.values(pattern.issueEvidence ?? {}).some(evidence => evidence.severity === "CRITICAL"))) {
     return { lane: "critical", action: "critical-gates" };
   }
   if (rootCauseFamily === "opaque-script-error" || rootCauseFamily === "react-server-components-digest") {
@@ -185,6 +190,7 @@ export function generateAnalysisReport(
   baseline: CodeBaseline | null = null,
   history: string[] = [],
   queueStatusCounts?: QueueStatusCounts,
+  decisions: FixerrorsDecision[] = buildFixerrorsDecisions(clusters, baseline),
 ): string {
   const records = issues.map(issue => ({ issue, record: readInvestigation(issue.investigation) }));
   const missing = records.filter(({ record }) => !record).length;
@@ -205,20 +211,22 @@ export function generateAnalysisReport(
     "",
     "## Root Cause Clusters and TEE Routing",
     "",
-    "| Cluster | Root cause family | Lane | Action | Disposition | Issues | Occurrences |",
+    "| Cluster | Root cause family | Lane | Disposition | Block reason | Issues | Occurrences |",
     "|---|---|---|---|---|---:|---:|",
   ];
 
   for (const cluster of clusters) {
-    const blocked = clusterRepairBlockReason(cluster, baseline);
-    const disposition = blocked ? "needs-person" : suggestClusterDisposition(cluster);
+    const decision = decisions.find(decision => decision.clusterId === cluster.id);
+    const disposition = decision?.action ?? "needs-person";
+    const reason = (decision?.blockReason ?? "none").replace(/\|/g, "\\|").replace(/[\r\n]/g, " ");
     lines.push(
-      `| ${cluster.id} | ${cluster.rootCauseFamily} | ${cluster.lane.toUpperCase()} | ${cluster.action} | ${disposition} | ${cluster.issueIds.length} | ${cluster.occurrences} |`,
+      `| ${cluster.id} | ${cluster.rootCauseFamily} | ${cluster.lane.toUpperCase()} | ${disposition} | ${reason} | ${cluster.issueIds.length} | ${cluster.occurrences} |`,
     );
   }
 
   lines.push("");
   lines.push("Dispositions are hints. A code fix, or a tooling change that makes monitoring less sensitive, can still resolve the issue after it is deployed to production.");
+  lines.push("Source frames are investigation candidates, not proof of root cause. Route, action and chunk matches are low-confidence hints; every auto-repair issue needs its own original source frame.");
   lines.push("Clusters are routed independently; a CRITICAL cluster does not escalate unrelated clusters.");
   if (patterns.some((pattern) => /react error #?441|server components render/i.test(pattern.normalizedMessage))) {
     lines.push("React error #441 is a Server Components render failure with a production-hidden message. Correlate the client digest with a server event using the same route and nearby timestamp; trace IDs can support the match. Without that evidence, keep the issue open and do not attribute it to a neighbouring database or payment error.");
@@ -239,7 +247,8 @@ export function generateAnalysisReport(
 
   for (const issue of issues) {
     const pattern = patterns.find((entry) => entry.issueIds.includes(issue.id));
-    const files = pattern?.sourceFiles.slice(0, 8).map((ref) => `\`${ref.file}\``).join(", ") || "none";
+    const files = pattern?.issueEvidence?.[issue.id]?.sourceFiles.slice(0, 8)
+      .map((ref) => `\`${ref.file}\` (${ref.provenance}, ${ref.confidence})`).join(", ") || "none";
     lines.push(`### ${issue.id}`);
     lines.push("");
     lines.push(`- Severity: ${issue.severity}`);

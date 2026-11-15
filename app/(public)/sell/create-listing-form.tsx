@@ -52,6 +52,7 @@ import { formatRegistrationForDisplay } from "@/lib/utils/registration";
 import type { VehicleMakeOption } from "@/lib/vehicle-catalogue/queries";
 import type { VehicleCatalogueSelection } from "./vehicle-catalogue-fields";
 import { ListingDraftPhotoProvider } from "./listing-draft-photos";
+import { photoGuardDiagnostics, type ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 import { useCreateListingLocalDraft } from "./use-create-listing-local-draft";
 import { CreateListingActions } from "./create-listing-form-actions";
 
@@ -106,6 +107,7 @@ export function CreateListingForm({
   const [includeFeatured, setIncludeFeatured] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [photoErrorDiagnostics, setPhotoErrorDiagnostics] = useState<ClientDiagnostics>();
   const [outcomeReview, setOutcomeReview] = useState<OutcomeReview | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [step, setStep] = useState<GuidedListingStep>(1);
@@ -446,6 +448,7 @@ export function CreateListingForm({
       if (sectionId) scrollListingSection(sectionId);
       return;
     }
+    setPhotoErrorDiagnostics(undefined);
     const block = guidedNavigationBlock({
       from: step,
       to: target,
@@ -457,6 +460,10 @@ export function CreateListingForm({
     });
     if (block) {
       setError(block.message);
+      if (block.step === 2 && photoBusy) setPhotoErrorDiagnostics(photoGuardDiagnostics({
+        uploading: photoUploadsBusy, recovering: localDraft.recovering,
+        needsAttention: localDraft.photosNeedAttention, photoCount: uploadedImages.length,
+      }));
       if (block.step === 1) {
         if (configurationError) setError(configurationError);
         const errors = Object.keys(attributeErrorSplit.required).length > 0
@@ -511,8 +518,11 @@ export function CreateListingForm({
     if (outcomeReview || !tryBeginSubmitFlight(submitFlightRef)) {
       return;
     }
+    setPhotoErrorDiagnostics(undefined);
     if (photoBusy) {
       setError("Please wait for all photo uploads to finish before submitting.");
+      setPhotoErrorDiagnostics(photoGuardDiagnostics({ uploading: photoUploadsBusy, recovering: localDraft.recovering,
+        needsAttention: localDraft.photosNeedAttention, photoCount: uploadedImages.length }));
       releaseSubmitFlight(submitFlightRef);
       return;
     }
@@ -695,6 +705,7 @@ export function CreateListingForm({
                 onAddPhotos={() => formRef.current?.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
                 canAddPhotos={uploadedImages.length < maxImages}
                 addingPhotosBusy={photoUploadsBusy}
+                diagnostics={photoErrorDiagnostics}
                 step={step} error={error} outcomeReview={outcomeReview} userId={userId} mode={mode}
                 draftCatalog={draftCatalog} unsavedSnapshot={unsavedSnapshot} photoBusy={photoBusy}
                 isPending={isPending} recovering={localDraft.recovering} prevStep={prevStep} nextStep={nextStep}

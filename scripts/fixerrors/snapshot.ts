@@ -15,6 +15,7 @@ import { redactFreeText, redactStack } from "@/lib/monitoring/redact";
 import { safeEventEvidence } from "./evidence";
 import { safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 import { readInvestigation } from "@/lib/monitoring/investigation";
+import { contentChecksum } from "./integrity";
 import {
   ERROR_SNAPSHOT_MAX_AGE_MS,
   EVENTS_PER_ISSUE,
@@ -171,6 +172,7 @@ function normalizeIssue(row: Record<string, unknown>, events: SnapshotEvent[]): 
     title: redactFreeText(String(row.title ?? "")),
     status: row.status,
     investigation: readInvestigation(row.investigation),
+    investigationChecksum: contentChecksum(row.investigation),
     severity: String(row.severity),
     source: String(row.source),
     lastSeenAt: toPreciseIso(row.lastSeenAt, "lastSeenAt"),
@@ -342,6 +344,7 @@ export function markSnapshotAnalysisCompleted(
   reportOnlyIssueIds: string[],
   codeBaseline: OpenIssueSnapshot["analysis"]["codeBaseline"] = null,
   now = new Date(),
+  decisionContent?: string,
 ): OpenIssueSnapshot {
   return sealSnapshot({
     ...snapshot,
@@ -354,6 +357,7 @@ export function markSnapshotAnalysisCompleted(
       clusterLanes,
       reportOnlyIssueIds: [...new Set(reportOnlyIssueIds)].sort(),
       codeBaseline,
+      ...(decisionContent ? { decisionChecksum: sha256(decisionContent) } : {}),
     },
   });
 }

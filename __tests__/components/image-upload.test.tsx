@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ImageUpload, type UploadedImage } from "@/components/marketplace/image-upload";
+import { withUploadDiagnostic } from "@/lib/images/upload-client-error";
 
 const uploadListingImageFile = vi.fn();
 
@@ -141,6 +142,24 @@ describe("PHOTO-ORDER-A11Y-001 PHOTO-ORDER-PRIMARY-001 listing photo ordering", 
 });
 
 describe("PHOTO-ORDER-BATCH-001 listing photo batch order", () => {
+  it("reports captured upload response facts through the real Report issue control", async () => {
+    uploadListingImageFile.mockReset().mockRejectedValueOnce(withUploadDiagnostic(new Error("private failure"), "finalize",
+      new Response("private body", { status: 503, headers: { "x-request-id": "upload_12345678" } })));
+    const reportFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, reference: "event_upload_1234" }) });
+    vi.stubGlobal("fetch", reportFetch);
+    render(<Harness initial={[]} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["x"], "private-photo.jpg", { type: "image/jpeg" })] },
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Report issue" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Report issue" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reported" })).toBeDisabled());
+    expect(reportFetch.mock.calls[0]?.[0]).toBe("/api/monitoring/report-issue");
+    const payload = JSON.parse(reportFetch.mock.calls[0]?.[1]?.body);
+    expect(payload.diagnostics).toMatchObject({ operation: "photo-upload", imagePhase: "finalize",
+      httpStatus: 503, imageRequestId: "upload_12345678" });
+    expect(JSON.stringify(payload.diagnostics)).not.toMatch(/private|body|photo\.jpg/);
+  });
   it("reserves capacity during preflight and rejects an overlapping selection", async () => {
     uploadListingImageFile.mockReset().mockResolvedValue(first);
     let finishPreflight: ((value: unknown) => void) | undefined;

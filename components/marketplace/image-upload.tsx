@@ -48,6 +48,8 @@ import { preflightListingImageFile, presentClientUploadError, uploadListingImage
 import type { ListingPhotoSource } from "@/lib/images/photo";
 import { mapPhotoBatch } from "@/lib/images/upload-batch";
 import { useListingDraftPhotoBackup } from "@/app/(public)/sell/listing-draft-photos";
+import { UploadClientError } from "@/lib/images/upload-client-error";
+import { photoGuardDiagnostics, type ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 
 export interface UploadedImage extends ListingPhotoSource {
   uploadIntentId: string;
@@ -68,6 +70,7 @@ interface PendingSlot {
   fileName: string;
   image?: UploadedImage;
   error?: string;
+  diagnostics?: ClientDiagnostics;
 }
 
 function createClientId() {
@@ -87,12 +90,18 @@ export function ImageUpload({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const isMountedRef = React.useRef(true);
   const uploadInProgressRef = React.useRef(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, updateError] = React.useState<string | null>(null);
+  const [errorDiagnostics, setErrorDiagnostics] = React.useState<ClientDiagnostics>();
   const [pending, setPending] = React.useState<PendingSlot[]>([]);
   const [isBusy, setIsBusy] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
   const [focalImage, setFocalImage] = React.useState<UploadedImage | null>(null);
   const backupListingPhoto = useListingDraftPhotoBackup();
+
+  function setError(message: string | null) {
+    updateError(message);
+    setErrorDiagnostics(undefined);
+  }
 
   React.useEffect(() => {
     isMountedRef.current = true;
@@ -143,6 +152,8 @@ export function ImageUpload({
     if (selectedFiles.length === 0) return;
     if (uploadInProgressRef.current) {
       setError("Wait for the current photo uploads to finish.");
+      setErrorDiagnostics({ ...photoGuardDiagnostics({ uploading: true, recovering: false,
+        needsAttention: false, photoCount: images.length }), operation: "photo-upload" });
       return;
     }
 
@@ -177,6 +188,7 @@ export function ImageUpload({
       const validEntries = checked.flatMap((entry) => {
         if (entry.validationError) {
           setError(entry.validationError);
+          setErrorDiagnostics({ imagePhase: "preflight", operation: "photo-upload" });
           return [];
         }
         return [{ file: entry.file, slot: entry.slot }];
@@ -209,13 +221,15 @@ export function ImageUpload({
             return image;
           } catch (uploadError) {
             const message = presentClientUploadError(uploadError);
+            const diagnostics = uploadError instanceof UploadClientError ? uploadError.diagnostics : undefined;
             if (isMountedRef.current) {
               setPending((current) =>
                 current.map((item) =>
-                  item.clientId === slot.clientId ? { ...item, error: message } : item,
+                  item.clientId === slot.clientId ? { ...item, error: message, diagnostics } : item,
                 ),
               );
               setError(message);
+              setErrorDiagnostics(diagnostics);
             }
             return null;
           }
@@ -280,6 +294,7 @@ export function ImageUpload({
               {pending.map((slot) => (
                 <ReportableError as="div"
                   key={slot.clientId}
+                  diagnostics={slot.diagnostics}
                   className={cn(
                     "flex min-h-44 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-surface-elevated text-center text-sm text-text-secondary",
                     slot.image && "block border-solid",
@@ -349,7 +364,7 @@ export function ImageUpload({
       )}
 
       {error ? (
-        <ReportableError as="p" className="text-sm text-text-error" role="alert">
+        <ReportableError as="p" className="text-sm text-text-error" role="alert" diagnostics={errorDiagnostics}>
           {error}
         </ReportableError>
       ) : null}

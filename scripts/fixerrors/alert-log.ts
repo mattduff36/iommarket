@@ -155,7 +155,7 @@ export function applyAlertHistory(
     if (!failed) return decision;
     return {
       ...decision,
-      action: "needs-person",
+      action: decision.lane === "critical" ? "pause-for-approval" : "needs-person",
       blockReason: "This came back after a previous fix. Do not repeat that change; investigate it again.",
     };
   });
@@ -181,10 +181,7 @@ export function renderAlertHistory(recalls: AlertRecall[]): string[] {
 
 function recallIssue(issue: AlertLogSubject, history: AlertHistoryIndex): AlertRecall {
   const message = loggedMessage(issue);
-  const same = [...new Set([
-    ...(history.byFingerprint.get(issue.fingerprint) ?? []),
-    ...(message.length > 0 ? history.byMessage.get(message) ?? [] : []),
-  ])];
+  const same = history.byFingerprint.get(issue.fingerprint) ?? [];
   const earlierCount = same.filter((event) => event.outcome === "seen").length;
   const previousFix = latest(same, "fixed");
   const recurred = latest(same, "recurred");
@@ -192,7 +189,9 @@ function recallIssue(issue: AlertLogSubject, history: AlertHistoryIndex): AlertR
     new Date(issue.lastSeenAt).getTime() > new Date(previousFix.at).getTime()
     || (recurred != null && new Date(recurred.at).getTime() >= new Date(previousFix.at).getTime())
   );
-  const similarFix = previousFix ? null : latestSimilarFix(message, issue.fingerprint, history);
+  const similarFix = previousFix ? null
+    : latest((history.byMessage.get(message) ?? []).filter(event => event.fingerprint !== issue.fingerprint), "fixed")
+      ?? latestSimilarFix(message, issue.fingerprint, history);
   return {
     issueId: issue.id,
     earlierCount,

@@ -18,9 +18,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { acknowledgeSnapshotIssues } from "./fixerrors/acknowledge";
 import { acknowledgedBacklogReport } from "./fixerrors/backlog";
-import { recordInvestigations, readInvestigationManifest } from "./fixerrors/investigations";
+import { draftInvestigationManifest, recordInvestigations, readInvestigationManifest } from "./fixerrors/investigations";
+import { createCollectorVerifier } from "./fixerrors/collector-verification";
 import { pendingReleasePaths, resumeReleases, recordReleaseRecurrences } from "./fixerrors/release-resume";
-import { blobAtRef, originRepository, readOriginUrl, runGit } from "./fixerrors/git-policy";
+import { originRepository, readOriginUrl, runGit } from "./fixerrors/git-policy";
+import { buildWorkQueue, fixCandidatesFromLog, pendingReleaseIssueIds, renderWorkQueue } from "./fixerrors/work-queue";
+import { fixerrorsTimeouts, stageTimings, timeStage } from "./fixerrors/operations";
 import { readVercelProductionStatus } from "./fixerrors/release";
 import {
   appendAlertLog,
@@ -34,7 +37,7 @@ import { clusterErrorPatterns, formatQueueStatusCounts, generateAnalysisReport, 
 import { assertBindingMatches, formatSnapshotBinding, getArgumentValue, readSnapshotBinding } from "./fixerrors/binding";
 import { closeSnapshotIssues, readCloseManifest } from "./fixerrors/close-out";
 import { commitVerifiedCluster, readClusterReview } from "./fixerrors/commit-cluster";
-import { assertAutoRepairDecision, buildFixerrorsDecisions, writeFixerrorsDecisions, type FixerrorsDecision } from "./fixerrors/decision";
+import { assertBoundRepairDecision, buildFixerrorsDecisions, writeFixerrorsDecisions } from "./fixerrors/decision";
 import { asPgClient, createFixerrorsClient } from "./fixerrors/db";
 import { createDatabaseTargetFingerprint, loadFixerrorsDatabase, parseFixerrorsDatabaseTarget } from "./fixerrors/env";
 import { assessExplicitRepairPaths, assessRepairWorkspace, compareRepairPaths, fetchReleaseRefs, readRepairWorkspace } from "./fixerrors/git-policy";
@@ -52,7 +55,7 @@ import {
 } from "./fixerrors/snapshot";
 import { type CodeBaseline, type OpenIssueSnapshot, type PgClientLike } from "./fixerrors/types";
 
-const MODES = ["--commit-cluster", "--prepare-repair", "--reopen", "--reopen-muted", "--acknowledge", "--close", "--verify-release", "--record-investigations", "--resume-releases"] as const;
+const MODES = ["--commit-cluster", "--prepare-repair", "--reopen", "--reopen-muted", "--acknowledge", "--close", "--verify-release", "--record-investigations", "--draft-investigations", "--resume-releases"] as const;
 const CLUSTER_ID = /^cluster-[0-9]+$/u;
 
 export function getSnapshotIssueIds(snapshot: Pick<OpenIssueSnapshot, "issues">): string[] {
@@ -82,26 +85,10 @@ function commitFromArguments(args: string[]) {
     throw new Error("Commit requires --review and --cluster-id");
   }
   const snapshot = readAndVerifySnapshot();
-  const decisionFile = JSON.parse(readFileSync(resolve(process.cwd(), "private", "fixerrors", "decision.json"), "utf8")) as {
-    version: number;
-    codeBaseline: CodeBaseline | null;
-    decisions: FixerrorsDecision[];
-  };
-  if (decisionFile.version !== 2) throw new Error("Decision manifest version mismatch");
-  assertAutoRepairDecision(decisionFile.decisions, clusterId, issueIds);
-  const selectedDecision = decisionFile.decisions.find((decision) => decision.clusterId === clusterId);
-  if (!issueIds.length || new Set(issueIds).size !== issueIds.length
-    || issueIds.some((id) => !selectedDecision?.issueIds.includes(id) || !getSnapshotIssueIds(snapshot).includes(id))) {
-    throw new Error("Repair issue IDs must be a unique non-empty subset of the signed cluster");
-  }
+  const decisionText = readFileSync(resolve(process.cwd(), "private", "fixerrors", "decision.json"), "utf8");
+  assertBoundRepairDecision(snapshot, decisionText, clusterId, issueIds, lane);
   const baseline = snapshot.analysis.codeBaseline;
-  if (
-    !baseline
-    || decisionFile.codeBaseline?.productionSha !== baseline.productionSha
-    || decisionFile.codeBaseline?.stagingSha !== baseline.stagingSha
-  ) {
-    throw new Error("Decision manifest does not match the signed snapshot code baseline");
-  }
+  if (!baseline) throw new Error("Snapshot has no code baseline");
   const pathAssessment = assessExplicitRepairPaths({
     paths, newPaths: splitList(getArgumentValue(args, "--new-paths")), baseline, cwd: process.cwd(),
   });
@@ -228,18 +215,33 @@ function printExportFollowUp(snapshot: OpenIssueSnapshot) {
 
 async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint: string) {
   console.log("FIXERRORS - unresolved monitoring investigation");
+  let previous: OpenIssueSnapshot | null = null;
+  let previousRejected = false;
+  if (existsSync(ERROR_SNAPSHOT_PATH)) {
+    try { previous = readAndVerifySnapshot(ERROR_SNAPSHOT_PATH); }
+    catch {
+      previousRejected = true;
+      console.error("Previous snapshot is invalid; no delta baseline will be used. Existing archives are not changed.");
+    }
+  }
   if (pendingReleasePaths().length > 0) {
     const releases = await resumeReleases({ client, databaseTargetFingerprint, actorAdminId: "dry-run", apply: false });
     writeAndVerifyTextArtifactAtomic(resolve(process.cwd(), "private", "fixerrors", "release-reconciliation.json"), JSON.stringify(releases, null, 2));
     console.log(`  Release reconciliation: ${releases.filter(result => !result.ok).length} blocked archive(s); details in private/fixerrors/release-reconciliation.json`);
   }
-  let snapshot = await fetchOpenIssueSnapshot(client, databaseTargetFingerprint);
+  let snapshot = await timeStage("snapshot export", () => fetchOpenIssueSnapshot(client, databaseTargetFingerprint));
+  const releaseManifests = pendingReleasePaths().slice(0, 200).flatMap(path => {
+    try { return [readReleaseManifest(path)]; }
+    catch { console.error("An archived release manifest is invalid; inspect --resume-releases before relying on release linkage."); return []; }
+  });
+  const workQueue = { ...buildWorkQueue(snapshot, previous, pendingReleaseIssueIds(snapshot, releaseManifests)),
+    ...(previousRejected ? { comparison: "invalid-previous-snapshot" } : {}) };
   writeAndVerifyTextArtifactAtomic(
     resolve(process.cwd(), "private", "fixerrors", "acknowledged-backlog.md"),
     await acknowledgedBacklogReport(client),
   );
   console.log("  Unresolved acknowledged work: private/fixerrors/acknowledged-backlog.md (read before closing this run)");
-  const patterns = groupOpenIssues(snapshot.issues);
+  const patterns = await timeStage("source analysis", async () => groupOpenIssues(snapshot.issues));
   const clusters = clusterErrorPatterns(patterns);
   let baseline: CodeBaseline | null = null;
   if (snapshot.issues.length > 0) {
@@ -255,14 +257,18 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
   const history = loadAlertHistory();
   const recalls = recallOpenIssues(snapshot.issues, history);
   const decisions = applyAlertHistory(buildFixerrorsDecisions(clusters, baseline), recalls);
-  writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "decision.json"), decisions, baseline);
+  const recentFixes = baseline ? runGit(["log", baseline.productionSha, "--since=30 days ago", "--max-count=50", "--format=%H%x09%s"], process.cwd()) : null;
+  if (recentFixes && recentFixes.status !== 0) throw new Error("Could not read bounded production fix history");
+  const candidates = fixCandidatesFromLog(recentFixes?.stdout ?? "", releaseManifests.map(manifest => manifest.fixCommitSha));
+  const decisionContent = writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "decision.json"), decisions, baseline, snapshot);
   const report = generateAnalysisReport(
     snapshot.issues,
     patterns,
     clusters,
     baseline,
-    renderAlertHistory(recalls),
+    [...renderWorkQueue(workQueue, candidates), ...renderAlertHistory(recalls)],
     snapshot.queueStatusCounts,
+    decisions,
   );
   appendAlertLog(newSeenEvents(snapshot.issues, history));
   writeAndVerifyTextArtifactAtomic(ERROR_ANALYSIS_PATH, report);
@@ -273,13 +279,17 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
     clusters.length,
     clusters.filter((cluster) => cluster.action === "report-only").flatMap((cluster) => cluster.issueIds),
     baseline,
+    new Date(),
+    decisionContent,
   );
   snapshot = writeAndVerifySnapshot(snapshot, ERROR_SNAPSHOT_PATH);
   writeAndVerifySnapshot(snapshot, resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}.json`));
   writeAndVerifyTextArtifactAtomic(resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}.md`), report);
-  writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}-decision.json`), decisions, baseline);
+  writeAndVerifyTextArtifactAtomic(resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}-queue.json`), `${JSON.stringify(workQueue, null, 2)}\n`);
+  writeFixerrorsDecisions(resolve(process.cwd(), "private", "fixerrors", "snapshots", `${snapshot.snapshotId}-decision.json`), decisions, baseline, snapshot);
 
   console.log(`  Unresolved issues (OPEN + ACKNOWLEDGED): ${snapshot.issues.length}`);
+  console.log(`  Run-start work: ${workQueue.metrics.newIssues} new; ${workQueue.metrics.occurrenceDelta} additional occurrences; ${workQueue.after.overdue} overdue reviews`);
   console.log(`  Archived release records: ${pendingReleasePaths().length}; use --resume-releases, inspect, then --apply`);
   if (snapshot.queueStatusCounts) {
     console.log(`  Queue status counts: ${formatQueueStatusCounts(snapshot.queueStatusCounts)}`);
@@ -305,8 +315,17 @@ function splitList(value: string | null): string[] {
 }
 
 async function main() {
+  fixerrorsTimeouts();
   const args = process.argv.slice(2);
   const invocation = parseFixerrorsInvocation(args);
+  if (invocation.mode === "--draft-investigations") {
+    const output = getArgumentValue(args, "--output");
+    if (!output || existsSync(output)) throw new Error("Draft requires a new --output path; existing files are never overwritten");
+    const snapshot = readAndVerifySnapshot(getArgumentValue(args, "--snapshot-file") ?? undefined);
+    writeAndVerifyTextArtifactAtomic(resolve(output), `${JSON.stringify(draftInvestigationManifest(snapshot), null, 2)}\n`);
+    console.log("Draft written locally. Complete each update entry with real investigation evidence before recording.");
+    return;
+  }
   if (invocation.mode === "--commit-cluster") {
     const result = commitFromArguments(args);
     console.log(JSON.stringify(result, null, 2));
@@ -324,7 +343,7 @@ async function main() {
   console.log(`Database: ${database.target} (${database.host})`);
   const databaseTargetFingerprint = createDatabaseTargetFingerprint(database.connectionString);
   const client = createFixerrorsClient();
-  await client.connect();
+  await timeStage("database connect", () => client.connect());
   const databaseClient = asPgClient(client);
 
   try {
@@ -339,19 +358,17 @@ async function main() {
       const path = getArgumentValue(args, "--investigation-manifest");
       if (!path) throw new Error("--investigation-manifest is required");
       const snapshot = requireBinding(args, "Investigation update requires the exact snapshot binding");
-      const refs = fetchReleaseRefs(process.cwd());
-      const repo = originRepository(readOriginUrl(process.cwd()));
-      const deployment = await readVercelProductionStatus({ ...repo, sha: refs.productionSha });
+      const entries = readInvestigationManifest(path, getSnapshotIssueIds(snapshot));
+      let verifyCollector: (sha: string, paths: string[]) => Promise<boolean> = async () => false;
+      if (entries.some(entry => entry.action !== "retain" && entry.investigation.collector.state === "deployed")) {
+        const refs = fetchReleaseRefs(process.cwd());
+        const repo = originRepository(readOriginUrl(process.cwd()));
+        const deployment = await readVercelProductionStatus({ ...repo, sha: refs.productionSha });
+        verifyCollector = createCollectorVerifier({ ...refs, cwd: process.cwd(), deployed: deployment.ok });
+      }
       const result = await recordInvestigations({ client: databaseClient, snapshot, databaseTargetFingerprint,
         actorAdminId: await resolveActorAdminId(databaseClient), apply: args.includes("--apply"),
-        entries: readInvestigationManifest(path, getSnapshotIssueIds(snapshot)),
-        verifyCollector: async (sha, paths) => deployment.ok && sha === refs.productionSha
-          && paths.every(file => {
-            const local = runGit(["hash-object", "--", file], process.cwd());
-            const deployed = blobAtRef("origin/main", file, process.cwd());
-            return local.status === 0 && local.stdout.trim() === deployed
-              && deployed === blobAtRef("origin/staging", file, process.cwd());
-          }),
+        entries, verifyCollector,
       });
       console.log(JSON.stringify(result, null, 2));
       return;
@@ -406,5 +423,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
-  });
+  }).finally(() => console.error(`[fixerrors] stage timings: ${JSON.stringify(stageTimings())}`));
 }

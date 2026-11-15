@@ -50,6 +50,24 @@ describe("explicit user issue reports", () => {
     }
     expect(m.capture).not.toHaveBeenCalled();
   });
+  it("captures photo guard and image failure facts through the real report ingress and exporter", async () => {
+    const { fetchOpenIssueSnapshot } = await import("@/scripts/fixerrors/snapshot");
+    const diagnostics = { operation: "photo-submit", photoState: "needs-attention", photoCount: 2,
+      photoUploading: false, photoRecovering: false, photoNeedsAttention: true,
+      imagePhase: "provider-upload", httpStatus: 503, imageRequestId: "request_12345678" };
+    expect((await POST(request({ ...payload, diagnostics }))).status).toBe(201);
+    const extra = m.capture.mock.calls[0][0].extra;
+    expect(extra.diagnostics).toEqual(diagnostics);
+    const query = vi.fn().mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: "photo-issue", fingerprint: "fp-photo", status: "OPEN",
+        severity: "MEDIUM", source: "CLIENT", lastSeenAt: "2026-11-15T00:00:00Z", occurrences: 1 }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ ...extra, id: "photo-event", issueId: "photo-issue", source: "CLIENT",
+        occurredAt: "2026-11-15T00:00:00Z" }], rowCount: 1 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+    const snapshot = await fetchOpenIssueSnapshot({ query }, "a".repeat(64));
+    expect(snapshot.issues[0]?.events[0]?.evidence).toMatchObject(diagnostics);
+    expect((await POST(request({ ...payload, diagnostics: { ...diagnostics, httpStatus: 0 } }))).status).toBe(400);
+  });
   it("rejects cross-origin, excessive, and malformed requests without recording them", async () => {
     expect((await POST(request(payload, "https://attacker.example"))).status).toBe(403);
     expect((await POST(request({ ...payload, severity: "CRITICAL", userId: "other" }))).status).toBe(400);

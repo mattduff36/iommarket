@@ -52,6 +52,28 @@ describe("direct ImageKit client integration", () => {
     await expect(uploadDirectImageKitPhoto(new File(["x"], "car.jpg"), "intent", upload)).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it("retains the observed transfer phase, status and safe correlation on real upload failures", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ error: "private provider body" },
+      { status: 503, headers: { "x-request-id": "transfer_12345678" } }));
+    await expect(uploadDirectImageKitPhoto(new File(["x"], "car.jpg"), "intent", upload)).rejects.toMatchObject({
+      diagnostics: { operation: "photo-upload", imagePhase: "provider-upload", httpStatus: 503, imageRequestId: "transfer_12345678" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("captures verification and intent HTTP failures without uploading again", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ fileId: "raw-file" }))
+      .mockResolvedValueOnce(Response.json({ error: "private" }, { status: 400, headers: { "x-request-id": "finalize_12345678" } }));
+    await expect(uploadDirectImageKitPhoto(new File(["x"], "car.jpg"), "intent", upload)).rejects.toMatchObject({
+      diagnostics: { imagePhase: "finalize", httpStatus: 400, imageRequestId: "finalize_12345678" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockReset().mockResolvedValueOnce(Response.json({ error: "private" },
+      { status: 400, headers: { "x-request-id": "intent_12345678" } }));
+    await expect(uploadListingImageFile(new File(["x"], "car.jpg", { type: "image/jpeg" }))).rejects.toMatchObject({
+      diagnostics: { imagePhase: "intent", httpStatus: 400, imageRequestId: "intent_12345678" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("rejects a different upload endpoint before transmitting a file", async () => {
     await expect(uploadDirectImageKitPhoto(new File(["x"], "car.jpg"), "intent", { ...upload, uploadUrl: "https://attacker.example" })).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();

@@ -9,6 +9,7 @@ export type LiveMonitoringIssue = {
   severity: string;
   lastSeenAt: string;
   occurrences: number;
+  investigation?: unknown;
 };
 
 export function sameInstant(left: string, right: unknown): boolean {
@@ -46,10 +47,11 @@ export async function selectIssuesForUpdate(
     severity: string;
     lastSeenAt: string;
     occurrences: number | string;
+    investigation?: unknown;
   }>(
     `SELECT id, fingerprint, status, severity,
             to_char("lastSeenAt", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "lastSeenAt",
-            occurrences
+            occurrences, to_jsonb("MonitoringIssue")->'investigation' AS investigation
      FROM "MonitoringIssue"
      WHERE id = ANY($1::text[])
      FOR UPDATE`,
@@ -65,6 +67,7 @@ export async function selectIssuesForUpdate(
         severity: String(row.severity ?? ""),
         lastSeenAt: String(row.lastSeenAt),
         occurrences: Number(row.occurrences),
+        investigation: row.investigation,
       },
     ]),
   );
