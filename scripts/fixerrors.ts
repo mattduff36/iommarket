@@ -86,7 +86,8 @@ function commitFromArguments(args: string[]) {
   }
   const snapshot = readAndVerifySnapshot();
   const decisionText = readFileSync(resolve(process.cwd(), "private", "fixerrors", "decision.json"), "utf8");
-  assertBoundRepairDecision(snapshot, decisionText, clusterId, issueIds, lane);
+  const engineerReviewed = args.includes("--engineer-reviewed");
+  assertBoundRepairDecision(snapshot, decisionText, clusterId, issueIds, lane, new Date(), engineerReviewed);
   const baseline = snapshot.analysis.codeBaseline;
   if (!baseline) throw new Error("Snapshot has no code baseline");
   const pathAssessment = assessExplicitRepairPaths({
@@ -104,7 +105,9 @@ function commitFromArguments(args: string[]) {
     throw new Error("Cluster fingerprint does not match the signed issue fingerprints");
   }
   return commitVerifiedCluster({
-    lane,
+    // The classifier's report-only hint is not a veto on an independently reviewed repair.
+    // Persist these repairs as guarded, preserving the existing release manifest contract.
+    lane: engineerReviewed && lane === "report-only" ? "guarded" : lane,
     clusterId,
     fingerprint: derived,
     review: readClusterReview(reviewPath),
@@ -203,13 +206,16 @@ async function verifyFromArguments(args: string[], client: PgClientLike, databas
 
 function printExportFollowUp(snapshot: OpenIssueSnapshot) {
   const binding = formatSnapshotBinding(snapshot);
+  console.log("  Collection complete; engineering investigation and repair are not complete.");
+  console.log("  The chat engineer owns diagnosis, evidence sufficiency, mitigation and repair decisions. Read .cursor/commands/fixerrors.md.");
+  console.log("  Classifier hints do not block investigation. Use --engineer-reviewed with a tested, independently reviewed repair when appropriate.");
   console.log("  Acknowledge unchanged OPEN issues before investigation. Dry-run:");
   console.log(`npm run fixerrors -- --acknowledge ${binding}`);
   console.log("  Add --apply only after the dry-run output looks correct.");
   console.log("  Repair on the staging branch. Check the paths before editing:");
   console.log("npm run fixerrors -- --prepare-repair --paths=<files>");
   console.log("  Commit the reviewed repair locally. Push only with /fap or /ffap.");
-  console.log("  Close a fixed issue as pending-release. Resolve it with --verify-release after production deployment.");
+  console.log("  Resolve proven repairs only after production verification. A preventive mitigation is not proof that the original fault is resolved.");
   console.log(`  Snapshot issue IDs: ${getSnapshotIssueIds(snapshot).join(",")}`);
 }
 

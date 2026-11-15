@@ -1,5 +1,29 @@
 # Fixerrors: trustworthy, incremental investigation
 
+## Engineer-led workflow update
+
+Implemented plan: (1) put diagnosis and repair ownership in the chat runbook and
+AGENTS.md; (2) present the export as an evidence handoff with advisory fault
+groups; (3) permit explicitly engineer-reviewed non-critical repairs despite
+classifier limitations while retaining mechanical safety checks; (4) distinguish
+verified repairs from preventive mitigations and record-only activity; (5) verify
+offline without running the updated process against production.
+
+The engineer decides evidence sufficiency using actual impact and severity.
+Lower-risk browser failures can justify tested, reversible preventive changes
+without a definitive historical cause. Database, payment, security and
+data-integrity changes need an established cause. Unknown failures are not muted
+to make the queue smaller. Collection improvements should answer real diagnostic
+questions, not recreate engineering judgment as another rule engine.
+
+The legacy automatic path remains compatible. `--engineer-reviewed` allows the
+existing commit helper to accept reviewed non-critical work that lacks automatic
+eligibility, including report-only hints. Exact snapshot identity, reviewed diff,
+paths, tests, staging and release checks remain. The flag is an explicit caller
+instruction, not a signature or a substitute for independent review. Mitigations
+whose effect on the incident is unproven use the ordinary project workflow and
+remain unresolved with a verification plan, avoiding automatic false closure.
+
 One codebase serves production and preview. These changes do not resolve historical incidents, suppress unknown failures, authorize a release or alter payment/security gates. The operational workflow remains in `.cursor/commands/fixerrors.md`.
 
 ## Decision integrity

@@ -1,5 +1,17 @@
 # CursorPlaybook Guide
 
+## Project-local fixerrors
+
+When the user says `fixerrors`, use this chat's attached repository and read
+`.cursor/commands/fixerrors.md`. Run the registered collector, then act as the
+engineer: assess evidence and impact, investigate using available tools, and
+attempt justified fixes. The script's classifications are advisory, not a veto
+on investigation or proof of completion. Use proportionate, tested browser
+mitigations when justified; establish the cause before database, payment,
+security or data-integrity fixes. Preserve review and release approvals.
+Do not finish solely because issues were acknowledged or investigation plans
+were retained. Improve collection where an actual investigation needs it.
+
 This document explains how to use the CursorPlaybook effectively in your day-to-day development workflow.
 
 ## Overview

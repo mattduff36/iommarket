@@ -18,6 +18,27 @@ const bound = markSnapshotAnalysisCompleted(snapshot, "report", { fast: 1 }, 1, 
   new Date("2026-11-15T00:01:00Z"), text);
 
 describe("decision integrity binding (not a signature)", () => {
+  it("lets engineer-reviewed repairs use evidence beyond classifier source hints", () => {
+    const advisory = [{ ...decisions[0], lane: "report-only", action: "needs-person" as const, blockReason: "No original source frame" }];
+    const content = serializeDecisionManifest(snapshot, advisory, baseline);
+    const candidate = markSnapshotAnalysisCompleted(snapshot, "report", {}, 1, [], baseline,
+      new Date("2026-11-15T00:01:00Z"), content);
+    const now = new Date("2026-11-15T00:02:00Z");
+    expect(() => assertBoundRepairDecision(candidate, content, "cluster-1", ["one"], "report-only", now)).toThrow();
+    expect(() => assertBoundRepairDecision(candidate, content, "cluster-1", ["one"], "report-only", now, true)).not.toThrow();
+    for (const ids of [[], ["other"], ["one", "one"]]) {
+      expect(() => assertBoundRepairDecision(candidate, content, "cluster-1", ids, "report-only", now, true)).toThrow(/subset/i);
+    }
+    expect(() => assertBoundRepairDecision(candidate, content + " ", "cluster-1", ["one"], "report-only", now, true)).toThrow(/checksum/i);
+    expect(() => assertBoundRepairDecision(candidate, content, "cluster-1", ["one"], "report-only", new Date("2026-11-15T01:00:00Z"), true)).toThrow(/expired/i);
+  });
+  it("does not let engineer-reviewed mode bypass critical gates", () => {
+    const critical = sealSnapshot({ ...snapshot, issues: [{ ...issue, severity: "CRITICAL" }] });
+    const content = serializeDecisionManifest(critical, decisions, baseline);
+    const candidate = markSnapshotAnalysisCompleted(critical, "report", {}, 1, [], baseline,
+      new Date("2026-11-15T00:01:00Z"), content);
+    expect(() => assertBoundRepairDecision(candidate, content, "cluster-1", ["one"], "fast", new Date("2026-11-15T00:02:00Z"), true)).toThrow(/CRITICAL/);
+  });
   it("accepts only the snapshot-bound bytes and requested lane", () => {
     expect(() => assertBoundRepairDecision(bound, text, "cluster-1", ["one"], "fast", new Date("2026-11-15T00:02:00Z"))).not.toThrow();
     expect(() => assertBoundRepairDecision(bound, text, "cluster-1", ["one"], "guarded")).toThrow(/lane/i);

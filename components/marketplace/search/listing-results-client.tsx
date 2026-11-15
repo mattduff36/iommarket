@@ -55,6 +55,7 @@ export function ListingResultsClient({
   const includeSold = queryParams.includeSold === "true";
   const sort = parseSearchSort(queryParams.sort);
   const loaderRef = useRef<HTMLDivElement | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
   const hasMore = items.length < total;
 
   const queryString = useMemo(() => {
@@ -66,7 +67,13 @@ export function ListingResultsClient({
   useEffect(() => {
     setItems(initialListings);
     setPage(1);
-  }, [initialListings]);
+    setLoadError(null);
+    setIsLoading(false);
+    return () => {
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
+  }, [initialListings, queryString]);
 
   useEffect(() => {
     if (!hasMore || isLoading || loadError) return;
@@ -87,7 +94,10 @@ export function ListingResultsClient({
   });
 
   async function loadMore() {
-    if (isLoading || !hasMore) return;
+    if (requestRef.current || !hasMore) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const deadline = setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), 15_000);
     setIsLoading(true);
     setLoadError(null);
     const nextPage = page + 1;
@@ -95,11 +105,13 @@ export function ListingResultsClient({
       const response = await fetch(`/api/search?${queryString}&page=${nextPage}`, {
         method: "GET",
         cache: "no-store",
+        signal: controller.signal,
       });
       if (!response.ok) {
         throw new Error(`Search request failed with status ${response.status}`);
       }
       const data = (await response.json()) as { listings?: ListingItem[] };
+      if (requestRef.current !== controller || controller.signal.aborted) return;
       if (!Array.isArray(data.listings)) {
         throw new Error("Search response did not contain listings");
       }
@@ -107,9 +119,15 @@ export function ListingResultsClient({
       setItems((prev) => [...prev, ...listings]);
       setPage(nextPage);
     } catch {
-      setLoadError("Unable to load more listings. Check your connection and try again.");
+      if (requestRef.current === controller) {
+        setLoadError("Unable to load more listings. Check your connection and try again.");
+      }
     } finally {
-      setIsLoading(false);
+      clearTimeout(deadline);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setIsLoading(false);
+      }
     }
   }
 

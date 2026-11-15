@@ -15,7 +15,7 @@ export function shouldWatchAccountPage(pathname: string) {
   return /^\/(account(?:\/listings)?|dealer\/(dashboard|subscribe)|admin(?:\/(users|listings|dealers)(?:\/[^/]+)?)?)\/?$/.test(pathname);
 }
 
-/** Five-second launch fallback; visible pages only, one request in flight. */
+/** Visible, online pages only; one bounded request in flight with failure backoff. */
 export function LiveAccountUpdates() {
   const pathname = usePathname();
   const router = useRouter();
@@ -27,16 +27,22 @@ export function LiveAccountUpdates() {
     let dirty = false;
     let version: string | null = null;
     let timeout: ReturnType<typeof setTimeout>;
-    const controller = new AbortController();
+    let request: AbortController | null = null;
+    let failures = 0;
     const scope = pathname.startsWith("/admin") ? "admin" : "account";
     const isVisible = () => document.visibilityState !== "hidden";
+    const canPoll = () => isVisible() && navigator.onLine !== false;
     const markDirty = (event: Event) => {
       if (event.target instanceof HTMLElement && event.target.closest("form")) dirty = true;
     };
     const poll = async () => {
-      if (stopped || busy || !isVisible()) return;
+      if (stopped || busy || !canPoll()) return;
       clearTimeout(timeout);
       busy = true;
+      const controller = new AbortController();
+      request = controller;
+      const deadline = setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), 15_000);
+      let succeeded = false;
       try {
         const response = await fetch(`/api/account-updates?scope=${scope}`, {
           cache: "no-store", credentials: "same-origin", signal: controller.signal,
@@ -46,6 +52,7 @@ export function LiveAccountUpdates() {
         if (!response.ok) return;
         const data: unknown = await response.json();
         if (stopped || !data || typeof data !== "object" || !("version" in data) || typeof data.version !== "string") return;
+        succeeded = true;
         if (version !== null && version !== data.version) {
           if (dirty || document.querySelector('[role="dialog"][data-state="open"]')) {
             setWaitingPath(pathname);
@@ -57,13 +64,21 @@ export function LiveAccountUpdates() {
         }
         version = data.version;
       } catch {
-        // Offline/transient errors keep current content and retry when visible.
+        // Keep existing content; monitoring still records failed requests.
       } finally {
+        clearTimeout(deadline);
+        request = null;
         busy = false;
-        if (!stopped && isVisible()) timeout = setTimeout(() => { void poll(); }, 5_000);
+        failures = succeeded ? 0 : Math.min(failures + 1, 4);
+        if (!stopped && canPoll()) {
+          timeout = setTimeout(() => { void poll(); }, Math.min(5_000 * 2 ** failures, 60_000));
+        }
       }
     };
-    const resume = () => { if (isVisible()) void poll(); else clearTimeout(timeout); };
+    const resume = () => {
+      if (canPoll()) void poll();
+      else { clearTimeout(timeout); request?.abort(); }
+    };
     async function onCheckoutHandoff(storageEvent: StorageEvent) {
       const parsed = storageEvent.key === PAYMENT_RETURN_STORAGE_KEY
         ? parsePaymentReturnEvent(storageEvent.newValue)
@@ -91,15 +106,19 @@ export function LiveAccountUpdates() {
     }
     window.addEventListener("storage", onCheckoutHandoff);
     window.addEventListener("focus", resume);
+    window.addEventListener("online", resume);
+    window.addEventListener("offline", resume);
     document.addEventListener("visibilitychange", resume);
     document.addEventListener("input", markDirty);
     void poll();
     return () => {
       stopped = true;
-      controller.abort();
+      request?.abort();
       clearTimeout(timeout);
       window.removeEventListener("storage", onCheckoutHandoff);
       window.removeEventListener("focus", resume);
+      window.removeEventListener("online", resume);
+      window.removeEventListener("offline", resume);
       document.removeEventListener("visibilitychange", resume);
       document.removeEventListener("input", markDirty);
     };

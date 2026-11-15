@@ -34,9 +34,9 @@ describe("linked IOM model and trim fields", () => {
     render(<VehicleCatalogueFields {...props} makeValue="Honda" modelValue="CRV EX"
       makes={[{ id: "honda", name: "Honda", normalizedName: "honda" }]} />);
     await waitFor(() => expect(props.onChange).toHaveBeenCalledWith("model", "CR-V EX"));
-    expect(props.onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({
+    await waitFor(() => expect(props.onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({
       canonicalMake: "Honda", canonicalModel: "CR-V", variant: "EX",
-    }));
+    })));
   });
 
   it("displays the base model and supplied trim separately without catalogue data", () => {

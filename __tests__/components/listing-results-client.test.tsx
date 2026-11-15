@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ListingResultsClient } from "@/components/marketplace/search/listing-results-client";
 
@@ -43,6 +43,31 @@ class IntersectionObserverMock {
 }
 
 describe("ListingResultsClient pagination", () => {
+  it("discards a pending old-query response after filters change", async () => {
+    let finish!: (value: unknown) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    const item = { id: "new", title: "New filter listing", price: 1, featured: false, categoryName: "Cars", regionName: "Douglas" };
+    const { rerender } = render(<ListingResultsClient initialListings={[]} total={2} pageSize={1} queryParams={{ q: "old" }} />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const oldSignal = fetchMock.mock.calls[0][1].signal;
+    rerender(<ListingResultsClient initialListings={[item]} total={1} pageSize={1} queryParams={{ q: "new" }} />);
+    await act(async () => { finish({ ok: true, json: async () => ({ listings: [{ ...item, id: "old", title: "Stale listing" }] }) }); });
+    expect(oldSignal?.aborted).toBe(true);
+    expect(screen.queryByText("Stale listing")).toBeNull();
+    expect(screen.getByText("New filter listing")).toBeTruthy();
+  });
+
+  it("clears an old query error when new results arrive", async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError("Load failed"))
+      .mockResolvedValue({ ok: true, json: async () => ({ listings: [{ id: "two", title: "Recovered", price: 1, featured: false, categoryName: "Cars", regionName: "Douglas" }] }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = render(<ListingResultsClient initialListings={[]} total={1} pageSize={1} queryParams={{ q: "old" }} />);
+    await screen.findByRole("alert");
+    rerender(<ListingResultsClient initialListings={[]} total={1} pageSize={1} queryParams={{ q: "new" }} />);
+    expect(await screen.findByText("Recovered")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
   beforeEach(() => {
     routerPush.mockReset();
     vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
@@ -50,8 +75,25 @@ describe("ListingResultsClient pagination", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("turns a hung request into a reportable timeout with manual recovery", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const fetchMock = vi.fn().mockImplementation((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true });
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => { render(<ListingResultsClient initialListings={[]} total={1} pageSize={1} queryParams={{}} />); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(fetchMock.mock.calls[0][1].signal.reason.name).toBe("TimeoutError");
+    expect(screen.getByRole("alert").textContent).toContain("Unable to load more listings");
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("shows a retryable error when loading more listings fails", async () => {

@@ -207,11 +207,14 @@ export function generateAnalysisReport(
     "",
     `Investigation coverage: ${issues.length - missing}/${issues.length}; missing plans: ${missing}; overdue reviews: ${overdue}; recurred since review: ${recurred}.`,
     "This current report is replaced on export; its per-snapshot archive is retained.",
-    "Use it as context for Cursor to analyse and fix codebase issues.",
+    "Collection complete; investigation and repair remain the chat engineer's responsibility.",
+    "Classifications below are advisory. Use source, logs, database and browser evidence to attempt repairs; retaining a plan is not an investigation outcome.",
+    "For lower-risk browser failures, consider a bounded, reversible mitigation with tests and a verification plan when exact cause remains uncertain. Do not suppress unknown errors or claim a mitigation proves resolution.",
+    "Database connection, payment, security and data-integrity changes require an established cause and their existing approval gates. Assess actual impact, not just the reported severity or lane.",
     "",
-    "## Root Cause Clusters and TEE Routing",
+    "## Suggested fault groups (not established root causes)",
     "",
-    "| Cluster | Root cause family | Lane | Disposition | Block reason | Issues | Occurrences |",
+    "| Cluster | Suggested family | Suggested lane | Legacy automation hint | Evidence limitation | Issues | Occurrences |",
     "|---|---|---|---|---|---:|---:|",
   ];
 
@@ -225,7 +228,7 @@ export function generateAnalysisReport(
   }
 
   lines.push("");
-  lines.push("Dispositions are hints. A code fix, or a tooling change that makes monitoring less sensitive, can still resolve the issue after it is deployed to production.");
+  lines.push("needs-person means hand back to the chat engineer, not stop or ask the user to diagnose it. --engineer-reviewed permits reviewed non-critical repairs despite classifier limitations; snapshot, path, diff-review and release checks still apply.");
   lines.push("Source frames are investigation candidates, not proof of root cause. Route, action and chunk matches are low-confidence hints; every auto-repair issue needs its own original source frame.");
   lines.push("Clusters are routed independently; a CRITICAL cluster does not escalate unrelated clusters.");
   if (patterns.some((pattern) => /react error #?441|server components render/i.test(pattern.normalizedMessage))) {

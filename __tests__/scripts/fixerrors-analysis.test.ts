@@ -307,6 +307,10 @@ describe("queue status reporting", () => {
     const counts = { OPEN: 2, ACKNOWLEDGED: 5, MUTED: 1, RESOLVED: 8 };
     const openIssue = makeIssue({ id: "open-only" });
     const report = generateAnalysisReport([openIssue], [], [], null, [], counts);
+    expect(report).toContain("investigation and repair remain the chat engineer's responsibility");
+    expect(report).toContain("Suggested fault groups (not established root causes)");
+    expect(report).toContain("--engineer-reviewed");
+    expect(report).toContain("Database connection, payment, security and data-integrity changes require an established cause");
     expect(report).toContain(`> **Queue statuses:** ${formatQueueStatusCounts(counts)} (export includes OPEN and ACKNOWLEDGED)`);
     expect(report).toContain("### open-only");
     expect(report).not.toContain("### acknowledged-hidden");

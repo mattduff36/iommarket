@@ -1,98 +1,43 @@
-# /fixerrors
+# /fixerrors — collect evidence, then repair
 
-## Completion means a fix or better evidence
+## Responsibility
 
-Read `private/fixerrors/acknowledged-backlog.md` on every run. Acknowledged issues remain unresolved work; an empty OPEN export is not a clean bill of health. The backlog is read-only and does not grant mutation authority outside the checksum-bound snapshot. Checksums detect changed bytes; they are not cryptographic signatures or proof of authenticity.
+The script is a diagnostic tool. The chat engineer is the decision-maker: run the collector, read its evidence, investigate with available tools, and attempt to fix the reported problems. Do not stop at an export, acknowledgement, classifier disposition or renewed investigation record.
 
-For every unresolved issue, establish the cause and fix it where possible. If existing evidence cannot establish the cause, identify the missing facts and implement a bounded, privacy-safe collection path with regression tests. Record the collector, required deployment, trigger, expected evidence and next investigation step. “Monitor”, “retry”, or “ask the user” alone is not an adequate technical close-out. A genuine account/support action can still be required, but distinguish it from an uninvestigated defect.
+Use this chat's attached repository. Never substitute another project's runbook or database. A request to change this workflow is not a request to run it against production.
 
-Never mute generic network failures, failed RSC requests or opaque errors merely because their message is common. Inspect raw event provenance: older CLIENT events may contain a server stack manufactured by the ingest endpoint, which is not the fault's origin. Source-file suggestions and route proximity are hints, not root-cause evidence. Diagnostic improvements are not proof that the underlying error is resolved.
+## Normal workflow
 
-1. Run `npm run fixerrors`. This reads `.env.production` and exports every OPEN and ACKNOWLEDGED `MonitoringIssue` from the production database. It fetches `origin/main` and `origin/staging`, records both commit SHAs and the blob hash of every suggested file, and writes `private/fixerrors/error-analysis.md`, `private/fixerrors/decision.json`, and a checksum-bound snapshot. Use `--database=preview`, `--database=staging`, or `--database=development` only when the production queue is not the one being fixed.
-2. Acknowledge those issues before investigation. Run the printed command, then the same command with `--apply` after the dry-run lists the unchanged issues. The printed binding uses `--database-fingerprint`. Do not pass that value as `--database`. Acknowledgement does not change fingerprint, occurrence count, or last seen time. Issues that changed after export stay `OPEN` until close-out.
-3. Read the decision manifest, the "What we already know" section, and the production/staging section of the analysis. That section is built from `private/fixerrors/alert-log.jsonl` plus committed fixes. Use it before choosing a repair:
-   - Same error seen before, with a fix that held: start from that fix and confirm it still applies.
-   - Same error came back after a fix: do not repeat that change. The decision is `needs-person`. Investigate a different cause.
-   - Similar error fixed before: use that note as a hint, then check the current code.
-   - No earlier record: this run has added the error to the log for the next launch.
-   Dispositions are hints:
-   - `auto-repair` (`fast`, `standard`, `guarded`): each issue must have its own high-confidence original source frame, and every suggested file must exist in both `origin/main` and `origin/staging`. A sibling issue's stack cannot confer eligibility. CLIENT stacks require explicit `clientStackProvided=true`; historical ingest-manufactured stacks are ignored. Route, action and compiled-chunk mappings remain low-confidence investigation hints, never root-cause proof. A differing blob is reported and does not by itself block the repair. Additional existing callers are checked against those same snapshot-bound commits. Declare genuinely new helpers/tests explicitly with `--new-paths=<files>`; they must be absent from both bound commits and `HEAD`, and included in the independently reviewed diff.
-   - A missing file, or refs that could not be compared, sets `blockReason` and changes the action to `needs-person`. Leave that issue acknowledged and record the next step.
-   - `pause-for-approval`: continue read-only investigation, regression tests and privacy-safe diagnostics. Security-sensitive or production changes retain their approval gates; record the exact blocker and collector. The classifier does not prohibit investigation.
-   - `mute-noise`: expected user input or validation noise, unless investigation shows a code defect or tooling that is too sensitive.
-   - `needs-person`: external, third-party, unknown, or incompatible-ref issues that need a person, unless investigation shows a code defect or tooling that is too sensitive.
-4. Check out `staging` and update it so it is not behind `origin/staging`. Before editing, confirm the repair paths are clean:
+1. Run `npm run fixerrors` from the repository root. Read `private/fixerrors/error-analysis.md`, the snapshot, and `private/fixerrors/acknowledged-backlog.md`. The script gathers OPEN and ACKNOWLEDGED faults, bounded event/request evidence, history, code refs and suggested groups. Read the printed limitations. A group is not a proven common cause.
+2. Acknowledge unchanged OPEN issues with the printed checksum-bound command: inspect its dry run, then apply. Reconcile pending archived releases when present. These are bookkeeping, not repairs.
+3. Assess the whole unresolved backlog, then investigate actionable families using judgment about severity, user impact, recurrence and available evidence. Prioritize critical faults and explicit user reports; include overdue cases rather than silently recycling them. Use existing findings to avoid repeating work. Script labels such as `needs-person`, `report-only` and source-frame limitations mean handoff to the engineer, not refusal to investigate.
+4. Read the owning code and use relevant logs, database evidence, browser interactions, deployment facts and regression tests. Reproduce the reported interaction where practical; a generic page-load smoke test does not establish the cause of an interaction failure. Decide whether the evidence supports a root-cause repair, a preventive mitigation, or a specific next evidence-gathering action.
+5. Implement proportionate repairs on staging, preserving concurrent work. Test the failure and relevant boundaries. Use independent review where required by the repair helper or warranted by risk. Follow existing release authorization and staging-to-main policy; do not infer new deployment approval from collecting faults.
+6. Report separately: faults examined, fixes implemented/tested/deployed, preventive mitigations and their uncertainty, and remaining issues with concrete blockers or next actions. State what was actually attempted. Report data collection as collection, never as successful repair.
 
-```bash
-npm run fixerrors -- --prepare-repair --paths=<files>
-```
+## Evidence sufficiency is an engineering judgment
 
-5. For each unblocked auto-repair cluster, and for any other cluster that investigation shows is a real defect or over-sensitive tooling: implement the root-cause fix on `staging`, add or update regression tests, and run the targeted checks. Over-sensitive tooling means the capture, threshold, or classifier should change so the alert stops firing. An opaque `Script error` is not proof of noise. Check historical configuration errors against current read-only evidence before claiming the configuration is still wrong. Keep security checks intact.
+- **Lower-risk browser faults:** exact historical causality is not always necessary for a useful defensive change. A bounded recovery path, safer resource handling, or graceful fallback may prevent the observed user impact. Explain the supported failure mechanism, test it, assess side effects, retain useful diagnostics and define how effectiveness will be checked. A retry must be bounded and safe for the operation; never retry non-idempotent writes blindly. An error boundary cannot prevent every browser error.
+- **Database connections, persistence, payments, security or data integrity:** establish the cause before changing behavior. Check current connection/configuration, server evidence and affected operations. Do not guess at pool sizes, weaken validation, hide failures, or add blanket retries. Existing approval gates remain. Actual impact overrides an incorrect severity label.
+- **Unknown cause:** do not wait indefinitely for a perfect stack if a defensible low-risk mitigation is available. Conversely, do not force a speculative patch merely to reduce the unresolved count. Explain why a fix is or is not justified. If evidence is insufficient, make collection more useful where practical and name the exact missing facts and next diagnostic action.
+- **Noise versus prevention:** suppressing alerts, catching and discarding exceptions, or muting generic network/RSC failures is not a preventive fix. Only classify noise when evidence establishes expected behavior.
 
-   Reuse already-read files while their content is unchanged; batch independent lookups, limit dependency searches to a specific package, and stop broad searches once the cause is established. Record elapsed time, tool count, model routing and available usage counters; do not invent a billed cost. Regression tests must exercise the failure, including malformed and boundary inputs. Normal tests must never automatically load production credentials; provider/database integration tests require an explicit test connection.
+## Repairs and mechanical safeguards
 
-   An independent reviewer must inspect the actual diff and tests. Write `private/fixerrors/reviews/<cluster-id>.json` with `testsPassed`, `independentReview`, `reviewer`, `reviewerEvidence`, `reviewedDiffSha256`, `evidence`, the exact repaired `issueIds`, a short sanitised `summary`, and `tests`. Stage only the reviewed repair paths and calculate `reviewedDiffSha256` from the raw bytes of `git diff --cached --binary -- <paths>`; do not hash a shell-reformatted string. The review must name the reviewer and substantive evidence, not merely assert a boolean. A mixed cluster may have a non-empty reviewed subset; never include unrelated issue IDs as fixed. Unrelated staged work is rejected. A changed diff requires another review.
-6. Stage exactly the reviewed paths first. Dry-run the local commit, then apply it only after the dry run is correct. Both modes check the real staged paths and reviewed diff hash. New repairs also require decision manifest v3: its exact bytes are bound into the snapshot, with the same snapshot ID, issue checksum, baseline, complete unique membership and requested lane. Legacy unbound decisions require re-export; archived release verification remains readable. Apply commits a separate snapshot of that index so later unrelated staging cannot enter the commit; the real index is not reset. Do not run concurrent commits in the shared checkout. The cluster fingerprint is derived from the snapshot-bound issue fingerprints. The commit is rejected on `main`, a detached HEAD, a feature branch, or a staging branch that is behind `origin/staging`. It writes `private/fixerrors/runs/<snapshot-id>/<cluster-id>/release.json`. It must never be given `--push`:
+The legacy classifier is advisory. For a proven non-critical repair outside its automatic eligibility, use `--engineer-reviewed` with `--commit-cluster`, retaining the bound cluster's original `--lane`. This permits a tested, independently reviewed repair even without an original source frame or when the hint is `needs-person`/`report-only`. Explain the diagnosis, evidence sufficiency and why the earlier limitation is overcome in the review evidence. A previous failed fix requires a different supported approach, not blindly repeating it.
 
-```bash
-npm run fixerrors -- --commit-cluster --cluster-id=<id> --lane=<lane> --issue-ids=<ids> --paths=<files> --review=private/fixerrors/reviews/<id>.json
-npm run fixerrors -- --commit-cluster --cluster-id=<id> --lane=<lane> --issue-ids=<ids> --paths=<files> --review=private/fixerrors/reviews/<id>.json --apply
-```
+This flag does not remove snapshot expiry/checksums, unique issue membership, baseline/path checks, clean staging, exact staged diff review, tests, or production verification. Report-only repairs are recorded as guarded releases. CRITICAL lanes/members still require the separate approved critical workflow; investigation can continue immediately. Use the ordinary reviewed project workflow for approved critical repairs, not a classifier bypass.
 
-7. Push the staging commit with `/fap` or `/ffap`. Confirm the preview deployment. Open an approved pull request from `staging` to `main`. Do not push `main` directly. A squash or rebase that drops the staging commit stays acknowledged.
-8. Cover every unresolved snapshot issue exactly once in `private/fixerrors/investigations.json`. Use `{ "issueId": "...", "action": "retain" }` for an existing valid plan, even if overdue: this preserves its entire stored record, review date, occurrence baseline, status, timestamps and audit history without collector revalidation or issue writes. Use `{ "issueId": "...", "action": "update", "investigation": { ... } }` for changed/new plans (`action` omitted remains a legacy update). Updates use `lib/monitoring/investigation.ts` as the closed schema and require finding, evidence, missingEvidence, owner, nextAction, reviewAfter and a collector with existing paths/tests, trigger, expectedEvidence, state and (when deployed) deploymentSha. All retained and updated identities and complete stored-review checksums are locked and checked before any write; a concurrent review rejects the whole batch. Outcomes: collecting-evidence, external-blocker, pending-release, expired. Acknowledgement alone is not completion. A historical issue may be expired only when at least 14 days old, the missing evidence cannot be recovered, and the collector is verified in production. Age alone is never the reason. Expired is distinct from resolved and automatically reopens on recurrence.
+For a preventive mitigation whose effect on the original incident is unproven, use the ordinary project change/release workflow and record the mitigation and verification plan in the issue investigation. Do not register it as a proven repair for automatic resolution. Diagnostic improvements also do not resolve the underlying fault. Verified repairs may use the snapshot-bound release helper; close only the issue subset the evidence supports.
 
-   Generate a draft locally without loading environment files, contacting the database or overwriting an existing output:
+The complete argument/reference guide is [fixerrors-command-reference.md](../../docs/fixerrors-command-reference.md). Use it for exact mutation commands, not as a second decision-making process. Historical records remain readable.
 
-```bash
-npm run fixerrors -- --draft-investigations --snapshot-file=<snapshot.json> --output=<new-manifest.json>
-```
+## Investigation records and better collection
 
-   Valid existing plans become retain entries. Missing plans become deliberately incomplete updates: supply actual evidence, never invented findings. Retain-only recording needs no Git/ref/deployment checks. Updated collectors verify both source and test files against immutable fetched commit SHAs, deduplicating Git lookups within this invocation only; changed local bytes invalidate their local hash.
+Retain valid unchanged plans without rewriting dates or occurrence baselines. Update records when diagnosis, mitigation, evidence or next action actually changes. An overdue retained plan remains overdue and must be mentioned if it could not be progressed. Full record coverage is bookkeeping, not a completion metric.
 
-```bash
-npm run fixerrors -- --record-investigations --investigation-manifest=private/fixerrors/investigations.json <snapshot-binding>
-npm run fixerrors -- --record-investigations --investigation-manifest=private/fixerrors/investigations.json <snapshot-binding> --apply
-```
+Improve the collector when a real investigation exposes missing useful evidence: add the smallest privacy-safe fields or correlation needed, test the capture/export path, and document what question the evidence answers. Do not build a new classifier or rule engine for each incident. Keep bounded payloads, provenance, redaction, original fault visibility and operational timeouts.
 
-   Verify the dry run before apply. Any concurrent occurrence, wrong target or incomplete coverage rejects the entire update. The record and bounded evidence bundle are stored on the issue and in the admin audit. The old `--close` entry point is now for proven-noise muting only; it cannot substitute a vague next step for an investigation. Never mute a failure merely for lacking evidence.
-9. Check the report for missing records, overdue reviews and recurrences. Run `--resume-releases` to reconcile archived release manifests before choosing a new repair; inspect the dry run, then apply. Each blocked record is reported without stopping other records. Historical snapshots remain immutable, and per-snapshot release paths prevent cluster-number reuse from overwriting earlier evidence.
+## Completion for a run
 
-10. After the fix commit is an ancestor of both `origin/staging` and `origin/main`, and GitHub reports a successful completed Vercel deployment for the current `origin/main` SHA, resolve the cluster:
-
-```bash
-npm run fixerrors -- --verify-release --cluster-id=<id>
-npm run fixerrors -- --verify-release --cluster-id=<id> --apply
-```
-
-   This check does not use the 30-minute export expiry. It requires the deployed source blobs to still match the reviewed repair, so a later revert cannot resolve an issue merely through commit ancestry. Changed content requires explicit re-review. It resolves an issue only when the snapshot-bound fingerprint still matches and `lastSeenAt` is not later than the Vercel completion time. Recurrence before deployment can still be resolved. Recurrence after deployment stays `ACKNOWLEDGED` with a remediation note. Authentication failure, a missing or pending Vercel status, or a newer unverified `origin/main` SHA also leaves the issue acknowledged. Existing release manifests cannot be overwritten; retain their evidence.
-11. CRITICAL clusters keep their own architecture, security, and data gates. Rollback of issues resolved by a verify-release run is `npm run fixerrors -- --reopen --run-id=<id> --apply`.
-
-12. Correct a mistaken mute using the original archived snapshot and mute run, with explicit issue IDs and a sanitised reason. Dry-run first, inspect exactly which issues would be acknowledged, then repeat with `--apply`:
-
-```bash
-npm run fixerrors -- --reopen-muted --run-id=<mute-run-id> --snapshot-file=private/fixerrors/snapshots/<snapshot-id>.json --issue-ids=<ids> --evidence="Reason for correcting the mute"
-```
-
-   This acknowledges rather than resolves. It verifies the original snapshot and database, unchanged fingerprints/occurrences/last-seen times, and the latest matching mute audit and status event. A newer action or recurrence blocks the entire correction. It records status and admin audit events. Historical corrections do not use export expiry because they undo a precisely identified prior action; they do not authorize unrelated status changes.
-
-## Queue, evidence and bounded operations
-
-The prioritized queue compares only a checksum-verified, same-database, non-newer prior export. Stable work keys include issue ID and fingerprint; changed identities and reset occurrence counts never borrow deltas. New issues, new occurrences/recurrences, overdue reviews, changed evidence and pending releases precede unchanged backlog, which remains visible. Export-start counts are not claimed as post-repair improvements. Queue evidence is archived as `private/fixerrors/snapshots/<snapshot-id>-queue.json`.
-
-Five-minute route/release/browser burst groups are bounded report-only hints: they do not merge issues, suppress alerts or discard explicit reports. Recent fix-subject commits on the fetched production branch are bounded to 50 commits / 30 days and 20 unlinked candidates. Production-branch presence is not deployment or causality proof. Exact fingerprint recurrence can mark a previous fix as failed; similar messages alone cannot. A CRITICAL member always retains its approval gates.
-
-Photo guards capture uploading/recovering/needs-attention/ready and bounded counts at failure time. Upload failures capture preflight/intent/provider-upload/finalize, observed HTTP status and a validated ephemeral request reference through the existing explicit report path. Unknown status stays unknown and is never proof of noise. No diagnostic URLs, bodies, filenames, form values or persistent device IDs are added. See `docs/fixerrors-improvements.md` for collector recipes and the offline benchmark.
-
-Export the following optional environment variables before invoking the command. Each must be a decimal integer from 1 to 600000 milliseconds; invalid settings fail explicitly:
-
-| Variable | Default ms |
-|---|---:|
-| `FIXERRORS_GIT_TIMEOUT_MS` | 30000 |
-| `FIXERRORS_GITHUB_TIMEOUT_MS` | 30000 |
-| `FIXERRORS_CONNECT_TIMEOUT_MS` | 15000 |
-| `FIXERRORS_QUERY_TIMEOUT_MS` | 60000 |
-| `FIXERRORS_STATEMENT_TIMEOUT_MS` | 45000 |
-| `FIXERRORS_LOCK_TIMEOUT_MS` | 10000 |
-
-The idle-transaction deadline uses the query timeout. Stage timings and aggregate subprocess/query counts are printed without SQL parameters, connection strings or command arguments. Timeouts fail explicitly, do not retry mutations and do not relax transaction, review or release checks.
+The engineer has attempted justified repairs and useful diagnostic actions, or identified specific blockers that prevent them. Remaining issues need honest, actionable explanations; zero OPEN issues, 100% plan coverage, or a passing smoke test alone never means the job is done. Do not promise that one run can eliminate all historical or external faults.
