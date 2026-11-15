@@ -4,9 +4,11 @@ import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import type { OutcomeReview } from "@/lib/forms/outcome-uncertainty";
 import { ListingPreviewButton } from "./listing-preview-button";
 import type { DraftCatalog, UnsavedDraftSnapshot } from "./listing-unsaved-draft";
+import type { ClientDiagnostics } from "@/lib/monitoring/client-diagnostics";
 
-export function CreateListingActions({ step, error, outcomeReview, userId, mode, draftCatalog, unsavedSnapshot, photoBusy, isPending, recovering, prevStep, nextStep, editMode, isFreeForUser, onAddPhotos, canAddPhotos, addingPhotosBusy }: {
+export function CreateListingActions({ step, error, diagnostics, outcomeReview, userId, mode, draftCatalog, unsavedSnapshot, photoBusy, isPending, recovering, prevStep, nextStep, editMode, isFreeForUser, onAddPhotos, canAddPhotos, addingPhotosBusy }: {
   step: number; error: string | null; outcomeReview: OutcomeReview | null;
+  diagnostics?: ClientDiagnostics;
   userId?: string; mode: "private" | "dealer"; draftCatalog: DraftCatalog;
   unsavedSnapshot: UnsavedDraftSnapshot; photoBusy: boolean; isPending: boolean;
   recovering: boolean; prevStep: () => void; nextStep: () => void;
@@ -14,7 +16,7 @@ export function CreateListingActions({ step, error, outcomeReview, userId, mode,
 }) {
   return (
 <>
-                  {error ? <FormErrorSummary messages={[error]} /> : null}
+                  {error ? <FormErrorSummary messages={[error]} diagnostics={diagnostics} /> : null}
                   {outcomeReview ? <a href={outcomeReview.href} className="text-text-trust underline">{outcomeReview.label}</a> : null}
                   <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
                     {step > 1 ? (

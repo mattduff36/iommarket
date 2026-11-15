@@ -430,6 +430,14 @@ describe("CreateListingForm registration lookup", () => {
     expect(syncListingImages).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Finish mock upload" }));
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, reference: "event_photo_guard" }) });
+    fireEvent.click(screen.getByRole("button", { name: "Report issue" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reported" })).toBeDisabled());
+    const reportCall = fetchMock.mock.calls.find(([url]) => url === "/api/monitoring/report-issue");
+    expect(JSON.parse(reportCall?.[1]?.body).diagnostics).toMatchObject({
+      operation: "photo-submit", photoState: "uploading", photoUploading: true,
+      photoRecovering: false, photoNeedsAttention: false, photoCount: 2,
+    });
     expect(continueButton).toBeEnabled();
     fireEvent.click(continueButton);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));

@@ -14,6 +14,8 @@ export type SourceFileRef = {
   file: string;
   line?: number;
   column?: number;
+  provenance?: "server-stack" | "client-stack" | "app-chunk" | "server-chunk" | "action" | "route";
+  confidence?: "high" | "low";
 };
 
 export type SnapshotEvent = {
@@ -40,6 +42,7 @@ export type SnapshotIssue = {
   title: string;
   status: "OPEN" | "ACKNOWLEDGED";
   investigation?: unknown;
+  investigationChecksum?: string;
   severity: string;
   source: string;
   lastSeenAt: string;
@@ -59,6 +62,7 @@ export type ErrorPattern = {
   normalizedMessage: string;
   occurrences: number;
   sourceFiles: SourceFileRef[];
+  issueEvidence?: Record<string, { severity: string; sourceFiles: SourceFileRef[] }>;
   affectedPages: string[];
   firstSeen: string;
   lastSeen: string;
@@ -95,6 +99,7 @@ export type SnapshotAnalysis = {
   clusterLanes: Record<string, number>;
   reportOnlyIssueIds: string[];
   codeBaseline: CodeBaseline | null;
+  decisionChecksum?: string;
 };
 
 export type OpenIssueSnapshot = {

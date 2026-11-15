@@ -6,7 +6,7 @@ import { captureBusinessEvent } from "@/lib/monitoring";
 import { cleanReportedMessage } from "@/lib/monitoring/user-report";
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
-import { AUTH_DIAGNOSTIC_CODES } from "@/lib/monitoring/client-diagnostics";
+import { clientDiagnosticsSchema } from "@/lib/monitoring/client-diagnostics";
 import { safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 
 export const runtime = "nodejs";
@@ -17,13 +17,7 @@ const schema = z.object({
   route: z.string().max(500).refine(value => value.startsWith("/") && !value.startsWith("//") && !/[\\\u0000-\u001f]/.test(value)),
   supportReference: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
   requests: z.array(z.unknown()).max(10).optional(),
-  diagnostics: z.object({
-    online: z.boolean().optional(),
-    visibility: z.enum(["visible", "hidden"]).optional(),
-    operation: z.literal("sign-in").optional(),
-    authCode: z.enum(AUTH_DIAGNOSTIC_CODES).optional(),
-    httpStatus: z.number().int().min(100).max(599).optional(),
-  }).strict().optional(),
+  diagnostics: clientDiagnosticsSchema.optional(),
 }).strict();
 const MAX_BYTES = 8192;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");

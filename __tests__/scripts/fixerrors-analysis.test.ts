@@ -346,6 +346,7 @@ describe("production and staging code baselines", () => {
       normalizedMessage: "boom",
       occurrences: 1,
       sourceFiles: [{ file }],
+      issueEvidence: { "issue-1": { severity: "HIGH", sourceFiles: [{ file, line: 10, provenance: "server-stack", confidence: "high" }] } },
       affectedPages: [],
       firstSeen: "2026-08-16T12:00:00.000Z",
       lastSeen: "2026-08-16T12:00:00.000Z",

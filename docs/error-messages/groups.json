@@ -6,19 +6,19 @@
   "deferred_e_candidate_rows": 0,
   "classification_counts": {
     "displayed": 1132,
-    "internal-only": 1303,
+    "internal-only": 1302,
     "duplicate": 793,
-    "irrelevant": 141
+    "irrelevant": 142
   },
   "rule_counts": {
     "ast-public-return": 540,
-    "ast-no-public-sink": 863,
+    "ast-no-public-sink": 864,
     "exact-source-repeat": 793,
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
     "ast-throw-caller-sink": 101,
-    "ast-binding": 19,
-    "ast-throw-unrendered": 350,
+    "ast-binding": 20,
+    "ast-throw-unrendered": 348,
     "ast-diagnostic-call": 71,
     "ast-throw-replaced": 9,
     "ast-branch-condition": 7,
@@ -31,7 +31,7 @@
     "ast-signature": 4,
     "ast-diagnostic-text": 3
   },
-  "exception_rows": 712,
+  "exception_rows": 710,
   "implementation_status_counts": {
     "journey-c-public-boundary": 153,
     "deferred-c": 2354,
@@ -380,18 +380,18 @@
       "classification": "displayed"
     },
     {
-      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:fragment",
-      "count": 16,
-      "example": "app/api/listing-images/finalize/route.ts:74",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
       "id": "displayed:ast-public-return:deferred-c-payment-internals:public-sink",
       "count": 15,
       "example": "actions/admin/payments.ts:201",
       "rule_id": "ast-public-return",
       "classification": "displayed"
+    },
+    {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:fragment",
+      "count": 15,
+      "example": "app/api/listing-images/finalize/route.ts:74",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
     },
     {
       "id": "duplicate:exact-source-repeat:deferred-c-payment-internals:fragment",
@@ -583,6 +583,13 @@
       "classification": "internal-only"
     },
     {
+      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:thrown",
+      "count": 6,
+      "example": "lib/images/client-upload.ts:63",
+      "rule_id": "ast-no-public-sink",
+      "classification": "internal-only"
+    },
+    {
       "id": "irrelevant:ast-binding:deferred-c:fragment",
       "count": 6,
       "example": "actions/dealer-onboarding.ts:306",
@@ -670,13 +677,6 @@
       "id": "internal-only:ast-no-public-sink:journey-c-public-boundary:fragment",
       "count": 4,
       "example": "actions/account.ts:66",
-      "rule_id": "ast-no-public-sink",
-      "classification": "internal-only"
-    },
-    {
-      "id": "internal-only:ast-no-public-sink:uploads-b-public-boundary:thrown",
-      "count": 4,
-      "example": "lib/images/client-upload.ts:63",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
     },
@@ -784,6 +784,13 @@
       "example": "app/api/listing-images/imagekit-finalize/route.ts:31",
       "rule_id": "ast-no-public-sink",
       "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-binding:uploads-b-public-boundary:fragment",
+      "count": 3,
+      "example": "components/marketplace/image-upload.tsx:83",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
     },
     {
       "id": "irrelevant:ast-type-or-import:deferred-c-payment-internals:fragment",
@@ -905,23 +912,9 @@
       "classification": "internal-only"
     },
     {
-      "id": "internal-only:ast-throw-unrendered:uploads-b-public-boundary:thrown",
-      "count": 2,
-      "example": "lib/images/imagekit-client-upload.ts:16",
-      "rule_id": "ast-throw-unrendered",
-      "classification": "internal-only"
-    },
-    {
       "id": "irrelevant:ast-binding:deferred-c:field-errors",
       "count": 2,
       "example": "lib/listings/guided-listing-workflow.ts:114",
-      "rule_id": "ast-binding",
-      "classification": "irrelevant"
-    },
-    {
-      "id": "irrelevant:ast-binding:uploads-b-public-boundary:fragment",
-      "count": 2,
-      "example": "lib/forms/action-error.ts:16",
       "rule_id": "ast-binding",
       "classification": "irrelevant"
     },

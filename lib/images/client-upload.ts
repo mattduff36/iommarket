@@ -12,6 +12,7 @@ import {
   presentClientUploadError,
   uploadErrorFromPayload,
   UploadClientError,
+  withUploadDiagnostic,
 } from "@/lib/images/upload-client-error";
 import { PHOTO_START_MESSAGE, PHOTO_UNKNOWN_MESSAGE } from "@/lib/media/upload-error-catalog";
 
@@ -134,13 +135,13 @@ async function transmitListingImageFile(file: File, stockReviewListingId?: strin
       body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size }),
     });
   } catch (error) {
-    throw normalizeUploadClientError(error);
+    throw withUploadDiagnostic(error, "intent");
   }
   const intentPayload = (await intentResponse.json().catch(() => null)) as
     | { data?: IssuedUpload; error?: string }
     | null;
   if (!intentResponse.ok || !intentPayload?.data) {
-    throw uploadErrorFromPayload(intentPayload, PHOTO_START_MESSAGE);
+    throw withUploadDiagnostic(uploadErrorFromPayload(intentPayload, PHOTO_START_MESSAGE), "intent", intentResponse);
   }
 
   const { upload, uploadIntentId, publicId } = intentPayload.data;
@@ -155,13 +156,13 @@ async function transmitListingImageFile(file: File, stockReviewListingId?: strin
     try {
       imageKitResponse = await fetch(upload.uploadUrl, { method: "POST", body: imageKitForm });
     } catch (error) {
-      throw normalizeUploadClientError(error);
+      throw withUploadDiagnostic(error, "provider-upload");
     }
     const imageKitPayload = (await imageKitResponse.json().catch(() => null)) as
       | { data?: FinalizedUpload & { provider?: string; url?: string }; error?: string }
       | null;
     if (!imageKitResponse.ok || !imageKitPayload?.data) {
-      throw uploadErrorFromPayload(imageKitPayload, PHOTO_UNKNOWN_MESSAGE);
+      throw withUploadDiagnostic(uploadErrorFromPayload(imageKitPayload, PHOTO_UNKNOWN_MESSAGE), "provider-upload", imageKitResponse);
     }
     return {
       uploadIntentId: imageKitPayload.data.uploadIntentId,
@@ -191,7 +192,7 @@ async function transmitListingImageFile(file: File, stockReviewListingId?: strin
   try {
     cloudinaryResponse = await fetch(upload.uploadUrl, { method: "POST", body: formData });
   } catch (error) {
-    throw normalizeUploadClientError(error);
+    throw withUploadDiagnostic(error, "provider-upload");
   }
   const cloudinaryPayload = (await cloudinaryResponse.json().catch(() => null)) as {
     asset_id?: string;
@@ -200,7 +201,7 @@ async function transmitListingImageFile(file: File, stockReviewListingId?: strin
   } | null;
   if (!cloudinaryResponse.ok) {
     // Provider text is not a safe reason and is not proof the file itself is invalid.
-    throw new UploadClientError(PHOTO_UNKNOWN_MESSAGE, { code: "unknown", retryable: false });
+    throw withUploadDiagnostic(new UploadClientError(PHOTO_UNKNOWN_MESSAGE, { code: "unknown", retryable: false }), "provider-upload", cloudinaryResponse);
   }
 
   let finalizeResponse: Response;
@@ -216,13 +217,13 @@ async function transmitListingImageFile(file: File, stockReviewListingId?: strin
       }),
     });
   } catch (error) {
-    throw normalizeUploadClientError(error);
+    throw withUploadDiagnostic(error, "finalize");
   }
   const finalizePayload = (await finalizeResponse.json().catch(() => null)) as
     | { data?: FinalizedUpload; error?: string }
     | null;
   if (!finalizeResponse.ok || !finalizePayload?.data) {
-    throw uploadErrorFromPayload(finalizePayload, PHOTO_UNKNOWN_MESSAGE);
+    throw withUploadDiagnostic(uploadErrorFromPayload(finalizePayload, PHOTO_UNKNOWN_MESSAGE), "finalize", finalizeResponse);
   }
 
   return {
@@ -242,7 +243,7 @@ async function transmitListingImageFile(file: File, stockReviewListingId?: strin
 export async function uploadListingImageFile(file: File, stockReviewListingId?: string): Promise<ListingPhotoSource> {
   const rejected = await preflightListingImageFile(file);
   if (rejected) {
-    throw new UploadClientError(rejected, { code: "validation", retryable: false });
+    throw withUploadDiagnostic(new UploadClientError(rejected, { code: "validation", retryable: false }), "preflight");
   }
   try {
     return await transmitListingImageFile(file, stockReviewListingId);

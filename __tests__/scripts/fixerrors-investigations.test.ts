@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { investigationSchema } from "@/lib/monitoring/investigation";
-import { recordInvestigations } from "@/scripts/fixerrors/investigations";
+import { draftInvestigationManifest, recordInvestigations } from "@/scripts/fixerrors/investigations";
+import { contentChecksum } from "@/scripts/fixerrors/integrity";
 import { sealSnapshot } from "@/scripts/fixerrors/snapshot";
 import { FIXERRORS_COMMAND_ID, FIXERRORS_SAFETY_CONTRACT, FIXERRORS_SNAPSHOT_VERSION, type PgClientLike } from "@/scripts/fixerrors/types";
 const record = { outcome: "collecting-evidence" as const, finding: "Historical request failure lacks response status.", evidence: ["Stored event contains no request correlation."], missingEvidence: "Request status and release are missing.", owner: "Engineering", nextAction: "Inspect the next correlated failed request.", reviewAfter: "2026-12-01T00:00:00.000Z", collector: { paths: ["lib/monitoring/request-diagnostics.ts"], tests: ["__tests__/lib/monitoring-request-diagnostics.test.ts"], trigger: "The next request failure on this route.", expectedEvidence: "Safe route, status, duration and request reference.", state: "ready" as const } };
@@ -11,6 +12,54 @@ function input(changed = false) {
   return { client: { query } as unknown as PgClientLike, snapshot, databaseTargetFingerprint: "a".repeat(64), actorAdminId: "admin", entries: [{ issueId: issue.id, investigation: record }], apply: false, now: new Date("2026-11-07T00:10:00Z"), verifyCollector: vi.fn().mockResolvedValue(true), query };
 }
 describe("structured investigations", () => {
+  it("drafts retained plans and explicitly incomplete updates without inventing findings", () => {
+    const saved = sealSnapshot({ ...snapshot, issues: [{ ...issue, investigation: record }, { ...issue, id: "missing" }] });
+    expect(draftInvestigationManifest(saved)).toEqual({ issues: [
+      { issueId: issue.id, action: "retain" }, { issueId: "missing", action: "update" },
+    ] });
+  });
+  it("retains an existing overdue record without collector, status or audit writes", async () => {
+    const args = input();
+    const investigation = { ...record, reviewAfter: "2026-10-01T00:00:00.000Z", observedOccurrences: 1 };
+    const saved = sealSnapshot({ ...snapshot, issues: [{ ...issue, investigation }] });
+    args.query.mockImplementation(async (sql: string) => ({ rows: sql.includes("FOR UPDATE") ? [{ ...issue, investigation }] : [], rowCount: 1 }));
+    const result = await recordInvestigations({ ...args, snapshot: saved, apply: true,
+      entries: [{ issueId: issue.id, action: "retain" }] });
+    expect(result.results[0]).toMatchObject({ action: "retain" });
+    expect(args.verifyCollector).not.toHaveBeenCalled();
+    expect(args.query.mock.calls.some(([sql]) => /UPDATE "MonitoringIssue"|INSERT INTO/.test(sql))).toBe(false);
+  });
+  it("rejects retaining missing plans and concurrent investigation reviews before any writes", async () => {
+    await expect(recordInvestigations({ ...input(), entries: [{ issueId: issue.id, action: "retain" }] })).rejects.toThrow(/retain/i);
+    const args = input();
+    args.query.mockImplementation(async (sql: string) => ({ rows: sql.includes("FOR UPDATE") ? [{ ...issue, investigation: { ...record, owner: "Another reviewer" } }] : [], rowCount: 1 }));
+    await expect(recordInvestigations({ ...args, apply: true })).rejects.toThrow(/investigation changed/i);
+    expect(args.query.mock.calls.some(([sql]) => sql.startsWith("UPDATE"))).toBe(false);
+  });
+  it("checks retained raw review metadata before writing any mixed-manifest update", async () => {
+    const args = input();
+    const raw = { ...record, runId: "previous-review", evidenceBundle: [] };
+    const retained = { ...issue, id: "retained", investigation: record, investigationChecksum: contentChecksum(raw) };
+    const saved = sealSnapshot({ ...snapshot, issues: [issue, retained] });
+    args.query.mockImplementation(async (sql: string) => ({ rows: sql.includes("FOR UPDATE")
+      ? [issue, { ...retained, investigation: { ...raw, runId: "concurrent-review" } }] : [], rowCount: 1 }));
+    await expect(recordInvestigations({ ...args, snapshot: saved, apply: true,
+      entries: [...args.entries, { issueId: retained.id, action: "retain" }] })).rejects.toThrow(/investigation changed/i);
+    expect(args.query.mock.calls.some(([sql]) => /UPDATE "MonitoringIssue"|INSERT INTO/.test(sql))).toBe(false);
+    expect(args.query).toHaveBeenLastCalledWith("ROLLBACK");
+  });
+  it("verifies identical deployed collectors only once per invocation", async () => {
+    const args = input();
+    const second = { ...issue, id: "issue-2" };
+    const saved = sealSnapshot({ ...snapshot, issues: [issue, second] });
+    args.query.mockImplementation(async (sql: string) => ({ rows: sql.includes("FOR UPDATE") ? [issue, second] : [], rowCount: 1 }));
+    const investigation = { ...record, collector: { ...record.collector, state: "deployed" as const, deploymentSha: "b".repeat(40) } };
+    const entries = saved.issues.map(i => ({ issueId: i.id, action: "update" as const, investigation }));
+    await recordInvestigations({ ...args, snapshot: saved, entries });
+    expect(args.verifyCollector).toHaveBeenCalledTimes(1);
+    await recordInvestigations({ ...args, snapshot: saved, entries });
+    expect(args.verifyCollector).toHaveBeenCalledTimes(2);
+  });
   it("rejects expiry without deployed collection, private text and traversal", () => {
     expect(investigationSchema.safeParse({ ...record, outcome: "expired" }).success).toBe(false);
     expect(investigationSchema.safeParse({ ...record, finding: "Contact person@example.com for evidence" }).success).toBe(false);
