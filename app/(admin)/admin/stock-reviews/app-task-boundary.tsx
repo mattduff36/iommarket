@@ -42,8 +42,8 @@ function StandaloneStockAppTasks({ children }: { children: ReactNode }) {
     pending: !snapshot || controls.pending || lifecycle.pending };
   return <StockWorkerControlProvider value={value}>
     {children}
-    {!snapshot ? <p role="status" className="text-sm text-text-secondary">Checking Stock Update connection…</p> :
-      !snapshot.ok ? <p role="status" className="text-sm text-text-secondary">Stock Update connection unavailable. Retrying…</p> : null}
+    {!snapshot ? <p role="status" className="text-sm text-text-secondary">Checking Stock Update connectionâ€¦</p> :
+      !snapshot.ok ? <p role="status" className="text-sm text-text-secondary">Stock Update connection unavailable. Retryingâ€¦</p> : null}
     {lifecycle.message && <p role="status" className="text-sm text-text-secondary">{lifecycle.message}</p>}
     {controls.message && <p role="status" className="text-sm text-text-secondary">{controls.message}</p>}
     {lifecycle.launchFallback}

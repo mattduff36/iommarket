@@ -35,7 +35,7 @@ function SyncAllButton({ disabledReason }: { disabledReason?: string | null }) {
   return <div className="flex flex-col items-start gap-1" title={disabledReason ?? undefined}>
     <button type="button" className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-secondary disabled:opacity-60"
       disabled={isPending || Boolean(disabledReason) || !worker.requestRun || worker.pending || worker.stopping} onClick={() => void run()}>
-      {isPending ? "Queueing…" : "Sync all enabled dealers"}
+      {isPending ? "Queueingâ€¦" : "Sync all enabled dealers"}
     </button>
     {message ? <p className="text-xs text-text-tertiary">{message}</p> : null}
   </div>;

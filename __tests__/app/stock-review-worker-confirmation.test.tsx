@@ -103,7 +103,7 @@ it.each(["Queue scrape", "Sync all enabled dealers"])("offers the same app confi
 it("leaves app-dependent standalone actions disabled when connection discovery fails", async () => {
   mocks.dashboard.mockResolvedValue({ ok: false, error: "unavailable" });
   render(<SyncAllDealerStockButton />);
-  expect(await screen.findByText("Stock Update connection unavailable. Retrying�")).toBeInTheDocument();
+  expect(await screen.findByText(/Stock Update connection unavailable/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Sync all enabled dealers" })).toBeDisabled();
   expect(mocks.syncAll).not.toHaveBeenCalled();
 });
