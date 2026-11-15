@@ -16,7 +16,7 @@ function snapshot(): StockReviewSnapshot {
   const now = Date.now();
   return {
     outstanding: [{ id: "report", dealerId: "dealer", bindingId: "binding", scrapeRunId: "scan", fingerprint: "fp", status: "PENDING_REVIEW", inventoryCount: 2, failureReason: null, applyRecovery: null, createdAt: new Date(now).toISOString(), plan: { actions: [] }, binding: { dealer: { id: "dealer", name: "Island Motors" } } }],
-    recentReports: [], jobs: [], profiles: [{ id: "dealer", name: "Island Motors", tier: "PRO", isAdminPreview: false, user: { disabledAt: null } }],
+    recentReports: [], jobs: [], profiles: [{ id: "dealer", name: "Island Motors", tier: "PRO", isAdminPreview: false, stockSourceBinding: { verifiedAt: "2026-10-21T09:00:00.000Z" }, user: { disabledAt: null } }],
     dashboard: { ok: true, devices: [{ deviceId: "dev_test", deviceName: "Server", environment: "production", instanceId: "instance", state: "connected", online: true, lastSeenAt: new Date(now).toISOString(), activity: [], pendingCommand: null }] },
     historyEntries: [{ id: "report", kind: "report", state: "active", manageable: true }], desktopEnabled: false, now,
   };
@@ -70,4 +70,23 @@ describe("stock page retained snapshot", () => {
       expect(isStockReviewSnapshot(broken)).toBe(false);
     }
   });
+});
+
+it("excludes missing and unverified sources from Select all while showing their reasons", () => {
+  const initial = snapshot();
+  const ready = initial.profiles[0];
+  initial.profiles.push(
+    { ...ready, id: "missing", name: "Mannin Motors Ltd", stockSourceBinding: null },
+    { ...ready, id: "unverified", name: "Motorsave ltd", stockSourceBinding: { verifiedAt: null } },
+  );
+  expect(isStockReviewSnapshot(initial)).toBe(true);
+  render(<StockReviewsClient initial={initial} query={{}} />);
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  expect(screen.getByText("1 selected")).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: "Island Motors" })).toBeChecked();
+  expect(screen.queryByRole("checkbox", { name: "Mannin Motors Ltd" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: "Motorsave ltd" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText("Unavailable dealers (2)"));
+  expect(screen.getByText("Mannin Motors Ltd").parentElement).toHaveTextContent("Scraper not configured");
+  expect(screen.getByText("Motorsave ltd").parentElement).toHaveTextContent("Source awaiting verification");
 });

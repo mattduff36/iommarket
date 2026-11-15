@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TradeActor } from "@/lib/trade-exchange/decision";
 
 const h = vi.hoisted(() => {
@@ -198,7 +198,10 @@ function lockCalls() {
 }
 
 describe("trade workflow integrity", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
     vi.clearAllMocks();
     for (const fn of [
       h.executeRaw, h.listingFindUnique, h.listingFindMany, h.listingUpdate, h.listingUpdateMany,

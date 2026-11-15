@@ -158,11 +158,13 @@ export function StockReviewsClient({ initial, query, pairing, offlineStatus }: {
   const { snapshot, connectionLost, reload } = useStockSnapshot(initial, canRefreshStockPage, isStockReviewSnapshot, stockSnapshotPollInterval);
   const { outstanding, recentReports, jobs, profiles, dashboard, historyEntries } = snapshot;
   // Admin stock management follows the account tier, not billing entitlement.
-  // Source setup is handled separately and must not hide an enabled Pro dealer.
+  // Only configured, verified sources can be selected for an on-demand scrape.
   const classified = profiles.filter(profile => !profile.isAdminPreview).map(profile => ({
     ...profile,
     reason: profile.user.disabledAt ? "Dealer account disabled"
-      : profile.tier === "STARTER" ? "Starter account" : null,
+      : profile.tier === "STARTER" ? "Starter account"
+      : !profile.stockSourceBinding ? "Scraper not configured"
+      : !profile.stockSourceBinding.verifiedAt ? "Source awaiting verification" : null,
   }));
   const availableProfiles = classified.filter(profile => !profile.reason);
   const unavailableProfiles = classified.filter(profile => profile.reason).map(profile => ({

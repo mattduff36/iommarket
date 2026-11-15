@@ -307,13 +307,23 @@ it("excludes preview profiles from unavailable dealers and preserves real reason
     {id:"preview",name:"Preview pack",isAdminPreview:true,user:{disabledAt:null},stockSourceBinding:null},
     {id:"ready",name:"Ready dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:when}},
     {id:"setup",name:"Setup dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:null},
+    {id:"unverified",name:"Unverified dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:null},stockSourceBinding:{verifiedAt:null}},
     {id:"disabled",name:"Disabled dealer",tier:"PRO",isAdminPreview:false,user:{disabledAt:when},stockSourceBinding:null},
   ]);
   await renderPage([]);
-  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers:[{id:"ready",name:"Ready dealer"},{id:"setup",name:"Setup dealer"}], unavailable:[{id:"disabled",name:"Disabled dealer",reason:"Dealer account disabled"}]}));
+  const dealers = [{id:"ready",name:"Ready dealer"}];
+  expect(pickerProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers, unavailable:[
+    {id:"setup",name:"Setup dealer",reason:"Scraper not configured"},
+    {id:"unverified",name:"Unverified dealer",reason:"Source awaiting verification"},
+    {id:"disabled",name:"Disabled dealer",reason:"Dealer account disabled"},
+  ]}));
+  expect(dashboardProps).toHaveBeenLastCalledWith(expect.objectContaining({dealers}));
+  expect(profileFindMany).toHaveBeenLastCalledWith(expect.objectContaining({select: expect.objectContaining({
+    stockSourceBinding: {select: {verifiedAt: true}},
+  })}));
 });
 
-it("includes Pro dealers regardless of subscription or source setup and excludes Starter accounts", async () => {
+it("includes verified Pro dealers regardless of subscription and excludes Starter accounts", async () => {
   entitlement.mockImplementation(async (id: string) => id === "pro" || id === "grant" ? { tier: "PRO" } : id === "starter" ? { tier: "STARTER" } : null);
   profileFindMany.mockResolvedValueOnce(["pro", "grant", "starter", "expired", "none"].map(id => ({
     id, name: id, tier: id === "starter" ? "STARTER" : "PRO", isAdminPreview: false, user: { disabledAt: null }, stockSourceBinding: { verifiedAt: when },

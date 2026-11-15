@@ -74,7 +74,7 @@ export async function loadStockReviewSnapshot() {
     loadReports(["PENDING_REVIEW", "APPROVED", "SUPERSEDED"]),
     loadReports(["APPLIED", "FAILED", "REJECTED"], RECENT_LIMIT),
     loadJobs(),
-    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, user: { select: { disabledAt: true } } }, orderBy: { name: "asc" } }),
+    db.dealerProfile.findMany({ where: { user: { deletedAt: null, role: "DEALER" } }, select: { id: true, name: true, tier: true, isAdminPreview: true, stockSourceBinding: { select: { verifiedAt: true } }, user: { select: { disabledAt: true } } }, orderBy: { name: "asc" } }),
     getWorkerDashboard(),
   ]);
   const legacy = await loadHandoffReports([...outstanding, ...recentReports].map(report => report.id));
@@ -86,7 +86,7 @@ export async function loadStockReviewSnapshot() {
   return {
     outstanding: outstanding.map(report => serializeReport(decorated.get(report.id)!)), recentReports: savedReports.map(report => serializeReport(decorated.get(report.id)!)),
     jobs: jobs.map(job => ({ ...job, createdAt: job.createdAt.toISOString(), startedAt: job.startedAt?.toISOString() ?? null })),
-    profiles: profiles.map(profile => ({ ...profile, user: { disabledAt: profile.user.disabledAt?.toISOString() ?? null } })),
+    profiles: profiles.map(profile => ({ ...profile, stockSourceBinding: profile.stockSourceBinding ? { verifiedAt: profile.stockSourceBinding.verifiedAt?.toISOString() ?? null } : null, user: { disabledAt: profile.user.disabledAt?.toISOString() ?? null } })),
     dashboard, historyEntries, desktopEnabled: resolveDesktopGate(process.env).ok, now: Date.now(),
   };
 }
