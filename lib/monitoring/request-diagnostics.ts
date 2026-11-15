@@ -147,12 +147,34 @@ function responseProvenance(response: Response, origin: string): Partial<Request
   } catch { return {}; }
 }
 
+/** Unknown/custom dictionary access stays reportable without invoking a getter twice. */
+function requestKeepalive(input: RequestInfo | URL, init?: RequestInit): boolean | undefined {
+  try {
+    const descriptor = init ? Object.getOwnPropertyDescriptor(init, "keepalive") : undefined;
+    if (descriptor && !("value" in descriptor)) return undefined;
+    if (init && !descriptor && Object.getPrototypeOf(init) !== Object.prototype
+      && Object.getPrototypeOf(init) !== null) return undefined;
+    if (descriptor?.value !== undefined) return Boolean(descriptor.value);
+    if (typeof input === "string" || input instanceof URL) return false;
+    if (typeof Request !== "undefined") {
+      // Native brand checking also handles Requests from another window.
+      return Object.getOwnPropertyDescriptor(Request.prototype, "keepalive")?.get?.call(input);
+    }
+    return undefined;
+  } catch { return undefined; }
+}
+
 export function installRequestDiagnostics(
-  target: Pick<Window, "fetch">,
+  target: Pick<Window, "fetch"> & Partial<Pick<EventTarget, "addEventListener" | "removeEventListener">>,
   origin: string,
   onFailure: (item: RequestDiagnostic) => void,
 ): () => void {
   const original = target.fetch;
+  let leavingPage = false;
+  const pagehide = (event: Event) => { leavingPage = "persisted" in event && event.persisted === false; };
+  const pageshow = () => { leavingPage = false; };
+  target.addEventListener?.("pagehide", pagehide);
+  target.addEventListener?.("pageshow", pageshow);
   recent = [];
   const record = (item: RequestDiagnostic) => {
     recent = [...requestDiagnostics(), item].slice(-MAX_REQUESTS);
@@ -170,6 +192,8 @@ export function installRequestDiagnostics(
     const signal = initSignal !== undefined ? initSignal : typeof input === "object" && "signal" in input ? input.signal : undefined;
     const kind = requestKind(input, init);
     const started = Date.now();
+    const startedOnActivePage = !leavingPage;
+    const keepalive = requestKeepalive(input, init);
     try {
       const response = await original.call(target, input, init);
       if (route) {
@@ -183,13 +207,23 @@ export function installRequestDiagnostics(
       return response;
     } catch (error) {
       const errorCategory = exceptionCategory(error);
+      // Chromium rejects reads cancelled by document teardown as TypeError,
+      // without aborting their signal. Do not treat hidden tabs or beforeunload
+      // as teardown, and never suppress write failures or genuine deadlines.
+      const cancelledByPagehide = leavingPage && startedOnActivePage && keepalive === false
+        && (method === "GET" || method === "HEAD") && errorCategory === "TypeError";
       if (route) record({ at: Date.now(), target: route, method, status: null, requestKind: kind,
         durationMs: Math.max(0, Math.min(300_000, Date.now() - started)),
-        outcome: errorCategory === "AbortError" ? "cancelled" : "network-error",
+        outcome: errorCategory === "AbortError" || cancelledByPagehide ? "cancelled" : "network-error",
         errorCategory, signalAborted: signal?.aborted === true });
       throw error;
     }
   };
   target.fetch = wrapped;
-  return () => { if (target.fetch === wrapped) target.fetch = original; recent = []; };
+  return () => {
+    target.removeEventListener?.("pagehide", pagehide);
+    target.removeEventListener?.("pageshow", pageshow);
+    if (target.fetch === wrapped) target.fetch = original;
+    recent = [];
+  };
 }

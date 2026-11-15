@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { diagnosticTarget, installRequestDiagnostics, requestDiagnostics, safeRequestDiagnostics } from "@/lib/monitoring/request-diagnostics";
 
+const pagehideEvent = (persisted = false) => Object.assign(new Event("pagehide"), { persisted });
+
 describe("request diagnostics", () => {
   beforeEach(() => vi.useRealTimers());
   it("removes query values, identifiers and third-party paths", () => {
@@ -89,6 +91,111 @@ describe("request diagnostics", () => {
         outcome: "network-error", errorCategory: "TimeoutError", signalAborted: true,
       }));
     } finally { restore(); }
+  });
+  it.each(["GET", "HEAD"])("records an in-flight %s cancelled by pagehide without a fault", async method => {
+    let reject!: (error: Error) => void;
+    const original = vi.fn<typeof fetch>(() => new Promise<Response>((_, fail) => { reject = fail; }));
+    const target = Object.assign(new EventTarget(), { fetch: original });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      const request = target.fetch("/search", { method });
+      target.dispatchEvent(pagehideEvent());
+      const error = new TypeError("Failed to fetch");
+      reject(error);
+      await expect(request).rejects.toBe(error);
+      expect(requestDiagnostics()[0]).toMatchObject({ outcome: "cancelled", errorCategory: "TypeError", signalAborted: false });
+      expect(failure).not.toHaveBeenCalled();
+    } finally { restore(); }
+  });
+  it("keeps failures reportable before pagehide, after pageshow, and for new departing-page requests", async () => {
+    const error = new TypeError("network");
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn().mockRejectedValue(error) });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      target.dispatchEvent(new Event("beforeunload"));
+      target.dispatchEvent(new Event("visibilitychange"));
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      target.dispatchEvent(pagehideEvent());
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      target.dispatchEvent(new Event("pageshow"));
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      expect(failure).toHaveBeenCalledTimes(3);
+    } finally { restore(); }
+  });
+  it("does not treat a persisted BFCache pagehide as document teardown", async () => {
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn() });
+    const error = new TypeError("network");
+    target.fetch.mockImplementation(async () => { target.dispatchEvent(pagehideEvent(true)); throw error; });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      expect(failure).toHaveBeenCalledOnce();
+    } finally { restore(); }
+  });
+  it("keeps unrecognized object inputs reportable without reading their keepalive getter", async () => {
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn() });
+    const error = new TypeError("network");
+    target.fetch.mockImplementation(async () => { target.dispatchEvent(pagehideEvent()); throw error; });
+    const getter = vi.fn(() => true);
+    const input = { url: "https://example.test/search", get keepalive() { return getter(); } };
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      await expect(target.fetch(input)).rejects.toBe(error);
+      expect(failure).toHaveBeenCalledOnce();
+      expect(getter).not.toHaveBeenCalled();
+    } finally { restore(); }
+  });
+  it.each(["init", "request", "undefined override", "false override", "accessor"])(
+    "honors effective keepalive without consuming custom accessors (%s)", async mode => {
+      const target = Object.assign(new EventTarget(), { fetch: vi.fn() });
+      const error = new TypeError("network");
+      target.fetch.mockImplementation(async () => { target.dispatchEvent(pagehideEvent()); throw error; });
+      const request = new Request("https://example.test/search", { keepalive: true });
+      const getter = vi.fn(() => true);
+      const init = mode === "init" ? { keepalive: true } : mode === "undefined override" ? { keepalive: undefined }
+        : mode === "false override" ? { keepalive: false } : mode === "accessor" ? { get keepalive() { return getter(); } } : undefined;
+      const failure = vi.fn();
+      const restore = installRequestDiagnostics(target, "https://example.test", failure);
+      try {
+        await expect(target.fetch(mode === "init" || mode === "accessor" ? "/search" : request, init)).rejects.toBe(error);
+        expect(failure).toHaveBeenCalledTimes(mode === "false override" ? 0 : 1);
+        expect(getter).not.toHaveBeenCalled();
+      } finally { restore(); }
+    },
+  );
+  it.each(["POST", "PUT", "PATCH", "DELETE"])("does not suppress an in-flight %s failure on pagehide", async method => {
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn() });
+    const error = new TypeError("network");
+    target.fetch.mockImplementation(async () => { target.dispatchEvent(pagehideEvent()); throw error; });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      await expect(target.fetch("/api/listings", { method })).rejects.toBe(error);
+      expect(failure).toHaveBeenCalledOnce();
+    } finally { restore(); }
+  });
+  it("keeps deadline and HTTP failures reportable during pagehide and removes lifecycle listeners", async () => {
+    const original = vi.fn();
+    const target = Object.assign(new EventTarget(), { fetch: original });
+    const remove = vi.spyOn(target, "removeEventListener");
+    const error = new DOMException("deadline", "TimeoutError");
+    target.fetch.mockImplementation(async () => { target.dispatchEvent(pagehideEvent()); throw error; });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      target.dispatchEvent(new Event("pageshow"));
+      const response = new Response("unavailable", { status: 503 });
+      original.mockImplementation(async () => { target.dispatchEvent(pagehideEvent()); return response; });
+      await expect(target.fetch("/search")).resolves.toBe(response);
+      expect(failure).toHaveBeenCalledTimes(2);
+    } finally { restore(); }
+    expect(remove).toHaveBeenCalledWith("pagehide", expect.any(Function));
+    expect(remove).toHaveBeenCalledWith("pageshow", expect.any(Function));
   });
   it.each([new Error("private"), new DOMException("private", "NetworkError"), { name: "SecurityError", message: "private" }, { name: "private-name" }, "private", null])(
     "records a closed exception category without exception contents (%#)", async (error) => {
