@@ -125,6 +125,25 @@
         "0a7b3f05218cd69650a3f29eb22d450dff4df776660334069c4bb8a10235bdd6"
       ],
       "recordedAt": "2026-11-09T22:18:59.282Z"
+    },
+    {
+      "fingerprint": "5d5b448659ce6cace114f0939f20e150785d3ef6610c3184ef7d8227c8d2f2b2",
+      "lane": "guarded",
+      "outcome": "fixed",
+      "summary": "Avoid reporting document-teardown read cancellations as network faults",
+      "files": [
+        "lib/monitoring/request-diagnostics.ts",
+        "__tests__/lib/monitoring-request-diagnostics.test.ts"
+      ],
+      "tests": [
+        "75 focused request diagnostics, client capture and ingest tests passed",
+        "npm run typecheck passed",
+        "Native Chromium reload cancellation and active-page failure control passed"
+      ],
+      "issueFingerprints": [
+        "f37c4588dc8c398f246fdd7fe99beebe0fb88887f33204057ad50ef111259380"
+      ],
+      "recordedAt": "2026-11-15T21:59:25.605Z"
     }
   ]
 }
