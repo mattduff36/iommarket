@@ -9,12 +9,12 @@ describe("media read protection", () => {
     const warn = vi.fn();
     const limit = createMediaReadLimiter(shared, () => now, warn);
     for (let i = 0; i < 240; i++) expect((await limit("client")).allowed).toBe(true);
-    expect((await limit("client")).allowed).toBe(false);
+    expect(await limit("client")).toMatchObject({ allowed: false, denialSource: "local-window" });
     expect(shared).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledTimes(1);
     now += 60_000;
     shared.mockResolvedValue({ ...unavailable, unavailable: false });
-    expect((await limit("client")).allowed).toBe(false);
+    expect(await limit("client")).toMatchObject({ allowed: false, denialSource: "shared-window" });
     expect(shared).toHaveBeenCalledTimes(2);
   });
 
@@ -30,7 +30,7 @@ describe("media read protection", () => {
     let now = 1_000;
     const limit = createMediaReadLimiter(vi.fn().mockResolvedValue(unavailable), () => now, () => {});
     for (let i = 0; i < 5_000; i++) expect((await limit(`client-${i}`)).allowed).toBe(true);
-    expect((await limit("overflow")).allowed).toBe(false);
+    expect(await limit("overflow")).toMatchObject({ allowed: false, denialSource: "bucket-cap" });
     now += 60_000;
     expect((await limit("overflow")).allowed).toBe(true);
   });
@@ -38,7 +38,7 @@ describe("media read protection", () => {
   it("retains a known denial when another client opens the outage circuit", async () => {
     const shared = vi.fn().mockResolvedValueOnce({ ...unavailable, unavailable: false }).mockResolvedValue(unavailable);
     const limit = createMediaReadLimiter(shared, () => 1_000, () => {});
-    expect((await limit("blocked")).allowed).toBe(false);
+    expect(await limit("blocked")).toMatchObject({ allowed: false, denialSource: "shared-window" });
     expect((await limit("other")).allowed).toBe(true);
     expect((await limit("blocked")).allowed).toBe(false);
     expect(shared).toHaveBeenCalledTimes(2);

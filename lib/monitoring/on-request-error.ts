@@ -3,6 +3,7 @@ import { isEdgeRuntime, isServerCaptureEnabled } from "./flags";
 import { isExpectedControlFlowError } from "./handled";
 import { isMonitoringIngestPath, sanitizeRequestPath } from "./redact";
 import { monitoringRequestContext } from "./request-context";
+import { mediaRequestFacts } from "@/lib/media/request-diagnostics";
 
 export type RequestErrorLike = Error & { digest?: string };
 
@@ -46,9 +47,12 @@ export async function reportRequestError(
   if (isExpectedControlFlowError(error)) return;
   const requestError = asRequestError(error);
 
-  const path = sanitizeRequestPath(request.path);
+  const mediaPath = request.path.split("?")[0];
+  const isMediaRoute = mediaPath === "/api/media/listing-photo" || mediaPath === "/api/media/cloudinary-ref";
+  const path = sanitizeRequestPath(isMediaRoute ? mediaPath : request.path);
   if (isMonitoringIngestPath(path)) return;
   const requestContext = monitoringRequestContext(request.headers);
+  const media = mediaRequestFacts(request.path);
 
   const capture = deps.captureException ?? captureException;
   try {
@@ -56,10 +60,11 @@ export async function reportRequestError(
       source: "SERVER",
       error: requestError,
       severity: "HIGH",
-      route: sanitizeRequestPath(context.routePath) ?? path,
+      route: isMediaRoute ? path : sanitizeRequestPath(context.routePath) ?? path,
       requestPath: path,
       requestMethod: request.method,
       requestId: requestContext.requestId,
+      ...(media ? { extra: { media } } : {}),
       action: context.routeType,
       tags: {
         type: "onRequestError",

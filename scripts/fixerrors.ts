@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { acknowledgeSnapshotIssues } from "./fixerrors/acknowledge";
+import { collectAndAcknowledgeIssues } from "./fixerrors/collect";
 import { acknowledgedBacklogReport } from "./fixerrors/backlog";
 import { draftInvestigationManifest, recordInvestigations, readInvestigationManifest } from "./fixerrors/investigations";
 import { createCollectorVerifier } from "./fixerrors/collector-verification";
@@ -47,7 +48,6 @@ import { reopenMutedByRun } from "./fixerrors/unmute";
 import {
   ERROR_ANALYSIS_PATH,
   ERROR_SNAPSHOT_PATH,
-  fetchOpenIssueSnapshot,
   markSnapshotAnalysisCompleted,
   readAndVerifySnapshot,
   writeAndVerifySnapshot,
@@ -209,9 +209,12 @@ function printExportFollowUp(snapshot: OpenIssueSnapshot) {
   console.log("  Collection complete; engineering investigation and repair are not complete.");
   console.log("  The chat engineer owns diagnosis, evidence sufficiency, mitigation and repair decisions. Read .cursor/commands/fixerrors.md.");
   console.log("  Classifier hints do not block investigation. Use --engineer-reviewed with a tested, independently reviewed repair when appropriate.");
-  console.log("  Acknowledge unchanged OPEN issues before investigation. Dry-run:");
-  console.log(`npm run fixerrors -- --acknowledge ${binding}`);
-  console.log("  Add --apply only after the dry-run output looks correct.");
+  console.log("  Collected OPEN issues were automatically acknowledged; acknowledged issues remain unresolved.");
+  if (snapshot.issues.some(issue => issue.status === "OPEN")) {
+    console.log("  Some issues arrived or changed during collection and remain OPEN. Re-run fixerrors, or inspect this acknowledgement dry-run:");
+    console.log(`npm run fixerrors -- --acknowledge ${binding}`);
+    console.log("  Add --apply only after the dry-run output looks correct.");
+  }
   console.log("  Repair on the staging branch. Check the paths before editing:");
   console.log("npm run fixerrors -- --prepare-repair --paths=<files>");
   console.log("  Commit the reviewed repair locally. Push only with /fap or /ffap.");
@@ -235,7 +238,9 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
     writeAndVerifyTextArtifactAtomic(resolve(process.cwd(), "private", "fixerrors", "release-reconciliation.json"), JSON.stringify(releases, null, 2));
     console.log(`  Release reconciliation: ${releases.filter(result => !result.ok).length} blocked archive(s); details in private/fixerrors/release-reconciliation.json`);
   }
-  let snapshot = await timeStage("snapshot export", () => fetchOpenIssueSnapshot(client, databaseTargetFingerprint));
+  const collection = await timeStage("snapshot export", () => collectAndAcknowledgeIssues(client, databaseTargetFingerprint));
+  let snapshot = collection.snapshot;
+  console.log(`  Automatically acknowledged: ${collection.acknowledged}; changed or missing during collection: ${collection.skipped}. This is not resolution.`);
   const releaseManifests = pendingReleasePaths().slice(0, 200).flatMap(path => {
     try { return [readReleaseManifest(path)]; }
     catch { console.error("An archived release manifest is invalid; inspect --resume-releases before relying on release linkage."); return []; }

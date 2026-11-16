@@ -18,6 +18,9 @@ export interface RequestDiagnostic {
 }
 
 const MAX_REQUESTS = 10;
+// A page can cancel many prefetched reads at once; this transient queue is
+// separate from the small breadcrumb history exported with each fault.
+const MAX_PENDING_NAVIGATION_FAILURES = 64;
 const MAX_AGE_MS = 5 * 60_000;
 let recent: RequestDiagnostic[] = [];
 const STATIC_SEGMENTS = new Set("api admin account listings listing search sell private dealer dealers profile logo photos images upload media listing-photo costs users stock-reviews preview me auth token sign-in sign-up payments webhooks monitoring events report-issue _next static chunks".split(" "));
@@ -171,17 +174,37 @@ export function installRequestDiagnostics(
 ): () => void {
   const original = target.fetch;
   let leavingPage = false;
-  const pagehide = (event: Event) => { leavingPage = "persisted" in event && event.persisted === false; };
-  const pageshow = () => { leavingPage = false; };
-  target.addEventListener?.("pagehide", pagehide);
-  target.addEventListener?.("pageshow", pageshow);
+  let navigationDeadline = 0;
+  let navigationTimer: ReturnType<typeof setTimeout> | undefined;
+  let pending: RequestDiagnostic[] = [];
   recent = [];
   const record = (item: RequestDiagnostic) => {
-    recent = [...requestDiagnostics(), item].slice(-MAX_REQUESTS);
+    recent = [...requestDiagnostics(), item].sort((a, b) => a.at - b.at).slice(-MAX_REQUESTS);
     if (item.outcome === "network-error" || (item.status !== null && item.status >= 500)) {
       try { onFailure({ ...item }); } catch { /* Diagnostics must not change the request result. */ }
     }
   };
+  const flushNavigation = (cancelled = false) => {
+    if (navigationTimer !== undefined) clearTimeout(navigationTimer);
+    navigationTimer = undefined;
+    navigationDeadline = 0;
+    const items = pending;
+    pending = [];
+    for (const item of items) record(cancelled ? { ...item, outcome: "cancelled" } : item);
+  };
+  const beforeunload = () => {
+    flushNavigation();
+    navigationDeadline = Date.now() + 1_000;
+    navigationTimer = setTimeout(() => flushNavigation(), 1_000);
+  };
+  const pagehide = (event: Event) => {
+    leavingPage = "persisted" in event && event.persisted === false;
+    flushNavigation(leavingPage && Date.now() < navigationDeadline);
+  };
+  const pageshow = () => { leavingPage = false; flushNavigation(); };
+  target.addEventListener?.("beforeunload", beforeunload);
+  target.addEventListener?.("pagehide", pagehide);
+  target.addEventListener?.("pageshow", pageshow);
   const wrapped: typeof fetch = async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const route = diagnosticTarget(url, origin);
@@ -207,22 +230,29 @@ export function installRequestDiagnostics(
       return response;
     } catch (error) {
       const errorCategory = exceptionCategory(error);
-      // Chromium rejects reads cancelled by document teardown as TypeError,
-      // without aborting their signal. Do not treat hidden tabs or beforeunload
-      // as teardown, and never suppress write failures or genuine deadlines.
-      const cancelledByPagehide = leavingPage && startedOnActivePage && keepalive === false
+      // WebKit can reject before pagehide. Briefly await teardown confirmation,
+      // without delaying the caller's rejection or treating beforeunload as proof.
+      const eligibleRead = startedOnActivePage && keepalive === false
         && (method === "GET" || method === "HEAD") && errorCategory === "TypeError";
-      if (route) record({ at: Date.now(), target: route, method, status: null, requestKind: kind,
+      const cancelledByPagehide = leavingPage && eligibleRead;
+      if (route) {
+        const item: RequestDiagnostic = { at: Date.now(), target: route, method, status: null, requestKind: kind,
         durationMs: Math.max(0, Math.min(300_000, Date.now() - started)),
         outcome: errorCategory === "AbortError" || cancelledByPagehide ? "cancelled" : "network-error",
-        errorCategory, signalAborted: signal?.aborted === true });
+        errorCategory, signalAborted: signal?.aborted === true };
+        if (eligibleRead && !leavingPage && Date.now() < navigationDeadline && pending.length < MAX_PENDING_NAVIGATION_FAILURES) {
+          pending.push(item);
+        } else record(item);
+      }
       throw error;
     }
   };
   target.fetch = wrapped;
   return () => {
+    target.removeEventListener?.("beforeunload", beforeunload);
     target.removeEventListener?.("pagehide", pagehide);
     target.removeEventListener?.("pageshow", pageshow);
+    flushNavigation();
     if (target.fetch === wrapped) target.fetch = original;
     recent = [];
   };

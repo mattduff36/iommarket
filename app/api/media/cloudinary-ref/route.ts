@@ -11,6 +11,7 @@ import { checkMediaReadRateLimit } from "@/lib/media/read-rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
 import { dealerLogoDeliveryUrl } from "@/lib/media/dealer-logo-delivery";
 import { readMediaProviderMode } from "@/lib/media/config";
+import { reportMediaDenial } from "@/lib/media/request-diagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,11 +31,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Image not available." }, { status: 400 });
   }
 
+  const rateResult = await checkMediaReadRateLimit(request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local");
   const rateDenial = toRateLimitDenial(
-    await checkMediaReadRateLimit(request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"),
+    rateResult,
     "Too many image requests.",
   );
   if (rateDenial) {
+    if (rateDenial.status === 429) reportMediaDenial({
+      path: request.nextUrl.pathname + request.nextUrl.search, denialSource: rateResult.denialSource,
+      retryAfterSeconds: rateDenial.retryAfterSeconds,
+      requestId: request.headers.get("x-request-id") ?? request.headers.get("x-vercel-id"), release: process.env.VERCEL_GIT_COMMIT_SHA,
+    });
     return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds), "Cache-Control": "no-store" } });
   }
 

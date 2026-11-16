@@ -514,6 +514,20 @@ describe("FIX-ROLLBACK-001 reopen by run id", () => {
 });
 
 describe("FIX-ACKNOWLEDGE-001 snapshot acknowledgement", () => {
+  it("preserves a manual reopen after collection while acknowledging a captured OPEN issue", async () => {
+    const open = makeIssue({ id: "open" });
+    const reopened = makeIssue({ id: "reopened", status: "ACKNOWLEDGED" });
+    const snapshot = makeSnapshot([open, reopened]);
+    const client = new FakePg([open, reopened]);
+    client.issues.get("reopened")!.status = "OPEN";
+    const result = await acknowledgeSnapshotIssues({ client, snapshot, apply: true,
+      databaseTargetFingerprint: snapshot.databaseTargetFingerprint, actorAdminId: "admin-1" });
+    expect(result.results.find(item => item.issueId === "reopened")?.decision).toBe("skipped-not-open");
+    expect(client.issues.get("reopened")?.status).toBe("OPEN");
+    expect(client.issues.get("open")?.status).toBe("ACKNOWLEDGED");
+    expect(client.statusEvents).toHaveLength(1);
+    expect(client.audits).toHaveLength(1);
+  });
   it("acknowledges unchanged OPEN issues and leaves changed issues OPEN", async () => {
     const stable = makeIssue({ id: "stable" });
     const changed = makeIssue({ id: "changed", fingerprint: "fp-changed" });

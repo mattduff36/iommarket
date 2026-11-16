@@ -17,7 +17,7 @@
     "ast-value-reaches-return": 16,
     "ast-throw-forwarded": 51,
     "ast-throw-caller-sink": 101,
-    "ast-binding": 20,
+    "ast-binding": 19,
     "ast-throw-unrendered": 348,
     "ast-diagnostic-call": 71,
     "ast-throw-replaced": 9,
@@ -28,7 +28,7 @@
     "ast-jsx-consumer": 126,
     "ast-jsx-close": 10,
     "ast-non-message-attribute": 3,
-    "ast-signature": 4,
+    "ast-signature": 5,
     "ast-diagnostic-text": 3
   },
   "exception_rows": 710,
@@ -590,13 +590,6 @@
       "classification": "internal-only"
     },
     {
-      "id": "irrelevant:ast-binding:deferred-c:fragment",
-      "count": 6,
-      "example": "actions/dealer-onboarding.ts:306",
-      "rule_id": "ast-binding",
-      "classification": "irrelevant"
-    },
-    {
       "id": "displayed:ast-throw-forwarded:payments-b-public-boundary:raw-message",
       "count": 5,
       "example": "actions/payments.ts:232",
@@ -630,6 +623,13 @@
       "example": "actions/vehicle-catalogue.ts:85",
       "rule_id": "ast-throw-replaced",
       "classification": "internal-only"
+    },
+    {
+      "id": "irrelevant:ast-binding:deferred-c:fragment",
+      "count": 5,
+      "example": "actions/dealer-onboarding.ts:306",
+      "rule_id": "ast-binding",
+      "classification": "irrelevant"
     },
     {
       "id": "displayed:ast-throw-forwarded:journey-c-destructive-boundary:raw-message",
@@ -933,6 +933,13 @@
       "classification": "irrelevant"
     },
     {
+      "id": "irrelevant:ast-signature:deferred-c:fragment",
+      "count": 2,
+      "example": "app/(admin)/admin/dealers/dealer-actions.tsx:58",
+      "rule_id": "ast-signature",
+      "classification": "irrelevant"
+    },
+    {
       "id": "irrelevant:ast-type-or-import:listings-b-public-boundary:field-errors",
       "count": 2,
       "example": "app/(public)/sell/create-listing-submit.ts:198",
@@ -1153,13 +1160,6 @@
       "id": "irrelevant:ast-signature:deferred-c:field-errors",
       "count": 1,
       "example": "components/auth/signup-feedback.ts:32",
-      "rule_id": "ast-signature",
-      "classification": "irrelevant"
-    },
-    {
-      "id": "irrelevant:ast-signature:deferred-c:fragment",
-      "count": 1,
-      "example": "app/(admin)/admin/dealers/dealer-actions.tsx:58",
       "rule_id": "ast-signature",
       "classification": "irrelevant"
     },

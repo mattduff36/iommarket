@@ -1,5 +1,8 @@
 import { checkRateLimit, makeRateLimitKey } from "@/lib/rate-limit";
 import type { RateLimitResult } from "@/lib/rate-limit-result";
+import type { MediaDenialSource } from "./request-diagnostics";
+
+export type MediaRateLimitResult = RateLimitResult & { denialSource?: MediaDenialSource };
 
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 240;
@@ -18,7 +21,7 @@ export function createMediaReadLimiter(
   const buckets = new Map<string, { count: number; resetAt: number; deniedUntil?: number }>();
   let cleanupAt = 0;
   let retryAt = 0;
-  return async (identifier: string): Promise<RateLimitResult> => {
+  return async (identifier: string): Promise<MediaRateLimitResult> => {
     const time = now();
     if (time >= cleanupAt) {
       for (const [key, bucket] of buckets) if (Math.max(bucket.resetAt, bucket.deniedUntil ?? 0) <= time) buckets.delete(key);
@@ -28,17 +31,17 @@ export function createMediaReadLimiter(
     const key = identifier.trim().toLowerCase().slice(0, 128) || "unknown";
     let bucket = buckets.get(key);
     if (bucket?.deniedUntil && bucket.deniedUntil > time) {
-      return { allowed: false, remaining: 0, resetAt: bucket.deniedUntil, unavailable: false };
+      return { allowed: false, remaining: 0, resetAt: bucket.deniedUntil, unavailable: false, denialSource: "shared-window" };
     }
     if (!bucket || bucket.resetAt <= time) {
       if (!bucket && buckets.size >= MAX_BUCKETS) {
-        return { allowed: false, remaining: 0, resetAt: cleanupAt, unavailable: false };
+        return { allowed: false, remaining: 0, resetAt: cleanupAt, unavailable: false, denialSource: "bucket-cap" };
       }
       bucket = { count: 0, resetAt: time + WINDOW_MS };
       buckets.set(key, bucket);
     }
     if (bucket.count >= MAX_REQUESTS) {
-      return { allowed: false, remaining: 0, resetAt: bucket.resetAt, unavailable: false };
+      return { allowed: false, remaining: 0, resetAt: bucket.resetAt, unavailable: false, denialSource: "local-window" };
     }
     bucket.count += 1;
     const local = { allowed: true, remaining: MAX_REQUESTS - bucket.count, resetAt: bucket.resetAt, unavailable: false };
@@ -49,7 +52,7 @@ export function createMediaReadLimiter(
     });
     if (!result.unavailable) {
       if (!result.allowed) bucket.deniedUntil = result.resetAt;
-      return result;
+      return result.allowed ? result : { ...result, denialSource: "shared-window" };
     }
     if (now() >= retryAt) {
       retryAt = now() + RETRY_MS;

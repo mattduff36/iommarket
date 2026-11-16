@@ -24,6 +24,9 @@ export function decideIssueAcknowledgement(
   if (!snapshotIssue) {
     return { issueId: live?.id ?? "unknown", decision: "skipped-missing", reason: "Issue was not in the snapshot" };
   }
+  if (snapshotIssue.status !== "OPEN") {
+    return { issueId: snapshotIssue.id, decision: "skipped-not-open", reason: `Collected status was ${snapshotIssue.status}; a later reopen must be collected again` };
+  }
   if (!live) {
     return { issueId: snapshotIssue.id, decision: "skipped-missing", reason: "Issue no longer exists" };
   }
