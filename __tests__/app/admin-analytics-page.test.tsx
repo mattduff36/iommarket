@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { loadGoogleAnalytics } from "@/lib/analytics/google-analytics";
 
 const { dbMock, expireStaleLiveListingsMock, getSampleVisibilityMock } = vi.hoisted(
   () => ({
@@ -36,6 +38,8 @@ vi.mock("@/lib/analytics/google-analytics", () => ({
     pageviews: 0,
     previousUsers: 0,
     previousPageviews: 0,
+    sessions: 0,
+    energyFmSessions: 0,
     series: [],
     events: [],
     devices: [],
@@ -71,6 +75,27 @@ describe("AdminAnalyticsPage sample visibility", () => {
     dbMock.payment.count.mockResolvedValue(0);
     dbMock.subscription.count.mockResolvedValue(0);
     dbMock.$queryRaw.mockResolvedValue([]);
+  });
+
+  it.each([
+    ["available", 100, 12, "12% of all recorded visits"],
+    ["no-data", 0, 0, "0% of all recorded visits"],
+    ["error", 0, 0, "Analytics unavailable"],
+  ] as const)("shows honest Energy FM metrics for %s data", async (status, sessions, energyFmSessions, detail) => {
+    vi.mocked(loadGoogleAnalytics).mockResolvedValueOnce({
+      status, sessions, energyFmSessions, users: 25, pageviews: 80,
+      previousUsers: 0, previousPageviews: 0, series: [], events: [],
+      devices: [], channels: [], countries: [], cities: [],
+    });
+    const { default: AdminAnalyticsPage } = await import("@/app/(admin)/admin/analytics/page");
+    const html = renderToStaticMarkup(await AdminAnalyticsPage({ searchParams: Promise.resolve({ range: "7d" }) }));
+    expect(html).toContain("Energy FM visits");
+    expect(html).toContain(detail);
+    if (status === "available") {
+      expect(html).toContain("Energy FM banner");
+      expect(html).toContain("12 visits · 12%");
+    }
+    if (status === "error") expect(html).toContain("—");
   });
 
   it("excludes disabled samples from every listing-backed metric", async () => {

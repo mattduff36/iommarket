@@ -185,6 +185,10 @@ export default async function AdminAnalyticsPage(props: {
     loadGoogleAnalytics({ since: range.since, until: now }),
   ]);
   const visitorsAvailable = acquisition.status === "available";
+  const energyFmAvailable = visitorsAvailable || acquisition.status === "no-data";
+  const energyFmShare = acquisition.sessions > 0
+    ? (100 * acquisition.energyFmSessions / acquisition.sessions).toLocaleString("en-GB", { maximumFractionDigits: 1 })
+    : "0";
   const trend = trendSeries({
     startDate: londonDate(range.since),
     endDate: londonDate(now),
@@ -227,7 +231,7 @@ export default async function AdminAnalyticsPage(props: {
         actions={<AnalyticsRangeControl current={range.key} />}
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {visitorsAvailable ? (
           <MetricSparkCard
             label="Users"
@@ -256,6 +260,11 @@ export default async function AdminAnalyticsPage(props: {
           series={trend.map((point) => point.listingViews)}
           color={CHART_LISTING_VIEWS}
         />
+        <MetricSparkCard
+          label="Energy FM visits"
+          value={energyFmAvailable ? acquisition.energyFmSessions.toLocaleString("en-GB") : "—"}
+          detail={energyFmAvailable ? `${energyFmShare}% of all recorded visits` : "Analytics unavailable"}
+        />
       </div>
 
       <AnalyticsPanel id="daily-trend-heading" title="Daily trend" detail={range.key} className="mb-6">
@@ -270,6 +279,13 @@ export default async function AdminAnalyticsPage(props: {
                 items={acquisition.channels}
                 emptyLabel="No traffic source breakdown in this range."
               />
+              <div className="mt-4 border-t border-border pt-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-text-secondary">Energy FM banner</span>
+                  <span className="tabular-nums text-text-primary">{acquisition.energyFmSessions.toLocaleString("en-GB")} visits · {energyFmShare}%</span>
+                </div>
+                <p className="mt-1 text-xs text-text-tertiary">Share of all recorded visits. Consented visits after a banner click, not total clicks.</p>
+              </div>
             </AnalyticsPanel>
             <AnalyticsPanel id="devices-heading" title="Devices">
               <RankBars
