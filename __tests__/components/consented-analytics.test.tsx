@@ -37,6 +37,27 @@ describe("consented GA4 browser collector", () => {
     vi.restoreAllMocks();
   });
 
+  it("passes the Energy FM campaign only after consent, excluding unrelated URL data", async () => {
+    const campaign = "utm_source=energy_fm&utm_medium=display&utm_campaign=radio_advertising&utm_content=website_banner";
+    window.history.replaceState({}, "", `/?${campaign}&email=private@example.com&token=secret&gclid=private-id#private`);
+    renderAnalytics();
+    expect(document.getElementById("itrader-google-analytics")).toBeNull();
+    expect(queuedCommands().some((command) => command[0] === "config")).toBe(false);
+    act(() => {
+      window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, serializeCookieConsent(buildCookieConsent(true)));
+      window.dispatchEvent(new Event("itrader:cookie-consent-changed"));
+    });
+    const expectedLocation = `https://itrader.im/?${campaign}`;
+    expect(queuedCommands()).toContainEqual(["config", MEASUREMENT_ID, expect.objectContaining({ page_location: expectedLocation })]);
+    act(() => document.getElementById("itrader-google-analytics")!.dispatchEvent(new Event("load")));
+    await waitFor(() => expect(queuedCommands()).toContainEqual([
+      "event", "page_view", expect.objectContaining({ page_location: expectedLocation }),
+    ]));
+    expect(JSON.stringify(queuedCommands())).not.toMatch(/private@example|secret|private-id|#private/);
+    act(() => window.dispatchEvent(new Event("itrader:cookie-consent-changed")));
+    expect(queuedCommands().filter((command) => command[0] === "event")).toHaveLength(1);
+  });
+
   it("waits for analytics consent and the tag load, tracks public SPA navigation, and stops on private routes or revocation", async () => {
     const originalAppend = document.head.appendChild.bind(document.head);
     vi.spyOn(document.head, "appendChild").mockImplementation((node) => {
