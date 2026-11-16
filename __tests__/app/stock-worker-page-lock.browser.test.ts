@@ -10,6 +10,8 @@ declare global {
     releaseStockWorkerLock: () => void;
     stockLockClicks: Record<string, number>;
     stockLockWarnings: number;
+    stockTouchScrollEnded: boolean;
+    clearStockTouchScrollListener: () => void;
   }
 }
 
@@ -119,26 +121,31 @@ async function swipeUp(selector: string) {
   const session = await page.context().newCDPSession(page);
   const x = rect.x + rect.width / 2;
   const start = Math.min(rect.y + rect.height - 15, 650);
+  await page.locator(selector).evaluate(element => {
+    window.stockTouchScrollEnded = false;
+    const ended = (event: Event) => {
+      if (event.target === element) window.stockTouchScrollEnded = true;
+    };
+    // The production gesture barrier stops propagation before element listeners.
+    window.addEventListener("scrollend", ended, true);
+    window.clearStockTouchScrollListener = () => window.removeEventListener("scrollend", ended, true);
+  });
   try {
     await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: start }] });
     for (let step = 1; step <= 8; step += 1) {
       await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: start - step * 12 }] });
       await page.waitForTimeout(16);
     }
+    // Model a deliberate pan: stop the finger before lifting, rather than fling.
+    // A stable scrollTop alone does not mean Chromium ended its native gesture;
+    // the next tap can otherwise stop that fling instead of activating STOP.
+    await page.waitForTimeout(180);
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  } finally { await session.detach(); }
-  // Wait for native fling scrolling to finish before testing a separate footer tap.
-  await page.locator(selector).evaluate(async element => {
-    let previous = element.scrollTop;
-    let stable = 0;
-    for (let frame = 0; frame < 120 && stable < 5; frame += 1) {
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-      const next = element.scrollTop;
-      stable = next === previous ? stable + 1 : 0;
-      previous = next;
-    }
-    if (stable < 5) throw new Error("Touch scrolling did not settle");
-  });
+    await page.waitForFunction(() => window.stockTouchScrollEnded, undefined, { timeout: 5_000 });
+  } finally {
+    await page.evaluate(() => window.clearStockTouchScrollListener());
+    await session.detach();
+  }
 }
 
 describe("production stock worker page isolation in Chromium", () => {

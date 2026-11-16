@@ -4,6 +4,34 @@ import { describe, expect, it, vi } from "vitest";
 import { reportRequestError } from "@/lib/monitoring/on-request-error";
 
 describe("MON-CAPTURE-001 / MON-RUNTIME-001 onRequestError", () => {
+  it("captures media failure once with a fingerprint and no raw asset reference", async () => {
+    const captureException = vi.fn().mockResolvedValue(null);
+    const raw = "https://res.cloudinary.com/example/image/upload/private-logo.png?signature=private";
+    await reportRequestError(new Error("Media delivery failed"), {
+      path: `/api/media/cloudinary-ref?url=${encodeURIComponent(raw)}`, method: "GET",
+      headers: { "x-request-id": "lhr1::request-123" },
+    }, { routePath: `/api/media/cloudinary-ref?url=${encodeURIComponent(raw)}`, routeType: "route" }, {
+      captureException, env: { NEXT_RUNTIME: "nodejs", MONITORING_CAPTURE_SERVER: "1" },
+    });
+    expect(captureException).toHaveBeenCalledTimes(1);
+    const input = captureException.mock.calls[0][0];
+    expect(input.extra.media).toMatchObject({ route: "/api/media/cloudinary-ref", assetFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(input.requestPath).toBe("/api/media/cloudinary-ref");
+    expect(input.route).toBe("/api/media/cloudinary-ref");
+    expect(input.requestId).toBe("lhr1::request-123");
+    expect(JSON.stringify(input)).not.toMatch(/private-logo|signature|res.cloudinary/);
+  });
+
+  it("still captures malformed media errors but omits unsafe identity and query", async () => {
+    const captureException = vi.fn().mockResolvedValue(null);
+    await reportRequestError(new Error("Failure"), {
+      path: "/api/media/cloudinary-ref?url=https://evil.test/private", method: "GET",
+    }, { routePath: "/api/media/cloudinary-ref?url=https://evil.test/private", routeType: "route" }, { captureException, env: { NEXT_RUNTIME: "nodejs", MONITORING_CAPTURE_SERVER: "1" } });
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException.mock.calls[0][0]).not.toHaveProperty("extra");
+    expect(captureException.mock.calls[0][0].requestPath).toBe("/api/media/cloudinary-ref");
+    expect(JSON.stringify(captureException.mock.calls[0][0])).not.toContain("evil.test");
+  });
   it("captures sanitized App Router context and excludes headers/cookies", async () => {
     const captureException = vi.fn().mockResolvedValue(null);
 

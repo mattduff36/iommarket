@@ -22,7 +22,8 @@ function makeEvent(issueId: string, sequence: number): {
   id: string; issueId: string; source: string; severity: string; environment: string;
   message: string; stack: null; route: string; action: null; component: null;
   requestPath: string; occurredAt: Date | string; digest?: string; traceId?: string;
-  filename?: string; requests?: unknown; triggeringRequest?: unknown; resource?: unknown;
+  filename?: string; requests?: unknown; triggeringRequest?: unknown; resource?: unknown; media?: unknown;
+  attemptId?: unknown; inboxId?: unknown;
 } {
   return {
     id: `${issueId}-${sequence}`,
@@ -97,6 +98,33 @@ describe("fixerrors event snapshot limits", () => {
       expect(issue.events[0]?.id).toBe(`${issue.id}-14`);
       expect(issue.events.at(-1)?.id).toBe(`${issue.id}-5`);
     }
+  });
+
+  it("preserves modern and legacy checkout references through snapshot export", async () => {
+    const client = new SnapshotClient();
+    const cuid = "c" + "a".repeat(24);
+    client.events[14] = { ...client.events[14]!, attemptId: `attempt_${cuid}`, inboxId: cuid };
+    client.events[13] = { ...client.events[13]!, attemptId: cuid };
+    const snapshot = await fetchOpenIssueSnapshot(client, "a".repeat(64));
+    const eventQuery = client.calls.find((call) => call.text.includes('FROM "MonitoringEvent"'));
+
+    expect(eventQuery?.text).toContain(`tags->>'attemptId' AS "attemptId"`);
+    expect(snapshot.issues[0]?.events[0]?.evidence).toMatchObject({ attemptId: `attempt_${cuid}`, inboxId: cuid });
+    expect(snapshot.issues[0]?.events[1]?.evidence).toHaveProperty("attemptId", cuid);
+  });
+
+  it.each([
+    "attempt_cshort", "attempt_c" + "a".repeat(41), "attempt_c" + "a".repeat(19),
+    "attempt_attempt_c" + "a".repeat(24), "attempt_c" + "A".repeat(24),
+    "attempt_c" + "a".repeat(24) + "?token=private", "attempt_c" + "a".repeat(24) + "\n",
+    "person@example.com", null, 123,
+  ])("rejects malformed legacy attempt references without widening inbox IDs (%s)", async (attemptId) => {
+    const client = new SnapshotClient();
+    client.events[14] = { ...client.events[14]!, attemptId, inboxId: "attempt_c" + "a".repeat(24) };
+    const snapshot = await fetchOpenIssueSnapshot(client, "a".repeat(64));
+
+    expect(snapshot.issues[0]?.events[0]?.evidence).not.toHaveProperty("attemptId");
+    expect(snapshot.issues[0]?.events[0]?.evidence).not.toHaveProperty("inboxId");
   });
 
   it("selects only allowlisted digest/trace correlation fields and drops unsafe values", async () => {
@@ -193,6 +221,20 @@ describe("fixerrors event snapshot limits", () => {
       { browserFamily: "unknown" },
     ]);
     expect(JSON.stringify(snapshot.issues)).not.toMatch(/private|secret|"resource"|"url"|"alt"|"body"/);
+  });
+
+  it("projects safe server media evidence without raw asset references", async () => {
+    const client = new SnapshotClient();
+    client.events[14] = { ...client.events[14]!, media: {
+      route: "/api/media/listing-photo", assetFingerprint: "a".repeat(64), source: "listing",
+      mode: "fit", frame: "gallery", width: 1600, rawUrl: "private-asset", cookie: "private-session",
+    } };
+    const snapshot = await fetchOpenIssueSnapshot(client, "a".repeat(64));
+    const query = client.calls.find(call => call.text.includes('FROM "MonitoringEvent"'))?.text;
+    expect(query).toContain("extra->'media' AS media");
+    expect(query).toMatch(/\)\s+SELECT\b[\s\S]*,\s*media\s*,[\s\S]*FROM ranked_events/i);
+    expect(snapshot.issues[0]?.events[0]?.evidence).toMatchObject({ mediaAssetFingerprint: "a".repeat(64), mediaWidth: 1600 });
+    expect(JSON.stringify(snapshot)).not.toMatch(/private-asset|private-session/);
   });
 
   it("serializes occurredAt as UTC text and counts non-OPEN statuses without exporting them", async () => {

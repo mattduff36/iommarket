@@ -109,6 +109,7 @@ describe("request diagnostics", () => {
     } finally { restore(); }
   });
   it("keeps failures reportable before pagehide, after pageshow, and for new departing-page requests", async () => {
+    vi.useFakeTimers();
     const error = new TypeError("network");
     const target = Object.assign(new EventTarget(), { fetch: vi.fn().mockRejectedValue(error) });
     const failure = vi.fn();
@@ -117,11 +118,87 @@ describe("request diagnostics", () => {
       target.dispatchEvent(new Event("beforeunload"));
       target.dispatchEvent(new Event("visibilitychange"));
       await expect(target.fetch("/search")).rejects.toBe(error);
+      await vi.advanceTimersByTimeAsync(1_000);
       target.dispatchEvent(pagehideEvent());
       await expect(target.fetch("/search")).rejects.toBe(error);
       target.dispatchEvent(new Event("pageshow"));
       await expect(target.fetch("/search")).rejects.toBe(error);
       expect(failure).toHaveBeenCalledTimes(3);
+    } finally { restore(); }
+  });
+  it.each(["GET", "HEAD"])("waits briefly for WebKit teardown confirmation for %s", async method => {
+    vi.useFakeTimers();
+    const error = new TypeError("Load failed");
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn().mockRejectedValue(error) });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      target.dispatchEvent(new Event("beforeunload"));
+      await expect(target.fetch("/search", { method })).rejects.toBe(error);
+      expect(failure).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(400);
+      target.dispatchEvent(pagehideEvent());
+      expect(requestDiagnostics()[0]).toMatchObject({ outcome: "cancelled", durationMs: 0 });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(failure).not.toHaveBeenCalled();
+    } finally { restore(); }
+  });
+  it.each(["expiry", "BFCache", "pageshow", "dispose"])("reports pending failures on %s", async mode => {
+    vi.useFakeTimers();
+    const error = new TypeError("network");
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn().mockRejectedValue(error) });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      target.dispatchEvent(new Event("beforeunload"));
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      expect(failure).not.toHaveBeenCalled();
+      if (mode === "expiry") await vi.advanceTimersByTimeAsync(1_000);
+      else if (mode === "dispose") restore();
+      else target.dispatchEvent(mode === "BFCache" ? pagehideEvent(true) : new Event("pageshow"));
+      expect(failure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ outcome: "network-error" }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(failure).toHaveBeenCalledOnce();
+    } finally { restore(); }
+  });
+  it("expires cancelled navigation independently and does not suppress earlier failures", async () => {
+    vi.useFakeTimers();
+    const error = new TypeError("network");
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn().mockRejectedValue(error) });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      target.dispatchEvent(new Event("beforeunload"));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(target.fetch("/search")).rejects.toBe(error);
+      target.dispatchEvent(pagehideEvent());
+      expect(failure).toHaveBeenCalledTimes(2);
+      expect(requestDiagnostics().every(item => item.outcome === "network-error")).toBe(true);
+    } finally { restore(); }
+  });
+  it("bounds pending failures and immediately reports writes, keepalive and deadlines", async () => {
+    vi.useFakeTimers();
+    const error = new TypeError("network");
+    const original = vi.fn().mockRejectedValue(error);
+    const target = Object.assign(new EventTarget(), { fetch: original });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      target.dispatchEvent(new Event("beforeunload"));
+      for (let i = 0; i < 12; i++) await expect(target.fetch("/search")).rejects.toBe(error);
+      expect(failure).toHaveBeenCalledTimes(2);
+      await expect(target.fetch("/search", { method: "POST" })).rejects.toBe(error);
+      await expect(target.fetch("/search", { keepalive: true })).rejects.toBe(error);
+      const getter = vi.fn(() => false);
+      await expect(target.fetch("/search", { get keepalive() { return getter(); } })).rejects.toBe(error);
+      expect(getter).not.toHaveBeenCalled();
+      original.mockRejectedValue(new DOMException("deadline", "TimeoutError"));
+      await expect(target.fetch("/search")).rejects.toHaveProperty("name", "TimeoutError");
+      expect(failure).toHaveBeenCalledTimes(6);
+      target.dispatchEvent(pagehideEvent());
+      expect(failure).toHaveBeenCalledTimes(6);
+      expect(requestDiagnostics()).toHaveLength(10);
     } finally { restore(); }
   });
   it("does not treat a persisted BFCache pagehide as document teardown", async () => {

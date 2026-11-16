@@ -5,6 +5,7 @@ import { listingPhotoDeliveryQuerySchema } from "@/lib/media/listing-photo-query
 import { signedDeliveryForPhoto } from "@/lib/media/serve-photo";
 import { checkMediaReadRateLimit } from "@/lib/media/read-rate-limit";
 import { toRateLimitDenial } from "@/lib/rate-limit-result";
+import { reportMediaDenial } from "@/lib/media/request-diagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,11 +26,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid image request." }, { status: 400 });
   }
 
+  const rateResult = await checkMediaReadRateLimit(clientKey(request));
   const rateDenial = toRateLimitDenial(
-    await checkMediaReadRateLimit(clientKey(request)),
+    rateResult,
     "Too many image requests.",
   );
   if (rateDenial) {
+    if (rateDenial.status === 429) reportMediaDenial({
+      path: request.nextUrl.pathname + request.nextUrl.search, denialSource: rateResult.denialSource,
+      retryAfterSeconds: rateDenial.retryAfterSeconds,
+      requestId: request.headers.get("x-request-id") ?? request.headers.get("x-vercel-id"), release: process.env.VERCEL_GIT_COMMIT_SHA,
+    });
     return NextResponse.json({ error: rateDenial.message }, { status: rateDenial.status, headers: { "Retry-After": String(rateDenial.retryAfterSeconds), "Cache-Control": "no-store" } });
   }
 

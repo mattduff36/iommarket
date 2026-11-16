@@ -1,12 +1,18 @@
 import { clientDiagnosticsSchema } from "@/lib/monitoring/client-diagnostics";
 import { diagnosticTarget, safeRequestDiagnostic } from "@/lib/monitoring/request-diagnostics";
 import { safeResourceDiagnostic } from "@/lib/monitoring/resource-diagnostics";
+import { safeMediaFacts } from "@/lib/media/request-diagnostics";
 
 /** Export a closed set of diagnostic facts, never arbitrary tags or extra data. */
 export function safeEventEvidence(row: Record<string, unknown>): Record<string, string | number | boolean> {
   const evidence: Record<string, string | number | boolean> = {};
+  const media = safeMediaFacts(row.media);
+  if (media) for (const [key, value] of Object.entries(media)) {
+    if (value !== undefined) evidence[`media${key[0].toUpperCase()}${key.slice(1)}`] = value;
+  }
   for (const key of ["inboxId", "attemptId"] as const) {
-    if (typeof row[key] === "string" && /^c[a-z0-9]{20,40}$/.test(row[key])) evidence[key] = row[key];
+    const pattern = key === "attemptId" ? /^(?:attempt_)?c[a-z0-9]{20,40}$/ : /^c[a-z0-9]{20,40}$/;
+    if (typeof row[key] === "string" && row[key].trim() === row[key] && pattern.test(row[key])) evidence[key] = row[key];
   }
   const categories: Record<string, string[]> = {
     rejectStage: ["hmac", "envelope"], envReason: ["json", "event", "client", "time", "data", "ccy", "shape", "other"],
