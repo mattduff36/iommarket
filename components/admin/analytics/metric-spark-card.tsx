@@ -50,6 +50,7 @@ export function MetricSparkCard({
   previous,
   series,
   color,
+  detail,
 }: {
   label: string;
   value: string;
@@ -57,6 +58,7 @@ export function MetricSparkCard({
   previous?: number;
   series?: number[];
   color?: string;
+  detail?: string;
 }) {
   return (
     <Card>
@@ -64,6 +66,7 @@ export function MetricSparkCard({
         <div className="min-w-0">
           <p className="text-xs font-medium text-text-secondary">{label}</p>
           <p className="mt-2 text-2xl font-bold tracking-[-0.02em] tabular-nums text-text-primary">{value}</p>
+          {detail ? <p className="mt-1 text-xs text-text-tertiary">{detail}</p> : null}
           {current !== undefined && previous !== undefined ? (
             <Delta current={current} previous={previous} />
           ) : null}

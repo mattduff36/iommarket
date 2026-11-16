@@ -21,6 +21,8 @@ const emptyReport = {
   pageviews: 0,
   previousUsers: 0,
   previousPageviews: 0,
+  sessions: 0,
+  energyFmSessions: 0,
   series: [],
   events: [],
   devices: [],
@@ -56,6 +58,8 @@ function availableReports() {
         { dimensionValues: [{ value: "page_view" }], metricValues: [{ value: "82" }] },
         { dimensionValues: [{ value: "search_performed" }], metricValues: [{ value: "4" }] },
       ] },
+      { rows: [{ metricValues: [{ value: "100" }] }] },
+      { rows: [{ metricValues: [{ value: "12" }] }] },
     ] }),
   ];
 }
@@ -83,6 +87,8 @@ describe("Google Analytics report loader", () => {
       pageviews: 82,
       previousUsers: 20,
       previousPageviews: 40,
+      sessions: 100,
+      energyFmSessions: 12,
       series: [{ date: "2026-03-29", users: 31, pageviews: 82 }],
       events: [
         { name: "page_view", count: 82 },
@@ -117,7 +123,7 @@ describe("Google Analytics report loader", () => {
       return JSON.parse(String(apiCall[1].body)) as { requests: Array<Record<string, unknown>> };
     });
     expect(requestBodies[0]?.requests).toHaveLength(5);
-    expect(requestBodies[1]?.requests).toHaveLength(3);
+    expect(requestBodies[1]?.requests).toHaveLength(5);
     expect(requestBodies[0]?.requests[0]?.dateRanges).toEqual([{ startDate: "2026-03-28", endDate: "2026-03-30" }]);
     expect(requestBodies[0]?.requests[0]?.metrics).toEqual([{ name: "totalUsers" }, { name: "screenPageViews" }]);
     expect(requestBodies[0]?.requests[1]?.dateRanges).toEqual([{ startDate: "2026-03-25", endDate: "2026-03-27" }]);
@@ -126,6 +132,14 @@ describe("Google Analytics report loader", () => {
     expect(requestBodies[0]?.requests[4]?.dimensions).toEqual([{ name: "sessionDefaultChannelGroup" }]);
     expect(requestBodies[1]?.requests[0]?.dimensions).toEqual([{ name: "country" }]);
     expect(requestBodies[1]?.requests[1]?.dimensions).toEqual([{ name: "city" }, { name: "country" }]);
+    expect(requestBodies[1]?.requests[3]).toEqual({ dateRanges: [{ startDate: "2026-03-28", endDate: "2026-03-30" }], metrics: [{ name: "sessions" }] });
+    expect(requestBodies[1]?.requests[4]).toEqual({
+      dateRanges: [{ startDate: "2026-03-28", endDate: "2026-03-30" }], metrics: [{ name: "sessions" }],
+      dimensionFilter: { andGroup: { expressions: [
+        ["sessionSource", "energy_fm"], ["sessionMedium", "display"],
+        ["sessionCampaignName", "radio_advertising"], ["sessionManualAdContent", "website_banner"],
+      ].map(([fieldName, value]) => ({ filter: { fieldName, stringFilter: { matchType: "EXACT", value, caseSensitive: true } } })) } },
+    });
     expect(requestBodies[1]?.requests[2]?.dimensions).toEqual([{ name: "eventName" }]);
   });
 
@@ -133,7 +147,7 @@ describe("Google Analytics report loader", () => {
     const noDataFetch = vi.fn()
       .mockResolvedValueOnce(response({ access_token: "test-access-token" }))
       .mockResolvedValueOnce(response({ reports: [{}, {}, {}, {}, {}] }))
-      .mockResolvedValueOnce(response({ reports: [{}, {}, {}] }));
+      .mockResolvedValueOnce(response({ reports: [{}, {}, {}, {}, {}] }));
     expect((await loadGoogleAnalytics({ ...range, env, fetchImpl: noDataFetch })).status).toBe("no-data");
 
     const failedFetch = vi.fn().mockResolvedValueOnce(response({ error: { message: "private detail" } }, false));

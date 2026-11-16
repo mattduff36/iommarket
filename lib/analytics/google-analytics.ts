@@ -23,6 +23,8 @@ export interface GoogleAnalyticsReport {
   pageviews: number;
   previousUsers: number;
   previousPageviews: number;
+  sessions: number;
+  energyFmSessions: number;
   series: GoogleAnalyticsSeriesPoint[];
   events: Array<{ name: string; count: number }>;
   devices: Array<{ name: string; count: number }>;
@@ -35,13 +37,14 @@ type GoogleEnv = Record<string, string | undefined>;
 type Fetcher = typeof fetch;
 type GoogleConfig = { propertyId: string; email: string; privateKey: string };
 type DateRange = { startDate: string; endDate: string };
-type MetricName = "totalUsers" | "screenPageViews" | "eventCount";
+type MetricName = "totalUsers" | "screenPageViews" | "eventCount" | "sessions";
 type ReportRequest = {
   dateRanges: DateRange[];
   dimensions?: Array<{ name: string }>;
   metrics: Array<{ name: MetricName }>;
   limit?: string;
   orderBys?: Array<Record<string, unknown>>;
+  dimensionFilter?: { andGroup: { expressions: Array<{ filter: { fieldName: string; stringFilter: { matchType: "EXACT"; value: string; caseSensitive: boolean } } }> } };
 };
 
 interface ParsedRow {
@@ -90,6 +93,8 @@ function emptyReport(status: GoogleAnalyticsReport["status"]): GoogleAnalyticsRe
     pageviews: 0,
     previousUsers: 0,
     previousPageviews: 0,
+    sessions: 0,
+    energyFmSessions: 0,
     series: [],
     events: [],
     devices: [],
@@ -147,6 +152,20 @@ function reportRequests(current: DateRange): ReportRequest[] {
       orderBys: metricOrder("totalUsers"),
     },
     { dateRanges: [current], dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], limit: "100" },
+    { dateRanges: [current], metrics: [{ name: "sessions" }] },
+    {
+      dateRanges: [current],
+      metrics: [{ name: "sessions" }],
+      dimensionFilter: { andGroup: { expressions: ([
+        ["sessionSource", "energy_fm"],
+        ["sessionMedium", "display"],
+        ["sessionCampaignName", "radio_advertising"],
+        ["sessionManualAdContent", "website_banner"],
+      ] as const).map(([fieldName, value]) => ({ filter: {
+        fieldName,
+        stringFilter: { matchType: "EXACT" as const, value, caseSensitive: true },
+      } })) } },
+    },
   ];
 }
 
@@ -248,7 +267,7 @@ async function runBatch(
 
 function reportFrom(batches: unknown[][]): GoogleAnalyticsReport {
   const rows = batches.flat().map((report) => reportRows(report).map(parseRow));
-  if (rows.length < 8) return emptyReport("error");
+  if (rows.length < 10) return emptyReport("error");
   const current = totalsFrom(rows[0] ?? []);
   const previous = totalsFrom(rows[1] ?? []);
   return {
@@ -257,6 +276,8 @@ function reportFrom(batches: unknown[][]): GoogleAnalyticsReport {
     pageviews: current.pageviews,
     previousUsers: previous.users,
     previousPageviews: previous.pageviews,
+    sessions: rows[8]?.[0]?.metrics[0] ?? 0,
+    energyFmSessions: rows[9]?.[0]?.metrics[0] ?? 0,
     series: seriesFrom(rows[2] ?? []),
     devices: namedCounts(rows[3] ?? []),
     channels: namedCounts(rows[4] ?? []),
