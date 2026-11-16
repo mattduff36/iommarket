@@ -27,6 +27,17 @@ describe("Google Analytics deployment config", () => {
 });
 
 describe("Google Analytics privacy filtering", () => {
+  it("retains validated campaign labels but excludes identifiers and malformed values", () => {
+    const page = (search: string) => safeAnalyticsPageView({
+      protocol: "https:", hostname: "itrader.im", pathname: "/", search,
+    })?.page_location;
+    expect(page("?utm_source=energy_fm&utm_medium=display&utm_campaign=radio_advertising&utm_content=website_banner&email=private@example.com&gclid=private&token=secret#fragment"))
+      .toBe("https://itrader.im/?utm_source=energy_fm&utm_medium=display&utm_campaign=radio_advertising&utm_content=website_banner");
+    expect(page(`?utm_source=private%40example.com&utm_medium=%3Cscript%3E&utm_campaign=${"x".repeat(81)}&utm_content=&utm_term=two%0Alines`))
+      .toBe("https://itrader.im/");
+    expect(safeAnalyticsPageView({ protocol: "https:", hostname: "itrader.im", pathname: "/account", search: "?utm_source=energy_fm" })).toBeNull();
+  });
+
   it.each([
     "/admin",
     "/admin/analytics",

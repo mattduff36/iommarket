@@ -1,3 +1,17 @@
+import { readCampaignParams } from "@/lib/advertising/attribution";
+
+// Only validated campaign labels may accompany an analytics page URL.
+// Advertising click IDs and all other query parameters remain excluded.
+function analyticsCampaignQuery(search: string): string {
+  const campaign = readCampaignParams(search);
+  const query = new URLSearchParams();
+  for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const) {
+    const value = campaign?.[key];
+    if (value) query.set(key, value);
+  }
+  return query.size ? `?${query.toString()}` : "";
+}
+
 export function redactAnalyticsUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -48,6 +62,7 @@ export function safeAnalyticsPageView(input: {
   protocol: string;
   hostname: string;
   pathname: string;
+  search?: string;
   referrer?: string;
 }): SafePageView | null {
   const host = input.hostname.toLowerCase();
@@ -56,7 +71,7 @@ export function safeAnalyticsPageView(input: {
   if (!isAnalyticsPathAllowed(pathname)) return null;
 
   const pageView: SafePageView = {
-    page_location: `https://${host}${pathname}`,
+    page_location: `https://${host}${pathname}${analyticsCampaignQuery(input.search ?? "")}`,
     page_referrer: "",
     page_title: "iTrader | Isle of Man Vehicle Sales",
   };

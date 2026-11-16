@@ -46,6 +46,7 @@ export function ConsentedAnalytics({
         protocol: window.location.protocol,
         hostname: window.location.hostname,
         pathname: window.location.pathname,
+        search: window.location.search,
         referrer: lastPageLocationRef.current ?? document.referrer,
       });
       const consent = parseCookieConsent(window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
