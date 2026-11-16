@@ -186,7 +186,7 @@ describe("request diagnostics", () => {
     const restore = installRequestDiagnostics(target, "https://example.test", failure);
     try {
       target.dispatchEvent(new Event("beforeunload"));
-      for (let i = 0; i < 12; i++) await expect(target.fetch("/search")).rejects.toBe(error);
+      for (let i = 0; i < 66; i++) await expect(target.fetch("/search")).rejects.toBe(error);
       expect(failure).toHaveBeenCalledTimes(2);
       await expect(target.fetch("/search", { method: "POST" })).rejects.toBe(error);
       await expect(target.fetch("/search", { keepalive: true })).rejects.toBe(error);
@@ -199,6 +199,26 @@ describe("request diagnostics", () => {
       target.dispatchEvent(pagehideEvent());
       expect(failure).toHaveBeenCalledTimes(6);
       expect(requestDiagnostics()).toHaveLength(10);
+    } finally { restore(); }
+  });
+  it.each(["pagehide", "expiry"])("handles a realistic prefetch burst and bounded history on %s", async mode => {
+    vi.useFakeTimers();
+    const error = new TypeError("Load failed");
+    const target = Object.assign(new EventTarget(), { fetch: vi.fn().mockRejectedValue(error) });
+    const failure = vi.fn();
+    const restore = installRequestDiagnostics(target, "https://example.test", failure);
+    try {
+      target.dispatchEvent(new Event("beforeunload"));
+      const count = mode === "pagehide" ? 20 : 64;
+      for (let index = 0; index < count; index++) {
+        await expect(target.fetch("/dealers/example", { headers: { "next-router-prefetch": "1" } })).rejects.toBe(error);
+      }
+      expect(failure).not.toHaveBeenCalled();
+      if (mode === "pagehide") target.dispatchEvent(pagehideEvent());
+      else await vi.advanceTimersByTimeAsync(1_000);
+      expect(failure).toHaveBeenCalledTimes(mode === "pagehide" ? 0 : 64);
+      expect(requestDiagnostics()).toHaveLength(10);
+      expect(requestDiagnostics().every(item => item.outcome === (mode === "pagehide" ? "cancelled" : "network-error"))).toBe(true);
     } finally { restore(); }
   });
   it("does not treat a persisted BFCache pagehide as document teardown", async () => {

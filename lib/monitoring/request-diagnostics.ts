@@ -18,6 +18,9 @@ export interface RequestDiagnostic {
 }
 
 const MAX_REQUESTS = 10;
+// A page can cancel many prefetched reads at once; this transient queue is
+// separate from the small breadcrumb history exported with each fault.
+const MAX_PENDING_NAVIGATION_FAILURES = 64;
 const MAX_AGE_MS = 5 * 60_000;
 let recent: RequestDiagnostic[] = [];
 const STATIC_SEGMENTS = new Set("api admin account listings listing search sell private dealer dealers profile logo photos images upload media listing-photo costs users stock-reviews preview me auth token sign-in sign-up payments webhooks monitoring events report-issue _next static chunks".split(" "));
@@ -237,7 +240,7 @@ export function installRequestDiagnostics(
         durationMs: Math.max(0, Math.min(300_000, Date.now() - started)),
         outcome: errorCategory === "AbortError" || cancelledByPagehide ? "cancelled" : "network-error",
         errorCategory, signalAborted: signal?.aborted === true };
-        if (eligibleRead && !leavingPage && Date.now() < navigationDeadline && pending.length < MAX_REQUESTS) {
+        if (eligibleRead && !leavingPage && Date.now() < navigationDeadline && pending.length < MAX_PENDING_NAVIGATION_FAILURES) {
           pending.push(item);
         } else record(item);
       }
