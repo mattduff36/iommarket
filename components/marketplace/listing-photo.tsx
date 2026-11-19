@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { preload } from "react-dom";
 import { cn } from "@/lib/cn";
@@ -71,6 +71,9 @@ function ProviderListingPhoto({
   unoptimized?: boolean;
   hidden?: boolean;
 }) {
+  const [failed, setFailed] = useState(false);
+  if (failed && hidden) return null;
+
   const built = buildProviderListingPhotoAttributes({
     photo,
     frame,
@@ -83,7 +86,7 @@ function ProviderListingPhoto({
     unoptimized,
     "aria-hidden": hidden || undefined,
   });
-  if (built.preload) {
+  if (built.preload && !failed) {
     preload(built.props.src, {
       as: "image",
       imageSrcSet: built.props.srcSet,
@@ -95,7 +98,15 @@ function ProviderListingPhoto({
   // Same-origin signing URLs must not go through /_next/image, which cannot
   // forward the viewer's session. Widths come from Next's getImgProps.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img {...imageProps} alt={photoAlt} />;
+  return (
+    <img
+      {...imageProps}
+      alt={photoAlt}
+      src={failed ? "/images/placeholder-listing.png" : imageProps.src}
+      srcSet={failed ? undefined : imageProps.srcSet}
+      onError={failed ? undefined : () => setFailed(true)}
+    />
+  );
 }
 
 function CloudinaryListingPhoto({
@@ -181,6 +192,7 @@ export function ListingPhoto({
     if (providerDelivery) {
       return (
         <ProviderListingPhoto
+          key={listingPhotoDeliveryUrl(photo, frame, mode, 960)}
           photo={photo}
           frame={frame}
           mode={mode}

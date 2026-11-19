@@ -134,6 +134,23 @@ function expectProtectedCandidates(image: HTMLElement) {
 }
 
 describe("listing photo responsive delivery", () => {
+  it("shows a local placeholder when a protected image fails and resets for the next photo", () => {
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
+    const view = (photo: ListingPhotoSource) => (
+      <ListingPhoto photo={photo} frame="card" alt="Car" sizes={LISTING_CARD_SIZES} />
+    );
+    const { rerender } = render(view(landscape));
+    const image = screen.getByRole("img", { name: "Car" });
+    expectProtectedCandidates(image);
+
+    fireEvent.error(image);
+    expect(image.getAttribute("src")).toBe("/images/placeholder-listing.png");
+    expect(image.hasAttribute("srcset")).toBe(false);
+
+    rerender(view(portrait));
+    expectProtectedCandidates(screen.getByRole("img", { name: "Car" }));
+  });
+
   it("requests gallery pixel widths instead of the 16:10 aspect ratio", () => {
     process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
     render(
