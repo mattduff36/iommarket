@@ -24,6 +24,7 @@ const ListingEditDialog = dynamic(() => import("@/components/admin/listing-edit-
 
 export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
   const pathname = usePathname();
+  const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
   const signOutLoading = useSignOutLoading();
   const signingOut = useRef(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -223,7 +224,8 @@ export function SiteHeader({ previewSite = false }: { previewSite?: boolean }) {
       >
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <Link href="/" className="shrink-0 flex items-center">
+          {isAdminArea ? <div id="admin-mobile-menu-trigger" className="flex shrink-0 items-center lg:hidden" /> : null}
+          <Link href="/" className={cn("shrink-0 items-center", isAdminArea ? "hidden lg:flex" : "flex")}>
             <Image
               src="/images/logo-itrader-hq.png"
               alt="iTrader.im – Buy · Sell · Upgrade"
