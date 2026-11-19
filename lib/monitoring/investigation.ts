@@ -6,11 +6,29 @@ const note = z.string().trim().min(8).max(1000).refine(value => redactFreeText(v
 const filePath = z.string().regex(/^(?:app|actions|components|lib|scripts|__tests__)\/[A-Za-z0-9_./()[\]-]+$/)
   .refine(value => !value.split("/").includes(".."));
 
+export const resolutionLabels = {
+  mitigated: "Mitigated",
+  "diagnostics-improved": "Diagnostics improved",
+  "expected-behaviour": "Expected behaviour",
+  "unable-to-reproduce": "Reviewed — unable to reproduce",
+} as const;
+
+export function needsDeployedImprovement(reason: keyof typeof resolutionLabels) {
+  return reason === "mitigated" || reason === "diagnostics-improved";
+}
+
 export const investigationSchema = z.object({
   observedLastSeenAt: z.string().datetime({ offset: true }).optional(),
   observedOccurrences: z.number().int().positive().optional(),
   recordedAt: z.iso.datetime().optional(),
-  outcome: z.enum(["collecting-evidence", "external-blocker", "pending-release", "expired"]),
+  outcome: z.enum(["collecting-evidence", "external-blocker", "pending-release", "expired", "resolved"]),
+  resolution: z.object({
+    reason: z.enum(["mitigated", "diagnostics-improved", "expected-behaviour", "unable-to-reproduce"]),
+    impact: z.enum(["low", "medium"]),
+    impactAssessment: note,
+    seriousOrContinuing: z.literal(false),
+    candidateSha: z.string().regex(/^[a-f0-9]{40}$/).optional(),
+  }).strict().optional(),
   finding: note,
   evidence: z.array(note).min(1).max(12),
   missingEvidence: note,
@@ -26,6 +44,15 @@ export const investigationSchema = z.object({
     deploymentSha: z.string().regex(/^[a-f0-9]{40}$/).optional(),
   }).strict(),
 }).strict().superRefine((value, context) => {
+  const { resolution, collector, outcome } = value;
+  if ((outcome === "resolved" && !resolution) || (resolution && (
+    outcome === "pending-release"
+      ? !needsDeployedImprovement(resolution.reason) || !resolution.candidateSha || collector.state !== "ready"
+      : outcome !== "resolved" || (needsDeployedImprovement(resolution.reason) &&
+        (collector.state !== "deployed" || !collector.deploymentSha || !resolution.candidateSha))
+  ))) {
+    context.addIssue({ code: "custom", message: "Resolution requires a reason and verified production evidence for a mitigation or diagnostic improvement" });
+  }
   if (value.outcome === "expired" && (value.collector.state !== "deployed" || !value.collector.deploymentSha)) {
     context.addIssue({ code: "custom", message: "Historical expiry requires a deployed collector" });
   }
@@ -37,7 +64,7 @@ export function readInvestigation(value: unknown): Investigation | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const parsed = investigationSchema.safeParse(Object.fromEntries(
-    ["outcome", "finding", "evidence", "missingEvidence", "owner", "nextAction", "reviewAfter", "collector", "observedLastSeenAt", "observedOccurrences", "recordedAt"].map(key => [key, record[key]]),
+    ["outcome", "resolution", "finding", "evidence", "missingEvidence", "owner", "nextAction", "reviewAfter", "collector", "observedLastSeenAt", "observedOccurrences", "recordedAt"].map(key => [key, record[key]]),
   ));
   return parsed.success ? parsed.data : null;
 }

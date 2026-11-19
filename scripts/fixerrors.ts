@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 import { acknowledgeSnapshotIssues } from "./fixerrors/acknowledge";
 import { collectAndAcknowledgeIssues } from "./fixerrors/collect";
 import { acknowledgedBacklogReport } from "./fixerrors/backlog";
-import { draftInvestigationManifest, recordInvestigations, readInvestigationManifest } from "./fixerrors/investigations";
+import { draftInvestigationManifest, recordInvestigations, readInvestigationManifest, reconcileInvestigationResolutions } from "./fixerrors/investigations";
+import { readInvestigation } from "@/lib/monitoring/investigation";
 import { createCollectorVerifier } from "./fixerrors/collector-verification";
 import { pendingReleasePaths, resumeReleases, recordReleaseRecurrences } from "./fixerrors/release-resume";
 import { originRepository, readOriginUrl, runGit } from "./fixerrors/git-policy";
@@ -218,7 +219,7 @@ function printExportFollowUp(snapshot: OpenIssueSnapshot) {
   console.log("  Repair on the staging branch. Check the paths before editing:");
   console.log("npm run fixerrors -- --prepare-repair --paths=<files>");
   console.log("  Commit the reviewed repair locally. Push only with /fap or /ffap.");
-  console.log("  Resolve proven repairs only after production verification. A preventive mitigation is not proof that the original fault is resolved.");
+  console.log("  Verify proven repairs in production. Record eligible completed follow-up separately with its resolution reason.");
   console.log(`  Snapshot issue IDs: ${getSnapshotIssueIds(snapshot).join(",")}`);
 }
 
@@ -241,6 +242,28 @@ async function exportOpenIssues(client: PgClientLike, databaseTargetFingerprint:
   const collection = await timeStage("snapshot export", () => collectAndAcknowledgeIssues(client, databaseTargetFingerprint));
   let snapshot = collection.snapshot;
   console.log(`  Automatically acknowledged: ${collection.acknowledged}; changed or missing during collection: ${collection.skipped}. This is not resolution.`);
+  if (snapshot.issues.some(issue => {
+    const record = readInvestigation(issue.investigation);
+    return record?.outcome === "pending-release" && record.resolution?.candidateSha;
+  })) {
+    let resolved = 0;
+    try {
+      const refs = fetchReleaseRefs(process.cwd());
+      const repo = originRepository(readOriginUrl(process.cwd()));
+      const deployment = await readVercelProductionStatus({ ...repo, sha: refs.productionSha });
+      resolved = await reconcileInvestigationResolutions({
+        client, snapshot, databaseTargetFingerprint, apply: true, productionSha: refs.productionSha,
+        verifyCollector: createCollectorVerifier({ ...refs, cwd: process.cwd(), deployed: deployment.ok }),
+        resolveActor: () => resolveActorAdminId(client),
+      });
+    } catch (error) {
+      console.error("Investigation resolution reconciliation needs review:", error instanceof Error ? error.message : String(error));
+    }
+    if (resolved) {
+      console.log(`  Resolved completed follow-up after verified production deployment: ${resolved}.`);
+      snapshot = (await collectAndAcknowledgeIssues(client, databaseTargetFingerprint)).snapshot;
+    }
+  }
   const releaseManifests = pendingReleasePaths().slice(0, 200).flatMap(path => {
     try { return [readReleaseManifest(path)]; }
     catch { console.error("An archived release manifest is invalid; inspect --resume-releases before relying on release linkage."); return []; }

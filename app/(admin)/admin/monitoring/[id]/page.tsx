@@ -177,7 +177,7 @@ export default async function MonitoringIssuePage({ params }: Props) {
             <CardTitle>Triage Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <MonitoringInvestigation value={issue.investigation} lastSeenAt={issue.lastSeenAt} />
+            <MonitoringInvestigation value={issue.investigation} lastSeenAt={issue.lastSeenAt} status={issue.status} />
             <IssueStatusControls issueId={issue.id} />
           </CardContent>
         </Card>

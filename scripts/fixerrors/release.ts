@@ -340,14 +340,14 @@ export async function resolveDeployedIssues(input: {
       issueId: issue.issueId,
       fromStatus: issue.status,
       toStatus: "RESOLVED",
-      notes: resolutionNote(runId, input.evidence),
+      notes: resolutionNote(runId, `Fixed: ${input.evidence}`),
       now,
     });
     await insertAdminAudit(input.client, {
       adminId: input.actorAdminId,
       action: "FIXERRORS_RESOLVE_MONITORING_ISSUE",
       issueId: issue.issueId,
-      details: { runId, evidence: input.evidence, snapshotId: input.snapshotId, deployedAt: input.deployedAt.toISOString() },
+      details: { runId, reason: "fixed", evidence: input.evidence, snapshotId: input.snapshotId, deployedAt: input.deployedAt.toISOString() },
       now,
     });
   }
