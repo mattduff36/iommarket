@@ -19,7 +19,7 @@ Use this chat's attached repository. Never substitute another project's runbook 
 
 - **Lower-risk browser faults:** exact historical causality is not always necessary for a useful defensive change. A bounded recovery path, safer resource handling, or graceful fallback may prevent the observed user impact. Explain the supported failure mechanism, test it, assess side effects, retain useful diagnostics and define how effectiveness will be checked. A retry must be bounded and safe for the operation; never retry non-idempotent writes blindly. An error boundary cannot prevent every browser error.
 - **Database connections, persistence, payments, security or data integrity:** establish the cause before changing behavior. Check current connection/configuration, server evidence and affected operations. Do not guess at pool sizes, weaken validation, hide failures, or add blanket retries. Existing approval gates remain. Actual impact overrides an incorrect severity label.
-- **Unknown cause:** do not wait indefinitely for a perfect stack if a defensible low-risk mitigation is available. Conversely, do not force a speculative patch merely to reduce the unresolved count. Explain why a fix is or is not justified. If evidence is insufficient, make collection more useful where practical and name the exact missing facts and next diagnostic action.
+- **Unknown cause:** complete proportionate investigation and decide what worthwhile work remains. Close eligible low- or medium-impact follow-up with a reason when the evidence supports it. Keep the original uncertainty explicit. Avoid repeating unchanged inspections or retaining a case just to wait for a recurrence.
 - **Noise versus prevention:** suppressing alerts, catching and discarding exceptions, or muting generic network/RSC failures is not a preventive fix. Only classify noise when evidence establishes expected behavior.
 
 ## Repairs and mechanical safeguards
@@ -28,7 +28,16 @@ The legacy classifier is advisory. For a proven non-critical repair outside its 
 
 This flag does not remove snapshot expiry/checksums, unique issue membership, baseline/path checks, clean staging, exact staged diff review, tests, or production verification. Report-only repairs are recorded as guarded releases. CRITICAL lanes/members still require the separate approved critical workflow; investigation can continue immediately. Use the ordinary reviewed project workflow for approved critical repairs, not a classifier bypass.
 
-For a preventive mitigation whose effect on the original incident is unproven, use the ordinary project change/release workflow and record the mitigation and verification plan in the issue investigation. Do not register it as a proven repair for automatic resolution. Diagnostic improvements also do not resolve the underlying fault. Verified repairs may use the snapshot-bound release helper; close only the issue subset the evidence supports.
+Use the snapshot-bound release helper for **Fixed** when the defect and its correction are verified. Use structured investigations for these other closure reasons:
+
+- **Mitigated** when the reviewed change sufficiently reduces the impact or provides reliable recovery.
+- **Diagnostics improved** when tested diagnostics answer a specific missing question and the original cause cannot reasonably be established.
+- **Expected behaviour** when evidence establishes that the observed safeguard or handled condition is intended.
+- **Reviewed — unable to reproduce** when proportionate checks of a historical low-impact incident found no current defect or useful further action.
+
+Record the investigation, actual impact, recurrence assessment, evidence and remaining uncertainty. Keep cases involving incorrect or lost records, financial impact, a security failure, an unusable core function or continuing failures on the stronger verification path. A browser alert's severity label does not by itself establish user impact.
+
+For a mitigation or diagnostic improvement, record the exact reviewed commit and focused test evidence as pending release. The next normal collection after production deployment reconciles eligible records against the deployed commit and reviewed files. A changed issue stays outstanding for reassessment. Staging alone cannot complete this step. Recurrence reopens the incident with its history and new evidence. A previously completed resolution reason cannot be reused for the same recurring issue.
 
 The complete argument/reference guide is [fixerrors-command-reference.md](../../docs/fixerrors-command-reference.md). Use it for exact mutation commands, not as a second decision-making process. Historical records remain readable.
 

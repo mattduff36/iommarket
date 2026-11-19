@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { investigationSchema } from "@/lib/monitoring/investigation";
-import { draftInvestigationManifest, recordInvestigations } from "@/scripts/fixerrors/investigations";
+import { createCollectorVerifier } from "@/scripts/fixerrors/collector-verification";
+import { draftInvestigationManifest, recordInvestigations, reconcileInvestigationResolutions } from "@/scripts/fixerrors/investigations";
 import { contentChecksum } from "@/scripts/fixerrors/integrity";
 import { sealSnapshot } from "@/scripts/fixerrors/snapshot";
 import { FIXERRORS_COMMAND_ID, FIXERRORS_SAFETY_CONTRACT, FIXERRORS_SNAPSHOT_VERSION, type PgClientLike } from "@/scripts/fixerrors/types";
@@ -12,6 +13,72 @@ function input(changed = false) {
   return { client: { query } as unknown as PgClientLike, snapshot, databaseTargetFingerprint: "a".repeat(64), actorAdminId: "admin", entries: [{ issueId: issue.id, investigation: record }], apply: false, now: new Date("2026-11-07T00:10:00Z"), verifyCollector: vi.fn().mockResolvedValue(true), query };
 }
 describe("structured investigations", () => {
+  const resolution = { reason: "unable-to-reproduce" as const, impact: "low" as const,
+    impactAssessment: "The isolated report had no lasting effect and current controls passed.", seriousOrContinuing: false as const };
+  const pending = { ...record, outcome: "pending-release" as const,
+    resolution: { ...resolution, reason: "diagnostics-improved" as const, candidateSha: "b".repeat(40) },
+    observedOccurrences: issue.occurrences, observedLastSeenAt: issue.lastSeenAt };
+
+  it("resolves reviewed low-impact follow-up without asserting a fix", async () => {
+    const args = input();
+    const result = await recordInvestigations({ ...args, apply: true, entries: [
+      { issueId: issue.id, investigation: { ...record, outcome: "resolved", resolution } },
+    ] });
+    expect(result.results[0]?.status).toBe("RESOLVED");
+    expect(args.query.mock.calls.flat().join(" ")).toContain("Reviewed — unable to reproduce");
+    expect(args.verifyCollector).not.toHaveBeenCalled();
+  });
+
+  it("requires verified production evidence before automatically closing a diagnostic improvement", async () => {
+    const args = input();
+    const saved = sealSnapshot({ ...snapshot, issues: [{ ...issue, investigation: pending }] });
+    args.query.mockImplementation(async (sql: string) => ({ rows: sql.includes("FOR UPDATE") ? [{ ...issue, investigation: pending }] : [], rowCount: 1 }));
+    const reconciliation = { ...args, snapshot: saved, apply: true, productionSha: "c".repeat(40), resolveActor: async () => "admin" };
+    args.verifyCollector.mockResolvedValue(false);
+    expect(await reconcileInvestigationResolutions(reconciliation)).toBe(0);
+    expect(args.query).not.toHaveBeenCalled();
+    args.verifyCollector.mockResolvedValue(true);
+    expect(await reconcileInvestigationResolutions(reconciliation)).toBe(1);
+    expect(args.verifyCollector).toHaveBeenCalledWith(reconciliation.productionSha, expect.any(Array), pending.resolution.candidateSha);
+    expect(args.query.mock.calls.flat().join(" ")).toContain("Diagnostics improved");
+  });
+
+  it("leaves a pending incident outstanding after a new occurrence", async () => {
+    const args = input();
+    const saved = sealSnapshot({ ...snapshot, issues: [{ ...issue, occurrences: 2, investigation: pending }] });
+    expect(await reconcileInvestigationResolutions({ ...args, snapshot: saved, productionSha: "c".repeat(40),
+      resolveActor: async () => "admin" })).toBe(0);
+    expect(args.query).not.toHaveBeenCalled();
+  });
+
+  it("requires the reviewed commit in production and rejects reverted collector files", async () => {
+    const productionSha = "c".repeat(40);
+    const candidateSha = pending.resolution.candidateSha;
+    const paths = pending.collector.paths;
+    const verifier = (ancestor: boolean, matches: boolean) => createCollectorVerifier({
+      productionSha, stagingSha: "d".repeat(40), cwd: process.cwd(), deployed: true,
+      run: args => ({
+        status: args[0] === "merge-base" && !ancestor ? 1 : 0,
+        stdout: args[1]?.startsWith(productionSha) && !matches ? "e".repeat(40) : "f".repeat(40),
+        stderr: "",
+      }),
+    });
+    expect(await verifier(true, true)(productionSha, paths, candidateSha)).toBe(true);
+    expect(await verifier(false, true)(productionSha, paths, candidateSha)).toBe(false);
+    expect(await verifier(true, false)(productionSha, paths, candidateSha)).toBe(false);
+  });
+
+  it("rejects serious issues and repeated use of the same closure reason", async () => {
+    const args = input();
+    const entries = [{ issueId: issue.id, investigation: { ...record, outcome: "resolved" as const, resolution } }];
+    const critical = sealSnapshot({ ...snapshot, issues: [{ ...issue, severity: "CRITICAL" }] });
+    await expect(recordInvestigations({ ...args, snapshot: critical, entries })).rejects.toThrow(/stronger verification/);
+    const raw = { ...record, completedResolutionReasons: [resolution.reason] };
+    const reopened = sealSnapshot({ ...snapshot, issues: [{ ...issue, investigation: record, investigationChecksum: contentChecksum(raw) }] });
+    args.query.mockImplementation(async (sql: string) => ({ rows: sql.includes("FOR UPDATE") ? [{ ...issue, investigation: raw }] : [], rowCount: 1 }));
+    await expect(recordInvestigations({ ...args, snapshot: reopened, entries })).rejects.toThrow(/recurred/);
+    expect(args.query).toHaveBeenLastCalledWith("ROLLBACK");
+  });
   it("drafts retained plans and explicitly incomplete updates without inventing findings", () => {
     const saved = sealSnapshot({ ...snapshot, issues: [{ ...issue, investigation: record }, { ...issue, id: "missing" }] });
     expect(draftInvestigationManifest(saved)).toEqual({ issues: [

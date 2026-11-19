@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { blobAtRef, runGit, type GitRunner } from "./git-policy";
+import { blobAtRef, isAncestor, runGit, type GitRunner } from "./git-policy";
 
 export function gitContentHash(content: Buffer): string {
   return createHash("sha1").update(`blob ${content.length}\0`).update(content).digest("hex");
@@ -18,8 +18,18 @@ export function createCollectorVerifier(input: {
     if (!blobs.has(key)) blobs.set(key, blobAtRef(sha, file, input.cwd, input.run));
     return blobs.get(key);
   };
-  return async (sha: string, paths: string[]) => {
+  const candidates = new Map<string, boolean>();
+  return async (sha: string, paths: string[], candidate?: string) => {
     if (!input.deployed || sha !== input.productionSha) return false;
+    if (candidate) {
+      if (!candidates.has(candidate)) candidates.set(candidate,
+        isAncestor(candidate, input.productionSha, input.cwd, input.run));
+      if (!candidates.get(candidate)) return false;
+      return paths.every(file => {
+        const reviewed = at(candidate, file);
+        return reviewed !== null && reviewed === at(input.productionSha, file);
+      });
+    }
     return paths.every(file => {
       const contentHash = gitContentHash(readFileSync(resolve(input.cwd, file)));
       if (localHashes.get(file)?.contentHash !== contentHash) {

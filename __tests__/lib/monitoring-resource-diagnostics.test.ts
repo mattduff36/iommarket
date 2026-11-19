@@ -63,6 +63,20 @@ describe("closed resource failure evidence", () => {
     });
   });
 
+  it("identifies the common route of a responsive image preload without guessing its request timing", () => {
+    const { collect, performance } = setup();
+    const link = {
+      tagName: "LINK", rel: "preload", as: "image",
+      imageSrcset: "/api/media/listing-photo?imageId=private&w=320 320w, /api/media/listing-photo?imageId=private&w=640 640w",
+    };
+    expect(collect(failure(link))).toEqual({
+      elementKind: "link", target: "/api/media/listing-photo", linkRel: "preload", linkAs: "image",
+    });
+    expect(performance.getEntriesByName).not.toHaveBeenCalled();
+    expect(collect(failure({ ...link, imageSrcset: `${link.imageSrcset}, https://example.com/image.jpg 960w` })))
+      .not.toHaveProperty("target");
+  });
+
   it.each(["img", "script", "source"] as const)("falls back to %s src without assuming a response status", (kind) => {
     const element = document.createElement(kind);
     element.src = "https://itrader.im/api/media/listing-photo?photoId=private";

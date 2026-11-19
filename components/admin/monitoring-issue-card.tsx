@@ -132,7 +132,7 @@ export function MonitoringIssueCard({ issue }: { issue: MonitoringIssueCardData 
 
       <div className="border-t border-border px-4 py-5 sm:px-5">
         <MonitoringOriginalError title={issue.title} message={issue.sampleMessage} />
-        <MonitoringInvestigation value={issue.investigation} lastSeenAt={issue.lastSeenAt} />
+        <MonitoringInvestigation value={issue.investigation} lastSeenAt={issue.lastSeenAt} status={issue.status} />
 
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <section aria-labelledby={`context-${issue.id}`}>
