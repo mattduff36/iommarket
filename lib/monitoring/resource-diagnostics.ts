@@ -83,6 +83,20 @@ function selectedSource(target: unknown, kind: ResourceDiagnostic["elementKind"]
   } catch { return undefined; }
 }
 
+function responsivePreloadTarget(target: unknown, origin: string): string | undefined {
+  if (read(target, "rel") !== "preload" || read(target, "as") !== "image") return undefined;
+  const srcSet = read(target, "imageSrcset");
+  if (typeof srcSet !== "string" || !srcSet || srcSet.length > 16_000) return undefined;
+  const candidates = srcSet.split(",");
+  const routes = candidates.map(candidate => {
+    const url = /^([^\s,]+)\s+[1-9]\d*w$/.exec(candidate.trim())?.[1];
+    return url && /^https?:\/\/|^\/(?!\/)/.test(url) ? diagnosticTarget(url, origin) : undefined;
+  });
+  const route = routes[0];
+  // The link exposes a choice of URLs, so only report a route shared by every candidate.
+  return route && routes.every(candidateRoute => candidateRoute === route) ? route : undefined;
+}
+
 function monotonicNow(performance: unknown): number | undefined {
   const now = read(performance, "now");
   try {
@@ -128,7 +142,8 @@ export function createResourceDiagnostics(browser: ResourceBrowser): (event: Eve
     const target = read(event, "target");
     const elementKind = resourceKind(target, browser);
     const source = selectedSource(target, elementKind, typeof origin === "string" ? origin : "");
-    const safeTarget = source && typeof origin === "string" ? diagnosticTarget(source, origin) : undefined;
+    const safeTarget = typeof origin !== "string" ? undefined : source ? diagnosticTarget(source, origin)
+      : elementKind === "link" ? responsivePreloadTarget(target, origin) : undefined;
     const facts = {
       elementKind, target: safeTarget, linkRel: read(target, "rel"), linkAs: read(target, "as"),
       mediaErrorCode: read(read(target, "error"), "code"),
