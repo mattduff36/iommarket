@@ -103,7 +103,7 @@ export function buildProviderListingPhotoAttributes(input: {
   priority?: boolean;
   unoptimized?: boolean;
   "aria-hidden"?: boolean;
-}): { preload: boolean; props: DeliveredListingPhotoProps } {
+}): DeliveredListingPhotoProps {
   const singleWidth = input.mode === "blur"
     ? LISTING_PHOTO_BLUR_WIDTH
     : input.unoptimized
@@ -113,25 +113,22 @@ export function buildProviderListingPhotoAttributes(input: {
   if (singleWidth !== null) {
     const decorative = input.mode === "blur";
     const eager = Boolean(input.priority) && !decorative;
-    return {
-      preload: eager,
-      props: deliveredProps({
-        alt: input.alt,
-        className: input.className,
-        decoding: "async",
-        loading: eager ? "eager" : "lazy",
-        fetchPriority: decorative ? "low" : eager ? "high" : undefined,
-        style: { ...ABSOLUTE_FILL_STYLE, ...input.style },
-        "aria-hidden": input["aria-hidden"] ? true : undefined,
-        src: listingPhotoDeliveryUrl(input.photo, input.frame, input.mode, singleWidth),
-      }),
-    };
+    return deliveredProps({
+      alt: input.alt,
+      className: input.className,
+      decoding: "async",
+      loading: eager ? "eager" : "lazy",
+      fetchPriority: decorative ? "low" : eager ? "high" : undefined,
+      style: { ...ABSOLUTE_FILL_STYLE, ...input.style },
+      "aria-hidden": input["aria-hidden"] ? true : undefined,
+      src: listingPhotoDeliveryUrl(input.photo, input.frame, input.mode, singleWidth),
+    });
   }
 
   const widths = deliveryWidthsForPhoto(input.mode, input.photo.width);
   const loader = ({ width }: { src: string; width: number; quality?: number }) =>
     listingPhotoDeliveryUrl(input.photo, input.frame, input.mode, width);
-  const { props, meta } = getImgProps(
+  const { props } = getImgProps(
     {
       src: "/api/media/listing-photo",
       alt: input.alt,
@@ -140,7 +137,7 @@ export function buildProviderListingPhotoAttributes(input: {
       loader,
       className: input.className,
       style: input.style,
-      priority: input.priority,
+      loading: input.priority ? "eager" : undefined,
       fetchPriority: input.priority ? "high" : undefined,
       ...(input["aria-hidden"] ? { "aria-hidden": true as const } : {}),
     },
@@ -154,19 +151,16 @@ export function buildProviderListingPhotoAttributes(input: {
     : undefined;
   const loading = props.loading === "eager" || props.loading === "lazy" ? props.loading : undefined;
 
-  return {
-    preload: meta.preload,
-    props: deliveredProps({
-      alt: props.alt,
-      srcSet: props.srcSet,
-      sizes: props.sizes,
-      className: props.className,
-      style: props.style,
-      decoding: "async",
-      loading,
-      fetchPriority,
-      "aria-hidden": props["aria-hidden"] ? true : undefined,
-      src: props.src,
-    }),
-  };
+  return deliveredProps({
+    alt: props.alt,
+    srcSet: props.srcSet,
+    sizes: props.sizes,
+    className: props.className,
+    style: props.style,
+    decoding: "async",
+    loading,
+    fetchPriority,
+    "aria-hidden": props["aria-hidden"] ? true : undefined,
+    src: props.src,
+  });
 }

@@ -103,10 +103,10 @@ describe("listing photo delivery widths", () => {
       sizes: LISTING_GALLERY_SIZES,
       alt: "Gallery",
     });
-    expect(candidateWidths(built.props.srcSet).map((candidate) => candidate.advertised)).toEqual(
+    expect(candidateWidths(built.srcSet).map((candidate) => candidate.advertised)).toEqual(
       generated.map((candidate) => candidate.advertised),
     );
-    expect(Object.keys(built.props).at(-1)).toBe("src");
+    expect(Object.keys(built).at(-1)).toBe("src");
   });
 
   it("caps fill candidates at the source width and leaves Cloudinary's ladder unchanged", () => {
@@ -143,9 +143,9 @@ describe("listing photo delivery widths", () => {
       sizes: LISTING_LIGHTBOX_SIZES,
       alt: "Lightbox",
     });
-    expect(candidateWidths(thumb.props.srcSet).some((candidate) => candidate.advertised <= 480)).toBe(true);
-    expect(candidateWidths(card.props.srcSet).every((candidate) => candidate.advertised <= 1600)).toBe(true);
-    expect(candidateWidths(lightbox.props.srcSet).at(-1)?.advertised).toBe(2400);
-    expect(candidateWidths(lightbox.props.srcSet).some((candidate) => candidate.url.includes("/_next/image"))).toBe(false);
+    expect(candidateWidths(thumb.srcSet).some((candidate) => candidate.advertised <= 480)).toBe(true);
+    expect(candidateWidths(card.srcSet).every((candidate) => candidate.advertised <= 1600)).toBe(true);
+    expect(candidateWidths(lightbox.srcSet).at(-1)?.advertised).toBe(2400);
+    expect(candidateWidths(lightbox.srcSet).some((candidate) => candidate.url.includes("/_next/image"))).toBe(false);
   });
 });
