@@ -120,6 +120,22 @@ describe("SiteHeader auth initialization", () => {
     vi.restoreAllMocks();
   });
 
+  it.each(["/admin", "/admin/users"])("provides the mobile admin trigger host only in the admin area: %s", (pathname) => {
+    authMocks.getSession.mockResolvedValue({ data: { session: null } });
+    authMocks.pathname = pathname;
+    const { container } = render(<SiteHeader />);
+    const host = container.querySelector("#admin-mobile-menu-trigger");
+    expect(host).not.toBeNull();
+    expect(host?.className).toContain("lg:hidden");
+  });
+
+  it("keeps public pages free of the admin menu trigger host", () => {
+    authMocks.getSession.mockResolvedValue({ data: { session: null } });
+    authMocks.pathname = "/";
+    const { container } = render(<SiteHeader />);
+    expect(container.querySelector("#admin-mobile-menu-trigger")).toBeNull();
+  });
+
   it("conceals content before awaiting sign-out and restores access with an error when auth fails", async () => {
     authMocks.getSession.mockResolvedValue({ data: { session: null } });
     let finish!: (value: { error: Error }) => void;

@@ -1,18 +1,14 @@
 .trigger {
-  position: fixed;
-  left: calc(1rem + env(safe-area-inset-left, 0px));
-  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  z-index: 50;
-  width: 3rem;
-  height: 3rem;
+  display: inline-flex;
+  width: clamp(8rem, 39vw, 10rem);
+  height: 2.75rem;
   padding: 0;
-  border: 1px solid var(--color-neonRed-500);
-  border-radius: 0.875rem;
-  background: var(--color-black);
-  color: var(--color-neonRed-500);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
 }
-.trigger:hover { background: var(--color-graphite-800); color: var(--color-neonRed-500); }
+.logo { width: 100%; height: auto; object-fit: contain; }
+.trigger:hover { background: transparent; opacity: 0.85; }
 .trigger:focus-visible { outline: 2px solid var(--color-neonRed-500); outline-offset: 4px; }
 .drawer[data-state="open"] { animation: admin-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .drawer[data-state="closed"] { animation: admin-exit 180ms ease-in both; }
