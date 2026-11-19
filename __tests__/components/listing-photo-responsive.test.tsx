@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ListingImageGallery } from "@/app/(public)/listings/[id]/listing-image-gallery";
 import { ListingPhoto } from "@/components/marketplace/listing-photo";
@@ -134,6 +135,19 @@ function expectProtectedCandidates(image: HTMLElement) {
 }
 
 describe("listing photo responsive delivery", () => {
+  it("renders a priority protected photo eagerly without an independent preload", () => {
+    process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
+    const html = renderToStaticMarkup(
+      <ListingPhoto photo={landscape} frame="gallery" alt="Car" sizes={LISTING_GALLERY_SIZES} priority />,
+    );
+    const document = new DOMParser().parseFromString(html, "text/html");
+    const image = document.querySelector<HTMLImageElement>('img[alt="Car"]')!;
+    expectProtectedCandidates(image);
+    expect(image.getAttribute("fetchpriority")).toBe("high");
+    expect(image.getAttribute("loading")).toBe("eager");
+    expect(document.querySelector('link[rel="preload"][as="image"]')).toBeNull();
+  });
+
   it("shows a local placeholder when a protected image fails and resets for the next photo", () => {
     process.env.NEXT_PUBLIC_MEDIA_PROVIDER = "imagekit";
     const view = (photo: ListingPhotoSource) => (

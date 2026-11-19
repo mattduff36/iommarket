@@ -2,7 +2,6 @@
 
 import { useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { preload } from "react-dom";
 import { cn } from "@/lib/cn";
 import {
   LISTING_PHOTO_FRAMES,
@@ -74,7 +73,7 @@ function ProviderListingPhoto({
   const [failed, setFailed] = useState(false);
   if (failed && hidden) return null;
 
-  const built = buildProviderListingPhotoAttributes({
+  const { alt: photoAlt, ...imageProps } = buildProviderListingPhotoAttributes({
     photo,
     frame,
     mode,
@@ -86,26 +85,19 @@ function ProviderListingPhoto({
     unoptimized,
     "aria-hidden": hidden || undefined,
   });
-  if (built.preload && !failed) {
-    preload(built.props.src, {
-      as: "image",
-      imageSrcSet: built.props.srcSet,
-      imageSizes: built.props.sizes,
-      fetchPriority: "high",
-    });
-  }
-  const { alt: photoAlt, ...imageProps } = built.props;
   // Same-origin signing URLs must not go through /_next/image, which cannot
   // forward the viewer's session. Widths come from Next's getImgProps.
-  // eslint-disable-next-line @next/next/no-img-element
+  // Picture also prevents React SSR from hoisting an independent image preload.
   return (
-    <img
-      {...imageProps}
-      alt={photoAlt}
-      src={failed ? "/images/placeholder-listing.png" : imageProps.src}
-      srcSet={failed ? undefined : imageProps.srcSet}
-      onError={failed ? undefined : () => setFailed(true)}
-    />
+    <picture>
+      <img
+        {...imageProps}
+        alt={photoAlt}
+        src={failed ? "/images/placeholder-listing.png" : imageProps.src}
+        srcSet={failed ? undefined : imageProps.srcSet}
+        onError={failed ? undefined : () => setFailed(true)}
+      />
+    </picture>
   );
 }
 
