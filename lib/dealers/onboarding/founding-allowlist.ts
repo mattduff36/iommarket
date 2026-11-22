@@ -4,6 +4,41 @@ export const FOUNDING_EMAIL_DOMAIN = "itrader.im.preview";
 
 export const FOUNDING_DEALERS = [
   {
+    key: "handh-motorcycles",
+    displayName: "H&H Motorcycles",
+    email: "handhmotorcycles@itrader.im.preview",
+    website: "https://www.handhmotorcycles.im/",
+    regionSlug: "iom-east",
+  },
+  {
+    key: "isle-of-man-motorcycles",
+    displayName: "Isle of Man Motorcycles",
+    email: "isleofmanmotorcycles@itrader.im.preview",
+    website: "https://www.vanmossel.im/motorcycles",
+    regionSlug: "iom-east",
+  },
+  {
+    key: "bvs-vehicles",
+    displayName: "BVS Vehicles",
+    email: "bvsvehicles@itrader.im.preview",
+    website: "https://bvsvehicles.com/",
+    regionSlug: "iom-east",
+  },
+  {
+    key: "van-mossel-jacksons",
+    displayName: "Van Mossel Jacksons",
+    email: "vanmosseljacksons@itrader.im.preview",
+    website: "https://www.vanmossel.im/jacksons",
+    regionSlug: "iom-east",
+  },
+  {
+    key: "van-mossel-motor-mall",
+    displayName: "Van Mossel Motor Mall",
+    email: "vanmosselmotormall@itrader.im.preview",
+    website: "https://www.vanmossel.im/motormall",
+    regionSlug: "iom-east",
+  },
+  {
     key: "athol-garage",
     displayName: "Athol Garage",
     email: "atholgarage@itrader.im.preview",

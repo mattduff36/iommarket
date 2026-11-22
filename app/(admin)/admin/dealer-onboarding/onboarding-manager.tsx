@@ -115,7 +115,7 @@ export function OnboardingManager({
               className="mt-1 block h-10 w-full rounded-md border border-border bg-canvas px-3 text-sm"
             >
               {dealers.length === 0 ? (
-                <option value="">No claimable dealers selected</option>
+                <option value="">No claimable dealer accounts available</option>
               ) : null}
               {dealers.map((dealer) => (
                 <option key={dealer.id} value={dealer.id}>
@@ -126,7 +126,7 @@ export function OnboardingManager({
           </label>
           {dealers.length === 0 ? (
             <p className="text-sm text-text-secondary">
-              Only dealers selected in Preview Packs with a claimable account appear here.
+              Prepared dealer accounts eligible for onboarding appear here.
             </p>
           ) : null}
           {selected ? (
