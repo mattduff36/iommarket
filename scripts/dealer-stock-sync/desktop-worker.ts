@@ -34,8 +34,15 @@ export function validateDesktopBootstrap(value: unknown): DesktopBootstrap {
 }
 
 /** The native launcher also isolates the environment before Node/tsx can execute. */
-export function desktopRuntimeEnvironment(parent: Readonly<Record<string, string | undefined>>, nodePath = process.execPath): NodeJS.ProcessEnv {
+export function desktopRuntimeEnvironment(parent: Readonly<Record<string, string | undefined>>, nodePath = process.execPath, platform = process.platform): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = { NODE_ENV: "production" };
+  if (platform === "linux") {
+    result.PATH = [dirname(nodePath), "/usr/bin", "/bin"].join(":");
+    // xvfb-run creates a private cookie file and selects a local display.
+    if (parent.DISPLAY && /^:\d{1,5}$/.test(parent.DISPLAY)) result.DISPLAY = parent.DISPLAY;
+    if (parent.XAUTHORITY && /^\/tmp\/xvfb-run\.[a-zA-Z0-9]+\/Xauthority$/.test(parent.XAUTHORITY)) result.XAUTHORITY = parent.XAUTHORITY;
+    return result;
+  }
   for (const key of OS_ENV_KEYS) {
     const entry = Object.entries(parent).find(([name]) => name.toUpperCase() === key)?.[1];
     if (entry && entry.length < 32_768 && !entry.includes("\0")) result[key] = entry;
@@ -112,6 +119,9 @@ export async function runDesktop(argv: readonly string[] = process.argv.slice(2)
   try {
     const mode = parseDesktopMode(argv);
     const bootstrap = validateDesktopBootstrap(await readDesktopBootstrap(process.stdin));
+    if (process.platform === "linux" && mode === "watch" && !bootstrap.jobIds?.length) {
+      throw new Error("The Linux worker requires an explicit job scope.");
+    }
     if (stopped) return 0;
     const isolated = desktopRuntimeEnvironment(process.env);
     for (const key of Object.keys(process.env)) delete process.env[key];

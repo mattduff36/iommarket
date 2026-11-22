@@ -36,6 +36,7 @@ export interface SessionRecord {
 }
 
 export interface DeviceRecord {
+  scopedVm?: boolean;
   adminId: string;
   deviceId: string;
   deviceName: string;
@@ -87,7 +88,7 @@ if not matched(KEYS[3], ':device:', data.deviceId) then return 'lost' end
 if not matched(KEYS[4], ':admin:', data.adminId) then return 'lost' end
 if not matched(KEYS[5], ':user:', data.userCodeHash) then return 'lost' end
 local session = cjson.encode({ adminId = data.adminId, deviceId = data.deviceId, deviceName = data.deviceName, environment = data.environment, expiresAt = ARGV[8] })
-local device = cjson.encode({ adminId = data.adminId, deviceId = data.deviceId, deviceName = data.deviceName, environment = data.environment, sessionTokenHash = ARGV[7], createdAt = ARGV[9], expiresAt = ARGV[8] })
+local device = cjson.encode({ scopedVm = (data.clientVersion == "1.1.15-linux.1" and true or nil), adminId = data.adminId, deviceId = data.deviceId, deviceName = data.deviceName, environment = data.environment, sessionTokenHash = ARGV[7], createdAt = ARGV[9], expiresAt = ARGV[8] })
 local created = redis.call('SET', KEYS[2], session, 'EX', ARGV[10], 'NX')
 if not created then return 'rejected' end
 redis.call('DEL', KEYS[1], KEYS[5])
@@ -444,6 +445,7 @@ export function createMemoryDesktopStore(now: () => number, environment: Desktop
           deviceId: record.deviceId,
           deviceName: record.deviceName,
           environment: record.environment,
+          ...(record.clientVersion === "1.1.15-linux.1" ? { scopedVm: true } : {}),
           sessionTokenHash: tokenHash,
           createdAt,
           expiresAt,
